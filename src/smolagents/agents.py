@@ -473,7 +473,7 @@ You have been provided with these additional arguments, that you can access usin
             Panel(
                 f"\n[bold]{self.task.strip()}\n",
                 title="[bold]New run",
-                subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, "model_id") else "")}",
+                subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
                 border_style=YELLOW_HEX,
                 subtitle_align="left",
             )
