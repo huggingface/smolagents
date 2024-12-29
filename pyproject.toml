@@ -27,6 +27,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "e2b-code-interpreter>=1.0.3",
     "litellm>=1.55.10",
+    "scrapegraph-py>=1.8.0",
 ]
 
 [project.optional-dependencies]

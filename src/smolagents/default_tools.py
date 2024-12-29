@@ -17,7 +17,7 @@
 import json
 import re
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from huggingface_hub import hf_hub_download, list_spaces
 
 from transformers.utils import is_offline_mode
@@ -206,9 +206,9 @@ class GoogleSearchTool(Tool):
             "google_domain": "google.com",
         }
         if filter_year is not None:
-            params["tbs"] = (
-                f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
-            )
+            params[
+                "tbs"
+            ] = f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
 
         response = requests.get("https://serpapi.com/search.json", params=params)
 
@@ -322,6 +322,79 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+class SGSmartScraperTool(Tool):
+    name = "webpage_scraping"
+    description = "Extracts structured information from a webpage based on a natural language prompt. Use this to get specific information from websites in a structured way."
+    inputs = {
+        "url": {
+            "type": "string",
+            "description": "The URL of the webpage to scrape",
+        },
+        "prompt": {
+            "type": "string",
+            "description": "Natural language description of what information to extract from the webpage",
+        },
+    }
+    output_type = "any"
+
+    def __init__(self):
+        super().__init__(self)
+        try:
+            from scrapegraph_py import Client
+        except ImportError:
+            raise ImportError(
+                "You must install package `scrapegraph-py` to run this tool: run `pip install scrapegraph-py`"
+            )
+        try:
+            self.client = Client()
+        except Exception as e:
+            raise Exception(f"Error initializing ScrapeGraphAI client: {str(e)}")
+
+    def forward(self, url: str, prompt: str) -> Any:
+        try:
+            response = self.client.smartscraper(
+                website_url=url,
+                user_prompt=prompt,
+            )
+            return response["result"]
+        except Exception as e:
+            return f"Error during scraping: {str(e)}"
+
+
+class SGMarkdownifyTool(Tool):
+    name = "webpage_markdownify"
+    description = "Fetches a webpage content and converts it to markdown format using proxy rotation and anti-bot solutions. Use this to get the content of a webpage."
+    inputs = {
+        "url": {
+            "type": "string",
+            "description": "The URL of the webpage to convert to markdown",
+        }
+    }
+    output_type = "string"
+
+    def __init__(self):
+        super().__init__(self)
+        try:
+            from scrapegraph_py import Client
+        except ImportError:
+            raise ImportError(
+                "You must install package `scrapegraph-py` to run this tool: run `pip install scrapegraph-py`"
+            )
+        try:
+            self.client = Client()
+        except Exception as e:
+            raise Exception(f"Error initializing ScrapeGraphAI client: {str(e)}")
+
+    def forward(self, url: str) -> str:
+        try:
+            response = self.client.markdownify(
+                website_url=url,
+            )
+            return response["result"]
+        except Exception as e:
+            return f"Error converting webpage to markdown: {str(e)}"
+
+
 __all__ = [
     "PythonInterpreterTool",
     "FinalAnswerTool",
@@ -330,4 +403,6 @@ __all__ = [
     "GoogleSearchTool",
     "VisitWebpageTool",
     "SpeechToTextTool",
+    "SGSmartScraperTool",
+    "SGMarkdownifyTool",
 ]
