@@ -410,9 +410,10 @@ class TransformersModel(Model):
 
 
 class LiteLLMModel(Model):
-    def __init__(self, model_id="anthropic/claude-3-5-sonnet-20240620"):
+    def __init__(self, base_url: Optional[str] = None, model_id: str = "anthropic/claude-3-5-sonnet-20240620"):
         super().__init__()
         self.model_id = model_id
+        self.base_url = base_url
         # IMPORTANT - Set this to TRUE to add the function to the prompt for Non OpenAI LLMs
         litellm.add_function_to_prompt = True
 
@@ -426,9 +427,9 @@ class LiteLLMModel(Model):
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
-
         response = litellm.completion(
             model=self.model_id,
+            base_url=self.base_url,
             messages=messages,
             stop=stop_sequences,
             max_tokens=max_tokens,
