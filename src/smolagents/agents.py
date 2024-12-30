@@ -830,6 +830,8 @@ class CodeAgent(MultiStepAgent):
     ):
         if system_prompt is None:
             system_prompt = CODE_SYSTEM_PROMPT
+        else:
+            system_prompt = CODE_SYSTEM_PROMPT + "\n" + system_prompt
         super().__init__(
             tools=tools,
             model=model,
