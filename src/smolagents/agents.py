@@ -727,6 +727,8 @@ class ToolCallingAgent(MultiStepAgent):
     ):
         if system_prompt is None:
             system_prompt = TOOL_CALLING_SYSTEM_PROMPT
+        else:
+            system_prompt = TOOL_CALLING_SYSTEM_PROMPT + "\n" + system_prompt
         super().__init__(
             tools=tools,
             model=model,
