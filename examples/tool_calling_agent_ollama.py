@@ -2,7 +2,7 @@ from smolagents.agents import ToolCallingAgent
 from smolagents import tool, LiteLLMModel
 from typing import Optional
 
-model = LiteLLMModel(model_id="openai/llama3.2",
+model = LiteLLMModel(model_id="ollama/llama3.2",
                      api_base="http://localhost:11434/v1", # replace with remote open-ai compatible server if necessary
                      api_key="your-api-key")               # replace with API key if necessary
 
