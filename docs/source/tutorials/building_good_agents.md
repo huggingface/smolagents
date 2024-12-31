@@ -186,6 +186,18 @@ Better ways to guide your LLM engine are:
 - If it 's about the task to solve: add all these details to the task. The task could be 100s of pages long.
 - If it's about how to use tools: the description attribute of your tools.
 
+If you just want to add a small addendum to the default system prompt of a `CodeAgent`, you can do it like this:
+
+```py
+from smolagents.prompts import CODE_SYSTEM_PROMPT
+
+agent = CodeAgent(tools=tools, 
+                  model=model, 
+                  system_prompt=CODE_SYSTEM_PROMPT + "\n" + custom_system_message)
+```
+
+Analogously this also works with the ToolCallingAgent.
+
 ### 3. Extra planning
 
 We provide a model for a supplementary planning step, that an agent can run regularly in-between normal action steps. In this step, there is no tool call, the LLM is simply asked to update a list of facts it knows and to reflect on what steps it should take next based on those facts.
