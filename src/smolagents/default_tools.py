@@ -293,7 +293,7 @@ class VisitWebpageTool(Tool):
                 from playwright.sync_api import sync_playwright
             except ImportError:
                 raise ImportError(
-                    "Navigating with requests failed, likely due to cloudflare checks. We tried using playwright but you must first install `playwright` (and a browser like chromium) to run this tool: for instance run `pip install playwright`, then run `playwright install chrome`."
+                    "Navigating with requests failed, likely due to cloudflare checks. We tried using playwright but you must first install `playwright` (and a browser for playwright to use) to run this tool: for instance run `pip install playwright`, then run `playwright install chrome`."
                 )
             # If requests fails, try with playwright
             try:
