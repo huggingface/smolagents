@@ -277,21 +277,35 @@ class VisitWebpageTool(Tool):
             raise ImportError(
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
             )
+        
+        def clean_markdown(html_content: str) -> str:
+            markdown_content = markdownify(html_content).strip()
+            return re.sub(r"\n{3,}", "\n\n", markdown_content)
+
+        # First try with requests
         try:
-            # Send a GET request to the URL
             response = requests.get(url)
-            response.raise_for_status()  # Raise an exception for bad status codes
-
-            # Convert the HTML content to Markdown
-            markdown_content = markdownify(response.text).strip()
-
-            # Remove multiple line breaks
-            markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
-
-            return markdown_content
+            response.raise_for_status()
+            return clean_markdown(response.text)
 
         except RequestException as e:
-            return f"Error fetching the webpage: {str(e)}"
+            try:
+                from playwright.sync_api import sync_playwright
+            except ImportError:
+                raise ImportError(
+                    "Navigating with requests failed, likely due to cloudflare checks. We tried using playwright but you must first install `playwright` (and a browser like chromium) to run this tool: for instance run `pip install playwright`, then run `playwright install chrome`."
+                )
+            # If requests fails, try with playwright
+            try:
+                with sync_playwright() as pw:
+                    browser = pw.chromium.launch(headless=True)
+                    page = browser.new_page()
+                    page.goto(url)
+                    html_content = page.content()
+                    return clean_markdown(html_content)
+            except Exception as e:
+                return f"Both requests and playwright failed. Error: {str(e)}"
+
         except Exception as e:
             return f"An unexpected error occurred: {str(e)}"
 
