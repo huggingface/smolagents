@@ -87,7 +87,7 @@ def get_weather_api(location: str, date_time: str) -> str:
 
 Why is it bad?
 - there's no precision of the format that should be used for `date_time`
-- there's no detail on how location should
+- there's no detail on how location should be formatted
 - there's no logging mechanism tying to explicit failure cases like location not being in a proper format, or date_time not being properly formatted.
 - the output format is hard to understand
 
