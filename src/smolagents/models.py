@@ -446,6 +446,32 @@ class LiteLLMModel(Model):
         self.last_output_token_count = response.usage.completion_tokens
         return response.choices[0].message.content
 
+    def generate(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        max_tokens: int = 1500,
+    ) -> str:
+        """Generates a text completion for the given message list"""
+        messages = get_clean_message_list(
+            messages, role_conversions=tool_role_conversions
+        )
+
+        output = litellm.completion(
+            model=self.model_id,
+            messages=messages,
+            stop=stop_sequences,
+            max_tokens=max_tokens,
+            api_base=self.api_base,
+            api_key=self.api_key,
+        )
+
+        response = output.choices[0].message.content
+        self.last_input_token_count = output.usage.prompt_tokens
+        self.last_output_token_count = output.usage.completion_tokens
+        return response
+
     def get_tool_call(
         self,
         messages: List[Dict[str, str]],
