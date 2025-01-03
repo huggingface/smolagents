@@ -334,6 +334,6 @@ You can also use this `reset=False` argument to keep the conversation going in a
 ## Next steps
 
 For more in-depth usage, you will then want to check out our tutorials:
-- [the explanation of how our code agents work](./tutorials/secure_code_execution)
-- [this guide on how to build good agents](./tutorials/building_good_agents).
-- [the in-depth guide for tool usage](./tutorials/building_good_agents).
+- [the explanation of how our code agents work](./tutorials/secure_code_execution.md)
+- [this guide on how to build good agents](./tutorials/building_good_agents.md).
+- [the in-depth guide for tool usage](./tutorials/building_good_agents.md).
