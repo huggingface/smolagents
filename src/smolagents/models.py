@@ -184,7 +184,6 @@ class Model:
 
 class HfApiModel(Model):
     """A class to interact with Hugging Face's Inference API for language model interaction.
-
     This engine allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
 
     Parameters:
@@ -194,12 +193,14 @@ class HfApiModel(Model):
             Token used by the Hugging Face API for authentication. This token need to be authorized 'Make calls to the serverless Inference API'.
             If the model is gated (like Llama-3 models), the token also needs 'Read access to contents of all public gated repos you can access'.
             If not provided, the class will try to use environment variable 'HF_TOKEN', else use the token stored in the Hugging Face CLI configuration.
+        base_url (`str`, *optional*):
+            Base URL for a custom inference endpoint. If provided, model_id will be ignored.
         timeout (`int`, *optional*, defaults to 120):
             Timeout for the API request, in seconds.
 
     Raises:
         ValueError:
-            If the model name is not provided.
+            If the model name is not provided or if timeout is not a positive integer.
 
     Example:
     ```python
@@ -213,18 +214,31 @@ class HfApiModel(Model):
     "Quantum mechanics is the branch of physics that studies..."
     ```
     """
-
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
+        model_id: Optional[str] = None,
         token: Optional[str] = None,
-        timeout: Optional[int] = 120,
+        timeout: int = 120,
+        base_url: Optional[str] = None
     ):
         super().__init__()
-        self.model_id = model_id
-        if token is None:
-            token = os.getenv("HF_TOKEN")
-        self.client = InferenceClient(self.model_id, token=token, timeout=timeout)
+        
+        # Handle token
+        self.token = token or os.getenv("HF_TOKEN")
+        
+        # Initialize client with clean configuration
+        client_config = {
+            'token': self.token,
+            'timeout': timeout
+        }
+        
+        # Add either model_id or base_url to the config
+        if base_url:
+            client_config['base_url'] = base_url
+        else:
+            client_config['model_id'] = model_id
+            
+        self.client = InferenceClient(**client_config)
 
     def generate(
         self,
