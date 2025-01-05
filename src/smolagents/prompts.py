@@ -1,9 +1,10 @@
 from pathlib import Path
+import os
 
-PROMPTS_DIR = Path(__file__).parent / "PROMPTS"
+PROMPTS_DIR = os.getenv('CUSTOM_PROMPTS_DIR', Path(__file__).parent / "PROMPTS")
 
-def _load_prompt(name: str, ACTIVE_PROMPTS_DIR = PROMPTS_DIR) -> str:
-    with open(ACTIVE_PROMPTS_DIR / f"{name}.config", "r", encoding="utf-8") as f:
+def _load_prompt(name: str) -> str:
+    with open(PROMPTS_DIR / f"{name}.config", "r", encoding="utf-8") as f:
         return f.read()
 
 # Load all prompts

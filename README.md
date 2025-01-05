@@ -64,6 +64,14 @@ Especially, since code execution can be a security concern (arbitrary code execu
   - a secure python interpreter to run code more safely in your environment
   - a sandboxed environment using [E2B](https://e2b.dev/).
 
+## How to add custom prompts in the Code agents?
+
+The custom prompts for the Code agents are located in the `PROMPTS` folder. This folder contains various prompt templates that can be used to customize the behavior of the agents. Each file in this folder is designed to provide different styles and formats of prompts to suit various use cases.
+
+For a complete list of available prompt files, please refer to the `PROMPTS` directory in the repository.
+You can also switch to a custom prompts folder by setting the `CUSTOM_PROMPTS_DIR` environment variable to the desired directory path, for example, if your prompts are in CustomPrompts folder:
+export CUSTOM_PROMPTS_DIR=CustomPrompts
+
 ## How smol is it really?
 
 We strived to keep abstractions to a strict minimum: the main code in `agents.py` is only ~1,000 lines of code.
