@@ -829,7 +829,7 @@ def evaluate_ast(
             The code to evaluate, as an abstract syntax tree.
         state (`Dict[str, Any]`):
             A dictionary mapping variable names to values. The `state` is updated if need be when the evaluation
-            encounters assignements.
+            encounters assignments.
         static_tools (`Dict[str, Callable]`):
             Functions that may be called during the evaluation. Trying to change one of these static_tools will raise an error.
         custom_tools (`Dict[str, Callable]`):
@@ -845,7 +845,7 @@ def evaluate_ast(
         )
     OPERATIONS_COUNT += 1
     if isinstance(expression, ast.Assign):
-        # Assignement -> we evaluate the assignment which should update the state
+        # Assignment -> we evaluate the assignment which should update the state
         # We return the variable assigned as it may be used to determine the final result.
         return evaluate_assign(expression, state, static_tools, custom_tools)
     elif isinstance(expression, ast.AugAssign):

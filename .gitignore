@@ -139,7 +139,7 @@ dmypy.json
 cython_debug/
 
 # PyCharm
-#.idea/
+.idea/
 
 # Interpreter
 interpreter_workspace/
