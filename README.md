@@ -68,9 +68,15 @@ Especially, since code execution can be a security concern (arbitrary code execu
 
 The custom prompts for the Code agents are located in the `PROMPTS` folder. This folder contains various prompt templates that can be used to customize the behavior of the agents. Each file in this folder is designed to provide different styles and formats of prompts to suit various use cases.
 
-For a complete list of available prompt files, please refer to the `PROMPTS` directory in the repository.
-You can also switch to a custom prompts folder by setting the `CUSTOM_PROMPTS_DIR` environment variable to the desired directory path, for example, if your prompts are in CustomPrompts folder:
-export CUSTOM_PROMPTS_DIR=CustomPrompts
+Custom prompts allow you to tailor the agent's responses and actions based on specific requirements or contexts. By modifying these prompts, you can influence how the agent interprets tasks and generates outputs.
+
+For a complete list of available prompt files, please refer to the `PROMPTS` directory in the repository. You can also switch to a custom prompts folder by setting the `CUSTOM_PROMPTS_DIR` environment variable to the desired directory path. 
+
+For example, if you want to customize all your prompts (SYSTEM, PLAN, USER, MANAGED AGENT, and TOOLS), you can copy them into a new folder called `CustomPrompts` and switch to that folder:
+```
+cp -r ./src/PROMPTS ./src/CustomPrompts
+export CUSTOM_PROMPTS_DIR=./src/CustomPrompts
+```
 
 ## How smol is it really?
 
