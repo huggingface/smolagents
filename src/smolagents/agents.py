@@ -163,7 +163,7 @@ class MultiStepAgent:
         model: Callable[[List[Dict[str, str]]], str],
         system_prompt: Optional[str] = None,
         tool_description_template: Optional[str] = None,
-        max_steps: int = 6,
+        max_steps: int = 7,
         tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
         verbose: bool = False,
