@@ -26,12 +26,12 @@ from transformers.testing_utils import (
     require_vision,
 )
 from transformers.utils import (
-    is_soundfile_availble,
+    is_soundfile_available,
 )
 
 from smolagents.types import AgentAudio, AgentImage, AgentText
 
-if is_soundfile_availble():
+if is_soundfile_available():
     import soundfile as sf
 
 
