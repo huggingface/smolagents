@@ -41,7 +41,7 @@ final_answer('This is the final answer.')
         agent = CodeAgent(
             tools=[],
             model=FakeLLMModel(),
-            max_iterations=1,
+            max_steps=1,
         )
 
         agent.run("Fake task")
@@ -61,7 +61,7 @@ final_answer('This is the final answer.')
         agent = ToolCallingAgent(
             tools=[],
             model=FakeLLMModel(),
-            max_iterations=1,
+            max_steps=1,
         )
 
         agent.run("Fake task")
@@ -69,7 +69,7 @@ final_answer('This is the final answer.')
         self.assertEqual(agent.monitor.total_input_token_count, 10)
         self.assertEqual(agent.monitor.total_output_token_count, 20)
 
-    def test_code_agent_metrics_max_iterations(self):
+    def test_code_agent_metrics_max_steps(self):
         class FakeLLMModel:
             def __init__(self):
                 self.last_input_token_count = 10
@@ -81,7 +81,7 @@ final_answer('This is the final answer.')
         agent = CodeAgent(
             tools=[],
             model=FakeLLMModel(),
-            max_iterations=1,
+            max_steps=1,
         )
 
         agent.run("Fake task")
@@ -103,7 +103,7 @@ final_answer('This is the final answer.')
         agent = CodeAgent(
             tools=[],
             model=FakeLLMModel(),
-            max_iterations=1,
+            max_steps=1,
         )
         agent.run("Fake task")
 
@@ -123,7 +123,7 @@ final_answer('This is the final answer.')
         agent = CodeAgent(
             tools=[],
             model=dummy_model,
-            max_iterations=1,
+            max_steps=1,
         )
 
         # Use stream_to_gradio to capture the output
@@ -145,7 +145,7 @@ final_answer('This is the final answer.')
         agent = ToolCallingAgent(
             tools=[],
             model=FakeLLM(),
-            max_iterations=1,
+            max_steps=1,
         )
 
         # Use stream_to_gradio to capture the output
@@ -172,7 +172,7 @@ final_answer('This is the final answer.')
         agent = CodeAgent(
             tools=[],
             model=dummy_model,
-            max_iterations=1,
+            max_steps=1,
         )
 
         # Use stream_to_gradio to capture the output

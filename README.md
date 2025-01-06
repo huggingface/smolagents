@@ -38,6 +38,9 @@ limitations under the License.
 
 🌐 **Support for any LLM**: it supports models hosted on the Hub loaded in their `transformers` version or through our inference API, but also supports models from OpenAI, Anthropic and many others via our [LiteLLM](https://www.litellm.ai/) integration.
 
+> [!NOTE]  
+> Check the our [launch blog post](https://huggingface.co/blog/smolagents) to learn more about `smolagents`!
+
 ## Quick demo
 
 First install the package.

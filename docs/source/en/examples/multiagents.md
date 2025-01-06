@@ -120,7 +120,7 @@ Now that we have all the tools `search` and `visit_webpage`, we can use them to 
 
 Which configuration to choose for this agent?
 - Web browsing is a single-timeline task that does not require parallel tool calls, so JSON tool calling works well for that. We thus choose a `JsonAgent`.
-- Also, since sometimes web search requires exploring many pages before finding the correct answer, we prefer to increase the number of `max_iterations` to 10.
+- Also, since sometimes web search requires exploring many pages before finding the correct answer, we prefer to increase the number of `max_steps` to 10.
 
 ```py
 from smolagents import (
@@ -137,7 +137,7 @@ model = HfApiModel(model_id)
 web_agent = ToolCallingAgent(
     tools=[DuckDuckGoSearchTool(), visit_webpage],
     model=model,
-    max_iterations=10,
+    max_steps=10,
 )
 ```
 
@@ -169,7 +169,7 @@ manager_agent = CodeAgent(
 That's all! Now let's run our system! We select a question that requires both some calculation and research:
 
 ```py
-answer = manager_agent.run("If LLM trainings continue to scale up at the current rythm until 2030, what would be the electric power in GW required to power the biggest training runs by 2030? What does that correspond to, compared to some contries? Please provide a source for any number used.")
+answer = manager_agent.run("If LLM trainings continue to scale up at the current rhythm until 2030, what would be the electric power in GW required to power the biggest training runs by 2030? What does that correspond to, compared to some contries? Please provide a source for any number used.")
 ```
 
 We get this report as the answer:

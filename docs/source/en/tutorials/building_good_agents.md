@@ -87,7 +87,7 @@ def get_weather_api(location: str, date_time: str) -> str:
 
 Why is it bad?
 - there's no precision of the format that should be used for `date_time`
-- there's no detail on how location should
+- there's no detail on how location should be specified.
 - there's no logging mechanism tying to explicit failure cases like location not being in a proper format, or date_time not being properly formatted.
 - the output format is hard to understand
 
@@ -168,7 +168,7 @@ Final answer:
 /var/folders/6m/9b1tts6d5w960j80wbw9tx3m0000gn/T/tmpx09qfsdd/652f0007-3ee9-44e2-94ac-90dae6bb89a4.png
 ```
 The user sees, instead of an image being returned, a path being returned to them.
-It could look like a bug from the system, but actually the agentic system didn't cause the error: it's just that the LLM engine did the mistake of not saving the image output into a variable.
+It could look like a bug from the system, but actually the agentic system didn't cause the error: it's just that the LLM brain did the mistake of not saving the image output into a variable.
 Thus it cannot access the image again except by leveraging the path that was logged while saving the image, so it returns the path instead of an image.
 
 The first step to debugging your agent is thus "Use a more powerful LLM". Alternatives like `Qwen2/5-72B-Instruct` wouldn't have made that mistake.
@@ -179,7 +179,7 @@ Then you can also use less powerful models but guide them better.
 
 Put yourself in the shoes of your model: if you were the model solving the task, would you struggle with the information available to you (from the system prompt + task formulation + tool description) ?
 
-Would you need some added clarifications? 
+Would you need some added clarifications?
 
 To provide extra information, we do not recommend to change the system prompt right away: the default system prompt has many adjustments that you do not want to mess up except if you understand the prompt very well.
 Better ways to guide your LLM engine are:
@@ -190,6 +190,22 @@ If after trying the above, you still want to change the system prompt, your new 
 - `"{{tool_descriptions}}"` to insert tool descriptions.
 - `"{{managed_agents_description}}"` to insert the description for managed agents if there are any.
 - For `CodeAgent` only: `"{{authorized_imports}}"` to insert the list of authorized imports.
+
+Then you can change the system prompt as follows:
+
+```py
+from smolagents.prompts import CODE_SYSTEM_PROMPT
+
+modified_system_prompt = CODE_SYSTEM_PROMPT + "\nHere you go!" # Change the system prompt here
+
+agent = CodeAgent(
+    tools=[], 
+    model=HfApiModel(), 
+    system_prompt=modified_system_prompt
+)
+```
+
+This also works with the ToolCallingAgent.
 
 
 ### 3. Extra planning
@@ -203,7 +219,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import tool from Hub
-image_generation_tool = load_tool("m-ric/text-to-image", cache=False)
+image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
 search_tool = DuckDuckGoSearchTool()
 

@@ -125,6 +125,7 @@ print(model(messages))
 ### LiteLLMModel
 
 The `LiteLLMModel` leverages [LiteLLM](https://www.litellm.ai/) to support 100+ LLMs from various providers.
+You can pass kwargs upon model initialization that will then be used whenever using the model, for instance below we pass `temperature`.
 
 ```python
 from smolagents import LiteLLMModel
@@ -135,8 +136,8 @@ messages = [
   {"role": "user", "content": "No need to help, take it easy."},
 ]
 
-model = LiteLLMModel("anthropic/claude-3-5-sonnet-latest")
-print(model(messages))
+model = LiteLLMModel("anthropic/claude-3-5-sonnet-latest", temperature=0.2)
+print(model(messages, max_tokens=10))
 ```
 
 [[autodoc]] LiteLLMModel

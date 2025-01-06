@@ -31,7 +31,7 @@ def is_pygments_available():
     return _pygments_available
 
 
-console = Console()
+console = Console(width=200)
 
 BASE_BUILTIN_MODULES = [
     "collections",
@@ -69,7 +69,7 @@ class AgentExecutionError(AgentError):
     pass
 
 
-class AgentMaxIterationsError(AgentError):
+class AgentMaxStepsError(AgentError):
     """Exception raised for errors in execution in the agent"""
 
     pass

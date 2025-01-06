@@ -32,7 +32,7 @@ from .utils import (
     AgentParsingError,
     AgentExecutionError,
     AgentGenerationError,
-    AgentMaxIterationsError,
+    AgentMaxStepsError,
 )
 from .types import AgentAudio, AgentImage, handle_agent_output_types
 from .default_tools import FinalAnswerTool
@@ -78,7 +78,7 @@ class ActionStep(AgentStep):
     tool_call: ToolCall | None = None
     start_time: float | None = None
     end_time: float | None = None
-    iteration: int | None = None
+    step: int | None = None
     error: AgentError | None = None
     duration: float | None = None
     llm_output: str | None = None
@@ -120,7 +120,7 @@ def format_prompt_with_tools(
 def show_agents_descriptions(managed_agents: Dict):
     managed_agents_descriptions = """
 You can also give requests to team members.
-Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'request', a long string explaning your request.
+Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'request', a long string explaining your request.
 Given that this team member is a real human, you should be very verbose in your request.
 Here is a list of the team members that you can call:"""
     for agent in managed_agents.values():
@@ -163,7 +163,7 @@ class MultiStepAgent:
         model: Callable[[List[Dict[str, str]]], str],
         system_prompt: Optional[str] = None,
         tool_description_template: Optional[str] = None,
-        max_iterations: int = 6,
+        max_steps: int = 6,
         tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
         verbose: bool = False,
@@ -184,7 +184,7 @@ class MultiStepAgent:
             if tool_description_template
             else DEFAULT_TOOL_DESCRIPTION_TEMPLATE
         )
-        self.max_iterations = max_iterations
+        self.max_steps = max_steps
         self.tool_parser = tool_parser
         self.grammar = grammar
         self.planning_interval = planning_interval
@@ -500,20 +500,18 @@ You have been provided with these additional arguments, that you can access usin
         Runs the agent in streaming mode, yielding steps as they are executed: should be launched only in the `run` method.
         """
         final_answer = None
-        iteration = 0
-        while final_answer is None and iteration < self.max_iterations:
+        step = 0
+        while final_answer is None and step < self.max_steps:
             step_start_time = time.time()
-            step_log = ActionStep(iteration=iteration, start_time=step_start_time)
+            step_log = ActionStep(step=step, start_time=step_start_time)
             try:
                 if (
                     self.planning_interval is not None
-                    and iteration % self.planning_interval == 0
+                    and step % self.planning_interval == 0
                 ):
-                    self.planning_step(
-                        task, is_first_step=(iteration == 0), iteration=iteration
-                    )
+                    self.planning_step(task, is_first_step=(step == 0), step=step)
                 console.print(
-                    Rule(f"[bold]Step {iteration}", characters="━", style=YELLOW_HEX)
+                    Rule(f"[bold]Step {step}", characters="━", style=YELLOW_HEX)
                 )
 
                 # Run one step!
@@ -526,12 +524,12 @@ You have been provided with these additional arguments, that you can access usin
                 self.logs.append(step_log)
                 for callback in self.step_callbacks:
                     callback(step_log)
-                iteration += 1
+                step += 1
                 yield step_log
 
-        if final_answer is None and iteration == self.max_iterations:
-            error_message = "Reached max iterations."
-            final_step_log = ActionStep(error=AgentMaxIterationsError(error_message))
+        if final_answer is None and step == self.max_steps:
+            error_message = "Reached max steps."
+            final_step_log = ActionStep(error=AgentMaxStepsError(error_message))
             self.logs.append(final_step_log)
             final_answer = self.provide_final_answer(task)
             console.print(Text(f"Final answer: {final_answer}"))
@@ -549,20 +547,18 @@ You have been provided with these additional arguments, that you can access usin
         Runs the agent in direct mode, returning outputs only at the end: should be launched only in the `run` method.
         """
         final_answer = None
-        iteration = 0
-        while final_answer is None and iteration < self.max_iterations:
+        step = 0
+        while final_answer is None and step < self.max_steps:
             step_start_time = time.time()
-            step_log = ActionStep(iteration=iteration, start_time=step_start_time)
+            step_log = ActionStep(step=step, start_time=step_start_time)
             try:
                 if (
                     self.planning_interval is not None
-                    and iteration % self.planning_interval == 0
+                    and step % self.planning_interval == 0
                 ):
-                    self.planning_step(
-                        task, is_first_step=(iteration == 0), iteration=iteration
-                    )
+                    self.planning_step(task, is_first_step=(step == 0), step=step)
                 console.print(
-                    Rule(f"[bold]Step {iteration}", characters="━", style=YELLOW_HEX)
+                    Rule(f"[bold]Step {step}", characters="━", style=YELLOW_HEX)
                 )
 
                 # Run one step!
@@ -577,11 +573,11 @@ You have been provided with these additional arguments, that you can access usin
                 self.logs.append(step_log)
                 for callback in self.step_callbacks:
                     callback(step_log)
-                iteration += 1
+                step += 1
 
-        if final_answer is None and iteration == self.max_iterations:
-            error_message = "Reached max iterations."
-            final_step_log = ActionStep(error=AgentMaxIterationsError(error_message))
+        if final_answer is None and step == self.max_steps:
+            error_message = "Reached max steps."
+            final_step_log = ActionStep(error=AgentMaxStepsError(error_message))
             self.logs.append(final_step_log)
             final_answer = self.provide_final_answer(task)
             console.print(Text(f"Final answer: {final_answer}"))
@@ -592,14 +588,14 @@ You have been provided with these additional arguments, that you can access usin
 
         return handle_agent_output_types(final_answer)
 
-    def planning_step(self, task, is_first_step: bool, iteration: int):
+    def planning_step(self, task, is_first_step: bool, step: int):
         """
         Used periodically by the agent to plan the next steps to reach the objective.
 
         Args:
             task (`str`): The task to perform
             is_first_step (`bool`): If this step is not the first one, the plan should be an update over a previous plan.
-            iteration (`int`): The number of the current step, used as an indication for the LLM.
+            step (`int`): The number of the current step, used as an indication for the LLM.
         """
         if is_first_step:
             message_prompt_facts = {
@@ -687,7 +683,7 @@ Now begin!""",
                         show_agents_descriptions(self.managed_agents)
                     ),
                     facts_update=facts_update,
-                    remaining_steps=(self.max_iterations - iteration),
+                    remaining_steps=(self.max_steps - step),
                 ),
             }
             plan_update = self.model(
@@ -958,6 +954,12 @@ class CodeAgent(MultiStepAgent):
                 )
             else:
                 error_msg = f"Code execution failed: {str(e)}"
+            if "Import of " in str(e) and " is not allowed" in str(e):
+                console.print(
+                    "[bold red]Code execution failed due to an unauthorized import. Consider passing said import under additional_authorized_imports when initializing your CodeAgent."
+                )
+            else:
+                console.print("PLACEHOLDER" + str(e))
             raise AgentExecutionError(error_msg)
 
         truncated_output = truncate_content(str(output))

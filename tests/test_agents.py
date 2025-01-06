@@ -22,7 +22,7 @@ from pathlib import Path
 
 from smolagents.types import AgentText, AgentImage
 from smolagents.agents import (
-    AgentMaxIterationsError,
+    AgentMaxStepsError,
     ManagedAgent,
     CodeAgent,
     ToolCallingAgent,
@@ -125,6 +125,17 @@ print("Ok, calculation done!")
 Thought: I can now answer the initial question
 Code:
 ```py
+final_answer("got an error")
+```<end_code>
+"""
+
+
+def fake_code_model_import(messages, stop_sequences=None) -> str:
+    return """
+Thought: I can answer the question
+Code:
+```py
+import numpy as np
 final_answer("got an error")
 ```<end_code>
 """
@@ -268,15 +279,15 @@ class AgentTests(unittest.TestCase):
     def test_setup_agent_with_empty_toolbox(self):
         ToolCallingAgent(model=FakeToolCallModel(), tools=[])
 
-    def test_fails_max_iterations(self):
+    def test_fails_max_steps(self):
         agent = CodeAgent(
             tools=[PythonInterpreterTool()],
             model=fake_code_model_no_return,  # use this callable because it never ends
-            max_iterations=5,
+            max_steps=5,
         )
         agent.run("What is 2 multiplied by 3.6452?")
         assert len(agent.logs) == 8
-        assert type(agent.logs[-1].error) is AgentMaxIterationsError
+        assert type(agent.logs[-1].error) is AgentMaxStepsError
 
     def test_init_agent_with_different_toolsets(self):
         toolset_1 = []
@@ -314,7 +325,7 @@ class AgentTests(unittest.TestCase):
         agent = CodeAgent(
             tools=[],
             model=fake_code_functiondef,
-            max_iterations=2,
+            max_steps=2,
             additional_authorized_imports=["numpy"],
         )
         res = agent.run("ok")
@@ -340,3 +351,13 @@ class AgentTests(unittest.TestCase):
         assert (
             "You can also give requests to team members." in manager_agent.system_prompt
         )
+
+    def test_code_agent_missing_import_triggers_advice_in_error_log(self):
+        agent = CodeAgent(tools=[], model=fake_code_model_import)
+
+        from smolagents.agents import console
+
+        with console.capture() as capture:
+            agent.run("Count to 3")
+        str_output = capture.get()
+        assert "import under additional_authorized_imports" in str_output

@@ -29,6 +29,7 @@ import litellm
 import logging
 import os
 import random
+import torch
 
 from huggingface_hub import InferenceClient
 
@@ -279,9 +280,16 @@ class HfApiModel(Model):
 
 
 class TransformersModel(Model):
-    """This engine initializes a model and tokenizer from the given `model_id`."""
+    """This engine initializes a model and tokenizer from the given `model_id`.
 
-    def __init__(self, model_id: Optional[str] = None):
+    Parameters:
+        model_id (`str`, *optional*, defaults to `"HuggingFaceTB/SmolLM2-1.7B-Instruct"`):
+            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        device (`str`, optional, defaults to `"cuda"` if available, else `"cpu"`.):
+            The device to load the model on (`"cpu"` or `"cuda"`).
+    """
+
+    def __init__(self, model_id: Optional[str] = None, device: Optional[str] = None):
         super().__init__()
         default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         if model_id is None:
@@ -290,15 +298,21 @@ class TransformersModel(Model):
                 f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'"
             )
         self.model_id = model_id
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = device
+        logger.info(f"Using device: {self.device}")
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id)
+            self.model = AutoModelForCausalLM.from_pretrained(model_id).to(self.device)
         except Exception as e:
             logger.warning(
                 f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {model_id=}."
             )
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(default_model_id)
+            self.model = AutoModelForCausalLM.from_pretrained(default_model_id).to(
+                self.device
+            )
 
     def make_stopping_criteria(self, stop_sequences: List[str]) -> StoppingCriteriaList:
         class StopOnStrings(StoppingCriteria):
@@ -412,6 +426,7 @@ class LiteLLMModel(Model):
         model_id="anthropic/claude-3-5-sonnet-20240620",
         api_base=None,
         api_key=None,
+        **kwargs,
     ):
         super().__init__()
         self.model_id = model_id
@@ -419,6 +434,7 @@ class LiteLLMModel(Model):
         litellm.add_function_to_prompt = True
         self.api_base = api_base
         self.api_key = api_key
+        self.kwargs = kwargs
 
     def __call__(
         self,
@@ -438,6 +454,7 @@ class LiteLLMModel(Model):
             max_tokens=max_tokens,
             api_base=self.api_base,
             api_key=self.api_key,
+            **self.kwargs,
         )
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
@@ -462,6 +479,7 @@ class LiteLLMModel(Model):
             max_tokens=max_tokens,
             api_base=self.api_base,
             api_key=self.api_key,
+            **self.kwargs,
         )
         tool_calls = response.choices[0].message.tool_calls[0]
         self.last_input_token_count = response.usage.prompt_tokens

@@ -29,7 +29,7 @@ from .utils import truncate_content, BASE_BUILTIN_MODULES
 
 class InterpreterError(ValueError):
     """
-    An error raised when the interpretor cannot evaluate a Python expression, due to syntax error or unsupported
+    An error raised when the interpreter cannot evaluate a Python expression, due to syntax error or unsupported
     operations.
     """
 

@@ -213,7 +213,7 @@ You can leverage tool collections by using the ToolCollection object, with the s
 Then pass them as a list to initialize you agent, and start using them!
 
 ```py
-from transformers import ToolCollection, CodeAgent
+from smolagents import ToolCollection, CodeAgent
 
 image_tool_collection = ToolCollection(
     collection_slug="huggingface-tools/diffusion-tools-6630bb19a942c2306a2cdb6f",
