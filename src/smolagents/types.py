@@ -22,10 +22,15 @@ from io import BytesIO
 import numpy as np
 import requests
 from transformers.utils import (
-    is_soundfile_available,
     is_torch_available,
     is_vision_available,
 )
+
+# for compatibility with mispelling old transformers versions (fixed in https://github.com/huggingface/transformers/pull/35030)
+try:
+    from transformers.utils import is_soundfile_available
+except ImportError:
+    from transformers.utils import is_soundfile_availble as is_soundfile_available
 
 logger = logging.getLogger(__name__)
 
