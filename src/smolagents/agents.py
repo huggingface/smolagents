@@ -388,16 +388,22 @@ class MultiStepAgent:
 
         try:
             if isinstance(arguments, str):
-                observation = available_tools[tool_name].__call__(
-                    arguments, sanitize_inputs_outputs=True
-                )
+                if tool_name in self.managed_agents:
+                    observation = available_tools[tool_name].__call__(arguments)
+                else:
+                    observation = available_tools[tool_name].__call__(
+                        arguments, sanitize_inputs_outputs=True
+                    )
             elif isinstance(arguments, dict):
                 for key, value in arguments.items():
                     if isinstance(value, str) and value in self.state:
                         arguments[key] = self.state[value]
-                observation = available_tools[tool_name].__call__(
-                    **arguments, sanitize_inputs_outputs=True
-                )
+                if tool_name in self.managed_agents:
+                    observation = available_tools[tool_name].__call__(**arguments)
+                else:
+                    observation = available_tools[tool_name].__call__(
+                        **arguments, sanitize_inputs_outputs=True
+                    )
             else:
                 error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
                 raise AgentExecutionError(error_msg)
