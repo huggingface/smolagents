@@ -17,7 +17,7 @@
 import json
 import re
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from huggingface_hub import hf_hub_download, list_spaces
 from transformers.models.whisper import (
@@ -151,7 +151,7 @@ class DuckDuckGoSearchTool(Tool):
     inputs = {
         "query": {"type": "string", "description": "The search query to perform."}
     }
-    output_type = "any"
+    output_type = "string"
 
     def __init__(self, *args, max_results=10, **kwargs):
         super().__init__(*args, **kwargs)
@@ -164,13 +164,12 @@ class DuckDuckGoSearchTool(Tool):
             )
         self.ddgs = DDGS()
 
-    def forward(self, query: str) -> str:
+    def forward(self, query: str) -> List[Dict[str, str]]:
         results = self.ddgs.text(query, max_results=self.max_results)
-        postprocessed_results = [
-            f"[{result['title']}]({result['href']})\n{result['body']}"
-            for result in results
-        ]
-        return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+        postprocessed_results = []
+        for result in results:
+            postprocessed_results.append({"title": result["title"], "href": result["href"], "body": result["body"]})
+        return postprocessed_results
 
 
 class GoogleSearchTool(Tool):
