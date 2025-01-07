@@ -169,7 +169,7 @@ manager_agent = CodeAgent(
 That's all! Now let's run our system! We select a question that requires both some calculation and research:
 
 ```py
-answer = manager_agent.run("If LLM trainings continue to scale up at the current rhythm until 2030, what would be the electric power in GW required to power the biggest training runs by 2030? What does that correspond to, compared to some contries? Please provide a source for any number used.")
+answer = manager_agent.run("If LLM training continues to scale up at the current rhythm until 2030, what would be the electric power in GW required to power the biggest training runs by 2030? What would that correspond to, compared to some countries? Please provide a source for any numbers used.")
 ```
 
 We get this report as the answer:
