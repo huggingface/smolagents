@@ -12,25 +12,31 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "torch",
-    "torchaudio",
-    "torchvision",
-    "transformers>=4.0.0",
-    "requests>=2.32.3",
-    "rich>=13.9.4",
-    "pandas>=2.2.3",
-    "jinja2>=3.1.4",
-    "pillow>=11.0.0",
-    "markdownify>=0.14.1",
-    "gradio>=5.8.0",
-    "duckduckgo-search>=6.3.7",
-    "python-dotenv>=1.0.1",
-    "e2b-code-interpreter>=1.0.3",
-    "litellm>=1.55.10",
+  "torch",
+  "torchaudio",
+  "torchvision",
+  "transformers>=4.0.0",
+  "requests>=2.32.3",
+  "rich>=13.9.4",
+  "pandas>=2.2.3",
+  "jinja2>=3.1.4",
+  "pillow>=11.0.0",
+  "markdownify>=0.14.1",
+  "gradio>=5.8.0",
+  "duckduckgo-search>=6.3.7",
+  "python-dotenv>=1.0.1",
+  "e2b-code-interpreter>=1.0.3",
+  "litellm>=1.55.10",
 ]
+
+[tool.ruff]
+ignore = ["F403"]
 
 [project.optional-dependencies]
 test = [
-    "pytest>=8.1.0",
-    "sqlalchemy"
+  "pytest>=8.1.0",
+  "sqlalchemy",
+  "ruff>=0.5.0",
+  "accelerate",
+  "soundfile",
 ]

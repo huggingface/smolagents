@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
-from smolagents import models, tool
 from typing import Optional
+
+from smolagents import models, tool
 
 
 class ModelTests(unittest.TestCase):

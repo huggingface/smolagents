@@ -3,21 +3,33 @@ name: Quality Check
 on: [pull_request]
 
 jobs:
-  quality:
+  check_code_quality:
     runs-on: ubuntu-latest
+    env:
+      UV_HTTP_TIMEOUT: 600 # max 10min to install deps
+
     steps:
-    - uses: actions/checkout@v3.1.0
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v3
-      with:
-        python-version: 3.10
-        cache: 'pip'
-        cache-dependency-path: 'setup.py'
-    - name: Install Python dependencies
-      run: pip install -e .[quality]
-    - name: Run Quality check
-      run: make quality
-    - name: Check if failure
-      if: ${{ failure() }}
-      run: |
-        echo "Quality check failed. Please ensure the right dependency versions are installed with 'pip install -e .[quality]' and rerun 'make style; make quality;'" >> $GITHUB_STEP_SUMMARY
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+
+      # Setup venv
+      # TODO: revisit when https://github.com/astral-sh/uv/issues/1526 is addressed.
+      - name: Setup venv + uv
+        run: |
+          pip install --upgrade uv
+          uv venv
+
+      - name: Install dependencies
+        run: uv pip install "smolagents[test] @ ."
+      - run: uv run ruff check tests src # linter
+      - run: uv run ruff format --check tests src # formatter
+
+      # Run type checking at least on smolagents root file to check all modules
+      # that can be lazy-loaded actually exist.
+      # - run: uv run mypy src/smolagents/__init__.py --follow-imports=silent --show-traceback
+
+      # Run mypy on full package
+      # - run: uv run mypy src

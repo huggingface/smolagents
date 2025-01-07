@@ -14,9 +14,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
-from .agents import MultiStepAgent, AgentStep, ActionStep
 import gradio as gr
+
+from .agents import ActionStep, AgentStep, MultiStepAgent
+from .types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 
 
 def pull_messages_from_step(step_log: AgentStep, test_mode: bool = True):

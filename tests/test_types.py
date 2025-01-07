@@ -18,7 +18,8 @@ import unittest
 import uuid
 from pathlib import Path
 
-from smolagents.types import AgentAudio, AgentImage, AgentText
+import torch
+from PIL import Image
 from transformers.testing_utils import (
     require_soundfile,
     require_torch,
@@ -28,9 +29,7 @@ from transformers.utils import (
     is_soundfile_availble,
 )
 
-import torch
-from PIL import Image
-
+from smolagents.types import AgentAudio, AgentImage, AgentText
 
 if is_soundfile_availble():
     import soundfile as sf

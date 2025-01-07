@@ -12,21 +12,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import os
 import pathlib
 import tempfile
 import uuid
 from io import BytesIO
-import requests
-import numpy as np
 
+import numpy as np
+import requests
 from transformers.utils import (
     is_soundfile_availble,
     is_torch_available,
     is_vision_available,
 )
-import logging
-
 
 logger = logging.getLogger(__name__)
 

@@ -18,14 +18,16 @@ import ast
 import importlib
 import inspect
 import json
+import logging
 import os
 import sys
 import tempfile
-import torch
 import textwrap
 from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union, get_type_hints
+
+import torch
 from huggingface_hub import (
     create_repo,
     get_collection,
@@ -35,7 +37,8 @@ from huggingface_hub import (
 )
 from huggingface_hub.utils import RepositoryNotFoundError
 from packaging import version
-import logging
+from transformers import AutoProcessor
+from transformers.dynamic_module_utils import get_imports
 from transformers.utils import (
     TypeHintParsingException,
     cached_file,
@@ -45,13 +48,9 @@ from transformers.utils import (
 )
 from transformers.utils.chat_template_utils import _parse_type_hint
 
-from transformers.dynamic_module_utils import get_imports
-from transformers import AutoProcessor
-
+from .tool_validation import MethodChecker, validate_tool_attributes
 from .types import ImageType, handle_agent_input_types, handle_agent_output_types
 from .utils import instance_to_source
-from .tool_validation import validate_tool_attributes, MethodChecker
-
 
 logger = logging.getLogger(__name__)
 
@@ -206,10 +205,10 @@ class Tool:
 
         assert getattr(self, "output_type", None) in AUTHORIZED_TYPES
 
-        # Validate forward function signature, except for PipelineTool
+        # Validate forward function signature, except for Tools that use a "generic" signature (PipelineTool, SpaceToolWrapper)
         if not (
-            hasattr(self, "is_pipeline_tool")
-            and getattr(self, "is_pipeline_tool") is True
+            hasattr(self, "skip_forward_signature_validation")
+            and getattr(self, "skip_forward_signature_validation") is True
         ):
             signature = inspect.signature(self.forward)
 
@@ -506,10 +505,10 @@ class Tool:
             with open(module_path, "w") as f:
                 f.write(tool_code)
 
-            print("TOOLCODE:\n", tool_code)
+            print("TOOL CODE:\n", tool_code)
 
             # Load module from file path
-            spec = importlib.util.spec_from_file_location("custom_tool", module_path)
+            spec = importlib.util.spec_from_file_location("tool", module_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -575,6 +574,8 @@ class Tool:
         from gradio_client import Client, handle_file
 
         class SpaceToolWrapper(Tool):
+            skip_forward_signature_validation = True
+
             def __init__(
                 self,
                 space_id: str,
@@ -594,7 +595,7 @@ class Tool:
                 if api_name is None:
                     api_name = list(space_description.keys())[0]
                     logger.warning(
-                        f"Since `api_name` was not defined, it was automatically set to the first avilable API: `{api_name}`."
+                        f"Since `api_name` was not defined, it was automatically set to the first available API: `{api_name}`."
                     )
                 self.api_name = api_name
 
@@ -904,12 +905,17 @@ class ToolCollection:
     ```
     """
 
-    def __init__(self, collection_slug: str, token: Optional[str] = None):
+    def __init__(
+        self, collection_slug: str, token: Optional[str] = None, trust_remote_code=False
+    ):
         self._collection = get_collection(collection_slug, token=token)
         self._hub_repo_ids = {
             item.item_id for item in self._collection.items if item.item_type == "space"
         }
-        self.tools = {Tool.from_hub(repo_id) for repo_id in self._hub_repo_ids}
+        self.tools = {
+            Tool.from_hub(repo_id, token, trust_remote_code)
+            for repo_id in self._hub_repo_ids
+        }
 
 
 def tool(tool_function: Callable) -> Tool:
@@ -1098,7 +1104,7 @@ class PipelineTool(Tool):
     name = "pipeline"
     inputs = {"prompt": str}
     output_type = str
-    is_pipeline_tool = True
+    skip_forward_signature_validation = True
 
     def __init__(
         self,

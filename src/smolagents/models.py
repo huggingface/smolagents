@@ -14,23 +14,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from copy import deepcopy
-from enum import Enum
 import json
-from typing import Dict, List, Optional
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    StoppingCriteria,
-    StoppingCriteriaList,
-)
-
-import litellm
 import logging
 import os
 import random
+from copy import deepcopy
+from enum import Enum
+from typing import Dict, List, Optional, Tuple, Union
 
+import litellm
+import torch
 from huggingface_hub import InferenceClient
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    StoppingCriteria,
+    StoppingCriteriaList,
+)
 
 from .tools import Tool
 from .utils import parse_json_tool_call
@@ -279,9 +279,16 @@ class HfApiModel(Model):
 
 
 class TransformersModel(Model):
-    """This engine initializes a model and tokenizer from the given `model_id`."""
+    """This engine initializes a model and tokenizer from the given `model_id`.
 
-    def __init__(self, model_id: Optional[str] = None):
+    Parameters:
+        model_id (`str`, *optional*, defaults to `"HuggingFaceTB/SmolLM2-1.7B-Instruct"`):
+            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        device (`str`, optional, defaults to `"cuda"` if available, else `"cpu"`.):
+            The device to load the model on (`"cpu"` or `"cuda"`).
+    """
+
+    def __init__(self, model_id: Optional[str] = None, device: Optional[str] = None):
         super().__init__()
         default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         if model_id is None:
@@ -290,15 +297,21 @@ class TransformersModel(Model):
                 f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'"
             )
         self.model_id = model_id
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = device
+        logger.info(f"Using device: {self.device}")
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id)
+            self.model = AutoModelForCausalLM.from_pretrained(model_id).to(self.device)
         except Exception as e:
             logger.warning(
                 f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {model_id=}."
             )
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(default_model_id)
+            self.model = AutoModelForCausalLM.from_pretrained(default_model_id).to(
+                self.device
+            )
 
     def make_stopping_criteria(self, stop_sequences: List[str]) -> StoppingCriteriaList:
         class StopOnStrings(StoppingCriteria):
@@ -338,16 +351,16 @@ class TransformersModel(Model):
         )
 
         # Get LLM output
-        prompt = self.tokenizer.apply_chat_template(
+        prompt_tensor = self.tokenizer.apply_chat_template(
             messages,
             return_tensors="pt",
             return_dict=True,
         )
-        prompt = prompt.to(self.model.device)
-        count_prompt_tokens = prompt["input_ids"].shape[1]
+        prompt_tensor = prompt_tensor.to(self.model.device)
+        count_prompt_tokens = prompt_tensor["input_ids"].shape[1]
 
         out = self.model.generate(
-            **prompt,
+            **prompt_tensor,
             max_new_tokens=max_tokens,
             stopping_criteria=(
                 self.make_stopping_criteria(stop_sequences) if stop_sequences else None
@@ -369,7 +382,7 @@ class TransformersModel(Model):
         available_tools: List[Tool],
         stop_sequences: Optional[List[str]] = None,
         max_tokens: int = 500,
-    ) -> str:
+    ) -> Tuple[str, Union[str, None], str]:
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
@@ -412,6 +425,7 @@ class LiteLLMModel(Model):
         model_id="anthropic/claude-3-5-sonnet-20240620",
         api_base=None,
         api_key=None,
+        **kwargs,
     ):
         super().__init__()
         self.model_id = model_id
@@ -419,6 +433,7 @@ class LiteLLMModel(Model):
         litellm.add_function_to_prompt = True
         self.api_base = api_base
         self.api_key = api_key
+        self.kwargs = kwargs
 
     def __call__(
         self,
@@ -438,6 +453,7 @@ class LiteLLMModel(Model):
             max_tokens=max_tokens,
             api_base=self.api_base,
             api_key=self.api_key,
+            **self.kwargs,
         )
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
@@ -462,6 +478,7 @@ class LiteLLMModel(Model):
             max_tokens=max_tokens,
             api_base=self.api_base,
             api_key=self.api_key,
+            **self.kwargs,
         )
         tool_calls = response.choices[0].message.tool_calls[0]
         self.last_input_token_count = response.usage.prompt_tokens

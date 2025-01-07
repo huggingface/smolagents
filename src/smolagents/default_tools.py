@@ -18,20 +18,20 @@ import json
 import re
 from dataclasses import dataclass
 from typing import Dict, Optional
-from huggingface_hub import hf_hub_download, list_spaces
 
-from transformers.utils import is_offline_mode
+from huggingface_hub import hf_hub_download, list_spaces
 from transformers.models.whisper import (
-    WhisperProcessor,
     WhisperForConditionalGeneration,
+    WhisperProcessor,
 )
+from transformers.utils import is_offline_mode
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
     BASE_PYTHON_TOOLS,
     evaluate_python_code,
 )
-from .tools import TOOL_CONFIG_FILE, Tool, PipelineTool
+from .tools import TOOL_CONFIG_FILE, PipelineTool, Tool
 from .types import AgentAudio
 
 
@@ -153,8 +153,9 @@ class DuckDuckGoSearchTool(Tool):
     }
     output_type = "any"
 
-    def __init__(self, **kwargs):
-        super().__init__(self, **kwargs)
+    def __init__(self, *args, max_results=10, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.max_results = max_results
         try:
             from duckduckgo_search import DDGS
         except ImportError:
@@ -164,7 +165,7 @@ class DuckDuckGoSearchTool(Tool):
         self.ddgs = DDGS()
 
     def forward(self, query: str) -> str:
-        results = self.ddgs.text(query, max_results=10)
+        results = self.ddgs.text(query, max_results=self.max_results)
         postprocessed_results = [
             f"[{result['title']}]({result['href']})\n{result['body']}"
             for result in results
@@ -270,8 +271,8 @@ class VisitWebpageTool(Tool):
 
     def forward(self, url: str) -> str:
         try:
-            from markdownify import markdownify
             import requests
+            from markdownify import markdownify
             from requests.exceptions import RequestException
         except ImportError:
             raise ImportError(

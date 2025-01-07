@@ -47,8 +47,21 @@ contains the API docs for the underlying classes.
 
 [[autodoc]] launch_gradio_demo
 
+## Default tools
 
-### ToolCollection
+### PythonInterpreterTool
+
+[[autodoc]] PythonInterpreterTool
+
+### DuckDuckGoSearchTool
+
+[[autodoc]] DuckDuckGoSearchTool
+
+### VisitWebpageTool
+
+[[autodoc]] VisitWebpageTool
+
+## ToolCollection
 
 [[autodoc]] ToolCollection
 

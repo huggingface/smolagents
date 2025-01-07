@@ -4,7 +4,7 @@ from typing import Optional
 
 model = LiteLLMModel(
     model_id="ollama_chat/llama3.2",
-    api_base="http://localhost:11434/v1", # replace with remote open-ai compatible server if necessary
+    api_base="http://localhost:11434", # replace with remote open-ai compatible server if necessary
     api_key="your-api-key" # replace with API key if necessary
 )
 

@@ -14,7 +14,7 @@ def execute_code(code):
 
     try:
         exec(code, exec_globals, exec_locals)
-    except Exception as e:
+    except Exception:
         traceback.print_exc(file=stderr)
     
     output = stdout.getvalue()

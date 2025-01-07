@@ -14,18 +14,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dotenv import load_dotenv
-import textwrap
 import base64
 import pickle
+import textwrap
 from io import BytesIO
+from typing import Any, List, Tuple
+
+from dotenv import load_dotenv
+from e2b_code_interpreter import Sandbox
 from PIL import Image
 
-from e2b_code_interpreter import Sandbox
-from typing import List, Tuple, Any
 from .tool_validation import validate_tool_attributes
-from .utils import instance_to_source, BASE_BUILTIN_MODULES, console
 from .tools import Tool
+from .utils import BASE_BUILTIN_MODULES, console, instance_to_source
 
 load_dotenv()
 

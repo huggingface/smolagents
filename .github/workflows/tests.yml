@@ -1,0 +1,59 @@
+name: Python tests
+
+on: [pull_request]
+
+jobs:
+  build-ubuntu:
+    runs-on: ubuntu-latest
+    env:
+      UV_HTTP_TIMEOUT: 600 # max 10min to install deps
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+
+      # Setup venv
+      # TODO: revisit when https://github.com/astral-sh/uv/issues/1526 is addressed.
+      - name: Setup venv + uv
+        run: |
+          pip install --upgrade uv
+          uv venv
+
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          uv pip install "smolagents[test] @ ."
+
+      - name: Agent tests
+        run: |
+          uv run pytest -sv ./tests/test_agents.py
+      - name: Final answer tests
+        run: |
+          uv run pytest -sv ./tests/test_final_answer.py
+      - name: Models tests
+        run: |
+          uv run pytest -sv ./tests/test_models.py
+      - name: Monitoring tests
+        run: |
+          uv run pytest -sv ./tests/test_monitoring.py
+      - name: Python interpreter tests
+        run: |
+          uv run pytest -sv ./tests/test_python_interpreter.py
+      - name: Search tests
+        run: |
+          uv run pytest -sv ./tests/test_search.py
+      - name: Tools tests
+        run: |
+          uv run pytest -sv ./tests/test_tools.py
+      - name: Types tests
+        run: |
+          uv run pytest -sv ./tests/test_types.py

@@ -23,41 +23,94 @@ In this guided visit, you will learn how to build an agent, how to run it, and h
 
 To initialize a minimal agent, you need at least these two arguments:
 
-- An text-generation model to power your agent - because the agent is different from a simple LLM, it is a system that uses a LLM as its engine.
-- A list of tools from which the agent pick tools to execute
+- `model`, a text-generation model to power your agent - because the agent is different from a simple LLM, it is a system that uses a LLM as its engine. You can use any of these options:
+    - [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
+    - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood.
+    - [`LiteLLMModel`] lets you call 100+ different models through [LiteLLM](https://docs.litellm.ai/)!
 
-For your model, you can use any of these options:
-- [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
-- [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood.
-- We also provide [`LiteLLMModel`], which lets you call 100+ different models through [LiteLLM](https://docs.litellm.ai/)!
+- `tools`, A list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
-You will also need a `tools` argument which accepts a list of `Tools` - it can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
+Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Hugging Face API](https://huggingface.co/docs/api-inference/en/index), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), or [LiteLLM](https://www.litellm.ai/).
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. 
+<hfoptions id="Pick a LLM">
+<hfoption id="Hugging Face API">
+
+Hugging Face API is free to use without a token, but then it will have a rate limitation.
+
+To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`.
 
 ```python
 from smolagents import CodeAgent, HfApiModel
-from huggingface_hub import login
-
-login("<YOUR_HUGGINGFACEHUB_API_TOKEN>")
 
 model_id = "meta-llama/Llama-3.3-70B-Instruct"
 
-model = HfApiModel(model_id=model_id)
+model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
 )
 ```
+</hfoption>
+<hfoption id="Local Transformers Model">
 
-#### Code execution
+```python
+from smolagents import CodeAgent, TransformersModel
 
-A Python interpreter executes the code on a set of inputs passed along with your tools.
+model_id = "meta-llama/Llama-3.2-3B-Instruct"
+
+model = TransformersModel(model_id=model_id)
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+</hfoption>
+<hfoption id="OpenAI or Anthropic API">
+
+To use `LiteLLMModel`, you need to set the environment variable `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, or pass `api_key` variable upon initialization.
+
+```python
+from smolagents import CodeAgent, LiteLLMModel
+
+model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", api_key="YOUR_ANTHROPIC_API_KEY") # Could use 'gpt-4o'
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+</hfoption>
+<hfoption id="Ollama">
+
+```python
+from smolagents import CodeAgent, LiteLLMModel
+
+model = LiteLLMModel(
+    model_id="ollama_chat/llama3.2", # This model is a bit weak for agentic behaviours though
+    api_base="http://localhost:11434", # replace with remote open-ai compatible server if necessary
+    api_key="YOUR_API_KEY" # replace with API key if necessary
+)
+
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+</hfoption>
+</hfoptions>
+
+#### CodeAgent and ToolCallingAgent
+
+The [`CodeAgent`] is our default agent. It will write and execute python code snippets at each step.
+
+By default, the execution is done in your local environment.
 This should be safe because the only functions that can be called are the tools you provided (especially if it's only tools by Hugging Face) and a set of predefined safe functions like `print` or functions from the `math` module, so you're already limited in what can be executed.
 
 The Python interpreter also doesn't allow imports by default outside of a safe list, so all the most obvious attacks shouldn't be an issue.
-You can authorize additional imports by passing the authorized modules as a list of strings in argument `additional_authorized_imports` upon initialization of your [`CodeAgent`] or [`CodeAgent`]:
+You can authorize additional imports by passing the authorized modules as a list of strings in argument `additional_authorized_imports` upon initialization of your [`CodeAgent`]:
 
 ```py
 from smolagents import CodeAgent
@@ -65,87 +118,25 @@ from smolagents import CodeAgent
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
-This gives you at the end of the agent run:
-```text
-'Hugging Face – Blog'
-```
-The execution will stop at any code trying to perform an illegal operation or if there is a regular Python error with the code generated by the agent. You can also use E2B code executor instead of a local Python interpreter by passing `use_e2b_executor=True` upon agent initialization.
 
 > [!WARNING]
 > The LLM can generate arbitrary code that will then be executed: do not add any unsafe imports!
 
-### The system prompt
+The execution will stop at any code trying to perform an illegal operation or if there is a regular Python error with the code generated by the agent.
 
-Upon initialization of the agent system, a system prompt (attribute `system_prompt`) is built automatically by turning the description extracted from the tools into a predefined system prompt template.
+You can also use [E2B code executor](https://e2b.dev/docs#what-is-e2-b) instead of a local Python interpreter by first [setting the `E2B_API_KEY` environment variable](https://e2b.dev/dashboard?tab=keys) and then passing `use_e2b_executor=True` upon agent initialization.
 
-But you can customize it!
+> [!TIP]
+> Learn more about code execution [in this tutorial](tutorials/secure_code_execution).
 
-Let's see how it works. For example, check the system prompt for the [`CodeAgent`] (below version is slightly simplified).
+We also support the widely-used way of writing actions as JSON-like blobs: this is [`ToolCallingAgent`], it works much in the same way like [`CodeAgent`], of course without `additional_authorized_imports` since it doesn't execute code:
 
-The prompt and output parser were automatically defined, but you can easily inspect them by calling the `system_prompt_template` on your agent.
+```py
+from smolagents import ToolCallingAgent
 
-```python
-print(agent.system_prompt_template)
+agent = ToolCallingAgent(tools=[], model=model)
+agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
-Here is what you get:
-```text
-You are an expert assistant who can solve any task using code blobs. You will be given a task to solve as best you can.
-To do so, you have been given access to a list of tools: these tools are basically Python functions which you can call with code.
-To solve the task, you must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences.
-
-At each step, in the 'Thought:' sequence, you should first explain your reasoning towards solving the task and the tools that you want to use.
-Then in the 'Code:' sequence, you should write the code in simple Python. The code sequence must end with '<end_code>' sequence.
-During each intermediate step, you can use 'print()' to save whatever important information you will then need.
-These print outputs will then appear in the 'Observation:' field, which will be available as input for the next step.
-In the end you have to return a final answer using the `final_answer` tool.
-
-Here are a few examples using notional tools:
----
-{examples}
-
-Above example were using notional tools that might not exist for you. On top of performing computations in the Python code snippets that you create, you only have access to these tools:
-
-{{tool_descriptions}}
-
-{{managed_agents_descriptions}}
-
-Here are the rules you should always follow to solve your task:
-1. Always provide a 'Thought:' sequence, and a 'Code:\n```py' sequence ending with '```<end_code>' sequence, else you will fail.
-2. Use only variables that you have defined!
-3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wiki({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wiki(query="What is the place where James Bond lives?")'.
-4. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
-5. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
-6. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
-7. Never create any notional variables in our code, as having these in your logs might derail you from the true variables.
-8. You can use imports in your code, but only from the following list of modules: {{authorized_imports}}
-9. The state persists between code executions: so if in one step you've created variables or imported modules, these will all persist.
-10. Don't give up! You're in charge of solving the task, not providing directions to solve it.
-
-Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
-```
-
-The system prompt includes:
-- An *introduction* that explains how the agent should behave and what tools are.
-- A description of all the tools that is defined by a `{{tool_descriptions}}` token that is dynamically replaced at runtime with the tools defined/chosen by the user.
-    - The tool description comes from the tool attributes, `name`, `description`, `inputs` and `output_type`,  and a simple `jinja2` template that you can refine.
-- The expected output format.
-
-You could improve the system prompt, for example, by adding an explanation of the output format.
-
-For maximum flexibility, you can overwrite the whole system prompt template by passing your custom prompt as an argument to the `system_prompt` parameter.
-
-```python
-from smolagents import ToolCallingAgent, PythonInterpreterTool, TOOL_CALLING_SYSTEM_PROMPT
-
-modified_prompt = TOOL_CALLING_SYSTEM_PROMPT
-
-agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=model, system_prompt=modified_prompt)
-```
-
-> [!WARNING]
-> Please make sure to define the `{{tool_descriptions}}` string somewhere in the `template` so the agent is aware 
-of the available tools.
-
 
 ### Inspecting an agent run
 
@@ -161,7 +152,7 @@ A tool is an atomic function to be used by an agent. To be used by an LLM, it al
 - Input types and descriptions
 - An output type
 
-You can for instance check the [`PythonInterpreterTool`]: it has a name, a description, input descriptions, an output type, and a `__call__` method to perform the action.
+You can for instance check the [`PythonInterpreterTool`]: it has a name, a description, input descriptions, an output type, and a `forward` method to perform the action.
 
 When the agent is initialized, the tool attributes are used to generate a tool description which is baked into the agent's system prompt. This lets the agent know which tools it can use and why.
 
@@ -176,7 +167,7 @@ Transformers comes with a default toolbox for empowering agents, that you can ad
 You can manually use a tool by calling the [`load_tool`] function and a task to perform.
 
 ```python
-from transformers import load_tool
+from smolagents import load_tool
 
 search_tool = load_tool("web_search")
 print(search_tool("Who's the current president of Russia?"))
@@ -199,10 +190,15 @@ print(most_downloaded_model.id)
 ```
 
 This code can quickly be converted into a tool, just by wrapping it in a function and adding the `tool` decorator:
+This is not the only way to build the tool: you can directly define it as a subclass of [`Tool`], which gives you more flexibility, for instance the possibility to initialize heavy class attributes.
 
+Let's see how it works for both options:
+
+<hfoptions id="build-a-tool">
+<hfoption id="Decorate a function with @tool">
 
 ```py
-from transformers import tool
+from smolagents import tool
 
 @tool
 def model_download_tool(task: str) -> str:
@@ -211,20 +207,46 @@ def model_download_tool(task: str) -> str:
     It returns the name of the checkpoint.
 
     Args:
-        task: The task for which
+        task: The task for which to get the download count.
     """
     most_downloaded_model = next(iter(list_models(filter=task, sort="downloads", direction=-1)))
     return most_downloaded_model.id
 ```
 
 The function needs:
-- A clear name. The name usually describes what the tool does. Since the code returns the model with the most downloads for a task, let's put `model_download_tool`.
+- A clear name. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
 - Type hints on both inputs and output
-- A description, that includes an 'Args:' part where each argument is described (without a type indication this time, it will be pulled from the type hint).
-All these will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
+- A description, that includes an 'Args:' part where each argument is described (without a type indication this time, it will be pulled from the type hint). Same as for the tool name, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
+All these elements will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
 
 > [!TIP]
 > This definition format is the same as tool schemas used in `apply_chat_template`, the only difference is the added `tool` decorator: read more on our tool use API [here](https://huggingface.co/blog/unified-tool-use#passing-tools-to-a-chat-template).
+</hfoption>
+<hfoption id="Subclass Tool">
+
+```py
+from smolagents import Tool
+
+class ModelDownloadTool(Tool):
+    name = "model_download_tool"
+    description = "This is a tool that returns the most downloaded model of a given task on the Hugging Face Hub. It returns the name of the checkpoint."
+    inputs = {"task": {"type": "string", "description": "The task for which to get the download count."}}
+    output_type = "string"
+
+    def forward(self, task: str) -> str:
+        most_downloaded_model = next(iter(list_models(filter=task, sort="downloads", direction=-1)))
+        return most_downloaded_model.id
+```
+
+The subclass needs the following attributes:
+- A clear `name`. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
+- A `description`. Same as for the `name`, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
+- Input types and descriptions
+- Output type
+All these attributes will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
+</hfoption>
+</hfoptions>
+
 
 Then you can directly initialize your agent:
 ```py
@@ -262,9 +284,8 @@ Out - Final answer: ByteDance/AnimateDiff-Lightning
 Out[20]: 'ByteDance/AnimateDiff-Lightning'
 ```
 
-This is not the only way to build the tool: you can directly define it as a subclass of [`Tool`], which gives you more flexibility, for instance the possibility to initialize heavy class attributes.
-
-Read more in the [dedicated tool tutorial](./tutorials/tools#what-is-a-tool-and-how-to-build-one)
+> [!TIP]
+> Read more on tools in the [dedicated tutorial](./tutorials/tools#what-is-a-tool-and-how-to-build-one).
 
 ## Multi-agents
 

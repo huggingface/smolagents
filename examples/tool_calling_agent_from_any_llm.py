@@ -1,5 +1,5 @@
 from smolagents.agents import ToolCallingAgent
-from smolagents import tool, HfApiModel, TransformersModel, LiteLLMModel
+from smolagents import tool, LiteLLMModel
 from typing import Optional
 
 # Choose which LLM engine to use!

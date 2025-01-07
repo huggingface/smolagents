@@ -14,21 +14,20 @@
 # limitations under the License.
 import unittest
 from pathlib import Path
-from typing import Dict, Union, Optional
+from typing import Dict, Optional, Union
 
 import numpy as np
 import pytest
-
 from transformers import is_torch_available, is_vision_available
+from transformers.testing_utils import get_tests_dir
+
+from smolagents.tools import AUTHORIZED_TYPES, Tool, tool
 from smolagents.types import (
     AGENT_TYPE_MAPPING,
     AgentAudio,
     AgentImage,
     AgentText,
 )
-from smolagents.tools import Tool, tool, AUTHORIZED_TYPES
-from transformers.testing_utils import get_tests_dir
-
 
 if is_torch_available():
     import torch

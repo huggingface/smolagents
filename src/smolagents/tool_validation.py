@@ -1,8 +1,9 @@
 import ast
-import inspect
 import builtins
-from typing import Set
+import inspect
 import textwrap
+from typing import Set
+
 from .utils import BASE_BUILTIN_MODULES
 
 _BUILTIN_NAMES = set(vars(builtins))

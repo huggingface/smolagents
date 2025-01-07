@@ -18,7 +18,7 @@ rendered properly in your Markdown viewer.
 [[open-in-colab]]
 
 There's a world of difference between building an agent that works and one that doesn't.
-How to build into this latter category?
+How can we build agents that fall into the latter category?
 In this guide, we're going to see best practices for building agents.
 
 > [!TIP]
@@ -30,7 +30,7 @@ Giving an LLM some agency in your workflow introduces some risk of errors.
 
 Well-programmed agentic systems have good error logging and retry mechanisms anyway, so the LLM engine has a chance to self-correct their mistake. But to reduce the risk of LLM error to the maximum, you should simplify your workflow!
 
-Let's take again the example from [intro_agents]: a bot that answers user queries on a surf trip company.
+Let's revisit the example from [intro_agents]: a bot that answers user queries for a surf trip company.
 Instead of letting the agent do 2 different calls for "travel distance API" and "weather API" each time they are asked about a new surf spot, you could just make one unified tool "return_spot_information", a function that calls both APIs at once and returns their concatenated outputs to the user.
 
 This will reduce costs, latency, and error risk!
@@ -56,7 +56,7 @@ Particular guidelines to follow:
 - Each tool should log (by simply using `print` statements inside the tool's `forward` method) everything that could be useful for the LLM engine.
   - In particular, logging detail on tool execution errors would help a lot!
 
-For instance, here's a tool that :
+For instance, here's a tool that retrieves weather data based on location and date-time:
 
 First, here's a poor version:
 ```python
@@ -91,7 +91,7 @@ Why is it bad?
 - there's no logging mechanism tying to explicit failure cases like location not being in a proper format, or date_time not being properly formatted.
 - the output format is hard to understand
 
-If the tool call fails, the error trace logged in memory can help the LLM reverse engineer the tool to fix the errors. But why leave it so much heavy lifting to do?
+If the tool call fails, the error trace logged in memory can help the LLM reverse engineer the tool to fix the errors. But why leave it with so much heavy lifting to do?
 
 A better way to build this tool would have been the following:
 ```python
@@ -117,7 +117,7 @@ In general, to ease the load on your LLM, the good question to ask yourself is: 
 
 ### Give more arguments to the agent
 
-To pass some additional objects to your agent than thes smple string that tells it the task to run, you can use argument `additional_args` to pass any type of object:
+To pass some additional objects to your agent beyond the simple string describing the task, you can use the `additional_args` argument to pass any type of object:
 
 ```py
 from smolagents import CodeAgent, HfApiModel
@@ -140,7 +140,7 @@ For instance, you can use this `additional_args` argument to pass images or stri
 ### 1. Use a stronger LLM
 
 In an agentic workflows, some of the errors are actual errors, some other are the fault of your LLM engine not reasoning properly.
-For instance, consider this trace for an `CodeAgent` that I asked to make me a car picture:
+For instance, consider this trace for an `CodeAgent` that I asked to create a car picture:
 ```
 ==================================================================================================== New task ====================================================================================================
 Make me a cool car picture
@@ -168,14 +168,14 @@ Final answer:
 /var/folders/6m/9b1tts6d5w960j80wbw9tx3m0000gn/T/tmpx09qfsdd/652f0007-3ee9-44e2-94ac-90dae6bb89a4.png
 ```
 The user sees, instead of an image being returned, a path being returned to them.
-It could look like a bug from the system, but actually the agentic system didn't cause the error: it's just that the LLM engine did the mistake of not saving the image output into a variable.
+It could look like a bug from the system, but actually the agentic system didn't cause the error: it's just that the LLM brain did the mistake of not saving the image output into a variable.
 Thus it cannot access the image again except by leveraging the path that was logged while saving the image, so it returns the path instead of an image.
 
 The first step to debugging your agent is thus "Use a more powerful LLM". Alternatives like `Qwen2/5-72B-Instruct` wouldn't have made that mistake.
 
 ### 2. Provide more guidance / more information
 
-Then you can also use less powerful models but guide them better.
+You can also use less powerful models, provided you guide them more effectively.
 
 Put yourself in the shoes of your model: if you were the model solving the task, would you struggle with the information available to you (from the system prompt + task formulation + tool description) ?
 
@@ -186,13 +186,78 @@ Better ways to guide your LLM engine are:
 - If it 's about the task to solve: add all these details to the task. The task could be 100s of pages long.
 - If it's about how to use tools: the description attribute of your tools.
 
-If after trying the above, you still want to change the system prompt, your new system prompt passed to `system_prompt` upon agent initialization needs to contain the following placeholders that will be used to insert certain automatically generated descriptions when running the agent:
+
+### 3. Change the system prompt (generally not advised)
+
+If above clarifications above are not sufficient, you can change the system prompt.
+
+Let's see how it works. For example, let us check the default system prompt for the [`CodeAgent`] (below version is shortened by skipping zero-shot examples).
+
+```python
+print(agent.system_prompt_template)
+```
+Here is what you get:
+```text
+You are an expert assistant who can solve any task using code blobs. You will be given a task to solve as best you can.
+To do so, you have been given access to a list of tools: these tools are basically Python functions which you can call with code.
+To solve the task, you must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences.
+
+At each step, in the 'Thought:' sequence, you should first explain your reasoning towards solving the task and the tools that you want to use.
+Then in the 'Code:' sequence, you should write the code in simple Python. The code sequence must end with '<end_code>' sequence.
+During each intermediate step, you can use 'print()' to save whatever important information you will then need.
+These print outputs will then appear in the 'Observation:' field, which will be available as input for the next step.
+In the end you have to return a final answer using the `final_answer` tool.
+
+Here are a few examples using notional tools:
+---
+{examples}
+
+Above example were using notional tools that might not exist for you. On top of performing computations in the Python code snippets that you create, you only have access to these tools:
+
+{{tool_descriptions}}
+
+{{managed_agents_descriptions}}
+
+Here are the rules you should always follow to solve your task:
+1. Always provide a 'Thought:' sequence, and a 'Code:\n```py' sequence ending with '```<end_code>' sequence, else you will fail.
+2. Use only variables that you have defined!
+3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wiki({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wiki(query="What is the place where James Bond lives?")'.
+4. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
+5. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
+6. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
+7. Never create any notional variables in our code, as having these in your logs might derail you from the true variables.
+8. You can use imports in your code, but only from the following list of modules: {{authorized_imports}}
+9. The state persists between code executions: so if in one step you've created variables or imported modules, these will all persist.
+10. Don't give up! You're in charge of solving the task, not providing directions to solve it.
+
+Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
+```
+
+As yo can see, there are placeholders like `"{{tool_descriptions}}"`: these will be used upon agent initialization to insert certain automatically generated descriptions of tools or managed agents.
+
+So while you can overwrite this system prompt template by passing your custom prompt as an argument to the `system_prompt` parameter, your new system promptmust contain the following placeholders:
 - `"{{tool_descriptions}}"` to insert tool descriptions.
 - `"{{managed_agents_description}}"` to insert the description for managed agents if there are any.
 - For `CodeAgent` only: `"{{authorized_imports}}"` to insert the list of authorized imports.
 
+Then you can change the system prompt as follows:
 
-### 3. Extra planning
+```py
+from smolagents.prompts import CODE_SYSTEM_PROMPT
+
+modified_system_prompt = CODE_SYSTEM_PROMPT + "\nHere you go!" # Change the system prompt here
+
+agent = CodeAgent(
+    tools=[], 
+    model=HfApiModel(), 
+    system_prompt=modified_system_prompt
+)
+```
+
+This also works with the [`ToolCallingAgent`].
+
+
+### 4. Extra planning
 
 We provide a model for a supplementary planning step, that an agent can run regularly in-between normal action steps. In this step, there is no tool call, the LLM is simply asked to update a list of facts it knows and to reflect on what steps it should take next based on those facts.
 
@@ -203,7 +268,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import tool from Hub
-image_generation_tool = load_tool("m-ric/text-to-image", cache=False)
+image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
 search_tool = DuckDuckGoSearchTool()
 
