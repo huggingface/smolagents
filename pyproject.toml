@@ -27,6 +27,7 @@ dependencies = [
   "python-dotenv>=1.0.1",
   "e2b-code-interpreter>=1.0.3",
   "litellm>=1.55.10",
+  "openai>=1.58.1",
 ]
 
 [tool.ruff]
