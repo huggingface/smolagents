@@ -89,8 +89,8 @@ model_downloads_tool.push_to_hub("{your_username}/hf-model-downloads", token="<Y
 ```
 
 For the push to Hub to work, your tool will need to respect some rules:
-- All method are self-contained, e.g. use variables that come either from their args.
-- As per the above point, **all imports should be defined directky within the tool's functions**, else you will get an error when trying to call [`~Tool.save`] or [`~Tool.push_to_hub`] with your custom tool.
+- All methods are self-contained, e.g. use variables that come either from their args.
+- As per the above point, **all imports should be defined directly within the tool's functions**, else you will get an error when trying to call [`~Tool.save`] or [`~Tool.push_to_hub`] with your custom tool.
 - If you subclass the `__init__` method, you can give it no other argument than `self`. This is because arguments set during a specific tool instance's initialization are hard to track, which prevents from sharing them properly to the hub. And anyway, the idea of making a specific class is that you can already set class attributes for anything you need to hard-code (just set `your_variable=(...)` directly under the `class YourTool(Tool):` line). And of course you can still create a class attribute anywhere in your code by assigning stuff to `self.your_variable`.
 
 
@@ -210,7 +210,7 @@ Just make sure the new tool follows the same API as the replaced tool or adapt t
 ### Use a collection of tools
 
 You can leverage tool collections by using the ToolCollection object, with the slug of the collection you want to use.
-Then pass them as a list to initialize you agent, and start using them!
+Then pass them as a list to initialize your agent, and start using them!
 
 ```py
 from smolagents import ToolCollection, CodeAgent
