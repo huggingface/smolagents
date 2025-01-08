@@ -939,15 +939,21 @@ def evaluate_ast(
         return getattr(value, expression.attr)
     elif isinstance(expression, ast.Slice):
         return slice(
-            evaluate_ast(expression.lower, state, static_tools, custom_tools)
-            if expression.lower is not None
-            else None,
-            evaluate_ast(expression.upper, state, static_tools, custom_tools)
-            if expression.upper is not None
-            else None,
-            evaluate_ast(expression.step, state, static_tools, custom_tools)
-            if expression.step is not None
-            else None,
+            (
+                evaluate_ast(expression.lower, state, static_tools, custom_tools)
+                if expression.lower is not None
+                else None
+            ),
+            (
+                evaluate_ast(expression.upper, state, static_tools, custom_tools)
+                if expression.upper is not None
+                else None
+            ),
+            (
+                evaluate_ast(expression.step, state, static_tools, custom_tools)
+                if expression.step is not None
+                else None
+            ),
         )
     elif isinstance(expression, ast.DictComp):
         return evaluate_dictcomp(expression, state, static_tools, custom_tools)

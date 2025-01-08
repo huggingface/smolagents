@@ -1,4 +1,13 @@
 repos:
+  # black code formatter
+  - repo: https://github.com/psf/black
+    rev: 23.1.0
+    hooks:
+      - id: black
+        require_serial: true
+        args:
+          - --exclude=examples/
+          
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.2.1
     hooks:
@@ -13,10 +22,4 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
 
-  # black code formatter
-  - repo: https://github.com/psf/black
-    rev: 23.10.0
-    hooks:
-      - id: black
-        args:
-          - --exclude=examples/
+  
