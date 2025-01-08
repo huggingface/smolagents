@@ -6,6 +6,7 @@ import io
 exec_globals = {}
 exec_locals = {}
 
+
 def execute_code(code):
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -16,7 +17,7 @@ def execute_code(code):
         exec(code, exec_globals, exec_locals)
     except Exception:
         traceback.print_exc(file=stderr)
-    
+
     output = stdout.getvalue()
     error = stderr.getvalue()
 
@@ -26,7 +27,8 @@ def execute_code(code):
 
     return output + error
 
-def start_server(host='0.0.0.0', port=65432):
+
+def start_server(host="0.0.0.0", port=65432):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((host, port))
         s.listen()
@@ -38,9 +40,10 @@ def start_server(host='0.0.0.0', port=65432):
                 data = conn.recv(1024)
                 if not data:
                     break
-                code = data.decode('utf-8')
+                code = data.decode("utf-8")
                 output = execute_code(code)
-                conn.sendall(output.encode('utf-8'))
+                conn.sendall(output.encode("utf-8"))
+
 
 if __name__ == "__main__":
-    start_server() 
+    start_server()

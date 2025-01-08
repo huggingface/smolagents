@@ -5,6 +5,7 @@ repos:
       - id: ruff
         args:
           - --fix
+          - --exclude=examples/
       - id: ruff-format
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
