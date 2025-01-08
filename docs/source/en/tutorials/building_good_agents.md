@@ -233,9 +233,9 @@ Here are the rules you should always follow to solve your task:
 Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
 ```
 
-As yo can see, there are placeholders like `"{{tool_descriptions}}"`: these will be used upon agent initialization to insert certain automatically generated descriptions of tools or managed agents.
+As you can see, there are placeholders like `"{{tool_descriptions}}"`: these will be used upon agent initialization to insert certain automatically generated descriptions of tools or managed agents.
 
-So while you can overwrite this system prompt template by passing your custom prompt as an argument to the `system_prompt` parameter, your new system promptmust contain the following placeholders:
+So while you can overwrite this system prompt template by passing your custom prompt as an argument to the `system_prompt` parameter, your new system prompt must contain the following placeholders:
 - `"{{tool_descriptions}}"` to insert tool descriptions.
 - `"{{managed_agents_description}}"` to insert the description for managed agents if there are any.
 - For `CodeAgent` only: `"{{authorized_imports}}"` to insert the list of authorized imports.

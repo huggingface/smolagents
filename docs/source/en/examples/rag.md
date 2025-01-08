@@ -29,7 +29,7 @@ This agent will: ✅ Formulate the query itself and ✅ Critique to re-retrieve 
 
 So it should naively recover some advanced RAG techniques!
 - Instead of directly using the user query as the reference in semantic search, the agent formulates itself a reference sentence that can be closer to the targeted documents, as in [HyDE](https://huggingface.co/papers/2212.10496).
-The agent can the generated snippets and re-retrieve if needed, as in [Self-Query](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/).
+The agent can use the generated snippets and re-retrieve if needed, as in [Self-Query](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/).
 
 Let's build this system. 🛠️
 

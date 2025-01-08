@@ -47,7 +47,7 @@ This interpreter is designed for security by:
  - Capping the number of operations to prevent infinite loops and resource bloating.
  - Will not perform any operation that's not pre-defined.
 
-Wev'e used this on many use cases, without ever observing any damage to the environment. 
+We've used this on many use cases, without ever observing any damage to the environment. 
 
 However this solution is not watertight: one could imagine occasions where LLMs fine-tuned for malignant actions could still hurt your environment. For instance if you've allowed an innocuous package like `Pillow` to process images, the LLM could generate thousands of saves of images to bloat your hard drive.
 It's certainly not likely if you've chosen the LLM engine yourself, but it could happen.

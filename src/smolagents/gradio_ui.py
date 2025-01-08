@@ -23,7 +23,7 @@ from .types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 def pull_messages_from_step(step_log: AgentStep, test_mode: bool = True):
     """Extract ChatMessage objects from agent steps"""
     if isinstance(step_log, ActionStep):
-        yield gr.ChatMessage(role="assistant", content=step_log.llm_output)
+        yield gr.ChatMessage(role="assistant", content=step_log.llm_output or "")
         if step_log.tool_call is not None:
             used_code = step_log.tool_call.name == "code interpreter"
             content = step_log.tool_call.arguments
@@ -35,9 +35,7 @@ def pull_messages_from_step(step_log: AgentStep, test_mode: bool = True):
                 content=str(content),
             )
         if step_log.observations is not None:
-            yield gr.ChatMessage(
-                role="assistant", content=f"```\n{step_log.observations}\n```"
-            )
+            yield gr.ChatMessage(role="assistant", content=step_log.observations)
         if step_log.error is not None:
             yield gr.ChatMessage(
                 role="assistant",
@@ -65,7 +63,7 @@ def stream_to_gradio(
     if isinstance(final_answer, AgentText):
         yield gr.ChatMessage(
             role="assistant",
-            content=f"**Final answer:**\n```\n{final_answer.to_string()}\n```",
+            content=f"**Final answer:**\n{final_answer.to_string()}\n",
         )
     elif isinstance(final_answer, AgentImage):
         yield gr.ChatMessage(

@@ -11,6 +11,7 @@ on:
       - 'docs/source/**'
       - 'assets/**'
       - '.github/workflows/doc-build.yml'
+      - 'pyproject.toml'
 
 jobs:
    build:

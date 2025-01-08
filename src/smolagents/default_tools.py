@@ -146,12 +146,11 @@ class UserInputTool(Tool):
 
 class DuckDuckGoSearchTool(Tool):
     name = "web_search"
-    description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results as a list of dict elements.
-    Each result has keys 'title', 'href' and 'body'."""
+    description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results."""
     inputs = {
         "query": {"type": "string", "description": "The search query to perform."}
     }
-    output_type = "any"
+    output_type = "string"
 
     def __init__(self, *args, max_results=10, **kwargs):
         super().__init__(*args, **kwargs)
