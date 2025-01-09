@@ -1,86 +1,59 @@
-import os
-import shutil
-import tempfile
+# coding=utf-8
+# Copyright 2024 HuggingFace Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import unittest
-from pathlib import Path
+import pytest
+
+from smolagents.utils import parse_code_blobs
 
 
-def str_to_bool(value) -> int:
-    """
-    Converts a string representation of truth to `True` (1) or `False` (0).
+class AgentTextTests(unittest.TestCase):
+    def test_parse_code_blobs(self):
+        with pytest.raises(ValueError):
+            parse_code_blobs("Wrong blob!")
 
-    True values are `y`, `yes`, `t`, `true`, `on`, and `1`; False value are `n`, `no`, `f`, `false`, `off`, and `0`;
-    """
-    value = value.lower()
-    if value in ("y", "yes", "t", "true", "on", "1"):
-        return 1
-    elif value in ("n", "no", "f", "false", "off", "0"):
-        return 0
-    else:
-        raise ValueError(f"invalid truth value {value}")
+        # Parsing mardkwon with code blobs should work
+        output = parse_code_blobs("""
+Here is how to solve the problem:
+Code:
+```py
+import numpy as np
+```<end_code>
+""")
+        assert output == "import numpy as np"
 
+        # Parsing code blobs should work
+        code_blob = "import numpy as np"
+        output = parse_code_blobs(code_blob)
+        assert output == code_blob
 
-def get_int_from_env(env_keys, default):
-    """Returns the first positive env value found in the `env_keys` list or the default."""
-    for e in env_keys:
-        val = int(os.environ.get(e, -1))
-        if val >= 0:
-            return val
-    return default
+    def test_multiple_code_blobs(self):
+        test_input = """Here's a function that adds numbers:
+```python
+def add(a, b):
+    return a + b
+```
+And here's a function that multiplies them:
+```py
+def multiply(a, b):
+    return a * b
+```"""
 
+        expected_output = """def add(a, b):
+    return a + b
 
-def parse_flag_from_env(key, default=False):
-    """Returns truthy value for `key` from the env if available else the default."""
-    value = os.environ.get(key, str(default))
-    return (
-        str_to_bool(value) == 1
-    )  # As its name indicates `str_to_bool` actually returns an int...
-
-
-_run_slow_tests = parse_flag_from_env("RUN_SLOW", default=False)
-
-
-def skip(test_case):
-    "Decorator that skips a test unconditionally"
-    return unittest.skip("Test was skipped")(test_case)
-
-
-def slow(test_case):
-    """
-    Decorator marking a test as slow. Slow tests are skipped by default. Set the RUN_SLOW environment variable to a
-    truthy value to run them.
-    """
-    return unittest.skipUnless(_run_slow_tests, "test is slow")(test_case)
-
-
-class TempDirTestCase(unittest.TestCase):
-    """
-    A TestCase class that keeps a single `tempfile.TemporaryDirectory` open for the duration of the class, wipes its
-    data at the start of a test, and then destroyes it at the end of the TestCase.
-
-    Useful for when a class or API requires a single constant folder throughout it's use, such as Weights and Biases
-
-    The temporary directory location will be stored in `self.tmpdir`
-    """
-
-    clear_on_setup = True
-
-    @classmethod
-    def setUpClass(cls):
-        "Creates a `tempfile.TemporaryDirectory` and stores it in `cls.tmpdir`"
-        cls.tmpdir = Path(tempfile.mkdtemp())
-
-    @classmethod
-    def tearDownClass(cls):
-        "Remove `cls.tmpdir` after test suite has finished"
-        if os.path.exists(cls.tmpdir):
-            shutil.rmtree(cls.tmpdir)
-
-    def setUp(self):
-        "Destroy all contents in `self.tmpdir`, but not `self.tmpdir`"
-        if self.clear_on_setup:
-            for path in self.tmpdir.glob("**/*"):
-                if path.is_file():
-                    path.unlink()
-                elif path.is_dir():
-                    shutil.rmtree(path)
+def multiply(a, b):
+    return a * b"""
+        result = parse_code_blobs(test_input)
+        assert result == expected_output

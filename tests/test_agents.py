@@ -444,3 +444,18 @@ final_answer("Final report.")
 
         report = manager_toolcalling_agent.run("Fake question.")
         assert report == "Final report."
+
+    def test_code_nontrivial_final_answer_works(self):
+        def fake_code_model_final_answer(messages, stop_sequences=None, grammar=None):
+            return """Code:
+```py
+def nested_answer():
+    final_answer("Correct!")
+
+nested_answer()
+```<end_code>"""
+
+        agent = CodeAgent(tools=[], model=fake_code_model_final_answer)
+
+        output = agent.run("Count to 3")
+        assert output == "Correct!"

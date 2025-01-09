@@ -26,7 +26,11 @@ from rich.text import Text
 
 from .default_tools import FinalAnswerTool
 from .e2b_executor import E2BExecutor
-from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonInterpreter
+from .local_python_executor import (
+    BASE_BUILTIN_MODULES,
+    LocalPythonInterpreter,
+    fix_final_answer_code,
+)
 from .models import MessageRole
 from .monitoring import Monitor
 from .prompts import (
@@ -56,7 +60,7 @@ from .utils import (
     AgentMaxStepsError,
     AgentParsingError,
     console,
-    parse_code_blob,
+    parse_code_blobs,
     parse_json_tool_call,
     truncate_content,
 )
@@ -890,12 +894,11 @@ class CodeAgent(MultiStepAgent):
             )
             llm_output = self.model(
                 self.input_messages,
-                stop_sequences=["<end_action>", "Observation:"],
+                stop_sequences=["<end_code>", "Observation:"],
                 **additional_args,
             )
             log_entry.llm_output = llm_output
         except Exception as e:
-            console.print_exception()
             raise AgentGenerationError(f"Error in generating model output:\n{e}")
 
         if self.verbose:
@@ -917,10 +920,11 @@ class CodeAgent(MultiStepAgent):
 
         # Parse
         try:
-            code_action = parse_code_blob(llm_output)
+            code_action = fix_final_answer_code(parse_code_blobs(llm_output))
         except Exception as e:
-            console.print_exception()
-            error_msg = f"Error in code parsing: {e}. Make sure to provide correct code"
+            error_msg = (
+                f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
+            )
             raise AgentParsingError(error_msg)
 
         log_entry.tool_call = ToolCall(
@@ -944,8 +948,9 @@ class CodeAgent(MultiStepAgent):
             )
         )
         observation = ""
+        is_final_answer = False
         try:
-            output, execution_logs = self.python_executor(
+            output, execution_logs, is_final_answer = self.python_executor(
                 code_action,
                 self.state,
             )
@@ -975,12 +980,6 @@ class CodeAgent(MultiStepAgent):
         truncated_output = truncate_content(str(output))
         observation += "Last output from code snippet:\n" + truncated_output
         log_entry.observations = observation
-
-        is_final_answer = False
-        for line in code_action.split("\n"):
-            if line[: len("final_answer")] == "final_answer":
-                is_final_answer = True
-                break
 
         execution_outputs_console += [
             Text(

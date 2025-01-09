@@ -105,27 +105,36 @@ def parse_json_blob(json_blob: str) -> Dict[str, str]:
         raise ValueError(f"Error in parsing the JSON blob: {e}")
 
 
-def parse_code_blob(code_blob: str) -> str:
-    try:
-        pattern = r"```(?:py|python)?\n(.*?)\n```"
-        match = re.search(pattern, code_blob, re.DOTALL)
-        if match is None:
-            raise ValueError(
-                f"No match ground for regex pattern {pattern} in {code_blob=}."
-            )
-        return match.group(1).strip()
+def parse_code_blobs(code_blob: str) -> str:
+    """Parses the LLM's output to get any code blob inside. Will retrun the code directly if it's code."""
+    pattern = r"```(?:py|python)?\n(.*?)\n```"
+    matches = re.findall(pattern, code_blob, re.DOTALL)
+    if len(matches) == 0:
+        try:  # Maybe the LLM outputted a code blob directly
+            ast.parse(code_blob)
+            return code_blob
+        except SyntaxError:
+            pass
 
-    except Exception as e:
+        if "final" in code_blob and "answer" in code_blob:
+            raise ValueError(
+                f"""
+The code blob is invalid, because the regex pattern {pattern} was not found in {code_blob=}. It seems like you're trying to return the final answer, you can do it as follows:
+Code:
+```py
+final_answer("YOUR FINAL ANSWER HERE")
+```<end_code>""".strip()
+            )
         raise ValueError(
             f"""
-The code blob you used is invalid: due to the following error: {e}
-This means that the regex pattern {pattern} was not respected: make sure to include code with the correct pattern, for instance:
+The code blob is invalid, because the regex pattern {pattern} was not found in {code_blob=}. Make sure to include code with the correct pattern, for instance:
 Thoughts: Your thoughts
 Code:
 ```py
 # Your python code here
-```<end_action>"""
+```<end_code>""".strip()
         )
+    return "\n\n".join(match.strip() for match in matches)
 
 
 def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:

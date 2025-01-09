@@ -57,3 +57,6 @@ jobs:
       - name: Types tests
         run: |
           uv run pytest -sv ./tests/test_types.py
+      - name: Utils tests
+        run: |
+          uv run pytest -sv ./tests/test_utils.py

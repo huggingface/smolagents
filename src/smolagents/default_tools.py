@@ -112,7 +112,7 @@ class PythonInterpreterTool(Tool):
                     state=state,
                     static_tools=self.base_python_tools,
                     authorized_imports=self.authorized_imports,
-                )
+                )[0]  # The second element is boolean is_final_answer
             )
             return f"Stdout:\n{state['print_outputs']}\nOutput: {output}"
         except Exception as e:
