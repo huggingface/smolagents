@@ -1,25 +1,18 @@
-repos:
-  # black code formatter
-  - repo: https://github.com/psf/black
-    rev: 24.10.0
-    hooks:
-      - id: black
-        require_serial: true
-        args:
-          - --exclude=examples/
-          
+repos:    
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.6
     hooks:
+      # Run the linter.
       - id: ruff
+        types_or: [ python, pyi ]
         args:
           - --fix
           - --exclude=examples/
+      # Run the formatter.
       - id: ruff-format
+        types_or: [ python, pyi ]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: check-merge-conflict
       - id: check-yaml
-
-  
