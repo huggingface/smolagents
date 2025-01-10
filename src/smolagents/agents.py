@@ -378,7 +378,7 @@ class MultiStepAgent:
             }
         ]
         try:
-            return self.model(self.input_messages)
+            return {"answer": self.model(self.input_messages).content}
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
@@ -619,7 +619,7 @@ You have been provided with these additional arguments, that you can access usin
             final_step_log.duration = 0
             for callback in self.step_callbacks:
                 callback(final_step_log)
-
+        
         return handle_agent_output_types(final_answer)
 
     def planning_step(self, task, is_first_step: bool, step: int):
