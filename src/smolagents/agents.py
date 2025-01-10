@@ -453,9 +453,9 @@ class MultiStepAgent:
 
         Args:
             task (`str`): The task to perform.
-            stream (`bool`): Wether to run in a streaming way.
-            reset (`bool`): Wether to reset the conversation or keep it going from previous run.
-            single_step (`bool`): Should the agent run in one shot or multi-step fashion?
+            stream (`bool`): Whether to run in a streaming way.
+            reset (`bool`): Whether to reset the conversation or keep it going from previous run.
+            single_step (`bool`): Whether to run the agent in one-shot fashion.
             additional_args (`dict`): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
 
         Example:
