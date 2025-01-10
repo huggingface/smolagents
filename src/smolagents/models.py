@@ -318,15 +318,13 @@ class TransformersModel(Model):
         logger.info(f"Using device: {self.device}")
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id).to(self.device)
+            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=self.device)
         except Exception as e:
             logger.warning(
                 f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {model_id=}."
             )
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(default_model_id).to(
-                self.device
-            )
+            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=self.device)
 
     def make_stopping_criteria(self, stop_sequences: List[str]) -> StoppingCriteriaList:
         class StopOnStrings(StoppingCriteria):
