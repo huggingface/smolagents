@@ -62,6 +62,7 @@ from .utils import (
     console,
     parse_code_blobs,
     parse_json_tool_call,
+    make_json_serializable,
     truncate_content,
 )
 
@@ -738,6 +739,58 @@ Now begin!""",
             console.print(
                 Rule("[bold]Updated plan", style="orange"), Text(final_plan_redaction)
             )
+
+    def to_json(self) -> List[Dict]:
+        """
+        Convert the agent's logs into a JSON-serializable format.
+        Returns a list of dictionaries containing the step information.
+        """
+        json_logs = []
+        for step_log in self.logs:
+            if isinstance(step_log, SystemPromptStep):
+                json_log = {
+                    "type": "system_prompt",
+                    "system_prompt": step_log.system_prompt
+                }
+            elif isinstance(step_log, PlanningStep):
+                json_log = {
+                    "type": "planning",
+                    "plan": step_log.plan,
+                    "facts": step_log.facts
+                }
+            elif isinstance(step_log, TaskStep):
+                json_log = {
+                    "type": "task",
+                    "task": step_log.task
+                }
+            elif isinstance(step_log, ActionStep):
+                json_log = {
+                    "type": "action",
+                    "start_time": step_log.start_time,
+                    "end_time": step_log.end_time,
+                    "step": step_log.step,
+                    "duration": step_log.duration,
+                    "llm_output": step_log.llm_output,
+                    "observations": step_log.observations,
+                    "action_output": make_json_serializable(step_log.action_output),
+                }
+                
+                if step_log.tool_call:
+                    json_log["tool_call"] = {
+                        "name": step_log.tool_call.name,
+                        "arguments": make_json_serializable(step_log.tool_call.arguments),
+                        "id": step_log.tool_call.id
+                    }
+                
+                if step_log.error:
+                    json_log["error"] = {
+                        "type": step_log.error.__class__.__name__,
+                        "message": str(step_log.error)
+                    }
+
+            json_logs.append(json_log)
+            
+        return json_logs
 
 
 class ToolCallingAgent(MultiStepAgent):
