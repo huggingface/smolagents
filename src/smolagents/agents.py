@@ -394,7 +394,7 @@ class MultiStepAgent:
             }
         ]
         try:
-            return self.model(self.input_messages)
+            return {"answer": self.model(self.input_messages).content}
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
