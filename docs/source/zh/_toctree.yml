@@ -17,7 +17,7 @@
   - local: conceptual_guides/intro_agents
     title: 🤖 Agent化系统介绍
   - local: conceptual_guides/react
-    title: 🤔 How do Multi-step agents work?
+    title: 🤔 多步骤Agent是如何工作的？
 - title: Examples
   sections:
   - local: examples/text_to_sql

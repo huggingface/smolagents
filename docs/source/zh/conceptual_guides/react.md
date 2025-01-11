@@ -13,18 +13,18 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# How do multi-step agents work?
+# 多步骤agent是如何工作的？
 
-The ReAct framework ([Yao et al., 2022](https://huggingface.co/papers/2210.03629)) is currently the main approach to building agents.
+ReAct框架（[Yao et al., 2022](https://huggingface.co/papers/2210.03629)）是目前构建agent的主要方法。
 
-The name is based on the concatenation of two words, "Reason" and "Act." Indeed, agents following this architecture will solve their task in as many steps as needed, each step consisting of a Reasoning step, then an Action step where it formulates tool calls that will bring it closer to solving the task at hand.
+该名称基于两个词的组合："Reason"（推理）和"Act"（行动）。实际上，遵循此架构的agent将根据需要尽可能多的步骤来解决其任务，每个步骤包括一个推理步骤，然后是一个行动步骤，在该步骤中，它制定工具调用，使其更接近解决手头的任务。
 
-React process involves keeping a memory of past steps.
+ReAct过程涉及保留过去步骤的记忆。
 
 > [!TIP]
-> Read [Open-source LLMs as LangChain Agents](https://huggingface.co/blog/open-source-llms-as-agents) blog post to learn more about multi-step agents.
+> 阅读[Open-source LLMs as LangChain Agents](https://huggingface.co/blog/open-source-llms-as-agents)博客文章以了解更多关于多步agent的信息。
 
-Here is a video overview of how that works:
+以下是其工作原理的视频概述：
 
 <div class="flex justify-center">
     <img
@@ -37,11 +37,11 @@ Here is a video overview of how that works:
     />
 </div>
 
-![Framework of a React Agent](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/blog/open-source-llms-as-agents/ReAct.png)
+![ReActagent的框架](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/blog/open-source-llms-as-agents/ReAct.png)
 
-We implement two versions of ToolCallingAgent: 
-- [`ToolCallingAgent`] generates tool calls as a JSON in its output.
-- [`CodeAgent`] is a new type of ToolCallingAgent that generates its tool calls as blobs of code, which works really well for LLMs that have strong coding performance.
+我们实现了两个版本的ToolCallingAgent：
+- [`ToolCallingAgent`]在其输出中生成JSON格式的工具调用。
+- [`CodeAgent`]是一种新型的ToolCallingAgent，它生成代码块形式的工具调用，这对于具有强大编码性能的LLM非常有效。
 
 > [!TIP]
-> We also provide an option to run agents in one-shot: just pass `single_step=True` when launching the agent, like `agent.run(your_task, single_step=True)`
+> 我们还提供了一个选项来以单步模式运行agent：只需在启动agent时传递`single_step=True`，例如`agent.run(your_task, single_step=True)`
