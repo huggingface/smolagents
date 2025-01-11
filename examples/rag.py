@@ -60,7 +60,7 @@ from smolagents import HfApiModel, CodeAgent
 
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
-    tools=[retriever_tool], model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbose=True
+    tools=[retriever_tool], model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbosity_level=2
 )
 
 agent_output = agent.run("For a transformers model training, which is slower, the forward or the backward pass?")
