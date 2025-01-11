@@ -13,106 +13,110 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Introduction to Agents
 
-## 🤔 What are agents?
-
-Any efficient system using AI will need to provide LLMs some kind of access to the real world: for instance the possibility to call a search tool to get external information, or to act on certain programs in order to solve a task. In other words, LLMs should have ***agency***. Agentic programs are the gateway to the outside world for LLMs.
+# Agent简介
 
 > [!TIP]
-> AI Agents are **programs where LLM outputs control the workflow**.
+> 译者注：Agent的业内术语是“智能体”。本译文将保留agent，不作翻译，以带来更高效的阅读体验。(在中文为主的文章中，It's easier to 注意到英文。Attention Is All You Need!)
 
-Any system leveraging LLMs will integrate the LLM outputs into code. The influence of the LLM's input on the code workflow is the level of agency of LLMs in the system.
+## 🤔 什么是agent？
 
-Note that with this definition, "agent" is not a discrete, 0 or 1 definition: instead, "agency" evolves on a continuous spectrum, as you give more or less power to the LLM on your workflow.
+任何使用 AI 的高效系统都需要为 LLM 提供某种访问现实世界的方式：例如调用搜索工具获取外部信息，或者操作某些程序以完成任务。换句话说，LLM 应该具有**_Agent能力_**。Agent程序是 LLM 通往外部世界的门户。
 
-See in the table below how agency can vary across systems:
+> [!TIP]
+> AI agent是**LLM 输出控制工作流的程序**。
 
-| Agency Level | Description                                             | How that's called | Example Pattern                                    |
-| ------------ | ------------------------------------------------------- | ----------------- | -------------------------------------------------- |
-| ☆☆☆          | LLM output has no impact on program flow                | Simple Processor  | `process_llm_output(llm_response)`                 |
-| ★☆☆          | LLM output determines an if/else switch                 | Router            | `if llm_decision(): path_a() else: path_b()`       |
-| ★★☆          | LLM output determines function execution                | Tool Caller       | `run_function(llm_chosen_tool, llm_chosen_args)`   |
-| ★★★          | LLM output controls iteration and program continuation  | Multi-step Agent  | `while llm_should_continue(): execute_next_step()` |
-| ★★★          | One agentic workflow can start another agentic workflow | Multi-Agent       | `if llm_trigger(): execute_agent()`                |
+任何利用 LLM 的系统都会将 LLM 输出集成到代码中。LLM 输入对代码工作流的影响程度就是 LLM 在系统中的agent能力级别。
 
-The multi-step agent has this code structure:
+请注意，根据这个定义，"Agent"不是一个离散的、非 0 即 1 的定义：相反，"Agent能力"是一个连续谱系，随着你在工作流中给予 LLM 更多或更少的权力而变化。
+
+请参见下表中agent能力在不同系统中的变化：
+
+| Agent能力级别 | 描述                                           | 名称       | 示例模式                                           |
+| ------------ | ---------------------------------------------- | ---------- | -------------------------------------------------- |
+| ☆☆☆          | LLM 输出对程序流程没有影响                     | 简单处理器 | `process_llm_output(llm_response)`                 |
+| ★☆☆          | LLM 输出决定 if/else 分支                      | 路由       | `if llm_decision(): path_a() else: path_b()`       |
+| ★★☆          | LLM 输出决定函数执行                           | 工具调用者 | `run_function(llm_chosen_tool, llm_chosen_args)`   |
+| ★★★          | LLM 输出控制迭代和程序继续                     | 多步Agent | `while llm_should_continue(): execute_next_step()` |
+| ★★★          | 一个agent工作流可以启动另一个agent工作流 | 多Agent   | `if llm_trigger(): execute_agent()`                |
+
+多步agent具有以下代码结构：
 
 ```python
 memory = [user_defined_task]
-while llm_should_continue(memory): # this loop is the multi-step part
-    action = llm_get_next_action(memory) # this is the tool-calling part
+while llm_should_continue(memory): # 这个循环是多步部分
+    action = llm_get_next_action(memory) # 这是工具调用部分
     observations = execute_action(action)
     memory += [action, observations]
 ```
 
-This agentic system runs in a loop, executing a new action at each step (the action can involve calling some pre-determined *tools* that are just functions), until its observations make it apparent that a satisfactory state has been reached to solve the given task. Here’s an example of how a multi-step agent can solve a simple math question:
+这个agent系统在一个循环中运行，每一步执行一个新动作（该动作可能涉及调用一些预定义的*工具*，这些工具只是函数），直到其观察结果表明已达到解决给定任务的满意状态。以下是一个多步agent如何解决简单数学问题的示例：
 
 <div class="flex justify-center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/Agent_ManimCE.gif"/>
 </div>
 
+## ✅ 何时使用agent / ⛔ 何时避免使用
 
-## ✅ When to use agents / ⛔ when to avoid them
+当你需要 LLM 确定应用程序的工作流时，agent很有用。但它们通常有些过度。问题是：我真的需要工作流的灵活性来有效解决手头的任务吗？
+如果预定义的工作流经常不足，这意味着你需要更多的灵活性。
+让我们举个例子：假设你正在开发一个处理冲浪旅行网站客户请求的应用程序。
 
-Agents are useful when you need an LLM to determine the workflow of an app. But they’re often overkill. The question is: do I really need flexibility in the workflow to efficiently solve the task at hand?
-If the pre-determined workflow falls short too often, that means you need more flexibility.
-Let's take an example: say you're making an app that handles customer requests on a surfing trip website.
+你可以提前知道请求将属于 2 个类别之一（基于用户选择），并且你为这 2 种情况都有预定义的工作流。
 
-You could know in advance that the requests will can belong to either of 2 buckets (based on user choice), and you have a predefined workflow for each of these 2 cases.
+1. 想要了解旅行信息？⇒ 给他们访问搜索栏以搜索你的知识库
+2. 想与销售交谈？⇒ 让他们填写联系表单。
 
-1. Want some knowledge on the trips? ⇒ give them access to a search bar to search your knowledge base
-2. Wants to talk to sales? ⇒ let them type in a contact form.
+如果这个确定性工作流适合所有查询，那就直接编码吧！这将为你提供一个 100% 可靠的系统，没有让不可预测的 LLM 干扰你的工作流而引入错误的风险。为了简单和稳健起见，建议规范化不使用任何agent行为。
 
-If that deterministic workflow fits all queries, by all means just code everything! This will give you a 100% reliable system with no risk of error introduced by letting unpredictable LLMs meddle in your workflow. For the sake of simplicity and robustness, it's advised to regularize towards not using any agentic behaviour. 
+但如果工作流不能提前确定得那么好呢？
 
-But what if the workflow can't be determined that well in advance? 
+例如，用户想问：`"I can come on Monday, but I forgot my passport so risk being delayed to Wednesday, is it possible to take me and my stuff to surf on Tuesday morning, with a cancellation insurance?"`这个问题涉及许多因素，可能上述预定的标准都不足以满足这个请求。
 
-For instance, a user wants to ask : `"I can come on Monday, but I forgot my passport so risk being delayed to Wednesday, is it possible to take me and my stuff to surf on Tuesday morning, with a cancellation insurance?"` This question hinges on many factors, and probably none of the predetermined criteria above will suffice for this request.
+如果预定义的工作流经常不足，这意味着你需要更多的灵活性。
 
-If the pre-determined workflow falls short too often, that means you need more flexibility.
+这就是agent设置发挥作用的地方。
 
-That is where an agentic setup helps.
+在上面的例子中，你可以创建一个多步agent，它可以访问天气 API 获取天气预报，Google Maps API 计算旅行距离，员工在线仪表板和你的知识库上的 RAG 系统。
 
-In the above example, you could just make a multi-step agent that has access to a weather API for weather forecasts, Google Maps API to compute travel distance, an employee availability dashboard and a RAG system on your knowledge base.
+直到最近，计算机程序还局限于预定义的工作流，试图通过堆积 if/else 分支来处理复杂性。它们专注于极其狭窄的任务，如"计算这些数字的总和"或"找到这个图中的最短路径"。但实际上，大多数现实生活中的任务，如我们上面的旅行示例，都不适合预定义的工作流。agent系统为程序打开了现实世界任务的大门！
 
-Until recently, computer programs were restricted to pre-determined workflows, trying to handle complexity by piling up  if/else switches. They focused on extremely narrow tasks, like "compute the sum of these numbers" or "find the shortest path in this graph". But actually, most real-life tasks, like our trip example above, do not fit in pre-determined workflows. Agentic systems open up the vast world of real-world tasks to programs!
+## 为什么选择`smolagents`？
 
-## Why `smolagents`?
+对于一些低级的agent用例，如链或路由器，你可以自己编写所有代码。这样会更好，因为它可以让你更好地控制和理解你的系统。
 
-For some low-level agentic use cases, like chains or routers, you can write all the code yourself. You'll be much better that way, since it will let you control and understand your system better.
+但一旦你开始追求更复杂的行为，比如让 LLM 调用函数（即"工具调用"）或让 LLM 运行 while 循环（"多步agent"），一些抽象就变得必要：
 
-But once you start going for more complicated behaviours like letting an LLM call a function (that's "tool calling") or letting an LLM run a while loop ("multi-step agent"), some abstractions become necessary:
-- for tool calling, you need to parse the agent's output, so this output needs a predefined format like "Thought: I should call tool 'get_weather'. Action: get_weather(Paris).", that you parse with a predefined function, and system prompt given to the LLM should notify it about this format.
-- for a multi-step agent where the LLM output determines the loop, you need to give a different prompt to the LLM based on what happened in the last loop iteration: so you need some kind of memory.
+- 对于工具调用，你需要解析agent的输出，因此这个输出需要一个预定义的格式，如"Thought: I should call tool 'get_weather'. Action: get_weather(Paris)."，你用预定义的函数解析它，并且给 LLM 的系统提示应该通知它这个格式。
+- 对于 LLM 输出决定循环的多步agent，你需要根据上次循环迭代中发生的情况给 LLM 不同的提示：所以你需要某种记忆能力。
 
-See? With these two examples, we already found the need for a few items to help us:
+看到了吗？通过这两个例子，我们已经发现需要一些项目来帮助我们：
 
-- Of course, an LLM that acts as the engine powering the system
-- A list of tools that the agent can access
-- A parser that extracts tool calls from the LLM output
-- A system prompt synced with the parser
-- A memory
+- 当然，一个作为系统引擎的 LLM
+- agent可以访问的工具列表
+- 从 LLM 输出中提取工具调用的解析器
+- 与解析器同步的系统提示
+- 记忆能力
 
-But wait, since we give room to LLMs in decisions, surely they will make mistakes: so we need error logging and retry mechanisms.
+但是等等，既然我们给 LLM 在决策中留出了空间，它们肯定会犯错误：所以我们需要错误日志记录和重试机制。
 
-All these elements need tight coupling to make a well-functioning system. That's why we decided we needed to make basic building blocks to make all this stuff work together.
+所有这些元素都需要紧密耦合才能形成一个功能良好的系统。这就是为什么我们决定需要制作基本构建块来让所有这些东西协同工作。
 
-## Code agents
+## 代码agent
 
-In a multi-step agent, at each step, the LLM can write an action, in the form of some calls to external tools. A common format (used by Anthropic, OpenAI, and many others) for writing these actions is generally different shades of "writing actions as a JSON of tools names and arguments to use, which you then parse to know which tool to execute and with which arguments".
+在多步agent中，每一步 LLM 都可以编写一个动作，形式为调用外部工具。编写这些动作的常见格式（由 Anthropic、OpenAI 等使用）通常是"将动作编写为工具名称和要使用的参数的 JSON，然后解析以知道要执行哪个工具以及使用哪些参数"的不同变体。
 
-[Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the tool calling LLMs in code is much better.
+[多项](https://huggingface.co/papers/2402.01030) [研究](https://huggingface.co/papers/2411.01747) [论文](https://huggingface.co/papers/2401.00812)表明，在代码中进行工具调用的 LLM 要好得多。
 
-The reason for this simply that *we crafted our code languages specifically to be the best possible way to express actions performed by a computer*. If JSON snippets were a better expression, JSON would be the top programming language and programming would be hell on earth.
+原因很简单，_我们专门设计了我们的代码语言，使其成为表达计算机执行动作的最佳方式_。如果 JSON 片段是更好的表达方式，JSON 将成为顶级编程语言，编程将变得非常困难。
 
-The figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030), illustrate some advantages of writing actions in code:
+下图取自[Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030)，说明了用代码编写动作的一些优势：
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_vs_json_actions.png">
 
-Writing actions in code rather than JSON-like snippets provides better:
+与 JSON 片段相比，用代码编写动作提供了更好的：
 
-- **Composability:** could you nest JSON actions within each other, or define a set of JSON actions to re-use later, the same way you could just define a python function?
-- **Object management:** how do you store the output of an action like `generate_image` in JSON?
-- **Generality:** code is built to express simply anything you can have a computer do.
-- **Representation in LLM training data:** plenty of quality code actions is already included in LLMs’ training data which means they’re already trained for this!
+- **可组合性：** 你能像定义 python 函数一样，将 JSON 动作嵌套在一起，或定义一组 JSON 动作以供重用吗？
+- **对象管理：** 你如何在 JSON 中存储像`generate_image`这样的动作的输出？
+- **通用性：** 代码被构建为简单地表达任何你可以让计算机做的事情。
+- **LLM 训练数据中的表示：** 大量高质量的代码动作已经包含在 LLM 的训练数据中，这意味着它们已经为此进行了训练！
