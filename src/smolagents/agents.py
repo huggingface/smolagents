@@ -198,6 +198,7 @@ class MultiStepAgent:
         max_steps: int = 6,
         tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
+        remove_final_answer_tool: bool = False,
         verbosity_level: int = 1,
         grammar: Optional[Dict[str, str]] = None,
         managed_agents: Optional[List] = None,
@@ -234,7 +235,8 @@ class MultiStepAgent:
                     or self.__class__.__name__ == "ToolCallingAgent"
                 ):
                     self.tools[tool_name] = tool_class()
-        self.tools["final_answer"] = FinalAnswerTool()
+        if not remove_final_answer_tool:
+            self.tools["final_answer"] = FinalAnswerTool()
 
         self.system_prompt = self.initialize_system_prompt()
         self.input_messages = None
