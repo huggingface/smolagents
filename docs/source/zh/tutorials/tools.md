@@ -13,34 +13,34 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Tools
+# 工具
 
 [[open-in-colab]]
 
-Here, we're going to see advanced tool usage.
+在这里，我们将学习高级工具的使用。
 
 > [!TIP]
-> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
+> 如果你是构建agent的新手，请确保先阅读[agent介绍](../conceptual_guides/intro_agents)和[smolagents导览](../guided_tour)。
 
-- [Tools](#tools)
-    - [What is a tool, and how to build one?](#what-is-a-tool-and-how-to-build-one)
-    - [Share your tool to the Hub](#share-your-tool-to-the-hub)
-    - [Import a Space as a tool](#import-a-space-as-a-tool)
-    - [Use LangChain tools](#use-langchain-tools)
-    - [Manage your agent's toolbox](#manage-your-agents-toolbox)
-    - [Use a collection of tools](#use-a-collection-of-tools)
+- [工具](#工具)
+    - [什么是工具，如何构建一个工具？](#什么是工具如何构建一个工具)
+    - [将你的工具分享到Hub](#将你的工具分享到hub)
+    - [将Space导入为工具](#将space导入为工具)
+    - [使用LangChain工具](#使用langchain工具)
+    - [管理你的agent工具箱](#管理你的agent工具箱)
+    - [使用工具集合](#使用工具集合)
 
-### What is a tool, and how to build one?
+### 什么是工具，如何构建一个工具？
 
-A tool is mostly a function that an LLM can use in an agentic system.
+工具主要是LLM可以在agent系统中使用的函数。
 
-But to use it, the LLM will need to be given an API: name, tool description, input types and descriptions, output type.
+但要使用它，LLM需要被提供一个API：名称、工具描述、输入类型和描述、输出类型。
 
-So it cannot be only a function. It should be a class.
+所以它不能仅仅是一个函数。它应该是一个类。
 
-So at core, the tool is a class that wraps a function with metadata that helps the LLM understand how to use it.
+因此，核心上，工具是一个类，它包装了一个函数，并带有帮助LLM理解如何使用它的元数据。
 
-Here's how it looks:
+以下是它的结构：
 
 ```python
 from smolagents import Tool
@@ -67,39 +67,38 @@ class HFModelDownloadsTool(Tool):
 model_downloads_tool = HFModelDownloadsTool()
 ```
 
-The custom tool subclasses [`Tool`] to inherit useful methods. The child class also defines:
-- An attribute `name`, which corresponds to the name of the tool itself. The name usually describes what the tool does. Since the code returns the model with the most downloads for a task, let's name it `model_download_counter`.
-- An attribute `description` is used to populate the agent's system prompt.
-- An `inputs` attribute, which is a dictionary with keys `"type"` and `"description"`. It contains information that helps the Python interpreter make educated choices about the input.
-- An `output_type` attribute, which specifies the output type. The types for both `inputs` and `output_type` should be [Pydantic formats](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema), they can be either of these: [`~AUTHORIZED_TYPES`].
-- A `forward` method which contains the inference code to be executed.
+自定义工具继承[`Tool`]以继承有用的方法。子类还定义了：
+- 一个属性`name`，对应于工具本身的名称。名称通常描述工具的功能。由于代码返回任务中下载量最多的模型，我们将其命名为`model_download_counter`。
+- 一个属性`description`，用于填充agent的系统提示。
+- 一个`inputs`属性，它是一个带有键`"type"`和`"description"`的字典。它包含帮助Python解释器对输入做出明智选择的信息。
+- 一个`output_type`属性，指定输出类型。`inputs`和`output_type`的类型应为[Pydantic格式](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema)，它们可以是以下之一：[`~AUTHORIZED_TYPES`]。
+- 一个`forward`方法，包含要执行的推理代码。
 
-And that's all it needs to be used in an agent!
+这就是它在agent中使用所需的全部内容！
 
-There's another way to build a tool. In the [guided_tour](../guided_tour), we implemented a tool using the `@tool` decorator. The [`tool`] decorator is the recommended way to define simple tools, but sometimes you need more than this: using several methods in a class for more clarity, or using additional class attributes.
+还有另一种构建工具的方法。在[guided_tour](../guided_tour)中，我们使用`@tool`装饰器实现了一个工具。[`tool`]装饰器是定义简单工具的推荐方式，但有时你需要更多：在类中使用多个方法以获得更清晰的代码，或使用额外的类属性。
 
-In this case, you can build your tool by subclassing [`Tool`] as described above.
+在这种情况下，你可以通过如上所述继承[`Tool`]来构建你的工具。
 
-### Share your tool to the Hub
+### 将你的工具分享到Hub
 
-You can share your custom tool to the Hub by calling [`~Tool.push_to_hub`] on the tool. Make sure you've created a repository for it on the Hub and are using a token with read access.
+你可以通过调用[`~Tool.push_to_hub`]将你的自定义工具分享到Hub。确保你已经在Hub上为其创建了一个仓库，并且使用的是具有读取权限的token。
 
 ```python
 model_downloads_tool.push_to_hub("{your_username}/hf-model-downloads", token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
 ```
 
-For the push to Hub to work, your tool will need to respect some rules:
-- All methods are self-contained, e.g. use variables that come either from their args.
-- As per the above point, **all imports should be defined directly within the tool's functions**, else you will get an error when trying to call [`~Tool.save`] or [`~Tool.push_to_hub`] with your custom tool.
-- If you subclass the `__init__` method, you can give it no other argument than `self`. This is because arguments set during a specific tool instance's initialization are hard to track, which prevents from sharing them properly to the hub. And anyway, the idea of making a specific class is that you can already set class attributes for anything you need to hard-code (just set `your_variable=(...)` directly under the `class YourTool(Tool):` line). And of course you can still create a class attribute anywhere in your code by assigning stuff to `self.your_variable`.
+为了使推送到Hub正常工作，你的工具需要遵守一些规则：
+- 所有方法都是自包含的，例如使用来自其参数中的变量。
+- 根据上述要点，**所有导入应直接在工具的函数中定义**，否则在尝试使用[`~Tool.save`]或[`~Tool.push_to_hub`]调用你的自定义工具时会出现错误。
+- 如果你继承了`__init__`方法，除了`self`之外，你不能给它任何其他参数。这是因为在特定工具实例初始化期间设置的参数很难跟踪，这阻碍了将它们正确分享到Hub。无论如何，创建特定类的想法是你已经可以为任何需要硬编码的内容设置类属性（只需在`class YourTool(Tool):`行下直接设置`your_variable=(...)`）。当然，你仍然可以通过将内容分配给`self.your_variable`在代码中的任何地方创建类属性。
 
+一旦你的工具被推送到Hub，你就可以查看它。[这里](https://huggingface.co/spaces/m-ric/hf-model-downloads)是我推送的`model_downloads_tool`。它有一个漂亮的gradio界面。
 
-Once your tool is pushed to Hub, you can visualize it. [Here](https://huggingface.co/spaces/m-ric/hf-model-downloads) is the `model_downloads_tool` that I've pushed. It has a nice gradio interface.
+在深入工具文件时，你可以发现所有工具的逻辑都在[tool.py](https://huggingface.co/spaces/m-ric/hf-model-downloads/blob/main/tool.py)下。这是你可以检查其他人分享的工具的地方。
 
-When diving into the tool files, you can find that all the tool's logic is under [tool.py](https://huggingface.co/spaces/m-ric/hf-model-downloads/blob/main/tool.py). That is where you can inspect a tool shared by someone else.
-
-Then you can load the tool with [`load_tool`] or create it with [`~Tool.from_hub`] and pass it to the `tools` parameter in your agent.
-Since running tools means running custom code, you need to make sure you trust the repository, thus we require to pass `trust_remote_code=True` to load a tool from the Hub.
+然后你可以使用[`load_tool`]加载工具或使用[`~Tool.from_hub`]创建它，并将其传递给agent中的`tools`参数。
+由于运行工具意味着运行自定义代码，你需要确保你信任该仓库，因此我们需要传递`trust_remote_code=True`来从Hub加载工具。
 
 ```python
 from smolagents import load_tool, CodeAgent
@@ -110,13 +109,13 @@ model_download_tool = load_tool(
 )
 ```
 
-### Import a Space as a tool
+### 将Space导入为工具
 
-You can directly import a Space from the Hub as a tool using the [`Tool.from_space`] method!
+你可以使用[`Tool.from_space`]方法直接从Hub导入一个Space作为工具！
 
-You only need to provide the id of the Space on the Hub, its name, and a description that will help you agent understand what the tool does. Under the hood, this will use [`gradio-client`](https://pypi.org/project/gradio-client/) library to call the Space.
+你只需要提供Hub上Space的id、它的名称和一个帮助你的agent理解工具功能的描述。在底层，这将使用[`gradio-client`](https://pypi.org/project/gradio-client/)库来调用Space。
 
-For instance, let's import the [FLUX.1-dev](https://huggingface.co/black-forest-labs/FLUX.1-dev) Space from the Hub and use it to generate an image.
+例如，让我们从Hub导入[FLUX.1-dev](https://huggingface.co/black-forest-labs/FLUX.1-dev) Space并使用它生成一张图片。
 
 ```python
 image_generation_tool = Tool.from_space(
@@ -127,11 +126,11 @@ image_generation_tool = Tool.from_space(
 
 image_generation_tool("A sunny beach")
 ```
-And voilà, here's your image! 🏖️
+瞧，这是你的图片！🏖️
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/sunny_beach.webp">
 
-Then you can use this tool just like any other tool.  For example, let's improve the prompt  `a rabbit wearing a space suit` and generate an image of it.
+然后你可以像使用任何其他工具一样使用这个工具。例如，让我们改进提示`A rabbit wearing a space suit`并生成它的图片。
 
 ```python
 from smolagents import CodeAgent, HfApiModel
@@ -156,15 +155,15 @@ final_answer(image)
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit_spacesuit_flux.webp">
 
-How cool is this? 🤩
+这得有多酷？🤩
 
-### Use LangChain tools
+### 使用LangChain工具
 
-We love Langchain and think it has a very compelling suite of tools.
-To import a tool from LangChain, use the `from_langchain()` method.
+我们喜欢Langchain，并认为它有一套非常吸引人的工具。
+要从LangChain导入工具，请使用`from_langchain()`方法。
 
-Here is how you can use it to recreate the intro's search result using a LangChain web search tool.
-This tool will need `pip install langchain google-search-results -q` to work properly.
+以下是如何使用它来重现介绍中的搜索结果，使用LangChain的web搜索工具。
+这个工具需要`pip install langchain google-search-results -q`才能正常工作。
 ```python
 from langchain.agents import load_tools
 
@@ -175,11 +174,11 @@ agent = CodeAgent(tools=[search_tool], model=model)
 agent.run("How many more blocks (also denoted as layers) are in BERT base encoder compared to the encoder from the architecture proposed in Attention is All You Need?")
 ```
 
-### Manage your agent's toolbox
+### 管理你的agent工具箱
 
-You can manage an agent's toolbox by adding or replacing a tool.
+你可以通过添加或替换工具来管理agent的工具箱。
 
-Let's add the `model_download_tool` to an existing agent initialized with only the default toolbox.
+让我们将`model_download_tool`添加到一个仅使用默认工具箱初始化的现有agent中。
 
 ```python
 from smolagents import HfApiModel
@@ -189,7 +188,7 @@ model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.tools.append(model_download_tool)
 ```
-Now we can leverage the new tool:
+现在我们可以利用新工具：
 
 ```python
 agent.run(
@@ -199,13 +198,13 @@ agent.run(
 
 
 > [!TIP]
-> Beware of not adding too many tools to an agent: this can overwhelm weaker LLM engines.
+> 注意不要向agent添加太多工具：这可能会让较弱的LLM引擎不堪重负。
 
 
-### Use a collection of tools
+### 使用工具集合
 
-You can leverage tool collections by using the ToolCollection object, with the slug of the collection you want to use.
-Then pass them as a list to initialize your agent, and start using them!
+你可以通过使用ToolCollection对象来利用工具集合，使用你想要使用的集合的slug。
+然后将它们作为列表传递给agent初始化，并开始使用它们！
 
 ```py
 from smolagents import ToolCollection, CodeAgent
@@ -219,4 +218,4 @@ agent = CodeAgent(tools=[*image_tool_collection.tools], model=model, add_base_to
 agent.run("Please draw me a picture of rivers and lakes.")
 ```
 
-To speed up the start, tools are loaded only if called by the agent.
+为了加快启动速度，工具仅在agent调用时加载。

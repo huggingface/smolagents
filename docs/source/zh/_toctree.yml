@@ -9,7 +9,7 @@
   - local: tutorials/building_good_agents
     title: ✨ 构建好用的agents
   - local: tutorials/tools
-    title: 🛠️ Tools - in-depth guide
+    title: 🛠️ 工具 - 深度指南
   - local: tutorials/secure_code_execution
     title: 🛡️ Secure your code execution with E2B
 - title: Conceptual guides
