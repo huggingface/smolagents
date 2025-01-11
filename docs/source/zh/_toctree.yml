@@ -3,7 +3,7 @@
   - local: index
     title: 🤗 Agents
   - local: guided_tour
-    title: Guided tour
+    title: 导览
 - title: Tutorials
   sections:
   - local: tutorials/building_good_agents

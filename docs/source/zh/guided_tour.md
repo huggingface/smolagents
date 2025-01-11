@@ -13,31 +13,34 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Agents - Guided tour
+# Agents - 导览
 
 [[open-in-colab]]
 
-In this guided visit, you will learn how to build an agent, how to run it, and how to customize it to make it work better for your use-case.
+在本导览中，您将学习如何构建一个agent（智能体），如何运行它，以及如何自定义它以使其更好地适应您的使用场景。
 
-### Building your agent
+> [!TIP]
+> 译者注：Agent的业内术语是“智能体”。本译文将保留agent，不作翻译，以带来更高效的阅读体验。(在中文为主的文章中，It's easier to 注意到英文。Attention Is All You Need!)
 
-To initialize a minimal agent, you need at least these two arguments:
+### 构建您的agent
 
-- `model`, a text-generation model to power your agent - because the agent is different from a simple LLM, it is a system that uses a LLM as its engine. You can use any of these options:
-    - [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
-    - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood.
-    - [`LiteLLMModel`] lets you call 100+ different models through [LiteLLM](https://docs.litellm.ai/)!
+要初始化一个最小化的agent，您至少需要以下两个参数：
 
-- `tools`, A list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
+- `model`，一个为您的agent提供动力的文本生成模型 - 因为agent与简单的LLM不同，它是一个使用LLM作为引擎的系统。您可以使用以下任一选项：
+    - [`TransformersModel`] 使用预初始化的`transformers`管道在本地机器上运行推理
+    - [`HfApiModel`] 在底层使用`huggingface_hub.InferenceClient`
+    - [`LiteLLMModel`] 让您通过[LiteLLM](https://docs.litellm.ai/)调用100+不同的模型！
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Hugging Face API](https://huggingface.co/docs/api-inference/en/index), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), or [LiteLLM](https://www.litellm.ai/).
+- `tools`，agent可以用来解决任务的`Tools`列表。它可以是一个空列表。您还可以通过定义可选参数`add_base_tools=True`在您的`tools`列表之上添加默认工具箱。
 
-<hfoptions id="Pick a LLM">
+一旦有了这两个参数`tools`和`model`，您就可以创建一个agent并运行它。您可以使用任何您喜欢的LLM，无论是通过[Hugging Face API](https://huggingface.co/docs/api-inference/en/index)、[transformers](https://github.com/huggingface/transformers/)、[ollama](https://ollama.com/)，还是[LiteLLM](https://www.litellm.ai/)。
+
+<hfoptions id="选择一个LLM">
 <hfoption id="Hugging Face API">
 
-Hugging Face API is free to use without a token, but then it will have a rate limitation.
+Hugging Face API可以免费使用而无需token，但会有速率限制。
 
-To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`.
+要访问受限模型或使用PRO账户提高速率限制，您需要设置环境变量`HF_TOKEN`或在初始化`HfApiModel`时传递`token`变量。
 
 ```python
 from smolagents import CodeAgent, HfApiModel
@@ -52,7 +55,7 @@ agent.run(
 )
 ```
 </hfoption>
-<hfoption id="Local Transformers Model">
+<hfoption id="本地Transformers模型">
 
 ```python
 from smolagents import CodeAgent, TransformersModel
@@ -67,14 +70,14 @@ agent.run(
 )
 ```
 </hfoption>
-<hfoption id="OpenAI or Anthropic API">
+<hfoption id="OpenAI或Anthropic API">
 
-To use `LiteLLMModel`, you need to set the environment variable `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, or pass `api_key` variable upon initialization.
+要使用`LiteLLMModel`，您需要设置环境变量`ANTHROPIC_API_KEY`或`OPENAI_API_KEY`，或者在初始化时传递`api_key`变量。
 
 ```python
 from smolagents import CodeAgent, LiteLLMModel
 
-model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", api_key="YOUR_ANTHROPIC_API_KEY") # Could use 'gpt-4o'
+model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", api_key="YOUR_ANTHROPIC_API_KEY") # 也可以使用'gpt-4o'
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -88,9 +91,9 @@ agent.run(
 from smolagents import CodeAgent, LiteLLMModel
 
 model = LiteLLMModel(
-    model_id="ollama_chat/llama3.2", # This model is a bit weak for agentic behaviours though
-    api_base="http://localhost:11434", # replace with remote open-ai compatible server if necessary
-    api_key="YOUR_API_KEY" # replace with API key if necessary
+    model_id="ollama_chat/llama3.2", # 这个模型对于agent行为来说有点弱
+    api_base="http://localhost:11434", # 如果需要可以替换为远程open-ai兼容服务器
+    api_key="YOUR_API_KEY" # 如果需要可以替换为API key
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
@@ -102,15 +105,15 @@ agent.run(
 </hfoption>
 </hfoptions>
 
-#### CodeAgent and ToolCallingAgent
+#### CodeAgent和ToolCallingAgent
 
-The [`CodeAgent`] is our default agent. It will write and execute python code snippets at each step.
+[`CodeAgent`]是我们的默认agent。它将在每一步编写并执行Python代码片段。
 
-By default, the execution is done in your local environment.
-This should be safe because the only functions that can be called are the tools you provided (especially if it's only tools by Hugging Face) and a set of predefined safe functions like `print` or functions from the `math` module, so you're already limited in what can be executed.
+默认情况下，执行是在您的本地环境中完成的。
+这应该是安全的，因为唯一可以调用的函数是您提供的工具（特别是如果只有Hugging Face的工具）和一组预定义的安全函数，如`print`或`math`模块中的函数，所以您已经限制了可以执行的内容。
 
-The Python interpreter also doesn't allow imports by default outside of a safe list, so all the most obvious attacks shouldn't be an issue.
-You can authorize additional imports by passing the authorized modules as a list of strings in argument `additional_authorized_imports` upon initialization of your [`CodeAgent`]:
+Python解释器默认也不允许在安全列表之外导入，所以所有最明显的攻击都不应该成为问题。
+您可以通过在初始化[`CodeAgent`]时将授权模块作为字符串列表传递给参数`additional_authorized_imports`来授权额外的导入：
 
 ```py
 from smolagents import CodeAgent
@@ -120,16 +123,16 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 ```
 
 > [!WARNING]
-> The LLM can generate arbitrary code that will then be executed: do not add any unsafe imports!
+> LLM可以生成任意代码然后执行：不要添加任何不安全的导入！
 
-The execution will stop at any code trying to perform an illegal operation or if there is a regular Python error with the code generated by the agent.
+如果生成的代码尝试执行非法操作或出现常规Python错误，执行将停止。
 
-You can also use [E2B code executor](https://e2b.dev/docs#what-is-e2-b) instead of a local Python interpreter by first [setting the `E2B_API_KEY` environment variable](https://e2b.dev/dashboard?tab=keys) and then passing `use_e2b_executor=True` upon agent initialization.
+您也可以使用[E2B代码执行器](https://e2b.dev/docs#what-is-e2-b)而不是本地Python解释器，首先[设置`E2B_API_KEY`环境变量](https://e2b.dev/dashboard?tab=keys)，然后在初始化agent时传递`use_e2b_executor=True`。
 
 > [!TIP]
-> Learn more about code execution [in this tutorial](tutorials/secure_code_execution).
+> 在[该教程中](tutorials/secure_code_execution)了解更多关于代码执行的内容。
 
-We also support the widely-used way of writing actions as JSON-like blobs: this is [`ToolCallingAgent`], it works much in the same way like [`CodeAgent`], of course without `additional_authorized_imports` since it doesn't execute code:
+我们还支持广泛使用的将动作编写为JSON-like块的方式：[`ToolCallingAgent`]，它的工作方式与[`CodeAgent`]非常相似，当然没有`additional_authorized_imports`，因为它不执行代码：
 
 ```py
 from smolagents import ToolCallingAgent
@@ -138,33 +141,33 @@ agent = ToolCallingAgent(tools=[], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
-### Inspecting an agent run
+### 检查agent运行
 
-Here are a few useful attributes to inspect what happened after a run:
-- `agent.logs` stores the fine-grained logs of the agent. At every step of the agent's run, everything gets stored in a dictionary that then is appended to `agent.logs`.
-- Running `agent.write_inner_memory_from_logs()` creates an inner memory of the agent's logs for the LLM to view, as a list of chat messages. This method goes over each step of the log and only stores what it's interested in as a message: for instance, it will save the system prompt and task in separate messages, then for each step it will store the LLM output as a message, and the tool call output as another message. Use this if you want a higher-level view of what has happened - but not every log will be transcripted by this method.
+以下是一些有用的属性，用于检查运行后发生了什么：
+- `agent.logs`存储agent的细粒度日志。在agent运行的每一步，所有内容都会存储在一个字典中，然后附加到`agent.logs`中。
+- 运行`agent.write_inner_memory_from_logs()`会为LLM创建一个agent日志的内部内存，作为聊天消息列表。此方法会遍历日志的每一步，并仅存储它感兴趣的内容作为消息：例如，它会将系统提示和任务存储为单独的消息，然后对于每一步，它会将LLM输出存储为一条消息，工具调用输出存储为另一条消息。如果您想要更高级别的视图 - 但不是每个日志都会被此方法转录。
 
-## Tools
+## 工具
 
-A tool is an atomic function to be used by an agent. To be used by an LLM, it also needs a few attributes that constitute its API and will be used to describe to the LLM how to call this tool:
-- A name
-- A description
-- Input types and descriptions
-- An output type
+工具是agent使用的原子函数。为了被LLM使用，它还需要一些构成其API的属性，这些属性将用于向LLM描述如何调用此工具：
+- 名称
+- 描述
+- 输入类型和描述
+- 输出类型
 
-You can for instance check the [`PythonInterpreterTool`]: it has a name, a description, input descriptions, an output type, and a `forward` method to perform the action.
+例如，您可以查看[`PythonInterpreterTool`]：它有一个名称、描述、输入描述、输出类型和一个执行操作的`forward`方法。
 
-When the agent is initialized, the tool attributes are used to generate a tool description which is baked into the agent's system prompt. This lets the agent know which tools it can use and why.
+当agent初始化时，工具属性用于生成工具描述，该描述被嵌入到agent的系统提示中。这让agent知道它可以使用哪些工具以及为什么。
 
-### Default toolbox
+### 默认工具箱
 
-Transformers comes with a default toolbox for empowering agents, that you can add to your agent upon initialization with argument `add_base_tools = True`:
+Transformers附带了一个用于增强agent的默认工具箱，您可以在初始化时通过参数`add_base_tools = True`将其添加到您的agent中：
 
-- **DuckDuckGo web search***: performs a web search using DuckDuckGo browser.
-- **Python code interpreter**: runs your the LLM generated Python code in a secure environment. This tool will only be added to [`ToolCallingAgent`] if you initialize it with `add_base_tools=True`, since code-based agent can already natively execute Python code
-- **Transcriber**: a speech-to-text pipeline built on Whisper-Turbo that transcribes an audio to text.
+- **DuckDuckGo网页搜索**：使用DuckDuckGo浏览器执行网页搜索。
+- **Python代码解释器**：在安全环境中运行LLM生成的Python代码。只有在使用`add_base_tools=True`初始化[`ToolCallingAgent`]时才会添加此工具，因为基于代码的agent已经可以原生执行Python代码
+- **转录器**：基于Whisper-Turbo构建的语音转文本管道，将音频转录为文本。
 
-You can manually use a tool by calling the [`load_tool`] function and a task to perform.
+您可以通过调用[`load_tool`]函数和要执行的任务手动使用工具。
 
 ```python
 from smolagents import load_tool
@@ -173,12 +176,12 @@ search_tool = load_tool("web_search")
 print(search_tool("Who's the current president of Russia?"))
 ```
 
-### Create a new tool
+### 创建一个新工具
 
-You can create your own tool for use cases not covered by the default tools from Hugging Face.
-For example, let's create a tool that returns the most downloaded model for a given task from the Hub.
+您可以创建自己的工具，用于Hugging Face默认工具未涵盖的用例。
+例如，让我们创建一个工具，返回Hub上给定任务下载量最多的模型。
 
-You'll start with the code below.
+您将从以下代码开始。
 
 ```python
 from huggingface_hub import list_models
@@ -189,13 +192,13 @@ most_downloaded_model = next(iter(list_models(filter=task, sort="downloads", dir
 print(most_downloaded_model.id)
 ```
 
-This code can quickly be converted into a tool, just by wrapping it in a function and adding the `tool` decorator:
-This is not the only way to build the tool: you can directly define it as a subclass of [`Tool`], which gives you more flexibility, for instance the possibility to initialize heavy class attributes.
+这段代码可以通过将其包装在一个函数中并添加`tool`装饰器快速转换为工具：
+这不是构建工具的唯一方法：您可以直接将其定义为[`Tool`]的子类，这为您提供了更多的灵活性，例如初始化重型类属性的可能性。
 
-Let's see how it works for both options:
+让我们看看这两种选项的工作原理：
 
-<hfoptions id="build-a-tool">
-<hfoption id="Decorate a function with @tool">
+<hfoptions id="构建工具">
+<hfoption id="使用@tool装饰一个函数">
 
 ```py
 from smolagents import tool
@@ -213,16 +216,16 @@ def model_download_tool(task: str) -> str:
     return most_downloaded_model.id
 ```
 
-The function needs:
-- A clear name. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
-- Type hints on both inputs and output
-- A description, that includes an 'Args:' part where each argument is described (without a type indication this time, it will be pulled from the type hint). Same as for the tool name, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
-All these elements will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
+该函数需要：
+- 一个清晰的名称。名称应该足够描述此工具的功能，以帮助为agent提供动力的LLM。由于此工具返回任务下载量最多的模型，我们将其命名为`model_download_tool`。
+- 输入和输出的类型提示
+- 一个描述，其中包括一个'Args:'部分，其中每个参数都被描述（这次没有类型指示，它将从类型提示中提取）。与工具名称一样，此描述是为您的agent提供动力的LLM的说明书，所以不要忽视它。
+所有这些元素将在初始化时自动嵌入到agent的系统提示中：因此要努力使它们尽可能清晰！
 
 > [!TIP]
-> This definition format is the same as tool schemas used in `apply_chat_template`, the only difference is the added `tool` decorator: read more on our tool use API [here](https://huggingface.co/blog/unified-tool-use#passing-tools-to-a-chat-template).
+> 此定义格式与`apply_chat_template`中使用的工具模式相同，唯一的区别是添加了`tool`装饰器：[这里](https://huggingface.co/blog/unified-tool-use#passing-tools-to-a-chat-template)了解更多关于我们的工具使用API。
 </hfoption>
-<hfoption id="Subclass Tool">
+<hfoption id="子类化Tool">
 
 ```py
 from smolagents import Tool
@@ -238,17 +241,17 @@ class ModelDownloadTool(Tool):
         return most_downloaded_model.id
 ```
 
-The subclass needs the following attributes:
-- A clear `name`. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
-- A `description`. Same as for the `name`, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
-- Input types and descriptions
-- Output type
-All these attributes will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
+子类需要以下属性：
+- 一个清晰的`name`。名称应该足够描述此工具的功能，以帮助为agent提供动力的LLM。由于此工具返回任务下载量最多的模型，我们将其命名为`model_download_tool`。
+- 一个`description`。与`name`一样，此描述是为您的agent提供动力的LLM的说明书，所以不要忽视它。
+- 输入类型和描述
+- 输出类型
+所有这些属性将在初始化时自动嵌入到agent的系统提示中：因此要努力使它们尽可能清晰！
 </hfoption>
 </hfoptions>
 
 
-Then you can directly initialize your agent:
+然后您可以直接初始化您的agent：
 ```py
 from smolagents import CodeAgent, HfApiModel
 agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
@@ -257,7 +260,7 @@ agent.run(
 )
 ```
 
-You get the following logs:
+您将获得以下日志：
 ```text
 ╭──────────────────────────────────────── New run ─────────────────────────────────────────╮
 │                                                                                          │
@@ -265,7 +268,7 @@ You get the following logs:
 │ task on the Hugging Face Hub?                                                            │
 │                                                                                          │
 ╰─ HfApiModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Step 0 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Step 0 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ╭─ Executing this code: ───────────────────────────────────────────────────────────────────╮
 │   1 model_name = model_download_tool(task="text-to-video")                               │
 │   2 print(model_name)                                                                    │
@@ -275,7 +278,7 @@ ByteDance/AnimateDiff-Lightning
 
 Out: None
 [Step 0: Duration 0.27 seconds| Input tokens: 2,069 | Output tokens: 60]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Step 1 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Step 1 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ╭─ Executing this code: ───────────────────────────────────────────────────────────────────╮
 │   1 final_answer("ByteDance/AnimateDiff-Lightning")                                      │
 ╰──────────────────────────────────────────────────────────────────────────────────────────╯
@@ -285,20 +288,20 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 ```
 
 > [!TIP]
-> Read more on tools in the [dedicated tutorial](./tutorials/tools#what-is-a-tool-and-how-to-build-one).
+> 在[专用教程](./tutorials/tools#what-is-a-tool-and-how-to-build-one)中了解更多关于工具的内容。
 
-## Multi-agents
+## 多agent
 
-Multi-agent systems have been introduced with Microsoft's framework [Autogen](https://huggingface.co/papers/2308.08155).
+多agent系统是随着微软的框架[Autogen](https://huggingface.co/papers/2308.08155)引入的。
 
-In this type of framework, you have several agents working together to solve your task instead of only one.
-It empirically yields better performance on most benchmarks. The reason for this better performance is conceptually simple: for many tasks, rather than using a do-it-all system, you would prefer to specialize units on sub-tasks. Here, having agents with separate tool sets and memories allows to achieve efficient specialization. For instance, why fill the memory of the code generating agent with all the content of webpages visited by the web search agent? It's better to keep them separate.
+在这种类型的框架中，您有多个agent一起工作来解决您的任务，而不是只有一个。
+经验表明，这在大多数基准测试中表现更好。这种更好表现的原因在概念上很简单：对于许多任务，与其使用一个全能系统，您更愿意将单元专门用于子任务。在这里，拥有具有单独工具集和内存的agent可以实现高效的专业化。例如，为什么要用网页搜索agent访问的所有网页内容填充代码生成agent的内存？最好将它们分开。
 
-You can easily build hierarchical multi-agent systems with `smolagents`.
+您可以使用`smolagents`轻松构建分层多agent系统。
 
-To do so, encapsulate the agent in a [`ManagedAgent`] object. This object needs arguments `agent`, `name`, and a `description`, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
+为此，将agent封装在[`ManagedAgent`]对象中。此对象需要参数`agent`、`name`和`description`，这些参数将嵌入到管理agent的系统提示中，以让它知道如何调用此托管agent，就像我们对工具所做的那样。
 
-Here's an example of making an agent that managed a specific web search agent using our [`DuckDuckGoSearchTool`]:
+以下是一个使用我们的[`DuckDuckGoSearchTool`]制作一个管理特定网页搜索agent的agent的示例：
 
 ```py
 from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ManagedAgent
@@ -321,12 +324,12 @@ manager_agent.run("Who is the CEO of Hugging Face?")
 ```
 
 > [!TIP]
-> For an in-depth example of an efficient multi-agent implementation, see [how we pushed our multi-agent system to the top of the GAIA leaderboard](https://huggingface.co/blog/beating-gaia).
+> 有关高效多agent实现的深入示例，请参阅[我们如何将多agent系统推向GAIA排行榜的顶部](https://huggingface.co/blog/beating-gaia)。
 
 
-## Talk with your agent and visualize its thoughts in a cool Gradio interface
+## 与您的agent交谈并在酷炫的Gradio界面中可视化其思考过程
 
-You can use `GradioUI` to interactively submit tasks to your agent and observe its thought and execution process, here is an example:
+您可以使用`GradioUI`交互式地向您的agent提交任务并观察其思考和执行过程，以下是一个示例：
 
 ```py
 from smolagents import (
@@ -336,25 +339,25 @@ from smolagents import (
     GradioUI
 )
 
-# Import tool from Hub
+# 从Hub导入工具
 image_generation_tool = load_tool("m-ric/text-to-image")
 
 model = HfApiModel(model_id)
 
-# Initialize the agent with the image generation tool
+# 使用图像生成工具初始化agent
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 GradioUI(agent).launch()
 ```
 
-Under the hood, when the user types a new answer, the agent is launched with `agent.run(user_request, reset=False)`.
-The `reset=False` flag means the agent's memory is not flushed before launching this new task, which lets the conversation go on.
+在底层，当用户输入新答案时，agent会以`agent.run(user_request, reset=False)`启动。
+`reset=False`标志意味着在启动此新任务之前不会刷新agent的内存，这使得对话可以继续。
 
-You can also use this `reset=False` argument to keep the conversation going in any other agentic application.
+您也可以在其他agent化应用程序中使用此`reset=False`参数来保持对话继续。
 
-## Next steps
+## 下一步
 
-For more in-depth usage, you will then want to check out our tutorials:
-- [the explanation of how our code agents work](./tutorials/secure_code_execution)
-- [this guide on how to build good agents](./tutorials/building_good_agents).
-- [the in-depth guide for tool usage](./tutorials/building_good_agents).
+要更深入地使用，您将需要查看我们的教程：
+- [我们的代码agent如何工作的解释](./tutorials/secure_code_execution)
+- [本指南关于如何构建好的agent](./tutorials/building_good_agents)。
+- [工具使用的深入指南](./tutorials/tools)。
