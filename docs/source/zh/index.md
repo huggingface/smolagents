@@ -15,35 +15,38 @@ rendered properly in your Markdown viewer.
 
 # `smolagents`
 
-This library is the simplest framework out there to build powerful agents! By the way, wtf are "agents"? We provide our definition [in this page](conceptual_guides/intro_agents), whe're you'll also find tips for when to use them or not (spoilers: you'll often be better off without agents).
+这是构建强大agent的最简单框架！顺便问一下，什么是"agent"？我们在[此页面](conceptual_guides/intro_agents)提供了我们的定义，您还可以找到关于何时使用或不使用它们的建议（剧透：通常不使用agent会更好）。
 
-This library offers:
+> [!TIP]
+> 译者注：Agent的业内术语是“智能体”。本译文将保留agent，不作翻译，以带来更高效的阅读体验。(在中文为主的文章中，It's easier to 注意到英文。Attention Is All You Need!)
 
-✨ **Simplicity**: the logic for agents fits in ~thousand lines of code. We kept abstractions to their minimal shape above raw code!
+本库提供：
 
-🌐 **Support for any LLM**: it supports models hosted on the Hub loaded in their `transformers` version or through our inference API, but also models from OpenAI, Anthropic... it's really easy to power an agent with any LLM.
+✨ **简洁性**：Agent逻辑仅需约千行代码。我们将抽象保持在原始代码之上的最小形态！
 
-🧑‍💻 **First-class support for Code Agents**, i.e. agents that write their actions in code (as opposed to "agents being used to write code"), [read more here](tutorials/secure_code_execution).
+🌐 **支持任何 LLM**：支持通过 Hub 托管的模型，使用其 `transformers` 版本或通过我们的推理 API 加载，也支持 OpenAI、Anthropic 等模型。使用任何 LLM 为agent提供动力都非常容易。
 
-🤗 **Hub integrations**: you can share and load tools to/from the Hub, and more is to come!
+🧑‍💻 **一流的代码agent支持**，即编写代码作为其操作的agent（与"用于编写代码的agent"相对），[在此了解更多](tutorials/secure_code_execution)。
+
+🤗 **Hub 集成**：您可以在 Hub 上共享和加载工具，更多功能即将推出！
 
 <div class="mt-10">
   <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-y-4 md:gap-x-5">
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./guided_tour"
-      ><div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Guided tour</div>
-      <p class="text-gray-700">Learn the basics and become familiar with using Agents. Start here if you are using Agents for the first time!</p>
+      ><div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">导览</div>
+      <p class="text-gray-700">学习基础知识并熟悉使用agent。如果您是第一次使用agent，请从这里开始！</p>
     </a>
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./examples/text_to_sql"
-      ><div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">How-to guides</div>
-      <p class="text-gray-700">Practical guides to help you achieve a specific goal: create an agent to generate and test SQL queries!</p>
+      ><div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">操作指南</div>
+      <p class="text-gray-700">实用指南，帮助您实现特定目标：创建一个生成和测试 SQL 查询的agent！</p>
     </a>
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./conceptual_guides/intro_agents"
-      ><div class="w-full text-center bg-gradient-to-br from-pink-400 to-pink-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Conceptual guides</div>
-      <p class="text-gray-700">High-level explanations for building a better understanding of important topics.</p>
+      ><div class="w-full text-center bg-gradient-to-br from-pink-400 to-pink-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">概念指南</div>
+      <p class="text-gray-700">高级解释，帮助您更好地理解重要主题。</p>
    </a>
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./tutorials/building_good_agents"
-      ><div class="w-full text-center bg-gradient-to-br from-purple-400 to-purple-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Tutorials</div>
-      <p class="text-gray-700">Horizontal tutorials that cover important aspects of building agents.</p>
+      ><div class="w-full text-center bg-gradient-to-br from-purple-400 to-purple-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">教程</div>
+      <p class="text-gray-700">涵盖构建agent重要方面的横向教程。</p>
     </a>
   </div>
 </div>
