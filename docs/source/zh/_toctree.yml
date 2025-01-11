@@ -11,7 +11,7 @@
   - local: tutorials/tools
     title: 🛠️ 工具 - 深度指南
   - local: tutorials/secure_code_execution
-    title: 🛡️ Secure your code execution with E2B
+    title: 🛡️ 使用 E2B 保护你的代码执行
 - title: Conceptual guides
   sections:
   - local: conceptual_guides/intro_agents

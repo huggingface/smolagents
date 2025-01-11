@@ -13,59 +13,59 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Secure code execution
+# 安全代码执行
 
 [[open-in-colab]]
 
 > [!TIP]
-> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
+> 如果你是第一次构建agent，请先阅读[agent介绍](../conceptual_guides/intro_agents)和[smolagents 导览](../guided_tour)。
 
-### Code agents
+### 代码智能体
 
-[Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the LLM write its actions (the tool calls) in code is much better than the current standard format for tool calling, which is across the industry different shades of "writing actions as a JSON of tools names and arguments to use".
+[多项](https://huggingface.co/papers/2402.01030) [研究](https://huggingface.co/papers/2411.01747) [表明](https://huggingface.co/papers/2401.00812)，让大语言模型用代码编写其动作（工具调用）比当前标准的工具调用格式要好得多，目前行业标准是"将动作写成包含工具名称和参数的JSON"的各种变体。
 
-Why is code better? Well, because we crafted our code languages specifically to be great at expressing actions performed by a computer. If JSON snippets was a better way, this package would have been written in JSON snippets and the devil would be laughing at us.
+为什么代码更好？因为我们专门为计算机执行的动作而设计编程语言。如果JSON片段是更好的方式，那么这个工具包就应该是用JSON片段编写的，魔鬼就会嘲笑我们。
 
-Code is just a better way to express actions on a computer. It has better:
-- **Composability:** could you nest JSON actions within each other, or define a set of JSON actions to re-use later, the same way you could just define a python function?
-- **Object management:** how do you store the output of an action like `generate_image` in JSON?
-- **Generality:** code is built to express simply anything you can do have a computer do.
-- **Representation in LLM training corpuses:** why not leverage this benediction of the sky that plenty of quality actions have already been included in LLM training corpuses?
+代码就是表达计算机动作的更好方式。它具有更好的：
+- **组合性**：你能像定义Python函数那样，在JSON动作中嵌套其他JSON动作，或者定义一组JSON动作以便以后重用吗？
+- **对象管理**：你如何在JSON中存储像`generate_image`这样的动作的输出？
+- **通用性**：代码是为了简单地表达任何可以让计算机做的事情而构建的。
+- **在LLM训练语料库中的表示**：天赐良机，为什么不利用已经包含在LLM训练语料库中的大量高质量动作呢？
 
-This is illustrated on the figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030).
+下图展示了这一点，取自[可执行代码动作引出更好的LLM智能体](https://huggingface.co/papers/2402.01030)。
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_vs_json_actions.png">
 
-This is why we put emphasis on proposing code agents, in this case python agents, which meant putting higher effort on building secure python interpreters.
+这就是为什么我们强调提出代码智能体，在本例中是Python智能体，这意味着我们要在构建安全的Python解释器上投入更多精力。
 
-### Local python interpreter
+### 本地Python解释器
 
-By default, the `CodeAgent` runs LLM-generated code in your environment.
-This execution is not done by the vanilla Python interpreter: we've re-built a more secure `LocalPythonInterpreter` from the ground up.
-This interpreter is designed for security by:
- - Restricting the imports to a list explicitly passed by the user
- - Capping the number of operations to prevent infinite loops and resource bloating.
- - Will not perform any operation that's not pre-defined.
+默认情况下，`CodeAgent`会在你的环境中运行LLM生成的代码。
+这个执行不是由普通的Python解释器完成的：我们从零开始重新构建了一个更安全的`LocalPythonInterpreter`。
+这个解释器通过以下方式设计以确保安全：
+  - 将导入限制为用户显式传递的列表
+  - 限制操作次数以防止无限循环和资源膨胀
+  - 不会执行任何未预定义的操作
 
-We've used this on many use cases, without ever observing any damage to the environment. 
+我们已经在许多用例中使用了这个解释器，从未观察到对环境造成任何损害。
 
-However this solution is not watertight: one could imagine occasions where LLMs fine-tuned for malignant actions could still hurt your environment. For instance if you've allowed an innocuous package like `Pillow` to process images, the LLM could generate thousands of saves of images to bloat your hard drive.
-It's certainly not likely if you've chosen the LLM engine yourself, but it could happen.
+然而，这个解决方案并不是万无一失的：可以想象，如果LLM被微调用于恶意操作，仍然可能损害你的环境。例如，如果你允许像`Pillow`这样无害的包处理图像，LLM可能会生成数千张图像保存以膨胀你的硬盘。
+如果你自己选择了LLM引擎，这当然不太可能，但它可能会发生。
 
-So if you want to be extra cautious, you can use the remote code execution option described below.
+所以如果你想格外谨慎，可以使用下面描述的远程代码执行选项。
 
-### E2B code executor
+### E2B代码执行器
 
-For maximum security, you can use our integration with E2B to run code in a sandboxed environment. This is a remote execution service that runs your code in an isolated container, making it impossible for the code to affect your local environment.
+为了最大程度的安全性，你可以使用我们与E2B的集成在沙盒环境中运行代码。这是一个远程执行服务，可以在隔离的容器中运行你的代码，使代码无法影响你的本地环境。
 
-For this, you will need to setup your E2B account and set your `E2B_API_KEY` in your environment variables. Head to [E2B's quickstart documentation](https://e2b.dev/docs/quickstart) for more information.
+为此，你需要设置你的E2B账户并在环境变量中设置`E2B_API_KEY`。请前往[E2B快速入门文档](https://e2b.dev/docs/quickstart)了解更多信息。
 
-Then you can install it with `pip install e2b-code-interpreter python-dotenv`.
+然后你可以通过`pip install e2b-code-interpreter python-dotenv`安装它。
 
-Now you're set!
+现在你已经准备好了！
 
-To set the code executor to E2B, simply pass the flag `use_e2b_executor=True` when initializing your `CodeAgent`.
-Note that you should add all the tool's dependencies in `additional_authorized_imports`, so that the executor installs them.
+要将代码执行器设置为E2B，只需在初始化`CodeAgent`时传递标志`use_e2b_executor=True`。
+请注意，你应该将所有工具的依赖项添加到`additional_authorized_imports`中，以便执行器安装它们。
 
 ```py
 from smolagents import CodeAgent, VisitWebpageTool, HfApiModel
@@ -79,4 +79,4 @@ agent = CodeAgent(
 agent.run("What was Abraham Lincoln's preferred pet?")
 ```
 
-E2B code execution is not compatible with multi-agents at the moment - because having an agent call in a code blob that should be executed remotely is a mess. But we're working on adding it!
+目前E2B代码执行暂不兼容多agent——因为把agent调用放在应该在远程执行的代码块里，是非常混乱的。但我们正在努力做到这件事！
