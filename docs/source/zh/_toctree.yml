@@ -7,7 +7,7 @@
 - title: Tutorials
   sections:
   - local: tutorials/building_good_agents
-    title: ✨ Building good agents
+    title: ✨ 构建好用的agents
   - local: tutorials/tools
     title: 🛠️ Tools - in-depth guide
   - local: tutorials/secure_code_execution
