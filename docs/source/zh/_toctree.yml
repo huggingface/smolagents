@@ -1,0 +1,34 @@
+- title: Get started
+  sections:
+  - local: index
+    title: 🤗 Agents
+  - local: guided_tour
+    title: Guided tour
+- title: Tutorials
+  sections:
+  - local: tutorials/building_good_agents
+    title: ✨ Building good agents
+  - local: tutorials/tools
+    title: 🛠️ Tools - in-depth guide
+  - local: tutorials/secure_code_execution
+    title: 🛡️ Secure your code execution with E2B
+- title: Conceptual guides
+  sections:
+  - local: conceptual_guides/intro_agents
+    title: 🤖 An introduction to agentic systems
+  - local: conceptual_guides/react
+    title: 🤔 How do Multi-step agents work?
+- title: Examples
+  sections:
+  - local: examples/text_to_sql
+    title: Self-correcting Text-to-SQL
+  - local: examples/rag
+    title: Master you knowledge base with agentic RAG
+  - local: examples/multiagents
+    title: Orchestrate a multi-agent system
+- title: Reference
+  sections:
+  - local: reference/agents
+    title: Agent-related objects
+  - local: reference/tools
+    title: Tool-related objects
