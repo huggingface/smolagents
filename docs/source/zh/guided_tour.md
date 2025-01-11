@@ -22,6 +22,9 @@ rendered properly in your Markdown viewer.
 > [!TIP]
 > 译者注：Agent的业内术语是“智能体”。本译文将保留agent，不作翻译，以带来更高效的阅读体验。(在中文为主的文章中，It's easier to 注意到英文。Attention Is All You Need!)
 
+> [!TIP]
+> 中文社区发布了关于smolagents的介绍和实践讲解视频(来源：[Issue#80](https://github.com/huggingface/smolagents/issues/80))，你可以访问[这里](https://www.youtube.com/watch?v=wwN3oAugc4c)进行观看！
+
 ### 构建您的agent
 
 要初始化一个最小化的agent，您至少需要以下两个参数：
