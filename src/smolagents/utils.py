@@ -160,6 +160,13 @@ def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
     error_msg = "No tool name key found in tool call!" + f" Tool call: {json_blob}"
     raise AgentParsingError(error_msg)
 
+def parse_tool_call_arguments(arguments: str) -> Dict[str, str]:
+    try:
+        parsed = json.loads(arguments)
+    except json.JSONDecodeError:
+        parsed = arguments
+    return parsed
+
 def make_json_serializable(obj: Any) -> Any:
     if obj is None:
         return None

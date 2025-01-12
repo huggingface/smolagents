@@ -66,6 +66,7 @@ from .utils import (
     parse_json_tool_call,
     make_json_serializable,
     truncate_content,
+    parse_tool_call_arguments,
 )
 
 
@@ -860,8 +861,9 @@ class ToolCallingAgent(MultiStepAgent):
                 tools_to_call_from=list(self.tools.values()),
                 stop_sequences=["Observation:"],
             )
+            
             tool_calls = model_message.tool_calls[0]
-            tool_arguments = tool_calls.function.arguments
+            tool_arguments = parse_tool_call_arguments(tool_calls.function.arguments)
             tool_name, tool_call_id = tool_calls.function.name, tool_calls.id
 
         except Exception as e:
