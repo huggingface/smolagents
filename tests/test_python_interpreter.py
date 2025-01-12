@@ -18,8 +18,7 @@ import unittest
 import numpy as np
 import pytest
 
-from smolagents import load_tool
-from smolagents.default_tools import BASE_PYTHON_TOOLS
+from smolagents.default_tools import BASE_PYTHON_TOOLS, PythonInterpreterTool
 from smolagents.local_python_executor import (
     InterpreterError,
     evaluate_python_code,
@@ -37,7 +36,7 @@ def add_two(x):
 
 class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):
     def setUp(self):
-        self.tool = load_tool("python_interpreter", authorized_imports=["sqlite3"])
+        self.tool = PythonInterpreterTool(authorized_imports=["sqlite3"])
         self.tool.setup()
 
     def test_exact_match_arg(self):

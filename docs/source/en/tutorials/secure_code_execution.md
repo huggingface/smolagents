@@ -30,7 +30,7 @@ Code is just a better way to express actions on a computer. It has better:
 - **Composability:** could you nest JSON actions within each other, or define a set of JSON actions to re-use later, the same way you could just define a python function?
 - **Object management:** how do you store the output of an action like `generate_image` in JSON?
 - **Generality:** code is built to express simply anything you can do have a computer do.
-- **Representation in LLM training corpuses:** why not leverage this benediction of the sky that plenty of quality actions have already been included in LLM training corpuses?
+- **Representation in LLM training corpus:** why not leverage this benediction of the sky that plenty of quality actions have already been included in LLM training corpus?
 
 This is illustrated on the figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030).
 

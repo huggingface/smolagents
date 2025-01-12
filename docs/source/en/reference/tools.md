@@ -39,10 +39,6 @@ contains the API docs for the underlying classes.
 
 [[autodoc]] Tool
 
-### Toolbox
-
-[[autodoc]] Toolbox
-
 ### launch_gradio_demo
 
 [[autodoc]] launch_gradio_demo

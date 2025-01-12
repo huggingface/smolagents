@@ -48,10 +48,10 @@ Run the line below to install the required dependencies:
 
 Let's login in order to call the HF Inference API:
 
-```py
-from huggingface_hub import notebook_login
+```
+from huggingface_hub import login
 
-notebook_login()
+login()
 ```
 
 ⚡️ Our agent will be powered by [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) using `HfApiModel` class that uses HF's Inference API: the Inference API allows to quickly and easily run any OS model.

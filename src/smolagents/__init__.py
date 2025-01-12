@@ -14,7 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__version__ = "1.2.0.dev0"
+__version__ = "1.3.0.dev"
 
 from typing import TYPE_CHECKING
 
