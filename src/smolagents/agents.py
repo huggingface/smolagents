@@ -64,8 +64,10 @@ from .utils import (
     console,
     parse_code_blobs,
     parse_json_tool_call,
+    make_json_serializable,
     parse_tool_call_arguments,
     truncate_content,
+    parse_tool_call_arguments,
 )
 
 
@@ -198,6 +200,7 @@ class MultiStepAgent:
         max_steps: int = 6,
         tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
+        remove_final_answer_tool: bool = False,
         verbosity_level: int = 1,
         grammar: Optional[Dict[str, str]] = None,
         managed_agents: Optional[List] = None,
@@ -234,7 +237,8 @@ class MultiStepAgent:
                     or self.__class__.__name__ == "ToolCallingAgent"
                 ):
                     self.tools[tool_name] = tool_class()
-        self.tools["final_answer"] = FinalAnswerTool()
+        if not remove_final_answer_tool:
+            self.tools["final_answer"] = FinalAnswerTool()
 
         self.system_prompt = self.initialize_system_prompt()
         self.input_messages = None
@@ -395,7 +399,7 @@ class MultiStepAgent:
             }
         ]
         try:
-            return self.model(self.input_messages)
+            return {"answer": self.model(self.input_messages).content}
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
@@ -639,7 +643,7 @@ You have been provided with these additional arguments, that you can access usin
             final_step_log.duration = 0
             for callback in self.step_callbacks:
                 callback(final_step_log)
-
+        
         return handle_agent_output_types(final_answer)
 
     def planning_step(self, task, is_first_step: bool, step: int):
@@ -764,6 +768,58 @@ Now begin!""",
                 level=LogLevel.INFO,
             )
 
+    def to_json(self) -> List[Dict]:
+        """
+        Convert the agent's logs into a JSON-serializable format.
+        Returns a list of dictionaries containing the step information.
+        """
+        json_logs = []
+        for step_log in self.logs:
+            if isinstance(step_log, SystemPromptStep):
+                json_log = {
+                    "type": "system_prompt",
+                    "system_prompt": step_log.system_prompt
+                }
+            elif isinstance(step_log, PlanningStep):
+                json_log = {
+                    "type": "planning",
+                    "plan": step_log.plan,
+                    "facts": step_log.facts
+                }
+            elif isinstance(step_log, TaskStep):
+                json_log = {
+                    "type": "task",
+                    "task": step_log.task
+                }
+            elif isinstance(step_log, ActionStep):
+                json_log = {
+                    "type": "action",
+                    "start_time": step_log.start_time,
+                    "end_time": step_log.end_time,
+                    "step": step_log.step,
+                    "duration": step_log.duration,
+                    "llm_output": step_log.llm_output,
+                    "observations": step_log.observations,
+                    "action_output": make_json_serializable(step_log.action_output),
+                }
+                
+                if step_log.tool_call:
+                    json_log["tool_call"] = {
+                        "name": step_log.tool_call.name,
+                        "arguments": make_json_serializable(step_log.tool_call.arguments),
+                        "id": step_log.tool_call.id
+                    }
+                
+                if step_log.error:
+                    json_log["error"] = {
+                        "type": step_log.error.__class__.__name__,
+                        "message": str(step_log.error)
+                    }
+
+            json_logs.append(json_log)
+            
+        return json_logs
+
 
 class ToolCallingAgent(MultiStepAgent):
     """
@@ -806,6 +862,7 @@ class ToolCallingAgent(MultiStepAgent):
                 tools_to_call_from=list(self.tools.values()),
                 stop_sequences=["Observation:"],
             )
+            
             tool_calls = model_message.tool_calls[0]
             tool_arguments = parse_tool_call_arguments(tool_calls.function.arguments)
             tool_name, tool_call_id = tool_calls.function.name, tool_calls.id
