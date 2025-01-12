@@ -15,6 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+import json
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -34,6 +36,8 @@ from .local_python_executor import (
     LocalPythonInterpreter,
     fix_final_answer_code,
 )
+
+
 from .models import MessageRole
 from .monitoring import Monitor
 from .prompts import (
@@ -201,6 +205,8 @@ class MultiStepAgent:
         tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
         remove_final_answer_tool: bool = False,
+        stream_json_logs: bool = False,
+        json_logs_path: str = "logs.json",
         verbosity_level: int = 1,
         grammar: Optional[Dict[str, str]] = None,
         managed_agents: Optional[List] = None,
@@ -240,6 +246,13 @@ class MultiStepAgent:
         if not remove_final_answer_tool:
             self.tools["final_answer"] = FinalAnswerTool()
 
+        self.stream_json_logs = stream_json_logs
+        self.json_logs_path = json_logs_path
+        # Create path if it doesn't exist
+        if self.stream_json_logs:
+            Path(self.json_logs_path).parent.mkdir(parents=True, exist_ok=True)
+        
+        
         self.system_prompt = self.initialize_system_prompt()
         self.input_messages = None
         self.logs = []
@@ -565,6 +578,7 @@ You have been provided with these additional arguments, that you can access usin
 
                 # Run one step!
                 final_answer = self.step(step_log)
+                    
             except AgentError as e:
                 step_log.error = e
             finally:
@@ -574,6 +588,8 @@ You have been provided with these additional arguments, that you can access usin
                 for callback in self.step_callbacks:
                     callback(step_log)
                 self.step_number += 1
+                if self.stream_json_logs:
+                    self.to_json_stream()
                 yield step_log
 
         if final_answer is None and self.step_number == self.max_steps:
@@ -587,6 +603,8 @@ You have been provided with these additional arguments, that you can access usin
             final_step_log.duration = step_log.end_time - step_start_time
             for callback in self.step_callbacks:
                 callback(final_step_log)
+            if self.stream_json_logs:
+                self.to_json_stream()
             yield final_step_log
 
         yield handle_agent_output_types(final_answer)
@@ -621,6 +639,9 @@ You have been provided with these additional arguments, that you can access usin
 
                 # Run one step!
                 final_answer = self.step(step_log)
+                
+                if self.stream_json_logs:
+                    self.to_json_stream()
 
             except AgentError as e:
                 step_log.error = e
@@ -632,6 +653,8 @@ You have been provided with these additional arguments, that you can access usin
                 for callback in self.step_callbacks:
                     callback(step_log)
                 self.step_number += 1
+                if self.stream_json_logs:
+                    self.to_json_stream()
 
         if final_answer is None and self.step_number == self.max_steps:
             error_message = "Reached max steps."
@@ -643,6 +666,8 @@ You have been provided with these additional arguments, that you can access usin
             final_step_log.duration = 0
             for callback in self.step_callbacks:
                 callback(final_step_log)
+            if self.stream_json_logs:
+                self.to_json_stream()
         
         return handle_agent_output_types(final_answer)
 
@@ -819,6 +844,11 @@ Now begin!""",
             json_logs.append(json_log)
             
         return json_logs
+    
+    def to_json_stream(self):
+        # rewrite json logs to a file
+        with open(self.json_logs_path, "w") as f:
+            json.dump(self.to_json(), f)
 
 
 class ToolCallingAgent(MultiStepAgent):
