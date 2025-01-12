@@ -18,12 +18,14 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from enum import IntEnum
 from rich import box
 from rich.console import Group
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.syntax import Syntax
 from rich.text import Text
+from rich.console import Console
 
 from .default_tools import FinalAnswerTool, TOOL_MAPPING
 from .e2b_executor import E2BExecutor
@@ -164,6 +166,22 @@ def format_prompt_with_managed_agents_descriptions(
 YELLOW_HEX = "#d4b702"
 
 
+class LogLevel(IntEnum):
+    ERROR = 0  # Only errors
+    INFO = 1  # Normal output (default)
+    DEBUG = 2  # Detailed output
+
+
+class AgentLogger:
+    def __init__(self, level: LogLevel = LogLevel.INFO):
+        self.level = level
+        self.console = Console()
+
+    def log(self, *args, level: LogLevel = LogLevel.INFO, **kwargs):
+        if level <= self.level:
+            console.print(*args, **kwargs)
+
+
 class MultiStepAgent:
     """
     Agent class that solves the given task step by step, using the ReAct framework:
@@ -179,7 +197,7 @@ class MultiStepAgent:
         max_steps: int = 6,
         tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
-        verbose: bool = False,
+        verbosity_level: int = 1,
         grammar: Optional[Dict[str, str]] = None,
         managed_agents: Optional[List] = None,
         step_callbacks: Optional[List[Callable]] = None,
@@ -205,7 +223,6 @@ class MultiStepAgent:
 
         self.managed_agents = {}
         if managed_agents is not None:
-            print("NOTNONE")
             self.managed_agents = {agent.name: agent for agent in managed_agents}
 
         self.tools = {tool.name: tool for tool in tools}
@@ -222,8 +239,8 @@ class MultiStepAgent:
         self.input_messages = None
         self.logs = []
         self.task = None
-        self.verbose = verbose
-        self.monitor = Monitor(self.model)
+        self.logger = AgentLogger(level=verbosity_level)
+        self.monitor = Monitor(self.model, self.logger)
         self.step_callbacks = step_callbacks if step_callbacks is not None else []
         self.step_callbacks.append(self.monitor.update_metrics)
 
@@ -485,14 +502,15 @@ You have been provided with these additional arguments, that you can access usin
             else:
                 self.logs.append(system_prompt_step)
 
-        console.print(
+        self.logger.log(
             Panel(
                 f"\n[bold]{self.task.strip()}\n",
                 title="[bold]New run",
                 subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
                 border_style=YELLOW_HEX,
                 subtitle_align="left",
-            )
+            ),
+            level=LogLevel.INFO,
         )
 
         self.logs.append(TaskStep(task=self.task))
@@ -531,12 +549,13 @@ You have been provided with these additional arguments, that you can access usin
                         is_first_step=(self.step_number == 0),
                         step=self.step_number,
                     )
-                console.print(
+                self.logger.log(
                     Rule(
                         f"[bold]Step {self.step_number}",
                         characters="━",
                         style=YELLOW_HEX,
-                    )
+                    ),
+                    level=LogLevel.INFO,
                 )
 
                 # Run one step!
@@ -557,7 +576,7 @@ You have been provided with these additional arguments, that you can access usin
             final_step_log = ActionStep(error=AgentMaxStepsError(error_message))
             self.logs.append(final_step_log)
             final_answer = self.provide_final_answer(task)
-            console.print(Text(f"Final answer: {final_answer}"))
+            self.logger.log(Text(f"Final answer: {final_answer}"), level=LogLevel.INFO)
             final_step_log.action_output = final_answer
             final_step_log.end_time = time.time()
             final_step_log.duration = step_log.end_time - step_start_time
@@ -586,12 +605,13 @@ You have been provided with these additional arguments, that you can access usin
                         is_first_step=(self.step_number == 0),
                         step=self.step_number,
                     )
-                console.print(
+                self.logger.log(
                     Rule(
                         f"[bold]Step {self.step_number}",
                         characters="━",
                         style=YELLOW_HEX,
-                    )
+                    ),
+                    level=LogLevel.INFO,
                 )
 
                 # Run one step!
@@ -613,7 +633,7 @@ You have been provided with these additional arguments, that you can access usin
             final_step_log = ActionStep(error=AgentMaxStepsError(error_message))
             self.logs.append(final_step_log)
             final_answer = self.provide_final_answer(task)
-            console.print(Text(f"Final answer: {final_answer}"))
+            self.logger.log(Text(f"Final answer: {final_answer}"), level=LogLevel.INFO)
             final_step_log.action_output = final_answer
             final_step_log.duration = 0
             for callback in self.step_callbacks:
@@ -679,8 +699,10 @@ Now begin!""",
             self.logs.append(
                 PlanningStep(plan=final_plan_redaction, facts=final_facts_redaction)
             )
-            console.print(
-                Rule("[bold]Initial plan", style="orange"), Text(final_plan_redaction)
+            self.logger.log(
+                Rule("[bold]Initial plan", style="orange"),
+                Text(final_plan_redaction),
+                level=LogLevel.INFO,
             )
         else:  # update plan
             agent_memory = self.write_inner_memory_from_logs(
@@ -735,8 +757,10 @@ Now begin!""",
             self.logs.append(
                 PlanningStep(plan=final_plan_redaction, facts=final_facts_redaction)
             )
-            console.print(
-                Rule("[bold]Updated plan", style="orange"), Text(final_plan_redaction)
+            self.logger.log(
+                Rule("[bold]Updated plan", style="orange"),
+                Text(final_plan_redaction),
+                level=LogLevel.INFO,
             )
 
 
@@ -795,8 +819,11 @@ class ToolCallingAgent(MultiStepAgent):
         )
 
         # Execute
-        console.print(
-            Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}"))
+        self.logger.log(
+            Panel(
+                Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")
+            ),
+            level=LogLevel.INFO,
         )
         if tool_name == "final_answer":
             if isinstance(tool_arguments, dict):
@@ -810,13 +837,15 @@ class ToolCallingAgent(MultiStepAgent):
                 isinstance(answer, str) and answer in self.state.keys()
             ):  # if the answer is a state variable, return the value
                 final_answer = self.state[answer]
-                console.print(
-                    f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'."
+                self.logger.log(
+                    f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'.",
+                    level=LogLevel.INFO,
                 )
             else:
                 final_answer = answer
-                console.print(
-                    Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}")
+                self.logger.log(
+                    Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
+                    level=LogLevel.INFO,
                 )
 
             log_entry.action_output = final_answer
@@ -837,7 +866,7 @@ class ToolCallingAgent(MultiStepAgent):
                 updated_information = f"Stored '{observation_name}' in memory."
             else:
                 updated_information = str(observation).strip()
-            console.print(f"Observations: {updated_information}")
+            self.logger.log(f"Observations: {updated_information}", level=LogLevel.INFO)
             log_entry.observations = updated_information
             return None
 
@@ -922,22 +951,22 @@ class CodeAgent(MultiStepAgent):
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}")
 
-        if self.verbose:
-            console.print(
-                Group(
-                    Rule(
-                        "[italic]Output message of the LLM:",
-                        align="left",
-                        style="orange",
-                    ),
-                    Syntax(
-                        llm_output,
-                        lexer="markdown",
-                        theme="github-dark",
-                        word_wrap=True,
-                    ),
-                )
-            )
+        self.logger.log(
+            Group(
+                Rule(
+                    "[italic]Output message of the LLM:",
+                    align="left",
+                    style="orange",
+                ),
+                Syntax(
+                    llm_output,
+                    lexer="markdown",
+                    theme="github-dark",
+                    word_wrap=True,
+                ),
+            ),
+            level=LogLevel.DEBUG,
+        )
 
         # Parse
         try:
@@ -955,7 +984,7 @@ class CodeAgent(MultiStepAgent):
         )
 
         # Execute
-        console.print(
+        self.logger.log(
             Panel(
                 Syntax(
                     code_action,
@@ -966,7 +995,8 @@ class CodeAgent(MultiStepAgent):
                 title="[bold]Executing this code:",
                 title_align="left",
                 box=box.HORIZONTALS,
-            )
+            ),
+            level=LogLevel.INFO,
         )
         observation = ""
         is_final_answer = False
@@ -993,8 +1023,9 @@ class CodeAgent(MultiStepAgent):
             else:
                 error_msg = str(e)
             if "Import of " in str(e) and " is not allowed" in str(e):
-                console.print(
-                    "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent."
+                self.logger.log(
+                    "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
+                    level=LogLevel.INFO,
                 )
             raise AgentExecutionError(error_msg)
 
@@ -1008,7 +1039,7 @@ class CodeAgent(MultiStepAgent):
                 style=(f"bold {YELLOW_HEX}" if is_final_answer else ""),
             ),
         ]
-        console.print(Group(*execution_outputs_console))
+        self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
         log_entry.action_output = output
         return output if is_final_answer else None
 
