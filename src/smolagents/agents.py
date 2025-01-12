@@ -883,6 +883,7 @@ class CodeAgent(MultiStepAgent):
         system_prompt: Optional[str] = None,
         grammar: Optional[Dict[str, str]] = None,
         additional_authorized_imports: Optional[List[str]] = None,
+        allow_all_imports: bool = False,
         planning_interval: Optional[int] = None,
         use_e2b_executor: bool = False,
         **kwargs,
@@ -897,6 +898,14 @@ class CodeAgent(MultiStepAgent):
             planning_interval=planning_interval,
             **kwargs,
         )
+
+        if ( allow_all_imports and
+            ( not(additional_authorized_imports is None) and (len(additional_authorized_imports)) > 0)):
+            raise Exception(
+                f"You passed both allow_all_imports and additional_authorized_imports. Please choose one."
+            )
+
+        if allow_all_imports: additional_authorized_imports=['*']
 
         self.additional_authorized_imports = (
             additional_authorized_imports if additional_authorized_imports else []
@@ -915,13 +924,16 @@ class CodeAgent(MultiStepAgent):
             self.python_executor = LocalPythonInterpreter(
                 self.additional_authorized_imports, all_tools
             )
-        self.authorized_imports = list(
-            set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports)
-        )
-        if "{{authorized_imports}}" not in self.system_prompt:
-            raise AgentError(
-                "Tag '{{authorized_imports}}' should be provided in the prompt."
+        if allow_all_imports:
+            self.authorized_imports = 'all imports without restriction'
+        else:
+            self.authorized_imports = list(
+                set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports)
             )
+            if "{{authorized_imports}}" not in self.system_prompt:
+                raise AgentError(
+                    "Tag '{{authorized_imports}}' should be provided in the prompt."
+                )
         self.system_prompt = self.system_prompt.replace(
             "{{authorized_imports}}", str(self.authorized_imports)
         )
