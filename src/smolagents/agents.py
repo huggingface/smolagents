@@ -62,6 +62,7 @@ from .utils import (
     console,
     parse_code_blobs,
     parse_json_tool_call,
+    parse_tool_call_arguments,
     truncate_content,
 )
 
@@ -782,7 +783,7 @@ class ToolCallingAgent(MultiStepAgent):
                 stop_sequences=["Observation:"],
             )
             tool_calls = model_message.tool_calls[0]
-            tool_arguments = tool_calls.function.arguments
+            tool_arguments = parse_tool_call_arguments(tool_calls.function.arguments)
             tool_name, tool_call_id = tool_calls.function.name, tool_calls.id
 
         except Exception as e:

@@ -161,6 +161,17 @@ def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
     raise AgentParsingError(error_msg)
 
 
+def parse_tool_call_arguments(arguments: Union[str, Dict[str, str]]) -> Dict[str, str]:
+    if isinstance(arguments, str):
+        try:
+            parsed = json.loads(arguments)
+        except json.JSONDecodeError:
+            parsed = arguments
+    else:
+        parsed = arguments
+    return parsed
+
+
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
 
 
