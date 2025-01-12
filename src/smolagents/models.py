@@ -524,6 +524,78 @@ class OpenAIServerModel(Model):
         return response.choices[0].message
 
 
+class AzureOpenAIServerModel(Model):
+    """This engine connects to an Azure OpenAI-compatible API server.
+
+    Parameters:
+        model_id (`str`):
+            The model identifier to use on the server (e.g. "gpt-3.5-turbo").
+        api_base (`str`):
+            The base URL of the OpenAI-compatible API server.
+        api_key (`str`):
+            The API key to use for authentication.
+        api_version (`str`):
+            The API version.
+        temperature (`float`, *optional*, defaults to 0.7):
+            Controls randomness in the model's responses. Values between 0 and 2.
+        **kwargs:
+            Additional keyword arguments to pass to the OpenAI API.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        api_base: str,
+        api_key: str,
+        api_version: str,
+        temperature: float = 0.7,
+        **kwargs,
+    ):
+        super().__init__()
+        self.model_id = model_id
+        self.client = openai.AzureOpenAI(
+            azure_endpoint=api_base,
+            api_version=api_version,
+            api_key=api_key,
+        )
+        self.temperature = temperature
+        self.kwargs = kwargs
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        max_tokens: int = 1500,
+        tools_to_call_from: Optional[List[Tool]] = None,
+    ) -> str:
+        messages = get_clean_message_list(
+            messages, role_conversions=tool_role_conversions
+        )
+        if tools_to_call_from:
+            response = self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages,
+                tools=[get_json_schema(tool) for tool in tools_to_call_from],
+                tool_choice="auto",
+                stop=stop_sequences,
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                **self.kwargs,
+            )
+        else:
+            response = self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages,
+                stop=stop_sequences,
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                **self.kwargs,
+            )
+        self.last_input_token_count = response.usage.prompt_tokens
+        self.last_output_token_count = response.usage.completion_tokens
+        return response.choices[0].message
+
 __all__ = [
     "MessageRole",
     "tool_role_conversions",
@@ -533,4 +605,6 @@ __all__ = [
     "HfApiModel",
     "LiteLLMModel",
     "OpenAIServerModel",
+    "AzureOpenAIServerModel",
 ]
+
