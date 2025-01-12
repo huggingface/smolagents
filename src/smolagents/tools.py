@@ -620,9 +620,12 @@ class Tool:
                     arg.save(temp_file.name)
                     arg = temp_file.name
                 if (
-                    isinstance(arg, (str, Path))
-                    and Path(arg).exists()
-                    and Path(arg).is_file()
+                    isinstance(arg, str)
+                    and os.path.isfile(arg)
+                ) or (
+                    isinstance(arg, Path)
+                    and arg.exists()
+                    and arg.is_file()
                 ) or is_http_url_like(arg):
                     arg = handle_file(arg)
                 return arg
