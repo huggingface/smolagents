@@ -204,7 +204,7 @@ agent.run(
 
 ### Use a collection of tools
 
-You can leverage tool collections by using the ToolCollection object, with the slug of the collection you want to use.
+You can leverage tool collections by using the `ToolCollection` object, with the slug of the collection you want to use.
 Then pass them as a list to initialize your agent, and start using them!
 
 ```py
