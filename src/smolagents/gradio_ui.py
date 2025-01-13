@@ -85,12 +85,12 @@ def stream_to_gradio(
 class GradioUI:
     """A one-line interface to launch your agent in Gradio"""
 
-    def __init__(self, agent: MultiStepAgent, UPLOAD_FOLDER: str | None=None):
+    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None=None):
         self.agent = agent
-        self.UPLOAD_FOLDER = UPLOAD_FOLDER
-        if self.UPLOAD_FOLDER is not None:
-            if not os.path.exists(UPLOAD_FOLDER):
-                os.mkdir(UPLOAD_FOLDER)
+        self.file_upload_folder = file_upload_folder
+        if self.file_upload_folder is not None:
+            if not os.path.exists(file_upload_folder):
+                os.mkdir(file_upload_folder)
 
     def interact_with_agent(self, prompt, messages):
         messages.append(gr.ChatMessage(role="user", content=prompt))
@@ -134,10 +134,10 @@ class GradioUI:
         sanitized_name = "".join(sanitized_name)
 
         # Save the uploaded file to the specified folder
-        file_path = os.path.join(self.UPLOAD_FOLDER, os.path.basename(sanitized_name))
+        file_path = os.path.join(self.file_upload_folder, os.path.basename(sanitized_name))
         shutil.copy(file.name, file_path)
 
-        return f"File uploaded successfully to {self.UPLOAD_FOLDER}"
+        return f"File uploaded successfully to {self.file_upload_folder}"
 
     def launch(self):
         with gr.Blocks() as demo:
@@ -151,7 +151,7 @@ class GradioUI:
                 ),
             )
             # If an upload folder is provided, enable the upload feature
-            if self.UPLOAD_FOLDER is not None:
+            if self.file_upload_folder is not None:
                 upload_file = gr.File(label="Upload a file")
                 upload_status = gr.Textbox(label="Upload Status", interactive=False)
 

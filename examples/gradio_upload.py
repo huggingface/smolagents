@@ -8,4 +8,4 @@ agent = CodeAgent(
     tools=[], model=HfApiModel(), max_steps=4, verbose=True
 )
 
-GradioUI(agent, UPLOAD_FOLDER='./data').launch()
+GradioUI(agent, file_upload_folder='./data').launch()
