@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from enum import IntEnum
+from PIL import Image
 from rich import box
 from rich.console import Group
 from rich.panel import Panel
@@ -464,6 +465,7 @@ class MultiStepAgent:
         stream: bool = False,
         reset: bool = True,
         single_step: bool = False,
+        images: Optional[List[Image.Image]] = None,
         additional_args: Optional[Dict] = None,
     ):
         """
@@ -474,6 +476,7 @@ class MultiStepAgent:
             stream (`bool`): Whether to run in a streaming way.
             reset (`bool`): Whether to reset the conversation or keep it going from previous run.
             single_step (`bool`): Whether to run the agent in one-shot fashion.
+            images (`List`): List of image(s).
             additional_args (`dict`): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
 
         Example:
@@ -804,7 +807,7 @@ class ToolCallingAgent(MultiStepAgent):
             model_message = self.model(
                 self.input_messages,
                 tools_to_call_from=list(self.tools.values()),
-                stop_sequences=["Observation:"],
+                stop_sequences=["Observation:"]
             )
             tool_calls = model_message.tool_calls[0]
             tool_arguments = tool_calls.function.arguments

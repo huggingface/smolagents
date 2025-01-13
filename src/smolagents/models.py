@@ -20,6 +20,7 @@ import os
 import random
 from copy import deepcopy
 from enum import Enum
+from PIL import Image
 from typing import Dict, List, Optional
 
 from huggingface_hub import (
@@ -296,8 +297,11 @@ class TransformersModel(Model):
         self.device = device
         logger.info(f"Using device: {self.device}")
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_id)
             self.model = AutoModelForCausalLM.from_pretrained(model_id).to(self.device)
+            if hasattr(model.config, "vision_config"):
+                self.processor = AutoProcessor.from_pretrained(model_id)
+            else:
+                self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         except Exception as e:
             logger.warning(
                 f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {model_id=}."
@@ -340,25 +344,31 @@ class TransformersModel(Model):
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
         tools_to_call_from: Optional[List[Tool]] = None,
+        images: Optional[List[Image.Image]] = None
     ) -> str:
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
 
-        if tools_to_call_from is not None:
-            prompt_tensor = self.tokenizer.apply_chat_template(
-                messages,
-                tools=[get_json_schema(tool) for tool in tools_to_call_from],
-                return_tensors="pt",
-                return_dict=True,
-                add_generation_prompt=True,
-            )
+        
+        if hasattr(self, 'processor'):
+            prompt_tensor = self.processor.apply_chat_template(
+            messages,
+            tools=[get_json_schema(tool) for tool in tools_to_call_from] if tools_to_call_from else None,
+            return_tensors="pt",
+            return_dict=True,
+            images=images,
+            add_generation_prompt=True if tools_to_call_from else False,
+        )
         else:
             prompt_tensor = self.tokenizer.apply_chat_template(
-                messages,
-                return_tensors="pt",
-                return_dict=True,
-            )
+            messages,
+            tools=[get_json_schema(tool) for tool in tools_to_call_from] if tools_to_call_from else None,
+            return_tensors="pt",
+            return_dict=True,
+            add_generation_prompt=True if tools_to_call_from else False,
+        )
+        
         prompt_tensor = prompt_tensor.to(self.model.device)
         count_prompt_tokens = prompt_tensor["input_ids"].shape[1]
 
