@@ -302,6 +302,57 @@ class VisitWebpageTool(Tool):
         except Exception as e:
             return f"An unexpected error occurred: {str(e)}"
 
+class BrowserVisitWebpageTool(Tool):
+    name = "browser_visit_webpage"
+    description = "Visits a webpage at the given url and reads its content as a markdown string. Use this to browse webpages."
+    inputs = {
+        "url": {
+            "type": "string",
+            "description": "The url of the webpage to visit.",
+        }
+    }
+    output_type = "string"
+
+    def forward(self, url: str) -> str:
+        try:
+            from playwright.sync_api import sync_playwright, TimeoutError
+            from markdownify import markdownify
+        except ImportError:
+            raise ImportError(
+                "You must install packages `playwright` and `markdownify` to run this tool: for instance run `pip install markdownify playwright` and then `plawright install`."
+            )
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+
+
+                browser_context = browser.new_context(user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0")
+                context_page = browser_context.new_page()
+
+                # Set the timeout to 5 seconds
+                context_page.set_default_timeout(5000)
+
+                # Visit the URL
+                context_page.goto(url)
+
+                # Wait for the page to load, maximum 5 seconds
+                context_page.wait_for_load_state("networkidle")
+
+                content = context_page.content()
+
+                markdown_content = markdownify(content).strip()
+
+                markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
+
+                browser.close()
+
+            return markdown_content
+
+        except TimeoutError as e:
+            return f"Error fetching the webpage: {str(e)}"
+        except Exception as e:
+            return f"An unexpected error occurred: {str(e)}"
+
 
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
@@ -346,4 +397,5 @@ __all__ = [
     "GoogleSearchTool",
     "VisitWebpageTool",
     "SpeechToTextTool",
+    "BrowserVisitWebpageTool"
 ]
