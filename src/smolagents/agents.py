@@ -748,7 +748,7 @@ Now begin!""",
             plan_update = self.model(
                 [plan_update_message] + agent_memory + [plan_update_message_user],
                 stop_sequences=["<end_plan>"],
-            )
+            ).content
 
             # Log final facts and plan
             final_plan_redaction = PLAN_UPDATE_FINAL_PLAN_REDACTION.format(
