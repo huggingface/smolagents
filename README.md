@@ -47,7 +47,8 @@ Full documentation can be found [here](https://huggingface.co/docs/smolagents/in
 
 First install the package.
 ```bash
-pip install smolagents
+pip install uv
+uv pip install smolagents
 ```
 Then define your agent, give it the tools it needs and run it!
 ```py
