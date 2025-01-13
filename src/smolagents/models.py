@@ -52,6 +52,7 @@ DEFAULT_CODEAGENT_REGEX_GRAMMAR = {
     "value": "Thought: .+?\\nCode:\\n```(?:py|python)?\\n(?:.|\\s)+?\\n```<end_code>",
 }
 
+DEFAULT_MAX_TOKENS = 8000
 try:
     import litellm
 
@@ -158,7 +159,7 @@ class Model:
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: int = 1500,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
     ) -> str:
         """Process the input messages and return the model's response.
 
@@ -211,7 +212,7 @@ class HfApiModel(Model):
     ...     token="your_hf_token_here",
     ... )
     >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
-    >>> response = engine(messages, stop_sequences=["END"], max_tokens=1500)
+    >>> response = engine(messages, stop_sequences=["END"], max_tokens=DEFAULT_MAX_TOKENS)
     >>> print(response)
     "Quantum mechanics is the branch of physics that studies..."
     ```
@@ -236,7 +237,7 @@ class HfApiModel(Model):
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: int = 1500,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         tools_to_call_from: Optional[List[Tool]] = None,
     ) -> str:
         """
@@ -339,7 +340,7 @@ class TransformersModel(Model):
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: int = 1500,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         tools_to_call_from: Optional[List[Tool]] = None,
     ) -> ChatCompletionOutputMessage:
         messages = get_clean_message_list(
@@ -361,7 +362,7 @@ class TransformersModel(Model):
             )
         prompt_tensor = prompt_tensor.to(self.model.device)
         count_prompt_tokens = prompt_tensor["input_ids"].shape[1]
-        
+
         out = self.model.generate(
             **prompt_tensor,
             max_new_tokens=max_tokens,
@@ -424,7 +425,7 @@ class LiteLLMModel(Model):
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: int = 1500,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         tools_to_call_from: Optional[List[Tool]] = None,
     ) -> str:
         messages = get_clean_message_list(
@@ -495,7 +496,7 @@ class OpenAIServerModel(Model):
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: int = 1500,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         tools_to_call_from: Optional[List[Tool]] = None,
     ) -> str:
         messages = get_clean_message_list(
