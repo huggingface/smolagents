@@ -716,7 +716,7 @@ Now begin!""",
             answer_plan = self.model(
                 [message_system_prompt_plan, message_user_prompt_plan],
                 stop_sequences=["<end_plan>"],
-            )
+            ).content
 
             final_plan_redaction = f"""Here is the plan of action that I will follow to solve the task:
 ```
