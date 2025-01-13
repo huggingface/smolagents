@@ -179,12 +179,12 @@ class Tool:
                     f"Attribute {attr} should have type {expected_type.__name__}, got {type(attr_value)} instead."
                 )
         for input_name, input_content in self.inputs.items():
-            assert isinstance(
-                input_content, dict
-            ), f"Input '{input_name}' should be a dictionary."
-            assert (
-                "type" in input_content and "description" in input_content
-            ), f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
+            assert isinstance(input_content, dict), (
+                f"Input '{input_name}' should be a dictionary."
+            )
+            assert "type" in input_content and "description" in input_content, (
+                f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
+            )
             if input_content["type"] not in AUTHORIZED_TYPES:
                 raise Exception(
                     f"Input '{input_name}': type '{input_content['type']}' is not an authorized value, should be one of {AUTHORIZED_TYPES}."
@@ -207,13 +207,13 @@ class Tool:
             json_schema = _convert_type_hints_to_json_schema(self.forward)
             for key, value in self.inputs.items():
                 if "nullable" in value:
-                    assert (
-                        key in json_schema and "nullable" in json_schema[key]
-                    ), f"Nullable argument '{key}' in inputs should have key 'nullable' set to True in function signature."
+                    assert key in json_schema and "nullable" in json_schema[key], (
+                        f"Nullable argument '{key}' in inputs should have key 'nullable' set to True in function signature."
+                    )
                 if key in json_schema and "nullable" in json_schema[key]:
-                    assert (
-                        "nullable" in value
-                    ), f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
+                    assert "nullable" in value, (
+                        f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
+                    )
 
     def forward(self, *args, **kwargs):
         return NotImplementedError("Write this method in your subclass of `Tool`.")
@@ -272,7 +272,7 @@ class Tool:
             class {class_name}(Tool):
                 name = "{self.name}"
                 description = "{self.description}"
-                inputs = {json.dumps(self.inputs, separators=(',', ':'))}
+                inputs = {json.dumps(self.inputs, separators=(",", ":"))}
                 output_type = "{self.output_type}"
             """).strip()
             import re
@@ -439,7 +439,9 @@ class Tool:
                 `cache_dir`, `revision`, `subfolder`) will be used when downloading the files for your tool, and the
                 others will be passed along to its init.
         """
-        assert trust_remote_code, "Loading a tool from Hub requires to trust remote code. Make sure you've inspected the repo and pass `trust_remote_code=True` to load the tool."
+        assert trust_remote_code, (
+            "Loading a tool from Hub requires to trust remote code. Make sure you've inspected the repo and pass `trust_remote_code=True` to load the tool."
+        )
 
         hub_kwargs_names = [
             "cache_dir",
@@ -620,13 +622,10 @@ class Tool:
                     arg.save(temp_file.name)
                     arg = temp_file.name
                 if (
-                    isinstance(arg, str)
-                    and os.path.isfile(arg)
-                ) or (
-                    isinstance(arg, Path)
-                    and arg.exists()
-                    and arg.is_file()
-                ) or is_http_url_like(arg):
+                    (isinstance(arg, str) and os.path.isfile(arg))
+                    or (isinstance(arg, Path) and arg.exists() and arg.is_file())
+                    or is_http_url_like(arg)
+                ):
                     arg = handle_file(arg)
                 return arg
 
