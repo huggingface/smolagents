@@ -453,9 +453,9 @@ class OpenAIServerModel(Model):
     Parameters:
         model_id (`str`):
             The model identifier to use on the server (e.g. "gpt-3.5-turbo").
-        api_base (`str`):
+        api_base (`str`, *optional*, defaults to None):
             The base URL of the OpenAI-compatible API server.
-        api_key (`str`):
+        api_key (`str`, *optional*, defaults to None):
             The API key to use for authentication.
         temperature (`float`, *optional*, defaults to 0.7):
             Controls randomness in the model's responses. Values between 0 and 2.
@@ -466,16 +466,20 @@ class OpenAIServerModel(Model):
     def __init__(
         self,
         model_id: str,
-        api_base: str,
-        api_key: str,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        organization: Optional[str] = None,
+        project: str | None = None,
         temperature: float = 0.7,
         **kwargs,
     ):
         super().__init__()
         self.model_id = model_id
         self.client = openai.OpenAI(
-            base_url=api_base,
+            base_url=base_url,
             api_key=api_key,
+            organization=organization,
+            project=project
         )
         self.temperature = temperature
         self.kwargs = kwargs
