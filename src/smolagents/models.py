@@ -20,20 +20,25 @@ import os
 import random
 from copy import deepcopy
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional
 
-import torch
-from huggingface_hub import InferenceClient
+from huggingface_hub import (
+    InferenceClient,
+    ChatCompletionOutputMessage,
+    ChatCompletionOutputToolCall,
+    ChatCompletionOutputFunctionDefinition,
+)
+
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     StoppingCriteria,
     StoppingCriteriaList,
+    is_torch_available,
 )
 import openai
 
 from .tools import Tool
-from .utils import parse_json_tool_call
 
 logger = logging.getLogger(__name__)
 
@@ -142,20 +147,11 @@ class Model:
         self.last_input_token_count = None
         self.last_output_token_count = None
 
-    def get_token_counts(self):
+    def get_token_counts(self) -> Dict[str, int]:
         return {
             "input_token_count": self.last_input_token_count,
             "output_token_count": self.last_output_token_count,
         }
-
-    def generate(
-        self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
-        grammar: Optional[str] = None,
-        max_tokens: int = 1500,
-    ):
-        raise NotImplementedError
 
     def __call__(
         self,
@@ -226,63 +222,50 @@ class HfApiModel(Model):
         model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
+        temperature: float = 0.5,
     ):
         super().__init__()
         self.model_id = model_id
         if token is None:
             token = os.getenv("HF_TOKEN")
         self.client = InferenceClient(self.model_id, token=token, timeout=timeout)
+        self.temperature = temperature
 
-    def generate(
+    def __call__(
         self,
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
+        tools_to_call_from: Optional[List[Tool]] = None,
     ) -> str:
-        """Generates a text completion for the given message list"""
+        """
+        Gets an LLM output message for the given list of input messages.
+        If argument `tools_to_call_from` is passed, the model's tool calling options will be used to return a tool call.
+        """
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
-
-        # Send messages to the Hugging Face Inference API
-        if grammar is not None:
-            output = self.client.chat_completion(
-                messages,
+        if tools_to_call_from:
+            response = self.client.chat.completions.create(
+                messages=messages,
+                tools=[get_json_schema(tool) for tool in tools_to_call_from],
+                tool_choice="auto",
                 stop=stop_sequences,
-                response_format=grammar,
                 max_tokens=max_tokens,
+                temperature=self.temperature,
             )
         else:
-            output = self.client.chat.completions.create(
-                messages, stop=stop_sequences, max_tokens=max_tokens
+            response = self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages,
+                stop=stop_sequences,
+                max_tokens=max_tokens,
+                temperature=self.temperature,
             )
-
-        response = output.choices[0].message.content
-        self.last_input_token_count = output.usage.prompt_tokens
-        self.last_output_token_count = output.usage.completion_tokens
-        return response
-
-    def get_tool_call(
-        self,
-        messages: List[Dict[str, str]],
-        available_tools: List[Tool],
-        stop_sequences,
-    ):
-        """Generates a tool call for the given message list. This method is used only by `ToolCallingAgent`."""
-        messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
-        )
-        response = self.client.chat.completions.create(
-            messages=messages,
-            tools=[get_json_schema(tool) for tool in available_tools],
-            tool_choice="auto",
-            stop=stop_sequences,
-        )
-        tool_call = response.choices[0].message.tool_calls[0]
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        return tool_call.function.name, tool_call.function.arguments, tool_call.id
+        return response.choices[0].message
 
 
 class TransformersModel(Model):
@@ -297,6 +280,10 @@ class TransformersModel(Model):
 
     def __init__(self, model_id: Optional[str] = None, device: Optional[str] = None):
         super().__init__()
+        if not is_torch_available():
+            raise ImportError("Please install torch in order to use TransformersModel.")
+        import torch
+
         default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         if model_id is None:
             model_id = default_model_id
@@ -346,23 +333,32 @@ class TransformersModel(Model):
 
         return StoppingCriteriaList([StopOnStrings(stop_sequences, self.tokenizer)])
 
-    def generate(
+    def __call__(
         self,
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
+        tools_to_call_from: Optional[List[Tool]] = None,
     ) -> str:
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
 
-        # Get LLM output
-        prompt_tensor = self.tokenizer.apply_chat_template(
-            messages,
-            return_tensors="pt",
-            return_dict=True,
-        )
+        if tools_to_call_from is not None:
+            prompt_tensor = self.tokenizer.apply_chat_template(
+                messages,
+                tools=[get_json_schema(tool) for tool in tools_to_call_from],
+                return_tensors="pt",
+                return_dict=True,
+                add_generation_prompt=True,
+            )
+        else:
+            prompt_tensor = self.tokenizer.apply_chat_template(
+                messages,
+                return_tensors="pt",
+                return_dict=True,
+            )
         prompt_tensor = prompt_tensor.to(self.model.device)
         count_prompt_tokens = prompt_tensor["input_ids"].shape[1]
 
@@ -374,56 +370,31 @@ class TransformersModel(Model):
             ),
         )
         generated_tokens = out[0, count_prompt_tokens:]
-        response = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+        output = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
 
         self.last_input_token_count = count_prompt_tokens
         self.last_output_token_count = len(generated_tokens)
 
         if stop_sequences is not None:
-            response = remove_stop_sequences(response, stop_sequences)
-        return response
+            output = remove_stop_sequences(output, stop_sequences)
 
-    def get_tool_call(
-        self,
-        messages: List[Dict[str, str]],
-        available_tools: List[Tool],
-        stop_sequences: Optional[List[str]] = None,
-        max_tokens: int = 500,
-    ) -> Tuple[str, Union[str, None], str]:
-        messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
-        )
-
-        prompt = self.tokenizer.apply_chat_template(
-            messages,
-            tools=[get_json_schema(tool) for tool in available_tools],
-            return_tensors="pt",
-            return_dict=True,
-            add_generation_prompt=True,
-        )
-        prompt = prompt.to(self.model.device)
-        count_prompt_tokens = prompt["input_ids"].shape[1]
-
-        out = self.model.generate(
-            **prompt,
-            max_new_tokens=max_tokens,
-            stopping_criteria=(
-                self.make_stopping_criteria(stop_sequences) if stop_sequences else None
-            ),
-        )
-        generated_tokens = out[0, count_prompt_tokens:]
-        response = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
-
-        self.last_input_token_count = count_prompt_tokens
-        self.last_output_token_count = len(generated_tokens)
-
-        if stop_sequences is not None:
-            response = remove_stop_sequences(response, stop_sequences)
-
-        tool_name, tool_input = parse_json_tool_call(response)
-        call_id = "".join(random.choices("0123456789", k=5))
-
-        return tool_name, tool_input, call_id
+        if tools_to_call_from is None:
+            return ChatCompletionOutputMessage(role="assistant", content=output)
+        else:
+            tool_name, tool_arguments = json.load(output)
+            return ChatCompletionOutputMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    ChatCompletionOutputToolCall(
+                        id="".join(random.choices("0123456789", k=5)),
+                        type="function",
+                        function=ChatCompletionOutputFunctionDefinition(
+                            name=tool_name, arguments=tool_arguments
+                        ),
+                    )
+                ],
+            )
 
 
 class LiteLLMModel(Model):
@@ -452,50 +423,36 @@ class LiteLLMModel(Model):
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
+        tools_to_call_from: Optional[List[Tool]] = None,
     ) -> str:
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
-
-        response = litellm.completion(
-            model=self.model_id,
-            messages=messages,
-            stop=stop_sequences,
-            max_tokens=max_tokens,
-            api_base=self.api_base,
-            api_key=self.api_key,
-            **self.kwargs,
-        )
+        if tools_to_call_from:
+            response = litellm.completion(
+                model=self.model_id,
+                messages=messages,
+                tools=[get_json_schema(tool) for tool in tools_to_call_from],
+                tool_choice="required",
+                stop=stop_sequences,
+                max_tokens=max_tokens,
+                api_base=self.api_base,
+                api_key=self.api_key,
+                **self.kwargs,
+            )
+        else:
+            response = litellm.completion(
+                model=self.model_id,
+                messages=messages,
+                stop=stop_sequences,
+                max_tokens=max_tokens,
+                api_base=self.api_base,
+                api_key=self.api_key,
+                **self.kwargs,
+            )
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        return response.choices[0].message.content
-
-    def get_tool_call(
-        self,
-        messages: List[Dict[str, str]],
-        available_tools: List[Tool],
-        stop_sequences: Optional[List[str]] = None,
-        max_tokens: int = 1500,
-    ):
-        messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
-        )
-        response = litellm.completion(
-            model=self.model_id,
-            messages=messages,
-            tools=[get_json_schema(tool) for tool in available_tools],
-            tool_choice="required",
-            stop=stop_sequences,
-            max_tokens=max_tokens,
-            api_base=self.api_base,
-            api_key=self.api_key,
-            **self.kwargs,
-        )
-        tool_calls = response.choices[0].message.tool_calls[0]
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
-        arguments = json.loads(tool_calls.function.arguments)
-        return tool_calls.function.name, arguments, tool_calls.id
+        return response.choices[0].message
 
 
 class OpenAIServerModel(Model):
@@ -531,64 +488,40 @@ class OpenAIServerModel(Model):
         self.temperature = temperature
         self.kwargs = kwargs
 
-    def generate(
+    def __call__(
         self,
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
+        tools_to_call_from: Optional[List[Tool]] = None,
     ) -> str:
-        """Generates a text completion for the given message list"""
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
-
-        response = self.client.chat.completions.create(
-            model=self.model_id,
-            messages=messages,
-            stop=stop_sequences,
-            max_tokens=max_tokens,
-            temperature=self.temperature,
-            **self.kwargs,
-        )
-
+        if tools_to_call_from:
+            response = self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages,
+                tools=[get_json_schema(tool) for tool in tools_to_call_from],
+                tool_choice="auto",
+                stop=stop_sequences,
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                **self.kwargs,
+            )
+        else:
+            response = self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages,
+                stop=stop_sequences,
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                **self.kwargs,
+            )
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        return response.choices[0].message.content
-
-    def get_tool_call(
-        self,
-        messages: List[Dict[str, str]],
-        available_tools: List[Tool],
-        stop_sequences: Optional[List[str]] = None,
-        max_tokens: int = 500,
-    ) -> Tuple[str, Union[str, Dict], str]:
-        """Generates a tool call for the given message list"""
-        messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
-        )
-
-        response = self.client.chat.completions.create(
-            model=self.model_id,
-            messages=messages,
-            tools=[get_json_schema(tool) for tool in available_tools],
-            tool_choice="auto",
-            stop=stop_sequences,
-            max_tokens=max_tokens,
-            temperature=self.temperature,
-            **self.kwargs,
-        )
-
-        tool_calls = response.choices[0].message.tool_calls[0]
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
-
-        try:
-            arguments = json.loads(tool_calls.function.arguments)
-        except json.JSONDecodeError:
-            arguments = tool_calls.function.arguments
-
-        return tool_calls.function.name, arguments, tool_calls.id
+        return response.choices[0].message
 
 
 __all__ = [

@@ -22,42 +22,57 @@ from smolagents import (
     ToolCallingAgent,
     stream_to_gradio,
 )
+from huggingface_hub import (
+    ChatCompletionOutputMessage,
+    ChatCompletionOutputToolCall,
+    ChatCompletionOutputFunctionDefinition,
+)
+
+
+class FakeLLMModel:
+    def __init__(self):
+        self.last_input_token_count = 10
+        self.last_output_token_count = 20
+
+    def __call__(self, prompt, tools_to_call_from=None, **kwargs):
+        if tools_to_call_from is not None:
+            return ChatCompletionOutputMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    ChatCompletionOutputToolCall(
+                        id="fake_id",
+                        type="function",
+                        function=ChatCompletionOutputFunctionDefinition(
+                            name="final_answer", arguments={"answer": "image"}
+                        ),
+                    )
+                ],
+            )
+        else:
+            return ChatCompletionOutputMessage(
+                role="assistant",
+                content="""
+Code:
+```py
+final_answer('This is the final answer.')
+```""",
+            )
 
 
 class MonitoringTester(unittest.TestCase):
     def test_code_agent_metrics(self):
-        class FakeLLMModel:
-            def __init__(self):
-                self.last_input_token_count = 10
-                self.last_output_token_count = 20
-
-            def __call__(self, prompt, **kwargs):
-                return """
-Code:
-```py
-final_answer('This is the final answer.')
-```"""
-
         agent = CodeAgent(
             tools=[],
             model=FakeLLMModel(),
             max_steps=1,
         )
-
         agent.run("Fake task")
 
         self.assertEqual(agent.monitor.total_input_token_count, 10)
         self.assertEqual(agent.monitor.total_output_token_count, 20)
 
     def test_json_agent_metrics(self):
-        class FakeLLMModel:
-            def __init__(self):
-                self.last_input_token_count = 10
-                self.last_output_token_count = 20
-
-            def get_tool_call(self, prompt, **kwargs):
-                return "final_answer", {"answer": "image"}, "fake_id"
-
         agent = ToolCallingAgent(
             tools=[],
             model=FakeLLMModel(),
@@ -70,17 +85,19 @@ final_answer('This is the final answer.')
         self.assertEqual(agent.monitor.total_output_token_count, 20)
 
     def test_code_agent_metrics_max_steps(self):
-        class FakeLLMModel:
+        class FakeLLMModelMalformedAnswer:
             def __init__(self):
                 self.last_input_token_count = 10
                 self.last_output_token_count = 20
 
             def __call__(self, prompt, **kwargs):
-                return "Malformed answer"
+                return ChatCompletionOutputMessage(
+                    role="assistant", content="Malformed answer"
+                )
 
         agent = CodeAgent(
             tools=[],
-            model=FakeLLMModel(),
+            model=FakeLLMModelMalformedAnswer(),
             max_steps=1,
         )
 
@@ -90,7 +107,7 @@ final_answer('This is the final answer.')
         self.assertEqual(agent.monitor.total_output_token_count, 40)
 
     def test_code_agent_metrics_generation_error(self):
-        class FakeLLMModel:
+        class FakeLLMModelGenerationException:
             def __init__(self):
                 self.last_input_token_count = 10
                 self.last_output_token_count = 20
@@ -102,7 +119,7 @@ final_answer('This is the final answer.')
 
         agent = CodeAgent(
             tools=[],
-            model=FakeLLMModel(),
+            model=FakeLLMModelGenerationException(),
             max_steps=1,
         )
         agent.run("Fake task")
@@ -113,16 +130,9 @@ final_answer('This is the final answer.')
         self.assertEqual(agent.monitor.total_output_token_count, 0)
 
     def test_streaming_agent_text_output(self):
-        def dummy_model(prompt, **kwargs):
-            return """
-Code:
-```py
-final_answer('This is the final answer.')
-```"""
-
         agent = CodeAgent(
             tools=[],
-            model=dummy_model,
+            model=FakeLLMModel(),
             max_steps=1,
         )
 
@@ -135,16 +145,9 @@ final_answer('This is the final answer.')
         self.assertIn("This is the final answer.", final_message.content)
 
     def test_streaming_agent_image_output(self):
-        class FakeLLM:
-            def __init__(self):
-                pass
-
-            def get_tool_call(self, messages, **kwargs):
-                return "final_answer", {"answer": "image"}, "fake_id"
-
         agent = ToolCallingAgent(
             tools=[],
-            model=FakeLLM(),
+            model=FakeLLMModel(),
             max_steps=1,
         )
 
