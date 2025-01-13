@@ -313,9 +313,11 @@ class AgentTests(unittest.TestCase):
         assert isinstance(output, float)
         assert output == 7.2904
         assert agent.logs[1].task == "What is 2 multiplied by 3.6452?"
-        assert agent.logs[3].tool_call == ToolCall(
-            name="python_interpreter", arguments="final_answer(7.2904)", id="call_3"
-        )
+        assert agent.logs[3].tool_calls == [
+            ToolCall(
+                name="python_interpreter", arguments="final_answer(7.2904)", id="call_3"
+            )
+        ]
 
     def test_additional_args_added_to_task(self):
         agent = CodeAgent(tools=[], model=fake_code_model)
@@ -365,9 +367,10 @@ class AgentTests(unittest.TestCase):
             model=fake_code_model_no_return,  # use this callable because it never ends
             max_steps=5,
         )
-        agent.run("What is 2 multiplied by 3.6452?")
+        answer = agent.run("What is 2 multiplied by 3.6452?")
         assert len(agent.logs) == 8
         assert type(agent.logs[-1].error) is AgentMaxStepsError
+        assert isinstance(answer, str)
 
     def test_tool_descriptions_get_baked_in_system_prompt(self):
         tool = PythonInterpreterTool()

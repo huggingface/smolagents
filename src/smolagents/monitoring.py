@@ -43,9 +43,7 @@ class Monitor:
     def update_metrics(self, step_log):
         step_duration = step_log.duration
         self.step_durations.append(step_duration)
-        console_outputs = (
-            f"[Step {len(self.step_durations)-1}: Duration {step_duration:.2f} seconds"
-        )
+        console_outputs = f"[Step {len(self.step_durations) - 1}: Duration {step_duration:.2f} seconds"
 
         if getattr(self.tracked_model, "last_input_token_count", None) is not None:
             self.total_input_token_count += self.tracked_model.last_input_token_count

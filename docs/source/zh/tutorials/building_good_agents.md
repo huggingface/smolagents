@@ -13,62 +13,62 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Building good agents
+# 构建好用的 agent
 
 [[open-in-colab]]
 
-There's a world of difference between building an agent that works and one that doesn't.
-How can we build agents that fall into the latter category?
-In this guide, we're going to see best practices for building agents.
+能良好工作的 agent 和不能工作的 agent 之间，有天壤之别。
+我们怎么样才能构建出属于前者的 agent 呢？
+在本指南中，我们将看到构建 agent 的最佳实践。
 
 > [!TIP]
-> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
+> 如果你是 agent 构建的新手，请确保首先阅读 [agent 介绍](../conceptual_guides/intro_agents) 和 [smolagents 导览](../guided_tour)。
 
-### The best agentic systems are the simplest: simplify the workflow as much as you can
+### 最好的 agent 系统是最简单的：尽可能简化工作流
 
-Giving an LLM some agency in your workflow introduces some risk of errors.
+在你的工作流中赋予 LLM 一些自主权，会引入一些错误风险。
 
-Well-programmed agentic systems have good error logging and retry mechanisms anyway, so the LLM engine has a chance to self-correct their mistake. But to reduce the risk of LLM error to the maximum, you should simplify your workflow!
+经过良好编程的 agent 系统，通常具有良好的错误日志记录和重试机制，因此 LLM 引擎有机会自我纠错。但为了最大限度地降低 LLM 错误的风险，你应该简化你的工作流！
 
-Let's revisit the example from the [intro to agents](../conceptual_guides/intro_agents): a bot that answers user queries for a surf trip company.
-Instead of letting the agent do 2 different calls for "travel distance API" and "weather API" each time they are asked about a new surf spot, you could just make one unified tool "return_spot_information", a function that calls both APIs at once and returns their concatenated outputs to the user.
+让我们回顾一下 [agent 介绍](../conceptual_guides/intro_agents) 中的例子：一个为冲浪旅行公司回答用户咨询的机器人。
+与其让 agent 每次被问及新的冲浪地点时，都分别调用 "旅行距离 API" 和 "天气 API"，你可以只创建一个统一的工具 "return_spot_information"，一个同时调用这两个 API，并返回它们连接输出的函数。
 
-This will reduce costs, latency, and error risk!
+这可以降低成本、延迟和错误风险！
 
-The main guideline is: Reduce the number of LLM calls as much as you can.
+主要的指导原则是：尽可能减少 LLM 调用的次数。
 
-This leads to a few takeaways:
-- Whenever possible, group 2 tools in one, like in our example of the two APIs.
-- Whenever possible, logic should be based on deterministic functions rather than agentic decisions.
+这可以带来一些启发：
+- 尽可能把两个工具合并为一个，就像我们两个 API 的例子。
+- 尽可能基于确定性函数，而不是 agent 决策，来实现逻辑。
 
-### Improve the information flow to the LLM engine
+### 改善流向 LLM 引擎的信息流
 
-Remember that your LLM engine is like an *intelligent* robot, tapped into a room with the only communication with the outside world being notes passed under a door.
+记住，你的 LLM 引擎就像一个 ~智能~ 机器人，被关在一个房间里，与外界唯一的交流方式是通过门缝传递的纸条。
 
-It won't know of anything that happened if you don't explicitly put that into its prompt.
+如果你没有明确地将信息放入其提示中，它将不知道发生的任何事情。
 
-So first start with making your task very clear!
-Since an agent is powered by an LLM, minor variations in your task formulation might yield completely different results.
+所以首先要让你的任务非常清晰！
+由于 agent 由 LLM 驱动，任务表述的微小变化可能会产生完全不同的结果。
 
-Then, improve the information flow towards your agent in tool use.
+然后，改善工具使用中流向 agent 的信息流。
 
-Particular guidelines to follow:
-- Each tool should log (by simply using `print` statements inside the tool's `forward` method) everything that could be useful for the LLM engine.
-  - In particular, logging detail on tool execution errors would help a lot!
+需要遵循的具体指南：
+- 每个工具都应该记录（只需在工具的 `forward` 方法中使用 `print` 语句）对 LLM 引擎可能有用的所有信息。
+  - 特别是，记录工具执行错误的详细信息会很有帮助！
 
-For instance, here's a tool that retrieves weather data based on location and date-time:
+例如，这里有一个根据位置和日期时间检索天气数据的工具：
 
-First, here's a poor version:
+首先，这是一个糟糕的版本：
 ```python
 import datetime
 from smolagents import tool
 
 def get_weather_report_at_coordinates(coordinates, date_time):
-    # Dummy function, returns a list of [temperature in °C, risk of rain on a scale 0-1, wave height in m]
+    # 虚拟函数，返回 [温度（°C），降雨风险（0-1），浪高（m）]
     return [28.0, 0.35, 0.85]
 
 def get_coordinates_from_location(location):
-    # Returns dummy coordinates
+    # 返回虚拟坐标
     return [3.3, -42.0]
 
 @tool
@@ -85,15 +85,15 @@ def get_weather_api(location: str, date_time: str) -> str:
     return str(get_weather_report_at_coordinates((lon, lat), date_time))
 ```
 
-Why is it bad?
-- there's no precision of the format that should be used for `date_time`
-- there's no detail on how location should be specified.
-- there's no logging mechanism trying to make explicit failure cases like location not being in a proper format, or date_time not being properly formatted.
-- the output format is hard to understand
+为什么它不好？
+- 没有说明 `date_time` 应该使用的格式
+- 没有说明位置应该如何指定
+- 没有记录机制来处理明确的报错情况，如位置格式不正确或 date_time 格式不正确
+- 输出格式难以理解
 
-If the tool call fails, the error trace logged in memory can help the LLM reverse engineer the tool to fix the errors. But why leave it with so much heavy lifting to do?
+如果工具调用失败，内存中记录的错误跟踪，可以帮助 LLM 逆向工程工具来修复错误。但为什么要让它做这么多繁重的工作呢？
 
-A better way to build this tool would have been the following:
+构建这个工具的更好方式如下：
 ```python
 @tool
 def get_weather_api(location: str, date_time: str) -> str:
@@ -113,11 +113,11 @@ def get_weather_api(location: str, date_time: str) -> str:
     return f"Weather report for {location}, {date_time}: Temperature will be {temperature_celsius}°C, risk of rain is {risk_of_rain*100:.0f}%, wave height is {wave_height}m."
 ```
 
-In general, to ease the load on your LLM, the good question to ask yourself is: "How easy would it be for me, if I was dumb and using this tool for the first time ever, to program with this tool and correct my own errors?".
+一般来说，为了减轻 LLM 的负担，要问自己的好问题是："如果我是一个第一次使用这个工具的傻瓜，使用这个工具编程并纠正自己的错误有多容易？"。
 
-### Give more arguments to the agent
+### 给 agent 更多参数
 
-To pass some additional objects to your agent beyond the simple string describing the task, you can use the `additional_args` argument to pass any type of object:
+除了简单的任务描述字符串外，你还可以使用 `additional_args` 参数传递任何类型的对象：
 
 ```py
 from smolagents import CodeAgent, HfApiModel
@@ -131,20 +131,19 @@ agent.run(
     additional_args={"mp3_sound_file_url":'https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/recording.mp3'}
 )
 ```
-For instance, you can use this `additional_args` argument to pass images or strings that you want your agent to leverage.
+例如，你可以使用这个 `additional_args` 参数传递你希望 agent 利用的图像或字符串。
 
 
+## 如何调试你的 agent
 
-## How to debug your agent
+### 1. 使用更强大的 LLM
 
-### 1. Use a stronger LLM
-
-In an agentic workflows, some of the errors are actual errors, some other are the fault of your LLM engine not reasoning properly.
-For instance, consider this trace for an `CodeAgent` that I asked to create a car picture:
-```
+在 agent 工作流中，有些错误是实际错误，有些则是你的 LLM 引擎没有正确推理的结果。
+例如，参考这个我要求创建一个汽车图片的 `CodeAgent` 的运行记录：
+```text
 ==================================================================================================== New task ====================================================================================================
 Make me a cool car picture
-──────────────────────────────────────────────────────────────────────────────────────────────────── New step ────────────────────────────────────────────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────────────────────────── New step ─────────────────────────────────────────────────────────────────────────────────────────────────────
 Agent is executing the code below: ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 image_generator(prompt="A cool, futuristic sports car with LED headlights, aerodynamic design, and vibrant color, high-res, photorealistic")
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -156,7 +155,7 @@ Step 1:
 - Time taken: 16.35 seconds
 - Input tokens: 1,383
 - Output tokens: 77
-──────────────────────────────────────────────────────────────────────────────────────────────────── New step ────────────────────────────────────────────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────────────────────────── New step ─────────────────────────────────────────────────────────────────────────────────────────────────────
 Agent is executing the code below: ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 final_answer("/var/folders/6m/9b1tts6d5w960j80wbw9tx3m0000gn/T/tmpx09qfsdd/652f0007-3ee9-44e2-94ac-90dae6bb89a4.png")
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -167,36 +166,36 @@ Last output from code snippet: ────────────────�
 Final answer:
 /var/folders/6m/9b1tts6d5w960j80wbw9tx3m0000gn/T/tmpx09qfsdd/652f0007-3ee9-44e2-94ac-90dae6bb89a4.png
 ```
-The user sees, instead of an image being returned, a path being returned to them.
-It could look like a bug from the system, but actually the agentic system didn't cause the error: it's just that the LLM brain did the mistake of not saving the image output into a variable.
-Thus it cannot access the image again except by leveraging the path that was logged while saving the image, so it returns the path instead of an image.
+用户看到的是返回了一个路径，而不是图像。
+这看起来像是系统的错误，但实际上 agent 系统并没有导致错误：只是 LLM 大脑犯了一个错误，没有把图像输出，保存到变量中。
+因此，它无法再次访问图像，只能利用保存图像时记录的路径，所以它返回的是路径，而不是图像。
 
-The first step to debugging your agent is thus "Use a more powerful LLM". Alternatives like `Qwen2/5-72B-Instruct` wouldn't have made that mistake.
+调试 agent 的第一步是"使用更强大的 LLM"。像 `Qwen2.5-72B-Instruct` 这样的替代方案不会犯这种错误。
 
-### 2. Provide more guidance / more information
+### 2. 提供更多指导/更多信息
 
-You can also use less powerful models, provided you guide them more effectively.
+你也可以使用不太强大的模型，只要你更有效地指导它们。
 
-Put yourself in the shoes of your model: if you were the model solving the task, would you struggle with the information available to you (from the system prompt + task formulation + tool description) ?
+站在模型的角度思考：如果你是模型在解决任务，你会因为系统提示+任务表述+工具描述中提供的信息而挣扎吗？
 
-Would you need some added clarifications?
+你需要一些额外的说明吗？
 
-To provide extra information, we do not recommend to change the system prompt right away: the default system prompt has many adjustments that you do not want to mess up except if you understand the prompt very well.
-Better ways to guide your LLM engine are:
-- If it's about the task to solve: add all these details to the task. The task could be 100s of pages long.
-- If it's about how to use tools: the description attribute of your tools.
+为了提供额外信息，我们不建议立即更改系统提示：默认系统提示有许多调整，除非你非常了解提示，否则你很容易翻车。
+更好的指导 LLM 引擎的方法是：
+- 如果是关于要解决的任务：把所有细节添加到任务中。任务可以有几百页长。
+- 如果是关于如何使用工具：你的工具的 description 属性。
 
 
-### 3. Change the system prompt (generally not advised)
+### 3. 更改系统提示（通常不建议）
 
-If above clarifications are not sufficient, you can change the system prompt.
+如果上述说明不够，你可以更改系统提示。
 
-Let's see how it works. For example, let us check the default system prompt for the [`CodeAgent`] (below version is shortened by skipping zero-shot examples).
+让我们看看它是如何工作的。例如，让我们检查 [`CodeAgent`] 的默认系统提示（下面的版本通过跳过零样本示例进行了缩短）。
 
 ```python
 print(agent.system_prompt_template)
 ```
-Here is what you get:
+你会得到：
 ```text
 You are an expert assistant who can solve any task using code blobs. You will be given a task to solve as best you can.
 To do so, you have been given access to a list of tools: these tools are basically Python functions which you can call with code.
@@ -233,19 +232,19 @@ Here are the rules you should always follow to solve your task:
 Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
 ```
 
-As you can see, there are placeholders like `"{{tool_descriptions}}"`: these will be used upon agent initialization to insert certain automatically generated descriptions of tools or managed agents.
+如你所见，有一些占位符，如 `"{{tool_descriptions}}"`：这些将在 agent 初始化时用于插入某些自动生成的工具或管理 agent 的描述。
 
-So while you can overwrite this system prompt template by passing your custom prompt as an argument to the `system_prompt` parameter, your new system prompt must contain the following placeholders:
-- `"{{tool_descriptions}}"` to insert tool descriptions.
-- `"{{managed_agents_description}}"` to insert the description for managed agents if there are any.
-- For `CodeAgent` only: `"{{authorized_imports}}"` to insert the list of authorized imports.
+因此，虽然你可以通过将自定义提示作为参数传递给 `system_prompt` 参数来覆盖此系统提示模板，但你的新系统提示必须包含以下占位符：
+- `"{{tool_descriptions}}"` 用于插入工具描述。
+- `"{{managed_agents_description}}"` 用于插入 managed agent 的描述（如果有）。
+- 仅限 `CodeAgent`：`"{{authorized_imports}}"` 用于插入授权导入列表。
 
-Then you can change the system prompt as follows:
+然后你可以根据如下，更改系统提示：
 
 ```py
 from smolagents.prompts import CODE_SYSTEM_PROMPT
 
-modified_system_prompt = CODE_SYSTEM_PROMPT + "\nHere you go!" # Change the system prompt here
+modified_system_prompt = CODE_SYSTEM_PROMPT + "\nHere you go!" # 在此更改系统提示
 
 agent = CodeAgent(
     tools=[], 
@@ -254,12 +253,12 @@ agent = CodeAgent(
 )
 ```
 
-This also works with the [`ToolCallingAgent`].
+这也适用于 [`ToolCallingAgent`]。
 
 
-### 4. Extra planning
+### 4. 额外规划
 
-We provide a model for a supplementary planning step, that an agent can run regularly in-between normal action steps. In this step, there is no tool call, the LLM is simply asked to update a list of facts it knows and to reflect on what steps it should take next based on those facts.
+我们提供了一个用于补充规划步骤的模型，agent 可以在正常操作步骤之间定期运行。在此步骤中，没有工具调用，LLM 只是被要求更新它知道的事实列表，并根据这些事实反推它应该采取的下一步。
 
 ```py
 from smolagents import load_tool, CodeAgent, HfApiModel, DuckDuckGoSearchTool
@@ -267,7 +266,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Import tool from Hub
+# 从 Hub 导入工具
 image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
 search_tool = DuckDuckGoSearchTool()
@@ -275,10 +274,10 @@ search_tool = DuckDuckGoSearchTool()
 agent = CodeAgent(
     tools=[search_tool],
     model=HfApiModel("Qwen/Qwen2.5-72B-Instruct"),
-    planning_interval=3 # This is where you activate planning!
+    planning_interval=3 # 这是你激活规划的地方！
 )
 
-# Run it!
+# 运行它！
 result = agent.run(
     "How long would a cheetah at full speed take to run the length of Pont Alexandre III?",
 )

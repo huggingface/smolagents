@@ -36,6 +36,8 @@ from transformers import (
     StoppingCriteriaList,
     is_torch_available,
 )
+from transformers.utils.import_utils import _is_package_available
+
 import openai
 
 from .tools import Tool
@@ -52,12 +54,8 @@ DEFAULT_CODEAGENT_REGEX_GRAMMAR = {
     "value": "Thought: .+?\\nCode:\\n```(?:py|python)?\\n(?:.|\\s)+?\\n```<end_code>",
 }
 
-try:
+if _is_package_available("litellm"):
     import litellm
-
-    is_litellm_available = True
-except ImportError:
-    is_litellm_available = False
 
 
 class MessageRole(str, Enum):
@@ -159,7 +157,7 @@ class Model:
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
-    ) -> str:
+    ) -> ChatCompletionOutputMessage:
         """Process the input messages and return the model's response.
 
         Parameters:
@@ -174,15 +172,7 @@ class Model:
         Returns:
             `str`: The text content of the model's response.
         """
-        if not isinstance(messages, List):
-            raise ValueError(
-                "Messages should be a list of dictionaries with 'role' and 'content' keys."
-            )
-        if stop_sequences is None:
-            stop_sequences = []
-        response = self.generate(messages, stop_sequences, grammar, max_tokens)
-
-        return remove_stop_sequences(response, stop_sequences)
+        pass  # To be implemented in child classes!
 
 
 class HfApiModel(Model):
@@ -238,7 +228,7 @@ class HfApiModel(Model):
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
         tools_to_call_from: Optional[List[Tool]] = None,
-    ) -> str:
+    ) -> ChatCompletionOutputMessage:
         """
         Gets an LLM output message for the given list of input messages.
         If argument `tools_to_call_from` is passed, the model's tool calling options will be used to return a tool call.
@@ -300,8 +290,9 @@ class TransformersModel(Model):
             self.model = AutoModelForCausalLM.from_pretrained(model_id).to(self.device)
         except Exception as e:
             logger.warning(
-                f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {model_id=}."
+                f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {default_model_id=}."
             )
+            self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
             self.model = AutoModelForCausalLM.from_pretrained(default_model_id).to(
                 self.device
@@ -340,11 +331,10 @@ class TransformersModel(Model):
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
         tools_to_call_from: Optional[List[Tool]] = None,
-    ) -> str:
+    ) -> ChatCompletionOutputMessage:
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
-
         if tools_to_call_from is not None:
             prompt_tensor = self.tokenizer.apply_chat_template(
                 messages,
@@ -371,17 +361,19 @@ class TransformersModel(Model):
         )
         generated_tokens = out[0, count_prompt_tokens:]
         output = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
-
         self.last_input_token_count = count_prompt_tokens
         self.last_output_token_count = len(generated_tokens)
 
         if stop_sequences is not None:
             output = remove_stop_sequences(output, stop_sequences)
-
         if tools_to_call_from is None:
             return ChatCompletionOutputMessage(role="assistant", content=output)
         else:
-            tool_name, tool_arguments = json.load(output)
+            if "Action:" in output:
+                output = output.split("Action:", 1)[1].strip()
+            parsed_output = json.loads(output)
+            tool_name = parsed_output.get("tool_name")
+            tool_arguments = parsed_output.get("tool_arguments")
             return ChatCompletionOutputMessage(
                 role="assistant",
                 content="",
@@ -405,7 +397,7 @@ class LiteLLMModel(Model):
         api_key=None,
         **kwargs,
     ):
-        if not is_litellm_available:
+        if not _is_package_available("litellm"):
             raise ImportError(
                 "litellm not found. Install it with `pip install litellm`"
             )
@@ -424,7 +416,7 @@ class LiteLLMModel(Model):
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
         tools_to_call_from: Optional[List[Tool]] = None,
-    ) -> str:
+    ) -> ChatCompletionOutputMessage:
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
@@ -495,7 +487,7 @@ class OpenAIServerModel(Model):
         grammar: Optional[str] = None,
         max_tokens: int = 1500,
         tools_to_call_from: Optional[List[Tool]] = None,
-    ) -> str:
+    ) -> ChatCompletionOutputMessage:
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )

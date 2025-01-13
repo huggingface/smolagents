@@ -486,6 +486,7 @@ if char.isalpha():
         code = "import numpy.random as rd"
         evaluate_python_code(code, authorized_imports=["numpy.random"], state={})
         evaluate_python_code(code, authorized_imports=["numpy"], state={})
+        evaluate_python_code(code, authorized_imports=["*"], state={})
         with pytest.raises(InterpreterError):
             evaluate_python_code(code, authorized_imports=["random"], state={})
 
