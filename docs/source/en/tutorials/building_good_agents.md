@@ -88,7 +88,7 @@ def get_weather_api(location: str, date_time: str) -> str:
 Why is it bad?
 - there's no precision of the format that should be used for `date_time`
 - there's no detail on how location should be specified.
-- there's no logging mechanism tying to explicit failure cases like location not being in a proper format, or date_time not being properly formatted.
+- there's no logging mechanism trying to explicit failure cases like location not being in a proper format, or date_time not being properly formatted.
 - the output format is hard to understand
 
 If the tool call fails, the error trace logged in memory can help the LLM reverse engineer the tool to fix the errors. But why leave it with so much heavy lifting to do?
