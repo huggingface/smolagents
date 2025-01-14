@@ -519,6 +519,90 @@ class OpenAIServerModel(Model):
         self.last_output_token_count = response.usage.completion_tokens
         return response.choices[0].message
 
+class AzureOpenAIServerModel(Model):
+    """
+    This engine connects to an Azure OpenAI-compatible API server.
+
+    To use this class, you must have a deployed model on Azure OpenAI. Use `model_id`
+    in the constructor to refer to the "Model deployment name" in the Azure portal.
+
+    The following parameters can be provided explicitly or via environment variables:
+    - `AZURE_OPENAI_API_KEY`
+    - `AZURE_OPENAI_ENDPOINT`
+    - `OPENAI_API_VERSION`
+
+    Example:
+
+    .. code-block:: python
+
+        model = AzureOpenAIServerModel(
+            model_id="azure-turbo-dev",
+        )
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        api_key: Optional[str] = None,
+        azure_endpoint: Optional[str] = None,
+        api_version: Optional[str] = None,
+        azure_ad_token: Optional[str] = None,
+        azure_ad_token_provider: Optional[str] = None,
+        organization: Optional[str] = None,
+        temperature: float = 0.7,
+        **kwargs,
+    ):
+        super().__init__()
+        self.model_id = model_id
+        self.temperature = temperature
+        self.kwargs = kwargs
+
+        # Initialize the Azure OpenAI client
+        self.client = openai.AzureOpenAI(
+            azure_endpoint=azure_endpoint,
+            azure_deployment=self.model_id,
+            api_key=api_key,
+            api_version=api_version,
+            azure_ad_token=azure_ad_token,
+            azure_ad_token_provider=azure_ad_token_provider,
+            organization=organization,
+        )
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        max_tokens: int = 1500,
+        tools_to_call_from: Optional[List[Tool]] = None,
+    ) -> ChatCompletionOutputMessage:
+        messages = get_clean_message_list(
+            messages, role_conversions=tool_role_conversions
+        )
+        if tools_to_call_from:
+            response = self.client.chat_completions.create(
+                deployment_id=self.model_id,
+                messages=messages,
+                stop=stop_sequences,
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                tools=[get_json_schema(tool) for tool in tools_to_call_from],
+                tool_choice="auto",
+                **self.kwargs,
+            )
+        else:
+            response = self.client.chat_completions.create(
+                deployment_id=self.model_id,
+                messages=messages,
+                stop=stop_sequences,
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                **self.kwargs,
+            )
+        self.last_input_token_count = response.usage.prompt_tokens
+        self.last_output_token_count = response.usage.completion_tokens
+        return response.choices[0].message
+
 
 __all__ = [
     "MessageRole",
@@ -529,4 +613,5 @@ __all__ = [
     "HfApiModel",
     "LiteLLMModel",
     "OpenAIServerModel",
+    "AzureOpenAIServerModel"
 ]
