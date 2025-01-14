@@ -121,7 +121,7 @@ model = LiteLLMModel(
     model_id="azure/" + AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
 )
 
-agent = CodeAgent(tools=[], model=model)
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
