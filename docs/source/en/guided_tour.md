@@ -67,14 +67,14 @@ agent.run(
 )
 ```
 </hfoption>
-<hfoption id="OpenAI or Anthropic API">
+<hfoption id="Anthropic API">
 
-To use `LiteLLMModel`, you need to set the environment variable `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, or pass `api_key` variable upon initialization.
+To use `LiteLLMModel` with Anthropic API, you need to set the environment variable `ANTHROPIC_API_KEY` or pass `api_key` variable upon initialization.
 
 ```python
 from smolagents import CodeAgent, LiteLLMModel
 
-model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", api_key="YOUR_ANTHROPIC_API_KEY") # Could use 'gpt-4o'
+model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", api_key="YOUR_ANTHROPIC_API_KEY")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -99,6 +99,83 @@ agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
 )
 ```
+</hfoption>
+
+<hfoption id="AzureOpenAI">
+
+You need to set the environment variables `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION`, and pass the deployment name of your model to `model_id` param to use model from Azure OpenAI.
+
+```python
+import os
+from smolagents import CodeAgent, LiteLLMModel
+# from dotenv import load_dotenv # Use this module to easily set env var from .env file
+# load_dotenv()
+
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-35-turbo-16k-deployment" # example of deployment name
+
+os.environ["AZURE_API_KEY"] = "" # api_key
+os.environ["AZURE_API_BASE"] = "" # "https://example-endpoint.openai.azure.com"
+os.environ["AZURE_API_VERSION"] = "" # "2024-10-01-preview"
+
+model = LiteLLMModel(
+    model_id="azure/" + AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+)
+
+agent = CodeAgent(tools=[], model=model)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+</hfoption>
+
+<hfoption id="OpenAI">
+
+You could use OpenAI API with either `LiteLLMModel` or `OpenAIServerModel`.
+
+For usage with `LiteLLMModel`, you need to set the environment variable `OPENAI_API_KEY` or pass the key into the `api_key` param.
+
+```python
+from smolagents import CodeAgent, LiteLLMModel
+import os
+
+# from dotenv import load_dotenv # Use this module to easily set env var with .env file
+# load_dotenv()
+
+os.environ["OPENAI_API_KEY"] = "" # OPENAI_KEY
+
+model = LiteLLMModel(
+    model_id="gpt-3.5-turbo"
+    )
+
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+Similarly with `OpenAIServerModel`:
+
+```python
+from smolagents import CodeAgent, OpenAIServerModel
+import os
+
+# from dotenv import load_dotenv # Use this module to easily set env var with .env file
+# load_dotenv()
+
+os.environ["OPENAI_API_KEY"] = "" # OPENAI_KEY
+
+model = OpenAIServerModel(model_id = "gpt-3.5-turbo")
+
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
 </hfoption>
 </hfoptions>
 
