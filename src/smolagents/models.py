@@ -452,15 +452,25 @@ class OpenAIServerModel(Model):
 
     Parameters:
         model_id (`str`):
-            The model identifier to use on the server (e.g. "gpt-3.5-turbo").
-        api_base (`str`, *optional*, defaults to None):
-            The base URL of the OpenAI-compatible API server.
-        api_key (`str`, *optional*, defaults to None):
-            The API key to use for authentication.
-        temperature (`float`, *optional*, defaults to 0.7):
-            Controls randomness in the model's responses. Values between 0 and 2.
+            The identifier of the model to use on the OpenAI-compatible server.
+            For example, "gpt-3.5-turbo" or "text-davinci-003".
+        api_key (`str`, optional, defaults to None):
+            The API key for authenticating requests to the server. If not provided, 
+            it must be set as an environment variable.
+        base_url (`str`, optional, defaults to None):
+            The base URL of the OpenAI-compatible API server. Typically used for 
+            custom deployments or non-default endpoints. For example:
+            "https://api.openai.com/v1/".
+        organization (`str`, optional, defaults to None):
+            The organization ID to use when interacting with the OpenAI API, 
+            if applicable.
+        project (`str`, optional, defaults to None):
+            The project ID to use when interacting with the OpenAI API, if applicable.
+        temperature (`float`, optional, defaults to 0.7):
+            A value that controls the randomness of responses. 
         **kwargs:
-            Additional keyword arguments to pass to the OpenAI API.
+            Additional optional arguments that will be passed directly to the 
+            OpenAI API client, allowing for further customization.
     """
 
     def __init__(
