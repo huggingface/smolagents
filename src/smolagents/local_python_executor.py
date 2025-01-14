@@ -1334,6 +1334,8 @@ def evaluate_ast(
             if expression.value
             else None
         )
+    elif isinstance(expression, ast.Pass):
+        return None
     else:
         # For now we refuse anything else. Let's add things as we need them.
         raise InterpreterError(f"{expression.__class__.__name__} is not supported.")
