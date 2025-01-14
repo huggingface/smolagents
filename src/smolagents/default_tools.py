@@ -328,6 +328,7 @@ class SpeechToTextTool(PipelineTool):
     def decode(self, outputs):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
+
 class PDFParsingTool(Tool):
     name = "pdf_parser"
     description = """Parses a given PDF into markdown."""
@@ -338,11 +339,23 @@ class PDFParsingTool(Tool):
 
     def __init__(self):
         super().__init__(self)
-        self.tokenizer = AutoTokenizer.from_pretrained('ucaslcl/GOT-OCR2_0', trust_remote_code=True)
-        self.model = AutoModel.from_pretrained('ucaslcl/GOT-OCR2_0', trust_remote_code=True, low_cpu_mem_usage=True, device_map='cuda', use_safetensors=True).eval().cuda()
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "ucaslcl/GOT-OCR2_0", trust_remote_code=True
+        )
+        self.model = (
+            AutoModel.from_pretrained(
+                "ucaslcl/GOT-OCR2_0",
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                device_map="cuda",
+                use_safetensors=True,
+            )
+            .eval()
+            .cuda()
+        )
 
     def forward(self, image) -> str:
-        res = self.model.chat(self.tokenizer, image, ocr_type='format', render=True)
+        res = self.model.chat(self.tokenizer, image, ocr_type="format", render=True)
         return res
 
 
@@ -363,5 +376,5 @@ __all__ = [
     "GoogleSearchTool",
     "VisitWebpageTool",
     "SpeechToTextTool",
-    "PDFParsingTool"
+    "PDFParsingTool",
 ]
