@@ -22,10 +22,10 @@ from io import BytesIO
 import numpy as np
 import requests
 from transformers.utils import (
-    is_soundfile_availble,
     is_torch_available,
     is_vision_available,
 )
+from transformers.utils.import_utils import _is_package_available
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ if is_torch_available():
 else:
     Tensor = object
 
-if is_soundfile_availble():
+if _is_package_available("soundfile"):
     import soundfile as sf
 
 
@@ -189,7 +189,7 @@ class AgentAudio(AgentType, str):
     def __init__(self, value, samplerate=16_000):
         super().__init__(value)
 
-        if not is_soundfile_availble():
+        if not _is_package_available("soundfile"):
             raise ImportError("soundfile must be installed in order to handle audio.")
 
         self._path = None
@@ -253,7 +253,7 @@ AGENT_TYPE_MAPPING = {"string": AgentText, "image": AgentImage, "audio": AgentAu
 INSTANCE_TYPE_MAPPING = {
     str: AgentText,
     ImageType: AgentImage,
-    torch.Tensor: AgentAudio,
+    Tensor: AgentAudio,
 }
 
 if is_torch_available():
@@ -277,7 +277,10 @@ def handle_agent_output_types(output, output_type=None):
         # If the class does not have defined output, then we map according to the type
         for _k, _v in INSTANCE_TYPE_MAPPING.items():
             if isinstance(output, _k):
-                return _v(output)
+                if (
+                    _k is not object
+                ):  # avoid converting to audio if torch is not installed
+                    return _v(output)
         return output
 
 

@@ -13,7 +13,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
       # Setup venv
       # TODO: revisit when https://github.com/astral-sh/uv/issues/1526 is addressed.

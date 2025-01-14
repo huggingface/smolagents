@@ -59,7 +59,7 @@ Agents are useful when you need an LLM to determine the workflow of an app. But 
 If the pre-determined workflow falls short too often, that means you need more flexibility.
 Let's take an example: say you're making an app that handles customer requests on a surfing trip website.
 
-You could know in advance that the requests will can belong to either of 2 buckets (based on user choice), and you have a predefined workflow for each of these 2 cases.
+You could know in advance that the requests will belong to either of 2 buckets (based on user choice), and you have a predefined workflow for each of these 2 cases.
 
 1. Want some knowledge on the trips? ⇒ give them access to a search bar to search your knowledge base
 2. Wants to talk to sales? ⇒ let them type in a contact form.

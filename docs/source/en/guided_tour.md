@@ -28,7 +28,7 @@ To initialize a minimal agent, you need at least these two arguments:
     - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood.
     - [`LiteLLMModel`] lets you call 100+ different models through [LiteLLM](https://docs.litellm.ai/)!
 
-- `tools`, A list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
+- `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
 Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Hugging Face API](https://huggingface.co/docs/api-inference/en/index), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), or [LiteLLM](https://www.litellm.ai/).
 
@@ -113,8 +113,7 @@ The Python interpreter also doesn't allow imports by default outside of a safe l
 You can authorize additional imports by passing the authorized modules as a list of strings in argument `additional_authorized_imports` upon initialization of your [`CodeAgent`]:
 
 ```py
-from smolagents import CodeAgent
-
+model = HfApiModel()
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
@@ -161,15 +160,15 @@ When the agent is initialized, the tool attributes are used to generate a tool d
 Transformers comes with a default toolbox for empowering agents, that you can add to your agent upon initialization with argument `add_base_tools = True`:
 
 - **DuckDuckGo web search***: performs a web search using DuckDuckGo browser.
-- **Python code interpreter**: runs your the LLM generated Python code in a secure environment. This tool will only be added to [`ToolCallingAgent`] if you initialize it with `add_base_tools=True`, since code-based agent can already natively execute Python code
+- **Python code interpreter**: runs your LLM generated Python code in a secure environment. This tool will only be added to [`ToolCallingAgent`] if you initialize it with `add_base_tools=True`, since code-based agent can already natively execute Python code
 - **Transcriber**: a speech-to-text pipeline built on Whisper-Turbo that transcribes an audio to text.
 
-You can manually use a tool by calling the [`load_tool`] function and a task to perform.
+You can manually use a tool by calling it with its arguments.
 
 ```python
-from smolagents import load_tool
+from smolagents import DuckDuckGoSearchTool
 
-search_tool = load_tool("web_search")
+search_tool = DuckDuckGoSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 

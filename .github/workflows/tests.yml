@@ -36,6 +36,9 @@ jobs:
       - name: Agent tests
         run: |
           uv run pytest -sv ./tests/test_agents.py
+      - name: Default tools tests
+        run: |
+          uv run pytest -sv ./tests/test_default_tools.py
       - name: Final answer tests
         run: |
           uv run pytest -sv ./tests/test_final_answer.py
@@ -57,3 +60,6 @@ jobs:
       - name: Types tests
         run: |
           uv run pytest -sv ./tests/test_types.py
+      - name: Utils tests
+        run: |
+          uv run pytest -sv ./tests/test_utils.py

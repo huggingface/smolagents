@@ -65,7 +65,7 @@ You could use any `model` callable for your agent, as long as:
 1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns a `str`.
 2. It stops generating outputs *before* the sequences passed in the argument `stop_sequences`
 
-For defining your LLM, you can make a `custom_model` method which accepts a list of [messages](./chat_templating) and returns an object with a .content attribute containing the text. This callable also needs to accept a `stop_sequences` argument that indicates when to stop generating.
+For defining your LLM, you can make a `custom_model` method which accepts a list of [messages](./chat_templating) and returns text. This callable also needs to accept a `stop_sequences` argument that indicates when to stop generating.
 
 ```python
 from huggingface_hub import login, InferenceClient
@@ -76,9 +76,9 @@ model_id = "meta-llama/Llama-3.3-70B-Instruct"
 
 client = InferenceClient(model=model_id)
 
-def custom_model(messages, stop_sequences=["Task"]):
+def custom_model(messages, stop_sequences=["Task"]) -> str:
     response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1000)
-    answer = response.choices[0].message
+    answer = response.choices[0].message.content
     return answer
 ```
 

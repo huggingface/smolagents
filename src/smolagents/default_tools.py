@@ -20,11 +20,9 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from huggingface_hub import hf_hub_download, list_spaces
-from transformers.models.whisper import (
-    WhisperForConditionalGeneration,
-    WhisperProcessor,
-)
-from transformers.utils import is_offline_mode
+
+
+from transformers.utils import is_offline_mode, is_torch_available
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -33,6 +31,16 @@ from .local_python_executor import (
 )
 from .tools import TOOL_CONFIG_FILE, PipelineTool, Tool
 from .types import AgentAudio
+from .utils import truncate_content
+
+if is_torch_available():
+    from transformers.models.whisper import (
+        WhisperForConditionalGeneration,
+        WhisperProcessor,
+    )
+else:
+    WhisperForConditionalGeneration = object
+    WhisperProcessor = object
 
 
 @dataclass
@@ -105,18 +113,15 @@ class PythonInterpreterTool(Tool):
 
     def forward(self, code: str) -> str:
         state = {}
-        try:
-            output = str(
-                self.python_evaluator(
-                    code,
-                    state=state,
-                    static_tools=self.base_python_tools,
-                    authorized_imports=self.authorized_imports,
-                )
-            )
-            return f"Stdout:\n{state['print_outputs']}\nOutput: {output}"
-        except Exception as e:
-            return f"Error: {str(e)}"
+        output = str(
+            self.python_evaluator(
+                code,
+                state=state,
+                static_tools=self.base_python_tools,
+                authorized_imports=self.authorized_imports,
+            )[0]  # The second element is boolean is_final_answer
+        )
+        return f"Stdout:\n{state['print_outputs']}\nOutput: {output}"
 
 
 class FinalAnswerTool(Tool):
@@ -288,7 +293,7 @@ class VisitWebpageTool(Tool):
             # Remove multiple line breaks
             markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
 
-            return markdown_content
+            return truncate_content(markdown_content)
 
         except RequestException as e:
             return f"Error fetching the webpage: {str(e)}"
@@ -321,6 +326,15 @@ class SpeechToTextTool(PipelineTool):
     def decode(self, outputs):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
+
+TOOL_MAPPING = {
+    tool_class.name: tool_class
+    for tool_class in [
+        PythonInterpreterTool,
+        DuckDuckGoSearchTool,
+        VisitWebpageTool,
+    ]
+}
 
 __all__ = [
     "PythonInterpreterTool",
