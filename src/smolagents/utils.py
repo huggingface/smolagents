@@ -171,9 +171,9 @@ def truncate_content(
         return content
     else:
         return (
-            content[: MAX_LENGTH_TRUNCATE_CONTENT // 2]
+            content[: max_length // 2]
             + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
-            + content[-MAX_LENGTH_TRUNCATE_CONTENT // 2 :]
+            + content[-max_length // 2 :]
         )
 
 
