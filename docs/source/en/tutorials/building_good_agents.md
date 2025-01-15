@@ -67,7 +67,7 @@ def get_weather_report_at_coordinates(coordinates, date_time):
     # Dummy function, returns a list of [temperature in °C, risk of rain on a scale 0-1, wave height in m]
     return [28.0, 0.35, 0.85]
 
-def get_coordinates_from_location(location):
+def convert_location_to_coordinates(location):
     # Returns dummy coordinates
     return [3.3, -42.0]
 
@@ -80,7 +80,7 @@ def get_weather_api(location: str, date_time: str) -> str:
         location: the name of the place that you want the weather for.
         date_time: the date and time for which you want the report.
     """
-    lon, lat = get_coordinates_from_location(location)
+    lon, lat = convert_location_to_coordinates(location)
     date_time = datetime.strptime(date_time)
     return str(get_weather_report_at_coordinates((lon, lat), date_time))
 ```
