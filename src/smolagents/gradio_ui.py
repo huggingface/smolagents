@@ -155,9 +155,9 @@ class GradioUI:
     def log_user_message(self, text_input, file_uploads_log):
         return (
             text_input
-            + f"\nYou have been provided with these files, which might be helpful or not: {file_uploads_log}"
+            + (f"\nYou have been provided with these files, which might be helpful or not: {file_uploads_log}"
             if len(file_uploads_log) > 0
-            else "",
+            else ""),
             "",
         )
 
