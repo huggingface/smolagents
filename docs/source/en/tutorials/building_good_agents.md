@@ -80,7 +80,7 @@ def get_weather_api(location: str, date_time: str) -> str:
         location: the name of the place that you want the weather for.
         date_time: the date and time for which you want the report.
     """
-    lon, lat = convert_location_to_coordinates(location)
+    lon, lat = get_coordinates_from_location(location)
     date_time = datetime.strptime(date_time)
     return str(get_weather_report_at_coordinates((lon, lat), date_time))
 ```
