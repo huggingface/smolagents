@@ -31,7 +31,7 @@ def is_pygments_available():
     return _pygments_available
 
 
-console = Console(width=200)
+console = Console()
 
 BASE_BUILTIN_MODULES = [
     "collections",
