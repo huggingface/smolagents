@@ -891,6 +891,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports: Optional[List[str]] = None,
         planning_interval: Optional[int] = None,
         use_e2b_executor: bool = False,
+        max_print_outputs_length: Optional[int] = None,
         **kwargs,
     ):
         if system_prompt is None:
@@ -942,6 +943,7 @@ class CodeAgent(MultiStepAgent):
             self.python_executor = LocalPythonInterpreter(
                 self.additional_authorized_imports,
                 all_tools,
+                max_print_outputs_length=max_print_outputs_length,
             )
 
     def step(self, log_entry: ActionStep) -> Union[None, Any]:
