@@ -19,6 +19,8 @@ import json
 import logging
 import os
 import random
+import subprocess
+import sys
 from copy import deepcopy
 from enum import Enum
 from typing import Dict, List, Optional, Union, Any
@@ -315,14 +317,18 @@ class TransformersModel(Model):
         logger.info(f"Using device: {self.device}")
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=self.device)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_id, device_map=self.device
+            )
         except Exception as e:
             logger.warning(
                 f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {default_model_id=}."
             )
             self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=self.device)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_id, device_map=self.device
+            )
 
     def make_stopping_criteria(self, stop_sequences: List[str]) -> StoppingCriteriaList:
         class StopOnStrings(StoppingCriteria):
@@ -423,10 +429,15 @@ class LiteLLMModel(Model):
         api_key=None,
         **kwargs,
     ):
+        # Check if litellm is available, and install it if not
         if not _is_package_available("litellm"):
-            raise ImportError(
-                "litellm not found. Install it with `pip install litellm`"
-            )
+            print("litellm not found. Installing it now...")
+            self._install_package("litellm")
+
+        # Import litellm after ensuring it is installed
+        global litellm
+        import litellm
+
         super().__init__()
         self.model_id = model_id
         # IMPORTANT - Set this to TRUE to add the function to the prompt for Non OpenAI LLMs
@@ -434,6 +445,9 @@ class LiteLLMModel(Model):
         self.api_base = api_base
         self.api_key = api_key
         self.kwargs = kwargs
+
+    def _install_package(self, package_name):
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
 
     def __call__(
         self,
