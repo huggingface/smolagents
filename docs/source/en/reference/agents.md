@@ -149,7 +149,7 @@ Here's how you can set it:
 ```py
 model = OpenAIServerModel(
     model_id="gpt-4o",
-    base_url="https://api.openai.com/v1",
+    api_base="https://api.openai.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
 )
 model=LiteLLMModel("gpt-4o", api_key=os.environ["OPENAI_API_KEY"])
