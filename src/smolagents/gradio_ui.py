@@ -184,6 +184,7 @@ class GradioUI:
                     None,
                     "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png",
                 ),
+                resizeable=True,
             )
             # If an upload folder is provided, enable the upload feature
             if self.file_upload_folder is not None:
