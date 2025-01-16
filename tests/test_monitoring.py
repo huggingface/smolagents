@@ -22,7 +22,7 @@ from smolagents import (
     ToolCallingAgent,
     stream_to_gradio,
 )
-from huggingface_hub import (
+from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,

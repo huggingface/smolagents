@@ -60,6 +60,14 @@ class PythonInterpreterTester(unittest.TestCase):
             in str(e)
         )
 
+    def test_subscript_call(self):
+        code = """def foo(x,y):return x*y\n\ndef boo(y):\n\treturn y**3\nfun = [foo, boo]\nresult_foo = fun[0](4,2)\nresult_boo = fun[1](4)"""
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert result == 64
+        assert state["result_foo"] == 8
+        assert state["result_boo"] == 64
+
     def test_evaluate_call(self):
         code = "y = add_two(x)"
         state = {"x": 3}

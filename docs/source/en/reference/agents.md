@@ -141,3 +141,16 @@ print(model(messages, max_tokens=10))
 ```
 
 [[autodoc]] LiteLLMModel
+
+### OpenAiServerModel
+
+This class lets you call any OpenAIServer compatible model.
+Here's how you can set it:
+```py
+model = OpenAIServerModel(
+    model_id="gpt-4o",
+    base_url="https://api.openai.com/v1",
+    api_key=os.environ["OPENAI_API_KEY"],
+)
+model=LiteLLMModel("gpt-4o", api_key=os.environ["OPENAI_API_KEY"])
+```
