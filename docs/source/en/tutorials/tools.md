@@ -131,7 +131,7 @@ And voilà, here's your image! 🏖️
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/sunny_beach.webp">
 
-Then you can use this tool just like any other tool.  For example, let's improve the prompt  `a rabbit wearing a space suit` and generate an image of it.
+Then you can use this tool just like any other tool.  For example, let's improve the prompt  `a rabbit wearing a space suit` and generate an image of it. This example also shows how you can pass additional arguments to the agent.
 
 ```python
 from smolagents import CodeAgent, HfApiModel
@@ -140,7 +140,7 @@ model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
-    "Improve this prompt, then generate an image of it.", prompt='A rabbit wearing a space suit'
+    "Improve this prompt, then generate an image of it.", additional_args={'user_prompt': 'A rabbit wearing a space suit'}
 )
 ```
 
