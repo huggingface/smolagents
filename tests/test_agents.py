@@ -35,6 +35,7 @@ from smolagents.models import (
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,
 )
+from smolagents.utils import BASE_BUILTIN_MODULES
 
 
 def get_new_path(suffix="") -> str:
@@ -379,7 +380,13 @@ class AgentTests(unittest.TestCase):
         agent = CodeAgent(tools=[tool], model=fake_code_model)
         agent.run("Empty task")
         assert tool.name in agent.system_prompt
-        assert tool.description in agent.system_prompt
+        assert tool.description in agent.system_prompt        
+    
+    def test_module_imports_get_baked_in_system_prompt(self):
+        agent = CodeAgent(tools=[], model=fake_code_model)
+        agent.run("Empty task")
+        for module in BASE_BUILTIN_MODULES:
+            assert module in agent.system_prompt
 
     def test_init_agent_with_different_toolsets(self):
         toolset_1 = []

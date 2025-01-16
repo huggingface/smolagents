@@ -490,7 +490,6 @@ class MultiStepAgent:
 You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
 {str(additional_args)}."""
 
-        self.initialize_system_prompt()
         system_prompt_step = SystemPromptStep(system_prompt=self.system_prompt)
 
         if reset:
