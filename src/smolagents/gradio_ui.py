@@ -116,15 +116,21 @@ class GradioUI:
         """
 
         if file is None:
-            return "No file uploaded"
+            return gr.Textbox(
+                "No file uploaded", visible=True
+            ), file_uploads_log
 
         try:
             mime_type, _ = mimetypes.guess_type(file.name)
         except Exception as e:
-            return f"Error: {e}"
+            return gr.Textbox(
+                f"Error: {e}", visible=True
+            ), file_uploads_log
 
         if mime_type not in allowed_file_types:
-            return "File type disallowed"
+            return gr.Textbox(
+                "File type disallowed", visible=True
+            ), file_uploads_log
 
         # Sanitize file name
         original_name = os.path.basename(file.name)
@@ -177,7 +183,7 @@ class GradioUI:
             )
             # If an upload folder is provided, enable the upload feature
             if self.file_upload_folder is not None:
-                upload_file = gr.File(label="Upload a file", height=1)
+                upload_file = gr.File(label="Upload a file")
                 upload_status = gr.Textbox(
                     label="Upload Status", interactive=False, visible=False
                 )
