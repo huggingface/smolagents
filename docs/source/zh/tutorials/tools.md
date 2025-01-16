@@ -186,7 +186,7 @@ from smolagents import HfApiModel
 model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
-agent.tools.append(model_download_tool)
+agent.tools[model_download_tool.name] = model_download_tool
 ```
 现在我们可以利用新工具：
 

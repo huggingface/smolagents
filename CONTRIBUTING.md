@@ -91,8 +91,8 @@ happy to make the changes or help you make a contribution if you're interested!
 
 ## I want to become a maintainer of the project. How do I get there?
 
-Smolagents is a project led and managed by Hugging Face as an initial fork of Transformers Agents. We are  more than 
-happy to have motivated individuals from other organizations join us as maintainers with the goal of helping Smolagents
+smolagents is a project led and managed by Hugging Face. We are  more than 
+happy to have motivated individuals from other organizations join us as maintainers with the goal of helping smolagents
 make a dent in the world of Agents.
 
 If you are such an individual (or organization), please reach out to us and let's collaborate.

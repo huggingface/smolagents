@@ -66,8 +66,8 @@ In our `CodeAgent`,  the LLM engine writes its actions in code. This approach is
 and [reaches higher performance on difficult benchmarks](https://huggingface.co/papers/2411.01747). Head to [our high-level intro to agents](https://huggingface.co/docs/smolagents/conceptual_guides/intro_agents) to learn more on that.
 
 Especially, since code execution can be a security concern (arbitrary code execution!), we provide options at runtime:
-  - a secure python interpreter to run code more safely in your environment
-  - a sandboxed environment using [E2B](https://e2b.dev/).
+  - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
+  - a sandboxed environment using [E2B](https://e2b.dev/) (removes the risk to your own system).
 
 ## How smol is it really?
 
@@ -87,6 +87,18 @@ We've created [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/age
 </p>
 
 This comparison shows that open source models can now take on the best closed models!
+
+## Contributing
+
+To contribute, follow our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
+
+At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
+It's often even better to open a PR with your proposed fixes/changes!
+
+To run tests locally, run this command:
+```bash
+pytest -sv .
+```
 
 ## Citing smolagents
 
