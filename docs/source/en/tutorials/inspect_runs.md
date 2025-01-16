@@ -38,7 +38,7 @@ Here's how it goes:
 First install the required packages. Here we install [Phoenix by Arize AI](https://github.com/Arize-ai/phoenix) because that's a good solution to collect and inspect the logs, but there are other OpenTelemetry-compatible platforms that you could use for this collection & inspection part.
 
 ```shell
-pip install smolagents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install smolagents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp openinference-instrumentation-smolagents
 ```
 
 Then run the collector in the background.
