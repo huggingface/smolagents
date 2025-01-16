@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.4.0.dev"
+version = "1.2.0.dev0"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" }, { name="Thomas Wolf"},
@@ -12,6 +12,9 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "torch",
+  "torchaudio",
+  "torchvision",
   "transformers>=4.0.0",
   "requests>=2.32.3",
   "rich>=13.9.4",
@@ -23,30 +26,18 @@ dependencies = [
   "duckduckgo-search>=6.3.7",
   "python-dotenv>=1.0.1",
   "e2b-code-interpreter>=1.0.3",
-  "openai>=1.58.1",
+  "litellm>=1.55.10",
 ]
 
 [tool.ruff]
-lint.ignore = ["F403"]
+ignore = ["F403"]
 
 [project.optional-dependencies]
-dev = [
-  "torch",
-  "torchaudio",
-  "torchvision",
-  "sqlalchemy",
-  "accelerate",
-  "soundfile",
-  "litellm>=1.55.10",
-]
 test = [
-  "torch",
-  "torchaudio",
-  "torchvision",
   "pytest>=8.1.0",
+  "debugpy",
   "sqlalchemy",
   "ruff>=0.5.0",
   "accelerate",
   "soundfile",
-  "litellm>=1.55.10",
 ]

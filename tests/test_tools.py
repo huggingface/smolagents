@@ -22,6 +22,7 @@ from transformers import is_torch_available, is_vision_available
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.tools import AUTHORIZED_TYPES, Tool, tool
+from smolagents.default_tools import VisitWebpageTool
 from smolagents.types import (
     AGENT_TYPE_MAPPING,
     AgentAudio,
@@ -385,3 +386,35 @@ class ToolTests(unittest.TestCase):
 
             GetWeatherTool3()
         assert "Nullable" in str(e)
+
+
+class VisitWebpageToolTester(unittest.TestCase, ToolTesterMixin):
+    def setUp(self):
+        self.tool = VisitWebpageTool()
+        self.tool.setup()
+
+    def test_successful_webpage_visit(self):
+        result = self.tool("https://example.com")
+        assert isinstance(result, str)
+        assert "Example Domain" in result
+
+    def test_failed_webpage_visit(self):
+        # Using a non-existent subdomain of a known domain guarantees a DNS failure
+        result = self.tool("https://this-subdomain-definitely-does-not-exist.github.com/")
+        assert isinstance(result, str)
+        assert "Error fetching the webpage" in result
+
+    def test_invalid_url(self):
+        result = self.tool("not_a_url")
+        assert isinstance(result, str)
+        assert "Error" in result
+
+    def test_huggingface_org_page(self):
+        result = self.tool("https://huggingface.co/huggingface")
+        assert isinstance(result, str)
+        # Check for successful response (no error message)
+        assert "Error" not in result
+        # Check for expected content that should be on the HF org page
+        assert "Hugging Face" in result
+        # Check for some standard elements that should be in the markdown output
+        assert len(result) > 100  # Should have substantial content
