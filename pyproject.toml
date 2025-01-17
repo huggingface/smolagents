@@ -25,30 +25,38 @@ dependencies = [
   "e2b-code-interpreter>=1.0.3",
 ]
 
+[project.optional-dependencies]
+audio = [
+  "soundfile",
+]
+torch = [
+  "torch",
+  "accelerate",
+]
+litellm = [
+  "litellm>=1.55.10",
+]
+openai = ["openai>=1.58.1"]
+quality = [
+  "ruff>=0.9.0",
+]
+test = [
+  "pytest>=8.1.0",
+  "smolagents[audio,litellm,openai,torch]",
+]
+dev = [
+  "smolagents[quality,test]",
+  "sqlalchemy", # for ./examples
+]
+
+[tool.pytest.ini_options]
+# Add the specified `OPTS` to the set of command line arguments as if they had been specified by the user.
+addopts = "-sv --durations=0"
+
 [tool.ruff]
 lint.ignore = ["F403"]
 
-[project.optional-dependencies]
-openai = ["openai>=1.58.1"]
-dev = [
-  "openai>=1.58.1",
-  "torch",
-  "torchaudio",
-  "torchvision",
-  "sqlalchemy",
-  "accelerate",
-  "soundfile",
-  "litellm>=1.55.10",
-]
-test = [
-  "openai>=1.58.1",
-  "torch",
-  "torchaudio",
-  "torchvision",
-  "pytest>=8.1.0",
-  "sqlalchemy",
-  "ruff>=0.5.0",
-  "accelerate",
-  "soundfile",
-  "litellm>=1.55.10",
+[tool.ruff.lint.per-file-ignores]
+"examples/*" = [
+  "E402", # module-import-not-at-top-of-file
 ]

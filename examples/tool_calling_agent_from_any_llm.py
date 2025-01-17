@@ -9,6 +9,7 @@ from typing import Optional
 # For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-20240620'
 model = LiteLLMModel(model_id="gpt-4o")
 
+
 @tool
 def get_weather(location: str, celsius: Optional[bool] = False) -> str:
     """
@@ -20,6 +21,7 @@ def get_weather(location: str, celsius: Optional[bool] = False) -> str:
         celsius: the temperature
     """
     return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
+
 
 agent = ToolCallingAgent(tools=[get_weather], model=model)
 

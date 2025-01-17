@@ -98,9 +98,27 @@ To contribute, follow our [contribution guide](https://github.com/huggingface/sm
 At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
 It's often even better to open a PR with your proposed fixes/changes!
 
+To install dev dependencies, run:
+```
+pip install -e ".[dev]"
+```
+
+When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
+To check code quality of the source code:
+```
+make quality
+```
+
+If the checks fail, you can run the formatter with:
+```
+make style
+```
+
+And commit the changes.
+
 To run tests locally, run this command:
 ```bash
-pytest -sv .
+pytest .
 ```
 
 ## Citing smolagents

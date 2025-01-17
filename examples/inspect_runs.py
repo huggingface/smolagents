@@ -16,7 +16,9 @@ from smolagents import (
 # Let's setup the instrumentation first
 
 trace_provider = TracerProvider()
-trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter("http://0.0.0.0:6006/v1/traces")))
+trace_provider.add_span_processor(
+    SimpleSpanProcessor(OTLPSpanExporter("http://0.0.0.0:6006/v1/traces"))
+)
 
 SmolagentsInstrumentor().instrument(tracer_provider=trace_provider, skip_dep_check=True)
 

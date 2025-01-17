@@ -20,9 +20,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-
       # Setup venv
-      # TODO: revisit when https://github.com/astral-sh/uv/issues/1526 is addressed.
       - name: Setup venv + uv
         run: |
           pip install --upgrade uv
@@ -33,33 +31,59 @@ jobs:
         run: |
           uv pip install "smolagents[test] @ ."
 
+      # Run all tests separately for individual feedback
+      # Use 'if success() || failure()' so that all tests are run even if one failed
+      # See https://stackoverflow.com/a/62112985
       - name: Agent tests
         run: |
-          uv run pytest -sv ./tests/test_agents.py
+          uv run pytest ./tests/test_agents.py
+        if: ${{ success() || failure() }}
+
       - name: Default tools tests
         run: |
-          uv run pytest -sv ./tests/test_default_tools.py
+          uv run pytest ./tests/test_default_tools.py
+        if: ${{ success() || failure() }}
+
+      # - name: Docs tests # Disabled for now (slow test + requires API keys)
+      #   run: |
+      #     uv run pytest ./tests/test_all_docs.py
+
       - name: Final answer tests
         run: |
-          uv run pytest -sv ./tests/test_final_answer.py
+          uv run pytest ./tests/test_final_answer.py
+        if: ${{ success() || failure() }}
+
       - name: Models tests
         run: |
-          uv run pytest -sv ./tests/test_models.py
+          uv run pytest ./tests/test_models.py
+        if: ${{ success() || failure() }}
+
       - name: Monitoring tests
         run: |
-          uv run pytest -sv ./tests/test_monitoring.py
+          uv run pytest ./tests/test_monitoring.py
+        if: ${{ success() || failure() }}
+
       - name: Python interpreter tests
         run: |
-          uv run pytest -sv ./tests/test_python_interpreter.py
+          uv run pytest ./tests/test_python_interpreter.py
+        if: ${{ success() || failure() }}
+
       - name: Search tests
         run: |
-          uv run pytest -sv ./tests/test_search.py
+          uv run pytest ./tests/test_search.py
+        if: ${{ success() || failure() }}
+
       - name: Tools tests
         run: |
-          uv run pytest -sv ./tests/test_tools.py
+          uv run pytest ./tests/test_tools.py
+        if: ${{ success() || failure() }}
+
       - name: Types tests
         run: |
-          uv run pytest -sv ./tests/test_types.py
+          uv run pytest ./tests/test_types.py
+        if: ${{ success() || failure() }}
+
       - name: Utils tests
         run: |
-          uv run pytest -sv ./tests/test_utils.py
+          uv run pytest ./tests/test_utils.py
+        if: ${{ success() || failure() }}
