@@ -214,6 +214,51 @@ class Model:
         kwargs.setdefault("temperature", 0.5)
         kwargs.setdefault("max_tokens", 1500)
         self.kwargs = kwargs
+        
+    def _prepare_completion_kwargs(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs
+    ) -> Dict:
+        """
+        Prepare parameters required for model invocation, handling parameter priorities.
+        
+        Parameter priority from high to low:
+        1. Explicitly passed kwargs
+        2. Specific parameters (stop_sequences, grammar, etc.)
+        3. Default values in self.kwargs
+        """
+        # Clean and standardize the message list
+        messages = get_clean_message_list(
+            messages, role_conversions=tool_role_conversions
+        )
+        
+        # Use self.kwargs as the base configuration
+        completion_kwargs = {
+            **self.kwargs,
+            "messages": messages,
+        }
+        
+        # Handle specific parameters
+        if stop_sequences is not None:
+            completion_kwargs["stop"] = stop_sequences
+        if grammar is not None:
+            completion_kwargs["grammar"] = grammar
+            
+        # Handle tools parameter
+        if tools_to_call_from:
+            completion_kwargs.update({
+                "tools": [get_json_schema(tool) for tool in tools_to_call_from],
+                "tool_choice": "auto",  # Subclasses can override this value as needed
+            })
+            
+        # Finally, use the passed-in kwargs to override all settings
+        completion_kwargs.update(kwargs)
+        
+        return completion_kwargs
 
     def get_token_counts(self) -> Dict[str, int]:
         return {
@@ -226,7 +271,8 @@ class Model:
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: Optional[int] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs
     ) -> ChatMessage:
         """Process the input messages and return the model's response.
 
@@ -237,10 +283,13 @@ class Model:
                 A list of strings that will stop the generation if encountered in the model's output.
             grammar (`str`, *optional*):
                 The grammar or formatting structure to use in the model's response.
-            max_tokens (`int`, *optional*):
-                The maximum count of tokens to generate.
+            tools_to_call_from (`List[Tool]`, *optional*):
+                A list of tools that the model can use to generate responses.
+            **kwargs:
+                Additional keyword arguments to be passed to the underlying model.
+
         Returns:
-            `str`: The text content of the model's response.
+            `ChatMessage`: A chat message object containing the model's response.
         """
         pass  # To be implemented in child classes!
 
@@ -248,7 +297,7 @@ class Model:
 class HfApiModel(Model):
     """A class to interact with Hugging Face's Inference API for language model interaction.
 
-    This engine allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+    This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
 
     Parameters:
         model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
@@ -269,9 +318,10 @@ class HfApiModel(Model):
     >>> engine = HfApiModel(
     ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
     ...     token="your_hf_token_here",
+    ...     max_tokens=5000,
     ... )
     >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
-    >>> response = engine(messages, stop_sequences=["END"], max_tokens=1500)
+    >>> response = engine(messages, stop_sequences=["END"])
     >>> print(response)
     "Quantum mechanics is the branch of physics that studies..."
     ```
@@ -295,39 +345,20 @@ class HfApiModel(Model):
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: Optional[int] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs
     ) -> ChatMessage:
-        """
-        Gets an LLM output message for the given list of input messages.
-        If argument `tools_to_call_from` is passed, the model's tool calling options will be used to return a tool call.
-        """
-        messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
+        
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            **kwargs
         )
-
-        # Initialize base kwargs
-        completion_kwargs = {
-            **self.kwargs,  # Use self.kwargs as base
-            "model": self.model_id,
-            "messages": messages,
-        }
-
-        # Handle max_tokens default value
-        completion_kwargs["max_tokens"] = max_tokens or self.kwargs.get("max_tokens", 1500)
-
-        # Override with provided parameters
-        if stop_sequences is not None:
-            completion_kwargs["stop"] = stop_sequences
-        if grammar is not None:
-            completion_kwargs["grammar"] = grammar
-
-        # Handle tools parameters
+        
         if tools_to_call_from:
-            completion_kwargs.update({
-                "tools": [get_json_schema(tool) for tool in tools_to_call_from],
-                "tool_choice": "required"
-            })
+            completion_kwargs["tool_choice"] = "required"
 
         response = self.client.chat_completion(**completion_kwargs)
 
@@ -337,16 +368,44 @@ class HfApiModel(Model):
 
 
 class TransformersModel(Model):
-    """This engine initializes a model and tokenizer from the given `model_id`.
+    """A class to interact with Hugging Face's Inference API for language model interaction.
+
+    This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
 
     Parameters:
-        model_id (`str`, *optional*, defaults to `"HuggingFaceTB/SmolLM2-1.7B-Instruct"`):
+        model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
-        device (`str`, optional, defaults to `"cuda"` if available, else `"cpu"`.):
-            The device to load the model on (`"cpu"` or `"cuda"`).
+        device_map (`str`, *optional*):
+            The device_map to initialize your model with.
+        torch_dtype (`str`, *optional*):
+            The torch_dtype to initialize your model with.
+        kwargs (dict, *optional*):
+            Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
+    Raises:
+        ValueError:
+            If the model name is not provided.
+
+    Example:
+    ```python
+    >>> engine = TransformersModel(
+    ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
+    ...     device="cuda",
+    ...     max_new_tokens=5000,
+    ... )
+    >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
+    >>> response = engine(messages, stop_sequences=["END"])
+    >>> print(response)
+    "Quantum mechanics is the branch of physics that studies..."
+    ```
     """
 
-    def __init__(self, model_id: Optional[str] = None, device: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        model_id: Optional[str] = None,
+        device_map: Optional[str] = None,
+        torch_dtype: Optional[str] = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         if not is_torch_available():
             raise ImportError("Please install torch in order to use TransformersModel.")
@@ -359,14 +418,14 @@ class TransformersModel(Model):
                 f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'"
             )
         self.model_id = model_id
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.device = device
-        logger.info(f"Using device: {self.device}")
+        self.kwargs = kwargs
+        if device_map is None:
+            device_map = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Using device: {device_map}")
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(model_id)
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_id, device_map=self.device
+                model_id, device_map=device_map, torch_dtype=torch_dtype
             )
         except Exception as e:
             logger.warning(
@@ -375,7 +434,7 @@ class TransformersModel(Model):
             self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_id, device_map=self.device
+                model_id, device_map=device_map, torch_dtype=torch_dtype
             )
 
     def make_stopping_criteria(self, stop_sequences: List[str]) -> StoppingCriteriaList:
@@ -409,41 +468,55 @@ class TransformersModel(Model):
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: Optional[int] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs
     ) -> ChatMessage:
-        messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
+
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            **kwargs
         )
         
-        # Initialize generation parameters
-        generation_kwargs = {
-            **self.kwargs,  # Use self.kwargs as base
-            "max_new_tokens": max_tokens or self.kwargs.get("max_new_tokens") or self.kwargs.get("max_tokens"),
-        }
-        if stop_sequences:
-            generation_kwargs["stopping_criteria"] = self.make_stopping_criteria(stop_sequences)
+        messages = completion_kwargs.pop("messages")
+        
+        max_new_tokens = (
+            kwargs.get('max_new_tokens') or 
+            kwargs.get('max_tokens') or 
+            self.kwargs.get('max_new_tokens') or 
+            self.kwargs.get('max_tokens')
+        )
+        if max_new_tokens:
+            completion_kwargs['max_new_tokens'] = max_new_tokens
 
-        if tools_to_call_from is not None:
-            prompt_tensor = self.tokenizer.apply_chat_template(
-                messages,
-                tools=[get_json_schema(tool) for tool in tools_to_call_from],
-                return_tensors="pt",
-                return_dict=True,
-                add_generation_prompt=True,
-            )
-        else:
-            prompt_tensor = self.tokenizer.apply_chat_template(
-                messages,
-                return_tensors="pt",
-                return_dict=True,
-            )
+        if stop_sequences:
+            completion_kwargs["stopping_criteria"] = self.make_stopping_criteria(stop_sequences)
+            
+        template_kwargs = {
+            "return_tensors": "pt",
+            "return_dict": True,
+        }
+        
+        tools = completion_kwargs.pop("tools", None) if "tools" in completion_kwargs else None
+        if tools:
+            template_kwargs.update({
+                "tools": tools,
+                "add_generation_prompt": True
+            })
+        
+        prompt_tensor = self.tokenizer.apply_chat_template(
+            messages,
+            **template_kwargs
+        )
+
         prompt_tensor = prompt_tensor.to(self.model.device)
         count_prompt_tokens = prompt_tensor["input_ids"].shape[1]
 
         out = self.model.generate(
             **prompt_tensor,
-            **generation_kwargs
+            **completion_kwargs
         )
         generated_tokens = out[0, count_prompt_tokens:]
         output = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
@@ -452,6 +525,7 @@ class TransformersModel(Model):
 
         if stop_sequences is not None:
             output = remove_stop_sequences(output, stop_sequences)
+            
         if tools_to_call_from is None:
             return ChatMessage(role="assistant", content=output)
         else:
@@ -476,6 +550,19 @@ class TransformersModel(Model):
 
 
 class LiteLLMModel(Model):
+    """This model connects to [LiteLLM](https://www.litellm.ai/) as a gateway to hundreds of LLMs.
+
+    Parameters:
+        model_id (`str`):
+            The model identifier to use on the server (e.g. "gpt-3.5-turbo").
+        api_base (`str`):
+            The base URL of the OpenAI-compatible API server.
+        api_key (`str`):
+            The API key to use for authentication.
+        **kwargs:
+            Additional keyword arguments to pass to the OpenAI API.
+    """
+
     def __init__(
         self,
         model_id="anthropic/claude-3-5-sonnet-20240620",
@@ -499,38 +586,21 @@ class LiteLLMModel(Model):
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: Optional[int] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs
     ) -> ChatMessage:
-        messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
+        
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            api_base=self.api_base,
+            api_key=self.api_key, 
+            **kwargs
         )
         
-        # Initialize base kwargs
-        completion_kwargs = {
-            **self.kwargs,  # Use self.kwargs as base
-            "model": self.model_id,
-            "messages": messages,
-            "api_base": self.api_base,
-            "api_key": self.api_key,
-        }
-        
-        # Handle max_tokens default value
-        completion_kwargs["max_tokens"] = max_tokens or self.kwargs.get("max_tokens")
-        
-        # Override with provided parameters
-        if stop_sequences is not None:
-            completion_kwargs["stop"] = stop_sequences
-        if grammar is not None:
-            completion_kwargs["grammar"] = grammar
-            
-        # Handle tools parameters
-        if tools_to_call_from:
-            completion_kwargs.update({
-                "tools": [get_json_schema(tool) for tool in tools_to_call_from],
-                "tool_choice": "required"
-            })
-            
         response = litellm.completion(**completion_kwargs)
         
         self.last_input_token_count = response.usage.prompt_tokens
@@ -539,7 +609,7 @@ class LiteLLMModel(Model):
 
 
 class OpenAIServerModel(Model):
-    """This engine connects to an OpenAI-compatible API server.
+    """This model connects to an OpenAI-compatible API server.
 
     Parameters:
         model_id (`str`):
@@ -571,33 +641,18 @@ class OpenAIServerModel(Model):
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
-        max_tokens: Optional[int] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs
     ) -> ChatMessage:
-        messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
+
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            **kwargs
         )
-
-        # Initialize base kwargs
-        completion_kwargs = {
-            **self.kwargs,  # Use self.kwargs as base
-            "model": self.model_id,
-            "messages": messages,
-            "max_tokens": max_tokens or self.kwargs.get("max_tokens"),
-        }
-
-        # Override with provided parameters
-        if stop_sequences is not None:
-            completion_kwargs["stop"] = stop_sequences
-        if grammar is not None:
-            completion_kwargs["grammar"] = grammar
-
-        # Handle tools parameters
-        if tools_to_call_from:
-            completion_kwargs.update({
-                "tools": [get_json_schema(tool) for tool in tools_to_call_from],
-                "tool_choice": "auto",
-            })
 
         response = self.client.chat.completions.create(**completion_kwargs)
         self.last_input_token_count = response.usage.prompt_tokens

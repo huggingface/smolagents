@@ -144,7 +144,7 @@ class UserInputTool(Tool):
     output_type = "string"
 
     def forward(self, question):
-        user_input = input(f"{question} => ")
+        user_input = input(f"{question} => Type your answer here:")
         return user_input
 
 

@@ -16,7 +16,7 @@ import unittest
 import json
 from typing import Optional
 
-from smolagents import models, tool, ChatMessage, HfApiModel
+from smolagents import models, tool, ChatMessage, HfApiModel, TransformersModel
 
 
 class ModelTests(unittest.TestCase):
@@ -46,6 +46,17 @@ class ModelTests(unittest.TestCase):
         assert data["content"] == "Hello!"
 
     def test_get_hfapi_message_no_tool(self):
-        model = HfApiModel()
+        model = HfApiModel(max_tokens=10)
         messages = [{"role": "user", "content": "Hello!"}]
         model(messages, stop_sequences=["great"])
+
+    def test_transformers_message_no_tool(self):
+        model = TransformersModel(
+            model_id="HuggingFaceTB/SmolLM2-135M-Instruct",
+            max_new_tokens=5,
+            device_map="auto",
+            do_sample=False,
+        )
+        messages = [{"role": "user", "content": "Hello!"}]
+        output = model(messages, stop_sequences=["great"]).content
+        assert output == "assistant\nHello"
