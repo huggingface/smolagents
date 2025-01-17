@@ -91,7 +91,7 @@ Columns:
   - tip: FLOAT
 ```
 
-Now let’s build our tool. It needs the following: (read [the tool doc](../tutorials/tools) for more detail)
+Now let’s build our tool. It needs the following: (read [the tool doc](../tutorials/tools.md) for more detail)
 - A docstring with an `Args:` part listing arguments.
 - Type hints on both inputs and output.
 
