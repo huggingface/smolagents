@@ -14,6 +14,7 @@
 # limitations under the License.
 import unittest
 from pathlib import Path
+from textwrap import dedent
 from typing import Dict, Optional, Union
 from unittest.mock import patch, MagicMock
 
@@ -408,7 +409,7 @@ def mock_smolagents_adapter():
         yield mock
 
 
-class ToolCollectionTests(unittest.TestCase):
+class TestToolCollection:
     def test_from_mcp(
         self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter
     ):
@@ -418,19 +419,19 @@ class ToolCollectionTests(unittest.TestCase):
             assert "tool1" in tool_collection.tools
             assert "tool2" in tool_collection.tools
 
-    def test_integration_tool_collection_from_mcp(self):
+    def test_integration_from_mcp(self):
         # define the most simple mcp server with one tool that echoes the input text
-        mcp_server_script = """
-from mcp.server.fastmcp import FastMCP
+        mcp_server_script = dedent("""\
+            from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("Echo Server")
+            mcp = FastMCP("Echo Server")
 
-@mcp.tool()
-def echo_tool(text: str) -> str:
-    return text
+            @mcp.tool()
+            def echo_tool(text: str) -> str:
+                return text
 
-mcp.run()
-""".strip()
+            mcp.run()
+        """).strip()
 
         mcp_server_params = mcp.StdioServerParameters(
             command="python",
