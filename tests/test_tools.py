@@ -24,6 +24,7 @@ from transformers.testing_utils import get_tests_dir
 
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
 from smolagents.types import (
+    AGENT_TYPE_MAPPING,
     AgentAudio,
     AgentImage,
     AgentText,
@@ -90,12 +91,12 @@ class ToolTesterMixin:
         self.assertTrue(hasattr(self.tool, "inputs"))
         self.assertTrue(hasattr(self.tool, "output_type"))
 
-    # def test_agent_type_output(self):
-    #     inputs = create_inputs(self.tool.inputs)
-    #     output = self.tool(**inputs, sanitize_inputs_outputs=True)
-    #     if self.tool.output_type != "any":
-    #         agent_type = AGENT_TYPE_MAPPING[self.tool.output_type]
-    #         self.assertTrue(isinstance(output, agent_type))
+    def test_agent_type_output(self):
+        inputs = create_inputs(self.tool.inputs)
+        output = self.tool(**inputs, sanitize_inputs_outputs=True)
+        if self.tool.output_type != "any":
+            agent_type = AGENT_TYPE_MAPPING[self.tool.output_type]
+            self.assertTrue(isinstance(output, agent_type))
 
 
 class ToolTests(unittest.TestCase):
