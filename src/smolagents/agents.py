@@ -912,7 +912,7 @@ class CodeAgent(MultiStepAgent):
                 "Caution: you set an authorization for all imports, meaning your agent can decide to import any package it deems necessary. This might raise issues if the package is not installed in your environment.",
                 0,
             )
-            
+
         super().__init__(
             tools=tools,
             model=model,
@@ -938,7 +938,7 @@ class CodeAgent(MultiStepAgent):
                 self.additional_authorized_imports,
                 all_tools,
             )
-            
+
     def initialize_system_prompt(self):
         super().initialize_system_prompt()
         self.system_prompt = self.system_prompt.replace(
@@ -946,9 +946,9 @@ class CodeAgent(MultiStepAgent):
             "You can import from any package you want."
             if "*" in self.authorized_imports
             else str(self.authorized_imports),
-        ) 
+        )
         return self.system_prompt
-    
+
     def step(self, log_entry: ActionStep) -> Union[None, Any]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
