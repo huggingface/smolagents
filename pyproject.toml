@@ -47,7 +47,7 @@ quality = [
 ]
 test = [
   "pytest>=8.1.0",
-  "smolagents[audio,litellm,openai,torch]",
+  "smolagents[audio,litellm,mcp,openai,torch]",
 ]
 dev = [
   "smolagents[quality,test]",
