@@ -80,7 +80,7 @@ So let’s build our agentic RAG system!
 
 👉 We only need a RetrieverTool that our agent can leverage to retrieve information from the knowledge base.
 
-Since we need to add a vectordb as an attribute of the tool, we cannot simply use the simple tool constructor with a `@tool` decorator: so we will follow the advanced setup highlighted in the [tools tutorial](../tutorials/tools).
+Since we need to add a vectordb as an attribute of the tool, we cannot simply use the simple tool constructor with a `@tool` decorator: so we will follow the advanced setup highlighted in the [tools tutorial](../tutorials/tools.md).
 
 ```py
 from smolagents import Tool
@@ -127,7 +127,7 @@ The agent will need these arguments upon initialization:
 - `model`: the LLM that powers the agent.
 Our `model` must be a callable that takes as input a list of messages and returns text. It also needs to accept a stop_sequences argument that indicates when to stop its generation. For convenience, we directly use the HfEngine class provided in the package to get a LLM engine that calls Hugging Face's Inference API.
 
-And we use [meta-llama/Llama-3.3-70B-Instruct](meta-llama/Llama-3.3-70B-Instruct) as the llm engine because:
+And we use [meta-llama/Llama-3.3-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) as the llm engine because:
 - It has a long 128k context, which is helpful for processing long source documents
 - It is served for free at all times on HF's Inference API!
 
