@@ -64,7 +64,7 @@ model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
 
 ## 🔍 Create a web search tool
 
-For web browsing, we can already use our pre-existing [`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools/search.py) tool to provide a Google search equivalent.
+For web browsing, we can already use our pre-existing [`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools.py#L151-L176) tool to provide a Google search equivalent.
 
 But then we will also need to be able to peak into the page found by the `DuckDuckGoSearchTool`.
 To do so, we could import the library's built-in `VisitWebpageTool`, but we will build it again to see how it's done.

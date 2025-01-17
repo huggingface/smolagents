@@ -19,11 +19,13 @@ import os
 import mimetypes
 import re
 
-from .agents import ActionStep, AgentStep, MultiStepAgent
+from typing import Optional
+
+from .agents import ActionStep, AgentStepLog, MultiStepAgent
 from .types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 
 
-def pull_messages_from_step(step_log: AgentStep, test_mode: bool = True):
+def pull_messages_from_step(step_log: AgentStepLog, test_mode: bool = True):
     """Extract ChatMessage objects from agent steps"""
     if isinstance(step_log, ActionStep):
         yield gr.ChatMessage(role="assistant", content=step_log.llm_output or "")
@@ -53,11 +55,13 @@ def stream_to_gradio(
     task: str,
     test_mode: bool = False,
     reset_agent_memory: bool = False,
-    **kwargs,
+    additional_args: Optional[dict] = None,
 ):
     """Runs an agent with the given task and streams the messages from the agent as gradio ChatMessages."""
 
-    for step_log in agent.run(task, stream=True, reset=reset_agent_memory, **kwargs):
+    for step_log in agent.run(
+        task, stream=True, reset=reset_agent_memory, additional_args=additional_args
+    ):
         for message in pull_messages_from_step(step_log, test_mode=test_mode):
             yield message
 
@@ -116,15 +120,15 @@ class GradioUI:
         """
 
         if file is None:
-            return "No file uploaded"
+            return gr.Textbox("No file uploaded", visible=True), file_uploads_log
 
         try:
             mime_type, _ = mimetypes.guess_type(file.name)
         except Exception as e:
-            return f"Error: {e}"
+            return gr.Textbox(f"Error: {e}", visible=True), file_uploads_log
 
         if mime_type not in allowed_file_types:
-            return "File type disallowed"
+            return gr.Textbox("File type disallowed", visible=True), file_uploads_log
 
         # Sanitize file name
         original_name = os.path.basename(file.name)
@@ -172,12 +176,13 @@ class GradioUI:
                 type="messages",
                 avatar_images=(
                     None,
-                    "https://em-content.zobj.net/source/twitter/53/robot-face_1f916.png",
+                    "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png",
                 ),
+                resizeable=True,
             )
             # If an upload folder is provided, enable the upload feature
             if self.file_upload_folder is not None:
-                upload_file = gr.File(label="Upload a file", height=1)
+                upload_file = gr.File(label="Upload a file")
                 upload_status = gr.Textbox(
                     label="Upload Status", interactive=False, visible=False
                 )

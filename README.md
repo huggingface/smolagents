@@ -24,7 +24,10 @@ limitations under the License.
 </p>
 
 <h3 align="center">
-  <p>🤗 smolagents - a smol library to build great agents!</p>
+  <div style="display:flex;flex-direction:row;">
+    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot.png" alt="Hugging Face mascot as James Bond" width=100px>
+    <p>smolagents - a smol library to build great agents!</p>
+  </div>
 </h3>
 
 `smolagents` is a library that enables you to run powerful agents in a few lines of code. It offers:
@@ -95,9 +98,27 @@ To contribute, follow our [contribution guide](https://github.com/huggingface/sm
 At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
 It's often even better to open a PR with your proposed fixes/changes!
 
+To install dev dependencies, run:
+```
+pip install -e ".[dev]"
+```
+
+When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
+To check code quality of the source code:
+```
+make quality
+```
+
+If the checks fail, you can run the formatter with:
+```
+make style
+```
+
+And commit the changes.
+
 To run tests locally, run this command:
 ```bash
-pytest -sv .
+pytest .
 ```
 
 ## Citing smolagents

@@ -8,7 +8,9 @@ from langchain_community.retrievers import BM25Retriever
 
 
 knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
-knowledge_base = knowledge_base.filter(lambda row: row["source"].startswith("huggingface/transformers"))
+knowledge_base = knowledge_base.filter(
+    lambda row: row["source"].startswith("huggingface/transformers")
+)
 
 source_docs = [
     Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]})
@@ -26,6 +28,7 @@ docs_processed = text_splitter.split_documents(source_docs)
 
 from smolagents import Tool
 
+
 class RetrieverTool(Tool):
     name = "retriever"
     description = "Uses semantic search to retrieve the parts of transformers documentation that could be most relevant to answer your query."
@@ -39,9 +42,7 @@ class RetrieverTool(Tool):
 
     def __init__(self, docs, **kwargs):
         super().__init__(**kwargs)
-        self.retriever = BM25Retriever.from_documents(
-            docs, k=10
-        )
+        self.retriever = BM25Retriever.from_documents(docs, k=10)
 
     def forward(self, query: str) -> str:
         assert isinstance(query, str), "Your search query must be a string"
@@ -56,14 +57,20 @@ class RetrieverTool(Tool):
             ]
         )
 
+
 from smolagents import HfApiModel, CodeAgent
 
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
-    tools=[retriever_tool], model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbosity_level=2
+    tools=[retriever_tool],
+    model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"),
+    max_steps=4,
+    verbosity_level=2,
 )
 
-agent_output = agent.run("For a transformers model training, which is slower, the forward or the backward pass?")
+agent_output = agent.run(
+    "For a transformers model training, which is slower, the forward or the backward pass?"
+)
 
 print("Final output:")
 print(agent_output)

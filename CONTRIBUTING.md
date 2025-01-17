@@ -91,7 +91,7 @@ happy to make the changes or help you make a contribution if you're interested!
 
 ## I want to become a maintainer of the project. How do I get there?
 
-smolagents is a project led and managed by Hugging Face. We are  more than 
+smolagents is a project led and managed by Hugging Face. We are more than
 happy to have motivated individuals from other organizations join us as maintainers with the goal of helping smolagents
 make a dent in the world of Agents.
 
