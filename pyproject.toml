@@ -37,6 +37,9 @@ torch = [
 litellm = [
   "litellm>=1.55.10",
 ]
+mcp = [
+  "mcpadapt>=0.0.6"
+]
 quality = [
   "ruff>=0.9.0",
 ]
@@ -47,9 +50,6 @@ test = [
 dev = [
   "smolagents[quality,test]",
   "sqlalchemy", # for ./examples
-]
-mcpadapt = [
-  "mcpadapt>=0.0.6"
 ]
 
 [tool.pytest.ini_options]

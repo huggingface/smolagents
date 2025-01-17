@@ -969,7 +969,7 @@ class ToolCollection:
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
         except ImportError:
             raise ImportError(
-                "mcpadapt is required to use `from_mcp` install smolagents with mcpadapt extra: `pip install smolagents[mcpadapt]`."
+                """Please install 'mpc' extra to use ToolCollection.from_mcp: `pip install "smolagents[mcp]"`."""
             )
 
         with MCPAdapt(server_parameters, SmolAgentsAdapter()) as tools:
