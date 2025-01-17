@@ -973,7 +973,7 @@ class ToolCollection:
             )
 
         with MCPAdapt(server_parameters, SmolAgentsAdapter()) as tools:
-            yield ToolCollection(tools)
+            yield cls(tools)
 
 
 def tool(tool_function: Callable) -> Tool:
