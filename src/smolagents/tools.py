@@ -553,21 +553,21 @@ class Tool:
                 The Space, as a tool.
 
         Examples:
+        ```py
+        >>> image_generator = Tool.from_space(
+        ...     space_id="black-forest-labs/FLUX.1-schnell",
+        ...     name="image-generator",
+        ...     description="Generate an image from a prompt"
+        ... )
+        >>> image = image_generator("Generate an image of a cool surfer in Tahiti")
         ```
-        image_generator = Tool.from_space(
-            space_id="black-forest-labs/FLUX.1-schnell",
-            name="image-generator",
-            description="Generate an image from a prompt"
-        )
-        image = image_generator("Generate an image of a cool surfer in Tahiti")
-        ```
-        ```
-        face_swapper = Tool.from_space(
-            "tuan2308/face-swap",
-            "face_swapper",
-            "Tool that puts the face shown on the first image on the second image. You can give it paths to images.",
-        )
-        image = face_swapper('./aymeric.jpeg', './ruth.jpg')
+        ```py
+        >>> face_swapper = Tool.from_space(
+        ...     "tuan2308/face-swap",
+        ...     "face_swapper",
+        ...     "Tool that puts the face shown on the first image on the second image. You can give it paths to images.",
+        ... )
+        >>> image = face_swapper('./aymeric.jpeg', './ruth.jpg')
         ```
         """
         from gradio_client import Client, handle_file

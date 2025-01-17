@@ -336,7 +336,7 @@ from smolagents import (
 )
 
 # Import tool from Hub
-image_generation_tool = load_tool("m-ric/text-to-image")
+image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
 model = HfApiModel(model_id)
 
