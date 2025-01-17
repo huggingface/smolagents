@@ -34,8 +34,6 @@ from transformers import (
 )
 from transformers.utils.import_utils import _is_package_available
 
-import openai
-
 from .tools import Tool
 
 logger = logging.getLogger(__name__)
@@ -572,6 +570,12 @@ class OpenAIServerModel(Model):
         api_key: str,
         **kwargs,
     ):
+        try:
+            import openai
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'openai' to use OpenAIServerModel: `pip install 'openai>=1.58.1'`"
+            ) from None
         super().__init__()
         self.model_id = model_id
         self.client = openai.OpenAI(

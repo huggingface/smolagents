@@ -23,7 +23,6 @@ dependencies = [
   "duckduckgo-search>=6.3.7",
   "python-dotenv>=1.0.1",
   "e2b-code-interpreter>=1.0.3",
-  "openai>=1.58.1",
 ]
 
 [tool.ruff]
@@ -31,6 +30,7 @@ lint.ignore = ["F403"]
 
 [project.optional-dependencies]
 dev = [
+  "openai>=1.58.1",
   "torch",
   "torchaudio",
   "torchvision",
@@ -40,6 +40,7 @@ dev = [
   "litellm>=1.55.10",
 ]
 test = [
+  "openai>=1.58.1",
   "torch",
   "torchaudio",
   "torchvision",
