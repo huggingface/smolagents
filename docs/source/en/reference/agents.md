@@ -22,12 +22,12 @@ can vary as the APIs or underlying models are prone to change.
 
 </Tip>
 
-To learn more about agents and tools make sure to read the [introductory guide](../index). This page
+To learn more about agents and tools make sure to read the [introductory guide](../index.md). This page
 contains the API docs for the underlying classes.
 
 ## Agents
 
-Our agents inherit from [`MultiStepAgent`], which means they can act in multiple steps, each step consisting of one thought, then one tool call and execution. Read more in [this conceptual guide](../conceptual_guides/react).
+Our agents inherit from [`MultiStepAgent`], which means they can act in multiple steps, each step consisting of one thought, then one tool call and execution. Read more in [this conceptual guide](../conceptual_guides/react.md).
 
 We provide two types of agents, based on the main [`Agent`] class.
   - [`CodeAgent`] is the default agent, it writes its tool calls in Python code.
@@ -62,10 +62,10 @@ Both require arguments `model` and list of tools `tools` at initialization.
 You're free to create and use your own models to power your agent.
 
 You could use any `model` callable for your agent, as long as:
-1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns a `str`.
+1. It follows the [messages format](https://huggingface.co/docs/transformers/main/en/chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns a `str`.
 2. It stops generating outputs *before* the sequences passed in the argument `stop_sequences`
 
-For defining your LLM, you can make a `custom_model` method which accepts a list of [messages](./chat_templating) and returns an object with a .content attribute containing the text. This callable also needs to accept a `stop_sequences` argument that indicates when to stop generating.
+For defining your LLM, you can make a `custom_model` method which accepts a list of [messages](https://huggingface.co/docs/transformers/main/en/chat_templating) and returns an object with a .content attribute containing the text. This callable also needs to accept a `stop_sequences` argument that indicates when to stop generating.
 
 ```python
 from huggingface_hub import login, InferenceClient

@@ -22,7 +22,7 @@ can vary as the APIs or underlying models are prone to change.
 
 </Tip>
 
-To learn more about agents and tools make sure to read the [introductory guide](../index). This page
+To learn more about agents and tools make sure to read the [introductory guide](../index.md). This page
 contains the API docs for the underlying classes.
 
 ## Tools
