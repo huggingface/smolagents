@@ -13,13 +13,13 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Orchestrate a multi-agent system 🤖🤝🤖
+# 编排 multi-agent 系统 🤖🤝🤖
 
 [[open-in-colab]]
 
-In this notebook we will make a **multi-agent web browser: an agentic system with several agents collaborating to solve problems using the web!**
+此notebook将构建一个**multi-agent 网络浏览器：一个有多个代理协作，使用网络进行搜索解决问题的代理系统**
 
-It will be a simple hierarchy, using a `ManagedAgent` object to wrap the managed web search agent:
+`ManagedAgent` 对象将封装这些管理网络搜索的agent，形成一个简单的层次结构：
 
 ```
               +----------------+
@@ -38,7 +38,7 @@ It will be a simple hierarchy, using a `ManagedAgent` object to wrap the managed
                      |             Visit webpage tool |
                      +--------------------------------+
 ```
-Let's set up this system. 
+Let's set up this system.
 
 Run the line below to install the required dependencies:
 
@@ -48,10 +48,10 @@ Run the line below to install the required dependencies:
 
 Let's login in order to call the HF Inference API:
 
-```py
-from huggingface_hub import notebook_login
+```
+from huggingface_hub import login
 
-notebook_login()
+login()
 ```
 
 ⚡️ Our agent will be powered by [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) using `HfApiModel` class that uses HF's Inference API: the Inference API allows to quickly and easily run any OS model.
@@ -174,10 +174,10 @@ answer = manager_agent.run("If LLM training continues to scale up at the current
 
 We get this report as the answer:
 ```
-Based on current growth projections and energy consumption estimates, if LLM trainings continue to scale up at the 
+Based on current growth projections and energy consumption estimates, if LLM trainings continue to scale up at the
 current rhythm until 2030:
 
-1. The electric power required to power the biggest training runs by 2030 would be approximately 303.74 GW, which 
+1. The electric power required to power the biggest training runs by 2030 would be approximately 303.74 GW, which
 translates to about 2,660,762 GWh/year.
 
 2. Comparing this to countries' electricity consumption:
@@ -188,7 +188,7 @@ translates to about 2,660,762 GWh/year.
 3. Source of numbers:
    - The initial estimate of 5 GW for future LLM training comes from AWS CEO Matt Garman.
    - The growth projection used a CAGR of 79.80% from market research by Springs.
-   - Country electricity consumption data is from the U.S. Energy Information Administration, primarily for the year 
+   - Country electricity consumption data is from the U.S. Energy Information Administration, primarily for the year
 2021.
 ```
 
@@ -196,4 +196,5 @@ Seems like we'll need some sizeable powerplants if the [scaling hypothesis](http
 
 Our agents managed to efficiently collaborate towards solving the task! ✅
 
-💡 You can easily extend this orchestration to more agents: one does the code execution, one the web search, one handles file loadings...
+💡 You can easily extend this orchestration to more agents: one does the code execution, one the web
+search, one handles file loadings...
