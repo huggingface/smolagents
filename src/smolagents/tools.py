@@ -888,8 +888,9 @@ class ToolCollection:
     def __init__(self, tools: List[Tool]):
         self.tools = tools
 
-    @staticmethod
+    @classmethod
     def from_hub(
+        cls,
         collection_slug: str,
         token: Optional[str] = None,
         trust_remote_code: bool = False,
@@ -932,9 +933,9 @@ class ToolCollection:
 
         return ToolCollection(tools)
 
-    @staticmethod
+    @classmethod
     @contextmanager
-    def from_mcp(server_parameters) -> "ToolCollection":
+    def from_mcp(cls, server_parameters) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
         Note: a separate thread will be spawned to run an asyncio event loop handling
