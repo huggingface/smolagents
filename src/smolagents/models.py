@@ -32,7 +32,6 @@ from transformers import (
     StoppingCriteriaList,
     is_torch_available,
 )
-from transformers.utils.import_utils import _is_package_available
 
 import openai
 
@@ -49,9 +48,6 @@ DEFAULT_CODEAGENT_REGEX_GRAMMAR = {
     "type": "regex",
     "value": "Thought: .+?\\nCode:\\n```(?:py|python)?\\n(?:.|\\s)+?\\n```<end_code>",
 }
-
-if _is_package_available("litellm"):
-    import litellm
 
 
 def get_dict_from_nested_dataclasses(obj):
@@ -510,9 +506,11 @@ class LiteLLMModel(Model):
         api_key=None,
         **kwargs,
     ):
-        if not _is_package_available("litellm"):
-            raise ImportError(
-                "litellm not found. Install it with `pip install litellm`"
+        try:
+            import litellm
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
             )
         super().__init__()
         self.model_id = model_id
@@ -532,6 +530,8 @@ class LiteLLMModel(Model):
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
+        import litellm
+
         if tools_to_call_from:
             response = litellm.completion(
                 model=self.model_id,
