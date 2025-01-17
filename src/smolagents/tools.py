@@ -36,7 +36,6 @@ from huggingface_hub import (
     upload_folder,
 )
 from huggingface_hub.utils import RepositoryNotFoundError
-from mcp import StdioServerParameters
 
 from packaging import version
 from transformers.dynamic_module_utils import get_imports
@@ -182,12 +181,12 @@ class Tool:
                     f"Attribute {attr} should have type {expected_type.__name__}, got {type(attr_value)} instead."
                 )
         for input_name, input_content in self.inputs.items():
-            assert isinstance(
-                input_content, dict
-            ), f"Input '{input_name}' should be a dictionary."
-            assert (
-                "type" in input_content and "description" in input_content
-            ), f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
+            assert isinstance(input_content, dict), (
+                f"Input '{input_name}' should be a dictionary."
+            )
+            assert "type" in input_content and "description" in input_content, (
+                f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
+            )
             if input_content["type"] not in AUTHORIZED_TYPES:
                 raise Exception(
                     f"Input '{input_name}': type '{input_content['type']}' is not an authorized value, should be one of {AUTHORIZED_TYPES}."
@@ -210,13 +209,13 @@ class Tool:
             json_schema = _convert_type_hints_to_json_schema(self.forward)
             for key, value in self.inputs.items():
                 if "nullable" in value:
-                    assert (
-                        key in json_schema and "nullable" in json_schema[key]
-                    ), f"Nullable argument '{key}' in inputs should have key 'nullable' set to True in function signature."
+                    assert key in json_schema and "nullable" in json_schema[key], (
+                        f"Nullable argument '{key}' in inputs should have key 'nullable' set to True in function signature."
+                    )
                 if key in json_schema and "nullable" in json_schema[key]:
-                    assert (
-                        "nullable" in value
-                    ), f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
+                    assert "nullable" in value, (
+                        f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
+                    )
 
     def forward(self, *args, **kwargs):
         return NotImplementedError("Write this method in your subclass of `Tool`.")
@@ -456,7 +455,9 @@ class Tool:
                 `cache_dir`, `revision`, `subfolder`) will be used when downloading the files for your tool, and the
                 others will be passed along to its init.
         """
-        assert trust_remote_code, "Loading a tool from Hub requires to trust remote code. Make sure you've inspected the repo and pass `trust_remote_code=True` to load the tool."
+        assert trust_remote_code, (
+            "Loading a tool from Hub requires to trust remote code. Make sure you've inspected the repo and pass `trust_remote_code=True` to load the tool."
+        )
 
         hub_kwargs_names = [
             "cache_dir",
@@ -933,14 +934,14 @@ class ToolCollection:
 
     @staticmethod
     @contextmanager
-    def from_mcp(server_parameters: StdioServerParameters) -> "ToolCollection":
+    def from_mcp(server_parameters) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
         Note: a separate thread will be spawned to run an asyncio event loop handling
         the MCP server.
 
         Args:
-            server_parameters (StdioServerParameters): The server parameters to use to
+            server_parameters (mcp.StdioServerParameters): The server parameters to use to
             connect to the MCP server.
 
         Returns:
@@ -962,8 +963,13 @@ class ToolCollection:
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
-        from mcpadapt.core import MCPAdapt
-        from mcpadapt.smolagents_adapter import SmolAgentsAdapter
+        try:
+            from mcpadapt.core import MCPAdapt
+            from mcpadapt.smolagents_adapter import SmolAgentsAdapter
+        except ImportError:
+            raise ImportError(
+                "mcpadapt is required to use `from_mcp` install smolagents with mcpadapt extra: `pip install smolagents[mcpadapt]`."
+            )
 
         with MCPAdapt(server_parameters, SmolAgentsAdapter()) as tools:
             yield ToolCollection(tools)

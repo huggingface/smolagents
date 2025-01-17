@@ -24,7 +24,6 @@ dependencies = [
   "python-dotenv>=1.0.1",
   "e2b-code-interpreter>=1.0.3",
   "openai>=1.58.1",
-  "mcpadapt>=0.0.6",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +47,9 @@ test = [
 dev = [
   "smolagents[quality,test]",
   "sqlalchemy", # for ./examples
+]
+mcpadapt = [
+  "mcpadapt>=0.0.6"
 ]
 
 [tool.pytest.ini_options]
