@@ -15,6 +15,7 @@
 import unittest
 from pathlib import Path
 from typing import Dict, Optional, Union
+from unittest.mock import patch, MagicMock
 
 import mcp
 import numpy as np
@@ -388,7 +389,26 @@ class ToolTests(unittest.TestCase):
         assert "Nullable" in str(e)
 
 
-class TestToolCollection:
+@pytest.fixture
+def mock_server_parameters():
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_mcp_adapt():
+    with patch("mcpadapt.core.MCPAdapt") as mock:
+        mock.return_value.__enter__.return_value = ["tool1", "tool2"]
+        mock.return_value.__exit__.return_value = None
+        yield mock
+
+
+@pytest.fixture
+def mock_smolagents_adapter():
+    with patch("mcpadapt.smolagents_adapter.SmolAgentsAdapter") as mock:
+        yield mock
+
+
+class ToolCollectionTests(unittest.TestCase):
     def test_from_mcp(
         self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter
     ):
@@ -398,9 +418,7 @@ class TestToolCollection:
             assert "tool1" in tool_collection.tools
             assert "tool2" in tool_collection.tools
 
-
-class ToolCollectionTests(unittest.TestCase):
-    def test_tool_collection_from_mcp(self):
+    def test_integration_tool_collection_from_mcp(self):
         # define the most simple mcp server with one tool that echoes the input text
         mcp_server_script = """
 from mcp.server.fastmcp import FastMCP
