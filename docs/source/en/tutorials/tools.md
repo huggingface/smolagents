@@ -227,7 +227,7 @@ To speed up the start, tools are loaded only if called by the agent.
 
 #### Tool Collection from any MCP server
 
-Leverage tools from the hundreds of MCP servers available on [glama.ai]() or [smithery.ai]().
+Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
 
 The MCP servers tools can be loaded in a `ToolCollection` object as follow:
 
