@@ -931,7 +931,7 @@ class ToolCollection:
             for repo_id in _hub_repo_ids
         }
 
-        return ToolCollection(tools)
+        return cls(tools)
 
     @classmethod
     @contextmanager
