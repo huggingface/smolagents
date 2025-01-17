@@ -605,7 +605,8 @@ class LiteLLMModel(Model):
         
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        return response.choices[0].message
+        
+        return ChatMessage(**response.choices[0].message.model_dump())
 
 
 class OpenAIServerModel(Model):
@@ -657,7 +658,7 @@ class OpenAIServerModel(Model):
         response = self.client.chat.completions.create(**completion_kwargs)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        return response.choices[0].message
+        return ChatMessage(**response.choices[0].message.model_dump())
 
 
 __all__ = [
