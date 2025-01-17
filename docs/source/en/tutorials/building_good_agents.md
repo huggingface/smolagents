@@ -22,7 +22,7 @@ How can we build agents that fall into the latter category?
 In this guide, we're going to talk about best practices for building agents.
 
 > [!TIP]
-> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
+> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents.md) and the [guided tour of smolagents](../guided_tour.md).
 
 ### The best agentic systems are the simplest: simplify the workflow as much as you can
 
@@ -30,7 +30,7 @@ Giving an LLM some agency in your workflow introduces some risk of errors.
 
 Well-programmed agentic systems have good error logging and retry mechanisms anyway, so the LLM engine has a chance to self-correct their mistake. But to reduce the risk of LLM error to the maximum, you should simplify your workflow!
 
-Let's revisit the example from the [intro to agents](../conceptual_guides/intro_agents): a bot that answers user queries for a surf trip company.
+Let's revisit the example from the [intro to agents](../conceptual_guides/intro_agents.md): a bot that answers user queries for a surf trip company.
 Instead of letting the agent do 2 different calls for "travel distance API" and "weather API" each time they are asked about a new surf spot, you could just make one unified tool "return_spot_information", a function that calls both APIs at once and returns their concatenated outputs to the user.
 
 This will reduce costs, latency, and error risk!

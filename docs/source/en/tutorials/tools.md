@@ -20,7 +20,7 @@ rendered properly in your Markdown viewer.
 Here, we're going to see advanced tool usage.
 
 > [!TIP]
-> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
+> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents.md) and the [guided tour of smolagents](../guided_tour.md).
 
 - [Tools](#tools)
     - [What is a tool, and how to build one?](#what-is-a-tool-and-how-to-build-one)
@@ -76,7 +76,7 @@ The custom tool subclasses [`Tool`] to inherit useful methods. The child class a
 
 And that's all it needs to be used in an agent!
 
-There's another way to build a tool. In the [guided_tour](../guided_tour), we implemented a tool using the `@tool` decorator. The [`tool`] decorator is the recommended way to define simple tools, but sometimes you need more than this: using several methods in a class for more clarity, or using additional class attributes.
+There's another way to build a tool. In the [guided_tour](../guided_tour.md), we implemented a tool using the `@tool` decorator. The [`tool`] decorator is the recommended way to define simple tools, but sometimes you need more than this: using several methods in a class for more clarity, or using additional class attributes.
 
 In this case, you can build your tool by subclassing [`Tool`] as described above.
 

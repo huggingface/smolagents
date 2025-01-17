@@ -126,7 +126,7 @@ The execution will stop at any code trying to perform an illegal operation or if
 You can also use [E2B code executor](https://e2b.dev/docs#what-is-e2-b) instead of a local Python interpreter by first [setting the `E2B_API_KEY` environment variable](https://e2b.dev/dashboard?tab=keys) and then passing `use_e2b_executor=True` upon agent initialization.
 
 > [!TIP]
-> Learn more about code execution [in this tutorial](tutorials/secure_code_execution).
+> Learn more about code execution [in this tutorial](tutorials/secure_code_execution.md).
 
 We also support the widely-used way of writing actions as JSON-like blobs: this is [`ToolCallingAgent`], it works much in the same way like [`CodeAgent`], of course without `additional_authorized_imports` since it doesn't execute code:
 
@@ -284,7 +284,7 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 ```
 
 > [!TIP]
-> Read more on tools in the [dedicated tutorial](./tutorials/tools#what-is-a-tool-and-how-to-build-one).
+> Read more on tools in the [dedicated tutorial](./tutorials/tools.md#what-is-a-tool-and-how-to-build-one).
 
 ## Multi-agents
 
@@ -354,6 +354,6 @@ You can also use this `reset=False` argument to keep the conversation going in a
 ## Next steps
 
 For more in-depth usage, you will then want to check out our tutorials:
-- [the explanation of how our code agents work](./tutorials/secure_code_execution)
-- [this guide on how to build good agents](./tutorials/building_good_agents).
-- [the in-depth guide for tool usage](./tutorials/building_good_agents).
+- [the explanation of how our code agents work](./tutorials/secure_code_execution.md)
+- [this guide on how to build good agents](./tutorials/building_good_agents.md).
+- [the in-depth guide for tool usage](./tutorials/building_good_agents.md).

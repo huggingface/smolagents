@@ -18,13 +18,13 @@ rendered properly in your Markdown viewer.
 [[open-in-colab]]
 
 > [!TIP]
-> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
+> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents.md) and the [guided tour of smolagents](../guided_tour.md).
 
 ### Why log your agent runs?
 
 Agent runs are complicated to debug.
 
-Validating that a run went properly is hard, since agent workflows are [unpredictable by design](../conceptual_guides/intro_agents) (if they were predictable, you'd just be using good old code). 
+Validating that a run went properly is hard, since agent workflows are [unpredictable by design](../conceptual_guides/intro_agents.md) (if they were predictable, you'd just be using good old code). 
 
 And inspecting a run is hard as well: multi-step agents tend to quickly fill a console with logs, and most of the errors are just "LLM dumb" kind of errors, from which the LLM auto-corrects in the next step by writing better code or tool calls.
 

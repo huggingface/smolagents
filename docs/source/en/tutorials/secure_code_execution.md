@@ -18,7 +18,7 @@ rendered properly in your Markdown viewer.
 [[open-in-colab]]
 
 > [!TIP]
-> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
+> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents.md) and the [guided tour of smolagents](../guided_tour.md).
 
 ### Code agents
 

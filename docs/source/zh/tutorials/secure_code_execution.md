@@ -18,7 +18,7 @@ rendered properly in your Markdown viewer.
 [[open-in-colab]]
 
 > [!TIP]
-> 如果你是第一次构建 agent，请先阅读 [agent 介绍](../conceptual_guides/intro_agents) 和 [smolagents 导览](../guided_tour)。
+> 如果你是第一次构建 agent，请先阅读 [agent 介绍](../conceptual_guides/intro_agents.md) 和 [smolagents 导览](../guided_tour.md)。
 
 ### 代码智能体
 

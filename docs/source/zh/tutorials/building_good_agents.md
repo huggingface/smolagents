@@ -22,7 +22,7 @@ rendered properly in your Markdown viewer.
 在本指南中，我们将看到构建 agent 的最佳实践。
 
 > [!TIP]
-> 如果你是 agent 构建的新手，请确保首先阅读 [agent 介绍](../conceptual_guides/intro_agents) 和 [smolagents 导览](../guided_tour)。
+> 如果你是 agent 构建的新手，请确保首先阅读 [agent 介绍](../conceptual_guides/intro_agents.md) 和 [smolagents 导览](../guided_tour.md)。
 
 ### 最好的 agent 系统是最简单的：尽可能简化工作流
 
@@ -30,7 +30,7 @@ rendered properly in your Markdown viewer.
 
 经过良好编程的 agent 系统，通常具有良好的错误日志记录和重试机制，因此 LLM 引擎有机会自我纠错。但为了最大限度地降低 LLM 错误的风险，你应该简化你的工作流！
 
-让我们回顾一下 [agent 介绍](../conceptual_guides/intro_agents) 中的例子：一个为冲浪旅行公司回答用户咨询的机器人。
+让我们回顾一下 [agent 介绍](../conceptual_guides/intro_agents.md) 中的例子：一个为冲浪旅行公司回答用户咨询的机器人。
 与其让 agent 每次被问及新的冲浪地点时，都分别调用 "旅行距离 API" 和 "天气 API"，你可以只创建一个统一的工具 "return_spot_information"，一个同时调用这两个 API，并返回它们连接输出的函数。
 
 这可以降低成本、延迟和错误风险！

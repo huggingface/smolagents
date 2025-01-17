@@ -133,7 +133,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 您也可以使用 [E2B 代码执行器](https://e2b.dev/docs#what-is-e2-b) 而不是本地 Python 解释器，首先 [设置 `E2B_API_KEY` 环境变量](https://e2b.dev/dashboard?tab=keys)，然后在初始化 agent 时传递 `use_e2b_executor=True`。
 
 > [!TIP]
-> 在 [该教程中](tutorials/secure_code_execution) 了解更多关于代码执行的内容。
+> 在 [该教程中](tutorials/secure_code_execution.md) 了解更多关于代码执行的内容。
 
 我们还支持广泛使用的将动作编写为 JSON-like 块的方式：[`ToolCallingAgent`]，它的工作方式与 [`CodeAgent`] 非常相似，当然没有 `additional_authorized_imports`，因为它不执行代码：
 
@@ -291,7 +291,7 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 ```
 
 > [!TIP]
-> 在 [专用教程](./tutorials/tools#what-is-a-tool-and-how-to-build-one) 中了解更多关于工具的内容。
+> 在 [专用教程](./tutorials/tools.md#what-is-a-tool-and-how-to-build-one) 中了解更多关于工具的内容。
 
 ## 多 agent
 
@@ -361,6 +361,6 @@ GradioUI(agent).launch()
 ## 下一步
 
 要更深入地使用，您将需要查看我们的教程：
-- [我们的代码 agent 如何工作的解释](./tutorials/secure_code_execution)
-- [本指南关于如何构建好的 agent](./tutorials/building_good_agents)。
-- [工具使用的深入指南](./tutorials/tools)。
+- [我们的代码 agent 如何工作的解释](./tutorials/secure_code_execution.md)
+- [本指南关于如何构建好的 agent](./tutorials/building_good_agents.md)。
+- [工具使用的深入指南](./tutorials/tools.md)。

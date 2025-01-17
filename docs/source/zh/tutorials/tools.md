@@ -20,7 +20,7 @@ rendered properly in your Markdown viewer.
 在这里，我们将学习高级工具的使用。
 
 > [!TIP]
-> 如果你是构建 agent 的新手，请确保先阅读 [agent 介绍](../conceptual_guides/intro_agents) 和 [smolagents 导览](../guided_tour)。
+> 如果你是构建 agent 的新手，请确保先阅读 [agent 介绍](../conceptual_guides/intro_agents.md) 和 [smolagents 导览](../guided_tour.md)。
 
 - [工具](#工具)
     - [什么是工具，如何构建一个工具？](#什么是工具如何构建一个工具)
