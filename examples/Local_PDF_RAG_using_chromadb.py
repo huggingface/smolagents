@@ -27,10 +27,16 @@ text_splitter = RecursiveCharacterTextSplitter(
     strip_whitespace=True,
     separators=["\n\n", "\n", ".", " ", ""],
 )
+
 docs_processed = text_splitter.split_documents(docs)
 
 # Initialize embeddings and ChromaDB vector store
+
+# from langchain_huggingface import HuggingFaceEmbeddings
+# embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+
 vector_store = Chroma.from_documents(
     docs_processed, embeddings, persist_directory="./chroma_db"
 )
@@ -63,6 +69,16 @@ class RetrieverTool(Tool):
 
 
 retriever_tool = RetrieverTool(vector_store)
+
+# Choose which LLM engine to use!
+
+# from smolagents import HfApiModel
+# model = HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
+
+# from smolagents import TransformersModel
+# model = TransformersModel(model_id="meta-llama/Llama-3.2-2B-Instruct")
+
+# For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-20240620' and also change 'os.environ.get("ANTHROPIC_API_KEY")'
 model = LiteLLMModel(
     model_id="groq/llama-3.3-70b-versatile",
     api_key=os.environ.get("GROQ_API_KEY"),
