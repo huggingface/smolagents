@@ -574,7 +574,7 @@ class OpenAIServerModel(Model):
             import openai
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
-                "Please install 'openai' to use OpenAIServerModel: `pip install 'openai>=1.58.1'`"
+                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
             ) from None
         super().__init__()
         self.model_id = model_id

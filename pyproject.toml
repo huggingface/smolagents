@@ -29,6 +29,7 @@ dependencies = [
 lint.ignore = ["F403"]
 
 [project.optional-dependencies]
+openai = ["openai>=1.58.1"]
 dev = [
   "openai>=1.58.1",
   "torch",
