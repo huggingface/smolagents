@@ -1099,7 +1099,7 @@ def import_modules(expression, state, authorized_imports):
         "popen",
         "spawn",
         "shutil",
-        "glob",
+        "sys",
         "pathlib",
         "io",
         "socket",

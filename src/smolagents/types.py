@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib.util
 import logging
 import os
 import pathlib
@@ -25,7 +26,6 @@ from transformers.utils import (
     is_torch_available,
     is_vision_available,
 )
-from transformers.utils.import_utils import _is_package_available
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +40,6 @@ if is_torch_available():
     from torch import Tensor
 else:
     Tensor = object
-
-if _is_package_available("soundfile"):
-    import soundfile as sf
 
 
 class AgentType:
@@ -187,10 +184,11 @@ class AgentAudio(AgentType, str):
     """
 
     def __init__(self, value, samplerate=16_000):
+        if importlib.util.find_spec("soundfile") is None:
+            raise ModuleNotFoundError(
+                "Please install 'audio' extra to use AgentAudio: `pip install 'smolagents[audio]'`"
+            )
         super().__init__(value)
-
-        if not _is_package_available("soundfile"):
-            raise ImportError("soundfile must be installed in order to handle audio.")
 
         self._path = None
         self._tensor = None
@@ -221,6 +219,8 @@ class AgentAudio(AgentType, str):
         """
         Returns the "raw" version of that object. It is a `torch.Tensor` object.
         """
+        import soundfile as sf
+
         if self._tensor is not None:
             return self._tensor
 
@@ -239,6 +239,8 @@ class AgentAudio(AgentType, str):
         Returns the stringified version of that object. In the case of an AgentAudio, it is a path to the serialized
         version of the audio.
         """
+        import soundfile as sf
+
         if self._path is not None:
             return self._path
 

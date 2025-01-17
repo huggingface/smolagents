@@ -32,9 +32,6 @@ from transformers import (
     StoppingCriteriaList,
     is_torch_available,
 )
-from transformers.utils.import_utils import _is_package_available
-
-import openai
 
 from .tools import Tool
 
@@ -49,9 +46,6 @@ DEFAULT_CODEAGENT_REGEX_GRAMMAR = {
     "type": "regex",
     "value": "Thought: .+?\\nCode:\\n```(?:py|python)?\\n(?:.|\\s)+?\\n```<end_code>",
 }
-
-if _is_package_available("litellm"):
-    import litellm
 
 
 def get_dict_from_nested_dataclasses(obj):
@@ -510,9 +504,11 @@ class LiteLLMModel(Model):
         api_key=None,
         **kwargs,
     ):
-        if not _is_package_available("litellm"):
-            raise ImportError(
-                "litellm not found. Install it with `pip install litellm`"
+        try:
+            import litellm
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
             )
         super().__init__()
         self.model_id = model_id
@@ -532,6 +528,8 @@ class LiteLLMModel(Model):
         messages = get_clean_message_list(
             messages, role_conversions=tool_role_conversions
         )
+        import litellm
+
         if tools_to_call_from:
             response = litellm.completion(
                 model=self.model_id,
@@ -563,10 +561,13 @@ class OpenAIServerModel(Model):
     Parameters:
         model_id (`str`):
             The model identifier to use on the server (e.g. "gpt-3.5-turbo").
-        api_base (`str`):
+        api_base (`str`, *optional*):
             The base URL of the OpenAI-compatible API server.
-        api_key (`str`):
+        api_key (`str`, *optional*):
             The API key to use for authentication.
+        custom_role_conversions (`Dict{str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
@@ -574,10 +575,17 @@ class OpenAIServerModel(Model):
     def __init__(
         self,
         model_id: str,
-        api_base: str,
-        api_key: str,
+        api_base: Optional[str] = None,
+        api_key: Optional[str] = None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
+        try:
+            import openai
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from None
         super().__init__()
         self.model_id = model_id
         self.client = openai.OpenAI(
@@ -585,6 +593,7 @@ class OpenAIServerModel(Model):
             api_key=api_key,
         )
         self.kwargs = kwargs
+        self.custom_role_conversions = custom_role_conversions
 
     def __call__(
         self,
@@ -594,7 +603,12 @@ class OpenAIServerModel(Model):
         tools_to_call_from: Optional[List[Tool]] = None,
     ) -> ChatMessage:
         messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
+            messages,
+            role_conversions=(
+                self.custom_role_conversions
+                if self.custom_role_conversions
+                else tool_role_conversions
+            ),
         )
         if tools_to_call_from:
             response = self.client.chat.completions.create(

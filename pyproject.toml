@@ -23,7 +23,6 @@ dependencies = [
   "duckduckgo-search>=6.3.7",
   "python-dotenv>=1.0.1",
   "e2b-code-interpreter>=1.0.3",
-  "openai>=1.58.1",
 ]
 
 [project.optional-dependencies]
@@ -40,12 +39,15 @@ litellm = [
 mcp = [
   "mcpadapt>=0.0.6"
 ]
+openai = [
+  "openai>=1.58.1"
+]
 quality = [
   "ruff>=0.9.0",
 ]
 test = [
   "pytest>=8.1.0",
-  "smolagents[audio,litellm,torch]",
+  "smolagents[audio,litellm,openai,torch]",
 ]
 dev = [
   "smolagents[quality,test]",

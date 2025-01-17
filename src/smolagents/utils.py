@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import ast
+import importlib.util
 import inspect
 import json
 import re
@@ -22,13 +23,10 @@ import types
 from typing import Dict, Tuple, Union
 
 from rich.console import Console
-from transformers.utils.import_utils import _is_package_available
-
-_pygments_available = _is_package_available("pygments")
 
 
 def is_pygments_available():
-    return _pygments_available
+    return importlib.util.find_spec("soundfile") is not None
 
 
 console = Console(width=200)
