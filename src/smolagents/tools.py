@@ -697,6 +697,8 @@ class Tool:
         """
 
         class LangChainToolWrapper(Tool):
+            skip_forward_signature_validation = True
+
             def __init__(self, _langchain_tool):
                 self.name = _langchain_tool.name.lower()
                 self.description = _langchain_tool.description
@@ -707,6 +709,7 @@ class Tool:
                     input_content["description"] = ""
                 self.output_type = "string"
                 self.langchain_tool = _langchain_tool
+                self.is_initialized = True
 
             def forward(self, *args, **kwargs):
                 tool_input = kwargs.copy()
