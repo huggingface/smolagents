@@ -399,17 +399,8 @@ class MultiStepAgent:
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
-    def execute_tool_call(
-        self, tool_name: str, arguments: Union[Dict[str, str], str]
-    ) -> Any:
-        """
-        Execute tool with the provided input and returns the result.
-        This method replaces arguments with the actual values from the state if they refer to state variables.
-
-        Args:
-            tool_name (`str`): Name of the Tool to execute (should be one from self.tools).
-            arguments (Dict[str, str]): Arguments passed to the Tool.
-        """
+    def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
+        import json
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
             error_msg = f"Unknown tool {tool_name}, should be instead one of {list(available_tools.keys())}."
@@ -417,31 +408,30 @@ class MultiStepAgent:
 
         try:
             if isinstance(arguments, str):
-                if tool_name in self.managed_agents:
-                    observation = available_tools[tool_name].__call__(arguments)
-                else:
-                    observation = available_tools[tool_name].__call__(
-                        arguments, sanitize_inputs_outputs=True
-                    )
-            elif isinstance(arguments, dict):
+                try:
+                    parsed_args = json.loads(arguments)
+                    if isinstance(parsed_args, dict):
+                        arguments = parsed_args
+                except json.JSONDecodeError:
+                    pass
+
+            if isinstance(arguments, dict):
                 for key, value in arguments.items():
                     if isinstance(value, str) and value in self.state:
                         arguments[key] = self.state[value]
                 if tool_name in self.managed_agents:
                     observation = available_tools[tool_name].__call__(**arguments)
                 else:
-                    observation = available_tools[tool_name].__call__(
-                        **arguments, sanitize_inputs_outputs=True
-                    )
+                    observation = available_tools[tool_name].__call__(**arguments, sanitize_inputs_outputs=True)
             else:
-                error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
-                raise AgentExecutionError(error_msg)
+                if tool_name in self.managed_agents:
+                    observation = available_tools[tool_name].__call__(arguments)
+                else:
+                    observation = available_tools[tool_name].__call__(arguments, sanitize_inputs_outputs=True)
             return observation
         except Exception as e:
             if tool_name in self.tools:
-                tool_description = get_tool_description_with_args(
-                    available_tools[tool_name]
-                )
+                tool_description = get_tool_description_with_args(available_tools[tool_name])
                 error_msg = (
                     f"Error in tool call execution: {e}\nYou should only use this tool with a correct input.\n"
                     f"As a reminder, this tool's description is the following:\n{tool_description}"
