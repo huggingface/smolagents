@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+import json
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -66,7 +67,7 @@ from .utils import (
     parse_json_tool_call,
     truncate_content,
 )
-import json
+
 
 @dataclass
 class ToolCall:
@@ -405,6 +406,7 @@ class MultiStepAgent:
         """
         Execute tool with the provided input and returns the result.
         This method replaces arguments with the actual values from the state if they refer to state variables.
+
         Args:
             tool_name (`str`): Name of the Tool to execute (should be one from self.tools).
             arguments (Dict[str, str]): Arguments passed to the Tool.
@@ -451,7 +453,6 @@ class MultiStepAgent:
                     f"As a reminder, this team member's description is the following:\n{available_tools[tool_name]}"
                 )
                 raise AgentExecutionError(error_msg)
-
 
     def step(self, log_entry: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
@@ -797,9 +798,6 @@ class ToolCallingAgent(MultiStepAgent):
         agent_memory = self.write_inner_memory_from_logs()
 
         self.input_messages = agent_memory
-        print("---------@@@@---------")
-        print("the input_messages is: ",self.input_messages)
-        print("---------@@@@---------")
 
         # Add new step in logs
         log_entry.agent_memory = agent_memory.copy()
@@ -813,11 +811,6 @@ class ToolCallingAgent(MultiStepAgent):
             tool_call = model_message.tool_calls[0]
             tool_name, tool_call_id = tool_call.function.name, tool_call.id
             tool_arguments = tool_call.function.arguments
-            print("---------!!!!---------")
-            print("tool_call is: ",tool_call)
-            print("---------!!!!---------")
-            print("the tool_arguments type is: ",type(tool_arguments))
-            print("---------!!!!---------")
 
         except Exception as e:
             raise AgentGenerationError(
@@ -863,9 +856,6 @@ class ToolCallingAgent(MultiStepAgent):
         else:
             if tool_arguments is None:
                 tool_arguments = {}
-            print(f"DEBUG_999: tool_name={tool_name}, tool_arguments={tool_arguments}")
-            print("the tool_arguments type is: ",type(tool_arguments))
-            print("--------------------------------")
             observation = self.execute_tool_call(tool_name, tool_arguments)
             observation_type = type(observation)
             if observation_type in [AgentImage, AgentAudio]:
