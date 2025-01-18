@@ -21,7 +21,7 @@ from typing import Dict, Optional
 
 from huggingface_hub import hf_hub_download, list_spaces
 
-
+from transformers import AutoModel, AutoTokenizer
 from transformers.utils import is_offline_mode, is_torch_available
 
 from .local_python_executor import (
@@ -327,6 +327,36 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+class PDFParsingTool(Tool):
+    name = "pdf_parser"
+    description = """Parses a given PDF into markdown."""
+    inputs = {
+        "image": {"type": "image", "description": "The path to PDF to be parsed."},
+    }
+    output_type = "string"
+
+    def __init__(self):
+        super().__init__(self)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "ucaslcl/GOT-OCR2_0", trust_remote_code=True
+        )
+        self.model = (
+            AutoModel.from_pretrained(
+                "ucaslcl/GOT-OCR2_0",
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                device_map="cuda",
+                use_safetensors=True,
+            )
+            .eval()
+            .cuda()
+        )
+
+    def forward(self, image) -> str:
+        res = self.model.chat(self.tokenizer, image, ocr_type="format", render=True)
+        return res
+
+
 TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
@@ -344,4 +374,5 @@ __all__ = [
     "GoogleSearchTool",
     "VisitWebpageTool",
     "SpeechToTextTool",
+    "PDFParsingTool",
 ]
