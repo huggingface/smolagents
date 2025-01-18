@@ -399,7 +399,16 @@ class MultiStepAgent:
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
-    def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
+    def execute_tool_call(
+        self, tool_name: str, arguments: Union[Dict[str, str], str]
+    ) -> Any:
+        """
+        Execute tool with the provided input and returns the result.
+        This method replaces arguments with the actual values from the state if they refer to state variables.
+        Args:
+            tool_name (`str`): Name of the Tool to execute (should be one from self.tools).
+            arguments (Dict[str, str]): Arguments passed to the Tool.
+        """
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
             error_msg = f"Unknown tool {tool_name}, should be instead one of {list(available_tools.keys())}."
