@@ -139,7 +139,7 @@ model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
-    "Improve this prompt, then generate an image of it.", prompt='A rabbit wearing a space suit'
+    "Improve this prompt, then generate an image of it.", additional_args={'user_prompt': 'A rabbit wearing a space suit'}
 )
 ```
 

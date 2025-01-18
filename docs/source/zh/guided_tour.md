@@ -97,6 +97,7 @@ model = LiteLLMModel(
     model_id="ollama_chat/llama3.2", # 这个模型对于 agent 行为来说有点弱
     api_base="http://localhost:11434", # 如果需要可以替换为远程 open-ai 兼容服务器
     api_key="YOUR_API_KEY" # 如果需要可以替换为 API key
+    num_ctx=8192 # https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
