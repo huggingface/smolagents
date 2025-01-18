@@ -21,6 +21,7 @@ import math
 import re
 from collections.abc import Mapping
 from importlib import import_module
+from importlib.util import find_spec
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -1530,6 +1531,11 @@ class LocalPythonInterpreter:
             **BASE_PYTHON_TOOLS.copy(),
         }
         # TODO: assert self.authorized imports are all installed locally
+        missing_modules = [imp for imp in self.authorized_imports if find_spec(imp) is None]
+        if missing_modules:
+            raise InterpreterError(
+                f"The authrorized modules {missing_modules} are not installed on this system.")
+
 
     def __call__(
         self, code_action: str, additional_variables: Dict

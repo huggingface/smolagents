@@ -23,6 +23,7 @@ from smolagents.local_python_executor import (
     InterpreterError,
     evaluate_python_code,
     fix_final_answer_code,
+    LocalPythonInterpreter,
 )
 
 
@@ -453,6 +454,19 @@ if char.isalpha():
         evaluate_python_code(code, authorized_imports=["*"], state={})
         with pytest.raises(InterpreterError):
             evaluate_python_code(code, authorized_imports=["random"], state={})
+
+    def test_uninstalled_imports(self):
+        assert LocalPythonInterpreter(additional_authorized_imports=["math"], tools={})
+        with pytest.raises(InterpreterError):
+            LocalPythonInterpreter(
+                additional_authorized_imports=["i_do_not_exist"],
+                tools={}
+            )
+        with pytest.raises(InterpreterError):
+            LocalPythonInterpreter(
+                additional_authorized_imports=["math", "i_do_not_exist", "os"],
+                tools={}
+            )
 
     def test_multiple_comparators(self):
         code = "0 <= -1 < 4 and 0 <= -5 < 4"
