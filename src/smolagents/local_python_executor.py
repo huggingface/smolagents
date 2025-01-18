@@ -1530,7 +1530,7 @@ class LocalPythonInterpreter:
             **tools,
             **BASE_PYTHON_TOOLS.copy(),
         }
-        # TODO: assert self.authorized imports are all installed locally
+        # assert self.authorized imports are all installed locally
         missing_modules = [imp for imp in self.authorized_imports if find_spec(imp) is None]
         if missing_modules:
             raise InterpreterError(
