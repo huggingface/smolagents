@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import time
 from dataclasses import dataclass
 from enum import IntEnum
@@ -758,6 +759,11 @@ class ToolCallingAgent(MultiStepAgent):
             tool_call = model_message.tool_calls[0]
             tool_name, tool_call_id = tool_call.function.name, tool_call.id
             tool_arguments = tool_call.function.arguments
+            if isinstance(tool_arguments, str):
+                try:
+                    tool_arguments = json.loads(tool_arguments)
+                except:
+                    pass # Keep the argument as a string if it's not valid JSON.
 
         except Exception as e:
             raise AgentGenerationError(f"Error in generating tool call with model:\n{e}")
