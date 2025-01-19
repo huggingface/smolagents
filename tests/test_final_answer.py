@@ -26,6 +26,7 @@ from smolagents.types import AGENT_TYPE_MAPPING
 
 from .test_tools import ToolTesterMixin
 
+
 if is_torch_available():
     import torch
 
@@ -45,11 +46,7 @@ class FinalAnswerToolTester(unittest.TestCase, ToolTesterMixin):
 
     def create_inputs(self):
         inputs_text = {"answer": "Text input"}
-        inputs_image = {
-            "answer": Image.open(
-                Path(get_tests_dir("fixtures")) / "000000039769.png"
-            ).resize((512, 512))
-        }
+        inputs_image = {"answer": Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png").resize((512, 512))}
         inputs_audio = {"answer": torch.Tensor(np.ones(3000))}
         return {"string": inputs_text, "image": inputs_image, "audio": inputs_audio}
 

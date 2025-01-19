@@ -19,7 +19,7 @@ rendered properly in your Markdown viewer.
 
 There's a world of difference between building an agent that works and one that doesn't.
 How can we build agents that fall into the latter category?
-In this guide, we're going to see best practices for building agents.
+In this guide, we're going to talk about best practices for building agents.
 
 > [!TIP]
 > If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
@@ -67,7 +67,7 @@ def get_weather_report_at_coordinates(coordinates, date_time):
     # Dummy function, returns a list of [temperature in °C, risk of rain on a scale 0-1, wave height in m]
     return [28.0, 0.35, 0.85]
 
-def get_coordinates_from_location(location):
+def convert_location_to_coordinates(location):
     # Returns dummy coordinates
     return [3.3, -42.0]
 

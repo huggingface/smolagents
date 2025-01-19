@@ -23,9 +23,10 @@ import os
 import sys
 import tempfile
 import textwrap
+from contextlib import contextmanager
 from functools import lru_cache, wraps
 from pathlib import Path
-from typing import Callable, Dict, Optional, Union, get_type_hints
+from typing import Callable, Dict, List, Optional, Union, get_type_hints
 
 from huggingface_hub import (
     create_repo,
@@ -49,6 +50,7 @@ from transformers.utils.chat_template_utils import _parse_type_hint
 from .tool_validation import MethodChecker, validate_tool_attributes
 from .types import ImageType, handle_agent_input_types, handle_agent_output_types
 from .utils import instance_to_source
+
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +77,7 @@ def get_repo_type(repo_id, repo_type=None, **hub_kwargs):
             hf_hub_download(repo_id, TOOL_CONFIG_FILE, repo_type="model", **hub_kwargs)
             return "model"
         except RepositoryNotFoundError:
-            raise EnvironmentError(
-                f"`{repo_id}` does not seem to be a valid repo identifier on the Hub."
-            )
+            raise EnvironmentError(f"`{repo_id}` does not seem to be a valid repo identifier on the Hub.")
         except Exception:
             return "model"
     except Exception:
@@ -107,9 +107,7 @@ def _convert_type_hints_to_json_schema(func: Callable) -> Dict:
                 properties[param_name]["nullable"] = True
     for param_name in signature.parameters.keys():
         if signature.parameters[param_name].default != inspect.Parameter.empty:
-            if (
-                param_name not in properties
-            ):  # this can happen if the param has no type hint but a default value
+            if param_name not in properties:  # this can happen if the param has no type hint but a default value
                 properties[param_name] = {"nullable": True}
     return properties
 
@@ -179,9 +177,7 @@ class Tool:
                     f"Attribute {attr} should have type {expected_type.__name__}, got {type(attr_value)} instead."
                 )
         for input_name, input_content in self.inputs.items():
-            assert isinstance(input_content, dict), (
-                f"Input '{input_name}' should be a dictionary."
-            )
+            assert isinstance(input_content, dict), f"Input '{input_name}' should be a dictionary."
             assert "type" in input_content and "description" in input_content, (
                 f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
             )
@@ -221,6 +217,16 @@ class Tool:
     def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
         if not self.is_initialized:
             self.setup()
+
+        # Handle the arguments might be passed as a single dictionary
+        if len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], dict):
+            potential_kwargs = args[0]
+
+            # If the dictionary keys match our input parameters, convert it to kwargs
+            if all(key in self.inputs for key in potential_kwargs):
+                args = ()
+                kwargs = potential_kwargs
+
         if sanitize_inputs_outputs:
             args, kwargs = handle_agent_input_types(*args, **kwargs)
         outputs = self.forward(*args, **kwargs)
@@ -265,7 +271,8 @@ class Tool:
                 raise (ValueError("\n".join(method_checker.errors)))
 
             forward_source_code = inspect.getsource(self.forward)
-            tool_code = textwrap.dedent(f"""
+            tool_code = textwrap.dedent(
+                f"""
             from smolagents import Tool
             from typing import Optional
 
@@ -274,7 +281,8 @@ class Tool:
                 description = "{self.description}"
                 inputs = {json.dumps(self.inputs, separators=(",", ":"))}
                 output_type = "{self.output_type}"
-            """).strip()
+            """
+            ).strip()
             import re
 
             def add_self_argument(source_code: str) -> str:
@@ -315,7 +323,8 @@ class Tool:
         app_file = os.path.join(output_dir, "app.py")
         with open(app_file, "w", encoding="utf-8") as f:
             f.write(
-                textwrap.dedent(f"""
+                textwrap.dedent(
+                    f"""
             from smolagents import launch_gradio_demo
             from typing import Optional
             from tool import {class_name}
@@ -323,7 +332,8 @@ class Tool:
             tool = {class_name}()
 
             launch_gradio_demo(tool)
-            """).lstrip()
+            """
+                ).lstrip()
             )
 
         # Save requirements file
@@ -332,15 +342,7 @@ class Tool:
         imports = []
         for module in [tool_file]:
             imports.extend(get_imports(module))
-        imports = list(
-            set(
-                [
-                    el
-                    for el in imports + ["smolagents"]
-                    if el not in sys.stdlib_module_names
-                ]
-            )
-        )
+        imports = list(set([el for el in imports + ["smolagents"] if el not in sys.stdlib_module_names]))
         with open(requirements_file, "w", encoding="utf-8") as f:
             f.write("\n".join(imports) + "\n")
 
@@ -394,9 +396,7 @@ class Tool:
             print(work_dir)
             with open(work_dir + "/tool.py", "r") as f:
                 print("\n".join(f.readlines()))
-            logger.info(
-                f"Uploading the following files to {repo_id}: {','.join(os.listdir(work_dir))}"
-            )
+            logger.info(f"Uploading the following files to {repo_id}: {','.join(os.listdir(work_dir))}")
             return upload_folder(
                 repo_id=repo_id,
                 commit_message=commit_message,
@@ -543,21 +543,21 @@ class Tool:
                 The Space, as a tool.
 
         Examples:
+        ```py
+        >>> image_generator = Tool.from_space(
+        ...     space_id="black-forest-labs/FLUX.1-schnell",
+        ...     name="image-generator",
+        ...     description="Generate an image from a prompt"
+        ... )
+        >>> image = image_generator("Generate an image of a cool surfer in Tahiti")
         ```
-        image_generator = Tool.from_space(
-            space_id="black-forest-labs/FLUX.1-schnell",
-            name="image-generator",
-            description="Generate an image from a prompt"
-        )
-        image = image_generator("Generate an image of a cool surfer in Tahiti")
-        ```
-        ```
-        face_swapper = Tool.from_space(
-            "tuan2308/face-swap",
-            "face_swapper",
-            "Tool that puts the face shown on the first image on the second image. You can give it paths to images.",
-        )
-        image = face_swapper('./aymeric.jpeg', './ruth.jpg')
+        ```py
+        >>> face_swapper = Tool.from_space(
+        ...     "tuan2308/face-swap",
+        ...     "face_swapper",
+        ...     "Tool that puts the face shown on the first image on the second image. You can give it paths to images.",
+        ... )
+        >>> image = face_swapper('./aymeric.jpeg', './ruth.jpg')
         ```
         """
         from gradio_client import Client, handle_file
@@ -576,9 +576,7 @@ class Tool:
                 self.name = name
                 self.description = description
                 self.client = Client(space_id, hf_token=token)
-                space_description = self.client.view_api(
-                    return_format="dict", print_info=False
-                )["named_endpoints"]
+                space_description = self.client.view_api(return_format="dict", print_info=False)["named_endpoints"]
 
                 # If api_name is not defined, take the first of the available APIs for this space
                 if api_name is None:
@@ -591,9 +589,7 @@ class Tool:
                 try:
                     space_description_api = space_description[api_name]
                 except KeyError:
-                    raise KeyError(
-                        f"Could not find specified {api_name=} among available api names."
-                    )
+                    raise KeyError(f"Could not find specified {api_name=} among available api names.")
 
                 self.inputs = {}
                 for parameter in space_description_api["parameters"]:
@@ -667,8 +663,7 @@ class Tool:
                 self._gradio_tool = _gradio_tool
                 func_args = list(inspect.signature(_gradio_tool.run).parameters.items())
                 self.inputs = {
-                    key: {"type": CONVERSION_DICT[value.annotation], "description": ""}
-                    for key, value in func_args
+                    key: {"type": CONVERSION_DICT[value.annotation], "description": ""} for key, value in func_args
                 }
                 self.forward = self._gradio_tool.run
 
@@ -710,9 +705,7 @@ DEFAULT_TOOL_DESCRIPTION_TEMPLATE = """
 """
 
 
-def get_tool_description_with_args(
-    tool: Tool, description_template: Optional[str] = None
-) -> str:
+def get_tool_description_with_args(tool: Tool, description_template: Optional[str] = None) -> str:
     if description_template is None:
         description_template = DEFAULT_TOOL_DESCRIPTION_TEMPLATE
     compiled_template = compile_jinja_template(description_template)
@@ -732,10 +725,7 @@ def compile_jinja_template(template):
         raise ImportError("template requires jinja2 to be installed.")
 
     if version.parse(jinja2.__version__) < version.parse("3.1.0"):
-        raise ImportError(
-            "template requires jinja2>=3.1.0 to be installed. Your version is "
-            f"{jinja2.__version__}."
-        )
+        raise ImportError(f"template requires jinja2>=3.1.0 to be installed. Your version is {jinja2.__version__}.")
 
     def raise_exception(message):
         raise TemplateError(message)
@@ -756,9 +746,7 @@ def launch_gradio_demo(tool: Tool):
     try:
         import gradio as gr
     except ImportError:
-        raise ImportError(
-            "Gradio should be installed in order to launch a gradio demo."
-        )
+        raise ImportError("Gradio should be installed in order to launch a gradio demo.")
 
     TYPE_TO_COMPONENT_CLASS_MAPPING = {
         "image": gr.Image,
@@ -775,9 +763,7 @@ def launch_gradio_demo(tool: Tool):
 
     gradio_inputs = []
     for input_name, input_details in tool.inputs.items():
-        input_gradio_component_class = TYPE_TO_COMPONENT_CLASS_MAPPING[
-            input_details["type"]
-        ]
+        input_gradio_component_class = TYPE_TO_COMPONENT_CLASS_MAPPING[input_details["type"]]
         new_component = input_gradio_component_class(label=input_name)
         gradio_inputs.append(new_component)
 
@@ -860,41 +846,99 @@ def add_description(description):
 
 class ToolCollection:
     """
-    Tool collections enable loading all Spaces from a collection in order to be added to the agent's toolbox.
+    Tool collections enable loading a collection of tools in the agent's toolbox.
 
-    > [!NOTE]
-    > Only Spaces will be fetched, so you can feel free to add models and datasets to your collection if you'd
-    > like for this collection to showcase them.
+    Collections can be loaded from a collection in the Hub or from an MCP server, see:
+    - [`ToolCollection.from_hub`]
+    - [`ToolCollection.from_mcp`]
 
-    Args:
-        collection_slug (str):
-            The collection slug referencing the collection.
-        token (str, *optional*):
-            The authentication token if the collection is private.
-
-    Example:
-
-    ```py
-    >>> from transformers import ToolCollection, CodeAgent
-
-    >>> image_tool_collection = ToolCollection(collection_slug="huggingface-tools/diffusion-tools-6630bb19a942c2306a2cdb6f")
-    >>> agent = CodeAgent(tools=[*image_tool_collection.tools], add_base_tools=True)
-
-    >>> agent.run("Please draw me a picture of rivers and lakes.")
-    ```
+    For example and usage, see: [`ToolCollection.from_hub`] and [`ToolCollection.from_mcp`]
     """
 
-    def __init__(
-        self, collection_slug: str, token: Optional[str] = None, trust_remote_code=False
-    ):
-        self._collection = get_collection(collection_slug, token=token)
-        self._hub_repo_ids = {
-            item.item_id for item in self._collection.items if item.item_type == "space"
-        }
-        self.tools = {
-            Tool.from_hub(repo_id, token, trust_remote_code)
-            for repo_id in self._hub_repo_ids
-        }
+    def __init__(self, tools: List[Tool]):
+        self.tools = tools
+
+    @classmethod
+    def from_hub(
+        cls,
+        collection_slug: str,
+        token: Optional[str] = None,
+        trust_remote_code: bool = False,
+    ) -> "ToolCollection":
+        """Loads a tool collection from the Hub.
+
+        it adds a collection of tools from all Spaces in the collection to the agent's toolbox
+
+        > [!NOTE]
+        > Only Spaces will be fetched, so you can feel free to add models and datasets to your collection if you'd
+        > like for this collection to showcase them.
+
+        Args:
+            collection_slug (str): The collection slug referencing the collection.
+            token (str, *optional*): The authentication token if the collection is private.
+            trust_remote_code (bool, *optional*, defaults to False): Whether to trust the remote code.
+
+        Returns:
+            ToolCollection: A tool collection instance loaded with the tools.
+
+        Example:
+        ```py
+        >>> from smolagents import ToolCollection, CodeAgent
+
+        >>> image_tool_collection = ToolCollection.from_hub("huggingface-tools/diffusion-tools-6630bb19a942c2306a2cdb6f")
+        >>> agent = CodeAgent(tools=[*image_tool_collection.tools], add_base_tools=True)
+
+        >>> agent.run("Please draw me a picture of rivers and lakes.")
+        ```
+        """
+        _collection = get_collection(collection_slug, token=token)
+        _hub_repo_ids = {item.item_id for item in _collection.items if item.item_type == "space"}
+
+        tools = {Tool.from_hub(repo_id, token, trust_remote_code) for repo_id in _hub_repo_ids}
+
+        return cls(tools)
+
+    @classmethod
+    @contextmanager
+    def from_mcp(cls, server_parameters) -> "ToolCollection":
+        """Automatically load a tool collection from an MCP server.
+
+        Note: a separate thread will be spawned to run an asyncio event loop handling
+        the MCP server.
+
+        Args:
+            server_parameters (mcp.StdioServerParameters): The server parameters to use to
+            connect to the MCP server.
+
+        Returns:
+            ToolCollection: A tool collection instance.
+
+        Example:
+        ```py
+        >>> from smolagents import ToolCollection, CodeAgent
+        >>> from mcp import StdioServerParameters
+
+        >>> server_parameters = StdioServerParameters(
+        >>>     command="uv",
+        >>>     args=["--quiet", "pubmedmcp@0.1.3"],
+        >>>     env={"UV_PYTHON": "3.12", **os.environ},
+        >>> )
+
+        >>> with ToolCollection.from_mcp(server_parameters) as tool_collection:
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+        >>>     agent.run("Please find a remedy for hangover.")
+        ```
+        """
+        try:
+            from mcpadapt.core import MCPAdapt
+            from mcpadapt.smolagents_adapter import SmolAgentsAdapter
+        except ImportError:
+            raise ImportError(
+                """Please install 'mcp' extra to use ToolCollection.from_mcp: `pip install "smolagents[mcp]"`."""
+            )
+
+        with MCPAdapt(server_parameters, SmolAgentsAdapter()) as tools:
+            yield cls(tools)
 
 
 def tool(tool_function: Callable) -> Tool:
@@ -907,9 +951,7 @@ def tool(tool_function: Callable) -> Tool:
     """
     parameters = get_json_schema(tool_function)["function"]
     if "return" not in parameters:
-        raise TypeHintParsingException(
-            "Tool return type not found: make sure your function has a return type hint!"
-        )
+        raise TypeHintParsingException("Tool return type not found: make sure your function has a return type hint!")
 
     class SimpleTool(Tool):
         def __init__(self, name, description, inputs, output_type, function):
@@ -928,9 +970,9 @@ def tool(tool_function: Callable) -> Tool:
         function=tool_function,
     )
     original_signature = inspect.signature(tool_function)
-    new_parameters = [
-        inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)
-    ] + list(original_signature.parameters.values())
+    new_parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)] + list(
+        original_signature.parameters.values()
+    )
     new_signature = original_signature.replace(parameters=new_parameters)
     simple_tool.forward.__signature__ = new_signature
     return simple_tool
@@ -1003,9 +1045,7 @@ class PipelineTool(Tool):
 
         if model is None:
             if self.default_checkpoint is None:
-                raise ValueError(
-                    "This tool does not implement a default checkpoint, you need to pass one."
-                )
+                raise ValueError("This tool does not implement a default checkpoint, you need to pass one.")
             model = self.default_checkpoint
         if pre_processor is None:
             pre_processor = model
@@ -1028,21 +1068,15 @@ class PipelineTool(Tool):
         Instantiates the `pre_processor`, `model` and `post_processor` if necessary.
         """
         if isinstance(self.pre_processor, str):
-            self.pre_processor = self.pre_processor_class.from_pretrained(
-                self.pre_processor, **self.hub_kwargs
-            )
+            self.pre_processor = self.pre_processor_class.from_pretrained(self.pre_processor, **self.hub_kwargs)
 
         if isinstance(self.model, str):
-            self.model = self.model_class.from_pretrained(
-                self.model, **self.model_kwargs, **self.hub_kwargs
-            )
+            self.model = self.model_class.from_pretrained(self.model, **self.model_kwargs, **self.hub_kwargs)
 
         if self.post_processor is None:
             self.post_processor = self.pre_processor
         elif isinstance(self.post_processor, str):
-            self.post_processor = self.post_processor_class.from_pretrained(
-                self.post_processor, **self.hub_kwargs
-            )
+            self.post_processor = self.post_processor_class.from_pretrained(self.post_processor, **self.hub_kwargs)
 
         if self.device is None:
             if self.device_map is not None:
@@ -1086,12 +1120,8 @@ class PipelineTool(Tool):
 
         encoded_inputs = self.encode(*args, **kwargs)
 
-        tensor_inputs = {
-            k: v for k, v in encoded_inputs.items() if isinstance(v, torch.Tensor)
-        }
-        non_tensor_inputs = {
-            k: v for k, v in encoded_inputs.items() if not isinstance(v, torch.Tensor)
-        }
+        tensor_inputs = {k: v for k, v in encoded_inputs.items() if isinstance(v, torch.Tensor)}
+        non_tensor_inputs = {k: v for k, v in encoded_inputs.items() if not isinstance(v, torch.Tensor)}
 
         encoded_inputs = send_to_device(tensor_inputs, self.device)
         outputs = self.forward({**encoded_inputs, **non_tensor_inputs})

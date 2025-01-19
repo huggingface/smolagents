@@ -12,10 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import unittest
 from typing import Optional
 
-from smolagents import models, tool
+from smolagents import ChatMessage, HfApiModel, TransformersModel, models, tool
 
 
 class ModelTests(unittest.TestCase):
@@ -32,9 +33,25 @@ class ModelTests(unittest.TestCase):
             """
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
-        assert (
-            "nullable"
-            in models.get_json_schema(get_weather)["function"]["parameters"][
-                "properties"
-            ]["celsius"]
+        assert "nullable" in models.get_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
+
+    def test_chatmessage_has_model_dumps_json(self):
+        message = ChatMessage("user", "Hello!")
+        data = json.loads(message.model_dump_json())
+        assert data["content"] == "Hello!"
+
+    def test_get_hfapi_message_no_tool(self):
+        model = HfApiModel(max_tokens=10)
+        messages = [{"role": "user", "content": "Hello!"}]
+        model(messages, stop_sequences=["great"])
+
+    def test_transformers_message_no_tool(self):
+        model = TransformersModel(
+            model_id="HuggingFaceTB/SmolLM2-135M-Instruct",
+            max_new_tokens=5,
+            device_map="auto",
+            do_sample=False,
         )
+        messages = [{"role": "user", "content": "Hello!"}]
+        output = model(messages, stop_sequences=["great"]).content
+        assert output == "assistant\nHello"

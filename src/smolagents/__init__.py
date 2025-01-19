@@ -14,12 +14,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__version__ = "1.3.0.dev"
+__version__ = "1.4.0.dev"
 
 from typing import TYPE_CHECKING
 
 from transformers.utils import _LazyModule
 from transformers.utils.import_utils import define_import_structure
+
 
 if TYPE_CHECKING:
     from .agents import *

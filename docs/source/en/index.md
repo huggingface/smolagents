@@ -15,6 +15,10 @@ rendered properly in your Markdown viewer.
 
 # `smolagents`
 
+<div class="flex justify-center">
+    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/license_to_call.png" width=100%/>
+</div>
+
 This library is the simplest framework out there to build powerful agents! By the way, wtf are "agents"? We provide our definition [in this page](conceptual_guides/intro_agents), where you'll also find tips for when to use them or not (spoilers: you'll often be better off without agents).
 
 This library offers:

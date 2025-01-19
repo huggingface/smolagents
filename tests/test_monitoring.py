@@ -22,10 +22,10 @@ from smolagents import (
     ToolCallingAgent,
     stream_to_gradio,
 )
-from huggingface_hub import (
-    ChatCompletionOutputMessage,
-    ChatCompletionOutputToolCall,
-    ChatCompletionOutputFunctionDefinition,
+from smolagents.models import (
+    ChatMessage,
+    ChatMessageToolCall,
+    ChatMessageToolCallDefinition,
 )
 
 
@@ -36,21 +36,19 @@ class FakeLLMModel:
 
     def __call__(self, prompt, tools_to_call_from=None, **kwargs):
         if tools_to_call_from is not None:
-            return ChatCompletionOutputMessage(
+            return ChatMessage(
                 role="assistant",
                 content="",
                 tool_calls=[
-                    ChatCompletionOutputToolCall(
+                    ChatMessageToolCall(
                         id="fake_id",
                         type="function",
-                        function=ChatCompletionOutputFunctionDefinition(
-                            name="final_answer", arguments={"answer": "image"}
-                        ),
+                        function=ChatMessageToolCallDefinition(name="final_answer", arguments={"answer": "image"}),
                     )
                 ],
             )
         else:
-            return ChatCompletionOutputMessage(
+            return ChatMessage(
                 role="assistant",
                 content="""
 Code:
@@ -91,9 +89,7 @@ class MonitoringTester(unittest.TestCase):
                 self.last_output_token_count = 20
 
             def __call__(self, prompt, **kwargs):
-                return ChatCompletionOutputMessage(
-                    role="assistant", content="Malformed answer"
-                )
+                return ChatMessage(role="assistant", content="Malformed answer")
 
         agent = CodeAgent(
             tools=[],
@@ -124,9 +120,7 @@ class MonitoringTester(unittest.TestCase):
         )
         agent.run("Fake task")
 
-        self.assertEqual(
-            agent.monitor.total_input_token_count, 20
-        )  # Should have done two monitoring callbacks
+        self.assertEqual(agent.monitor.total_input_token_count, 20)  # Should have done two monitoring callbacks
         self.assertEqual(agent.monitor.total_output_token_count, 0)
 
     def test_streaming_agent_text_output(self):

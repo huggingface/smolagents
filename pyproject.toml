@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.3.0.dev"
+version = "1.4.0.dev"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" }, { name="Thomas Wolf"},
@@ -23,30 +23,55 @@ dependencies = [
   "duckduckgo-search>=6.3.7",
   "python-dotenv>=1.0.1",
   "e2b-code-interpreter>=1.0.3",
-  "openai>=1.58.1",
 ]
-
-[tool.ruff]
-lint.ignore = ["F403"]
 
 [project.optional-dependencies]
-dev = [
-  "torch",
-  "torchaudio",
-  "torchvision",
-  "sqlalchemy",
-  "accelerate",
+audio = [
   "soundfile",
+]
+torch = [
+  "torch",
+  "accelerate",
+]
+litellm = [
   "litellm>=1.55.10",
+]
+mcp = [
+  "mcpadapt>=0.0.6",
+  "mcp",
+]
+openai = [
+  "openai>=1.58.1"
+]
+quality = [
+  "ruff>=0.9.0",
 ]
 test = [
-  "torch",
-  "torchaudio",
-  "torchvision",
   "pytest>=8.1.0",
-  "sqlalchemy",
-  "ruff>=0.5.0",
-  "accelerate",
-  "soundfile",
-  "litellm>=1.55.10",
+  "smolagents[audio,litellm,mcp,openai,torch]",
 ]
+dev = [
+  "smolagents[quality,test]",
+  "sqlalchemy", # for ./examples
+]
+
+[tool.pytest.ini_options]
+# Add the specified `OPTS` to the set of command line arguments as if they had been specified by the user.
+addopts = "-sv --durations=0"
+
+[tool.ruff]
+line-length = 119
+lint.ignore = [
+  "F403", # undefined-local-with-import-star
+  "E501", # line-too-long
+]
+lint.select = ["E", "F", "I", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*" = [
+  "E402", # module-import-not-at-top-of-file
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["smolagents"]
+lines-after-imports = 2

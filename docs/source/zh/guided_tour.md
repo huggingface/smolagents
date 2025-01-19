@@ -97,6 +97,7 @@ model = LiteLLMModel(
     model_id="ollama_chat/llama3.2", # 这个模型对于 agent 行为来说有点弱
     api_base="http://localhost:11434", # 如果需要可以替换为远程 open-ai 兼容服务器
     api_key="YOUR_API_KEY" # 如果需要可以替换为 API key
+    num_ctx=8192 # https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
@@ -173,9 +174,9 @@ Transformers 附带了一个用于增强 agent 的默认工具箱，您可以在
 您可以通过调用 [`load_tool`] 函数和要执行的任务手动使用工具。
 
 ```python
-from smolagents import load_tool
+from smolagents import DuckDuckGoSearchTool
 
-search_tool = load_tool("web_search")
+search_tool = DuckDuckGoSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 

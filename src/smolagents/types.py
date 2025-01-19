@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib.util
 import logging
 import os
 import pathlib
@@ -25,7 +26,7 @@ from transformers.utils import (
     is_torch_available,
     is_vision_available,
 )
-from transformers.utils.import_utils import _is_package_available
+
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +41,6 @@ if is_torch_available():
     from torch import Tensor
 else:
     Tensor = object
-
-if _is_package_available("soundfile"):
-    import soundfile as sf
 
 
 class AgentType:
@@ -116,9 +114,7 @@ class AgentImage(AgentType, ImageType):
         elif isinstance(value, np.ndarray):
             self._tensor = torch.from_numpy(value)
         else:
-            raise TypeError(
-                f"Unsupported type for {self.__class__.__name__}: {type(value)}"
-            )
+            raise TypeError(f"Unsupported type for {self.__class__.__name__}: {type(value)}")
 
     def _ipython_display_(self, include=None, exclude=None):
         """
@@ -187,10 +183,11 @@ class AgentAudio(AgentType, str):
     """
 
     def __init__(self, value, samplerate=16_000):
+        if importlib.util.find_spec("soundfile") is None:
+            raise ModuleNotFoundError(
+                "Please install 'audio' extra to use AgentAudio: `pip install 'smolagents[audio]'`"
+            )
         super().__init__(value)
-
-        if not _is_package_available("soundfile"):
-            raise ImportError("soundfile must be installed in order to handle audio.")
 
         self._path = None
         self._tensor = None
@@ -221,6 +218,8 @@ class AgentAudio(AgentType, str):
         """
         Returns the "raw" version of that object. It is a `torch.Tensor` object.
         """
+        import soundfile as sf
+
         if self._tensor is not None:
             return self._tensor
 
@@ -239,6 +238,8 @@ class AgentAudio(AgentType, str):
         Returns the stringified version of that object. In the case of an AgentAudio, it is a path to the serialized
         version of the audio.
         """
+        import soundfile as sf
+
         if self._path is not None:
             return self._path
 
@@ -262,9 +263,7 @@ if is_torch_available():
 
 def handle_agent_input_types(*args, **kwargs):
     args = [(arg.to_raw() if isinstance(arg, AgentType) else arg) for arg in args]
-    kwargs = {
-        k: (v.to_raw() if isinstance(v, AgentType) else v) for k, v in kwargs.items()
-    }
+    kwargs = {k: (v.to_raw() if isinstance(v, AgentType) else v) for k, v in kwargs.items()}
     return args, kwargs
 
 
@@ -277,9 +276,7 @@ def handle_agent_output_types(output, output_type=None):
         # If the class does not have defined output, then we map according to the type
         for _k, _v in INSTANCE_TYPE_MAPPING.items():
             if isinstance(output, _k):
-                if (
-                    _k is not object
-                ):  # avoid converting to audio if torch is not installed
+                if _k is not object:  # avoid converting to audio if torch is not installed
                     return _v(output)
         return output
 

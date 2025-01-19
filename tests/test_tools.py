@@ -14,20 +14,24 @@
 # limitations under the License.
 import unittest
 from pathlib import Path
+from textwrap import dedent
 from typing import Dict, Optional, Union
+from unittest.mock import MagicMock, patch
 
+import mcp
 import numpy as np
 import pytest
 from transformers import is_torch_available, is_vision_available
 from transformers.testing_utils import get_tests_dir
 
-from smolagents.tools import AUTHORIZED_TYPES, Tool, tool
+from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
 from smolagents.types import (
     AGENT_TYPE_MAPPING,
     AgentAudio,
     AgentImage,
     AgentText,
 )
+
 
 if is_torch_available():
     import torch
@@ -45,9 +49,7 @@ def create_inputs(tool_inputs: Dict[str, Dict[Union[str, type], str]]):
         if input_type == "string":
             inputs[input_name] = "Text input"
         elif input_type == "image":
-            inputs[input_name] = Image.open(
-                Path(get_tests_dir("fixtures")) / "000000039769.png"
-            ).resize((512, 512))
+            inputs[input_name] = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png").resize((512, 512))
         elif input_type == "audio":
             inputs[input_name] = np.ones(3000)
         else:
@@ -221,9 +223,7 @@ class ToolTests(unittest.TestCase):
         class FailTool(Tool):
             name = "specific"
             description = "test description"
-            inputs = {
-                "string_input": {"type": "string", "description": "input description"}
-            }
+            inputs = {"string_input": {"type": "string", "description": "input description"}}
             output_type = "string"
 
             def __init__(self, url):
@@ -245,9 +245,7 @@ class ToolTests(unittest.TestCase):
         class FailTool(Tool):
             name = "specific"
             description = "test description"
-            inputs = {
-                "string_input": {"type": "string", "description": "input description"}
-            }
+            inputs = {"string_input": {"type": "string", "description": "input description"}}
             output_type = "string"
 
             def useless_method(self):
@@ -266,9 +264,7 @@ class ToolTests(unittest.TestCase):
         class SuccessTool(Tool):
             name = "specific"
             description = "test description"
-            inputs = {
-                "string_input": {"type": "string", "description": "input description"}
-            }
+            inputs = {"string_input": {"type": "string", "description": "input description"}}
             output_type = "string"
 
             def useless_method(self):
@@ -297,9 +293,7 @@ class ToolTests(unittest.TestCase):
                     },
                 }
 
-                def forward(
-                    self, location: str, celsius: Optional[bool] = False
-                ) -> str:
+                def forward(self, location: str, celsius: Optional[bool] = False) -> str:
                     return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
             GetWeatherTool()
@@ -337,9 +331,7 @@ class ToolTests(unittest.TestCase):
                 }
                 output_type = "string"
 
-                def forward(
-                    self, location: str, celsius: Optional[bool] = False
-                ) -> str:
+                def forward(self, location: str, celsius: Optional[bool] = False) -> str:
                     return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
             GetWeatherTool()
@@ -385,3 +377,55 @@ class ToolTests(unittest.TestCase):
 
             GetWeatherTool3()
         assert "Nullable" in str(e)
+
+
+@pytest.fixture
+def mock_server_parameters():
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_mcp_adapt():
+    with patch("mcpadapt.core.MCPAdapt") as mock:
+        mock.return_value.__enter__.return_value = ["tool1", "tool2"]
+        mock.return_value.__exit__.return_value = None
+        yield mock
+
+
+@pytest.fixture
+def mock_smolagents_adapter():
+    with patch("mcpadapt.smolagents_adapter.SmolAgentsAdapter") as mock:
+        yield mock
+
+
+class TestToolCollection:
+    def test_from_mcp(self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter):
+        with ToolCollection.from_mcp(mock_server_parameters) as tool_collection:
+            assert isinstance(tool_collection, ToolCollection)
+            assert len(tool_collection.tools) == 2
+            assert "tool1" in tool_collection.tools
+            assert "tool2" in tool_collection.tools
+
+    def test_integration_from_mcp(self):
+        # define the most simple mcp server with one tool that echoes the input text
+        mcp_server_script = dedent("""\
+            from mcp.server.fastmcp import FastMCP
+
+            mcp = FastMCP("Echo Server")
+
+            @mcp.tool()
+            def echo_tool(text: str) -> str:
+                return text
+
+            mcp.run()
+        """).strip()
+
+        mcp_server_params = mcp.StdioServerParameters(
+            command="python",
+            args=["-c", mcp_server_script],
+        )
+
+        with ToolCollection.from_mcp(mcp_server_params) as tool_collection:
+            assert len(tool_collection.tools) == 1, "Expected 1 tool"
+            assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
+            assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
