@@ -604,6 +604,8 @@ def evaluate_call(
             # cap the number of lines
             return None
         else:  # Assume it's a callable object
+            if (func in [eval, compile, exec]) and (func not in static_tools.values()):
+                raise InterpreterError(f"Invoking eval, compile or exec is not allowed ({func_name}).")
             return func(*args, **kwargs)
 
 

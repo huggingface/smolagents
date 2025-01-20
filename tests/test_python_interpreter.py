@@ -905,3 +905,34 @@ shift_intervals
         assert "Maybe you meant one of these indexes instead" in str(
             e
         ) and "['Bhutan']" in str(e).replace("\\", "")
+
+    def test_dangerous_builtins_calls_are_blocked(self):
+        unsafe_code = "import os"
+        dangerous_code = f"""
+exec = callable.__self__.exec
+compile = callable.__self__.compile
+exec(compile('{unsafe_code}', 'no filename', 'exec'))
+"""
+
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(unsafe_code, static_tools=BASE_PYTHON_TOOLS)
+
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(dangerous_code, static_tools=BASE_PYTHON_TOOLS)
+
+    def test_dangerous_builtins_are_callable_if_explicitly_added(self):
+        dangerous_code = """
+compile = callable.__self__.compile
+eval = callable.__self__.eval
+exec = callable.__self__.exec
+
+eval("1 + 1")
+exec(compile("1 + 1", "no filename", "exec"))
+
+teval("1 + 1")
+texec(tcompile("1 + 1", "no filename", "exec"))
+        """
+
+        evaluate_python_code(
+            dangerous_code, static_tools={"tcompile": compile, "teval": eval, "texec": exec} | BASE_PYTHON_TOOLS
+        )
