@@ -46,7 +46,7 @@ from ._transformers_utils import (
 )
 from .tool_validation import MethodChecker, validate_tool_attributes
 from .types import handle_agent_input_types, handle_agent_output_types
-from .utils import _is_package_available, _is_pillow_available, instance_to_source
+from .utils import _is_package_available, _is_pillow_available, get_source, instance_to_source
 
 
 logger = logging.getLogger(__name__)
@@ -229,8 +229,8 @@ class Tool:
         # Save tool file
         if type(self).__name__ == "SimpleTool":
             # Check that imports are self-contained
-            source_code = inspect.getsource(self.forward).replace("@tool", "")
-            forward_node = ast.parse(textwrap.dedent(source_code))
+            source_code = get_source(self.forward).replace("@tool", "")
+            forward_node = ast.parse(source_code)
             # If tool was created using '@tool' decorator, it has only a forward pass, so it's simpler to just get its code
             method_checker = MethodChecker(set())
             method_checker.visit(forward_node)
@@ -238,7 +238,7 @@ class Tool:
             if len(method_checker.errors) > 0:
                 raise (ValueError("\n".join(method_checker.errors)))
 
-            forward_source_code = inspect.getsource(self.forward)
+            forward_source_code = get_source(self.forward)
             tool_code = textwrap.dedent(
                 f"""
             from smolagents import Tool

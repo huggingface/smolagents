@@ -12,11 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
+import textwrap
 import unittest
 
 import pytest
+from IPython.core.interactiveshell import InteractiveShell
 
-from smolagents.utils import parse_code_blobs
+from smolagents.utils import get_source, parse_code_blobs
 
 
 class AgentTextTests(unittest.TestCase):
@@ -58,3 +61,57 @@ def multiply(a, b):
     return a * b"""
         result = parse_code_blobs(test_input)
         assert result == expected_output
+
+
+@pytest.mark.parametrize(
+    "obj_name, code_blob",
+    [
+        ("test_func", "def test_func():\n    return 42"),
+        ("TestClass", "class TestClass:\n    ..."),
+    ],
+)
+def test_get_source_ipython(obj_name, code_blob):
+    shell = InteractiveShell.instance()
+    test_code = textwrap.dedent(code_blob).strip()
+    shell.user_ns["In"] = ["", test_code]
+    exec(test_code)
+    assert get_source(locals()[obj_name]) == code_blob
+
+
+def test_get_source_standard_class():
+    class TestClass: ...
+
+    source = get_source(TestClass)
+    assert source == "class TestClass: ..."
+    assert source == textwrap.dedent(inspect.getsource(TestClass)).strip()
+
+
+def test_get_source_standard_function():
+    def test_func(): ...
+
+    source = get_source(test_func)
+    assert source == "def test_func(): ..."
+    assert source == textwrap.dedent(inspect.getsource(test_func)).strip()
+
+
+def test_get_source_ipython_errors_empty_cells():
+    shell = InteractiveShell.instance()
+    test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
+    shell.user_ns["In"] = [""]
+    exec(test_code)
+    with pytest.raises(ValueError, match="No code cells found in IPython session"):
+        get_source(locals()["TestClass"])
+
+
+def test_get_source_ipython_errors_definition_not_found():
+    shell = InteractiveShell.instance()
+    test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
+    shell.user_ns["In"] = ["", "print('No class definition here')"]
+    exec(test_code)
+    with pytest.raises(ValueError, match="Could not find source code for TestClass in IPython history"):
+        get_source(locals()["TestClass"])
+
+
+def test_get_source_ipython_errors_type_error():
+    with pytest.raises(TypeError, match="Expected class or callable"):
+        get_source(None)

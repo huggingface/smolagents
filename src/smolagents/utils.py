@@ -20,6 +20,7 @@ import importlib.util
 import inspect
 import json
 import re
+import textwrap
 import types
 from functools import lru_cache
 from typing import Dict, Tuple, Union
@@ -204,7 +205,7 @@ def get_method_source(method):
     """Get source code for a method, including bound methods."""
     if isinstance(method, types.MethodType):
         method = method.__func__
-    return inspect.getsource(method).strip()
+    return get_source(method)
 
 
 def is_same_method(method1, method2):
@@ -278,7 +279,7 @@ def instance_to_source(instance, base_cls=None):
     }
 
     for name, method in methods.items():
-        method_source = inspect.getsource(method)
+        method_source = get_source(method)
         # Clean up the indentation
         method_lines = method_source.split("\n")
         first_line = method_lines[0]
@@ -311,6 +312,58 @@ def instance_to_source(instance, base_cls=None):
     final_lines.extend(class_lines)
 
     return "\n".join(final_lines)
+
+
+def get_source(obj) -> str:
+    """Get the source code of a class or callable object (e.g.: function, method).
+    First attempts to get the source code using `inspect.getsource`.
+    In a dynamic environment (e.g.: Jupyter, IPython), if this fails,
+    falls back to retrieving the source code from the current interactive shell session.
+
+    Args:
+        obj: A class or callable object (e.g.: function, method)
+
+    Returns:
+        str: The source code of the object, dedented and stripped
+
+    Raises:
+        TypeError: If object is not a class or callable
+        OSError: If source code cannot be retrieved from any source
+        ValueError: If source cannot be found in IPython history
+
+    Note:
+        TODO: handle Python standard REPL
+    """
+    if not (isinstance(obj, type) or callable(obj)):
+        raise TypeError(f"Expected class or callable, got {type(obj)}")
+
+    inspect_error = None
+    try:
+        return textwrap.dedent(inspect.getsource(obj)).strip()
+    except OSError as e:
+        # let's keep track of the exception to raise it if all further methods fail
+        inspect_error = e
+    try:
+        import IPython
+
+        shell = IPython.get_ipython()
+        if not shell:
+            raise ImportError("No active IPython shell found")
+        all_cells = "\n".join(shell.user_ns.get("In", [])).strip()
+        if not all_cells:
+            raise ValueError("No code cells found in IPython session")
+
+        tree = ast.parse(all_cells)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name == obj.__name__:
+                return textwrap.dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
+        raise ValueError(f"Could not find source code for {obj.__name__} in IPython history")
+    except ImportError:
+        # IPython is not available, let's just raise the original inspect error
+        raise inspect_error
+    except ValueError as e:
+        # IPython is available but we couldn't find the source code, let's raise the error
+        raise e from inspect_error
 
 
 __all__ = ["AgentError"]
