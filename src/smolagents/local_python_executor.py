@@ -554,7 +554,7 @@ def evaluate_call(
             func = ERRORS[func_name]
         else:
             raise InterpreterError(
-                f"It is not permitted to evaluate other functions than the provided tools or functions defined in previous code (tried to execute {call.func.id})."
+                f"It is not permitted to evaluate other functions than the provided tools or functions defined/imported in previous code (tried to execute {call.func.id})."
             )
 
     elif isinstance(call.func, ast.Subscript):
@@ -1247,7 +1247,16 @@ def evaluate_python_code(
             updated by this function to contain all variables as they are evaluated.
             The print outputs will be stored in the state under the key 'print_outputs'.
     """
-    expression = ast.parse(code)
+    try:
+        expression = ast.parse(code)
+    except SyntaxError as e:
+        raise InterpreterError(
+            f"Code execution failed on line {e.lineno} due to: {type(e).__name__}\n"
+            f"{e.text}"
+            f"{' ' * (e.offset or 0)}^\n"
+            f"Error: {str(e)}"
+        )
+
     if state is None:
         state = {}
     if static_tools is None:
@@ -1275,10 +1284,13 @@ def evaluate_python_code(
         state["print_outputs"] = truncate_content(PRINT_OUTPUTS, max_length=max_print_outputs_length)
         is_final_answer = True
         return e.value, is_final_answer
-    except InterpreterError as e:
-        msg = truncate_content(PRINT_OUTPUTS, max_length=max_print_outputs_length)
-        msg += f"Code execution failed at line '{ast.get_source_segment(code, node)}' because of the following error:\n{e}"
-        raise InterpreterError(msg)
+    except Exception as e:
+        exception_type = type(e).__name__
+        error_msg = truncate_content(PRINT_OUTPUTS, max_length=max_print_outputs_length)
+        error_msg = (
+            f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {exception_type}:{str(e)}"
+        )
+        raise InterpreterError(error_msg)
 
 
 class LocalPythonInterpreter:

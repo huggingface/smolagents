@@ -168,7 +168,9 @@ class Tool:
                     "Tool's 'forward' method should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
                 )
 
-            json_schema = _convert_type_hints_to_json_schema(self.forward)
+            json_schema = _convert_type_hints_to_json_schema(
+                self.forward
+            )  # This function will raise an error on missing docstrings, contrary to get_json_schema
             for key, value in self.inputs.items():
                 if "nullable" in value:
                     assert key in json_schema and "nullable" in json_schema[key], (
@@ -885,6 +887,16 @@ class ToolCollection:
             yield cls(tools)
 
 
+def get_tool_json_schema(tool_function):
+    tool_json_schema = get_json_schema(tool_function)["function"]
+    tool_parameters = tool_json_schema["parameters"]
+    inputs_schema = tool_parameters["properties"]
+    for input_name in inputs_schema:
+        if "required" not in tool_parameters or input_name not in tool_parameters["required"]:
+            inputs_schema[input_name]["nullable"] = True
+    return tool_json_schema
+
+
 def tool(tool_function: Callable) -> Tool:
     """
     Converts a function into an instance of a Tool subclass.
@@ -893,12 +905,19 @@ def tool(tool_function: Callable) -> Tool:
         tool_function: Your function. Should have type hints for each input and a type hint for the output.
         Should also have a docstring description including an 'Args:' part where each argument is described.
     """
-    parameters = get_json_schema(tool_function)["function"]
-    if "return" not in parameters:
+    tool_json_schema = get_tool_json_schema(tool_function)
+    if "return" not in tool_json_schema:
         raise TypeHintParsingException("Tool return type not found: make sure your function has a return type hint!")
 
     class SimpleTool(Tool):
-        def __init__(self, name, description, inputs, output_type, function):
+        def __init__(
+            self,
+            name: str,
+            description: str,
+            inputs: Dict[str, Dict[str, str]],
+            output_type: str,
+            function: Callable,
+        ):
             self.name = name
             self.description = description
             self.inputs = inputs
@@ -907,10 +926,10 @@ def tool(tool_function: Callable) -> Tool:
             self.is_initialized = True
 
     simple_tool = SimpleTool(
-        parameters["name"],
-        parameters["description"],
-        parameters["parameters"]["properties"],
-        parameters["return"]["type"],
+        name=tool_json_schema["name"],
+        description=tool_json_schema["description"],
+        inputs=tool_json_schema["parameters"]["properties"],
+        output_type=tool_json_schema["return"]["type"],
         function=tool_function,
     )
     original_signature = inspect.signature(tool_function)

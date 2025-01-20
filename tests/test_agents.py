@@ -332,7 +332,7 @@ class AgentTests(unittest.TestCase):
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, AgentText)
         assert output == "got an error"
-        assert "Code execution failed at line 'print = 2' because of" in str(agent.logs)
+        assert "Code execution failed at line 'print = 2' due to: InterpreterError" in str(agent.logs)
 
     def test_code_agent_syntax_error_show_offending_lines(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_syntax_error)
@@ -426,7 +426,7 @@ class AgentTests(unittest.TestCase):
         with console.capture() as capture:
             agent.run("Count to 3")
         str_output = capture.get()
-        assert "import under `additional_authorized_imports`" in str_output
+        assert "Consider passing said import under" in str_output.replace("\n", "")
 
     def test_multiagents(self):
         class FakeModelMultiagentsManagerAgent:

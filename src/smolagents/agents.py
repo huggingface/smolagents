@@ -972,16 +972,8 @@ class CodeAgent(MultiStepAgent):
                 ]
             observation += "Execution logs:\n" + execution_logs
         except Exception as e:
-            if isinstance(e, SyntaxError):
-                error_msg = (
-                    f"Code execution failed on line {e.lineno} due to: {type(e).__name__}\n"
-                    f"{e.text}"
-                    f"{' ' * (e.offset or 0)}^\n"
-                    f"Error: {str(e)}"
-                )
-            else:
-                error_msg = str(e)
-            if "Import of " in str(e) and " is not allowed" in str(e):
+            error_msg = str(e)
+            if "Import of " in error_msg and " is not allowed" in error_msg:
                 self.logger.log(
                     "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
                     level=LogLevel.INFO,

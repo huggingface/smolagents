@@ -374,6 +374,20 @@ class ToolTests(unittest.TestCase):
             GetWeatherTool3()
         assert "Nullable" in str(e)
 
+    def test_tool_default_parameters_is_nullable(self):
+        @tool
+        def get_weather(location: str, celsius: bool = False) -> str:
+            """
+            Get weather in the next days at given location.
+
+            Args:
+                location: the location
+                celsius: is the temperature given in celsius
+            """
+            return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
+
+        assert get_weather.inputs["celsius"]["nullable"]
+
 
 @pytest.fixture
 def mock_server_parameters():

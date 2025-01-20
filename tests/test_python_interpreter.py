@@ -630,12 +630,9 @@ counts += 1"""
         assert "Cannot add non-list value 1 to a list." in str(e)
 
     def test_error_highlights_correct_line_of_code(self):
-        code = """# Ok this is a very long code
-# It has many commented lines
-a = 1
+        code = """a = 1
 b = 2
 
-# Here is another piece
 counts = [1, 2, 3]
 counts += 1
 b += 1"""
@@ -643,12 +640,22 @@ b += 1"""
             evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert "Code execution failed at line 'counts += 1" in str(e)
 
+    def test_error_type_returned_in_function_call(self):
+        code = """def error_function():
+    raise ValueError("error")
+
+error_function()"""
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code(code)
+        assert "error" in str(e)
+        assert "ValueError" in str(e)
+
     def test_assert(self):
         code = """
 assert 1 == 1
 assert 1 == 2
 """
-        with pytest.raises(AssertionError) as e:
+        with pytest.raises(InterpreterError) as e:
             evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert "1 == 2" in str(e) and "1 == 1" not in str(e)
 
@@ -845,6 +852,13 @@ shift_intervals
         result, _ = evaluate_python_code(code, {"print": print, "map": map}, state={})
         assert result == {"Worker A": "8:00 pm", "Worker B": "11:45 am"}
 
+    def test_syntax_error_points_error(self):
+        code = "a = ;"
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code(code)
+        assert "SyntaxError" in str(e)
+        assert "     ^" in str(e)
+
     def test_fix_final_answer_code(self):
         test_cases = [
             (
@@ -890,12 +904,12 @@ shift_intervals
 
         # Import of whitelisted modules should succeed but dangerous submodules should not exist
         code = "import random;random._os.system('echo bad command passed')"
-        with pytest.raises(AttributeError) as e:
+        with pytest.raises(InterpreterError) as e:
             evaluate_python_code(code)
-        assert "module 'random' has no attribute '_os'" in str(e)
+        assert "AttributeError:module 'random' has no attribute '_os'" in str(e)
 
         code = "import doctest;doctest.inspect.os.system('echo bad command passed')"
-        with pytest.raises(AttributeError):
+        with pytest.raises(InterpreterError):
             evaluate_python_code(code, authorized_imports=["doctest"])
 
     def test_close_matches_subscript(self):
