@@ -34,8 +34,8 @@ from .local_python_executor import (
     fix_final_answer_code,
 )
 from .models import (
-    MessageRole,
     ChatMessage,
+    MessageRole,
 )
 from .monitoring import Monitor
 from .prompts import (
