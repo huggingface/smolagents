@@ -148,7 +148,7 @@ print(model(messages))
 
 [[autodoc]] LiteLLMModel
 
-### OpenAiServerModel
+### OpenAIServerModel
 
 This class lets you call any OpenAIServer compatible model.
 Here's how you can set it (you can customise the `api_base` url to point to another server):
@@ -161,3 +161,5 @@ model = OpenAIServerModel(
     api_key=os.environ["OPENAI_API_KEY"],
 )
 ```
+
+[[autodoc]] OpenAIServerModel
