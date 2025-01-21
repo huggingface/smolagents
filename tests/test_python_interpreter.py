@@ -916,9 +916,7 @@ shift_intervals
         code = 'capitals = {"Czech Republic": "Prague", "Monaco": "Monaco", "Bhutan": "Thimphu"};capitals["Butan"]'
         with pytest.raises(Exception) as e:
             evaluate_python_code(code)
-        assert "Maybe you meant one of these indexes instead" in str(
-            e
-        ) and "['Bhutan']" in str(e).replace("\\", "")
+        assert "Maybe you meant one of these indexes instead" in str(e) and "['Bhutan']" in str(e).replace("\\", "")
 
     def test_dangerous_builtins_calls_are_blocked(self):
         unsafe_code = "import os"
