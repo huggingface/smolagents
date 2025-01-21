@@ -6,6 +6,9 @@ from smolagents import HfApiModel, tool
 from smolagents.agents import ToolCallingAgent
 
 
+# from smolagents import CodeAgent
+
+
 # Choose which LLM engine to use!
 model = HfApiModel()
 # model = TransformersModel(model_id="meta-llama/Llama-3.2-2B-Instruct")
@@ -238,6 +241,20 @@ agent = ToolCallingAgent(
     ],
     model=model,
 )
+
+# If you want to use the CodeAgent instead, uncomment the following lines as they both will work
+
+# agent = CodeAgent(
+#     tools=[
+#         convert_currency,
+#         get_weather,
+#         get_news_headlines,
+#         get_joke,
+#         get_random_fact,
+#         search_wikipedia,
+#     ],
+#     model=model,
+# )
 
 # Uncomment the line below to run the agent with a specific query
 
