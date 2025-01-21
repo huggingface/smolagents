@@ -11,8 +11,7 @@ knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
 knowledge_base = knowledge_base.filter(lambda row: row["source"].startswith("huggingface/transformers"))
 
 source_docs = [
-    Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]})
-    for doc in knowledge_base
+    Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]}) for doc in knowledge_base
 ]
 
 text_splitter = RecursiveCharacterTextSplitter(
@@ -25,6 +24,7 @@ text_splitter = RecursiveCharacterTextSplitter(
 docs_processed = text_splitter.split_documents(source_docs)
 
 from smolagents import Tool
+
 
 class RetrieverTool(Tool):
     name = "retriever"
@@ -39,9 +39,7 @@ class RetrieverTool(Tool):
 
     def __init__(self, docs, **kwargs):
         super().__init__(**kwargs)
-        self.retriever = BM25Retriever.from_documents(
-            docs, k=10
-        )
+        self.retriever = BM25Retriever.from_documents(docs, k=10)
 
     def forward(self, query: str) -> str:
         assert isinstance(query, str), "Your search query must be a string"
@@ -50,17 +48,19 @@ class RetrieverTool(Tool):
             query,
         )
         return "\nRetrieved documents:\n" + "".join(
-            [
-                f"\n\n===== Document {str(i)} =====\n" + doc.page_content
-                for i, doc in enumerate(docs)
-            ]
+            [f"\n\n===== Document {str(i)} =====\n" + doc.page_content for i, doc in enumerate(docs)]
         )
 
-from smolagents import HfApiModel, CodeAgent
+
+from smolagents import CodeAgent, HfApiModel
+
 
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
-    tools=[retriever_tool], model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbosity_level=2
+    tools=[retriever_tool],
+    model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"),
+    max_steps=4,
+    verbosity_level=2,
 )
 
 agent_output = agent.run("For a transformers model training, which is slower, the forward or the backward pass?")

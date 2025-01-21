@@ -1,0 +1,36 @@
+- title: Get started
+  sections:
+  - local: index
+    title: 🤗 Agents
+  - local: guided_tour
+    title: गाइडेड टूर
+- title: Tutorials
+  sections:
+  - local: tutorials/building_good_agents
+    title: ✨ अच्छे Agents का निर्माण
+  - local: tutorials/inspect_runs
+    title: 📊 OpenTelemetry के साथ runs का निरीक्षण
+  - local: tutorials/tools
+    title: 🛠️ Tools - in-depth guide
+  - local: tutorials/secure_code_execution
+    title: 🛡️ E2B के साथ अपने कोड एक्जीक्यूशन को सुरक्षित करें
+- title: Conceptual guides
+  sections:
+  - local: conceptual_guides/intro_agents
+    title: 🤖 Agentic सिस्टम का परिचय
+  - local: conceptual_guides/react
+    title: 🤔 मल्टी-स्टेप एजेंट कैसे काम करते हैं?
+- title: Examples
+  sections:
+  - local: examples/text_to_sql
+    title: सेल्फ करेक्टिंग Text-to-SQL
+  - local: examples/rag
+    title: एजेंटिक RAG के साथ अपनी ज्ञान आधारित को मास्टर करें
+  - local: examples/multiagents
+    title: एक बहु-एजेंट प्रणाली का आयोजन करें
+- title: Reference
+  sections:
+  - local: reference/agents
+    title: एजेंट से संबंधित ऑब्जेक्ट्स
+  - local: reference/tools
+    title: टूल्स से संबंधित ऑब्जेक्ट्स

@@ -24,7 +24,10 @@ limitations under the License.
 </p>
 
 <h3 align="center">
-  <p>🤗 smolagents - a smol library to build great agents!</p>
+  <div style="display:flex;flex-direction:row;">
+    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot.png" alt="Hugging Face mascot as James Bond" width=100px>
+    <p>smolagents - a smol library to build great agents!</p>
+  </div>
 </h3>
 
 `smolagents` is a library that enables you to run powerful agents in a few lines of code. It offers:
@@ -66,8 +69,8 @@ In our `CodeAgent`,  the LLM engine writes its actions in code. This approach is
 and [reaches higher performance on difficult benchmarks](https://huggingface.co/papers/2411.01747). Head to [our high-level intro to agents](https://huggingface.co/docs/smolagents/conceptual_guides/intro_agents) to learn more on that.
 
 Especially, since code execution can be a security concern (arbitrary code execution!), we provide options at runtime:
-  - a secure python interpreter to run code more safely in your environment
-  - a sandboxed environment using [E2B](https://e2b.dev/).
+  - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
+  - a sandboxed environment using [E2B](https://e2b.dev/) (removes the risk to your own system).
 
 ## How smol is it really?
 
@@ -87,6 +90,36 @@ We've created [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/age
 </p>
 
 This comparison shows that open source models can now take on the best closed models!
+
+## Contributing
+
+To contribute, follow our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
+
+At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
+It's often even better to open a PR with your proposed fixes/changes!
+
+To install dev dependencies, run:
+```
+pip install -e ".[dev]"
+```
+
+When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
+To check code quality of the source code:
+```
+make quality
+```
+
+If the checks fail, you can run the formatter with:
+```
+make style
+```
+
+And commit the changes.
+
+To run tests locally, run this command:
+```bash
+pytest .
+```
 
 ## Citing smolagents
 

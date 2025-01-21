@@ -57,6 +57,10 @@ contains the API docs for the underlying classes.
 
 [[autodoc]] VisitWebpageTool
 
+### UserInputTool
+
+[[autodoc]] UserInputTool
+
 ## ToolCollection
 
 [[autodoc]] ToolCollection

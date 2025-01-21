@@ -8,6 +8,8 @@
   sections:
   - local: tutorials/building_good_agents
     title: ✨ Building good agents
+  - local: tutorials/inspect_runs
+    title: 📊 Inspect your agent runs using telemetry
   - local: tutorials/tools
     title: 🛠️ Tools - in-depth guide
   - local: tutorials/secure_code_execution

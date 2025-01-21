@@ -26,13 +26,14 @@ from PIL import Image
 
 from .tool_validation import validate_tool_attributes
 from .tools import Tool
-from .utils import BASE_BUILTIN_MODULES, console, instance_to_source
+from .utils import BASE_BUILTIN_MODULES, instance_to_source
+
 
 load_dotenv()
 
 
 class E2BExecutor:
-    def __init__(self, additional_imports: List[str], tools: List[Tool]):
+    def __init__(self, additional_imports: List[str], tools: List[Tool], logger):
         self.custom_tools = {}
         self.sbx = Sandbox()  # "qywp2ctmu2q7jzprcf4j")
         # TODO: validate installing agents package or not
@@ -42,15 +43,14 @@ class E2BExecutor:
         #     timeout=300
         # )
         # print("Installation of agents package finished.")
-        additional_imports = additional_imports + ["pickle5"]
+        self.logger = logger
+        additional_imports = additional_imports + ["pickle5", "smolagents"]
         if len(additional_imports) > 0:
-            execution = self.sbx.commands.run(
-                "pip install " + " ".join(additional_imports)
-            )
+            execution = self.sbx.commands.run("pip install " + " ".join(additional_imports))
             if execution.error:
                 raise Exception(f"Error installing dependencies: {execution.error}")
             else:
-                console.print(f"Installation of {additional_imports} succeeded!")
+                logger.log(f"Installation of {additional_imports} succeeded!", 0)
 
         tool_codes = []
         for tool in tools:
@@ -60,9 +60,7 @@ class E2BExecutor:
             tool_code += f"\n{tool.name} = {tool.__class__.__name__}()\n"
             tool_codes.append(tool_code)
 
-        tool_definition_code = "\n".join(
-            [f"import {module}" for module in BASE_BUILTIN_MODULES]
-        )
+        tool_definition_code = "\n".join([f"import {module}" for module in BASE_BUILTIN_MODULES])
         tool_definition_code += textwrap.dedent("""
         class Tool:
             def __call__(self, *args, **kwargs):
@@ -74,7 +72,7 @@ class E2BExecutor:
         tool_definition_code += "\n\n".join(tool_codes)
 
         tool_definition_execution = self.run_code_raise_errors(tool_definition_code)
-        console.print(tool_definition_execution.logs)
+        self.logger.log(tool_definition_execution.logs)
 
     def run_code_raise_errors(self, code: str):
         execution = self.sbx.run_code(
@@ -109,7 +107,7 @@ locals().update({key: value for key, value in pickle_dict.items()})
 """
             execution = self.run_code_raise_errors(remote_unloading_code)
             execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
-            console.print(execution_logs)
+            self.logger.log(execution_logs, 1)
 
         execution = self.run_code_raise_errors(code_action)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
@@ -121,9 +119,7 @@ locals().update({key: value for key, value in pickle_dict.items()})
                     for attribute_name in ["jpeg", "png"]:
                         if getattr(result, attribute_name) is not None:
                             image_output = getattr(result, attribute_name)
-                            decoded_bytes = base64.b64decode(
-                                image_output.encode("utf-8")
-                            )
+                            decoded_bytes = base64.b64decode(image_output.encode("utf-8"))
                             return Image.open(BytesIO(decoded_bytes)), execution_logs
                     for attribute_name in [
                         "chart",

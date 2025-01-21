@@ -6,6 +6,7 @@ from typing import Set
 
 from .utils import BASE_BUILTIN_MODULES
 
+
 _BUILTIN_NAMES = set(vars(builtins))
 
 
@@ -141,9 +142,7 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     # Check that __init__ method takes no arguments
     if not cls.__init__.__qualname__ == "Tool.__init__":
         sig = inspect.signature(cls.__init__)
-        non_self_params = list(
-            [arg_name for arg_name in sig.parameters.keys() if arg_name != "self"]
-        )
+        non_self_params = list([arg_name for arg_name in sig.parameters.keys() if arg_name != "self"])
         if len(non_self_params) > 0:
             errors.append(
                 f"This tool has additional args specified in __init__(self): {non_self_params}. Make sure it does not, all values should be hardcoded!"
@@ -174,9 +173,7 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
 
             # Check if the assignment is more complex than simple literals
             if not all(
-                isinstance(
-                    val, (ast.Str, ast.Num, ast.Constant, ast.Dict, ast.List, ast.Set)
-                )
+                isinstance(val, (ast.Str, ast.Num, ast.Constant, ast.Dict, ast.List, ast.Set))
                 for val in ast.walk(node.value)
             ):
                 for target in node.targets:
@@ -195,9 +192,7 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     # Run checks on all methods
     for node in class_node.body:
         if isinstance(node, ast.FunctionDef):
-            method_checker = MethodChecker(
-                class_level_checker.class_attributes, check_imports=check_imports
-            )
+            method_checker = MethodChecker(class_level_checker.class_attributes, check_imports=check_imports)
             method_checker.visit(node)
             errors += [f"- {node.name}: {error}" for error in method_checker.errors]
 

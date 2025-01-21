@@ -21,28 +21,14 @@ from io import BytesIO
 
 import numpy as np
 import requests
-from transformers.utils import (
-    is_torch_available,
-    is_vision_available,
-)
-from transformers.utils.import_utils import _is_package_available
+from huggingface_hub.utils import is_torch_available
+from PIL import Image
+from PIL.Image import Image as ImageType
+
+from .utils import _is_package_available
+
 
 logger = logging.getLogger(__name__)
-
-if is_vision_available():
-    from PIL import Image
-    from PIL.Image import Image as ImageType
-else:
-    ImageType = object
-
-if is_torch_available():
-    import torch
-    from torch import Tensor
-else:
-    Tensor = object
-
-if _is_package_available("soundfile"):
-    import soundfile as sf
 
 
 class AgentType:
@@ -96,9 +82,6 @@ class AgentImage(AgentType, ImageType):
         AgentType.__init__(self, value)
         ImageType.__init__(self)
 
-        if not is_vision_available():
-            raise ImportError("PIL must be installed in order to handle images.")
-
         self._path = None
         self._raw = None
         self._tensor = None
@@ -111,14 +94,16 @@ class AgentImage(AgentType, ImageType):
             self._raw = Image.open(BytesIO(value))
         elif isinstance(value, (str, pathlib.Path)):
             self._path = value
-        elif isinstance(value, torch.Tensor):
-            self._tensor = value
-        elif isinstance(value, np.ndarray):
-            self._tensor = torch.from_numpy(value)
-        else:
-            raise TypeError(
-                f"Unsupported type for {self.__class__.__name__}: {type(value)}"
-            )
+        elif is_torch_available():
+            import torch
+
+            if isinstance(value, torch.Tensor):
+                self._tensor = value
+            if isinstance(value, np.ndarray):
+                self._tensor = torch.from_numpy(value)
+
+        if self._path is None and self._raw is None and self._tensor is None:
+            raise TypeError(f"Unsupported type for {self.__class__.__name__}: {type(value)}")
 
     def _ipython_display_(self, include=None, exclude=None):
         """
@@ -187,10 +172,13 @@ class AgentAudio(AgentType, str):
     """
 
     def __init__(self, value, samplerate=16_000):
-        super().__init__(value)
+        if not _is_package_available("soundfile") or not is_torch_available:
+            raise ModuleNotFoundError(
+                "Please install 'audio' extra to use AgentAudio: `pip install 'smolagents[audio]'`"
+            )
+        import torch
 
-        if not _is_package_available("soundfile"):
-            raise ImportError("soundfile must be installed in order to handle audio.")
+        super().__init__(value)
 
         self._path = None
         self._tensor = None
@@ -221,8 +209,12 @@ class AgentAudio(AgentType, str):
         """
         Returns the "raw" version of that object. It is a `torch.Tensor` object.
         """
+        import soundfile as sf
+
         if self._tensor is not None:
             return self._tensor
+
+        import torch
 
         if self._path is not None:
             if "://" in str(self._path):
@@ -239,6 +231,8 @@ class AgentAudio(AgentType, str):
         Returns the stringified version of that object. In the case of an AgentAudio, it is a path to the serialized
         version of the audio.
         """
+        import soundfile as sf
+
         if self._path is not None:
             return self._path
 
@@ -249,39 +243,32 @@ class AgentAudio(AgentType, str):
             return self._path
 
 
-AGENT_TYPE_MAPPING = {"string": AgentText, "image": AgentImage, "audio": AgentAudio}
-INSTANCE_TYPE_MAPPING = {
-    str: AgentText,
-    ImageType: AgentImage,
-    Tensor: AgentAudio,
-}
-
-if is_torch_available():
-    INSTANCE_TYPE_MAPPING[Tensor] = AgentAudio
+_AGENT_TYPE_MAPPING = {"string": AgentText, "image": AgentImage, "audio": AgentAudio}
 
 
 def handle_agent_input_types(*args, **kwargs):
     args = [(arg.to_raw() if isinstance(arg, AgentType) else arg) for arg in args]
-    kwargs = {
-        k: (v.to_raw() if isinstance(v, AgentType) else v) for k, v in kwargs.items()
-    }
+    kwargs = {k: (v.to_raw() if isinstance(v, AgentType) else v) for k, v in kwargs.items()}
     return args, kwargs
 
 
 def handle_agent_output_types(output, output_type=None):
-    if output_type in AGENT_TYPE_MAPPING:
+    if output_type in _AGENT_TYPE_MAPPING:
         # If the class has defined outputs, we can map directly according to the class definition
-        decoded_outputs = AGENT_TYPE_MAPPING[output_type](output)
+        decoded_outputs = _AGENT_TYPE_MAPPING[output_type](output)
         return decoded_outputs
-    else:
-        # If the class does not have defined output, then we map according to the type
-        for _k, _v in INSTANCE_TYPE_MAPPING.items():
-            if isinstance(output, _k):
-                if (
-                    _k is not object
-                ):  # avoid converting to audio if torch is not installed
-                    return _v(output)
-        return output
+
+    # If the class does not have defined output, then we map according to the type
+    if isinstance(output, str):
+        return AgentText(output)
+    if isinstance(output, ImageType):
+        return AgentImage(output)
+    if is_torch_available():
+        import torch
+
+        if isinstance(output, torch.Tensor):
+            return AgentAudio(output)
+    return output
 
 
 __all__ = ["AgentType", "AgentImage", "AgentText", "AgentAudio"]
