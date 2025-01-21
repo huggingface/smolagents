@@ -313,6 +313,76 @@ class HfApiModel(Model):
         return message
 
 
+class MLXModel(Model):
+    """A class to interact with models loaded using MLX on Apple silicon.
+
+    > [!TIP]
+    > You must have `mlx_lm` installed on your machine. Please run `pip install smolagents[mlx_lm]` if it's not the case.
+
+    Parameters:
+        model_id (str):
+            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        trust_remote_code (bool):
+            Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
+        kwargs (dict, *optional*):
+            Any additional keyword arguments that you want to use in model.generate(), for instance `max_tokens`.
+
+    Example:
+    ```python
+    >>> engine = TransformersModel(
+    ...     model_id="mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
+    ...     max_tokens=10000,
+    ... )
+    >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
+    >>> response = engine(messages, stop_sequences=["END"])
+    >>> print(response)
+    "Quantum mechanics is the branch of physics that studies..."
+    ```
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        trust_remote_code: bool = False,
+        **kwargs,
+    ):
+        super().__init__()
+        if not _is_package_available("mlx_lm"):
+            raise ModuleNotFoundError(
+                "Please install 'mlx_lm' extra to use 'MLXModel': `pip install 'smolagents[mlx_lm]'`"
+            )
+        import mlx_lm
+
+        self.model_id = model_id
+        self.kwargs = kwargs
+        self.model, self.tokenizer = mlx_lm.load(model_id, tokenizer_config={"trust_remote_code": trust_remote_code})
+        self.stream_generate = mlx_lm.stream_generate
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+    ) -> ChatMessage:
+        if stop_sequences is None:
+            stop_sequences = []
+
+        messages = get_clean_message_list(messages, role_conversions=tool_role_conversions)
+        prompt_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+        self.last_input_token_count = len(prompt_ids)
+
+        self.last_output_token_count = 0
+        text = ""
+        for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **self.kwargs):
+            self.last_output_token_count += 1
+            text += _.text
+            for stop_sequence in stop_sequences:
+                if text.strip().endswith(stop_sequence):
+                    text = text[: -len(stop_sequence)]
+                    return ChatMessage(role="assistant", content=text)
+        return ChatMessage(role="assistant", content=text)
+
+
 class TransformersModel(Model):
     """A class to interact with Hugging Face's Inference API for language model interaction.
 
@@ -625,6 +695,7 @@ __all__ = [
     "tool_role_conversions",
     "get_clean_message_list",
     "Model",
+    "MLXModel",
     "TransformersModel",
     "HfApiModel",
     "LiteLLMModel",
