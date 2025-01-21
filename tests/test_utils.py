@@ -68,6 +68,14 @@ def multiply(a, b):
         assert result == expected_output
 
 
+@pytest.fixture(scope="function")
+def ipython_shell():
+    """Reset IPython shell before and after each test."""
+    shell = InteractiveShell.instance()
+    yield shell
+    shell.reset()  # Clean after test
+
+
 @pytest.mark.parametrize(
     "obj_name, code_blob",
     [
@@ -75,10 +83,9 @@ def multiply(a, b):
         ("TestClass", "class TestClass:\n    ..."),
     ],
 )
-def test_get_source_ipython(obj_name, code_blob):
-    shell = InteractiveShell.instance()
+def test_get_source_ipython(ipython_shell, obj_name, code_blob):
     test_code = textwrap.dedent(code_blob).strip()
-    shell.user_ns["In"] = ["", test_code]
+    ipython_shell.user_ns["In"] = ["", test_code]
     exec(test_code)
     assert get_source(locals()[obj_name]) == code_blob
 
@@ -99,19 +106,17 @@ def test_get_source_standard_function():
     assert source == textwrap.dedent(inspect.getsource(test_func)).strip()
 
 
-def test_get_source_ipython_errors_empty_cells():
-    shell = InteractiveShell.instance()
+def test_get_source_ipython_errors_empty_cells(ipython_shell):
     test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
-    shell.user_ns["In"] = [""]
+    ipython_shell.user_ns["In"] = [""]
     exec(test_code)
     with pytest.raises(ValueError, match="No code cells found in IPython session"):
         get_source(locals()["TestClass"])
 
 
-def test_get_source_ipython_errors_definition_not_found():
-    shell = InteractiveShell.instance()
+def test_get_source_ipython_errors_definition_not_found(ipython_shell):
     test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
-    shell.user_ns["In"] = ["", "print('No class definition here')"]
+    ipython_shell.user_ns["In"] = ["", "print('No class definition here')"]
     exec(test_code)
     with pytest.raises(ValueError, match="Could not find source code for TestClass in IPython history"):
         get_source(locals()["TestClass"])
@@ -197,7 +202,7 @@ def test_e2e_ipython_class_tool_save():
 
                 return task
         TestTool().save("{tmp_dir}")
-        """)
+    """)
         assert shell.run_cell(code_blob, store_history=True).success
         assert os.listdir(tmp_dir) == ["requirements.txt", "app.py", "tool.py"]
         assert (
