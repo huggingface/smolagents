@@ -29,7 +29,6 @@ from huggingface_hub.utils import is_torch_available
 from .tools import Tool
 from .utils import _is_package_available
 
-
 if TYPE_CHECKING:
     from transformers import StoppingCriteriaList
 
@@ -199,6 +198,7 @@ class Model:
     def __init__(self):
         self.last_input_token_count = None
         self.last_output_token_count = None
+        self.raw_responses = []
 
     def get_token_counts(self) -> Dict[str, int]:
         return {
@@ -305,6 +305,7 @@ class HfApiModel(Model):
                 temperature=self.temperature,
                 **self.kwargs,
             )
+        self.raw_responses.append(response)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
         message = ChatMessage.from_hf_api(response.choices[0].message)
@@ -359,6 +360,7 @@ class TransformersModel(Model):
         **kwargs,
     ):
         super().__init__()
+        self.raw_responses = None  # not sure how to implement here
         if not is_torch_available() or not _is_package_available("transformers"):
             raise ModuleNotFoundError(
                 "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
@@ -537,6 +539,7 @@ class LiteLLMModel(Model):
                 api_key=self.api_key,
                 **self.kwargs,
             )
+        self.raw_responses.append(response)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
         message = response.choices[0].message
@@ -612,6 +615,8 @@ class OpenAIServerModel(Model):
                 stop=stop_sequences,
                 **self.kwargs,
             )
+
+        self.raw_responses.append(response)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
         message = response.choices[0].message
