@@ -13,12 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import inspect
+import os
+import pathlib
+import tempfile
 import textwrap
 import unittest
 
 import pytest
 from IPython.core.interactiveshell import InteractiveShell
 
+from smolagents import Tool
+from smolagents.tools import tool
 from smolagents.utils import get_source, parse_code_blobs
 
 
@@ -115,3 +120,228 @@ def test_get_source_ipython_errors_definition_not_found():
 def test_get_source_ipython_errors_type_error():
     with pytest.raises(TypeError, match="Expected class or callable"):
         get_source(None)
+
+
+def test_e2e_class_tool_save():
+    class TestTool(Tool):
+        name = "test_tool"
+        description = "Test tool description"
+        inputs = {
+            "task": {
+                "type": "string",
+                "description": "tool input",
+            }
+        }
+        output_type = "string"
+
+        def forward(self, task: str):
+            import IPython  # noqa: F401
+
+            return task
+
+    test_tool = TestTool()
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        test_tool.save(tmp_dir)
+        assert os.listdir(tmp_dir) == ["requirements.txt", "app.py", "tool.py"]
+        assert (
+            pathlib.Path(tmp_dir, "tool.py").read_text()
+            == """from smolagents.tools import Tool
+import IPython
+
+class TestTool(Tool):
+    name = "test_tool"
+    description = "Test tool description"
+    inputs = {'task': {'type': 'string', 'description': 'tool input'}}
+    output_type = "string"
+
+    def forward(self, task: str):
+        import IPython  # noqa: F401
+
+        return task
+
+    def __init__(self, *args, **kwargs):
+        self.is_initialized = False
+"""
+        )
+        requirements = set(pathlib.Path(tmp_dir, "requirements.txt").read_text().split())
+        assert requirements == {"IPython", "smolagents"}
+        assert (
+            pathlib.Path(tmp_dir, "app.py").read_text()
+            == """from smolagents import launch_gradio_demo
+from typing import Optional
+from tool import TestTool
+
+tool = TestTool()
+
+launch_gradio_demo(tool)
+"""
+        )
+
+
+def test_e2e_ipython_class_tool_save():
+    shell = InteractiveShell.instance()
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        code_blob = textwrap.dedent(f"""
+        from smolagents.tools import Tool
+        class TestTool(Tool):
+            name = "test_tool"
+            description = "Test tool description"
+            inputs = {{"task": {{"type": "string",
+                    "description": "tool input",
+                }}
+            }}
+            output_type = "string"
+
+            def forward(self, task: str):
+                import IPython  # noqa: F401
+
+                return task
+        TestTool().save("{tmp_dir}")
+        """)
+        assert shell.run_cell(code_blob, store_history=True).success
+        assert os.listdir(tmp_dir) == ["requirements.txt", "app.py", "tool.py"]
+        assert (
+            pathlib.Path(tmp_dir, "tool.py").read_text()
+            == """from smolagents.tools import Tool
+import IPython
+
+class TestTool(Tool):
+    name = "test_tool"
+    description = "Test tool description"
+    inputs = {'task': {'type': 'string', 'description': 'tool input'}}
+    output_type = "string"
+
+    def forward(self, task: str):
+        import IPython  # noqa: F401
+
+        return task
+
+    def __init__(self, *args, **kwargs):
+        self.is_initialized = False
+"""
+        )
+        requirements = set(pathlib.Path(tmp_dir, "requirements.txt").read_text().split())
+        assert requirements == {"IPython", "smolagents"}
+        assert (
+            pathlib.Path(tmp_dir, "app.py").read_text()
+            == """from smolagents import launch_gradio_demo
+from typing import Optional
+from tool import TestTool
+
+tool = TestTool()
+
+launch_gradio_demo(tool)
+"""
+        )
+
+
+def test_e2e_function_tool_save():
+    @tool
+    def test_tool(task: str) -> str:
+        """
+        Test tool description
+
+        Args:
+            task: tool input
+        """
+        import IPython  # noqa: F401
+
+        return task
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        test_tool.save(tmp_dir)
+        assert os.listdir(tmp_dir) == ["requirements.txt", "app.py", "tool.py"]
+        assert (
+            pathlib.Path(tmp_dir, "tool.py").read_text()
+            == """from smolagents import Tool
+from typing import Optional
+
+class SimpleTool(Tool):
+    name = "test_tool"
+    description = "Test tool description"
+    inputs = {"task":{"type":"string","description":"tool input"}}
+    output_type = "string"
+
+    def forward(self, task: str) -> str:
+        \"""
+        Test tool description
+
+        Args:
+            task: tool input
+        \"""
+        import IPython  # noqa: F401
+
+        return task"""
+        )
+        requirements = set(pathlib.Path(tmp_dir, "requirements.txt").read_text().split())
+        assert requirements == {"smolagents"}  # FIXME: IPython should be in the requirements
+        assert (
+            pathlib.Path(tmp_dir, "app.py").read_text()
+            == """from smolagents import launch_gradio_demo
+from typing import Optional
+from tool import SimpleTool
+
+tool = SimpleTool()
+
+launch_gradio_demo(tool)
+"""
+        )
+
+
+def test_e2e_ipython_function_tool_save():
+    shell = InteractiveShell.instance()
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        code_blob = textwrap.dedent(f"""
+        from smolagents import tool
+
+        @tool
+        def test_tool(task: str) -> str:
+            \"""
+            Test tool description
+
+            Args:
+                task: tool input
+            \"""
+            import IPython  # noqa: F401
+
+            return task
+
+        test_tool.save("{tmp_dir}")
+        """)
+        assert shell.run_cell(code_blob, store_history=True).success
+        assert os.listdir(tmp_dir) == ["requirements.txt", "app.py", "tool.py"]
+        assert (
+            pathlib.Path(tmp_dir, "tool.py").read_text()
+            == """from smolagents import Tool
+from typing import Optional
+
+class SimpleTool(Tool):
+    name = "test_tool"
+    description = "Test tool description"
+    inputs = {"task":{"type":"string","description":"tool input"}}
+    output_type = "string"
+
+    def forward(self, task: str) -> str:
+        \"""
+        Test tool description
+
+        Args:
+            task: tool input
+        \"""
+        import IPython  # noqa: F401
+
+        return task"""
+        )
+        requirements = set(pathlib.Path(tmp_dir, "requirements.txt").read_text().split())
+        assert requirements == {"smolagents"}  # FIXME: IPython should be in the requirements
+        assert (
+            pathlib.Path(tmp_dir, "app.py").read_text()
+            == """from smolagents import launch_gradio_demo
+from typing import Optional
+from tool import SimpleTool
+
+tool = SimpleTool()
+
+launch_gradio_demo(tool)
+"""
+        )
