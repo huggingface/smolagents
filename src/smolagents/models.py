@@ -210,6 +210,7 @@ class Model:
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs
     ) -> Dict:
         """
@@ -220,9 +221,11 @@ class Model:
         2. Specific parameters (stop_sequences, grammar, etc.)
         3. Default values in self.kwargs
         """
+
+
         # Clean and standardize the message list
         messages = get_clean_message_list(
-            messages, role_conversions=tool_role_conversions
+            messages, role_conversions=custom_role_conversions or tool_role_conversions
         )
         
         # Use self.kwargs as the base configuration
@@ -601,7 +604,11 @@ class LiteLLMModel(Model):
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
         
-        return ChatMessage(**response.choices[0].message.model_dump(include={'role', 'content', 'tool_calls'}))
+        message = ChatMessage(**response.choices[0].message.model_dump(include={'role', 'content', 'tool_calls'}))
+
+        if tools_to_call_from is not None:
+            return parse_tool_args_if_needed(message)
+        return message
 
 
 class OpenAIServerModel(Model):
@@ -659,13 +666,18 @@ class OpenAIServerModel(Model):
             grammar=grammar,
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
+            custom_role_conversions=self.custom_role_conversions,
             **kwargs
         )
 
         response = self.client.chat.completions.create(**completion_kwargs)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        return ChatMessage(**response.choices[0].message.model_dump(include={'role', 'content', 'tool_calls'}))
+
+        message = ChatMessage(**response.choices[0].message.model_dump(include={'role', 'content', 'tool_calls'}))
+        if tools_to_call_from is not None:
+            return parse_tool_args_if_needed(message)
+        return message
 
 
 __all__ = [
