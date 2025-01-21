@@ -37,14 +37,14 @@ Once you have these two arguments, `tools` and `model`,  you can create an agent
 
 Hugging Face API is free to use without a token, but then it will have a rate limitation.
 
-To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`.
+To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
 
 ```python
 from smolagents import CodeAgent, HfApiModel
 
-model_id = "meta-llama/Llama-3.3-70B-Instruct"
+model_id = "meta-llama/Llama-3.3-70B-Instruct" 
 
-model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
+model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to HfApiModel to use a default free model
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
