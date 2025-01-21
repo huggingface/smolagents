@@ -17,6 +17,7 @@
 import ast
 import builtins
 import difflib
+import inspect
 import math
 import re
 from collections.abc import Mapping
@@ -643,8 +644,14 @@ def evaluate_call(
             # cap the number of lines
             return None
         else:  # Assume it's a callable object
-            if (func in [eval, compile, exec]) and (func not in static_tools.values()):
-                raise InterpreterError(f"Invoking eval, compile or exec is not allowed ({func_name}).")
+            if (
+                (inspect.getmodule(func) == builtins)
+                and inspect.isbuiltin(func)
+                and (func not in static_tools.values())
+            ):
+                raise InterpreterError(
+                    f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
+                )
             return func(*args, **kwargs)
 
 
