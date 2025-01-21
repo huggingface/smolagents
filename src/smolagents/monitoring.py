@@ -22,10 +22,7 @@ class Monitor:
         self.step_durations = []
         self.tracked_model = tracked_model
         self.logger = logger
-        if (
-            getattr(self.tracked_model, "last_input_token_count", "Not found")
-            != "Not found"
-        ):
+        if getattr(self.tracked_model, "last_input_token_count", "Not found") != "Not found":
             self.total_input_token_count = 0
             self.total_output_token_count = 0
 
@@ -48,7 +45,9 @@ class Monitor:
         if getattr(self.tracked_model, "last_input_token_count", None) is not None:
             self.total_input_token_count += self.tracked_model.last_input_token_count
             self.total_output_token_count += self.tracked_model.last_output_token_count
-            console_outputs += f"| Input tokens: {self.total_input_token_count:,} | Output tokens: {self.total_output_token_count:,}"
+            console_outputs += (
+                f"| Input tokens: {self.total_input_token_count:,} | Output tokens: {self.total_output_token_count:,}"
+            )
         console_outputs += "]"
         self.logger.log(Text(console_outputs, style="dim"), level=1)
 

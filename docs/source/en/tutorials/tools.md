@@ -204,13 +204,17 @@ agent.run(
 
 ### Use a collection of tools
 
-You can leverage tool collections by using the `ToolCollection` object, with the slug of the collection you want to use.
+You can leverage tool collections by using the `ToolCollection` object. It supports loading either a collection from the Hub or an MCP server tools.
+
+#### Tool Collection from a collection in the Hub
+
+You can leverage it with the slug of the collection you want to use.
 Then pass them as a list to initialize your agent, and start using them!
 
 ```py
 from smolagents import ToolCollection, CodeAgent
 
-image_tool_collection = ToolCollection(
+image_tool_collection = ToolCollection.from_hub(
     collection_slug="huggingface-tools/diffusion-tools-6630bb19a942c2306a2cdb6f",
     token="<YOUR_HUGGINGFACEHUB_API_TOKEN>"
 )
@@ -220,3 +224,24 @@ agent.run("Please draw me a picture of rivers and lakes.")
 ```
 
 To speed up the start, tools are loaded only if called by the agent.
+
+#### Tool Collection from any MCP server
+
+Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
+
+The MCP servers tools can be loaded in a `ToolCollection` object as follow:
+
+```py
+from smolagents import ToolCollection, CodeAgent
+from mcp import StdioServerParameters
+
+server_parameters = StdioServerParameters(
+    command="uv",
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+with ToolCollection.from_mcp(server_parameters) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```

@@ -12,11 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 import json
+import unittest
 from typing import Optional
 
-from smolagents import models, tool, ChatMessage, HfApiModel, TransformersModel
+from smolagents import ChatMessage, HfApiModel, TransformersModel, models, tool
+from smolagents.models import parse_json_if_needed
 
 
 class ModelTests(unittest.TestCase):
@@ -33,12 +34,7 @@ class ModelTests(unittest.TestCase):
             """
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
-        assert (
-            "nullable"
-            in models.get_json_schema(get_weather)["function"]["parameters"][
-                "properties"
-            ]["celsius"]
-        )
+        assert "nullable" in models.get_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", "Hello!")
@@ -60,3 +56,20 @@ class ModelTests(unittest.TestCase):
         messages = [{"role": "user", "content": "Hello!"}]
         output = model(messages, stop_sequences=["great"]).content
         assert output == "assistant\nHello"
+
+    def test_parse_json_if_needed(self):
+        args = "abc"
+        parsed_args = parse_json_if_needed(args)
+        assert parsed_args == "abc"
+
+        args = '{"a": 3}'
+        parsed_args = parse_json_if_needed(args)
+        assert parsed_args == {"a": 3}
+
+        args = "3"
+        parsed_args = parse_json_if_needed(args)
+        assert parsed_args == 3
+
+        args = 3
+        parsed_args = parse_json_if_needed(args)
+        assert parsed_args == 3
