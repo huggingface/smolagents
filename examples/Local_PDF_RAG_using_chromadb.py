@@ -1,11 +1,12 @@
 import os
+
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-
-from smolagents import Tool, CodeAgent, LiteLLMModel
-
+from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
+
+# from langchain_openai import OpenAIEmbeddings
+from smolagents import CodeAgent, LiteLLMModel, Tool
 
 
 pdf_directory = "pdfs"
@@ -33,7 +34,7 @@ docs_processed = text_splitter.split_documents(docs)
 # Initialize embeddings and ChromaDB vector store
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# from langchain_openai import OpenAIEmbeddings
+
 # embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
 vector_store = Chroma.from_documents(
