@@ -212,7 +212,7 @@ class Model:
         self.last_output_token_count = None
         # Set default values for common parameters
         kwargs.setdefault("temperature", 0.5)
-        kwargs.setdefault("max_tokens", 1500)
+        kwargs.setdefault("max_tokens", 4096)
         self.kwargs = kwargs
         
     def _prepare_completion_kwargs(
@@ -252,7 +252,7 @@ class Model:
         if tools_to_call_from:
             completion_kwargs.update({
                 "tools": [get_json_schema(tool) for tool in tools_to_call_from],
-                "tool_choice": "auto",  # Subclasses can override this value as needed
+                "tool_choice": "required",
             })
             
         # Finally, use the passed-in kwargs to override all settings
@@ -356,9 +356,6 @@ class HfApiModel(Model):
             tools_to_call_from=tools_to_call_from,
             **kwargs
         )
-        
-        if tools_to_call_from:
-            completion_kwargs["tool_choice"] = "required"
 
         response = self.client.chat_completion(**completion_kwargs)
 
@@ -606,7 +603,7 @@ class LiteLLMModel(Model):
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
         
-        return ChatMessage(**response.choices[0].message.model_dump())
+        return ChatMessage(**response.choices[0].message.model_dump(include={'role', 'content', 'tool_calls'}))
 
 
 class OpenAIServerModel(Model):
@@ -658,7 +655,7 @@ class OpenAIServerModel(Model):
         response = self.client.chat.completions.create(**completion_kwargs)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        return ChatMessage(**response.choices[0].message.model_dump())
+        return ChatMessage(**response.choices[0].message.model_dump(include={'role', 'content', 'tool_calls'}))
 
 
 __all__ = [
