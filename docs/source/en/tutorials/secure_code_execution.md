@@ -60,7 +60,7 @@ For maximum security, you can use our integration with E2B to run code in a sand
 
 For this, you will need to setup your E2B account and set your `E2B_API_KEY` in your environment variables. Head to [E2B's quickstart documentation](https://e2b.dev/docs/quickstart) for more information.
 
-Then you can install it with `pip install e2b-code-interpreter python-dotenv`.
+Then you can install it with `pip install "smolagents[e2b]"`.
 
 Now you're set!
 
