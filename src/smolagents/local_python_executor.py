@@ -1108,7 +1108,7 @@ def evaluate_ast(
     Evaluate an abstract syntax tree using the content of the variables stored in a state and only evaluating a given
     set of functions.
 
-    This function will recurse trough the nodes of the tree provided.
+    This function will recurse through the nodes of the tree provided.
 
     Args:
         expression (`ast.AST`):
