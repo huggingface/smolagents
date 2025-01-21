@@ -20,8 +20,6 @@ dependencies = [
   "pillow>=11.0.0",
   "markdownify>=0.14.1",
   "duckduckgo-search>=6.3.7",
-  "python-dotenv>=1.0.1",
-  "e2b-code-interpreter>=1.0.3",
   "torchvision"
 ]
 
@@ -37,6 +35,10 @@ transformers = [
   "accelerate",
   "transformers>=4.0.0",
   "smolagents[torch]",
+]
+e2b = [
+  "e2b-code-interpreter>=1.0.3",
+  "python-dotenv>=1.0.1",
 ]
 gradio = [
   "gradio>=5.8.0",
@@ -55,10 +57,11 @@ quality = [
   "ruff>=0.9.0",
 ]
 all = [
-  "smolagents[accelerate,audio,gradio,litellm,mcp,openai,transformers]",
+  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers]",
 ]
 test = [
   "pytest>=8.1.0",
+  "python-dotenv>=1.0.1",  # For test_all_docs
   "smolagents[all]",
 ]
 dev = [
