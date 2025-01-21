@@ -20,8 +20,6 @@ import textwrap
 from io import BytesIO
 from typing import Any, List, Tuple
 
-from dotenv import load_dotenv
-from e2b_code_interpreter import Sandbox
 from PIL import Image
 
 from .tool_validation import validate_tool_attributes
@@ -29,11 +27,23 @@ from .tools import Tool
 from .utils import BASE_BUILTIN_MODULES, instance_to_source
 
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ModuleNotFoundError:
+    pass
 
 
 class E2BExecutor:
     def __init__(self, additional_imports: List[str], tools: List[Tool], logger):
+        try:
+            from e2b_code_interpreter import Sandbox
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                """Please install 'e2b' extra to use E2BExecutor: `pip install "smolagents[e2b]"`"""
+            )
+
         self.custom_tools = {}
         self.sbx = Sandbox()  # "qywp2ctmu2q7jzprcf4j")
         # TODO: validate installing agents package or not
