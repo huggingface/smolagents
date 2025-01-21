@@ -13,20 +13,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import gradio as gr
-import shutil
-import os
 import mimetypes
+import os
 import re
-
+import shutil
 from typing import Optional
 
 from .agents import ActionStep, AgentStepLog, MultiStepAgent
 from .types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
+from .utils import _is_package_available
 
 
-def pull_messages_from_step(step_log: AgentStepLog, test_mode: bool = True):
+def pull_messages_from_step(step_log: AgentStepLog):
     """Extract ChatMessage objects from agent steps"""
+    import gradio as gr
+
     if isinstance(step_log, ActionStep):
         yield gr.ChatMessage(role="assistant", content=step_log.llm_output or "")
         if step_log.tool_calls is not None:
@@ -53,16 +54,18 @@ def pull_messages_from_step(step_log: AgentStepLog, test_mode: bool = True):
 def stream_to_gradio(
     agent,
     task: str,
-    test_mode: bool = False,
     reset_agent_memory: bool = False,
     additional_args: Optional[dict] = None,
 ):
     """Runs an agent with the given task and streams the messages from the agent as gradio ChatMessages."""
+    if not _is_package_available("gradio"):
+        raise ModuleNotFoundError(
+            "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[audio]'`"
+        )
+    import gradio as gr
 
-    for step_log in agent.run(
-        task, stream=True, reset=reset_agent_memory, additional_args=additional_args
-    ):
-        for message in pull_messages_from_step(step_log, test_mode=test_mode):
+    for step_log in agent.run(task, stream=True, reset=reset_agent_memory, additional_args=additional_args):
+        for message in pull_messages_from_step(step_log):
             yield message
 
     final_answer = step_log  # Last log is the run's final_answer
@@ -91,6 +94,10 @@ class GradioUI:
     """A one-line interface to launch your agent in Gradio"""
 
     def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None):
+        if not _is_package_available("gradio"):
+            raise ModuleNotFoundError(
+                "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[audio]'`"
+            )
         self.agent = agent
         self.file_upload_folder = file_upload_folder
         if self.file_upload_folder is not None:
@@ -98,6 +105,8 @@ class GradioUI:
                 os.mkdir(file_upload_folder)
 
     def interact_with_agent(self, prompt, messages):
+        import gradio as gr
+
         messages.append(gr.ChatMessage(role="user", content=prompt))
         yield messages
         for msg in stream_to_gradio(self.agent, task=prompt, reset_agent_memory=False):
@@ -118,23 +127,18 @@ class GradioUI:
         """
         Handle file uploads, default allowed types are .pdf, .docx, and .txt
         """
+        import gradio as gr
 
         if file is None:
-            return gr.Textbox(
-                "No file uploaded", visible=True
-            ), file_uploads_log
+            return gr.Textbox("No file uploaded", visible=True), file_uploads_log
 
         try:
             mime_type, _ = mimetypes.guess_type(file.name)
         except Exception as e:
-            return gr.Textbox(
-                f"Error: {e}", visible=True
-            ), file_uploads_log
+            return gr.Textbox(f"Error: {e}", visible=True), file_uploads_log
 
         if mime_type not in allowed_file_types:
-            return gr.Textbox(
-                "File type disallowed", visible=True
-            ), file_uploads_log
+            return gr.Textbox("File type disallowed", visible=True), file_uploads_log
 
         # Sanitize file name
         original_name = os.path.basename(file.name)
@@ -153,14 +157,10 @@ class GradioUI:
         sanitized_name = "".join(sanitized_name)
 
         # Save the uploaded file to the specified folder
-        file_path = os.path.join(
-            self.file_upload_folder, os.path.basename(sanitized_name)
-        )
+        file_path = os.path.join(self.file_upload_folder, os.path.basename(sanitized_name))
         shutil.copy(file.name, file_path)
 
-        return gr.Textbox(
-            f"File uploaded: {file_path}", visible=True
-        ), file_uploads_log + [file_path]
+        return gr.Textbox(f"File uploaded: {file_path}", visible=True), file_uploads_log + [file_path]
 
     def log_user_message(self, text_input, file_uploads_log):
         return (
@@ -174,6 +174,8 @@ class GradioUI:
         )
 
     def launch(self):
+        import gradio as gr
+
         with gr.Blocks() as demo:
             stored_messages = gr.State([])
             file_uploads_log = gr.State([])
@@ -189,9 +191,7 @@ class GradioUI:
             # If an upload folder is provided, enable the upload feature
             if self.file_upload_folder is not None:
                 upload_file = gr.File(label="Upload a file")
-                upload_status = gr.Textbox(
-                    label="Upload Status", interactive=False, visible=False
-                )
+                upload_status = gr.Textbox(label="Upload Status", interactive=False, visible=False)
                 upload_file.change(
                     self.upload_file,
                     [upload_file, file_uploads_log],

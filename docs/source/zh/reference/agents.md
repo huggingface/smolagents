@@ -55,6 +55,9 @@ Both require arguments `model` and list of tools `tools` at initialization.
 
 ### GradioUI
 
+> [!TIP]
+> You must have `gradio` installed to use the UI. Please run `pip install smolagents[gradio]` if it's not the case.
+
 [[autodoc]] GradioUI
 
 ## Models
@@ -99,6 +102,9 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 >>> What a
 ```
 
+> [!TIP]
+> You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
+
 [[autodoc]] TransformersModel
 
 ### HfApiModel
@@ -136,8 +142,8 @@ messages = [
   {"role": "user", "content": "No need to help, take it easy."},
 ]
 
-model = LiteLLMModel("anthropic/claude-3-5-sonnet-latest", temperature=0.2)
-print(model(messages, max_tokens=10))
+model = LiteLLMModel("anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10)
+print(model(messages))
 ```
 
 [[autodoc]] LiteLLMModel

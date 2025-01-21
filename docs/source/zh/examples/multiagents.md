@@ -13,13 +13,13 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Orchestrate a multi-agent system 🤖🤝🤖
+# 编排 multi-agent 系统 🤖🤝🤖
 
 [[open-in-colab]]
 
-In this notebook we will make a **multi-agent web browser: an agentic system with several agents collaborating to solve problems using the web!**
+此notebook将构建一个 **multi-agent 网络浏览器：一个有多个代理协作，使用网络进行搜索解决问题的代理系统**
 
-It will be a simple hierarchy, using a `ManagedAgent` object to wrap the managed web search agent:
+`ManagedAgent` 对象将封装这些管理网络搜索的agent，形成一个简单的层次结构：
 
 ```
               +----------------+
@@ -38,38 +38,39 @@ It will be a simple hierarchy, using a `ManagedAgent` object to wrap the managed
                      |             Visit webpage tool |
                      +--------------------------------+
 ```
-Let's set up this system. 
-
-Run the line below to install the required dependencies:
+我们来一起构建这个系统。运行下列代码以安装依赖包：
 
 ```
 !pip install markdownify duckduckgo-search smolagents --upgrade -q
 ```
 
-Let's login in order to call the HF Inference API:
+我们需要登录Hugging Face Hub以调用HF的Inference API：
 
-```py
-from huggingface_hub import notebook_login
+```
+from huggingface_hub import login
 
-notebook_login()
+login()
 ```
 
-⚡️ Our agent will be powered by [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) using `HfApiModel` class that uses HF's Inference API: the Inference API allows to quickly and easily run any OS model.
+⚡️ HF的Inference API 可以快速轻松地运行任何开源模型，因此我们的agent将使用HF的Inference API
+中的`HfApiModel`类来调用
+[Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct)模型。
 
-_Note:_ The Inference API hosts models based on various criteria, and deployed models may be updated or replaced without prior notice. Learn more about it [here](https://huggingface.co/docs/api-inference/supported-models).
+_Note:_ 基于多参数和部署模型的 Inference API 可能在没有预先通知的情况下更新或替换模型。了解更多信息，请参阅[这里](https://huggingface.co/docs/api-inference/supported-models)。
 
 ```py
 model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
 ```
 
-## 🔍 Create a web search tool
+## 🔍 创建网络搜索工具
 
-For web browsing, we can already use our pre-existing [`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools.py#L151-L176) tool to provide a Google search equivalent.
+虽然我们可以使用已经存在的
+[`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools.py#L151-L176)
+工具作为谷歌搜索的平替进行网页浏览，然后我们也需要能够查看`DuckDuckGoSearchTool`找到的页面。为此，我
+们可以直接导入库的内置
+`VisitWebpageTool`。但是我们将重新构建它以了解其工作原理。
 
-But then we will also need to be able to peak into the page found by the `DuckDuckGoSearchTool`.
-To do so, we could import the library's built-in `VisitWebpageTool`, but we will build it again to see how it's done.
-
-So let's create our `VisitWebpageTool` tool from scratch using `markdownify`.
+我们将使用`markdownify` 来从头构建我们的`VisitWebpageTool`工具。
 
 ```py
 import re
@@ -108,19 +109,19 @@ def visit_webpage(url: str) -> str:
         return f"An unexpected error occurred: {str(e)}"
 ```
 
-Ok, now let's initialize and test our tool!
+现在我们初始化这个工具并测试它！
 
 ```py
 print(visit_webpage("https://en.wikipedia.org/wiki/Hugging_Face")[:500])
 ```
 
-## Build our multi-agent system 🤖🤝🤖
+## 构建我们的 multi-agent 系统 🤖🤝🤖
 
-Now that we have all the tools `search` and `visit_webpage`, we can use them to create the web agent.
+现在我们有了所有工具`search`和`visit_webpage`，我们可以使用它们来创建web agent。
 
-Which configuration to choose for this agent?
-- Web browsing is a single-timeline task that does not require parallel tool calls, so JSON tool calling works well for that. We thus choose a `JsonAgent`.
-- Also, since sometimes web search requires exploring many pages before finding the correct answer, we prefer to increase the number of `max_steps` to 10.
+我们该选取什么样的配置来构建这个agent呢？
+- 网页浏览是一个单线程任务，不需要并行工具调用，因此JSON工具调用对于这个任务非常有效。因此我们选择`JsonAgent`。
+- 有时候网页搜索需要探索许多页面才能找到正确答案，所以我们更喜欢将 `max_steps` 增加到10。
 
 ```py
 from smolagents import (
@@ -141,7 +142,7 @@ web_agent = ToolCallingAgent(
 )
 ```
 
-We then wrap this agent into a `ManagedAgent` that will make it callable by its manager agent.
+然后我们将这个agent封装到一个`ManagedAgent`中，使其可以被其管理的agent调用。
 
 ```py
 managed_web_agent = ManagedAgent(
@@ -151,11 +152,7 @@ managed_web_agent = ManagedAgent(
 )
 ```
 
-Finally we create a manager agent, and upon initialization we pass our managed agent to it in its `managed_agents` argument.
-
-Since this agent is the one tasked with the planning and thinking, advanced reasoning will be beneficial, so a `CodeAgent` will be the best choice.
-
-Also, we want to ask a question that involves the current year and does additional data calculations: so let us add `additional_authorized_imports=["time", "numpy", "pandas"]`, just in case the agent needs these packages.
+最后，我们创建一个manager agent，在初始化时将我们的managed agent传递给它的`managed_agents`参数。因为这个agent负责计划和思考，所以高级推理将是有益的，因此`CodeAgent`将是最佳选择。此外，我们想要问一个涉及当前年份的问题，并进行额外的数据计算：因此让我们添加`additional_authorized_imports=["time", "numpy", "pandas"]`，以防agent需要这些包。
 
 ```py
 manager_agent = CodeAgent(
@@ -166,34 +163,32 @@ manager_agent = CodeAgent(
 )
 ```
 
-That's all! Now let's run our system! We select a question that requires both some calculation and research:
+可以了！现在让我们运行我们的系统！我们选择一个需要一些计算和研究的问题：
 
 ```py
 answer = manager_agent.run("If LLM training continues to scale up at the current rhythm until 2030, what would be the electric power in GW required to power the biggest training runs by 2030? What would that correspond to, compared to some countries? Please provide a source for any numbers used.")
 ```
 
-We get this report as the answer:
+我们用这个report 来回答这个问题：
 ```
-Based on current growth projections and energy consumption estimates, if LLM trainings continue to scale up at the 
+Based on current growth projections and energy consumption estimates, if LLM trainings continue to scale up at the
 current rhythm until 2030:
 
-1. The electric power required to power the biggest training runs by 2030 would be approximately 303.74 GW, which 
+1. The electric power required to power the biggest training runs by 2030 would be approximately 303.74 GW, which
 translates to about 2,660,762 GWh/year.
 
-2. Comparing this to countries' electricity consumption:
+1. Comparing this to countries' electricity consumption:
    - It would be equivalent to about 34% of China's total electricity consumption.
    - It would exceed the total electricity consumption of India (184%), Russia (267%), and Japan (291%).
    - It would be nearly 9 times the electricity consumption of countries like Italy or Mexico.
 
-3. Source of numbers:
+2. Source of numbers:
    - The initial estimate of 5 GW for future LLM training comes from AWS CEO Matt Garman.
    - The growth projection used a CAGR of 79.80% from market research by Springs.
-   - Country electricity consumption data is from the U.S. Energy Information Administration, primarily for the year 
+   - Country electricity consumption data is from the U.S. Energy Information Administration, primarily for the year
 2021.
 ```
 
-Seems like we'll need some sizeable powerplants if the [scaling hypothesis](https://gwern.net/scaling-hypothesis) continues to hold true.
+如果[scaling hypothesis](https://gwern.net/scaling-hypothesis)持续成立的话，我们需要一些庞大的动力配置。我们的agent成功地协作解决了这个任务！✅
 
-Our agents managed to efficiently collaborate towards solving the task! ✅
-
-💡 You can easily extend this orchestration to more agents: one does the code execution, one the web search, one handles file loadings...
+💡 你可以轻松地将这个编排扩展到更多的agent：一个执行代码，一个进行网页搜索，一个处理文件加载⋯⋯

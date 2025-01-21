@@ -14,29 +14,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass, asdict
 import json
 import logging
 import os
 import random
 from copy import deepcopy
+from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Union, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from huggingface_hub import InferenceClient
-
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    StoppingCriteria,
-    StoppingCriteriaList,
-    is_torch_available,
-)
-from transformers.utils.import_utils import _is_package_available
-
-import openai
+from huggingface_hub.utils import is_torch_available
 
 from .tools import Tool
+from .utils import _is_package_available
+
+
+if TYPE_CHECKING:
+    from transformers import StoppingCriteriaList
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +44,6 @@ DEFAULT_CODEAGENT_REGEX_GRAMMAR = {
     "type": "regex",
     "value": "Thought: .+?\\nCode:\\n```(?:py|python)?\\n(?:.|\\s)+?\\n```<end_code>",
 }
-
-if _is_package_available("litellm"):
-    import litellm
 
 
 def get_dict_from_nested_dataclasses(obj):
@@ -106,11 +98,24 @@ class ChatMessage:
     def from_hf_api(cls, message) -> "ChatMessage":
         tool_calls = None
         if getattr(message, "tool_calls", None) is not None:
-            tool_calls = [
-                ChatMessageToolCall.from_hf_api(tool_call)
-                for tool_call in message.tool_calls
-            ]
+            tool_calls = [ChatMessageToolCall.from_hf_api(tool_call) for tool_call in message.tool_calls]
         return cls(role=message.role, content=message.content, tool_calls=tool_calls)
+
+
+def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
+    if isinstance(arguments, dict):
+        return arguments
+    else:
+        try:
+            return json.loads(arguments)
+        except Exception:
+            return arguments
+
+
+def parse_tool_args_if_needed(message: ChatMessage) -> ChatMessage:
+    for tool_call in message.tool_calls:
+        tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+    return message
 
 
 class MessageRole(str, Enum):
@@ -178,32 +183,16 @@ def get_clean_message_list(
 
         role = message["role"]
         if role not in MessageRole.roles():
-            raise ValueError(
-                f"Incorrect role {role}, only {MessageRole.roles()} are supported for now."
-            )
+            raise ValueError(f"Incorrect role {role}, only {MessageRole.roles()} are supported for now.")
 
         if role in role_conversions:
             message["role"] = role_conversions[role]
 
-        if (
-            len(final_message_list) > 0
-            and message["role"] == final_message_list[-1]["role"]
-        ):
+        if len(final_message_list) > 0 and message["role"] == final_message_list[-1]["role"]:
             final_message_list[-1]["content"] += "\n=======\n" + message["content"]
         else:
             final_message_list.append(message)
     return final_message_list
-
-
-def parse_dictionary(possible_dictionary: str) -> Union[Dict, str]:
-    try:
-        start, end = (
-            possible_dictionary.find("{"),
-            possible_dictionary.rfind("}") + 1,
-        )
-        return json.loads(possible_dictionary[start:end])
-    except Exception:
-        return possible_dictionary
 
 
 class Model:
@@ -361,13 +350,19 @@ class HfApiModel(Model):
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        return ChatMessage.from_hf_api(response.choices[0].message)
+        message = ChatMessage.from_hf_api(response.choices[0].message)
+        if tools_to_call_from is not None:
+            return parse_tool_args_if_needed(message)
+        return message
 
 
 class TransformersModel(Model):
     """A class to interact with Hugging Face's Inference API for language model interaction.
 
     This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+
+    > [!TIP]
+    > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
 
     Parameters:
         model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
@@ -376,6 +371,8 @@ class TransformersModel(Model):
             The device_map to initialize your model with.
         torch_dtype (`str`, *optional*):
             The torch_dtype to initialize your model with.
+        trust_remote_code (bool):
+            Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
         kwargs (dict, *optional*):
             Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
     Raises:
@@ -401,19 +398,21 @@ class TransformersModel(Model):
         model_id: Optional[str] = None,
         device_map: Optional[str] = None,
         torch_dtype: Optional[str] = None,
+        trust_remote_code: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        if not is_torch_available():
-            raise ImportError("Please install torch in order to use TransformersModel.")
+        if not is_torch_available() or not _is_package_available("transformers"):
+            raise ModuleNotFoundError(
+                "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
+            )
         import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
         default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         if model_id is None:
             model_id = default_model_id
-            logger.warning(
-                f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'"
-            )
+            logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
         self.model_id = model_id
         self.kwargs = kwargs
         if device_map is None:
@@ -422,7 +421,10 @@ class TransformersModel(Model):
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(model_id)
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_id, device_map=device_map, torch_dtype=torch_dtype
+                model_id,
+                device_map=device_map,
+                torch_dtype=torch_dtype,
+                trust_remote_code=trust_remote_code,
             )
         except Exception as e:
             logger.warning(
@@ -430,11 +432,11 @@ class TransformersModel(Model):
             )
             self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_id, device_map=device_map, torch_dtype=torch_dtype
-            )
+            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
 
-    def make_stopping_criteria(self, stop_sequences: List[str]) -> StoppingCriteriaList:
+    def make_stopping_criteria(self, stop_sequences: List[str]) -> "StoppingCriteriaList":
+        from transformers import StoppingCriteria, StoppingCriteriaList
+
         class StopOnStrings(StoppingCriteria):
             def __init__(self, stop_strings: List[str], tokenizer):
                 self.stop_strings = stop_strings
@@ -445,16 +447,9 @@ class TransformersModel(Model):
                 self.stream = ""
 
             def __call__(self, input_ids, scores, **kwargs):
-                generated = self.tokenizer.decode(
-                    input_ids[0][-1], skip_special_tokens=True
-                )
+                generated = self.tokenizer.decode(input_ids[0][-1], skip_special_tokens=True)
                 self.stream += generated
-                if any(
-                    [
-                        self.stream.endswith(stop_string)
-                        for stop_string in self.stop_strings
-                    ]
-                ):
+                if any([self.stream.endswith(stop_string) for stop_string in self.stop_strings]):
                     return True
                 return False
 
@@ -538,9 +533,7 @@ class TransformersModel(Model):
                     ChatMessageToolCall(
                         id="".join(random.choices("0123456789", k=5)),
                         type="function",
-                        function=ChatMessageToolCallDefinition(
-                            name=tool_name, arguments=tool_arguments
-                        ),
+                        function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
                     )
                 ],
             )
@@ -567,11 +560,15 @@ class LiteLLMModel(Model):
         api_key=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        if not _is_package_available("litellm"):
-            raise ImportError(
-                "litellm not found. Install it with `pip install litellm`"
+     
+        try:
+            import litellm
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
             )
+
+        super().__init__(**kwargs)
         self.model_id = model_id
         # IMPORTANT - Set this to TRUE to add the function to the prompt for Non OpenAI LLMs
         litellm.add_function_to_prompt = True
@@ -586,7 +583,8 @@ class LiteLLMModel(Model):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs
     ) -> ChatMessage:
-        
+        import litellm
+
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -612,10 +610,13 @@ class OpenAIServerModel(Model):
     Parameters:
         model_id (`str`):
             The model identifier to use on the server (e.g. "gpt-3.5-turbo").
-        api_base (`str`):
+        api_base (`str`, *optional*):
             The base URL of the OpenAI-compatible API server.
-        api_key (`str`):
+        api_key (`str`, *optional*):
             The API key to use for authentication.
+        custom_role_conversions (`Dict{str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
@@ -623,16 +624,25 @@ class OpenAIServerModel(Model):
     def __init__(
         self,
         model_id: str,
-        api_base: str,
-        api_key: str,
+        api_base: Optional[str] = None,
+        api_key: Optional[str] = None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
+        try:
+            import openai
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from None
+
         super().__init__(**kwargs)
         self.model_id = model_id
         self.client = openai.OpenAI(
             base_url=api_base,
             api_key=api_key,
         )
+        self.custom_role_conversions = custom_role_conversions
 
     def __call__(
         self,

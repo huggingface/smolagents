@@ -37,14 +37,14 @@ Once you have these two arguments, `tools` and `model`,  you can create an agent
 
 Hugging Face API is free to use without a token, but then it will have a rate limitation.
 
-To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`.
+To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
 
 ```python
 from smolagents import CodeAgent, HfApiModel
 
-model_id = "meta-llama/Llama-3.3-70B-Instruct"
+model_id = "meta-llama/Llama-3.3-70B-Instruct" 
 
-model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
+model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to HfApiModel to use a default free model
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -55,6 +55,7 @@ agent.run(
 <hfoption id="Local Transformers Model">
 
 ```python
+# !pip install smolagents[transformers]
 from smolagents import CodeAgent, TransformersModel
 
 model_id = "meta-llama/Llama-3.2-3B-Instruct"
@@ -72,6 +73,7 @@ agent.run(
 To use `LiteLLMModel`, you need to set the environment variable `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, or pass `api_key` variable upon initialization.
 
 ```python
+# !pip install smolagents[litellm]
 from smolagents import CodeAgent, LiteLLMModel
 
 model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", api_key="YOUR_ANTHROPIC_API_KEY") # Could use 'gpt-4o'
@@ -85,12 +87,14 @@ agent.run(
 <hfoption id="Ollama">
 
 ```python
+# !pip install smolagents[litellm]
 from smolagents import CodeAgent, LiteLLMModel
 
 model = LiteLLMModel(
     model_id="ollama_chat/llama3.2", # This model is a bit weak for agentic behaviours though
-    api_base="http://localhost:11434", # replace with remote open-ai compatible server if necessary
+    api_base="http://localhost:11434", # replace with 127.0.0.1:11434 or remote open-ai compatible server if necessary
     api_key="YOUR_API_KEY" # replace with API key if necessary
+    num_ctx=8192 # ollama default is 2048 which will fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
@@ -336,7 +340,7 @@ from smolagents import (
 )
 
 # Import tool from Hub
-image_generation_tool = load_tool("m-ric/text-to-image")
+image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
 model = HfApiModel(model_id)
 
