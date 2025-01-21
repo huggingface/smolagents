@@ -170,7 +170,7 @@ model = OpenAIServerModel(
 
 Below you can find an example of how to set it up, note that you can omit the `azure_endpoint`, `api_key`, and `api_version` arguments, provided you've set the corresponding environment variables -- `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `OPENAI_API_VERSION`.
 
-Pay attention to the lack of an `AZURE_` prefix for `OPENAI_API_VERSION`, this is due to the way the [openai](https://github.com/openai/openai-python) package is designed. 
+Pay attention to the lack of an `AZURE_` prefix for `OPENAI_API_VERSION`, this is due to the way the underlying [openai](https://github.com/openai/openai-python) package is designed. 
 
 ```py
 import os
@@ -178,7 +178,7 @@ import os
 from smolagents import AzureOpenAIServerModel
 
 model = AzureOpenAIServerModel(
-    model = os.environ.get("AZURE_OPENAI_MODEL"),
+    model_id = os.environ.get("AZURE_OPENAI_MODEL"),
     azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
     api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
     api_version=os.environ.get("OPENAI_API_VERSION")    
