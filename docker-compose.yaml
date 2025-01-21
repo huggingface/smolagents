@@ -1,0 +1,13 @@
+services:
+  smolagent:
+    container_name: smolagent
+    hostname: smolagent
+    
+    build:
+      dockerfile: Dockerfile
+      context: .
+      args:
+        - "USER_ID=${USER_ID}"
+      platforms:
+        # - "linux/amd64"
+        - "linux/arm64"
