@@ -107,7 +107,9 @@ agent.run(
 </hfoption>
 <hfoption id="Azure OpenAI">
 
-To initialize an instance of `AzureOpenAIServerModel`, you need to pass your model deployment name and then either pass the `azure_endpoint`, `api_key`, and `api_version`, or set the environment variables `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `OPENAI_API_VERSION`.
+To connect to Azure OpenAI, you can either use `AzureOpenAIServerModel` directly, or use `LiteLLMModel` and configure it accordingly.
+
+To initialize an instance of `AzureOpenAIServerModel`, you need to pass your model deployment name and then either pass the `azure_endpoint`, `api_key`, and `api_version` arguments, or set the environment variables `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `OPENAI_API_VERSION`.
 
 ```python
 # !pip install smolagents[openai]
@@ -120,6 +122,31 @@ agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
 )
 ```
+
+Similarly, you can configure `LiteLLMModel` to connect to Azure OpenAI as follows:
+
+- pass your model deployment name as `model_id`, and make sure to prefix it with `azure/`
+- make sure to set the environment variable `AZURE_API_VERSION`
+- either pass the `api_base` and `api_key` arguments, or set the environment variables `AZURE_API_KEY`, and `AZURE_API_BASE`
+
+```python
+import os
+from smolagents import CodeAgent, LiteLLMModel
+
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-35-turbo-16k-deployment" # example of deployment name
+
+os.environ["AZURE_API_KEY"] = "" # api_key
+os.environ["AZURE_API_BASE"] = "" # "https://example-endpoint.openai.azure.com"
+os.environ["AZURE_API_VERSION"] = "" # "2024-10-01-preview"
+
+model = LiteLLMModel(model_id="azure/" + AZURE_OPENAI_CHAT_DEPLOYMENT_NAME)
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+   "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
 </hfoption>
 </hfoptions>
 
