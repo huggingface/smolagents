@@ -50,6 +50,9 @@ mcp = [
   "mcpadapt>=0.0.6",
   "mcp",
 ]
+mlx = [
+  "mlx-lm"
+]
 openai = [
   "openai>=1.58.1"
 ]
@@ -57,7 +60,7 @@ quality = [
   "ruff>=0.9.0",
 ]
 all = [
-  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers]",
+  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,mlx,openai,transformers]",
 ]
 test = [
   "pytest>=8.1.0",

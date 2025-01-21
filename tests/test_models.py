@@ -16,7 +16,7 @@ import json
 import unittest
 from typing import Optional
 
-from smolagents import ChatMessage, HfApiModel, TransformersModel, models, tool
+from smolagents import ChatMessage, HfApiModel, MLXModel, TransformersModel, models, tool
 from smolagents.models import parse_json_if_needed
 
 
@@ -43,6 +43,11 @@ class ModelTests(unittest.TestCase):
 
     def test_get_hfapi_message_no_tool(self):
         model = HfApiModel(max_tokens=10)
+        messages = [{"role": "user", "content": "Hello!"}]
+        model(messages, stop_sequences=["great"])
+
+    def test_get_mlx_message_no_tool(self):
+        model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
         messages = [{"role": "user", "content": "Hello!"}]
         model(messages, stop_sequences=["great"])
 
