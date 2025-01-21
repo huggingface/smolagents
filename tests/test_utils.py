@@ -84,10 +84,9 @@ def ipython_shell():
     ],
 )
 def test_get_source_ipython(ipython_shell, obj_name, code_blob):
-    test_code = textwrap.dedent(code_blob).strip()
-    ipython_shell.user_ns["In"] = ["", test_code]
-    exec(test_code)
-    assert get_source(locals()[obj_name]) == code_blob
+    ipython_shell.run_cell(code_blob, store_history=True)
+    obj = ipython_shell.user_ns[obj_name]
+    assert get_source(obj) == code_blob
 
 
 def test_get_source_standard_class():
