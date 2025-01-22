@@ -295,7 +295,8 @@ All these attributes will be automatically baked into the agent's system prompt 
 </hfoptions>
 
 
-Then you can directly initialize your agent:
+Then you can directly initialize your agent as following.  
+For above option 1:
 ```py
 from smolagents import CodeAgent, HfApiModel
 agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
@@ -303,7 +304,14 @@ agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
 ```
-
+For above option 2:
+```py
+from smolagents import CodeAgent, HfApiModel
+agent = CodeAgent(tools=[model_download_tool()], model=HfApiModel())
+agent.run(
+    "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
+)
+```
 You get the following logs:
 ```text
 ╭──────────────────────────────────────── New run ─────────────────────────────────────────╮
