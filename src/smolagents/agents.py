@@ -394,7 +394,7 @@ class MultiStepAgent:
                     observation = available_tools[tool_name].__call__(**arguments, sanitize_inputs_outputs=True)
             else:
                 error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
-                raise AgentExecutionError(error_msg, self.logger, self.logger)
+                raise AgentExecutionError(error_msg, self.logger)
             return observation
         except Exception as e:
             if tool_name in self.tools:
