@@ -72,6 +72,7 @@ def multiply(a, b):
 def ipython_shell():
     """Reset IPython shell before and after each test."""
     shell = InteractiveShell.instance()
+    shell.reset()  # Clean before test
     yield shell
     shell.reset()  # Clean after test
 
