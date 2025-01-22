@@ -186,3 +186,23 @@ model = AzureOpenAIServerModel(
 ```
 
 [[autodoc]] AzureOpenAIServerModel
+
+### MLXModel
+
+For convenience, we have added a `MLXModel` that implements the points above by building a local `mlx-lm` pipeline for the model_id given at initialization.
+
+```python
+from smolagents import MLXModel
+
+model = MLXModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
+
+print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
+```
+```text
+>>> What a
+```
+
+> [!TIP]
+> You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
+
+[[autodoc]] MLXModel

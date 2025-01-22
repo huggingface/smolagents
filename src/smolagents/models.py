@@ -359,7 +359,7 @@ class MLXModel(Model):
     """A class to interact with models loaded using MLX on Apple silicon.
 
     > [!TIP]
-    > You must have `mlx_lm` installed on your machine. Please run `pip install smolagents[mlx_lm]` if it's not the case.
+    > You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
 
     Parameters:
         model_id (str):
@@ -391,7 +391,7 @@ class MLXModel(Model):
         super().__init__()
         if not _is_package_available("mlx_lm"):
             raise ModuleNotFoundError(
-                "Please install 'mlx_lm' extra to use 'MLXModel': `pip install 'smolagents[mlx_lm]'`"
+                "Please install 'mlx-lm' extra to use 'MLXModel': `pip install 'smolagents[mlx-lm]'`"
             )
         import mlx_lm
 
