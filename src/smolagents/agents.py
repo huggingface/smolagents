@@ -15,12 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+from collections import deque
 from dataclasses import dataclass
-from enum import IntEnum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
 from rich import box
-from rich.console import Console, Group
+from rich.console import Group
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.syntax import Syntax
@@ -61,9 +61,10 @@ from .utils import (
     AgentError,
     AgentExecutionError,
     AgentGenerationError,
+    AgentLogger,
     AgentMaxStepsError,
     AgentParsingError,
-    console,
+    LogLevel,
     parse_code_blobs,
     parse_json_tool_call,
     truncate_content,
@@ -155,22 +156,6 @@ def format_prompt_with_managed_agents_descriptions(
 
 
 YELLOW_HEX = "#d4b702"
-
-
-class LogLevel(IntEnum):
-    ERROR = 0  # Only errors
-    INFO = 1  # Normal output (default)
-    DEBUG = 2  # Detailed output
-
-
-class AgentLogger:
-    def __init__(self, level: LogLevel = LogLevel.INFO):
-        self.level = level
-        self.console = Console()
-
-    def log(self, *args, level: LogLevel = LogLevel.INFO, **kwargs):
-        if level <= self.level:
-            console.print(*args, **kwargs)
 
 
 class MultiStepAgent:
@@ -352,7 +337,8 @@ class MultiStepAgent:
             )  # NOTE: using indexes starting from the end solves for when you have more than one split_token in the output
         except Exception:
             raise AgentParsingError(
-                f"No '{split_token}' token provided in your output.\nYour output:\n{llm_output}\n. Be sure to include an action, prefaced with '{split_token}'!"
+                f"No '{split_token}' token provided in your output.\nYour output:\n{llm_output}\n. Be sure to include an action, prefaced with '{split_token}'!",
+                self.logger,
             )
         return rationale.strip(), action.strip()
 
@@ -390,7 +376,7 @@ class MultiStepAgent:
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
             error_msg = f"Unknown tool {tool_name}, should be instead one of {list(available_tools.keys())}."
-            raise AgentExecutionError(error_msg)
+            raise AgentExecutionError(error_msg, self.logger)
 
         try:
             if isinstance(arguments, str):
@@ -408,7 +394,7 @@ class MultiStepAgent:
                     observation = available_tools[tool_name].__call__(**arguments, sanitize_inputs_outputs=True)
             else:
                 error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
-                raise AgentExecutionError(error_msg)
+                raise AgentExecutionError(error_msg, self.logger)
             return observation
         except Exception as e:
             if tool_name in self.tools:
@@ -417,13 +403,13 @@ class MultiStepAgent:
                     f"Error in tool call execution: {e}\nYou should only use this tool with a correct input.\n"
                     f"As a reminder, this tool's description is the following:\n{tool_description}"
                 )
-                raise AgentExecutionError(error_msg)
+                raise AgentExecutionError(error_msg, self.logger)
             elif tool_name in self.managed_agents:
                 error_msg = (
                     f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
                     f"As a reminder, this team member's description is the following:\n{available_tools[tool_name]}"
                 )
-                raise AgentExecutionError(error_msg)
+                raise AgentExecutionError(error_msg, self.logger)
 
     def step(self, log_entry: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
@@ -498,13 +484,17 @@ You have been provided with these additional arguments, that you can access usin
             return result
 
         if stream:
-            return self.stream_run(self.task)
-        else:
-            return self.direct_run(self.task)
+            # The steps are returned as they are executed through a generator to iterate on.
+            return self._run(task=self.task)
+        # Outputs are returned only at the end as a string. We only look at the last step
+        return deque(self._run(task=self.task), maxlen=1)[0]
 
-    def stream_run(self, task: str):
+    def _run(self, task: str) -> Generator[str, None, None]:
         """
-        Runs the agent in streaming mode, yielding steps as they are executed: should be launched only in the `run` method.
+        Runs the agent in streaming mode and returns a generator of all the steps.
+
+        Args:
+            task (`str`): The task to perform.
         """
         final_answer = None
         self.step_number = 0
@@ -542,7 +532,7 @@ You have been provided with these additional arguments, that you can access usin
 
         if final_answer is None and self.step_number == self.max_steps:
             error_message = "Reached max steps."
-            final_step_log = ActionStep(error=AgentMaxStepsError(error_message))
+            final_step_log = ActionStep(error=AgentMaxStepsError(error_message, self.logger))
             self.logs.append(final_step_log)
             final_answer = self.provide_final_answer(task)
             self.logger.log(Text(f"Final answer: {final_answer}"), level=LogLevel.INFO)
@@ -555,59 +545,7 @@ You have been provided with these additional arguments, that you can access usin
 
         yield handle_agent_output_types(final_answer)
 
-    def direct_run(self, task: str):
-        """
-        Runs the agent in direct mode, returning outputs only at the end: should be launched only in the `run` method.
-        """
-        final_answer = None
-        self.step_number = 0
-        while final_answer is None and self.step_number < self.max_steps:
-            step_start_time = time.time()
-            step_log = ActionStep(step=self.step_number, start_time=step_start_time)
-            try:
-                if self.planning_interval is not None and self.step_number % self.planning_interval == 0:
-                    self.planning_step(
-                        task,
-                        is_first_step=(self.step_number == 0),
-                        step=self.step_number,
-                    )
-                self.logger.log(
-                    Rule(
-                        f"[bold]Step {self.step_number}",
-                        characters="━",
-                        style=YELLOW_HEX,
-                    ),
-                    level=LogLevel.INFO,
-                )
-
-                # Run one step!
-                final_answer = self.step(step_log)
-
-            except AgentError as e:
-                step_log.error = e
-            finally:
-                step_end_time = time.time()
-                step_log.end_time = step_end_time
-                step_log.duration = step_end_time - step_start_time
-                self.logs.append(step_log)
-                for callback in self.step_callbacks:
-                    callback(step_log)
-                self.step_number += 1
-
-        if final_answer is None and self.step_number == self.max_steps:
-            error_message = "Reached max steps."
-            final_step_log = ActionStep(error=AgentMaxStepsError(error_message))
-            self.logs.append(final_step_log)
-            final_answer = self.provide_final_answer(task)
-            self.logger.log(Text(f"Final answer: {final_answer}"), level=LogLevel.INFO)
-            final_step_log.action_output = final_answer
-            final_step_log.duration = 0
-            for callback in self.step_callbacks:
-                callback(final_step_log)
-
-        return handle_agent_output_types(final_answer)
-
-    def planning_step(self, task, is_first_step: bool, step: int):
+    def planning_step(self, task, is_first_step: bool, step: int) -> None:
         """
         Used periodically by the agent to plan the next steps to reach the objective.
 
@@ -762,7 +700,7 @@ class ToolCallingAgent(MultiStepAgent):
             tool_arguments = tool_call.function.arguments
 
         except Exception as e:
-            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}")
+            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger)
 
         log_entry.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 
@@ -843,7 +781,7 @@ class CodeAgent(MultiStepAgent):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         if "{{authorized_imports}}" not in system_prompt:
-            raise AgentError("Tag '{{authorized_imports}}' should be provided in the prompt.")
+            raise ValueError("Tag '{{authorized_imports}}' should be provided in the prompt.")
         super().__init__(
             tools=tools,
             model=model,
@@ -908,7 +846,7 @@ class CodeAgent(MultiStepAgent):
             ).content
             log_entry.llm_output = llm_output
         except Exception as e:
-            raise AgentGenerationError(f"Error in generating model output:\n{e}")
+            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger)
 
         self.logger.log(
             Group(
@@ -932,7 +870,7 @@ class CodeAgent(MultiStepAgent):
             code_action = fix_final_answer_code(parse_code_blobs(llm_output))
         except Exception as e:
             error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
-            raise AgentParsingError(error_msg)
+            raise AgentParsingError(error_msg, self.logger)
 
         log_entry.tool_calls = [
             ToolCall(
@@ -978,7 +916,7 @@ class CodeAgent(MultiStepAgent):
                     "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
                     level=LogLevel.INFO,
                 )
-            raise AgentExecutionError(error_msg)
+            raise AgentExecutionError(error_msg, self.logger)
 
         truncated_output = truncate_content(str(output))
         observation += "Last output from code snippet:\n" + truncated_output

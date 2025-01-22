@@ -63,6 +63,7 @@ all = [
   "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,mlx,openai,transformers]",
 ]
 test = [
+  "ipython>=8.31.0", # for interactive environment tests
   "pytest>=8.1.0",
   "python-dotenv>=1.0.1",  # For test_all_docs
   "smolagents[all]",

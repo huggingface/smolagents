@@ -34,7 +34,9 @@ class ModelTests(unittest.TestCase):
             """
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
-        assert "nullable" in models.get_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
+        assert (
+            "nullable" in models.get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
+        )
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", "Hello!")

@@ -29,7 +29,7 @@ This library offers:
 
 🧑‍💻 **First-class support for Code Agents**, i.e. agents that write their actions in code (as opposed to "agents being used to write code"), [read more here](tutorials/secure_code_execution).
 
-🤗 **Hub integrations**: you can share and load tools to/from the Hub, and more is to come!
+🤗 **Hub integrations**: you can share and load Gradio Spaces as tools to/from the Hub, and more is to come!
 
 <div class="mt-10">
   <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-y-4 md:gap-x-5">

@@ -951,42 +951,117 @@ texec(tcompile("1 + 1", "no filename", "exec"))
         )
 
 
-class TestPythonInterpreter:
-    @pytest.mark.parametrize(
-        "code, expected_result",
-        [
-            (
-                dedent("""\
-                    x = 1
-                    x += 2
-                """),
-                3,
-            ),
-            (
-                dedent("""\
-                    x = "a"
-                    x += "b"
-                """),
-                "ab",
-            ),
-            (
-                dedent("""\
-                    class Custom:
-                        def __init__(self, value):
-                            self.value = value
-                        def __iadd__(self, other):
-                            self.value += other * 10
-                            return self
+@pytest.mark.parametrize(
+    "code, expected_result",
+    [
+        (
+            dedent("""\
+                x = 1
+                x += 2
+            """),
+            3,
+        ),
+        (
+            dedent("""\
+                x = "a"
+                x += "b"
+            """),
+            "ab",
+        ),
+        (
+            dedent("""\
+                class Custom:
+                    def __init__(self, value):
+                        self.value = value
+                    def __iadd__(self, other):
+                        self.value += other * 10
+                        return self
 
-                    x = Custom(1)
-                    x += 2
-                    x.value
-                """),
-                21,
-            ),
-        ],
-    )
-    def test_evaluate_augassign(self, code, expected_result):
-        state = {}
-        result, _ = evaluate_python_code(code, {}, state=state)
-        assert result == expected_result
+                x = Custom(1)
+                x += 2
+                x.value
+            """),
+            21,
+        ),
+    ],
+)
+def test_evaluate_augassign(code, expected_result):
+    state = {}
+    result, _ = evaluate_python_code(code, {}, state=state)
+    assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "operator, expected_result",
+    [
+        ("+=", 7),
+        ("-=", 3),
+        ("*=", 10),
+        ("/=", 2.5),
+        ("//=", 2),
+        ("%=", 1),
+        ("**=", 25),
+        ("&=", 0),
+        ("|=", 7),
+        ("^=", 7),
+        (">>=", 1),
+        ("<<=", 20),
+    ],
+)
+def test_evaluate_augassign_number(operator, expected_result):
+    code = dedent("""\
+        x = 5
+        x {operator} 2
+    """).format(operator=operator)
+    state = {}
+    result, _ = evaluate_python_code(code, {}, state=state)
+    assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "operator, expected_result",
+    [
+        ("+=", 7),
+        ("-=", 3),
+        ("*=", 10),
+        ("/=", 2.5),
+        ("//=", 2),
+        ("%=", 1),
+        ("**=", 25),
+        ("&=", 0),
+        ("|=", 7),
+        ("^=", 7),
+        (">>=", 1),
+        ("<<=", 20),
+    ],
+)
+def test_evaluate_augassign_custom(operator, expected_result):
+    operator_names = {
+        "+=": "iadd",
+        "-=": "isub",
+        "*=": "imul",
+        "/=": "itruediv",
+        "//=": "ifloordiv",
+        "%=": "imod",
+        "**=": "ipow",
+        "&=": "iand",
+        "|=": "ior",
+        "^=": "ixor",
+        ">>=": "irshift",
+        "<<=": "ilshift",
+    }
+    code = dedent("""\
+        class Custom:
+            def __init__(self, value):
+                self.value = value
+            def __{operator_name}__(self, other):
+                self.value {operator} other
+                return self
+
+        x = Custom(5)
+        x {operator} 2
+        x.value
+    """).format(operator=operator, operator_name=operator_names[operator])
+    state = {}
+    result, _ = evaluate_python_code(code, {}, state=state)
+    assert result == expected_result

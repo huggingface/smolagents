@@ -16,7 +16,7 @@
 # limitations under the License.
 import re
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -85,7 +85,7 @@ class FinalAnswerTool(Tool):
     inputs = {"answer": {"type": "any", "description": "The final answer to the problem"}}
     output_type = "any"
 
-    def forward(self, answer):
+    def forward(self, answer: Any) -> Any:
         return answer
 
 
@@ -225,8 +225,8 @@ class VisitWebpageTool(Tool):
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
             ) from e
         try:
-            # Send a GET request to the URL
-            response = requests.get(url)
+            # Send a GET request to the URL with a 20-second timeout
+            response = requests.get(url, timeout=20)
             response.raise_for_status()  # Raise an exception for bad status codes
 
             # Convert the HTML content to Markdown
@@ -237,6 +237,8 @@ class VisitWebpageTool(Tool):
 
             return truncate_content(markdown_content, 10000)
 
+        except requests.exceptions.Timeout:
+            return "The request timed out. Please try again later or check the URL."
         except RequestException as e:
             return f"Error fetching the webpage: {str(e)}"
         except Exception as e:

@@ -276,19 +276,25 @@ def _parse_google_format_docstring(
     return description, args_dict, returns
 
 
-def _convert_type_hints_to_json_schema(func: Callable) -> Dict:
+def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hints: bool = True) -> Dict:
     type_hints = get_type_hints(func)
     signature = inspect.signature(func)
-    required = []
-    for param_name, param in signature.parameters.items():
-        if param.annotation == inspect.Parameter.empty:
-            raise TypeHintParsingException(f"Argument {param.name} is missing a type hint in function {func.__name__}")
-        if param.default == inspect.Parameter.empty:
-            required.append(param_name)
 
     properties = {}
     for param_name, param_type in type_hints.items():
         properties[param_name] = _parse_type_hint(param_type)
+
+    required = []
+    for param_name, param in signature.parameters.items():
+        if param.annotation == inspect.Parameter.empty and error_on_missing_type_hints:
+            raise TypeHintParsingException(f"Argument {param.name} is missing a type hint in function {func.__name__}")
+        if param_name not in properties:
+            properties[param_name] = {}
+
+        if param.default == inspect.Parameter.empty:
+            required.append(param_name)
+        else:
+            properties[param_name]["nullable"] = True
 
     schema = {"type": "object", "properties": properties}
     if required:
@@ -368,7 +374,8 @@ _BASE_TYPE_MAPPING = {
     float: {"type": "number"},
     str: {"type": "string"},
     bool: {"type": "boolean"},
-    Any: {},
+    Any: {"type": "any"},
+    types.NoneType: {"type": "null"},
 }
 
 

@@ -421,9 +421,7 @@ class AgentTests(unittest.TestCase):
     def test_code_agent_missing_import_triggers_advice_in_error_log(self):
         agent = CodeAgent(tools=[], model=fake_code_model_import)
 
-        from smolagents.agents import console
-
-        with console.capture() as capture:
+        with agent.logger.console.capture() as capture:
             agent.run("Count to 3")
         str_output = capture.get()
         assert "Consider passing said import under" in str_output.replace("\n", "")

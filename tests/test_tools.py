@@ -15,7 +15,7 @@
 import unittest
 from pathlib import Path
 from textwrap import dedent
-from typing import Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from unittest.mock import MagicMock, patch
 
 import mcp
@@ -381,12 +381,40 @@ class ToolTests(unittest.TestCase):
             Get weather in the next days at given location.
 
             Args:
-                location: the location
-                celsius: is the temperature given in celsius
+                location: The location to get the weather for.
+                celsius: is the temperature given in celsius?
             """
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
         assert get_weather.inputs["celsius"]["nullable"]
+
+    def test_tool_supports_any_none(self):
+        @tool
+        def get_weather(location: Any) -> None:
+            """
+            Get weather in the next days at given location.
+
+            Args:
+                location: The location to get the weather for.
+            """
+            return
+
+        assert get_weather.inputs["location"]["type"] == "any"
+
+    def test_tool_supports_array(self):
+        @tool
+        def get_weather(locations: List[str], months: Optional[Tuple[str, str]] = None) -> Dict[str, float]:
+            """
+            Get weather in the next days at given locations.
+
+            Args:
+                locations: The locations to get the weather for.
+                months: The months to get the weather for
+            """
+            return
+
+        assert get_weather.inputs["locations"]["type"] == "array"
+        assert get_weather.inputs["months"]["type"] == "array"
 
 
 @pytest.fixture

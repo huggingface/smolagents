@@ -27,6 +27,7 @@ from smolagents.models import (
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,
 )
+from smolagents.utils import AgentLogger, LogLevel
 
 
 class FakeLLMModel:
@@ -162,8 +163,10 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(final_message.content["mime_type"], "image/png")
 
     def test_streaming_with_agent_error(self):
+        logger = AgentLogger(level=LogLevel.INFO)
+
         def dummy_model(prompt, **kwargs):
-            raise AgentError("Simulated agent error")
+            raise AgentError("Simulated agent error", logger)
 
         agent = CodeAgent(
             tools=[],

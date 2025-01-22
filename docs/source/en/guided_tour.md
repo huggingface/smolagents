@@ -27,10 +27,11 @@ To initialize a minimal agent, you need at least these two arguments:
     - [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
     - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood.
     - [`LiteLLMModel`] lets you call 100+ different models through [LiteLLM](https://docs.litellm.ai/)!
+    - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
 
 - `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Hugging Face API](https://huggingface.co/docs/api-inference/en/index), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), or [LiteLLM](https://www.litellm.ai/).
+Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Hugging Face API](https://huggingface.co/docs/api-inference/en/index), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), or [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
 
 <hfoptions id="Pick a LLM">
 <hfoption id="Hugging Face API">
@@ -103,6 +104,49 @@ agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
 )
 ```
+</hfoption>
+<hfoption id="Azure OpenAI">
+
+To connect to Azure OpenAI, you can either use `AzureOpenAIServerModel` directly, or use `LiteLLMModel` and configure it accordingly.
+
+To initialize an instance of `AzureOpenAIServerModel`, you need to pass your model deployment name and then either pass the `azure_endpoint`, `api_key`, and `api_version` arguments, or set the environment variables `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `OPENAI_API_VERSION`.
+
+```python
+# !pip install smolagents[openai]
+from smolagents import CodeAgent, AzureOpenAIServerModel
+
+model = AzureOpenAIServerModel(model_id="gpt-4o-mini")
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+Similarly, you can configure `LiteLLMModel` to connect to Azure OpenAI as follows:
+
+- pass your model deployment name as `model_id`, and make sure to prefix it with `azure/`
+- make sure to set the environment variable `AZURE_API_VERSION`
+- either pass the `api_base` and `api_key` arguments, or set the environment variables `AZURE_API_KEY`, and `AZURE_API_BASE`
+
+```python
+import os
+from smolagents import CodeAgent, LiteLLMModel
+
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-35-turbo-16k-deployment" # example of deployment name
+
+os.environ["AZURE_API_KEY"] = "" # api_key
+os.environ["AZURE_API_BASE"] = "" # "https://example-endpoint.openai.azure.com"
+os.environ["AZURE_API_VERSION"] = "" # "2024-10-01-preview"
+
+model = LiteLLMModel(model_id="azure/" + AZURE_OPENAI_CHAT_DEPLOYMENT_NAME)
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+   "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
 </hfoption>
 </hfoptions>
 
