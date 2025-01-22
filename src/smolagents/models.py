@@ -483,28 +483,27 @@ class TransformersModel(Model):
             self.kwargs.get('max_new_tokens') or 
             self.kwargs.get('max_tokens')
         )
+
         if max_new_tokens:
             completion_kwargs['max_new_tokens'] = max_new_tokens
 
         if stop_sequences:
             completion_kwargs["stopping_criteria"] = self.make_stopping_criteria(stop_sequences)
-            
-        template_kwargs = {
-            "return_tensors": "pt",
-            "return_dict": True,
-        }
-        
-        tools = completion_kwargs.pop("tools", None) if "tools" in completion_kwargs else None
-        if tools:
-            template_kwargs.update({
-                "tools": tools,
-                "add_generation_prompt": True
-            })
-        
-        prompt_tensor = self.tokenizer.apply_chat_template(
-            messages,
-            **template_kwargs
-        )
+
+        if tools_to_call_from is not None:
+            prompt_tensor = self.tokenizer.apply_chat_template(
+                messages,
+                tools=completion_kwargs.pop("tools", []),
+                return_tensors="pt",
+                return_dict=True,
+                add_generation_prompt=True,
+            )
+        else:
+            prompt_tensor = self.tokenizer.apply_chat_template(
+                messages,
+                return_tensors="pt",
+                return_dict=True,
+            )
 
         prompt_tensor = prompt_tensor.to(self.model.device)
         count_prompt_tokens = prompt_tensor["input_ids"].shape[1]
