@@ -147,7 +147,7 @@ def test_e2e_class_tool_save():
     test_tool = TestTool()
     with tempfile.TemporaryDirectory() as tmp_dir:
         test_tool.save(tmp_dir)
-        assert os.listdir(tmp_dir) == ["requirements.txt", "app.py", "tool.py"]
+        assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
         assert (
             pathlib.Path(tmp_dir, "tool.py").read_text()
             == """from smolagents.tools import Tool
@@ -204,7 +204,7 @@ def test_e2e_ipython_class_tool_save():
         TestTool().save("{tmp_dir}")
     """)
         assert shell.run_cell(code_blob, store_history=True).success
-        assert os.listdir(tmp_dir) == ["requirements.txt", "app.py", "tool.py"]
+        assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
         assert (
             pathlib.Path(tmp_dir, "tool.py").read_text()
             == """from smolagents.tools import Tool
@@ -255,7 +255,7 @@ def test_e2e_function_tool_save():
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         test_tool.save(tmp_dir)
-        assert os.listdir(tmp_dir) == ["requirements.txt", "app.py", "tool.py"]
+        assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
         assert (
             pathlib.Path(tmp_dir, "tool.py").read_text()
             == """from smolagents import Tool
@@ -314,7 +314,7 @@ def test_e2e_ipython_function_tool_save():
         test_tool.save("{tmp_dir}")
         """)
         assert shell.run_cell(code_blob, store_history=True).success
-        assert os.listdir(tmp_dir) == ["requirements.txt", "app.py", "tool.py"]
+        assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
         assert (
             pathlib.Path(tmp_dir, "tool.py").read_text()
             == """from smolagents import Tool
