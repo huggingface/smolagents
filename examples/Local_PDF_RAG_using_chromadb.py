@@ -1,36 +1,64 @@
 import os
 
+import datasets
+from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
-from langchain_community.document_loaders import PyPDFLoader
+
+# from langchain_community.document_loaders import PyPDFLoader
 from langchain_huggingface import HuggingFaceEmbeddings
+from tqdm import tqdm
+from transformers import AutoTokenizer
 
 # from langchain_openai import OpenAIEmbeddings
 from smolagents import CodeAgent, LiteLLMModel, Tool
+from smolagents.agents import ToolCallingAgent
 
 
-pdf_directory = "pdfs"
-pdf_files = [
-    os.path.join(pdf_directory, f)
-    for f in os.listdir(pdf_directory)
-    if f.endswith(".pdf")
+knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
+
+source_docs = [
+    Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]})
+    for doc in knowledge_base
 ]
-docs = []
 
-for file_path in pdf_files:
-    loader = PyPDFLoader(file_path)
-    docs.extend(loader.load())
+## For your own PDFs, you can use the following code to load them into source_docs
+# pdf_directory = "pdfs"
+# pdf_files = [
+#     os.path.join(pdf_directory, f)
+#     for f in os.listdir(pdf_directory)
+#     if f.endswith(".pdf")
+# ]
+# source_docs = []
 
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50,
+# for file_path in pdf_files:
+#     loader = PyPDFLoader(file_path)
+#     docs.extend(loader.load())
+
+text_splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+    AutoTokenizer.from_pretrained("thenlper/gte-small"),
+    chunk_size=200,
+    chunk_overlap=20,
     add_start_index=True,
     strip_whitespace=True,
     separators=["\n\n", "\n", ".", " ", ""],
 )
 
-docs_processed = text_splitter.split_documents(docs)
+# Split docs and keep only unique ones
+print("Splitting documents...")
+docs_processed = []
+unique_texts = {}
+for doc in tqdm(source_docs):
+    new_docs = text_splitter.split_documents([doc])
+    for new_doc in new_docs:
+        if new_doc.page_content not in unique_texts:
+            unique_texts[new_doc.page_content] = True
+            docs_processed.append(new_doc)
 
+
+print(
+    "Embedding documents... This should take a few minutes (5 minutes on MacBook with M1 Pro)"
+)
 # Initialize embeddings and ChromaDB vector store
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
@@ -83,14 +111,22 @@ model = LiteLLMModel(
     model_id="groq/llama-3.3-70b-versatile",
     api_key=os.environ.get("GROQ_API_KEY"),
 )
-agent = CodeAgent(
+
+agent = ToolCallingAgent(
     tools=[retriever_tool],
     model=model,
-    max_steps=4,
-    verbosity_level=2,
+    verbose=True,
 )
 
-agent_output = agent.run("what is Position-wise Feed-Forward Networks")
+## You can also use the CodeAgent class
+# agent = CodeAgent(
+#     tools=[retriever_tool],
+#     model=model,
+#     max_steps=4,
+#     verbosity_level=2,
+# )
+
+agent_output = agent.run("How can I push a model to the Hub?")
 
 
 print("Final output:")
