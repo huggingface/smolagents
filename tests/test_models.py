@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import sys
 import unittest
 from typing import Optional
 
@@ -48,10 +49,12 @@ class ModelTests(unittest.TestCase):
         messages = [{"role": "user", "content": "Hello!"}]
         model(messages, stop_sequences=["great"])
 
+    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
         messages = [{"role": "user", "content": "Hello!"}]
-        model(messages, stop_sequences=["great"])
+        output = model(messages, stop_sequences=["great"]).content
+        assert output.startswith("Hello")
 
     def test_transformers_message_no_tool(self):
         model = TransformersModel(
