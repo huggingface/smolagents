@@ -476,6 +476,7 @@ class TransformersModel(Model):
         )
         
         messages = completion_kwargs.pop("messages")
+        stop_sequences = completion_kwargs.pop("stop", None)
         
         max_new_tokens = (
             kwargs.get('max_new_tokens') or 
