@@ -112,19 +112,19 @@ model = LiteLLMModel(
     api_key=os.environ.get("GROQ_API_KEY"),
 )
 
-agent = ToolCallingAgent(
-    tools=[retriever_tool],
-    model=model,
-    verbose=True,
-)
-
-## You can also use the CodeAgent class
-# agent = CodeAgent(
+# # You can also use the ToolCallingAgent class
+# agent = ToolCallingAgent(
 #     tools=[retriever_tool],
 #     model=model,
-#     max_steps=4,
-#     verbosity_level=2,
+#     verbose=True,
 # )
+
+agent = CodeAgent(
+    tools=[retriever_tool],
+    model=model,
+    max_steps=4,
+    verbosity_level=2,
+)
 
 agent_output = agent.run("How can I push a model to the Hub?")
 
