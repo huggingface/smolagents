@@ -25,6 +25,9 @@ class MethodChecker(ast.NodeVisitor):
         self.class_attributes = class_attributes
         self.errors = []
         self.check_imports = check_imports
+        self.typing_names = {
+            'Any'
+        }
 
     def visit_arguments(self, node):
         """Collect function arguments"""
@@ -97,6 +100,7 @@ class MethodChecker(ast.NodeVisitor):
                 or node.id in self.imports
                 or node.id in self.from_imports
                 or node.id in self.assigned_names
+                or node.id in self.typing_names
             ):
                 self.errors.append(f"Name '{node.id}' is undefined.")
 
