@@ -225,8 +225,8 @@ class VisitWebpageTool(Tool):
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
             ) from e
         try:
-            # Send a GET request to the URL with a 60-second timeout
-            response = requests.get(url, timeout=60)
+            # Send a GET request to the URL with a 20-second timeout
+            response = requests.get(url, timeout=20)
             response.raise_for_status()  # Raise an exception for bad status codes
 
             # Convert the HTML content to Markdown
