@@ -156,7 +156,7 @@ agent.run(
 <hfoption id="MLX">
 
 ```python
-# !pip install smolagents[mlx]
+# !pip install smolagents[mlx-lm]
 from smolagents import CodeAgent, MLXModel
 
 mlx_model = MLXModel("mlx-community/Qwen2.5-Coder-32B-Instruct-4bit")
