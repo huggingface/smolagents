@@ -205,13 +205,13 @@ class Model:
         self.kwargs = kwargs
 
     def _prepare_completion_kwargs(
-            self,
-            messages: List[Dict[str, str]],
-            stop_sequences: Optional[List[str]] = None,
-            grammar: Optional[str] = None,
-            tools_to_call_from: Optional[List[Tool]] = None,
-            custom_role_conversions: Optional[Dict[str, str]] = None,
-            **kwargs,
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
+        **kwargs,
     ) -> Dict:
         """
         Prepare parameters required for model invocation, handling parameter priorities.
@@ -222,9 +222,7 @@ class Model:
         3. Default values in self.kwargs
         """
         # Clean and standardize the message list
-        messages = get_clean_message_list(
-            messages, role_conversions=custom_role_conversions or tool_role_conversions
-        )
+        messages = get_clean_message_list(messages, role_conversions=custom_role_conversions or tool_role_conversions)
 
         # Use self.kwargs as the base configuration
         completion_kwargs = {
@@ -259,12 +257,12 @@ class Model:
         }
 
     def __call__(
-            self,
-            messages: List[Dict[str, str]],
-            stop_sequences: Optional[List[str]] = None,
-            grammar: Optional[str] = None,
-            tools_to_call_from: Optional[List[Tool]] = None,
-            **kwargs
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
     ) -> ChatMessage:
         """Process the input messages and return the model's response.
 
@@ -320,11 +318,11 @@ class HfApiModel(Model):
     """
 
     def __init__(
-            self,
-            model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
-            token: Optional[str] = None,
-            timeout: Optional[int] = 120,
-            **kwargs,
+        self,
+        model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
+        token: Optional[str] = None,
+        timeout: Optional[int] = 120,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.model_id = model_id
@@ -333,20 +331,19 @@ class HfApiModel(Model):
         self.client = InferenceClient(self.model_id, token=token, timeout=timeout)
 
     def __call__(
-            self,
-            messages: List[Dict[str, str]],
-            stop_sequences: Optional[List[str]] = None,
-            grammar: Optional[str] = None,
-            tools_to_call_from: Optional[List[Tool]] = None,
-            **kwargs
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
     ) -> ChatMessage:
-
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
             grammar=grammar,
             tools_to_call_from=tools_to_call_from,
-            **kwargs
+            **kwargs,
         )
 
         response = self.client.chat_completion(**completion_kwargs)
@@ -397,12 +394,12 @@ class TransformersModel(Model):
     """
 
     def __init__(
-            self,
-            model_id: Optional[str] = None,
-            device_map: Optional[str] = None,
-            torch_dtype: Optional[str] = None,
-            trust_remote_code: bool = False,
-            **kwargs,
+        self,
+        model_id: Optional[str] = None,
+        device_map: Optional[str] = None,
+        torch_dtype: Optional[str] = None,
+        trust_remote_code: bool = False,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         if not is_torch_available() or not _is_package_available("transformers"):
@@ -459,34 +456,33 @@ class TransformersModel(Model):
         return StoppingCriteriaList([StopOnStrings(stop_sequences, self.tokenizer)])
 
     def __call__(
-            self,
-            messages: List[Dict[str, str]],
-            stop_sequences: Optional[List[str]] = None,
-            grammar: Optional[str] = None,
-            tools_to_call_from: Optional[List[Tool]] = None,
-            **kwargs
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
     ) -> ChatMessage:
-
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
             grammar=grammar,
             tools_to_call_from=tools_to_call_from,
-            **kwargs
+            **kwargs,
         )
 
         messages = completion_kwargs.pop("messages")
         stop_sequences = completion_kwargs.pop("stop", None)
 
         max_new_tokens = (
-                kwargs.get('max_new_tokens') or
-                kwargs.get('max_tokens') or
-                self.kwargs.get('max_new_tokens') or
-                self.kwargs.get('max_tokens')
+            kwargs.get("max_new_tokens")
+            or kwargs.get("max_tokens")
+            or self.kwargs.get("max_new_tokens")
+            or self.kwargs.get("max_tokens")
         )
 
         if max_new_tokens:
-            completion_kwargs['max_new_tokens'] = max_new_tokens
+            completion_kwargs["max_new_tokens"] = max_new_tokens
 
         if stop_sequences:
             completion_kwargs["stopping_criteria"] = self.make_stopping_criteria(stop_sequences)
@@ -509,10 +505,7 @@ class TransformersModel(Model):
         prompt_tensor = prompt_tensor.to(self.model.device)
         count_prompt_tokens = prompt_tensor["input_ids"].shape[1]
 
-        out = self.model.generate(
-            **prompt_tensor,
-            **completion_kwargs
-        )
+        out = self.model.generate(**prompt_tensor, **completion_kwargs)
         generated_tokens = out[0, count_prompt_tokens:]
         output = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
         self.last_input_token_count = count_prompt_tokens
@@ -557,13 +550,12 @@ class LiteLLMModel(Model):
     """
 
     def __init__(
-            self,
-            model_id="anthropic/claude-3-5-sonnet-20240620",
-            api_base=None,
-            api_key=None,
-            **kwargs,
+        self,
+        model_id="anthropic/claude-3-5-sonnet-20240620",
+        api_base=None,
+        api_key=None,
+        **kwargs,
     ):
-
         try:
             import litellm
         except ModuleNotFoundError:
@@ -579,12 +571,12 @@ class LiteLLMModel(Model):
         self.api_key = api_key
 
     def __call__(
-            self,
-            messages: List[Dict[str, str]],
-            stop_sequences: Optional[List[str]] = None,
-            grammar: Optional[str] = None,
-            tools_to_call_from: Optional[List[Tool]] = None,
-            **kwargs
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
     ) -> ChatMessage:
         import litellm
 
@@ -604,7 +596,7 @@ class LiteLLMModel(Model):
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
 
-        message = ChatMessage(**response.choices[0].message.model_dump(include={'role', 'content', 'tool_calls'}))
+        message = ChatMessage(**response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}))
 
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
@@ -629,12 +621,12 @@ class OpenAIServerModel(Model):
     """
 
     def __init__(
-            self,
-            model_id: str,
-            api_base: Optional[str] = None,
-            api_key: Optional[str] = None,
-            custom_role_conversions: Optional[Dict[str, str]] = None,
-            **kwargs,
+        self,
+        model_id: str,
+        api_base: Optional[str] = None,
+        api_key: Optional[str] = None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
+        **kwargs,
     ):
         try:
             import openai
@@ -652,14 +644,13 @@ class OpenAIServerModel(Model):
         self.custom_role_conversions = custom_role_conversions
 
     def __call__(
-            self,
-            messages: List[Dict[str, str]],
-            stop_sequences: Optional[List[str]] = None,
-            grammar: Optional[str] = None,
-            tools_to_call_from: Optional[List[Tool]] = None,
-            **kwargs
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
     ) -> ChatMessage:
-
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -667,14 +658,14 @@ class OpenAIServerModel(Model):
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
             custom_role_conversions=self.custom_role_conversions,
-            **kwargs
+            **kwargs,
         )
 
         response = self.client.chat.completions.create(**completion_kwargs)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
 
-        message = ChatMessage(**response.choices[0].message.model_dump(include={'role', 'content', 'tool_calls'}))
+        message = ChatMessage(**response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}))
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
         return message
