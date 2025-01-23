@@ -294,10 +294,11 @@ class MultiStepAgent:
                         + str(step_log.error)
                         + "\nNow let's retry: take care not to repeat previous errors! If you have retried several times, try a completely different approach.\n"
                     )
-                    tool_response_message = {
+                    error_message = {
                         "role": MessageRole.ASSISTANT,
                         "content": message_content,
                     }
+                    memory.append(error_message)
                 if step_log.tool_calls is not None and (
                     step_log.error is not None or step_log.observations is not None
                 ):
