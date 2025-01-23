@@ -38,6 +38,7 @@ Both require arguments `model` and list of tools `tools` at initialization.
 
 ### Classes of agents
 
+
 [[autodoc]] MultiStepAgent
 
 [[autodoc]] CodeAgent
