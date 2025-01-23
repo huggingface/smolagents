@@ -657,8 +657,8 @@ class ToolCallingAgent(MultiStepAgent):
     This agent uses JSON-like tool calls, using method `model.get_tool_call` to leverage the LLM engine's tool calling capabilities.
 
     Args:
-        tools (`list[Tool]`):List of tools that the agent can use.
-        model (Callable[[list[dict[str, str]]], [`ChatMessage`]]): Model that will generate the agent's actions.
+        tools (`list[Tool]`): [`Tool`]s that the agent can use.
+        model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
         system_prompt (`str`, *optional*): System prompt that will be used to generate the agent's actions.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         **kwargs: Additional keyword arguments.
@@ -771,8 +771,8 @@ class CodeAgent(MultiStepAgent):
     In this agent, the tool calls will be formulated by the LLM in code format, then parsed and executed.
 
     Args:
-        tools (`list[[`Tool`]]`): List of tools that the agent can use.
-        model (Callable[[list[dict[str, str]]], [`ChatMessage`]]): Model that will generate the agent's actions.
+        tools (`list[Tool]`): [`Tool`]s that the agent can use.
+        model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
         system_prompt (`str`, *optional*): System prompt that will be used to generate the agent's actions.
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
         additional_authorized_imports (`list[str]`, *optional*): List of additional imports that are authorized for the agent.
