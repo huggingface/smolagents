@@ -859,6 +859,9 @@ class DeepSeekReasonerModel(OpenAIServerModel):
             if not tool_calls:
                 message.content = content  # if no tool calls extracted, set content to full response content
             else:
+                message.content = (
+                    content.split("Action:")[0].strip() if "Action:" in content else content.strip()
+                )  # keep the content before "Action:" as message content
                 message.tool_calls = tool_calls
 
         return message
