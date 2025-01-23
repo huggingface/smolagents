@@ -118,7 +118,7 @@ And commit the changes.
 
 To run tests locally, run this command:
 ```bash
-pytest .
+make test
 ```
 
 ## Citing smolagents
