@@ -388,7 +388,7 @@ class MLXModel(Model):
         trust_remote_code: bool = False,
         **kwargs,
     ):
-        super().__init__()
+        super().__init__(**kwargs)
         if not _is_package_available("mlx_lm"):
             raise ModuleNotFoundError(
                 "Please install 'mlx-lm' extra to use 'MLXModel': `pip install 'smolagents[mlx-lm]'`"
@@ -396,7 +396,6 @@ class MLXModel(Model):
         import mlx_lm
 
         self.model_id = model_id
-        self.kwargs = kwargs
         self.model, self.tokenizer = mlx_lm.load(model_id, tokenizer_config={"trust_remote_code": trust_remote_code})
         self.stream_generate = mlx_lm.stream_generate
 
