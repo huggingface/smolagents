@@ -98,10 +98,7 @@ class ChatMessage:
     def from_hf_api(cls, message) -> "ChatMessage":
         tool_calls = None
         if getattr(message, "tool_calls", None) is not None:
-            tool_calls = [
-                ChatMessageToolCall.from_hf_api(tool_call)
-                for tool_call in message.tool_calls
-            ]
+            tool_calls = [ChatMessageToolCall.from_hf_api(tool_call) for tool_call in message.tool_calls]
         return cls(role=message.role, content=message.content, tool_calls=tool_calls)
 
     @classmethod
@@ -131,9 +128,7 @@ def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
 
 def parse_tool_args_if_needed(message: ChatMessage) -> ChatMessage:
     for tool_call in message.tool_calls:
-        tool_call.function.arguments = parse_json_if_needed(
-            tool_call.function.arguments
-        )
+        tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
     return message
 
 
@@ -202,17 +197,12 @@ def get_clean_message_list(
 
         role = message["role"]
         if role not in MessageRole.roles():
-            raise ValueError(
-                f"Incorrect role {role}, only {MessageRole.roles()} are supported for now."
-            )
+            raise ValueError(f"Incorrect role {role}, only {MessageRole.roles()} are supported for now.")
 
         if role in role_conversions:
             message["role"] = role_conversions[role]
 
-        if (
-            len(final_message_list) > 0
-            and message["role"] == final_message_list[-1]["role"]
-        ):
+        if len(final_message_list) > 0 and message["role"] == final_message_list[-1]["role"]:
             final_message_list[-1]["content"] += "\n=======\n" + message["content"]
         else:
             final_message_list.append(message)
@@ -245,9 +235,7 @@ class Model:
         3. Default values in self.kwargs
         """
         # Clean and standardize the message list
-        messages = get_clean_message_list(
-            messages, role_conversions=custom_role_conversions or tool_role_conversions
-        )
+        messages = get_clean_message_list(messages, role_conversions=custom_role_conversions or tool_role_conversions)
 
         # Use self.kwargs as the base configuration
         completion_kwargs = {
@@ -265,9 +253,7 @@ class Model:
         if tools_to_call_from:
             completion_kwargs.update(
                 {
-                    "tools": [
-                        get_tool_json_schema(tool) for tool in tools_to_call_from
-                    ],
+                    "tools": [get_tool_json_schema(tool) for tool in tools_to_call_from],
                     "tool_choice": "required",
                 }
             )
@@ -439,9 +425,7 @@ class TransformersModel(Model):
         default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         if model_id is None:
             model_id = default_model_id
-            logger.warning(
-                f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'"
-            )
+            logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
         self.model_id = model_id
         self.kwargs = kwargs
         if device_map is None:
@@ -461,13 +445,9 @@ class TransformersModel(Model):
             )
             self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_id, device_map=device_map, torch_dtype=torch_dtype
-            )
+            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
 
-    def make_stopping_criteria(
-        self, stop_sequences: List[str]
-    ) -> "StoppingCriteriaList":
+    def make_stopping_criteria(self, stop_sequences: List[str]) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
 
         class StopOnStrings(StoppingCriteria):
@@ -480,16 +460,9 @@ class TransformersModel(Model):
                 self.stream = ""
 
             def __call__(self, input_ids, scores, **kwargs):
-                generated = self.tokenizer.decode(
-                    input_ids[0][-1], skip_special_tokens=True
-                )
+                generated = self.tokenizer.decode(input_ids[0][-1], skip_special_tokens=True)
                 self.stream += generated
-                if any(
-                    [
-                        self.stream.endswith(stop_string)
-                        for stop_string in self.stop_strings
-                    ]
-                ):
+                if any([self.stream.endswith(stop_string) for stop_string in self.stop_strings]):
                     return True
                 return False
 
@@ -525,9 +498,7 @@ class TransformersModel(Model):
             completion_kwargs["max_new_tokens"] = max_new_tokens
 
         if stop_sequences:
-            completion_kwargs["stopping_criteria"] = self.make_stopping_criteria(
-                stop_sequences
-            )
+            completion_kwargs["stopping_criteria"] = self.make_stopping_criteria(stop_sequences)
 
         if tools_to_call_from is not None:
             prompt_tensor = self.tokenizer.apply_chat_template(
@@ -571,9 +542,7 @@ class TransformersModel(Model):
                     ChatMessageToolCall(
                         id="".join(random.choices("0123456789", k=5)),
                         type="function",
-                        function=ChatMessageToolCallDefinition(
-                            name=tool_name, arguments=tool_arguments
-                        ),
+                        function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
                     )
                 ],
             )
@@ -641,9 +610,7 @@ class LiteLLMModel(Model):
         self.last_output_token_count = response.usage.completion_tokens
 
         message = ChatMessage.from_dict(
-            response.choices[0].message.model_dump(
-                include={"role", "content", "tool_calls"}
-            )
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
         )
 
         if tools_to_call_from is not None:
@@ -714,9 +681,7 @@ class OpenAIServerModel(Model):
         self.last_output_token_count = response.usage.completion_tokens
 
         message = ChatMessage.from_dict(
-            response.choices[0].message.model_dump(
-                include={"role", "content", "tool_calls"}
-            )
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
         )
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
@@ -764,9 +729,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         # if we've reached this point, it means the openai package is available (checked in baseclass) so go ahead and import it
         import openai
 
-        self.client = openai.AzureOpenAI(
-            api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint
-        )
+        self.client = openai.AzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
 
 
 class DeepSeekReasonerModel(OpenAIServerModel):
@@ -795,9 +758,7 @@ class DeepSeekReasonerModel(OpenAIServerModel):
         api_key: Optional[str] = None,
         **kwargs,
     ):
-        super().__init__(
-            model_id=model_id, api_base=api_base, api_key=api_key, **kwargs
-        )
+        super().__init__(model_id=model_id, api_base=api_base, api_key=api_key, **kwargs)
 
     def __call__(
         self,
@@ -838,48 +799,36 @@ class DeepSeekReasonerModel(OpenAIServerModel):
         self.last_output_token_count = response.usage.completion_tokens
 
         response_message = response.choices[0].message
-        message = ChatMessage.from_dict(
-            response_message.model_dump(include={"role", "content"})
-        )
+        message = ChatMessage.from_dict(response_message.model_dump(include={"role", "content"}))
 
         if tools_to_call_from:
             tool_calls = []
             content = response_message.content or ""
-            action_blocks = content.split(
-                "Action:"
-            )  # split into blocks by "Action:" keyword
+            action_blocks = content.split("Action:")  # split into blocks by "Action:" keyword
 
             for block in action_blocks[1:]:  # process each block after the first one
                 if not block.strip():  # skip empty blocks
                     continue
                 json_str = None
                 if "<end_code>" in block:
-                    json_str = block.split("<end_code>")[
-                        0
-                    ].strip()  # extract json string before <end_code>
+                    json_str = block.split("<end_code>")[0].strip()  # extract json string before <end_code>
                 else:
                     logger.warning(
                         "`<end_code>` not found in DeepSeek Action block, attempting to parse the whole block as JSON."
                     )
-                    json_str = (
-                        block.strip()
-                    )  # if no <end_code>, try to parse the whole block as json
+                    json_str = block.strip()  # if no <end_code>, try to parse the whole block as json
 
                 if json_str:
                     try:
                         # Remove <end_code> if present before parsing JSON (already done above, but for safety)
                         if json_str.endswith("<end_code>"):
                             json_str = json_str[: -len("<end_code>")].strip()
-                        json_str = (
-                            json_str.strip()
-                        )  # strip again to handle potential whitespace around json
+                        json_str = json_str.strip()  # strip again to handle potential whitespace around json
                         # Attempt to parse with relaxed JSON parsing (using json.loads with strict=False)
                         try:
                             parsed_output = json.loads(json_str)
                         except json.JSONDecodeError as e:
-                            logger.warning(
-                                f"Standard json.loads failed, trying json.loads with `strict=False`: {e}"
-                            )
+                            logger.warning(f"Standard json.loads failed, trying json.loads with `strict=False`: {e}")
                             parsed_output = json.loads(
                                 json_str, strict=False
                             )  # try with strict=False to allow control characters etc.
@@ -887,9 +836,7 @@ class DeepSeekReasonerModel(OpenAIServerModel):
                         tool_name = parsed_output.get("action") or parsed_output.get(
                             "tool_name"
                         )  # try action first, then tool_name
-                        tool_arguments = parsed_output.get(
-                            "action_input"
-                        ) or parsed_output.get(
+                        tool_arguments = parsed_output.get("action_input") or parsed_output.get(
                             "tool_arguments"
                         )  # try action_input first, then tool_arguments
                         if tool_name and tool_arguments is not None:
@@ -897,9 +844,7 @@ class DeepSeekReasonerModel(OpenAIServerModel):
                                 ChatMessageToolCall(
                                     id="".join(random.choices("0123456789", k=5)),
                                     type="function",
-                                    function=ChatMessageToolCallDefinition(
-                                        name=tool_name, arguments=tool_arguments
-                                    ),
+                                    function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
                                 )
                             )
                         else:
