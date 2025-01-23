@@ -106,7 +106,9 @@ class ChatMessage:
         if data.get("tool_calls"):
             tool_calls = [
                 ChatMessageToolCall(
-                    function=ChatMessageToolCallDefinition(**tc["function"]), id=tc["id"], type=tc["type"]
+                    function=ChatMessageToolCallDefinition(**tc["function"]),
+                    id=tc["id"],
+                    type=tc["type"],
                 )
                 for tc in data["tool_calls"]
             ]
@@ -718,11 +720,140 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         if api_key is None:
             api_key = os.environ.get("AZURE_OPENAI_API_KEY")
 
-        super().__init__(model_id=model_id, api_key=api_key, custom_role_conversions=custom_role_conversions, **kwargs)
+        super().__init__(
+            model_id=model_id,
+            api_key=api_key,
+            custom_role_conversions=custom_role_conversions,
+            **kwargs,
+        )
         # if we've reached this point, it means the openai package is available (checked in baseclass) so go ahead and import it
         import openai
 
         self.client = openai.AzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
+
+
+class DeepSeekReasonerModel(OpenAIServerModel):
+    """This model connects to the DeepSeek API server, emulating tool calls via system prompt instructions and response parsing.
+
+    > [!NOTE]
+    > DeepSeek API does not natively support tool calls. This model emulates tool calling by:
+    > 1. Injecting a system message describing available tools and instructing the model to use them.
+    > 2. Parsing the model's response content to extract tool calls based on a predefined format (similar to TransformersModel).
+
+    Parameters:
+        model_id (`str`):
+            The model id for deepseek models (e.g., "deepseek-reasoner").
+        api_base (`str`, *optional*):
+            The base URL of the DeepSeek API server.
+        api_key (`str`, *optional*):
+            The API key to use for authentication.
+        **kwargs:
+            Additional keyword arguments to pass to the OpenAI API.
+    """
+
+    def __init__(
+        self,
+        model_id: str = "deepseek-reasoner",
+        api_base: Optional[str] = None,
+        api_key: Optional[str] = None,
+        **kwargs,
+    ):
+        super().__init__(model_id=model_id, api_base=api_base, api_key=api_key, **kwargs)
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        augmented_messages = deepcopy(messages)
+        if tools_to_call_from:
+            tool_description = "You have access to the following tools:\n"
+            for tool in tools_to_call_from:
+                tool_schema = get_tool_json_schema(tool)["function"]
+                tool_description += f"- Tool Name: {tool_schema['name']}\n"
+                tool_description += f"  Description: {tool_schema['description']}\n"
+                tool_description += f"  Parameters: {tool_schema['parameters']}\n"
+                tool_description += "\n"
+            tool_description += (
+                "When you need to use a tool, please respond with a JSON object enclosed in text after 'Action:' keyword in the following format:\n"
+                'Thought: ...\nAction:\n{\n  "action": "tool_name",\n  "action_input": {"arg1": "value1", "arg2": "value2"}\n}\n<end_code>\n'
+                "If you don't need to use any tools, just respond as a normal assistant."
+            )
+            system_message = {"role": "system", "content": tool_description}
+            augmented_messages.insert(0, system_message)
+
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=augmented_messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=None,
+            model=self.model_id,
+            **kwargs,
+        )
+
+        response = self.client.chat.completions.create(**completion_kwargs)
+        self.last_input_token_count = response.usage.prompt_tokens
+        self.last_output_token_count = response.usage.completion_tokens
+
+        response_message = response.choices[0].message
+        message = ChatMessage.from_dict(response_message.model_dump(include={"role", "content"}))
+
+        if tools_to_call_from:
+            tool_calls = []
+            content = response_message.content or ""
+            if "Action:" in content:
+                output = content.split("Action:", 1)[1].strip()
+                try:
+                    # Remove <end_code> if present before parsing JSON
+                    if output.endswith("<end_code>"):
+                        output = output[: -len("<end_code>")].strip()
+                    output = (
+                        output.strip()
+                    )  # strip again after removing <end_code> to handle potential whitespace around json
+                    # Attempt to parse with relaxed JSON parsing (using json.loads with strict=False)
+                    try:
+                        parsed_output = json.loads(output)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Standard json.loads failed, trying json.loads with `strict=False`: {e}")
+                        parsed_output = json.loads(
+                            output, strict=False
+                        )  # try with strict=False to allow control characters etc.
+
+                    tool_name = parsed_output.get("action") or parsed_output.get(
+                        "tool_name"
+                    )  # try action first, then tool_name
+                    tool_arguments = parsed_output.get("action_input") or parsed_output.get(
+                        "tool_arguments"
+                    )  # try action_input first, then tool_arguments
+                    if tool_name and tool_arguments is not None:
+                        tool_calls.append(
+                            ChatMessageToolCall(
+                                id="".join(random.choices("0123456789", k=5)),
+                                type="function",
+                                function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
+                            )
+                        )
+                        message.content = (
+                            content.split("Action:")[0].strip() if "Action:" in content else content.strip()
+                        )  # keep the content before "Action:" as message content
+                        message.tool_calls = tool_calls  # set tool calls
+                    else:
+                        logger.warning(
+                            f"Could not extract tool name and arguments from DeepSeek response JSON: {parsed_output}"
+                        )
+                        message.content = content  # if parsing fails, keep the original content
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        f"Failed to parse tool call JSON from DeepSeek response, even with `strict=False`: {output}, error: {e}, raw_output: {output}"
+                    )  # log raw output for inspection
+                    return ChatMessage(role="assistant", content=output)  # return as normal content if parsing fails
+            else:
+                message.content = content  # if no "Action:" keyword, keep the original content
+
+        return message
 
 
 __all__ = [
@@ -735,5 +866,6 @@ __all__ = [
     "LiteLLMModel",
     "OpenAIServerModel",
     "AzureOpenAIServerModel",
+    "DeepSeekReasonerModel",
     "ChatMessage",
 ]
