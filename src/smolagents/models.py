@@ -801,70 +801,79 @@ class DeepSeekReasonerModel(OpenAIServerModel):
         response_message = response.choices[0].message
         message = ChatMessage.from_dict(response_message.model_dump(include={"role", "content"}))
 
-        if tools_to_call_from:
-            tool_calls = []
-            content = response_message.content or ""
-            action_blocks = content.split("Action:")  # split into blocks by "Action:" keyword
+        if tools_to_call_from is not None:
+            try:
+                tool_calls = []
+                content = response_message.content or ""
+                action_blocks = content.split("Action:")  # split into blocks by "Action:" keyword
 
-            for block in action_blocks[1:]:  # process each block after the first one
-                if not block.strip():  # skip empty blocks
-                    continue
-                json_str = None
-                if "<end_code>" in block:
-                    json_str = block.split("<end_code>")[0].strip()  # extract json string before <end_code>
-                else:
-                    logger.warning(
-                        "`<end_code>` not found in DeepSeek Action block, attempting to parse the whole block as JSON."
-                    )
-                    json_str = block.strip()  # if no <end_code>, try to parse the whole block as json
-
-                if json_str:
-                    try:
-                        # Remove <end_code> if present before parsing JSON (already done above, but for safety)
-                        if json_str.endswith("<end_code>"):
-                            json_str = json_str[: -len("<end_code>")].strip()
-                        json_str = json_str.strip()  # strip again to handle potential whitespace around json
-                        # Attempt to parse with relaxed JSON parsing (using json.loads with strict=False)
-                        try:
-                            parsed_output = json.loads(json_str)
-                        except json.JSONDecodeError as e:
-                            logger.warning(f"Standard json.loads failed, trying json.loads with `strict=False`: {e}")
-                            parsed_output = json.loads(
-                                json_str, strict=False
-                            )  # try with strict=False to allow control characters etc.
-
-                        tool_name = parsed_output.get("action") or parsed_output.get(
-                            "tool_name"
-                        )  # try action first, then tool_name
-                        tool_arguments = parsed_output.get("action_input") or parsed_output.get(
-                            "tool_arguments"
-                        )  # try action_input first, then tool_arguments
-                        if tool_name and tool_arguments is not None:
-                            tool_calls.append(
-                                ChatMessageToolCall(
-                                    id="".join(random.choices("0123456789", k=5)),
-                                    type="function",
-                                    function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
-                                )
-                            )
-                        else:
-                            logger.warning(
-                                f"Could not extract tool name and arguments from DeepSeek response JSON: {parsed_output}, json_str: {json_str}"
-                            )  # include json_str in log
-
-                    except json.JSONDecodeError as e:
+                for block in action_blocks[1:]:  # process each block after the first one
+                    if not block.strip():  # skip empty blocks
+                        continue
+                    json_str = None
+                    if "<end_code>" in block:
+                        json_str = block.split("<end_code>")[0].strip()  # extract json string before <end_code>
+                    else:
                         logger.warning(
-                            f"Failed to parse tool call JSON from DeepSeek response block, even with `strict=False`: {json_str}, error: {e}"
-                        )  # log raw output for inspection
-            if not tool_calls:
-                message.content = content  # if no tool calls extracted, set content to full response content
-            else:
-                message.content = (
-                    content.split("Action:")[0].strip() if "Action:" in content else content.strip()
-                )  # keep the content before "Action:" as message content
-                message.tool_calls = tool_calls
+                            "`<end_code>` not found in DeepSeek Action block, attempting to parse the whole block as JSON."
+                        )
+                        json_str = block.strip()  # if no <end_code>, try to parse the whole block as json
 
-        return message
+                    if json_str:
+                        try:
+                            # Remove <end_code> if present before parsing JSON (already done above, but for safety)
+                            if json_str.endswith("<end_code>"):
+                                json_str = json_str[: -len("<end_code>")].strip()
+                            json_str = json_str.strip()  # strip again to handle potential whitespace around json
+                            # Attempt to parse with relaxed JSON parsing (using json.loads with strict=False)
+                            try:
+                                parsed_output = json.loads(json_str)
+                            except json.JSONDecodeError as e:
+                                logger.warning(
+                                    f"Standard json.loads failed, trying json.loads with `strict=False`: {e}"
+                                )
+                                parsed_output = json.loads(
+                                    json_str, strict=False
+                                )  # try with strict=False to allow control characters etc.
+
+                            tool_name = parsed_output.get("action") or parsed_output.get(
+                                "tool_name"
+                            )  # try action first, then tool_name
+                            tool_arguments = parsed_output.get("action_input") or parsed_output.get(
+                                "tool_arguments"
+                            )  # try action_input first, then tool_arguments
+                            if tool_name and tool_arguments is not None:
+                                tool_calls.append(
+                                    ChatMessageToolCall(
+                                        id="".join(random.choices("0123456789", k=5)),
+                                        type="function",
+                                        function=ChatMessageToolCallDefinition(
+                                            name=tool_name, arguments=tool_arguments
+                                        ),
+                                    )
+                                )
+                            else:
+                                logger.warning(
+                                    f"Could not extract tool name and arguments from DeepSeek response JSON: {parsed_output}, json_str: {json_str}"
+                                )  # include json_str in log
+
+                        except json.JSONDecodeError as e:
+                            logger.warning(
+                                f"Failed to parse tool call JSON from DeepSeek response block, even with `strict=False`: {json_str}, error: {e}"
+                            )  # log raw output for inspection
+                if not tool_calls:
+                    message.content = content  # if no tool calls extracted, set content to full response content
+                else:
+                    message.content = (
+                        content.split("Action:")[0].strip() if "Action:" in content else content.strip()
+                    )  # keep the content before "Action:" as message content
+                    message.tool_calls = tool_calls
+                return message
+            except Exception as e:
+                logger.error(f"Failed to parse DeepSeek response for tool calls: {e}")
+                return response_message
+        else:
+            return response_message
 
 
 __all__ = [
