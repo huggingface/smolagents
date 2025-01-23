@@ -1266,10 +1266,8 @@ def evaluate_python_code(
 
     if state is None:
         state = {}
-    if static_tools is None:
-        static_tools = {}
-    if custom_tools is None:
-        custom_tools = {}
+    static_tools = static_tools.copy() if static_tools is not None else {}
+    custom_tools = custom_tools.copy() if custom_tools is not None else {}
     result = None
     global PRINT_OUTPUTS
     PRINT_OUTPUTS = ""
