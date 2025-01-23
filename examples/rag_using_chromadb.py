@@ -12,7 +12,10 @@ from transformers import AutoTokenizer
 
 # from langchain_openai import OpenAIEmbeddings
 from smolagents import LiteLLMModel, Tool
-from smolagents.agents import ToolCallingAgent
+from smolagents.agents import CodeAgent
+
+
+# from smolagents.agents import ToolCallingAgent
 
 
 knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
