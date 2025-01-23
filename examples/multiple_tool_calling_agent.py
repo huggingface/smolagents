@@ -2,11 +2,8 @@ from typing import Optional
 
 import requests
 
-from smolagents import HfApiModel, tool
-from smolagents.agents import ToolCallingAgent
-
-
-# from smolagents import CodeAgent
+# from smolagents.agents import ToolCallingAgent
+from smolagents import CodeAgent, HfApiModel, tool
 
 
 # Choose which LLM engine to use!
@@ -41,9 +38,7 @@ def get_weather(location: str, celsius: Optional[bool] = False) -> str:
         data = response.json()
 
         if data.get("error"):  # Check if there's an error in the response
-            return (
-                f"Error: {data['error'].get('info', 'Unable to fetch weather data.')}"
-            )
+            return f"Error: {data['error'].get('info', 'Unable to fetch weather data.')}"
 
         weather = data["current"]["weather_descriptions"][0]
         temp = data["current"]["temperature"]
@@ -102,9 +97,7 @@ def get_news_headlines() -> str:
     Returns:
         str: A string containing the top 5 news headlines and their sources, or an error message.
     """
-    api_key = (
-        "your_api_key"  # Replace with your actual API key from https://newsapi.org/
-    )
+    api_key = "your_api_key"  # Replace with your actual API key from https://newsapi.org/
     url = f"https://newsapi.org/v2/top-headlines?country=us&apiKey={api_key}"
 
     try:
@@ -117,10 +110,7 @@ def get_news_headlines() -> str:
         if not articles:
             return "No news available at the moment."
 
-        headlines = [
-            f"{article['title']} - {article['source']['name']}"
-            for article in articles[:5]
-        ]
+        headlines = [f"{article['title']} - {article['source']['name']}" for article in articles[:5]]
         return "\n".join(headlines)
 
     except requests.exceptions.RequestException as e:
@@ -230,21 +220,9 @@ def search_wikipedia(query: str) -> str:
         return f"Error fetching Wikipedia data: {str(e)}"
 
 
-agent = ToolCallingAgent(
-    tools=[
-        convert_currency,
-        get_weather,
-        get_news_headlines,
-        get_joke,
-        get_random_fact,
-        search_wikipedia,
-    ],
-    model=model,
-)
+# If you want to use the ToolCallingAgent instead, uncomment the following lines as they both will work
 
-# If you want to use the CodeAgent instead, uncomment the following lines as they both will work
-
-# agent = CodeAgent(
+# agent = ToolCallingAgent(
 #     tools=[
 #         convert_currency,
 #         get_weather,
@@ -255,6 +233,19 @@ agent = ToolCallingAgent(
 #     ],
 #     model=model,
 # )
+
+
+agent = CodeAgent(
+    tools=[
+        convert_currency,
+        get_weather,
+        get_news_headlines,
+        get_joke,
+        get_random_fact,
+        search_wikipedia,
+    ],
+    model=model,
+)
 
 # Uncomment the line below to run the agent with a specific query
 
