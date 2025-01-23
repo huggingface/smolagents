@@ -11,15 +11,14 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 # from langchain_openai import OpenAIEmbeddings
-from smolagents import CodeAgent, LiteLLMModel, Tool
+from smolagents import LiteLLMModel, Tool
 from smolagents.agents import ToolCallingAgent
 
 
 knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
 
 source_docs = [
-    Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]})
-    for doc in knowledge_base
+    Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]}) for doc in knowledge_base
 ]
 
 ## For your own PDFs, you can use the following code to load them into source_docs
@@ -56,23 +55,21 @@ for doc in tqdm(source_docs):
             docs_processed.append(new_doc)
 
 
-print(
-    "Embedding documents... This should take a few minutes (5 minutes on MacBook with M1 Pro)"
-)
+print("Embedding documents... This should take a few minutes (5 minutes on MacBook with M1 Pro)")
 # Initialize embeddings and ChromaDB vector store
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 
 # embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
-vector_store = Chroma.from_documents(
-    docs_processed, embeddings, persist_directory="./chroma_db"
-)
+vector_store = Chroma.from_documents(docs_processed, embeddings, persist_directory="./chroma_db")
 
 
 class RetrieverTool(Tool):
     name = "retriever"
-    description = "Uses semantic search to retrieve the parts of documentation that could be most relevant to answer your query."
+    description = (
+        "Uses semantic search to retrieve the parts of documentation that could be most relevant to answer your query."
+    )
     inputs = {
         "query": {
             "type": "string",
@@ -89,10 +86,7 @@ class RetrieverTool(Tool):
         assert isinstance(query, str), "Your search query must be a string"
         docs = self.vector_store.similarity_search(query, k=3)
         return "\nRetrieved documents:\n" + "".join(
-            [
-                f"\n\n===== Document {str(i)} =====\n" + doc.page_content
-                for i, doc in enumerate(docs)
-            ]
+            [f"\n\n===== Document {str(i)} =====\n" + doc.page_content for i, doc in enumerate(docs)]
         )
 
 
