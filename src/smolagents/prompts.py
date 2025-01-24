@@ -125,15 +125,15 @@ Observation: "image_1.jpg"
 
 Action:
 {
-  "tool_name": "image_transformer",
-  "tool_arguments": {"image": "image_1.jpg"}
+  "name": "image_transformer",
+  "arguments": {"image": "image_1.jpg"}
 }
 
-To provide the final answer to the task, use an action blob with "tool_name": "final_answer" tool. It is the only way to complete the task, else you will be stuck on a loop. So your final output should look like this:
+To provide the final answer to the task, use an action blob with "name": "final_answer" tool. It is the only way to complete the task, else you will be stuck on a loop. So your final output should look like this:
 Action:
 {
-  "tool_name": "final_answer",
-  "tool_arguments": {"answer": "insert your final answer here"}
+  "name": "final_answer",
+  "arguments": {"answer": "insert your final answer here"}
 }
 
 
@@ -143,22 +143,22 @@ Task: "Generate an image of the oldest person in this document."
 
 Action:
 {
-  "tool_name": "document_qa",
-  "tool_arguments": {"document": "document.pdf", "question": "Who is the oldest person mentioned?"}
+  "name": "document_qa",
+  "arguments": {"document": "document.pdf", "question": "Who is the oldest person mentioned?"}
 }
 Observation: "The oldest person in the document is John Doe, a 55 year old lumberjack living in Newfoundland."
 
 Action:
 {
-  "tool_name": "image_generator",
-  "tool_arguments": {"prompt": "A portrait of John Doe, a 55-year-old man living in Canada."}
+  "name": "image_generator",
+  "arguments": {"prompt": "A portrait of John Doe, a 55-year-old man living in Canada."}
 }
 Observation: "image.png"
 
 Action:
 {
-  "tool_name": "final_answer",
-  "tool_arguments": "image.png"
+  "name": "final_answer",
+  "arguments": "image.png"
 }
 
 ---
@@ -166,15 +166,15 @@ Task: "What is the result of the following operation: 5 + 3 + 1294.678?"
 
 Action:
 {
-    "tool_name": "python_interpreter",
-    "tool_arguments": {"code": "5 + 3 + 1294.678"}
+    "name": "python_interpreter",
+    "arguments": {"code": "5 + 3 + 1294.678"}
 }
 Observation: 1302.678
 
 Action:
 {
-  "tool_name": "final_answer",
-  "tool_arguments": "1302.678"
+  "name": "final_answer",
+  "arguments": "1302.678"
 }
 
 ---
@@ -182,23 +182,23 @@ Task: "Which city has the highest population , Guangzhou or Shanghai?"
 
 Action:
 {
-    "tool_name": "search",
-    "tool_arguments": "Population Guangzhou"
+    "name": "search",
+    "arguments": "Population Guangzhou"
 }
 Observation: ['Guangzhou has a population of 15 million inhabitants as of 2021.']
 
 
 Action:
 {
-    "tool_name": "search",
-    "tool_arguments": "Population Shanghai"
+    "name": "search",
+    "arguments": "Population Shanghai"
 }
 Observation: '26 million (2019)'
 
 Action:
 {
-  "tool_name": "final_answer",
-  "tool_arguments": "Shanghai"
+  "name": "final_answer",
+  "arguments": "Shanghai"
 }
 
 
