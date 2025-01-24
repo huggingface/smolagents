@@ -20,12 +20,12 @@ dependencies = [
   "pillow>=11.0.0",
   "markdownify>=0.14.1",
   "duckduckgo-search>=6.3.7",
-  "torchvision"
 ]
 
 [project.optional-dependencies]
 torch = [
   "torch",
+  "torchvision",
 ]
 audio = [
   "soundfile",

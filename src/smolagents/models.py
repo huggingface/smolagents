@@ -309,6 +309,8 @@ class HfApiModel(Model):
             If not provided, the class will try to use environment variable 'HF_TOKEN', else use the token stored in the Hugging Face CLI configuration.
         timeout (`int`, *optional*, defaults to 120):
             Timeout for the API request, in seconds.
+        **kwargs:
+            Additional keyword arguments to pass to the Hugging Face API.
 
     Raises:
         ValueError:
@@ -382,10 +384,10 @@ class TransformersModel(Model):
             The device_map to initialize your model with.
         torch_dtype (`str`, *optional*):
             The torch_dtype to initialize your model with.
-        trust_remote_code (bool):
+        trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
-        kwargs (dict, *optional*):
-            Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
+        **kwargs:
+            Additional keyword arguments to pass to `model.generate()`, for instance `max_new_tokens` or `device`.
     Raises:
         ValueError:
             If the model name is not provided.
@@ -552,9 +554,9 @@ class LiteLLMModel(Model):
     Parameters:
         model_id (`str`):
             The model identifier to use on the server (e.g. "gpt-3.5-turbo").
-        api_base (`str`):
+        api_base (`str`, *optional*):
             The base URL of the OpenAI-compatible API server.
-        api_key (`str`):
+        api_key (`str`, *optional*):
             The API key to use for authentication.
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
@@ -626,7 +628,7 @@ class OpenAIServerModel(Model):
             The base URL of the OpenAI-compatible API server.
         api_key (`str`, *optional*):
             The API key to use for authentication.
-        custom_role_conversions (`Dict{str, str]`, *optional*):
+        custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
         **kwargs:
@@ -698,7 +700,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
             The API key to use for authentication. If not provided, it will be inferred from the `AZURE_OPENAI_API_KEY` environment variable.
         api_version (`str`, *optional*):
             The API version to use. If not provided, it will be inferred from the `OPENAI_API_VERSION` environment variable.
-        custom_role_conversions (`Dict[str, str]`, *optional*):
+        custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
         **kwargs:
