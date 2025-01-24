@@ -790,7 +790,7 @@ class CodeAgent(MultiStepAgent):
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
         system_prompt (`str`, *optional*): System prompt that will be used to generate the agent's actions.
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
-        additional_authorized_imports (`list[str]`, *optional*): List of additional imports that are authorized for the agent.
+        additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         use_e2b_executor (`bool`, default `False`): Whether to use the E2B executor for remote code execution.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
