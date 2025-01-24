@@ -258,10 +258,15 @@ class SpeechToTextTool(PipelineTool):
     output_type = "string"
 
     def __new__(cls):
-        from transformers.models.whisper import (
-            WhisperForConditionalGeneration,
-            WhisperProcessor,
-        )
+        try:
+            from transformers.models.whisper import (
+                WhisperForConditionalGeneration,
+                WhisperProcessor,
+            )
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'transformers' extra to use SpeechToTextTool: `pip install 'smolagents[transformers]'`"
+            )
 
         if not hasattr(cls, "pre_processor_class"):
             cls.pre_processor_class = WhisperProcessor
