@@ -18,7 +18,7 @@ load_dotenv()
 import os
 
 
-# Let's use Qwen-2VL-72B via an inference provider like Fireworks AI
+# Let's use Qwen2-VL-72B via an inference provider like Fireworks AI
 
 model = OpenAIServerModel(
     api_key=os.getenv("FIREWORKS_API_KEY"),
