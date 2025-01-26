@@ -1013,11 +1013,21 @@ def import_modules(expression, state, authorized_imports):
         return None
     elif isinstance(expression, ast.ImportFrom):
         if check_module_authorized(expression.module):
-            raw_module = __import__(expression.module, fromlist=[alias.name for alias in expression.names])
-            for alias in expression.names:
-                state[alias.asname or alias.name] = get_safe_module(
-                    getattr(raw_module, alias.name), dangerous_patterns
-                )
+            module = __import__(expression.module, fromlist=[alias.name for alias in expression.names])
+            if expression.names[0].name == "*":  # Handle "from module import *"
+                if hasattr(module, "__all__"):  # If module has __all__, import only those names
+                    for name in module.__all__:
+                        state[name] = getattr(module, name)
+                else:  # If no __all__, import all public names (those not starting with '_')
+                    for name in dir(module):
+                        if not name.startswith("_"):
+                            state[name] = getattr(module, name)
+            else:  # regular from imports
+                for alias in expression.names:
+                    if hasattr(module, alias.name):
+                        state[alias.asname or alias.name] = getattr(module, alias.name)
+                    else:
+                        raise InterpreterError(f"Module {expression.module} has no attribute {alias.name}")
         else:
             raise InterpreterError(f"Import from {expression.module} is not allowed.")
         return None
@@ -1266,10 +1276,8 @@ def evaluate_python_code(
 
     if state is None:
         state = {}
-    if static_tools is None:
-        static_tools = {}
-    if custom_tools is None:
-        custom_tools = {}
+    static_tools = static_tools.copy() if static_tools is not None else {}
+    custom_tools = custom_tools if custom_tools is not None else {}
     result = None
     global PRINT_OUTPUTS
     PRINT_OUTPUTS = ""

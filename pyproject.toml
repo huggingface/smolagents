@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.5.0.dev"
+version = "1.6.0.dev"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" }, { name="Thomas Wolf"},
@@ -20,12 +20,12 @@ dependencies = [
   "pillow>=11.0.0",
   "markdownify>=0.14.1",
   "duckduckgo-search>=6.3.7",
-  "torchvision"
 ]
 
 [project.optional-dependencies]
 torch = [
   "torch",
+  "torchvision",
 ]
 audio = [
   "soundfile",
@@ -65,8 +65,9 @@ all = [
 test = [
   "ipython>=8.31.0", # for interactive environment tests
   "pytest>=8.1.0",
-  "python-dotenv>=1.0.1",  # For test_all_docs
+  "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
+  "rank-bm25", # For test_all_docs
 ]
 dev = [
   "smolagents[quality,test]",

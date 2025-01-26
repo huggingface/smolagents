@@ -27,6 +27,7 @@ import json
 import os
 import re
 import types
+from copy import copy
 from typing import (
     Any,
     Callable,
@@ -381,7 +382,7 @@ _BASE_TYPE_MAPPING = {
 
 def _get_json_schema_type(param_type: str) -> Dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
-        return _BASE_TYPE_MAPPING[param_type]
+        return copy(_BASE_TYPE_MAPPING[param_type])
     if str(param_type) == "Image" and _is_pillow_available():
         from PIL.Image import Image
 

@@ -54,7 +54,7 @@ pip install smolagents
 ```
 Then define your agent, give it the tools it needs and run it!
 ```py
-from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel,
+from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel
 
 agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=HfApiModel())
 
@@ -118,7 +118,7 @@ And commit the changes.
 
 To run tests locally, run this command:
 ```bash
-pytest .
+make test
 ```
 
 ## Citing smolagents

@@ -348,7 +348,6 @@ class Tool:
         with tempfile.TemporaryDirectory() as work_dir:
             # Save all files.
             self.save(work_dir)
-            print(work_dir)
             with open(work_dir + "/tool.py", "r") as f:
                 print("\n".join(f.readlines()))
             logger.info(f"Uploading the following files to {repo_id}: {','.join(os.listdir(work_dir))}")

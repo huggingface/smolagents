@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import ast
+import base64
 import importlib.metadata
 import importlib.util
 import inspect
@@ -24,9 +25,13 @@ import textwrap
 import types
 from enum import IntEnum
 from functools import lru_cache
+from io import BytesIO
 from typing import Dict, Tuple, Union
 
 from rich.console import Console
+
+
+__all__ = ["AgentError"]
 
 
 @lru_cache
@@ -383,4 +388,11 @@ def get_source(obj) -> str:
         raise e from inspect_error
 
 
-__all__ = ["AgentError"]
+def encode_image_base64(image):
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+
+def make_image_url(base64_image):
+    return f"data:image/png;base64,{base64_image}"

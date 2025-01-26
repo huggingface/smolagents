@@ -24,10 +24,16 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from huggingface_hub import InferenceClient
-from huggingface_hub.utils import is_torch_available
+from PIL import Image
+from transformers import (
+    AutoModelForImageTextToText,
+    AutoProcessor,
+    StoppingCriteriaList,
+    is_torch_available,
+)
 
 from .tools import Tool
-from .utils import _is_package_available
+from .utils import _is_package_available, encode_image_base64, make_image_url
 
 
 if TYPE_CHECKING:
@@ -101,6 +107,18 @@ class ChatMessage:
             tool_calls = [ChatMessageToolCall.from_hf_api(tool_call) for tool_call in message.tool_calls]
         return cls(role=message.role, content=message.content, tool_calls=tool_calls)
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "ChatMessage":
+        if data.get("tool_calls"):
+            tool_calls = [
+                ChatMessageToolCall(
+                    function=ChatMessageToolCallDefinition(**tc["function"]), id=tc["id"], type=tc["type"]
+                )
+                for tc in data["tool_calls"]
+            ]
+            data["tool_calls"] = tool_calls
+        return cls(**data)
+
 
 def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
     if isinstance(arguments, dict):
@@ -168,31 +186,54 @@ def remove_stop_sequences(content: str, stop_sequences: List[str]) -> str:
 def get_clean_message_list(
     message_list: List[Dict[str, str]],
     role_conversions: Dict[MessageRole, MessageRole] = {},
+    convert_images_to_image_urls: bool = False,
+    flatten_messages_as_text: bool = False,
 ) -> List[Dict[str, str]]:
     """
     Subsequent messages with the same role will be concatenated to a single message.
+    output_message_list is a list of messages that will be used to generate the final message that is chat template compatible with transformers LLM chat template.
 
     Args:
-        message_list (`List[Dict[str, str]]`): List of chat messages.
+        message_list (`list[dict[str, str]]`): List of chat messages.
+        role_conversions (`dict[MessageRole, MessageRole]`, *optional* ): Mapping to convert roles.
+        convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
+        flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
     """
-    final_message_list = []
+    output_message_list = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
     for message in message_list:
-        # if not set(message.keys()) == {"role", "content"}:
-        #     raise ValueError("Message should contain only 'role' and 'content' keys!")
-
         role = message["role"]
         if role not in MessageRole.roles():
             raise ValueError(f"Incorrect role {role}, only {MessageRole.roles()} are supported for now.")
 
         if role in role_conversions:
             message["role"] = role_conversions[role]
+        # encode images if needed
+        if isinstance(message["content"], list):
+            for i, element in enumerate(message["content"]):
+                if element["type"] == "image":
+                    assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
+                    if convert_images_to_image_urls:
+                        message["content"][i] = {
+                            "type": "image_url",
+                            "image_url": {"url": make_image_url(encode_image_base64(element["image"]))},
+                        }
+                    else:
+                        message["content"][i]["image"] = encode_image_base64(element["image"])
 
-        if len(final_message_list) > 0 and message["role"] == final_message_list[-1]["role"]:
-            final_message_list[-1]["content"] += "\n=======\n" + message["content"]
+        if len(output_message_list) > 0 and message["role"] == output_message_list[-1]["role"]:
+            assert isinstance(message["content"], list), "Error: wrong content:" + str(message["content"])
+            if flatten_messages_as_text:
+                output_message_list[-1]["content"] += message["content"][0]["text"]
+            else:
+                output_message_list[-1]["content"] += message["content"]
         else:
-            final_message_list.append(message)
-    return final_message_list
+            if flatten_messages_as_text:
+                content = message["content"][0]["text"]
+            else:
+                content = message["content"]
+            output_message_list.append({"role": message["role"], "content": content})
+    return output_message_list
 
 
 class Model:
@@ -210,6 +251,8 @@ class Model:
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
+        convert_images_to_image_urls: bool = False,
+        flatten_messages_as_text: bool = False,
         **kwargs,
     ) -> Dict:
         """
@@ -221,7 +264,12 @@ class Model:
         3. Default values in self.kwargs
         """
         # Clean and standardize the message list
-        messages = get_clean_message_list(messages, role_conversions=custom_role_conversions or tool_role_conversions)
+        messages = get_clean_message_list(
+            messages,
+            role_conversions=custom_role_conversions or tool_role_conversions,
+            convert_images_to_image_urls=convert_images_to_image_urls,
+            flatten_messages_as_text=flatten_messages_as_text,
+        )
 
         # Use self.kwargs as the base configuration
         completion_kwargs = {
@@ -297,6 +345,8 @@ class HfApiModel(Model):
             If not provided, the class will try to use environment variable 'HF_TOKEN', else use the token stored in the Hugging Face CLI configuration.
         timeout (`int`, *optional*, defaults to 120):
             Timeout for the API request, in seconds.
+        **kwargs:
+            Additional keyword arguments to pass to the Hugging Face API.
 
     Raises:
         ValueError:
@@ -342,6 +392,7 @@ class HfApiModel(Model):
             stop_sequences=stop_sequences,
             grammar=grammar,
             tools_to_call_from=tools_to_call_from,
+            convert_images_to_image_urls=True,
             **kwargs,
         )
 
@@ -408,6 +459,7 @@ class MLXModel(Model):
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
+            flatten_messages_as_text=True,
             **kwargs,
         )
         messages = completion_kwargs.pop("messages")
@@ -441,10 +493,15 @@ class TransformersModel(Model):
             The device_map to initialize your model with.
         torch_dtype (`str`, *optional*):
             The torch_dtype to initialize your model with.
-        trust_remote_code (bool):
+        trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
+        flatten_messages_as_text (`bool`, default `True`):
+            Whether to flatten messages as text: this must be sent to False to use VLMs (as opposed to LLMs for which this flag can be ignored).
+            Caution: this parameter is experimental and will be removed in an upcoming PR as we auto-detect VLMs.
         kwargs (dict, *optional*):
             Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
+        **kwargs:
+            Additional keyword arguments to pass to `model.generate()`, for instance `max_new_tokens` or `device`.
     Raises:
         ValueError:
             If the model name is not provided.
@@ -469,6 +526,7 @@ class TransformersModel(Model):
         device_map: Optional[str] = None,
         torch_dtype: Optional[str] = None,
         trust_remote_code: bool = False,
+        flatten_messages_as_text: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -489,13 +547,19 @@ class TransformersModel(Model):
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_id)
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_id,
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 trust_remote_code=trust_remote_code,
             )
+            self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+        except ValueError as e:
+            if "Unrecognized configuration class" in str(e):
+                self.model = AutoModelForImageTextToText.from_pretrained(model_id, device_map=device_map)
+                self.processor = AutoProcessor.from_pretrained(model_id)
+            else:
+                raise e
         except Exception as e:
             logger.warning(
                 f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {default_model_id=}."
@@ -503,8 +567,9 @@ class TransformersModel(Model):
             self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
             self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
+        self.flatten_messages_as_text = flatten_messages_as_text
 
-    def make_stopping_criteria(self, stop_sequences: List[str]) -> "StoppingCriteriaList":
+    def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
 
         class StopOnStrings(StoppingCriteria):
@@ -523,7 +588,7 @@ class TransformersModel(Model):
                     return True
                 return False
 
-        return StoppingCriteriaList([StopOnStrings(stop_sequences, self.tokenizer)])
+        return StoppingCriteriaList([StopOnStrings(stop_sequences, tokenizer)])
 
     def __call__(
         self,
@@ -531,6 +596,7 @@ class TransformersModel(Model):
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
+        images: Optional[List[Image.Image]] = None,
         **kwargs,
     ) -> ChatMessage:
         completion_kwargs = self._prepare_completion_kwargs(
@@ -538,6 +604,7 @@ class TransformersModel(Model):
             stop_sequences=stop_sequences,
             grammar=grammar,
             tools_to_call_from=tools_to_call_from,
+            flatten_messages_as_text=self.flatten_messages_as_text,
             **kwargs,
         )
 
@@ -554,30 +621,46 @@ class TransformersModel(Model):
         if max_new_tokens:
             completion_kwargs["max_new_tokens"] = max_new_tokens
 
-        if stop_sequences:
-            completion_kwargs["stopping_criteria"] = self.make_stopping_criteria(stop_sequences)
-
-        if tools_to_call_from is not None:
-            prompt_tensor = self.tokenizer.apply_chat_template(
+        if hasattr(self, "processor"):
+            images = [Image.open(image) for image in images] if images else None
+            prompt_tensor = self.processor.apply_chat_template(
                 messages,
-                tools=[get_tool_json_schema(tool) for tool in tools_to_call_from],
+                tools=[get_tool_json_schema(tool) for tool in tools_to_call_from] if tools_to_call_from else None,
                 return_tensors="pt",
+                tokenize=True,
                 return_dict=True,
-                add_generation_prompt=True,
+                images=images,
+                add_generation_prompt=True if tools_to_call_from else False,
             )
         else:
             prompt_tensor = self.tokenizer.apply_chat_template(
                 messages,
+                tools=[get_tool_json_schema(tool) for tool in tools_to_call_from] if tools_to_call_from else None,
                 return_tensors="pt",
                 return_dict=True,
+                add_generation_prompt=True if tools_to_call_from else False,
             )
 
         prompt_tensor = prompt_tensor.to(self.model.device)
         count_prompt_tokens = prompt_tensor["input_ids"].shape[1]
 
-        out = self.model.generate(**prompt_tensor, **completion_kwargs)
+        if stop_sequences:
+            stopping_criteria = self.make_stopping_criteria(
+                stop_sequences, tokenizer=self.processor if hasattr(self, "processor") else self.tokenizer
+            )
+        else:
+            stopping_criteria = None
+
+        out = self.model.generate(
+            **prompt_tensor,
+            stopping_criteria=stopping_criteria,
+            **completion_kwargs,
+        )
         generated_tokens = out[0, count_prompt_tokens:]
-        output = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+        if hasattr(self, "processor"):
+            output = self.processor.decode(generated_tokens, skip_special_tokens=True)
+        else:
+            output = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
         self.last_input_token_count = count_prompt_tokens
         self.last_output_token_count = len(generated_tokens)
 
@@ -611,9 +694,9 @@ class LiteLLMModel(Model):
     Parameters:
         model_id (`str`):
             The model identifier to use on the server (e.g. "gpt-3.5-turbo").
-        api_base (`str`):
+        api_base (`str`, *optional*):
             The base URL of the OpenAI-compatible API server.
-        api_key (`str`):
+        api_key (`str`, *optional*):
             The API key to use for authentication.
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
@@ -658,6 +741,7 @@ class LiteLLMModel(Model):
             model=self.model_id,
             api_base=self.api_base,
             api_key=self.api_key,
+            convert_images_to_image_urls=True,
             **kwargs,
         )
 
@@ -666,7 +750,9 @@ class LiteLLMModel(Model):
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
 
-        message = ChatMessage(**response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}))
+        message = ChatMessage.from_dict(
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
+        )
 
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
@@ -683,7 +769,7 @@ class OpenAIServerModel(Model):
             The base URL of the OpenAI-compatible API server.
         api_key (`str`, *optional*):
             The API key to use for authentication.
-        custom_role_conversions (`Dict{str, str]`, *optional*):
+        custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
         **kwargs:
@@ -728,6 +814,7 @@ class OpenAIServerModel(Model):
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
             custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
             **kwargs,
         )
 
@@ -735,7 +822,9 @@ class OpenAIServerModel(Model):
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
 
-        message = ChatMessage(**response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}))
+        message = ChatMessage.from_dict(
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
+        )
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
         return message
@@ -753,7 +842,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
             The API key to use for authentication. If not provided, it will be inferred from the `AZURE_OPENAI_API_KEY` environment variable.
         api_version (`str`, *optional*):
             The API version to use. If not provided, it will be inferred from the `OPENAI_API_VERSION` environment variable.
-        custom_role_conversions (`Dict[str, str]`, *optional*):
+        custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
         **kwargs:

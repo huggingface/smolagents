@@ -35,7 +35,6 @@ We provide two types of agents, based on the main [`Agent`] class.
 
 Both require arguments `model` and list of tools `tools` at initialization.
 
-
 ### Classes of agents
 
 [[autodoc]] MultiStepAgent
@@ -43,7 +42,6 @@ Both require arguments `model` and list of tools `tools` at initialization.
 [[autodoc]] CodeAgent
 
 [[autodoc]] ToolCallingAgent
-
 
 ### ManagedAgent
 
