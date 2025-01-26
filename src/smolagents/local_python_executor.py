@@ -1324,8 +1324,8 @@ class LocalPythonInterpreter:
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         # Add base trusted tools to list
         self.static_tools = {
-            **tools,
             **BASE_PYTHON_TOOLS.copy(),
+            **tools
         }
         # TODO: assert self.authorized imports are all installed locally
 
