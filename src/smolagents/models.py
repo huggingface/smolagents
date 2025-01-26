@@ -24,13 +24,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from huggingface_hub import InferenceClient
+from huggingface_hub.utils import is_torch_available
 from PIL import Image
-from transformers import (
-    AutoModelForImageTextToText,
-    AutoProcessor,
-    StoppingCriteriaList,
-    is_torch_available,
-)
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url
@@ -463,7 +458,7 @@ class TransformersModel(Model):
                 "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
             )
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
 
         default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         if model_id is None:
