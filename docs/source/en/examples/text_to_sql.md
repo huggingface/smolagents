@@ -45,7 +45,6 @@ from sqlalchemy import (
 engine = create_engine("sqlite:///:memory:")
 metadata_obj = MetaData()
 
-# create city SQL table
 table_name = "receipts"
 receipts = Table(
     table_name,
@@ -63,10 +62,14 @@ rows = [
     {"receipt_id": 3, "customer_name": "Woodrow Wilson", "price": 53.43, "tip": 5.43},
     {"receipt_id": 4, "customer_name": "Margaret James", "price": 21.11, "tip": 1.00},
 ]
-for row in rows:
-    stmt = insert(receipts).values(**row)
-    with engine.begin() as connection:
-        cursor = connection.execute(stmt)
+
+def insert_rows(engine, table, rows):
+    for row in rows:
+        stmt = insert(table).values(**row)
+        with engine.begin() as connection:
+            connection.execute(stmt)
+
+insert_rows(engine, receipts, rows)
 ```
 
 ### Build our agent
@@ -144,7 +147,7 @@ So let’s make a second table recording the names of waiters for each receipt_i
 
 ```py
 table_name = "waiters"
-receipts = Table(
+waiters = Table(
     table_name,
     metadata_obj,
     Column("receipt_id", Integer, primary_key=True),
@@ -158,10 +161,8 @@ rows = [
     {"receipt_id": 3, "waiter_name": "Michael Watts"},
     {"receipt_id": 4, "waiter_name": "Margaret James"},
 ]
-for row in rows:
-    stmt = insert(receipts).values(**row)
-    with engine.begin() as connection:
-        cursor = connection.execute(stmt)
+
+insert_rows(engine, waiters, rows)
 ```
 Since we changed the table, we update the `SQLExecutorTool` with this table’s description to let the LLM properly leverage information from this table.
 
