@@ -265,14 +265,14 @@ class MultiStepAgent:
             elif isinstance(step_log, PlanningStep):
                 thought_message = {
                     "role": MessageRole.ASSISTANT,
-                    "content": [{"type": "text", "text":"[FACTS LIST]:\n" + step_log.facts.strip()}],
+                    "content": [{"type": "text", "text": "[FACTS LIST]:\n" + step_log.facts.strip()}],
                 }
                 memory.append(thought_message)
 
                 if not summary_mode:
                     thought_message = {
                         "role": MessageRole.ASSISTANT,
-                        "content": [{"type": "text", "text":"[PLAN]:\n" + step_log.plan.strip()}],
+                        "content": [{"type": "text", "text": "[PLAN]:\n" + step_log.plan.strip()}],
                     }
                     memory.append(thought_message)
 
@@ -719,12 +719,12 @@ Now begin!""",
                     {
                         "type": "text",
                         "text": USER_PROMPT_PLAN_UPDATE.format(
-                                    task=task,
-                                    tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
-                                    managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
-                                    facts_update=facts_update,
-                                    remaining_steps=(self.max_steps - step),
-                                )
+                            task=task,
+                            tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
+                            managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
+                            facts_update=facts_update,
+                            remaining_steps=(self.max_steps - step),
+                        ),
                     }
                 ],
             }
