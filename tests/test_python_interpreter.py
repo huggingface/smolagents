@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import unittest
+from textwrap import dedent
 
 import numpy as np
 import pytest
@@ -916,9 +917,7 @@ shift_intervals
         code = 'capitals = {"Czech Republic": "Prague", "Monaco": "Monaco", "Bhutan": "Thimphu"};capitals["Butan"]'
         with pytest.raises(Exception) as e:
             evaluate_python_code(code)
-        assert "Maybe you meant one of these indexes instead" in str(
-            e
-        ) and "['Bhutan']" in str(e).replace("\\", "")
+        assert "Maybe you meant one of these indexes instead" in str(e) and "['Bhutan']" in str(e).replace("\\", "")
 
     def test_dangerous_builtins_calls_are_blocked(self):
         unsafe_code = "import os"
@@ -950,3 +949,119 @@ texec(tcompile("1 + 1", "no filename", "exec"))
         evaluate_python_code(
             dangerous_code, static_tools={"tcompile": compile, "teval": eval, "texec": exec} | BASE_PYTHON_TOOLS
         )
+
+
+@pytest.mark.parametrize(
+    "code, expected_result",
+    [
+        (
+            dedent("""\
+                x = 1
+                x += 2
+            """),
+            3,
+        ),
+        (
+            dedent("""\
+                x = "a"
+                x += "b"
+            """),
+            "ab",
+        ),
+        (
+            dedent("""\
+                class Custom:
+                    def __init__(self, value):
+                        self.value = value
+                    def __iadd__(self, other):
+                        self.value += other * 10
+                        return self
+
+                x = Custom(1)
+                x += 2
+                x.value
+            """),
+            21,
+        ),
+    ],
+)
+def test_evaluate_augassign(code, expected_result):
+    state = {}
+    result, _ = evaluate_python_code(code, {}, state=state)
+    assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "operator, expected_result",
+    [
+        ("+=", 7),
+        ("-=", 3),
+        ("*=", 10),
+        ("/=", 2.5),
+        ("//=", 2),
+        ("%=", 1),
+        ("**=", 25),
+        ("&=", 0),
+        ("|=", 7),
+        ("^=", 7),
+        (">>=", 1),
+        ("<<=", 20),
+    ],
+)
+def test_evaluate_augassign_number(operator, expected_result):
+    code = dedent("""\
+        x = 5
+        x {operator} 2
+    """).format(operator=operator)
+    state = {}
+    result, _ = evaluate_python_code(code, {}, state=state)
+    assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "operator, expected_result",
+    [
+        ("+=", 7),
+        ("-=", 3),
+        ("*=", 10),
+        ("/=", 2.5),
+        ("//=", 2),
+        ("%=", 1),
+        ("**=", 25),
+        ("&=", 0),
+        ("|=", 7),
+        ("^=", 7),
+        (">>=", 1),
+        ("<<=", 20),
+    ],
+)
+def test_evaluate_augassign_custom(operator, expected_result):
+    operator_names = {
+        "+=": "iadd",
+        "-=": "isub",
+        "*=": "imul",
+        "/=": "itruediv",
+        "//=": "ifloordiv",
+        "%=": "imod",
+        "**=": "ipow",
+        "&=": "iand",
+        "|=": "ior",
+        "^=": "ixor",
+        ">>=": "irshift",
+        "<<=": "ilshift",
+    }
+    code = dedent("""\
+        class Custom:
+            def __init__(self, value):
+                self.value = value
+            def __{operator_name}__(self, other):
+                self.value {operator} other
+                return self
+
+        x = Custom(5)
+        x {operator} 2
+        x.value
+    """).format(operator=operator, operator_name=operator_names[operator])
+    state = {}
+    result, _ = evaluate_python_code(code, {}, state=state)
+    assert result == expected_result

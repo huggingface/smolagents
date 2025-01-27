@@ -17,6 +17,7 @@
 import ast
 import builtins
 import difflib
+import inspect
 import math
 import re
 from collections.abc import Mapping
@@ -368,45 +369,45 @@ def evaluate_augassign(
         if isinstance(current_value, list):
             if not isinstance(value_to_add, list):
                 raise InterpreterError(f"Cannot add non-list value {value_to_add} to a list.")
-            updated_value = current_value + value_to_add
+            current_value += value_to_add
         else:
-            updated_value = current_value + value_to_add
+            current_value += value_to_add
     elif isinstance(expression.op, ast.Sub):
-        updated_value = current_value - value_to_add
+        current_value -= value_to_add
     elif isinstance(expression.op, ast.Mult):
-        updated_value = current_value * value_to_add
+        current_value *= value_to_add
     elif isinstance(expression.op, ast.Div):
-        updated_value = current_value / value_to_add
+        current_value /= value_to_add
     elif isinstance(expression.op, ast.Mod):
-        updated_value = current_value % value_to_add
+        current_value %= value_to_add
     elif isinstance(expression.op, ast.Pow):
-        updated_value = current_value**value_to_add
+        current_value **= value_to_add
     elif isinstance(expression.op, ast.FloorDiv):
-        updated_value = current_value // value_to_add
+        current_value //= value_to_add
     elif isinstance(expression.op, ast.BitAnd):
-        updated_value = current_value & value_to_add
+        current_value &= value_to_add
     elif isinstance(expression.op, ast.BitOr):
-        updated_value = current_value | value_to_add
+        current_value |= value_to_add
     elif isinstance(expression.op, ast.BitXor):
-        updated_value = current_value ^ value_to_add
+        current_value ^= value_to_add
     elif isinstance(expression.op, ast.LShift):
-        updated_value = current_value << value_to_add
+        current_value <<= value_to_add
     elif isinstance(expression.op, ast.RShift):
-        updated_value = current_value >> value_to_add
+        current_value >>= value_to_add
     else:
         raise InterpreterError(f"Operation {type(expression.op).__name__} is not supported.")
 
-    # Update the state
+    # Update the state: current_value has been updated in-place
     set_value(
         expression.target,
-        updated_value,
+        current_value,
         state,
         static_tools,
         custom_tools,
         authorized_imports,
     )
 
-    return updated_value
+    return current_value
 
 
 def evaluate_boolop(
@@ -604,8 +605,14 @@ def evaluate_call(
             # cap the number of lines
             return None
         else:  # Assume it's a callable object
-            if (func in [eval, compile, exec]) and (func not in static_tools.values()):
-                raise InterpreterError(f"Invoking eval, compile or exec is not allowed ({func_name}).")
+            if (
+                (inspect.getmodule(func) == builtins)
+                and inspect.isbuiltin(func)
+                and (func not in static_tools.values())
+            ):
+                raise InterpreterError(
+                    f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
+                )
             return func(*args, **kwargs)
 
 
@@ -1006,11 +1013,21 @@ def import_modules(expression, state, authorized_imports):
         return None
     elif isinstance(expression, ast.ImportFrom):
         if check_module_authorized(expression.module):
-            raw_module = __import__(expression.module, fromlist=[alias.name for alias in expression.names])
-            for alias in expression.names:
-                state[alias.asname or alias.name] = get_safe_module(
-                    getattr(raw_module, alias.name), dangerous_patterns
-                )
+            module = __import__(expression.module, fromlist=[alias.name for alias in expression.names])
+            if expression.names[0].name == "*":  # Handle "from module import *"
+                if hasattr(module, "__all__"):  # If module has __all__, import only those names
+                    for name in module.__all__:
+                        state[name] = getattr(module, name)
+                else:  # If no __all__, import all public names (those not starting with '_')
+                    for name in dir(module):
+                        if not name.startswith("_"):
+                            state[name] = getattr(module, name)
+            else:  # regular from imports
+                for alias in expression.names:
+                    if hasattr(module, alias.name):
+                        state[alias.asname or alias.name] = getattr(module, alias.name)
+                    else:
+                        raise InterpreterError(f"Module {expression.module} has no attribute {alias.name}")
         else:
             raise InterpreterError(f"Import from {expression.module} is not allowed.")
         return None
@@ -1069,7 +1086,7 @@ def evaluate_ast(
     Evaluate an abstract syntax tree using the content of the variables stored in a state and only evaluating a given
     set of functions.
 
-    This function will recurse trough the nodes of the tree provided.
+    This function will recurse through the nodes of the tree provided.
 
     Args:
         expression (`ast.AST`):
@@ -1259,10 +1276,8 @@ def evaluate_python_code(
 
     if state is None:
         state = {}
-    if static_tools is None:
-        static_tools = {}
-    if custom_tools is None:
-        custom_tools = {}
+    static_tools = static_tools.copy() if static_tools is not None else {}
+    custom_tools = custom_tools if custom_tools is not None else {}
     result = None
     global PRINT_OUTPUTS
     PRINT_OUTPUTS = ""

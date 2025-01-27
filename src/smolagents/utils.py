@@ -15,16 +15,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import ast
+import base64
 import importlib.metadata
 import importlib.util
 import inspect
 import json
 import re
+import textwrap
 import types
+from enum import IntEnum
 from functools import lru_cache
+from io import BytesIO
 from typing import Dict, Tuple, Union
 
 from rich.console import Console
+
+
+__all__ = ["AgentError"]
 
 
 @lru_cache
@@ -58,13 +65,29 @@ BASE_BUILTIN_MODULES = [
 ]
 
 
+class LogLevel(IntEnum):
+    ERROR = 0  # Only errors
+    INFO = 1  # Normal output (default)
+    DEBUG = 2  # Detailed output
+
+
+class AgentLogger:
+    def __init__(self, level: LogLevel = LogLevel.INFO):
+        self.level = level
+        self.console = Console()
+
+    def log(self, *args, level: LogLevel = LogLevel.INFO, **kwargs):
+        if level <= self.level:
+            self.console.print(*args, **kwargs)
+
+
 class AgentError(Exception):
     """Base class for other agent-related exceptions"""
 
-    def __init__(self, message):
+    def __init__(self, message, logger: AgentLogger):
         super().__init__(message)
         self.message = message
-        console.print(f"[bold red]{message}[/bold red]")
+        logger.log(f"[bold red]{message}[/bold red]", level=LogLevel.ERROR)
 
 
 class AgentParsingError(AgentError):
@@ -204,7 +227,7 @@ def get_method_source(method):
     """Get source code for a method, including bound methods."""
     if isinstance(method, types.MethodType):
         method = method.__func__
-    return inspect.getsource(method).strip()
+    return get_source(method)
 
 
 def is_same_method(method1, method2):
@@ -278,7 +301,7 @@ def instance_to_source(instance, base_cls=None):
     }
 
     for name, method in methods.items():
-        method_source = inspect.getsource(method)
+        method_source = get_source(method)
         # Clean up the indentation
         method_lines = method_source.split("\n")
         first_line = method_lines[0]
@@ -313,4 +336,63 @@ def instance_to_source(instance, base_cls=None):
     return "\n".join(final_lines)
 
 
-__all__ = ["AgentError"]
+def get_source(obj) -> str:
+    """Get the source code of a class or callable object (e.g.: function, method).
+    First attempts to get the source code using `inspect.getsource`.
+    In a dynamic environment (e.g.: Jupyter, IPython), if this fails,
+    falls back to retrieving the source code from the current interactive shell session.
+
+    Args:
+        obj: A class or callable object (e.g.: function, method)
+
+    Returns:
+        str: The source code of the object, dedented and stripped
+
+    Raises:
+        TypeError: If object is not a class or callable
+        OSError: If source code cannot be retrieved from any source
+        ValueError: If source cannot be found in IPython history
+
+    Note:
+        TODO: handle Python standard REPL
+    """
+    if not (isinstance(obj, type) or callable(obj)):
+        raise TypeError(f"Expected class or callable, got {type(obj)}")
+
+    inspect_error = None
+    try:
+        return textwrap.dedent(inspect.getsource(obj)).strip()
+    except OSError as e:
+        # let's keep track of the exception to raise it if all further methods fail
+        inspect_error = e
+    try:
+        import IPython
+
+        shell = IPython.get_ipython()
+        if not shell:
+            raise ImportError("No active IPython shell found")
+        all_cells = "\n".join(shell.user_ns.get("In", [])).strip()
+        if not all_cells:
+            raise ValueError("No code cells found in IPython session")
+
+        tree = ast.parse(all_cells)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name == obj.__name__:
+                return textwrap.dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
+        raise ValueError(f"Could not find source code for {obj.__name__} in IPython history")
+    except ImportError:
+        # IPython is not available, let's just raise the original inspect error
+        raise inspect_error
+    except ValueError as e:
+        # IPython is available but we couldn't find the source code, let's raise the error
+        raise e from inspect_error
+
+
+def encode_image_base64(image):
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+
+def make_image_url(base64_image):
+    return f"data:image/png;base64,{base64_image}"

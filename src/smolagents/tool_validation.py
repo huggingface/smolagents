@@ -1,10 +1,9 @@
 import ast
 import builtins
 import inspect
-import textwrap
 from typing import Set
 
-from .utils import BASE_BUILTIN_MODULES
+from .utils import BASE_BUILTIN_MODULES, get_source
 
 
 _BUILTIN_NAMES = set(vars(builtins))
@@ -132,7 +131,7 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     """
     errors = []
 
-    source = textwrap.dedent(inspect.getsource(cls))
+    source = get_source(cls)
 
     tree = ast.parse(source)
 

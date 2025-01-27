@@ -273,7 +273,7 @@ image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 search_tool = DuckDuckGoSearchTool()
 
 agent = CodeAgent(
-    tools=[search_tool],
+    tools=[search_tool, image_generation_tool],
     model=HfApiModel("Qwen/Qwen2.5-72B-Instruct"),
     planning_interval=3 # This is where you activate planning!
 )

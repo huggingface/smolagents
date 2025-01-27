@@ -87,3 +87,8 @@ jobs:
         run: |
           uv run pytest ./tests/test_utils.py
         if: ${{ success() || failure() }}
+
+      - name: Function type hints utils tests
+        run: |
+          uv run pytest ./tests/test_function_type_hints_utils.py
+        if: ${{ success() || failure() }}
