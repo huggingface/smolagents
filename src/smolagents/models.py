@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import random
+import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -415,6 +416,10 @@ class MLXModel(Model):
     Parameters:
         model_id (str):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        tool_name_key (str):
+            The key, which can usually be found in the model's chat template, for retrieving a tool name.
+        tool_arguments_key (str):
+            The key, which can usually be found in the model's chat template, for retrieving tool arguments.
         trust_remote_code (bool):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
         kwargs (dict, *optional*):
@@ -436,6 +441,8 @@ class MLXModel(Model):
     def __init__(
         self,
         model_id: str,
+        tool_name_key: str = "name",
+        tool_arguments_key: str = "arguments",
         trust_remote_code: bool = False,
         **kwargs,
     ):
@@ -449,33 +456,68 @@ class MLXModel(Model):
         self.model_id = model_id
         self.model, self.tokenizer = mlx_lm.load(model_id, tokenizer_config={"trust_remote_code": trust_remote_code})
         self.stream_generate = mlx_lm.stream_generate
+        self.tool_name_key = tool_name_key
+        self.tool_arguments_key = tool_arguments_key
+
+    def _to_message(self, text, tools_to_call_from):
+        if tools_to_call_from:
+            # tmp solution for extracting tool JSON without assuming a specific model output format
+            maybe_json = "{" + text.split("{", 1)[-1][::-1].split("}", 1)[-1][::-1] + "}"
+            parsed_text = json.loads(maybe_json)
+            tool_name = parsed_text.get(self.tool_name_key, None)
+            tool_arguments = parsed_text.get(self.tool_arguments_key, None)
+            if tool_name:
+                return ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id=uuid.uuid4(),
+                            type="function",
+                            function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
+                        )
+                    ],
+                )
+        return ChatMessage(role="assistant", content=text)
 
     def __call__(
         self,
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
         completion_kwargs = self._prepare_completion_kwargs(
+            flatten_messages_as_text=True,  # mlx-lm doesn't support vision models
             messages=messages,
             stop_sequences=stop_sequences,
-            flatten_messages_as_text=True,
+            tools_to_call_from=tools_to_call_from,
             **kwargs,
         )
         messages = completion_kwargs.pop("messages")
         stop_sequences = completion_kwargs.pop("stop", [])
-        prompt_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+        tools = completion_kwargs.pop("tools", None)
+        completion_kwargs.pop("tool_choice", None)
+
+        prompt_ids = self.tokenizer.apply_chat_template(
+            messages,
+            tools=tools,
+            add_generation_prompt=True,
+        )
+
         self.last_input_token_count = len(prompt_ids)
         self.last_output_token_count = 0
         text = ""
+
         for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
             self.last_output_token_count += 1
             text += _.text
             for stop_sequence in stop_sequences:
                 if text.strip().endswith(stop_sequence):
                     text = text[: -len(stop_sequence)]
-                    return ChatMessage(role="assistant", content=text)
-        return ChatMessage(role="assistant", content=text)
+                    return self._to_message(text, tools_to_call_from)
+
+        return self._to_message(text, tools_to_call_from)
 
 
 class TransformersModel(Model):
