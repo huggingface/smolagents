@@ -797,6 +797,47 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         self.client = openai.AzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
 
 
+class OllamaModel(OpenAIServerModel):
+    """This model connects to an Ollama server for language model interaction.
+
+    Parameters:
+        model_id (`str`):
+            The model identifier to use on the server (e.g., "llama3.2").
+        api_base (`str`, *optional*):
+            The base URL of the Ollama server, e.g., 'http://localhost:11434/v1'.
+        api_key (`str`, *optional*):
+            The API key to use for authentication. While required in initialization, it is currently unused by Ollama.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
+        **kwargs:
+            Additional keyword arguments to pass to the API.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        api_base: Optional[str] = "http://localhost:11434/v1",
+        api_key: Optional[str] = "ollama",  # required, but unused
+        custom_role_conversions: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ):
+        try:
+            import openai
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use OllamaModel: `pip install 'smolagents[openai]'`"
+            )
+
+        super().__init__(
+            model_id=model_id,
+            api_key=api_key,
+            custom_role_conversions=custom_role_conversions,
+            **kwargs,
+        )
+        self.client = openai.OpenAI(base_url=api_base, api_key=api_key)
+
+
 __all__ = [
     "MessageRole",
     "tool_role_conversions",
@@ -807,5 +848,6 @@ __all__ = [
     "LiteLLMModel",
     "OpenAIServerModel",
     "AzureOpenAIServerModel",
+    "OllamaModel",
     "ChatMessage",
 ]
