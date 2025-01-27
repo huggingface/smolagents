@@ -184,3 +184,29 @@ model = AzureOpenAIServerModel(
 ```
 
 [[autodoc]] AzureOpenAIServerModel
+
+### OllamaModel
+
+The `OllamaModel` integrates with an Ollama server to interact with language models, such as `llama3.2`. This model can be used locally by specifying the `api_base` and model ID. While the `api_key` is required during initialization, it is not currently utilized by Ollama.
+
+```python
+from smolagents import OllamaModel
+
+messages = [
+  {"role": "system", "content": "You are a helpful assistant."},
+  {"role": "user", "content": "Who won the world series in 2020?"},
+  {"role": "assistant", "content": "The LA Dodgers won in 2020."},
+  {"role": "user", "content": "Where was it played?"}
+]
+
+model = OllamaModel(
+    model_id="llama3.2",
+    api_base="http://localhost:11434/v1",
+    api_key="ollama"
+)
+
+response = model(messages)
+print(response.content)
+```
+
+[[autodoc]] OllamaModel
