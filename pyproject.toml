@@ -12,14 +12,14 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "huggingface-hub>=0.24.0",
-  "requests>=2.32.3",
-  "rich>=13.9.4",
-  "pandas>=2.2.3",
-  "jinja2>=3.1.4",
-  "pillow>=11.0.0",
+  "huggingface-hub>=0.26.0",
+  "requests>=2.32.0",
+  "rich>=13.8.1",
+  "pandas>=2.1.1",
+  "jinja2>=3.1.0",
+  "pillow>=10.1.0",
   "markdownify>=0.14.1",
-  "duckduckgo-search>=6.3.7",
+  "duckduckgo-search>=6.3.2",
 ]
 
 [project.optional-dependencies]
@@ -41,7 +41,7 @@ e2b = [
   "python-dotenv>=1.0.1",
 ]
 gradio = [
-  "gradio>=5.8.0",
+  "gradio>=5.0.0",
 ]
 litellm = [
   "litellm>=1.55.10",
