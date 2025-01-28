@@ -798,7 +798,7 @@ class ToolCallingAgent(MultiStepAgent):
             tool_arguments = tool_call.function.arguments
 
         except Exception as e:
-            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger)
+            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
 
         log_entry.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 

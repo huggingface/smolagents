@@ -9,7 +9,7 @@ from smolagents.agents import CodeAgent, ToolCallingAgent
 available_inferences = ["hf_api", "transformers", "ollama", "litellm"]
 chosen_inference = "transformers"
 
-print(f"Chose model {chosen_inference}")
+print(f"Chose model: '{chosen_inference}'")
 
 if chosen_inference == "hf_api":
     model = HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
