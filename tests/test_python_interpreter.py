@@ -459,14 +459,13 @@ if char.isalpha():
         assert LocalPythonInterpreter(additional_authorized_imports=["math"], tools={})
         with pytest.raises(InterpreterError):
             LocalPythonInterpreter(
-                additional_authorized_imports=["i_do_not_exist"],
-                tools={}
+                additional_authorized_imports=["i_do_not_exist"], tools={}
             )
         with pytest.raises(InterpreterError):
             LocalPythonInterpreter(
-                additional_authorized_imports=["math", "i_do_not_exist", "os"],
-                tools={}
+                additional_authorized_imports=["math", "i_do_not_exist", "os"], tools={}
             )
+        assert LocalPythonInterpreter(additional_authorized_imports=["*"], tools={})
 
     def test_multiple_comparators(self):
         code = "0 <= -1 < 4 and 0 <= -5 < 4"

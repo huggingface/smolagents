@@ -1530,12 +1530,14 @@ class LocalPythonInterpreter:
             **tools,
             **BASE_PYTHON_TOOLS.copy(),
         }
-        # assert self.authorized imports are all installed locally
-        missing_modules = [imp for imp in self.authorized_imports if find_spec(imp) is None]
+        # assert self.authorized imports are all installed locally, ignore the wildcard import
+        missing_modules = [
+            imp for imp in self.authorized_imports if find_spec(imp) is None and imp != "*"
+        ]
         if missing_modules:
             raise InterpreterError(
-                f"The authrorized modules {missing_modules} are not installed on this system.")
-
+                f"The authrorized modules {missing_modules} are not installed on this system."
+            )
 
     def __call__(
         self, code_action: str, additional_variables: Dict
