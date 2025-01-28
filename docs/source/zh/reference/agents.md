@@ -55,6 +55,9 @@ Both require arguments `model` and list of tools `tools` at initialization.
 
 ### GradioUI
 
+> [!TIP]
+> You must have `gradio` installed to use the UI. Please run `pip install smolagents[gradio]` if it's not the case.
+
 [[autodoc]] GradioUI
 
 ## Models
@@ -98,6 +101,9 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 ```text
 >>> What a
 ```
+
+> [!TIP]
+> You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
 
 [[autodoc]] TransformersModel
 

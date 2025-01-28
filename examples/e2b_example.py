@@ -1,6 +1,8 @@
-from smolagents import Tool, CodeAgent, HfApiModel
-from smolagents.default_tools import VisitWebpageTool
 from dotenv import load_dotenv
+
+from smolagents import CodeAgent, HfApiModel, Tool
+from smolagents.default_tools import VisitWebpageTool
+
 
 load_dotenv()
 
@@ -16,9 +18,10 @@ class GetCatImageTool(Tool):
         self.url = "https://em-content.zobj.net/source/twitter/53/robot-face_1f916.png"
 
     def forward(self):
-        from PIL import Image
-        import requests
         from io import BytesIO
+
+        import requests
+        from PIL import Image
 
         response = requests.get(self.url)
 
@@ -45,5 +48,6 @@ agent.run(
 
 # Try the agent in a Gradio UI
 from smolagents import GradioUI
+
 
 GradioUI(agent).launch()

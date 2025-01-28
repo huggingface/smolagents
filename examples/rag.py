@@ -8,13 +8,10 @@ from langchain_community.retrievers import BM25Retriever
 
 
 knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
-knowledge_base = knowledge_base.filter(
-    lambda row: row["source"].startswith("huggingface/transformers")
-)
+knowledge_base = knowledge_base.filter(lambda row: row["source"].startswith("huggingface/transformers"))
 
 source_docs = [
-    Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]})
-    for doc in knowledge_base
+    Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]}) for doc in knowledge_base
 ]
 
 text_splitter = RecursiveCharacterTextSplitter(
@@ -51,14 +48,12 @@ class RetrieverTool(Tool):
             query,
         )
         return "\nRetrieved documents:\n" + "".join(
-            [
-                f"\n\n===== Document {str(i)} =====\n" + doc.page_content
-                for i, doc in enumerate(docs)
-            ]
+            [f"\n\n===== Document {str(i)} =====\n" + doc.page_content for i, doc in enumerate(docs)]
         )
 
 
-from smolagents import HfApiModel, CodeAgent
+from smolagents import CodeAgent, HfApiModel
+
 
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
@@ -68,9 +63,7 @@ agent = CodeAgent(
     verbosity_level=2,
 )
 
-agent_output = agent.run(
-    "For a transformers model training, which is slower, the forward or the backward pass?"
-)
+agent_output = agent.run("For a transformers model training, which is slower, the forward or the backward pass?")
 
 print("Final output:")
 print(agent_output)

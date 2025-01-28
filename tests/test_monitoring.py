@@ -27,6 +27,7 @@ from smolagents.models import (
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,
 )
+from smolagents.utils import AgentLogger, LogLevel
 
 
 class FakeLLMModel:
@@ -43,9 +44,7 @@ class FakeLLMModel:
                     ChatMessageToolCall(
                         id="fake_id",
                         type="function",
-                        function=ChatMessageToolCallDefinition(
-                            name="final_answer", arguments={"answer": "image"}
-                        ),
+                        function=ChatMessageToolCallDefinition(name="final_answer", arguments={"answer": "image"}),
                     )
                 ],
             )
@@ -72,7 +71,7 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(agent.monitor.total_input_token_count, 10)
         self.assertEqual(agent.monitor.total_output_token_count, 20)
 
-    def test_json_agent_metrics(self):
+    def test_toolcalling_agent_metrics(self):
         agent = ToolCallingAgent(
             tools=[],
             model=FakeLLMModel(),
@@ -122,9 +121,7 @@ class MonitoringTester(unittest.TestCase):
         )
         agent.run("Fake task")
 
-        self.assertEqual(
-            agent.monitor.total_input_token_count, 20
-        )  # Should have done two monitoring callbacks
+        self.assertEqual(agent.monitor.total_input_token_count, 20)  # Should have done two monitoring callbacks
         self.assertEqual(agent.monitor.total_output_token_count, 0)
 
     def test_streaming_agent_text_output(self):
@@ -135,9 +132,9 @@ class MonitoringTester(unittest.TestCase):
         )
 
         # Use stream_to_gradio to capture the output
-        outputs = list(stream_to_gradio(agent, task="Test task", test_mode=True))
+        outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 4)
+        self.assertEqual(len(outputs), 7)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("This is the final answer.", final_message.content)
@@ -155,11 +152,10 @@ class MonitoringTester(unittest.TestCase):
                 agent,
                 task="Test task",
                 additional_args=dict(image=AgentImage(value="path.png")),
-                test_mode=True,
             )
         )
 
-        self.assertEqual(len(outputs), 3)
+        self.assertEqual(len(outputs), 5)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIsInstance(final_message.content, dict)
@@ -167,8 +163,10 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(final_message.content["mime_type"], "image/png")
 
     def test_streaming_with_agent_error(self):
+        logger = AgentLogger(level=LogLevel.INFO)
+
         def dummy_model(prompt, **kwargs):
-            raise AgentError("Simulated agent error")
+            raise AgentError("Simulated agent error", logger)
 
         agent = CodeAgent(
             tools=[],
@@ -177,9 +175,9 @@ class MonitoringTester(unittest.TestCase):
         )
 
         # Use stream_to_gradio to capture the output
-        outputs = list(stream_to_gradio(agent, task="Test task", test_mode=True))
+        outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 5)
+        self.assertEqual(len(outputs), 9)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("Simulated agent error", final_message.content)

@@ -136,9 +136,7 @@ class TestDocs:
         try:
             code_blocks = [
                 (
-                    block.replace(
-                        "<YOUR_HUGGINGFACEHUB_API_TOKEN>", os.getenv("HF_TOKEN")
-                    )
+                    block.replace("<YOUR_HUGGINGFACEHUB_API_TOKEN>", os.getenv("HF_TOKEN"))
                     .replace("YOUR_ANTHROPIC_API_KEY", os.getenv("ANTHROPIC_API_KEY"))
                     .replace("{your_username}", "m-ric")
                 )
@@ -150,9 +148,7 @@ class TestDocs:
         except SubprocessCallException as e:
             pytest.fail(f"\nError while testing {doc_path.name}:\n{str(e)}")
         except Exception:
-            pytest.fail(
-                f"\nUnexpected error while testing {doc_path.name}:\n{traceback.format_exc()}"
-            )
+            pytest.fail(f"\nUnexpected error while testing {doc_path.name}:\n{traceback.format_exc()}")
 
     @pytest.fixture(autouse=True)
     def _setup(self):
@@ -174,6 +170,4 @@ def pytest_generate_tests(metafunc):
             test_class.setup_class()
 
         # Parameterize with the markdown files
-        metafunc.parametrize(
-            "doc_path", test_class.md_files, ids=[f.stem for f in test_class.md_files]
-        )
+        metafunc.parametrize("doc_path", test_class.md_files, ids=[f.stem for f in test_class.md_files])

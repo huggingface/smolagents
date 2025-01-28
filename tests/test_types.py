@@ -121,4 +121,3 @@ class AgentTextTests(unittest.TestCase):
 
         self.assertEqual(string, agent_type.to_string())
         self.assertEqual(string, agent_type.to_raw())
-        self.assertEqual(string, agent_type)

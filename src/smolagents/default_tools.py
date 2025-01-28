@@ -14,32 +14,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import re
 from dataclasses import dataclass
-from typing import Dict, Optional
-
-from huggingface_hub import hf_hub_download, list_spaces
-
-
-from transformers.utils import is_offline_mode, is_torch_available
+from typing import Any, Dict, Optional
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
     BASE_PYTHON_TOOLS,
     evaluate_python_code,
 )
-from .tools import TOOL_CONFIG_FILE, PipelineTool, Tool
+from .tools import PipelineTool, Tool
 from .types import AgentAudio
-
-if is_torch_available():
-    from transformers.models.whisper import (
-        WhisperForConditionalGeneration,
-        WhisperProcessor,
-    )
-else:
-    WhisperForConditionalGeneration = object
-    WhisperProcessor = object
 
 
 @dataclass
@@ -50,33 +35,6 @@ class PreTool:
     task: str
     description: str
     repo_id: str
-
-
-def get_remote_tools(logger, organization="huggingface-tools"):
-    if is_offline_mode():
-        logger.info("You are in offline mode, so remote tools are not available.")
-        return {}
-
-    spaces = list_spaces(author=organization)
-    tools = {}
-    for space_info in spaces:
-        repo_id = space_info.id
-        resolved_config_file = hf_hub_download(
-            repo_id, TOOL_CONFIG_FILE, repo_type="space"
-        )
-        with open(resolved_config_file, encoding="utf-8") as reader:
-            config = json.load(reader)
-        task = repo_id.split("/")[-1]
-        tools[config["name"]] = PreTool(
-            task=task,
-            description=config["description"],
-            repo_id=repo_id,
-            name=task,
-            inputs=config["inputs"],
-            output_type=config["output_type"],
-        )
-
-    return tools
 
 
 class PythonInterpreterTool(Tool):
@@ -94,9 +52,7 @@ class PythonInterpreterTool(Tool):
         if authorized_imports is None:
             self.authorized_imports = list(set(BASE_BUILTIN_MODULES))
         else:
-            self.authorized_imports = list(
-                set(BASE_BUILTIN_MODULES) | set(authorized_imports)
-            )
+            self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(authorized_imports))
         self.inputs = {
             "code": {
                 "type": "string",
@@ -126,21 +82,17 @@ class PythonInterpreterTool(Tool):
 class FinalAnswerTool(Tool):
     name = "final_answer"
     description = "Provides a final answer to the given problem."
-    inputs = {
-        "answer": {"type": "any", "description": "The final answer to the problem"}
-    }
+    inputs = {"answer": {"type": "any", "description": "The final answer to the problem"}}
     output_type = "any"
 
-    def forward(self, answer):
+    def forward(self, answer: Any) -> Any:
         return answer
 
 
 class UserInputTool(Tool):
     name = "user_input"
     description = "Asks for user's input on a specific question"
-    inputs = {
-        "question": {"type": "string", "description": "The question to ask the user"}
-    }
+    inputs = {"question": {"type": "string", "description": "The question to ask the user"}}
     output_type = "string"
 
     def forward(self, question):
@@ -151,28 +103,25 @@ class UserInputTool(Tool):
 class DuckDuckGoSearchTool(Tool):
     name = "web_search"
     description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results."""
-    inputs = {
-        "query": {"type": "string", "description": "The search query to perform."}
-    }
+    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, *args, max_results=10, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, max_results=10, **kwargs):
+        super().__init__()
         self.max_results = max_results
         try:
             from duckduckgo_search import DDGS
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "You must install package `duckduckgo_search` to run this tool: for instance run `pip install duckduckgo-search`."
-            )
-        self.ddgs = DDGS()
+            ) from e
+        self.ddgs = DDGS(**kwargs)
 
     def forward(self, query: str) -> str:
         results = self.ddgs.text(query, max_results=self.max_results)
-        postprocessed_results = [
-            f"[{result['title']}]({result['href']})\n{result['body']}"
-            for result in results
-        ]
+        if len(results) == 0:
+            raise Exception("No results found! Try a less restrictive/shorter query.")
+        postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
         return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
 
 
@@ -199,9 +148,7 @@ class GoogleSearchTool(Tool):
         import requests
 
         if self.serpapi_key is None:
-            raise ValueError(
-                "Missing SerpAPI key. Make sure you have 'SERPAPI_API_KEY' in your env variables."
-            )
+            raise ValueError("Missing SerpAPI key. Make sure you have 'SERPAPI_API_KEY' in your env variables.")
 
         params = {
             "engine": "google",
@@ -210,9 +157,7 @@ class GoogleSearchTool(Tool):
             "google_domain": "google.com",
         }
         if filter_year is not None:
-            params["tbs"] = (
-                f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
-            )
+            params["tbs"] = f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
 
         response = requests.get("https://serpapi.com/search.json", params=params)
 
@@ -227,13 +172,9 @@ class GoogleSearchTool(Tool):
                     f"'organic_results' key not found for query: '{query}' with filtering on year={filter_year}. Use a less restrictive query or do not filter on year."
                 )
             else:
-                raise Exception(
-                    f"'organic_results' key not found for query: '{query}'. Use a less restrictive query."
-                )
+                raise Exception(f"'organic_results' key not found for query: '{query}'. Use a less restrictive query.")
         if len(results["organic_results"]) == 0:
-            year_filter_message = (
-                f" with filter year={filter_year}" if filter_year is not None else ""
-            )
+            year_filter_message = f" with filter year={filter_year}" if filter_year is not None else ""
             return f"No results found for '{query}'{year_filter_message}. Try with a more general query, or remove the year filter."
 
         web_snippets = []
@@ -253,9 +194,7 @@ class GoogleSearchTool(Tool):
 
                 redacted_version = f"{idx}. [{page['title']}]({page['link']}){date_published}{source}\n{snippet}"
 
-                redacted_version = redacted_version.replace(
-                    "Your browser can't play this video.", ""
-                )
+                redacted_version = redacted_version.replace("Your browser can't play this video.", "")
                 web_snippets.append(redacted_version)
 
         return "## Search Results\n" + "\n\n".join(web_snippets)
@@ -263,7 +202,9 @@ class GoogleSearchTool(Tool):
 
 class VisitWebpageTool(Tool):
     name = "visit_webpage"
-    description = "Visits a webpage at the given url and reads its content as a markdown string. Use this to browse webpages."
+    description = (
+        "Visits a webpage at the given url and reads its content as a markdown string. Use this to browse webpages."
+    )
     inputs = {
         "url": {
             "type": "string",
@@ -277,14 +218,15 @@ class VisitWebpageTool(Tool):
             import requests
             from markdownify import markdownify
             from requests.exceptions import RequestException
+
             from smolagents.utils import truncate_content
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
-            )
+            ) from e
         try:
-            # Send a GET request to the URL
-            response = requests.get(url)
+            # Send a GET request to the URL with a 20-second timeout
+            response = requests.get(url, timeout=20)
             response.raise_for_status()  # Raise an exception for bad status codes
 
             # Convert the HTML content to Markdown
@@ -295,6 +237,8 @@ class VisitWebpageTool(Tool):
 
             return truncate_content(markdown_content, 10000)
 
+        except requests.exceptions.Timeout:
+            return "The request timed out. Please try again later or check the URL."
         except RequestException as e:
             return f"Error fetching the webpage: {str(e)}"
         except Exception as e:
@@ -305,9 +249,6 @@ class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
     name = "transcriber"
-    pre_processor_class = WhisperProcessor
-    model_class = WhisperForConditionalGeneration
-
     inputs = {
         "audio": {
             "type": "audio",
@@ -315,6 +256,18 @@ class SpeechToTextTool(PipelineTool):
         }
     }
     output_type = "string"
+
+    def __new__(cls):
+        from transformers.models.whisper import (
+            WhisperForConditionalGeneration,
+            WhisperProcessor,
+        )
+
+        if not hasattr(cls, "pre_processor_class"):
+            cls.pre_processor_class = WhisperProcessor
+        if not hasattr(cls, "model_class"):
+            cls.model_class = WhisperForConditionalGeneration
+        return super().__new__()
 
     def encode(self, audio):
         audio = AgentAudio(audio).to_raw()

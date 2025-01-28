@@ -16,6 +16,7 @@
 
 from pathlib import Path
 
+
 ROOT = Path(__file__).parent.parent
 
 TESTS_FOLDER = ROOT / "tests"
@@ -37,11 +38,7 @@ def check_tests_in_ci():
         if path.name.startswith("test_")
     ]
     ci_workflow_file_content = CI_WORKFLOW_FILE.read_text()
-    missing_test_files = [
-        test_file
-        for test_file in test_files
-        if test_file not in ci_workflow_file_content
-    ]
+    missing_test_files = [test_file for test_file in test_files if test_file not in ci_workflow_file_content]
     if missing_test_files:
         print(
             "❌ Some test files seem to be ignored in the CI:\n"

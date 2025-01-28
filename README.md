@@ -37,13 +37,13 @@ limitations under the License.
 🧑‍💻 **First-class support for Code Agents**, i.e. agents that write their actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/).
  - On top of this [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) class, we still support the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) that writes actions as JSON/text blobs.
 
-🤗 **Hub integrations**: you can share and load tools to/from the Hub, and more is to come!
+🤗 **Hub integrations**: you can share and load Gradio Spaces as tools to/from the Hub, and more is to come!
 
 🌐 **Support for any LLM**: it supports models hosted on the Hub loaded in their `transformers` version or through our inference API, but also supports models from OpenAI, Anthropic and many others via our [LiteLLM](https://www.litellm.ai/) integration.
 
 Full documentation can be found [here](https://huggingface.co/docs/smolagents/index).
 
-> [!NOTE]  
+> [!NOTE]
 > Check the our [launch blog post](https://huggingface.co/blog/smolagents) to learn more about `smolagents`!
 
 ## Quick demo
@@ -118,7 +118,7 @@ And commit the changes.
 
 To run tests locally, run this command:
 ```bash
-pytest .
+make test
 ```
 
 ## Citing smolagents
@@ -127,8 +127,8 @@ If you use `smolagents` in your publication, please cite it by using the followi
 
 ```bibtex
 @Misc{smolagents,
-  title =        {`smolagents`: The easiest way to build efficient agentic systems.},
-  author =       {Aymeric Roucher and Thomas Wolf and Leandro von Werra and Erik Kaunismäki},
+  title =        {`smolagents`: a smol library to build great agentic systems.},
+  author =       {Aymeric Roucher and Albert Villanova del Moral and Thomas Wolf and Leandro von Werra and Erik Kaunismäki},
   howpublished = {\url{https://github.com/huggingface/smolagents}},
   year =         {2025}
 }

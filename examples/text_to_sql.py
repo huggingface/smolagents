@@ -1,15 +1,16 @@
 from sqlalchemy import (
-    create_engine,
-    MetaData,
-    Table,
     Column,
-    String,
-    Integer,
     Float,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    create_engine,
     insert,
     inspect,
     text,
 )
+
 
 engine = create_engine("sqlite:///:memory:")
 metadata_obj = MetaData()
@@ -40,9 +41,7 @@ for row in rows:
 inspector = inspect(engine)
 columns_info = [(col["name"], col["type"]) for col in inspector.get_columns("receipts")]
 
-table_description = "Columns:\n" + "\n".join(
-    [f"  - {name}: {col_type}" for name, col_type in columns_info]
-)
+table_description = "Columns:\n" + "\n".join([f"  - {name}: {col_type}" for name, col_type in columns_info])
 print(table_description)
 
 from smolagents import tool
@@ -71,6 +70,7 @@ def sql_engine(query: str) -> str:
 
 
 from smolagents import CodeAgent, HfApiModel
+
 
 agent = CodeAgent(
     tools=[sql_engine],

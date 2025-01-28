@@ -1,24 +1,22 @@
+from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-
 from smolagents import (
     CodeAgent,
     DuckDuckGoSearchTool,
-    VisitWebpageTool,
+    HfApiModel,
     ManagedAgent,
     ToolCallingAgent,
-    HfApiModel,
+    VisitWebpageTool,
 )
+
 
 # Let's setup the instrumentation first
 
 trace_provider = TracerProvider()
-trace_provider.add_span_processor(
-    SimpleSpanProcessor(OTLPSpanExporter("http://0.0.0.0:6006/v1/traces"))
-)
+trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter("http://0.0.0.0:6006/v1/traces")))
 
 SmolagentsInstrumentor().instrument(tracer_provider=trace_provider, skip_dep_check=True)
 
@@ -39,6 +37,4 @@ manager_agent = CodeAgent(
     model=model,
     managed_agents=[managed_agent],
 )
-manager_agent.run(
-    "If the US keeps it 2024 growth rate, how many years would it take for the GDP to double?"
-)
+manager_agent.run("If the US keeps it 2024 growth rate, how many years would it take for the GDP to double?")

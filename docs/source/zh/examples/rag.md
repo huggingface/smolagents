@@ -17,39 +17,34 @@ rendered properly in your Markdown viewer.
 
 [[open-in-colab]]
 
-Retrieval-Augmented-Generation (RAG) is “using an LLM to answer a user query, but basing the answer on information retrieved from a knowledge base”. It has many advantages over using a vanilla or fine-tuned LLM: to name a few, it allows to ground the answer on true facts and reduce confabulations, it allows to provide the LLM with domain-specific knowledge, and it allows fine-grained control of access to information from the knowledge base.
+Retrieval-Augmented-Generation (RAG) 是“使用大语言模型（LLM）来回答用户查询，但基于从知识库中检索的信息”。它比使用普通或微调的 LLM 具有许多优势：举几个例子，它允许将答案基于真实事实并减少虚构；它允许提供 LLM 领域特定的知识；并允许对知识库中的信息访问进行精细控制。
 
-But vanilla RAG has limitations, most importantly these two:
-- It performs only one retrieval step: if the results are bad, the generation in turn will be bad.
-- Semantic similarity is computed with the user query as a reference, which might be suboptimal: for instance, the user query will often be a question and the document containing the true answer will be in affirmative voice, so its similarity score will be downgraded compared to other source documents in the interrogative form, leading to a risk of missing the relevant information.
+但是，普通的 RAG 存在一些局限性，以下两点尤为突出：
 
-We can alleviate these problems by making a RAG agent: very simply, an agent armed with a retriever tool!
+- 它只执行一次检索步骤：如果结果不好，生成的内容也会不好。
+- 语义相似性是以用户查询为参考计算的，这可能不是最优的：例如，用户查询通常是一个问题，而包含真实答案的文档通常是肯定语态，因此其相似性得分会比其他以疑问形式呈现的源文档低，从而导致错失相关信息的风险。
 
-This agent will: ✅ Formulate the query itself and ✅ Critique to re-retrieve if needed.
+我们可以通过制作一个 RAG  agent来缓解这些问题：非常简单，一个配备了检索工具的agent！这个 agent 将
+会：✅ 自己构建查询和检索，✅ 如果需要的话会重新检索。
 
-So it should naively recover some advanced RAG techniques!
-- Instead of directly using the user query as the reference in semantic search, the agent formulates itself a reference sentence that can be closer to the targeted documents, as in [HyDE](https://huggingface.co/papers/2212.10496).
-The agent can use the generated snippets and re-retrieve if needed, as in [Self-Query](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/).
+因此，它将比普通 RAG 更智能，因为它可以自己构建查询，而不是直接使用用户查询作为参考。这样，它可以更
+接近目标文档，从而提高检索的准确性， [HyDE](https://huggingface.co/papers/2212.10496)。此 agent 可以
+使用生成的片段，并在需要时重新检索，就像 [Self-Query](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/)。
 
-Let's build this system. 🛠️
+我们现在开始构建这个系统. 🛠️
 
-Run the line below to install required dependencies:
+运行以下代码以安装所需的依赖包：
 ```bash
 !pip install smolagents pandas langchain langchain-community sentence-transformers rank_bm25 --upgrade -q
 ```
-To call the HF Inference API, you will need a valid token as your environment variable `HF_TOKEN`.
-We use python-dotenv to load it.
+
+你需要一个有效的 token 作为环境变量 `HF_TOKEN` 来调用 HF Inference API。我们使用 python-dotenv 来加载它。
 ```py
 from dotenv import load_dotenv
 load_dotenv()
 ```
 
-We first load a knowledge base on which we want to perform RAG: this dataset is a compilation of the documentation pages for many Hugging Face libraries, stored as markdown. We will keep only the documentation for the `transformers` library.
-
-Then prepare the knowledge base by processing the dataset and storing it into a vector database to be used by the retriever.
-
-We use [LangChain](https://python.langchain.com/docs/introduction/) for its excellent vector database utilities.
-
+我们首先加载一个知识库以在其上执行 RAG：此数据集是许多 Hugging Face 库的文档页面的汇编，存储为 markdown 格式。我们将仅保留 `transformers` 库的文档。然后通过处理数据集并将其存储到向量数据库中，为检索器准备知识库。我们将使用 [LangChain](https://python.langchain.com/docs/introduction/) 来利用其出色的向量数据库工具。
 ```py
 import datasets
 from langchain.docstore.document import Document
@@ -74,13 +69,10 @@ text_splitter = RecursiveCharacterTextSplitter(
 docs_processed = text_splitter.split_documents(source_docs)
 ```
 
-Now the documents are ready.
+现在文档已准备好。我们来一起构建我们的 agent RAG 系统！
+👉 我们只需要一个 RetrieverTool，我们的 agent 可以利用它从知识库中检索信息。
 
-So let’s build our agentic RAG system!
-
-👉 We only need a RetrieverTool that our agent can leverage to retrieve information from the knowledge base.
-
-Since we need to add a vectordb as an attribute of the tool, we cannot simply use the simple tool constructor with a `@tool` decorator: so we will follow the advanced setup highlighted in the [tools tutorial](../tutorials/tools).
+由于我们需要将 vectordb 添加为工具的属性，我们不能简单地使用带有 `@tool` 装饰器的简单工具构造函数：因此我们将遵循 [tools 教程](../tutorials/tools) 中突出显示的高级设置。
 
 ```py
 from smolagents import Tool
@@ -117,21 +109,21 @@ class RetrieverTool(Tool):
 
 retriever_tool = RetrieverTool(docs_processed)
 ```
-We have used BM25, a classic retrieval method, because it's lightning fast to setup.
-To improve retrieval accuracy, you could use replace BM25 with semantic search using vector representations for documents: thus you can head to the [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard) to select a good embedding model.
+BM25 检索方法是一个经典的检索方法，因为它的设置速度非常快。为了提高检索准确性，你可以使用语义搜索，使用文档的向量表示替换 BM25：因此你可以前往 [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard) 选择一个好的嵌入模型。
 
-Now it’s straightforward to create an agent that leverages this `retriever_tool`!
+现在我们已经创建了一个可以从知识库中检索信息的工具，现在我们可以很容易地创建一个利用这个
+`retriever_tool` 的 agent！此 agent 将使用如下参数初始化：
+- `tools`：代理将能够调用的工具列表。
+- `model`：为代理提供动力的 LLM。
 
-The agent will need these arguments upon initialization:
-- `tools`: a list of tools that the agent will be able to call.
-- `model`: the LLM that powers the agent.
-Our `model` must be a callable that takes as input a list of messages and returns text. It also needs to accept a stop_sequences argument that indicates when to stop its generation. For convenience, we directly use the HfEngine class provided in the package to get a LLM engine that calls Hugging Face's Inference API.
+我们的 `model` 必须是一个可调用对象，它接受一个消息的 list 作为输入，并返回文本。它还需要接受一个 stop_sequences 参数，指示何时停止生成。为了方便起见，我们直接使用包中提供的 `HfEngine` 类来获取调用 Hugging Face 的 Inference API 的 LLM 引擎。
 
-And we use [meta-llama/Llama-3.3-70B-Instruct](meta-llama/Llama-3.3-70B-Instruct) as the llm engine because:
-- It has a long 128k context, which is helpful for processing long source documents
-- It is served for free at all times on HF's Inference API!
+接着，我们将使用 [meta-llama/Llama-3.3-70B-Instruct](meta-llama/Llama-3.3-70B-Instruct) 作为 llm 引
+擎，因为：
+- 它有一个长 128k 上下文，这对处理长源文档很有用。
+- 它在 HF 的 Inference API 上始终免费提供！
 
-_Note:_ The Inference API hosts models based on various criteria, and deployed models may be updated or replaced without prior notice. Learn more about it [here](https://huggingface.co/docs/api-inference/supported-models).
+_Note:_ 此 Inference API 托管基于各种标准的模型，部署的模型可能会在没有事先通知的情况下进行更新或替换。了解更多信息，请点击[这里](https://huggingface.co/docs/api-inference/supported-models)。
 
 ```py
 from smolagents import HfApiModel, CodeAgent
@@ -141,9 +133,7 @@ agent = CodeAgent(
 )
 ```
 
-Upon initializing the CodeAgent, it has been automatically given a default system prompt that tells the LLM engine to process step-by-step and generate tool calls as code snippets, but you could replace this prompt template with your own as needed.
-
-Then when its `.run()` method is launched, the agent takes care of calling the LLM engine, and executing the tool calls, all in a loop that ends only when tool `final_answer` is called with the final answer as its argument.
+当我们初始化 CodeAgent 时，它已经自动获得了一个默认的系统提示，告诉 LLM 引擎按步骤处理并生成工具调用作为代码片段，但你可以根据需要替换此提示模板。接着，当其 `.run()` 方法被调用时，代理将负责调用 LLM 引擎，并在循环中执行工具调用，直到工具 `final_answer` 被调用，而其参数为最终答案。
 
 ```py
 agent_output = agent.run("For a transformers model training, which is slower, the forward or the backward pass?")
@@ -151,6 +141,3 @@ agent_output = agent.run("For a transformers model training, which is slower, th
 print("Final output:")
 print(agent_output)
 ```
-
-
-

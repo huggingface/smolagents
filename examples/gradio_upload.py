@@ -1,4 +1,5 @@
-from smolagents import CodeAgent, HfApiModel, GradioUI
+from smolagents import CodeAgent, GradioUI, HfApiModel
+
 
 agent = CodeAgent(tools=[], model=HfApiModel(), max_steps=4, verbosity_level=1)
 

@@ -12,11 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 import json
+import unittest
+from pathlib import Path
 from typing import Optional
 
-from smolagents import models, tool, ChatMessage, HfApiModel, TransformersModel
+from transformers.testing_utils import get_tests_dir
+
+from smolagents import ChatMessage, HfApiModel, TransformersModel, models, tool
+from smolagents.models import parse_json_if_needed
 
 
 class ModelTests(unittest.TestCase):
@@ -34,20 +38,17 @@ class ModelTests(unittest.TestCase):
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
         assert (
-            "nullable"
-            in models.get_json_schema(get_weather)["function"]["parameters"][
-                "properties"
-            ]["celsius"]
+            "nullable" in models.get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
         )
 
     def test_chatmessage_has_model_dumps_json(self):
-        message = ChatMessage("user", "Hello!")
+        message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
         data = json.loads(message.model_dump_json())
-        assert data["content"] == "Hello!"
+        assert data["content"] == [{"type": "text", "text": "Hello!"}]
 
     def test_get_hfapi_message_no_tool(self):
         model = HfApiModel(max_tokens=10)
-        messages = [{"role": "user", "content": "Hello!"}]
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
     def test_transformers_message_no_tool(self):
@@ -57,6 +58,37 @@ class ModelTests(unittest.TestCase):
             device_map="auto",
             do_sample=False,
         )
-        messages = [{"role": "user", "content": "Hello!"}]
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         output = model(messages, stop_sequences=["great"]).content
         assert output == "assistant\nHello"
+
+    def test_transformers_message_vl_no_tool(self):
+        from PIL import Image
+
+        img = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
+        model = TransformersModel(
+            model_id="llava-hf/llava-interleave-qwen-0.5b-hf",
+            max_new_tokens=5,
+            device_map="auto",
+            do_sample=False,
+        )
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}, {"type": "image", "image": img}]}]
+        output = model(messages, stop_sequences=["great"]).content
+        assert output == "Hello! How can"
+
+    def test_parse_json_if_needed(self):
+        args = "abc"
+        parsed_args = parse_json_if_needed(args)
+        assert parsed_args == "abc"
+
+        args = '{"a": 3}'
+        parsed_args = parse_json_if_needed(args)
+        assert parsed_args == {"a": 3}
+
+        args = "3"
+        parsed_args = parse_json_if_needed(args)
+        assert parsed_args == 3
+
+        args = 3
+        parsed_args = parse_json_if_needed(args)
+        assert parsed_args == 3
