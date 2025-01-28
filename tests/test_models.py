@@ -57,7 +57,6 @@ class ModelTests(unittest.TestCase):
             max_new_tokens=5,
             device_map="auto",
             do_sample=False,
-            flatten_messages_as_text=True,
         )
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         output = model(messages, stop_sequences=["great"]).content
@@ -72,7 +71,6 @@ class ModelTests(unittest.TestCase):
             max_new_tokens=5,
             device_map="auto",
             do_sample=False,
-            flatten_messages_as_text=False,
         )
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}, {"type": "image", "image": img}]}]
         output = model(messages, stop_sequences=["great"]).content

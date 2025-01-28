@@ -106,8 +106,8 @@ class DuckDuckGoSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, *args, max_results=10, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, max_results=10, **kwargs):
+        super().__init__()
         self.max_results = max_results
         try:
             from duckduckgo_search import DDGS
@@ -115,7 +115,7 @@ class DuckDuckGoSearchTool(Tool):
             raise ImportError(
                 "You must install package `duckduckgo_search` to run this tool: for instance run `pip install duckduckgo-search`."
             ) from e
-        self.ddgs = DDGS()
+        self.ddgs = DDGS(**kwargs)
 
     def forward(self, query: str) -> str:
         results = self.ddgs.text(query, max_results=self.max_results)

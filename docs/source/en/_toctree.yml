@@ -32,5 +32,7 @@
   sections:
   - local: reference/agents
     title: Agent-related objects
+  - local: reference/models
+    title: Model-related objects
   - local: reference/tools
     title: Tool-related objects

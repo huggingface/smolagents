@@ -16,7 +16,7 @@ import unittest
 
 import pytest
 
-from smolagents.default_tools import PythonInterpreterTool, VisitWebpageTool
+from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.types import _AGENT_TYPE_MAPPING
 
 from .test_tools import ToolTesterMixin
@@ -28,6 +28,10 @@ class DefaultToolTests(unittest.TestCase):
         result = VisitWebpageTool()(arguments)
         assert isinstance(result, str)
         assert "* [About Wikipedia](/wiki/Wikipedia:About)" in result  # Proper wikipedia pages have an About
+
+    def test_ddgs_with_kwargs(self):
+        result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
+        assert isinstance(result, str)
 
 
 class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):

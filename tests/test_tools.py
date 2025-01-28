@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
 import unittest
 from pathlib import Path
 from textwrap import dedent
@@ -399,7 +400,10 @@ class ToolTests(unittest.TestCase):
             """
             return
 
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            get_weather.save(tmp_dir)
         assert get_weather.inputs["location"]["type"] == "any"
+        assert get_weather.output_type == "null"
 
     def test_tool_supports_array(self):
         @tool

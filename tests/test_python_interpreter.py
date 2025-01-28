@@ -950,6 +950,10 @@ texec(tcompile("1 + 1", "no filename", "exec"))
             dangerous_code, static_tools={"tcompile": compile, "teval": eval, "texec": exec} | BASE_PYTHON_TOOLS
         )
 
+    def test_can_import_os_if_explicitly_authorized(self):
+        dangerous_code = "import os; os.listdir('./')"
+        evaluate_python_code(dangerous_code, authorized_imports=["os"])
+
 
 @pytest.mark.parametrize(
     "code, expected_result",
