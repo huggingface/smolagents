@@ -671,6 +671,7 @@ class LiteLLMModel(Model):
             api_base=self.api_base,
             api_key=self.api_key,
             convert_images_to_image_urls=True,
+            flatten_messages_as_text=self.model_id.startswith("ollama"),
             **kwargs,
         )
 
