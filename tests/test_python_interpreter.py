@@ -1073,7 +1073,11 @@ def test_evaluate_augassign_custom(operator, expected_result):
     assert result == expected_result
 
 
-def test_get_safe_module_raises():
-    with pytest.raises(ModuleNotFoundError):
-        get_safe_module(six.moves, [], [], set())
-    assert "dbm_gnu" in dir(six.moves)
+def test_get_safe_module_handle_lazy_imports():
+    # get_safe_module does not raise errors for lazy imports anymore
+    # six.moves is used here as an example because it is a built-in module that
+    # has several lazy imports which would raise errors if not handled properly
+    # see: https://github.com/huggingface/smolagents/issues/339
+    six_move_copy = get_safe_module(six.moves, [], [], set())
+    # dbm_gnu is one of the lazy imports of six.moves
+    assert not hasattr(six_move_copy, "dbm_gnu")

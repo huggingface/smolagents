@@ -962,8 +962,14 @@ def get_safe_module(raw_module, dangerous_patterns, authorized_imports, visited=
         ):
             continue
 
-        attr_value = getattr(raw_module, attr_name)
-
+        try:
+            attr_value = getattr(raw_module, attr_name)
+        except ImportError as e:
+            # lazy / dynamic loading module -> INFO log and skip
+            logger.info(
+                f"Skipping import error while copying {raw_module.__name__}.{attr_name}: {type(e).__name__} - {e}"
+            )
+            continue
         # Recursively process nested modules, passing visited set
         if isinstance(attr_value, ModuleType):
             attr_value = get_safe_module(attr_value, dangerous_patterns, authorized_imports, visited=visited)
