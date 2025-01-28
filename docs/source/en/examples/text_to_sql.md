@@ -45,6 +45,12 @@ from sqlalchemy import (
 engine = create_engine("sqlite:///:memory:")
 metadata_obj = MetaData()
 
+def insert_rows_into_table(rows, table, engine=engine):
+    for row in rows:
+        stmt = insert(table).values(**row)
+        with engine.begin() as connection:
+            connection.execute(stmt)
+
 table_name = "receipts"
 receipts = Table(
     table_name,
@@ -62,14 +68,7 @@ rows = [
     {"receipt_id": 3, "customer_name": "Woodrow Wilson", "price": 53.43, "tip": 5.43},
     {"receipt_id": 4, "customer_name": "Margaret James", "price": 21.11, "tip": 1.00},
 ]
-
-def insert_rows(engine, table, rows):
-    for row in rows:
-        stmt = insert(table).values(**row)
-        with engine.begin() as connection:
-            connection.execute(stmt)
-
-insert_rows(engine, receipts, rows)
+insert_rows_into_table(rows, receipts)
 ```
 
 ### Build our agent
@@ -161,8 +160,7 @@ rows = [
     {"receipt_id": 3, "waiter_name": "Michael Watts"},
     {"receipt_id": 4, "waiter_name": "Margaret James"},
 ]
-
-insert_rows(engine, waiters, rows)
+insert_rows_into_table(rows, waiters)
 ```
 Since we changed the table, we update the `SQLExecutorTool` with this table’s description to let the LLM properly leverage information from this table.
 
