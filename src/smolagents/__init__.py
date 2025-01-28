@@ -14,7 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__version__ = "1.6.0.dev"
+__version__ = "1.7.0.dev0"
 
 from .agents import *
 from .default_tools import *
