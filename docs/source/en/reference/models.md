@@ -13,7 +13,7 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Agents
+# Models
 
 <Tip warning={true}>
 
@@ -24,39 +24,6 @@ can vary as the APIs or underlying models are prone to change.
 
 To learn more about agents and tools make sure to read the [introductory guide](../index). This page
 contains the API docs for the underlying classes.
-
-## Agents
-
-Our agents inherit from [`MultiStepAgent`], which means they can act in multiple steps, each step consisting of one thought, then one tool call and execution. Read more in [this conceptual guide](../conceptual_guides/react).
-
-We provide two types of agents, based on the main [`Agent`] class.
-  - [`CodeAgent`] is the default agent, it writes its tool calls in Python code.
-  - [`ToolCallingAgent`] writes its tool calls in JSON.
-
-Both require arguments `model` and list of tools `tools` at initialization.
-
-### Classes of agents
-
-[[autodoc]] MultiStepAgent
-
-[[autodoc]] CodeAgent
-
-[[autodoc]] ToolCallingAgent
-
-### ManagedAgent
-
-[[autodoc]] ManagedAgent
-
-### stream_to_gradio
-
-[[autodoc]] stream_to_gradio
-
-### GradioUI
-
-> [!TIP]
-> You must have `gradio` installed to use the UI. Please run `pip install smolagents[gradio]` if it's not the case.
-
-[[autodoc]] GradioUI
 
 ## Models
 
@@ -184,25 +151,3 @@ model = AzureOpenAIServerModel(
 ```
 
 [[autodoc]] AzureOpenAIServerModel
-
-### MLXModel
-
-For convenience, we have added a `MLXModel` that implements the points above by building a local `mlx-lm` pipeline for the model_id given at initialization.
-
-```python
-from smolagents import MLXModel
-
-model = MLXModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
-
-print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
-```
-```text
->>> What a
-```
-
-> [!TIP]
-> You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
-
-[[autodoc]] MLXModel
-
-=======

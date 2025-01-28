@@ -265,14 +265,14 @@ class MultiStepAgent:
             elif isinstance(step_log, PlanningStep):
                 thought_message = {
                     "role": MessageRole.ASSISTANT,
-                    "content": "[FACTS LIST]:\n" + step_log.facts.strip(),
+                    "content": [{"type": "text", "text": "[FACTS LIST]:\n" + step_log.facts.strip()}],
                 }
                 memory.append(thought_message)
 
                 if not summary_mode:
                     thought_message = {
                         "role": MessageRole.ASSISTANT,
-                        "content": "[PLAN]:\n" + step_log.plan.strip(),
+                        "content": [{"type": "text", "text": "[PLAN]:\n" + step_log.plan.strip()}],
                     }
                     memory.append(thought_message)
 
@@ -700,28 +700,33 @@ Now begin!""",
             # Redact updated facts
             facts_update_system_prompt = {
                 "role": MessageRole.SYSTEM,
-                "content": SYSTEM_PROMPT_FACTS_UPDATE,
+                "content": [{"type": "text", "text": SYSTEM_PROMPT_FACTS_UPDATE}],
             }
             facts_update_message = {
                 "role": MessageRole.USER,
-                "content": USER_PROMPT_FACTS_UPDATE,
+                "content": [{"type": "text", "text": USER_PROMPT_FACTS_UPDATE}],
             }
             facts_update = self.model([facts_update_system_prompt] + agent_memory + [facts_update_message]).content
 
             # Redact updated plan
             plan_update_message = {
                 "role": MessageRole.SYSTEM,
-                "content": SYSTEM_PROMPT_PLAN_UPDATE.format(task=task),
+                "content": [{"type": "text", "text": SYSTEM_PROMPT_PLAN_UPDATE.format(task=task)}],
             }
             plan_update_message_user = {
                 "role": MessageRole.USER,
-                "content": USER_PROMPT_PLAN_UPDATE.format(
-                    task=task,
-                    tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
-                    managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
-                    facts_update=facts_update,
-                    remaining_steps=(self.max_steps - step),
-                ),
+                "content": [
+                    {
+                        "type": "text",
+                        "text": USER_PROMPT_PLAN_UPDATE.format(
+                            task=task,
+                            tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
+                            managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
+                            facts_update=facts_update,
+                            remaining_steps=(self.max_steps - step),
+                        ),
+                    }
+                ],
             }
             plan_update = self.model(
                 [plan_update_message] + agent_memory + [plan_update_message_user],
@@ -798,7 +803,7 @@ class ToolCallingAgent(MultiStepAgent):
             tool_arguments = tool_call.function.arguments
 
         except Exception as e:
-            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger)
+            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
 
         log_entry.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 

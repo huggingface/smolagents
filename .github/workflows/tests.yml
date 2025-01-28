@@ -34,6 +34,11 @@ jobs:
       # Run all tests separately for individual feedback
       # Use 'if success() || failure()' so that all tests are run even if one failed
       # See https://stackoverflow.com/a/62112985
+      - name: Import tests
+        run: |
+          uv run pytest ./tests/test_import.py
+        if: ${{ success() || failure() }}
+
       - name: Agent tests
         run: |
           uv run pytest ./tests/test_agents.py

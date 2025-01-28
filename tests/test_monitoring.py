@@ -71,7 +71,7 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(agent.monitor.total_input_token_count, 10)
         self.assertEqual(agent.monitor.total_output_token_count, 20)
 
-    def test_json_agent_metrics(self):
+    def test_toolcalling_agent_metrics(self):
         agent = ToolCallingAgent(
             tools=[],
             model=FakeLLMModel(),
@@ -134,7 +134,7 @@ class MonitoringTester(unittest.TestCase):
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 4)
+        self.assertEqual(len(outputs), 7)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("This is the final answer.", final_message.content)
@@ -155,7 +155,7 @@ class MonitoringTester(unittest.TestCase):
             )
         )
 
-        self.assertEqual(len(outputs), 3)
+        self.assertEqual(len(outputs), 5)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIsInstance(final_message.content, dict)
@@ -177,7 +177,7 @@ class MonitoringTester(unittest.TestCase):
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 5)
+        self.assertEqual(len(outputs), 9)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("Simulated agent error", final_message.content)

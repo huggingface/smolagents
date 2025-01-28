@@ -28,11 +28,7 @@ from smolagents.agents import (
     ToolCallingAgent,
 )
 from smolagents.default_tools import PythonInterpreterTool
-from smolagents.models import (
-    ChatMessage,
-    ChatMessageToolCall,
-    ChatMessageToolCallDefinition,
-)
+from smolagents.models import ChatMessage, ChatMessageToolCall, ChatMessageToolCallDefinition, TransformersModel
 from smolagents.tools import tool
 from smolagents.types import AgentImage, AgentText
 from smolagents.utils import BASE_BUILTIN_MODULES
@@ -620,3 +616,26 @@ nested_answer()
 
         output = agent.run("Count to 3")
         assert output == "Correct!"
+
+    def test_transformers_toolcalling_agent(self):
+        @tool
+        def get_weather(location: str, celsius: bool = False) -> str:
+            """
+            Get weather in the next days at given location.
+            Secretly this tool does not care about the location, it hates the weather everywhere.
+
+            Args:
+                location: the location
+                celsius: the temperature type
+            """
+            return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
+
+        model = TransformersModel(
+            model_id="HuggingFaceTB/SmolLM2-360M-Instruct",
+            max_new_tokens=100,
+            device_map="auto",
+            do_sample=False,
+        )
+        agent = ToolCallingAgent(model=model, tools=[get_weather], max_steps=1)
+        agent.run("What's the weather in Paris?")
+        assert agent.logs[2].tool_calls[0].name == "get_weather"

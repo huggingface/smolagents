@@ -433,7 +433,7 @@ Now begin! Write your plan below."""
 
 SYSTEM_PROMPT_FACTS_UPDATE = """
 You are a world expert at gathering known and unknown facts based on a conversation.
-Below you will find a task, and ahistory of attempts made to solve the task. You will have to produce a list of these:
+Below you will find a task, and a history of attempts made to solve the task. You will have to produce a list of these:
 ### 1. Facts given in the task
 ### 2. Facts that we have learned
 ### 3. Facts still to look up

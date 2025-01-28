@@ -25,13 +25,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from huggingface_hub import InferenceClient
+from huggingface_hub.utils import is_torch_available
 from PIL import Image
-from transformers import (
-    AutoModelForImageTextToText,
-    AutoProcessor,
-    StoppingCriteriaList,
-    is_torch_available,
-)
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url
@@ -537,9 +532,6 @@ class TransformersModel(Model):
             The torch_dtype to initialize your model with.
         trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
-        flatten_messages_as_text (`bool`, default `True`):
-            Whether to flatten messages as text: this must be sent to False to use VLMs (as opposed to LLMs for which this flag can be ignored).
-            Caution: this parameter is experimental and will be removed in an upcoming PR as we auto-detect VLMs.
         kwargs (dict, *optional*):
             Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
         **kwargs:
@@ -568,7 +560,6 @@ class TransformersModel(Model):
         device_map: Optional[str] = None,
         torch_dtype: Optional[str] = None,
         trust_remote_code: bool = False,
-        flatten_messages_as_text: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -577,7 +568,7 @@ class TransformersModel(Model):
                 "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
             )
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
 
         default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         if model_id is None:
@@ -588,6 +579,7 @@ class TransformersModel(Model):
         if device_map is None:
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
+        self._is_vlm = False
         try:
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_id,
@@ -600,6 +592,7 @@ class TransformersModel(Model):
             if "Unrecognized configuration class" in str(e):
                 self.model = AutoModelForImageTextToText.from_pretrained(model_id, device_map=device_map)
                 self.processor = AutoProcessor.from_pretrained(model_id)
+                self._is_vlm = True
             else:
                 raise e
         except Exception as e:
@@ -609,7 +602,6 @@ class TransformersModel(Model):
             self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
             self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
-        self.flatten_messages_as_text = flatten_messages_as_text
 
     def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
@@ -645,8 +637,7 @@ class TransformersModel(Model):
             messages=messages,
             stop_sequences=stop_sequences,
             grammar=grammar,
-            tools_to_call_from=tools_to_call_from,
-            flatten_messages_as_text=self.flatten_messages_as_text,
+            flatten_messages_as_text=(not self._is_vlm),
             **kwargs,
         )
 
@@ -714,9 +705,19 @@ class TransformersModel(Model):
         else:
             if "Action:" in output:
                 output = output.split("Action:", 1)[1].strip()
-            parsed_output = json.loads(output)
-            tool_name = parsed_output.get("tool_name")
-            tool_arguments = parsed_output.get("tool_arguments")
+            try:
+                start_index = output.index("{")
+                end_index = output.rindex("}")
+                output = output[start_index : end_index + 1]
+            except Exception as e:
+                raise Exception("No json blob found in output!") from e
+
+            try:
+                parsed_output = json.loads(output)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Tool call '{output}' has an invalid JSON structure: {e}")
+            tool_name = parsed_output.get("name")
+            tool_arguments = parsed_output.get("arguments")
             return ChatMessage(
                 role="assistant",
                 content="",
@@ -811,6 +812,10 @@ class OpenAIServerModel(Model):
             The base URL of the OpenAI-compatible API server.
         api_key (`str`, *optional*):
             The API key to use for authentication.
+        organization (`str`, *optional*):
+            The organization to use for the API request.
+        project (`str`, *optional*):
+            The project to use for the API request.
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
@@ -823,6 +828,8 @@ class OpenAIServerModel(Model):
         model_id: str,
         api_base: Optional[str] = None,
         api_key: Optional[str] = None,
+        organization: Optional[str] | None = None,
+        project: Optional[str] | None = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
@@ -838,6 +845,8 @@ class OpenAIServerModel(Model):
         self.client = openai.OpenAI(
             base_url=api_base,
             api_key=api_key,
+            organization=organization,
+            project=project,
         )
         self.custom_role_conversions = custom_role_conversions
 

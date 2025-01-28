@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.6.0.dev"
+version = "1.7.0.dev0"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" }, { name="Thomas Wolf"},
@@ -41,7 +41,7 @@ e2b = [
   "python-dotenv>=1.0.1",
 ]
 gradio = [
-  "gradio>=5.8.0",
+  "gradio>=5.13.0",
 ]
 litellm = [
   "litellm>=1.55.10",
