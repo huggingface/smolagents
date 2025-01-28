@@ -18,12 +18,14 @@ from textwrap import dedent
 
 import numpy as np
 import pytest
+import six
 
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     InterpreterError,
     evaluate_python_code,
     fix_final_answer_code,
+    get_safe_module,
 )
 
 
@@ -1069,3 +1071,9 @@ def test_evaluate_augassign_custom(operator, expected_result):
     state = {}
     result, _ = evaluate_python_code(code, {}, state=state)
     assert result == expected_result
+
+
+def test_get_safe_module_raises():
+    with pytest.raises(ModuleNotFoundError):
+        get_safe_module(six.moves, [], [], set())
+    assert "dbm_gnu" in dir(six.moves)
