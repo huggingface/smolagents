@@ -35,7 +35,7 @@ Let's build this system. 🛠️
 
 Run the line below to install required dependencies:
 ```bash
-!pip install smolagents pandas langchain langchain-community sentence-transformers datasets rank_bm25 --upgrade -q
+!pip install smolagents pandas langchain langchain-community sentence-transformers datasets python-dotenv rank_bm25 --upgrade -q
 ```
 To call the HF Inference API, you will need a valid token as your environment variable `HF_TOKEN`.
 We use python-dotenv to load it.

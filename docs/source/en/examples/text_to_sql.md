@@ -27,7 +27,18 @@ A standard text-to-sql pipeline is brittle, since the generated SQL query can be
 
 Let’s build this agent! 💪
 
-First, we setup the SQL environment:
+Run the line below to install required dependencies:
+```bash
+!pip install smolagents python-dotenv sqlalchemy --upgrade -q
+```
+To call the HF Inference API, you will need a valid token as your environment variable `HF_TOKEN`.
+We use python-dotenv to load it.
+```py
+from dotenv import load_dotenv
+load_dotenv()
+```
+
+Then, we setup the SQL environment:
 ```py
 from sqlalchemy import (
     create_engine,
