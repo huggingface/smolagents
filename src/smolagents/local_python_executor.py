@@ -18,6 +18,7 @@ import ast
 import builtins
 import difflib
 import inspect
+import logging
 import math
 import re
 from collections.abc import Mapping
@@ -29,6 +30,9 @@ import numpy as np
 import pandas as pd
 
 from .utils import BASE_BUILTIN_MODULES, truncate_content
+
+
+logger = logging.getLogger(__name__)
 
 
 class InterpreterError(ValueError):
@@ -960,6 +964,7 @@ def get_safe_module(raw_module, dangerous_patterns, authorized_imports, visited=
             pattern in raw_module.__name__.split(".") + [attr_name] and pattern not in authorized_imports
             for pattern in dangerous_patterns
         ):
+            logger.info(f"Skipping dangerous attribute {raw_module.__name__}.{attr_name}")
             continue
 
         try:
