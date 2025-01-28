@@ -27,6 +27,12 @@ from rich.rule import Rule
 from rich.syntax import Syntax
 from rich.text import Text
 
+
+try:
+    from transformers.agents.tools import Tool as transformers_Tool
+except ImportError:
+    raise ImportError("The 'transformers' library is not installed. Please install it with: pip install transformers.")
+
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .e2b_executor import E2BExecutor
 from .local_python_executor import (
@@ -217,7 +223,10 @@ class MultiStepAgent:
             self.managed_agents = {agent.name: agent for agent in managed_agents}
 
         for tool in tools:
-            assert isinstance(tool, Tool), f"This element is not of class Tool: {str(tool)}"
+            if isinstance(tool, Tool) or isinstance(tool, transformers_Tool):
+                continue
+            else:
+                raise AssertionError(f"This element is not of class Tool or Pool: {str(tool)}")
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
             for tool_name, tool_class in TOOL_MAPPING.items():

@@ -38,6 +38,12 @@ from huggingface_hub import (
 from huggingface_hub.utils import is_torch_available
 from packaging import version
 
+
+try:
+    from transformers.agents.tools import Tool as transformers_Tool
+except ImportError:
+    raise ImportError("The 'transformers' library is not installed. Please install it with: pip install transformers.")
+
 from ._function_type_hints_utils import (
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
@@ -401,7 +407,7 @@ class Tool:
         # Get the tool's tool.py file.
         tool_file = hf_hub_download(
             repo_id,
-            "tool.py",
+            repo_id.split("/")[-1].replace("-", "_") + ".py",
             token=token,
             repo_type="space",
             cache_dir=kwargs.get("cache_dir"),
@@ -432,7 +438,7 @@ class Tool:
             # Find and instantiate the Tool class
             for item_name in dir(module):
                 item = getattr(module, item_name)
-                if isinstance(item, type) and issubclass(item, Tool) and item != Tool:
+                if isinstance(item, type) and issubclass(item, transformers_Tool) and item != Tool:
                     tool_class = item
                     break
 
