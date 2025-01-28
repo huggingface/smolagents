@@ -698,6 +698,10 @@ class OpenAIServerModel(Model):
             The base URL of the OpenAI-compatible API server.
         api_key (`str`, *optional*):
             The API key to use for authentication.
+        organization (`str`, *optional*):
+            The organization to use for the API request.
+        project (`str`, *optional*):
+            The project to use for the API request.
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
@@ -710,6 +714,8 @@ class OpenAIServerModel(Model):
         model_id: str,
         api_base: Optional[str] = None,
         api_key: Optional[str] = None,
+        organization: Optional[str] | None = None,
+        project: Optional[str] | None = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
@@ -725,6 +731,8 @@ class OpenAIServerModel(Model):
         self.client = openai.OpenAI(
             base_url=api_base,
             api_key=api_key,
+            organization=organization,
+            project=project,
         )
         self.custom_role_conversions = custom_role_conversions
 
