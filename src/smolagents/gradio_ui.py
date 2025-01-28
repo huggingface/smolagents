@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mimetypes
 import os
 import re
 import shutil
@@ -64,9 +63,7 @@ def stream_to_gradio(
         )
     import gradio as gr
 
-    for step_log in agent.run(
-        task, stream=True, reset=reset_agent_memory, additional_args=additional_args
-    ):
+    for step_log in agent.run(task, stream=True, reset=reset_agent_memory, additional_args=additional_args):
         for message in pull_messages_from_step(step_log):
             yield message
 
@@ -173,9 +170,7 @@ class GradioUI:
             # If an upload folder is provided, enable the upload feature
             if self.file_upload_folder is not None:
                 upload_file = gr.File(label="Upload a file")
-                upload_status = gr.Textbox(
-                    label="Upload Status", interactive=False, visible=False
-                )
+                upload_status = gr.Textbox(label="Upload Status", interactive=False, visible=False)
                 upload_file.change(
                     self.upload_file,
                     [upload_file, file_uploads_log],
