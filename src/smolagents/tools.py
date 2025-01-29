@@ -38,12 +38,6 @@ from huggingface_hub import (
 from huggingface_hub.utils import is_torch_available
 from packaging import version
 
-
-try:
-    from transformers.agents.tools import Tool as transformers_Tool
-except ImportError:
-    raise ImportError("The 'transformers' library is not installed. Please install it with: pip install transformers.")
-
 from ._function_type_hints_utils import (
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
@@ -370,6 +364,7 @@ class Tool:
     def from_hub(
         cls,
         repo_id: str,
+        tool_file: Optional[str] = "tool.py",
         token: Optional[str] = None,
         trust_remote_code: bool = False,
         **kwargs,
@@ -388,6 +383,8 @@ class Tool:
         Args:
             repo_id (`str`):
                 The name of the repo on the Hub where your tool is defined.
+            tool_file (`str`, *optional*, defaults to `"tool.py"`):
+                The name of the file containing the tool's code. By default, it is `"tool.py"`.
             token (`str`, *optional*):
                 The token to identify you on hf.co. If unset, will use the token generated when running
                 `huggingface-cli login` (stored in `~/.huggingface`).
@@ -407,7 +404,7 @@ class Tool:
         # Get the tool's tool.py file.
         tool_file = hf_hub_download(
             repo_id,
-            repo_id.split("/")[-1].replace("-", "_") + ".py",
+            tool_file,
             token=token,
             repo_type="space",
             cache_dir=kwargs.get("cache_dir"),
@@ -435,10 +432,24 @@ class Tool:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
+            try:
+                from transformers.agents.tools import Tool as transformers_Tool
+            except ImportError:
+                transformers_Tool = None
+
+            tool_class = None
+
             # Find and instantiate the Tool class
             for item_name in dir(module):
                 item = getattr(module, item_name)
-                if isinstance(item, type) and issubclass(item, transformers_Tool) and item != Tool:
+                if (
+                    isinstance(item, type)
+                    and (
+                        issubclass(item, Tool)
+                        or (transformers_Tool is not None and issubclass(item, transformers_Tool))
+                    )
+                    and item != Tool
+                ):
                     tool_class = item
                     break
 
