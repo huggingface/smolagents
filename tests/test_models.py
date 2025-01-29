@@ -51,6 +51,11 @@ class ModelTests(unittest.TestCase):
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
+    def test_get_hfapi_message_no_tool_external_provider(self):
+        model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model(messages, stop_sequences=["great"])
+
     def test_transformers_message_no_tool(self):
         model = TransformersModel(
             model_id="HuggingFaceTB/SmolLM2-135M-Instruct",
