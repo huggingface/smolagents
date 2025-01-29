@@ -18,6 +18,7 @@ import unittest
 import uuid
 from pathlib import Path
 
+import pytest
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.agents import (
@@ -28,7 +29,13 @@ from smolagents.agents import (
     ToolCallingAgent,
 )
 from smolagents.default_tools import PythonInterpreterTool
-from smolagents.models import ChatMessage, ChatMessageToolCall, ChatMessageToolCallDefinition, TransformersModel
+from smolagents.models import (
+    ChatMessage,
+    ChatMessageToolCall,
+    ChatMessageToolCallDefinition,
+    TransformersModel,
+    get_clean_message_list,
+)
 from smolagents.tools import tool
 from smolagents.types import AgentImage, AgentText
 from smolagents.utils import BASE_BUILTIN_MODULES
@@ -639,3 +646,22 @@ nested_answer()
         agent = ToolCallingAgent(model=model, tools=[get_weather], max_steps=1)
         agent.run("What's the weather in Paris?")
         assert agent.logs[2].tool_calls[0].name == "get_weather"
+
+
+@pytest.mark.parametrize(
+    "flatten_messages_as_text, is_first_step",
+    [
+        (False, False),
+        (True, False),
+        (False, True),
+        (True, True),
+    ],
+)
+def test_agent_planning_step(flatten_messages_as_text, is_first_step):
+    agent = CodeAgent(
+        model=lambda x, stop_sequences=None: ChatMessage(
+            role="assistant", content=get_clean_message_list(x, flatten_messages_as_text=flatten_messages_as_text)
+        ),
+        tools=[],
+    )
+    agent.planning_step(task=[{"type": "text", "text": "text"}], is_first_step=is_first_step, step=0)
