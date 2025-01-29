@@ -338,6 +338,9 @@ class HfApiModel(Model):
     Parameters:
         model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        provider (`str`, *optional*):
+            Name of the provider to use for inference. Can be `"replicate"`, `"together"`, `"fal-ai"`, `"sambanova"` or `"hf-inference"`.
+            defaults to hf-inference (HF Inference API).
         token (`str`, *optional*):
             Token used by the Hugging Face API for authentication. This token need to be authorized 'Make calls to the serverless Inference API'.
             If the model is gated (like Llama-3 models), the token also needs 'Read access to contents of all public gated repos you can access'.
@@ -368,15 +371,17 @@ class HfApiModel(Model):
     def __init__(
         self,
         model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
+        provider: Optional[str] = None,
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.model_id = model_id
+        self.provider = provider
         if token is None:
             token = os.getenv("HF_TOKEN")
-        self.client = InferenceClient(self.model_id, token=token, timeout=timeout)
+        self.client = InferenceClient(self.model_id, provider=provider, token=token, timeout=timeout)
 
     def __call__(
         self,

@@ -46,7 +46,7 @@ from smolagents import CodeAgent, HfApiModel
 model_id = "meta-llama/Llama-3.3-70B-Instruct" 
 
 model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to HfApiModel to use a default free model
-# you can also specify a particular provider e.g. provider="together"
+# you can also specify a particular provider e.g. provider="together" or provider="sambanova"
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
