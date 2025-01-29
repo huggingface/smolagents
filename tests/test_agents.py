@@ -474,7 +474,7 @@ class AgentTests(unittest.TestCase):
         with agent.logger.console.capture() as capture:
             agent.run("Count to 3")
         str_output = capture.get()
-        assert "Consider passing said import under" in str_output.replace("\n", "")
+        assert "`additional_authorized_imports`" in str_output.replace("\n", "")
 
     def test_multiagents(self):
         class FakeModelMultiagentsManagerAgent:

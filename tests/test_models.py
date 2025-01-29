@@ -53,11 +53,7 @@ class ModelTests(unittest.TestCase):
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
-
-    @pytest.mark.skipif(
-        not os.getenv("RUN_ALL"),
-        reason="RUN_ALL environment variable not set"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
     def test_get_hfapi_message_no_tool_external_provider(self):
         model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]

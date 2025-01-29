@@ -21,6 +21,8 @@ from .default_tools import *
 from .e2b_executor import *
 from .gradio_ui import *
 from .local_python_executor import *
+from .logger import *
+from .memory import *
 from .models import *
 from .monitoring import *
 from .prompts import *
