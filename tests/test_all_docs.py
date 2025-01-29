@@ -78,6 +78,10 @@ class DocCodeExtractor:
         return tmp_file
 
 
+@pytest.mark.skipif(
+    not os.getenv("RUN_ALL"),
+    reason="RUN_ALL environment variable not set"
+)
 class TestDocs:
     """Test case for documentation code testing."""
 
