@@ -511,12 +511,17 @@ You have been provided with these additional arguments, that you can access usin
             }
             message_user_prompt_plan = {
                 "role": MessageRole.USER,
-                "content": [{"type": "text", "text": USER_PROMPT_PLAN.format(
-                    task=task,
-                    tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
-                    managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
-                    answer_facts=answer_facts,
-                )}],
+                "content": [
+                    {
+                        "type": "text",
+                        "text": USER_PROMPT_PLAN.format(
+                            task=task,
+                            tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
+                            managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
+                            answer_facts=answer_facts,
+                        ),
+                    }
+                ],
             }
             chat_message_plan: ChatMessage = self.model(
                 [message_system_prompt_plan, message_user_prompt_plan],
