@@ -16,3 +16,6 @@ style:
 # Run smolagents tests
 test:
 	pytest ./tests/
+
+test-no-docs:
+	pytest ./tests/ --ignore ./tests/test_all_docs.py
