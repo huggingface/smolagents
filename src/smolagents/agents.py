@@ -494,15 +494,20 @@ You have been provided with these additional arguments, that you can access usin
         if is_first_step:
             message_prompt_facts = {
                 "role": MessageRole.SYSTEM,
-                "content": SYSTEM_PROMPT_FACTS,
+                "content": [{"type": "text", "text": SYSTEM_PROMPT_FACTS}],
             }
             message_prompt_task = {
                 "role": MessageRole.USER,
-                "content": f"""Here is the task:
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"""Here is the task:
 ```
 {task}
 ```
 Now begin!""",
+                    }
+                ],
             }
             input_messages = [message_prompt_facts, message_prompt_task]
 
@@ -511,16 +516,21 @@ Now begin!""",
 
             message_system_prompt_plan = {
                 "role": MessageRole.SYSTEM,
-                "content": SYSTEM_PROMPT_PLAN,
+                "content": [{"type": "text", "text": SYSTEM_PROMPT_PLAN}],
             }
             message_user_prompt_plan = {
                 "role": MessageRole.USER,
-                "content": USER_PROMPT_PLAN.format(
-                    task=task,
-                    tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
-                    managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
-                    answer_facts=answer_facts,
-                ),
+                "content": [
+                    {
+                        "type": "text",
+                        "text": USER_PROMPT_PLAN.format(
+                            task=task,
+                            tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
+                            managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
+                            answer_facts=answer_facts,
+                        ),
+                    }
+                ],
             }
             chat_message_plan: ChatMessage = self.model(
                 [message_system_prompt_plan, message_user_prompt_plan],
