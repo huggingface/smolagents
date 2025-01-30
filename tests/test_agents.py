@@ -17,6 +17,7 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from transformers.testing_utils import get_tests_dir
 
@@ -25,11 +26,19 @@ from smolagents.agents import (
     AgentMaxStepsError,
     CodeAgent,
     ManagedAgent,
+    MultiStepAgent,
     ToolCall,
     ToolCallingAgent,
 )
 from smolagents.default_tools import PythonInterpreterTool
-from smolagents.models import ChatMessage, ChatMessageToolCall, ChatMessageToolCallDefinition, TransformersModel
+from smolagents.memory import PlanningStep
+from smolagents.models import (
+    ChatMessage,
+    ChatMessageToolCall,
+    ChatMessageToolCallDefinition,
+    MessageRole,
+    TransformersModel,
+)
 from smolagents.tools import tool
 from smolagents.utils import BASE_BUILTIN_MODULES
 
@@ -644,3 +653,49 @@ nested_answer()
         assert step_memory_dict["model_output_message"].tool_calls[0].function.name == "get_weather"
         assert step_memory_dict["model_output_message"].raw["completion_kwargs"]["max_new_tokens"] == 100
         assert "model_input_messages" in agent.memory.get_full_steps()[1]
+
+
+class TestMultiStepAgent:
+    def test_planning_step_first_step(self):
+        fake_model = MagicMock()
+        agent = MultiStepAgent(
+            tools=[],
+            model=fake_model,
+        )
+        task = "Test task"
+        agent.planning_step(task, is_first_step=True, step=0)
+        assert len(agent.memory.steps) == 1
+        planning_step = agent.memory.steps[0]
+        assert isinstance(planning_step, PlanningStep)
+        messages = planning_step.model_input_messages
+        assert isinstance(messages, list)
+        assert len(messages) == 2
+        for message in messages:
+            assert isinstance(message, dict)
+            assert "role" in message
+            assert "content" in message
+            assert isinstance(message["role"], MessageRole)
+            assert isinstance(message["content"], list)
+            assert len(message["content"]) == 1
+            for content in message["content"]:
+                assert isinstance(content, dict)
+                assert "type" in content
+                assert "text" in content
+        # Test calls to model
+        assert len(fake_model.call_args_list) == 2
+        for call_args in fake_model.call_args_list:
+            assert len(call_args.args) == 1
+            messages = call_args.args[0]
+            assert isinstance(messages, list)
+            assert len(messages) == 2
+            for message in messages:
+                assert isinstance(message, dict)
+                assert "role" in message
+                assert "content" in message
+                assert isinstance(message["role"], MessageRole)
+                assert isinstance(message["content"], list)
+                assert len(message["content"]) == 1
+                for content in message["content"]:
+                    assert isinstance(content, dict)
+                    assert "type" in content
+                    assert "text" in content
