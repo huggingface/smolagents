@@ -8,8 +8,8 @@ from smolagents.utils import AgentError, make_json_serializable
 
 
 if TYPE_CHECKING:
-    from smolagents.logger import AgentLogger
     from smolagents.models import ChatMessage
+    from smolagents.monitoring import AgentLogger
 
 
 logger = getLogger(__name__)
