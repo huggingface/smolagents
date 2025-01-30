@@ -65,7 +65,6 @@ test = [
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
-  "six>=1.17.0", # Already a dependency of many packages, but to be explicit
 ]
 dev = [
   "smolagents[quality,test]",

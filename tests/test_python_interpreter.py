@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import types
 import unittest
 from textwrap import dedent
 
 import numpy as np
 import pytest
-import six
 
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
@@ -1074,10 +1074,20 @@ def test_evaluate_augassign_custom(operator, expected_result):
 
 
 def test_get_safe_module_handle_lazy_imports():
-    # get_safe_module does not raise errors for lazy imports anymore
-    # six.moves is used here as an example because it is a built-in module that
-    # has several lazy imports which would raise errors if not handled properly
-    # see: https://github.com/huggingface/smolagents/issues/339
-    six_move_copy = get_safe_module(six.moves, [], [], set())
-    # dbm_gnu is one of the lazy imports of six.moves
-    assert not hasattr(six_move_copy, "dbm_gnu")
+    class FakeModule(types.ModuleType):
+        def __init__(self, name):
+            super().__init__(name)
+            self.non_lazy_attribute = "ok"
+
+        def __getattr__(self, name):
+            if name == "lazy_attribute":
+                raise ImportError("lazy import failure")
+            return super().__getattr__(name)
+
+        def __dir__(self):
+            return super().__dir__() + ["lazy_attribute"]
+
+    fake_module = FakeModule("fake_module")
+    safe_module = get_safe_module(fake_module, dangerous_patterns=[], authorized_imports=set())
+    assert not hasattr(safe_module, "lazy_attribute")
+    assert getattr(safe_module, "non_lazy_attribute") == "ok"
