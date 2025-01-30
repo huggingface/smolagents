@@ -37,9 +37,9 @@ from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,
-    get_clean_message_list,
     MessageRole,
     TransformersModel,
+    get_clean_message_list,
 )
 from smolagents.tools import tool
 from smolagents.utils import BASE_BUILTIN_MODULES
@@ -674,6 +674,7 @@ def test_agent_planning_step(flatten_messages_as_text, is_first_step):
         tools=[],
     )
     agent.planning_step(task=[{"type": "text", "text": "text"}], is_first_step=is_first_step, step=0)
+
 
 class TestMultiStepAgent:
     def test_planning_step_first_step(self):
