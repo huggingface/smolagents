@@ -1,7 +1,10 @@
+import pytest
+
 from smolagents.memory import (
     ActionStep,
     AgentMemory,
     ChatMessage,
+    MemoryStep,
     Message,
     MessageRole,
     PlanningStep,
@@ -16,6 +19,21 @@ class TestAgentMemory:
         memory = AgentMemory(system_prompt=system_prompt)
         assert memory.system_prompt.system_prompt == system_prompt
         assert memory.steps == []
+
+
+class TestMemoryStep:
+    def test_initialization(self):
+        step = MemoryStep()
+        assert isinstance(step, MemoryStep)
+
+    def test_dict(self):
+        step = MemoryStep()
+        assert step.dict() == {}
+
+    def test_to_messages(self):
+        step = MemoryStep()
+        with pytest.raises(NotImplementedError):
+            step.to_messages()
 
 
 def test_action_step_to_messages():
