@@ -158,10 +158,6 @@ def format_prompt_with_managed_agents_descriptions(
         return prompt_template.replace(agent_descriptions_placeholder, "")
 
 
-def wrap_content_text(text: str) -> List[Dict[str, str]]:
-    return [{"type": "text", "text": text}]
-
-
 YELLOW_HEX = "#d4b702"
 
 
@@ -651,29 +647,27 @@ You have been provided with these additional arguments, that you can access usin
         if is_first_step:
             message_prompt_facts = {
                 "role": MessageRole.SYSTEM,
-                "content": wrap_content_text(SYSTEM_PROMPT_FACTS),
+                "content": [{"type": "text", "text": SYSTEM_PROMPT_FACTS}],
             }
             message_prompt_task = {
                 "role": MessageRole.USER,
-                "content": wrap_content_text((f"Here is the task:\n```\n{task}\n```\nNow begin!")),
+                "content": [{"type": "text", "text": f"Here is the task:\n```\n{task}\n```\nNow begin!"}],
             }
 
             answer_facts = self.model([message_prompt_facts, message_prompt_task]).content
 
             message_system_prompt_plan = {
                 "role": MessageRole.SYSTEM,
-                "content": wrap_content_text(SYSTEM_PROMPT_PLAN),
+                "content": [{"type": "text", "text": SYSTEM_PROMPT_PLAN}],
             }
             message_user_prompt_plan = {
                 "role": MessageRole.USER,
-                "content": wrap_content_text(
-                    USER_PROMPT_PLAN.format(
-                        task=task,
-                        tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
-                        managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
-                        answer_facts=answer_facts,
-                    )
-                ),
+                "content": [{"type": "text", "text": USER_PROMPT_PLAN.format(
+                    task=task,
+                    tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
+                    managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
+                    answer_facts=answer_facts,
+                )}],
             }
             answer_plan = self.model(
                 [message_system_prompt_plan, message_user_prompt_plan],
