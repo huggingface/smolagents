@@ -1,3 +1,5 @@
+import argparse
+import os
 from io import BytesIO
 from time import sleep
 
@@ -5,67 +7,98 @@ import helium
 from dotenv import load_dotenv
 from PIL import Image
 from selenium import webdriver
-from selenium.common.exceptions import ElementNotInteractableException, TimeoutException
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.keys import Keys
 
-from smolagents import CodeAgent, LiteLLMModel, OpenAIServerModel, TransformersModel, tool  # noqa: F401
+from smolagents import CodeAgent, HfApiModel, LiteLLMModel, OpenAIServerModel, TransformersModel, tool  # noqa: F401
 from smolagents.agents import ActionStep
 
 
+github_request = """
+I'm trying to find how hard I have to work to get a repo in github.com/trending.
+Can you navigate to the profile for the top author of the top trending repo, and give me their total number of commits over the last year?
+"""  # The agent is able to achieve this request only when powered by GPT-4o or Claude-3.5-sonnet.
+
+search_request = """
+Please navigate to https://en.wikipedia.org/wiki/Chicago and give me a sentence containing the word "1992" that mentions a construction accident.
+"""
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Run a web browser automation script with a specified model.")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="LiteLLMModel",
+        help="The model type to use (e.g., OpenAIServerModel, LiteLLMModel, TransformersModel, HfApiModel)",
+    )
+    parser.add_argument(
+        "--model-id",
+        type=str,
+        default="gpt-4o",
+        help="The model ID to use for the specified model type",
+    )
+    parser.add_argument("--prompt", type=str, default=search_request, help="The prompt to run with the agent")
+    return parser.parse_args()
+
+
+# Load environment variables
 load_dotenv()
-import os
 
+# Parse command line arguments
+args = parse_arguments()
 
-# Let's use Qwen2-VL-72B via an inference provider like Fireworks AI
-
-model = OpenAIServerModel(
-    api_key=os.getenv("FIREWORKS_API_KEY"),
-    api_base="https://api.fireworks.ai/inference/v1",
-    model_id="accounts/fireworks/models/qwen2-vl-72b-instruct",
-)
-
-# You can also use a close model
-
-# model = LiteLLMModel(
-#     model_id="gpt-4o",
-#     api_key=os.getenv("OPENAI_API_KEY"),
-# )
-
-# locally a good candidate is Qwen2-VL-7B-Instruct
-# model = TransformersModel(
-#     model_id="Qwen/Qwen2-VL-7B-Instruct",
-#     device_map = "auto",
-#     flatten_messages_as_text=False
-# )
+# Initialize the model based on the provided arguments
+if args.model == "OpenAIServerModel":
+    model = OpenAIServerModel(
+        api_key=os.getenv("FIREWORKS_API_KEY"),
+        api_base="https://api.fireworks.ai/inference/v1",
+        model_id=args.model_id,
+    )
+elif args.model == "LiteLLMModel":
+    model = LiteLLMModel(
+        model_id=args.model_id,
+        api_key=os.getenv("OPENAI_API_KEY"),
+    )
+elif args.model == "TransformersModel":
+    model = TransformersModel(model_id=args.model_id, device_map="auto", flatten_messages_as_text=False)
+elif args.model == "HfApiModel":
+    model = HfApiModel(
+        token=os.getenv("HF_API_KEY"),
+        model_id=args.model_id,
+    )
+else:
+    raise ValueError(f"Unsupported model type: {args.model}")
 
 
 # Prepare callback
-def save_screenshot(step_log: ActionStep, agent: CodeAgent) -> None:
+def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
     sleep(1.0)  # Let JavaScript animations happen before taking the screenshot
     driver = helium.get_driver()
-    current_step = step_log.step_number
+    current_step = memory_step.step_number
     if driver is not None:
-        for step_logs in agent.logs:  # Remove previous screenshots from logs for lean processing
-            if isinstance(step_log, ActionStep) and step_log.step_number <= current_step - 2:
-                step_logs.observations_images = None
+        for previous_memory_step in agent.memory.steps:  # Remove previous screenshots from logs for lean processing
+            if isinstance(previous_memory_step, ActionStep) and previous_memory_step.step_number <= current_step - 2:
+                previous_memory_step.observations_images = None
         png_bytes = driver.get_screenshot_as_png()
         image = Image.open(BytesIO(png_bytes))
         print(f"Captured a browser screenshot: {image.size} pixels")
-        step_log.observations_images = [image.copy()]  # Create a copy to ensure it persists, important!
+        memory_step.observations_images = [image.copy()]  # Create a copy to ensure it persists, important!
 
     # Update observations with current URL
     url_info = f"Current url: {driver.current_url}"
-    step_log.observations = url_info if step_logs.observations is None else step_log.observations + "\n" + url_info
+    memory_step.observations = (
+        url_info if memory_step.observations is None else memory_step.observations + "\n" + url_info
+    )
     return
 
 
 # Initialize driver and agent
 chrome_options = webdriver.ChromeOptions()
 chrome_options.add_argument("--force-device-scale-factor=1")
-chrome_options.add_argument("--window-size=1000,1300")
+chrome_options.add_argument("--window-size=1000,1350")
 chrome_options.add_argument("--disable-pdf-viewer")
+chrome_options.add_argument("--window-position=0,0")
 
 driver = helium.start_chrome(headless=False, options=chrome_options)
 
@@ -101,42 +134,7 @@ def close_popups() -> str:
     """
     Closes any visible modal or pop-up on the page. Use this to dismiss pop-up windows! This does not work on cookie consent banners.
     """
-    # Common selectors for modal close buttons and overlay elements
-    modal_selectors = [
-        "button[class*='close']",
-        "[class*='modal']",
-        "[class*='modal'] button",
-        "[class*='CloseButton']",
-        "[aria-label*='close']",
-        ".modal-close",
-        ".close-modal",
-        ".modal .close",
-        ".modal-backdrop",
-        ".modal-overlay",
-        "[class*='overlay']",
-    ]
-
-    wait = WebDriverWait(driver, timeout=0.5)
-
-    for selector in modal_selectors:
-        try:
-            elements = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, selector)))
-
-            for element in elements:
-                if element.is_displayed():
-                    try:
-                        # Try clicking with JavaScript as it's more reliable
-                        driver.execute_script("arguments[0].click();", element)
-                    except ElementNotInteractableException:
-                        # If JavaScript click fails, try regular click
-                        element.click()
-
-        except TimeoutException:
-            continue
-        except Exception as e:
-            print(f"Error handling selector {selector}: {str(e)}")
-            continue
-    return "Modals closed"
+    webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 
 
 agent = CodeAgent(
@@ -150,10 +148,10 @@ agent = CodeAgent(
 
 helium_instructions = """
 You can use helium to access websites. Don't bother about the helium driver, it's already managed.
-First you need to import everything from helium, then you can do other actions!
+We've already ran "from helium import *"
+Then you can go to pages!
 Code:
 ```py
-from helium import *
 go_to('github.com/trending')
 ```<end_code>
 
@@ -206,17 +204,10 @@ Of course, you can act on buttons like a user would do when navigating.
 After each code blob you write, you will be automatically provided with an updated screenshot of the browser and the current browser url.
 But beware that the screenshot will only be taken at the end of the whole action, it won't see intermediate states.
 Don't kill the browser.
+When you have modals or cookie banners on screen, you should get rid of them before you can click anything else.
 """
 
-# Run the agent!
+# Run the agent with the provided prompt
 
-github_request = """
-I'm trying to find how hard I have to work to get a repo in github.com/trending.
-Can you navigate to the profile for the top author of the top trending repo, and give me their total number of commits over the last year?
-"""  # The agent is able to achieve this request only when powered by GPT-4o or Claude-3.5-sonnet.
-
-search_request = """
-Please navigate to https://en.wikipedia.org/wiki/Chicago and give me a sentence containing the word "1992" that mentions a construction accident.
-"""
-
-agent.run(search_request + helium_instructions)
+agent.python_executor("from helium import *", agent.state)
+agent.run(args.prompt + helium_instructions)

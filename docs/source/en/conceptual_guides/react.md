@@ -27,7 +27,7 @@ Initialization: the system prompt is stored in a `SystemPromptStep`, and the use
 
 While loop (ReAct loop):
 
-- Use `agent.write_inner_memory_from_logs()` to write the agent logs into a list of LLM-readable [chat messages](https://huggingface.co/docs/transformers/en/chat_templating).
+- Use `agent.write_memory_to_messages()` to write the agent logs into a list of LLM-readable [chat messages](https://huggingface.co/docs/transformers/en/chat_templating).
 - Send these messages to a `Model` object to get its completion. Parse the completion to get the action (a JSON blob for `ToolCallingAgent`, a code snippet for `CodeAgent`).
 - Execute the action and logs result into memory (an `ActionStep`).
 - At the end of each step, we run all callback functions defined in `agent.step_callbacks` .

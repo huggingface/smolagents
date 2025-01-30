@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import os
 import unittest
 from pathlib import Path
 from typing import Optional
 
+import pytest
 from transformers.testing_utils import get_tests_dir
 
 from smolagents import ChatMessage, HfApiModel, TransformersModel, models, tool
@@ -48,6 +50,12 @@ class ModelTests(unittest.TestCase):
 
     def test_get_hfapi_message_no_tool(self):
         model = HfApiModel(max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model(messages, stop_sequences=["great"])
+
+    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
+    def test_get_hfapi_message_no_tool_external_provider(self):
+        model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
