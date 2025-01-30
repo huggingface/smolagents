@@ -18,13 +18,13 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from .agent_types import AgentAudio
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
     BASE_PYTHON_TOOLS,
     evaluate_python_code,
 )
 from .tools import PipelineTool, Tool
-from .types import AgentAudio
 
 
 @dataclass

@@ -74,7 +74,7 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 
 ### HfApiModel
 
-The `HfApiModel` wraps an [HF Inference API](https://huggingface.co/docs/api-inference/index) client for the execution of the LLM.
+The `HfApiModel` wraps huggingface_hub's [InferenceClient](https://huggingface.co/docs/huggingface_hub/main/en/guides/inference) for the execution of the LLM. It supports both HF's own [Inference API](https://huggingface.co/docs/api-inference/index) as well as all [Inference Providers](https://huggingface.co/blog/inference-providers) available on the Hub.
 
 ```python
 from smolagents import HfApiModel

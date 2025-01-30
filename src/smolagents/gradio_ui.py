@@ -19,9 +19,9 @@ import re
 import shutil
 from typing import Optional
 
+from smolagents.agent_types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 from smolagents.agents import ActionStep, MultiStepAgent
 from smolagents.memory import MemoryStep
-from smolagents.types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 from smolagents.utils import _is_package_available
 
 
@@ -181,7 +181,7 @@ class GradioUI:
     def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None):
         if not _is_package_available("gradio"):
             raise ModuleNotFoundError(
-                "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[audio]'`"
+                "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
             )
         self.agent = agent
         self.file_upload_folder = file_upload_folder

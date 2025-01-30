@@ -21,8 +21,8 @@ from PIL import Image
 from transformers import is_torch_available
 from transformers.testing_utils import get_tests_dir, require_torch
 
+from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import FinalAnswerTool
-from smolagents.types import _AGENT_TYPE_MAPPING
 
 from .test_tools import ToolTesterMixin
 

@@ -22,12 +22,12 @@ from smolagents import (
     ToolCallingAgent,
     stream_to_gradio,
 )
-from smolagents.logger import AgentLogger, LogLevel
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,
 )
+from smolagents.monitoring import AgentLogger, LogLevel
 
 
 class FakeLLMModel:
