@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import unittest
+from textwrap import dedent
 
 import numpy as np
 import pytest
@@ -55,10 +56,7 @@ class PythonInterpreterTester(unittest.TestCase):
         code = "print = '3'"
         with pytest.raises(InterpreterError) as e:
             evaluate_python_code(code, {"print": print}, state={})
-        assert (
-            "Cannot assign to name 'print': doing this would erase the existing tool!"
-            in str(e)
-        )
+        assert "Cannot assign to name 'print': doing this would erase the existing tool!" in str(e)
 
     def test_subscript_call(self):
         code = """def foo(x,y):return x*y\n\ndef boo(y):\n\treturn y**3\nfun = [foo, boo]\nresult_foo = fun[0](4,2)\nresult_boo = fun[1](4)"""
@@ -92,9 +90,7 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         self.assertDictEqual(result, {"x": 3, "y": 5})
-        self.assertDictEqual(
-            state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "print_outputs": ""}
-        )
+        self.assertDictEqual(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "print_outputs": ""})
 
     def test_evaluate_expression(self):
         code = "x = 3\ny = 5"
@@ -110,9 +106,7 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == "This is x: 3."
-        self.assertDictEqual(
-            state, {"x": 3, "text": "This is x: 3.", "print_outputs": ""}
-        )
+        self.assertDictEqual(state, {"x": 3, "text": "This is x: 3.", "print_outputs": ""})
 
     def test_evaluate_if(self):
         code = "if x <= 3:\n    y = 2\nelse:\n    y = 5"
@@ -153,15 +147,11 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqual(
-            state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "print_outputs": ""}
-        )
+        self.assertDictEqual(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "print_outputs": ""})
 
         code = "vendor = {'revenue': 31000, 'rent': 50312}; vendor['ratio'] = round(vendor['revenue'] / vendor['rent'], 2)"
         state = {}
-        evaluate_python_code(
-            code, {"min": min, "print": print, "round": round}, state=state
-        )
+        evaluate_python_code(code, {"min": min, "print": print, "round": round}, state=state)
         assert state["vendor"] == {"revenue": 31000, "rent": 50312, "ratio": 0.62}
 
     def test_subscript_string_with_string_index_raises_appropriate_error(self):
@@ -317,9 +307,7 @@ print(check_digits)
         assert result == {0: 0, 1: 1, 2: 4}
 
         code = "{num: name for num, name in {101: 'a', 102: 'b'}.items() if name not in ['a']}"
-        result, _ = evaluate_python_code(
-            code, {"print": print}, state={}, authorized_imports=["pandas"]
-        )
+        result, _ = evaluate_python_code(code, {"print": print}, state={}, authorized_imports=["pandas"])
         assert result == {102: "b"}
 
         code = """
@@ -367,9 +355,7 @@ else:
     best_city = "Manhattan"
     best_city
     """
-        result, _ = evaluate_python_code(
-            code, BASE_PYTHON_TOOLS, state={"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}
-        )
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"a": 1, "b": 2, "c": 3, "d": 4, "e": 5})
         assert result == "Brooklyn"
 
         code = """if d > e and a < b:
@@ -380,9 +366,7 @@ else:
     best_city = "Manhattan"
     best_city
     """
-        result, _ = evaluate_python_code(
-            code, BASE_PYTHON_TOOLS, state={"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}
-        )
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"a": 1, "b": 2, "c": 3, "d": 4, "e": 5})
         assert result == "Sacramento"
 
     def test_if_conditions(self):
@@ -398,9 +382,7 @@ if char.isalpha():
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert result == 2.0
 
-        code = (
-            "from random import choice, seed\nseed(12)\nchoice(['win', 'lose', 'draw'])"
-        )
+        code = "from random import choice, seed\nseed(12)\nchoice(['win', 'lose', 'draw'])"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert result == "lose"
 
@@ -434,14 +416,10 @@ if char.isalpha():
 
         # Test submodules are handled properly, thus not raising error
         code = "import numpy.random as rd\nrng = rd.default_rng(12345)\nrng.random()"
-        result, _ = evaluate_python_code(
-            code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy"]
-        )
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy"])
 
         code = "from numpy.random import default_rng as d_rng\nrng = d_rng(12345)\nrng.random()"
-        result, _ = evaluate_python_code(
-            code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy"]
-        )
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy"])
 
     def test_additional_imports(self):
         code = "import numpy as np"
@@ -613,9 +591,7 @@ except ValueError as e:
     def test_types_as_objects(self):
         code = "type_a = float(2); type_b = str; type_c = int"
         state = {}
-        result, is_final_answer = evaluate_python_code(
-            code, {"float": float, "str": str, "int": int}, state=state
-        )
+        result, is_final_answer = evaluate_python_code(code, {"float": float, "str": str, "int": int}, state=state)
         assert result is int
 
     def test_tuple_id(self):
@@ -655,12 +631,9 @@ counts += 1"""
         assert "Cannot add non-list value 1 to a list." in str(e)
 
     def test_error_highlights_correct_line_of_code(self):
-        code = """# Ok this is a very long code
-# It has many commented lines
-a = 1
+        code = """a = 1
 b = 2
 
-# Here is another piece
 counts = [1, 2, 3]
 counts += 1
 b += 1"""
@@ -668,12 +641,22 @@ b += 1"""
             evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert "Code execution failed at line 'counts += 1" in str(e)
 
+    def test_error_type_returned_in_function_call(self):
+        code = """def error_function():
+    raise ValueError("error")
+
+error_function()"""
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code(code)
+        assert "error" in str(e)
+        assert "ValueError" in str(e)
+
     def test_assert(self):
         code = """
 assert 1 == 1
 assert 1 == 2
 """
-        with pytest.raises(AssertionError) as e:
+        with pytest.raises(InterpreterError) as e:
             evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert "1 == 2" in str(e) and "1 == 1" not in str(e)
 
@@ -733,9 +716,7 @@ while True:
         break
 
 i"""
-        result, is_final_answer = evaluate_python_code(
-            code, {"print": print, "round": round}, state={}
-        )
+        result, is_final_answer = evaluate_python_code(code, {"print": print, "round": round}, state={})
         assert result == 3
         assert not is_final_answer
 
@@ -781,9 +762,7 @@ out = [i for sublist in all_res for i in sublist]
 out[:10]
 """
         state = {}
-        result, is_final_answer = evaluate_python_code(
-            code, {"print": print, "range": range}, state=state
-        )
+        result, is_final_answer = evaluate_python_code(code, {"print": print, "range": range}, state=state)
         assert result == [0, 0, 1, 0, 1, 2, 0, 1, 2, 3]
 
     def test_pandas(self):
@@ -798,9 +777,7 @@ parts_with_5_set_count = df[df['SetCount'] == 5.0]
 parts_with_5_set_count[['Quantity', 'SetCount']].values[1]
 """
         state = {}
-        result, _ = evaluate_python_code(
-            code, {}, state=state, authorized_imports=["pandas"]
-        )
+        result, _ = evaluate_python_code(code, {}, state=state, authorized_imports=["pandas"])
         assert np.array_equal(result, [-1, 5])
 
         code = """
@@ -811,9 +788,7 @@ df = pd.DataFrame.from_dict({"AtomicNumber": [111, 104, 105], "ok": [0, 1, 2]})
 # Filter the DataFrame to get only the rows with outdated atomic numbers
 filtered_df = df.loc[df['AtomicNumber'].isin([104])]
 """
-        result, _ = evaluate_python_code(
-            code, {"print": print}, state={}, authorized_imports=["pandas"]
-        )
+        result, _ = evaluate_python_code(code, {"print": print}, state={}, authorized_imports=["pandas"])
         assert np.array_equal(result.values[0], [104, 1])
 
         # Test groupby
@@ -825,9 +800,7 @@ data = pd.DataFrame.from_dict([
 ])
 survival_rate_by_class = data.groupby('Pclass')['Survived'].mean()
 """
-        result, _ = evaluate_python_code(
-            code, {}, state={}, authorized_imports=["pandas"]
-        )
+        result, _ = evaluate_python_code(code, {}, state={}, authorized_imports=["pandas"])
         assert result.values[1] == 0.5
 
         # Test loc and iloc
@@ -839,11 +812,9 @@ data = pd.DataFrame.from_dict([
 ])
 survival_rate_biased = data.loc[data['Survived']==1]['Survived'].mean()
 survival_rate_biased = data.loc[data['Survived']==1]['Survived'].mean()
-survival_rate_sorted = data.sort_values(by='Survived', ascending=False).iloc[0]   
+survival_rate_sorted = data.sort_values(by='Survived', ascending=False).iloc[0]
 """
-        result, _ = evaluate_python_code(
-            code, {}, state={}, authorized_imports=["pandas"]
-        )
+        result, _ = evaluate_python_code(code, {}, state={}, authorized_imports=["pandas"])
 
     def test_starred(self):
         code = """
@@ -864,9 +835,7 @@ coords_barcelona = (41.3869, 2.1660)
 
 distance_geneva_barcelona = haversine(*coords_geneva, *coords_barcelona)
 """
-        result, _ = evaluate_python_code(
-            code, {"print": print, "map": map}, state={}, authorized_imports=["math"]
-        )
+        result, _ = evaluate_python_code(code, {"print": print, "map": map}, state={}, authorized_imports=["math"])
         assert round(result, 1) == 622395.4
 
     def test_for(self):
@@ -883,6 +852,13 @@ shift_intervals
 """
         result, _ = evaluate_python_code(code, {"print": print, "map": map}, state={})
         assert result == {"Worker A": "8:00 pm", "Worker B": "11:45 am"}
+
+    def test_syntax_error_points_error(self):
+        code = "a = ;"
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code(code)
+        assert "SyntaxError" in str(e)
+        assert "     ^" in str(e)
 
     def test_fix_final_answer_code(self):
         test_cases = [
@@ -920,3 +896,176 @@ shift_intervals
     Expected: {expected}
     Got:      {result}
     """
+
+    def test_dangerous_subpackage_access_blocked(self):
+        # Direct imports with dangerous patterns should fail
+        code = "import random._os"
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(code)
+
+        # Import of whitelisted modules should succeed but dangerous submodules should not exist
+        code = "import random;random._os.system('echo bad command passed')"
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code(code)
+        assert "AttributeError:module 'random' has no attribute '_os'" in str(e)
+
+        code = "import doctest;doctest.inspect.os.system('echo bad command passed')"
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(code, authorized_imports=["doctest"])
+
+    def test_close_matches_subscript(self):
+        code = 'capitals = {"Czech Republic": "Prague", "Monaco": "Monaco", "Bhutan": "Thimphu"};capitals["Butan"]'
+        with pytest.raises(Exception) as e:
+            evaluate_python_code(code)
+        assert "Maybe you meant one of these indexes instead" in str(e) and "['Bhutan']" in str(e).replace("\\", "")
+
+    def test_dangerous_builtins_calls_are_blocked(self):
+        unsafe_code = "import os"
+        dangerous_code = f"""
+exec = callable.__self__.exec
+compile = callable.__self__.compile
+exec(compile('{unsafe_code}', 'no filename', 'exec'))
+"""
+
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(unsafe_code, static_tools=BASE_PYTHON_TOOLS)
+
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(dangerous_code, static_tools=BASE_PYTHON_TOOLS)
+
+    def test_dangerous_builtins_are_callable_if_explicitly_added(self):
+        dangerous_code = """
+compile = callable.__self__.compile
+eval = callable.__self__.eval
+exec = callable.__self__.exec
+
+eval("1 + 1")
+exec(compile("1 + 1", "no filename", "exec"))
+
+teval("1 + 1")
+texec(tcompile("1 + 1", "no filename", "exec"))
+        """
+
+        evaluate_python_code(
+            dangerous_code, static_tools={"tcompile": compile, "teval": eval, "texec": exec} | BASE_PYTHON_TOOLS
+        )
+
+    def test_can_import_os_if_explicitly_authorized(self):
+        dangerous_code = "import os; os.listdir('./')"
+        evaluate_python_code(dangerous_code, authorized_imports=["os"])
+
+
+@pytest.mark.parametrize(
+    "code, expected_result",
+    [
+        (
+            dedent("""\
+                x = 1
+                x += 2
+            """),
+            3,
+        ),
+        (
+            dedent("""\
+                x = "a"
+                x += "b"
+            """),
+            "ab",
+        ),
+        (
+            dedent("""\
+                class Custom:
+                    def __init__(self, value):
+                        self.value = value
+                    def __iadd__(self, other):
+                        self.value += other * 10
+                        return self
+
+                x = Custom(1)
+                x += 2
+                x.value
+            """),
+            21,
+        ),
+    ],
+)
+def test_evaluate_augassign(code, expected_result):
+    state = {}
+    result, _ = evaluate_python_code(code, {}, state=state)
+    assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "operator, expected_result",
+    [
+        ("+=", 7),
+        ("-=", 3),
+        ("*=", 10),
+        ("/=", 2.5),
+        ("//=", 2),
+        ("%=", 1),
+        ("**=", 25),
+        ("&=", 0),
+        ("|=", 7),
+        ("^=", 7),
+        (">>=", 1),
+        ("<<=", 20),
+    ],
+)
+def test_evaluate_augassign_number(operator, expected_result):
+    code = dedent("""\
+        x = 5
+        x {operator} 2
+    """).format(operator=operator)
+    state = {}
+    result, _ = evaluate_python_code(code, {}, state=state)
+    assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "operator, expected_result",
+    [
+        ("+=", 7),
+        ("-=", 3),
+        ("*=", 10),
+        ("/=", 2.5),
+        ("//=", 2),
+        ("%=", 1),
+        ("**=", 25),
+        ("&=", 0),
+        ("|=", 7),
+        ("^=", 7),
+        (">>=", 1),
+        ("<<=", 20),
+    ],
+)
+def test_evaluate_augassign_custom(operator, expected_result):
+    operator_names = {
+        "+=": "iadd",
+        "-=": "isub",
+        "*=": "imul",
+        "/=": "itruediv",
+        "//=": "ifloordiv",
+        "%=": "imod",
+        "**=": "ipow",
+        "&=": "iand",
+        "|=": "ior",
+        "^=": "ixor",
+        ">>=": "irshift",
+        "<<=": "ilshift",
+    }
+    code = dedent("""\
+        class Custom:
+            def __init__(self, value):
+                self.value = value
+            def __{operator_name}__(self, other):
+                self.value {operator} other
+                return self
+
+        x = Custom(5)
+        x {operator} 2
+        x.value
+    """).format(operator=operator, operator_name=operator_names[operator])
+    state = {}
+    result, _ = evaluate_python_code(code, {}, state=state)
+    assert result == expected_result

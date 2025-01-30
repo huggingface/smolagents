@@ -13,24 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
+
 import pytest
 
-from smolagents.default_tools import PythonInterpreterTool, VisitWebpageTool
-from smolagents.types import AGENT_TYPE_MAPPING
+from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.types import _AGENT_TYPE_MAPPING
 
 from .test_tools import ToolTesterMixin
 
 
 class DefaultToolTests(unittest.TestCase):
     def test_visit_webpage(self):
-        arguments = {
-            "url": "https://en.wikipedia.org/wiki/United_States_Secretary_of_Homeland_Security"
-        }
+        arguments = {"url": "https://en.wikipedia.org/wiki/United_States_Secretary_of_Homeland_Security"}
         result = VisitWebpageTool()(arguments)
         assert isinstance(result, str)
-        assert (
-            "* [About Wikipedia](/wiki/Wikipedia:About)" in result
-        )  # Proper wikipedia pages have an About
+        assert "* [About Wikipedia](/wiki/Wikipedia:About)" in result  # Proper wikipedia pages have an About
+
+    def test_ddgs_with_kwargs(self):
+        result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
+        assert isinstance(result, str)
 
 
 class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):
@@ -49,7 +50,7 @@ class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):
     def test_agent_type_output(self):
         inputs = ["2 * 2"]
         output = self.tool(*inputs, sanitize_inputs_outputs=True)
-        output_type = AGENT_TYPE_MAPPING[self.tool.output_type]
+        output_type = _AGENT_TYPE_MAPPING[self.tool.output_type]
         self.assertTrue(isinstance(output, output_type))
 
     def test_agent_types_inputs(self):
@@ -59,18 +60,13 @@ class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):
         for _input, expected_input in zip(inputs, self.tool.inputs.values()):
             input_type = expected_input["type"]
             if isinstance(input_type, list):
-                _inputs.append(
-                    [
-                        AGENT_TYPE_MAPPING[_input_type](_input)
-                        for _input_type in input_type
-                    ]
-                )
+                _inputs.append([_AGENT_TYPE_MAPPING[_input_type](_input) for _input_type in input_type])
             else:
-                _inputs.append(AGENT_TYPE_MAPPING[input_type](_input))
+                _inputs.append(_AGENT_TYPE_MAPPING[input_type](_input))
 
         # Should not raise an error
         output = self.tool(*inputs, sanitize_inputs_outputs=True)
-        output_type = AGENT_TYPE_MAPPING[self.tool.output_type]
+        output_type = _AGENT_TYPE_MAPPING[self.tool.output_type]
         self.assertTrue(isinstance(output, output_type))
 
     def test_imports_work(self):

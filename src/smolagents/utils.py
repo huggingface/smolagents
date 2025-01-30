@@ -15,23 +15,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import ast
+import base64
+import importlib.metadata
+import importlib.util
 import inspect
 import json
 import re
+import textwrap
 import types
-from typing import Dict, Tuple, Union
-
-from rich.console import Console
-from transformers.utils.import_utils import _is_package_available
-
-_pygments_available = _is_package_available("pygments")
+from functools import lru_cache
+from io import BytesIO
+from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 
 
-def is_pygments_available():
-    return _pygments_available
+if TYPE_CHECKING:
+    from smolagents.memory import AgentLogger
 
 
-console = Console(width=200)
+__all__ = ["AgentError"]
+
+
+@lru_cache
+def _is_package_available(package_name: str) -> bool:
+    try:
+        importlib.metadata.version(package_name)
+        return True
+    except importlib.metadata.PackageNotFoundError:
+        return False
+
+
+@lru_cache
+def _is_pillow_available():
+    return importlib.util.find_spec("PIL") is not None
+
 
 BASE_BUILTIN_MODULES = [
     "collections",
@@ -51,10 +67,13 @@ BASE_BUILTIN_MODULES = [
 class AgentError(Exception):
     """Base class for other agent-related exceptions"""
 
-    def __init__(self, message):
+    def __init__(self, message, logger: "AgentLogger"):
         super().__init__(message)
         self.message = message
-        console.print(f"[bold red]{message}[/bold red]")
+        logger.log(f"[bold red]{message}[/bold red]", level="ERROR")
+
+    def dict(self) -> Dict[str, str]:
+        return {"type": self.__class__.__name__, "message": str(self.message)}
 
 
 class AgentParsingError(AgentError):
@@ -81,13 +100,37 @@ class AgentGenerationError(AgentError):
     pass
 
 
+def make_json_serializable(obj: Any) -> Any:
+    """Recursive function to make objects JSON serializable"""
+    if obj is None:
+        return None
+    elif isinstance(obj, (str, int, float, bool)):
+        # Try to parse string as JSON if it looks like a JSON object/array
+        if isinstance(obj, str):
+            try:
+                if (obj.startswith("{") and obj.endswith("}")) or (obj.startswith("[") and obj.endswith("]")):
+                    parsed = json.loads(obj)
+                    return make_json_serializable(parsed)
+            except json.JSONDecodeError:
+                pass
+        return obj
+    elif isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {str(k): make_json_serializable(v) for k, v in obj.items()}
+    elif hasattr(obj, "__dict__"):
+        # For custom objects, convert their __dict__ to a serializable format
+        return {"_type": obj.__class__.__name__, **{k: make_json_serializable(v) for k, v in obj.__dict__.items()}}
+    else:
+        # For any other type, convert to string
+        return str(obj)
+
+
 def parse_json_blob(json_blob: str) -> Dict[str, str]:
     try:
         first_accolade_index = json_blob.find("{")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_blob = json_blob[first_accolade_index : last_accolade_index + 1].replace(
-            '\\"', "'"
-        )
+        json_blob = json_blob[first_accolade_index : last_accolade_index + 1].replace('\\"', "'")
         json_data = json.loads(json_blob, strict=False)
         return json_data
     except json.JSONDecodeError as e:
@@ -164,16 +207,14 @@ def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
 
 
-def truncate_content(
-    content: str, max_length: int = MAX_LENGTH_TRUNCATE_CONTENT
-) -> str:
+def truncate_content(content: str, max_length: int = MAX_LENGTH_TRUNCATE_CONTENT) -> str:
     if len(content) <= max_length:
         return content
     else:
         return (
-            content[: MAX_LENGTH_TRUNCATE_CONTENT // 2]
+            content[: max_length // 2]
             + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
-            + content[-MAX_LENGTH_TRUNCATE_CONTENT // 2 :]
+            + content[-max_length // 2 :]
         )
 
 
@@ -198,7 +239,7 @@ def get_method_source(method):
     """Get source code for a method, including bound methods."""
     if isinstance(method, types.MethodType):
         method = method.__func__
-    return inspect.getsource(method).strip()
+    return get_source(method)
 
 
 def is_same_method(method1, method2):
@@ -208,12 +249,8 @@ def is_same_method(method1, method2):
         source2 = get_method_source(method2)
 
         # Remove method decorators if any
-        source1 = "\n".join(
-            line for line in source1.split("\n") if not line.strip().startswith("@")
-        )
-        source2 = "\n".join(
-            line for line in source2.split("\n") if not line.strip().startswith("@")
-        )
+        source1 = "\n".join(line for line in source1.split("\n") if not line.strip().startswith("@"))
+        source2 = "\n".join(line for line in source2.split("\n") if not line.strip().startswith("@"))
 
         return source1 == source2
     except (TypeError, OSError):
@@ -250,9 +287,7 @@ def instance_to_source(instance, base_cls=None):
         for name, value in cls.__dict__.items()
         if not name.startswith("__")
         and not callable(value)
-        and not (
-            base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value
-        )
+        and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
     }
 
     for name, value in class_attrs.items():
@@ -273,22 +308,18 @@ def instance_to_source(instance, base_cls=None):
         for name, func in cls.__dict__.items()
         if callable(func)
         and not (
-            base_cls
-            and hasattr(base_cls, name)
-            and getattr(base_cls, name).__code__.co_code == func.__code__.co_code
+            base_cls and hasattr(base_cls, name) and getattr(base_cls, name).__code__.co_code == func.__code__.co_code
         )
     }
 
     for name, method in methods.items():
-        method_source = inspect.getsource(method)
+        method_source = get_source(method)
         # Clean up the indentation
         method_lines = method_source.split("\n")
         first_line = method_lines[0]
         indent = len(first_line) - len(first_line.lstrip())
         method_lines = [line[indent:] for line in method_lines]
-        method_source = "\n".join(
-            ["    " + line if line.strip() else line for line in method_lines]
-        )
+        method_source = "\n".join(["    " + line if line.strip() else line for line in method_lines])
         class_lines.append(method_source)
         class_lines.append("")
 
@@ -317,4 +348,63 @@ def instance_to_source(instance, base_cls=None):
     return "\n".join(final_lines)
 
 
-__all__ = ["AgentError"]
+def get_source(obj) -> str:
+    """Get the source code of a class or callable object (e.g.: function, method).
+    First attempts to get the source code using `inspect.getsource`.
+    In a dynamic environment (e.g.: Jupyter, IPython), if this fails,
+    falls back to retrieving the source code from the current interactive shell session.
+
+    Args:
+        obj: A class or callable object (e.g.: function, method)
+
+    Returns:
+        str: The source code of the object, dedented and stripped
+
+    Raises:
+        TypeError: If object is not a class or callable
+        OSError: If source code cannot be retrieved from any source
+        ValueError: If source cannot be found in IPython history
+
+    Note:
+        TODO: handle Python standard REPL
+    """
+    if not (isinstance(obj, type) or callable(obj)):
+        raise TypeError(f"Expected class or callable, got {type(obj)}")
+
+    inspect_error = None
+    try:
+        return textwrap.dedent(inspect.getsource(obj)).strip()
+    except OSError as e:
+        # let's keep track of the exception to raise it if all further methods fail
+        inspect_error = e
+    try:
+        import IPython
+
+        shell = IPython.get_ipython()
+        if not shell:
+            raise ImportError("No active IPython shell found")
+        all_cells = "\n".join(shell.user_ns.get("In", [])).strip()
+        if not all_cells:
+            raise ValueError("No code cells found in IPython session")
+
+        tree = ast.parse(all_cells)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name == obj.__name__:
+                return textwrap.dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
+        raise ValueError(f"Could not find source code for {obj.__name__} in IPython history")
+    except ImportError:
+        # IPython is not available, let's just raise the original inspect error
+        raise inspect_error
+    except ValueError as e:
+        # IPython is available but we couldn't find the source code, let's raise the error
+        raise e from inspect_error
+
+
+def encode_image_base64(image):
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+
+def make_image_url(base64_image):
+    return f"data:image/png;base64,{base64_image}"

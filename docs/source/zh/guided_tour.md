@@ -61,6 +61,7 @@ agent.run(
 <hfoption id="本地Transformers模型">
 
 ```python
+# !pip install smolagents[transformers]
 from smolagents import CodeAgent, TransformersModel
 
 model_id = "meta-llama/Llama-3.2-3B-Instruct"
@@ -78,6 +79,7 @@ agent.run(
 要使用 `LiteLLMModel`，您需要设置环境变量 `ANTHROPIC_API_KEY` 或 `OPENAI_API_KEY`，或者在初始化时传递 `api_key` 变量。
 
 ```python
+# !pip install smolagents[litellm]
 from smolagents import CodeAgent, LiteLLMModel
 
 model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", api_key="YOUR_ANTHROPIC_API_KEY") # 也可以使用 'gpt-4o'
@@ -91,12 +93,14 @@ agent.run(
 <hfoption id="Ollama">
 
 ```python
+# !pip install smolagents[litellm]
 from smolagents import CodeAgent, LiteLLMModel
 
 model = LiteLLMModel(
     model_id="ollama_chat/llama3.2", # 这个模型对于 agent 行为来说有点弱
     api_base="http://localhost:11434", # 如果需要可以替换为远程 open-ai 兼容服务器
     api_key="YOUR_API_KEY" # 如果需要可以替换为 API key
+    num_ctx=8192 # https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
@@ -148,7 +152,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 以下是一些有用的属性，用于检查运行后发生了什么：
 - `agent.logs` 存储 agent 的细粒度日志。在 agent 运行的每一步，所有内容都会存储在一个字典中，然后附加到 `agent.logs` 中。
-- 运行 `agent.write_inner_memory_from_logs()` 会为 LLM 创建一个 agent 日志的内部内存，作为聊天消息列表。此方法会遍历日志的每一步，并仅存储它感兴趣的内容作为消息：例如，它会将系统提示和任务存储为单独的消息，然后对于每一步，它会将 LLM 输出存储为一条消息，工具调用输出存储为另一条消息。如果您想要更高级别的视图 - 但不是每个日志都会被此方法转录。
+- 运行 `agent.write_memory_to_messages()` 会为 LLM 创建一个 agent 日志的内部内存，作为聊天消息列表。此方法会遍历日志的每一步，并仅存储它感兴趣的内容作为消息：例如，它会将系统提示和任务存储为单独的消息，然后对于每一步，它会将 LLM 输出存储为一条消息，工具调用输出存储为另一条消息。如果您想要更高级别的视图 - 但不是每个日志都会被此方法转录。
 
 ## 工具
 
@@ -173,9 +177,9 @@ Transformers 附带了一个用于增强 agent 的默认工具箱，您可以在
 您可以通过调用 [`load_tool`] 函数和要执行的任务手动使用工具。
 
 ```python
-from smolagents import load_tool
+from smolagents import DuckDuckGoSearchTool
 
-search_tool = load_tool("web_search")
+search_tool = DuckDuckGoSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 

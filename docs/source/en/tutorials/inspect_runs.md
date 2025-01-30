@@ -34,11 +34,19 @@ We've adopted the [OpenTelemetry](https://opentelemetry.io/) standard for instru
 
 This means that you can just run some instrumentation code, then run your agents normally, and everything gets logged into your platform.
 
-Here's how it goes:
+Here's how it then looks like on the platform:
+
+<div class="flex justify-center">
+    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/inspect_run_phoenix.gif"/>
+</div>
+
+
+### Setting up telemetry with Arize AI Phoenix
 First install the required packages. Here we install [Phoenix by Arize AI](https://github.com/Arize-ai/phoenix) because that's a good solution to collect and inspect the logs, but there are other OpenTelemetry-compatible platforms that you could use for this collection & inspection part.
 
 ```shell
-pip install smolagents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install smolagents
+pip install arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp openinference-instrumentation-smolagents
 ```
 
 Then run the collector in the background.
@@ -96,7 +104,8 @@ manager_agent.run(
     "If the US keeps its 2024 growth rate, how many years will it take for the GDP to double?"
 )
 ```
-And you can then navigate to `http://0.0.0.0:6006/projects/` to inspect your run!
+Voilà!
+You can then navigate to `http://0.0.0.0:6006/projects/` to inspect your run!
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/inspect_run_phoenix.png">
 

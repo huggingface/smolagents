@@ -139,7 +139,7 @@ model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
-    "Improve this prompt, then generate an image of it.", prompt='A rabbit wearing a space suit'
+    "Improve this prompt, then generate an image of it.", additional_args={'user_prompt': 'A rabbit wearing a space suit'}
 )
 ```
 
@@ -209,7 +209,7 @@ agent.run(
 ```py
 from smolagents import ToolCollection, CodeAgent
 
-image_tool_collection = ToolCollection(
+image_tool_collection = ToolCollection.from_hub(
     collection_slug="huggingface-tools/diffusion-tools-6630bb19a942c2306a2cdb6f",
     token="<YOUR_HUGGINGFACEHUB_API_TOKEN>"
 )

@@ -25,26 +25,28 @@ To initialize a minimal agent, you need at least these two arguments:
 
 - `model`, a text-generation model to power your agent - because the agent is different from a simple LLM, it is a system that uses a LLM as its engine. You can use any of these options:
     - [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
-    - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood.
-    - [`LiteLLMModel`] lets you call 100+ different models through [LiteLLM](https://docs.litellm.ai/)!
+    - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood and supports all Inference Providers on the Hub.
+    - [`LiteLLMModel`] similarly lets you call 100+ different models and providers through [LiteLLM](https://docs.litellm.ai/)!
+    - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
 
 - `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Hugging Face API](https://huggingface.co/docs/api-inference/en/index), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), or [LiteLLM](https://www.litellm.ai/).
+Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), or [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
 
 <hfoptions id="Pick a LLM">
-<hfoption id="Hugging Face API">
+<hfoption id="HF Inference API">
 
-Hugging Face API is free to use without a token, but then it will have a rate limitation.
+HF Inference API is free to use without a token, but then it will have a rate limit.
 
-To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`.
+To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
 
 ```python
 from smolagents import CodeAgent, HfApiModel
 
-model_id = "meta-llama/Llama-3.3-70B-Instruct"
+model_id = "meta-llama/Llama-3.3-70B-Instruct" 
 
-model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
+model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to HfApiModel to use a default free model
+# you can also specify a particular provider e.g. provider="together" or provider="sambanova"
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -55,6 +57,7 @@ agent.run(
 <hfoption id="Local Transformers Model">
 
 ```python
+# !pip install smolagents[transformers]
 from smolagents import CodeAgent, TransformersModel
 
 model_id = "meta-llama/Llama-3.2-3B-Instruct"
@@ -72,6 +75,7 @@ agent.run(
 To use `LiteLLMModel`, you need to set the environment variable `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, or pass `api_key` variable upon initialization.
 
 ```python
+# !pip install smolagents[litellm]
 from smolagents import CodeAgent, LiteLLMModel
 
 model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", api_key="YOUR_ANTHROPIC_API_KEY") # Could use 'gpt-4o'
@@ -85,12 +89,14 @@ agent.run(
 <hfoption id="Ollama">
 
 ```python
+# !pip install smolagents[litellm]
 from smolagents import CodeAgent, LiteLLMModel
 
 model = LiteLLMModel(
     model_id="ollama_chat/llama3.2", # This model is a bit weak for agentic behaviours though
-    api_base="http://localhost:11434", # replace with remote open-ai compatible server if necessary
+    api_base="http://localhost:11434", # replace with 127.0.0.1:11434 or remote open-ai compatible server if necessary
     api_key="YOUR_API_KEY" # replace with API key if necessary
+    num_ctx=8192 # ollama default is 2048 which will fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
@@ -99,6 +105,49 @@ agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
 )
 ```
+</hfoption>
+<hfoption id="Azure OpenAI">
+
+To connect to Azure OpenAI, you can either use `AzureOpenAIServerModel` directly, or use `LiteLLMModel` and configure it accordingly.
+
+To initialize an instance of `AzureOpenAIServerModel`, you need to pass your model deployment name and then either pass the `azure_endpoint`, `api_key`, and `api_version` arguments, or set the environment variables `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `OPENAI_API_VERSION`.
+
+```python
+# !pip install smolagents[openai]
+from smolagents import CodeAgent, AzureOpenAIServerModel
+
+model = AzureOpenAIServerModel(model_id="gpt-4o-mini")
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+Similarly, you can configure `LiteLLMModel` to connect to Azure OpenAI as follows:
+
+- pass your model deployment name as `model_id`, and make sure to prefix it with `azure/`
+- make sure to set the environment variable `AZURE_API_VERSION`
+- either pass the `api_base` and `api_key` arguments, or set the environment variables `AZURE_API_KEY`, and `AZURE_API_BASE`
+
+```python
+import os
+from smolagents import CodeAgent, LiteLLMModel
+
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-35-turbo-16k-deployment" # example of deployment name
+
+os.environ["AZURE_API_KEY"] = "" # api_key
+os.environ["AZURE_API_BASE"] = "" # "https://example-endpoint.openai.azure.com"
+os.environ["AZURE_API_VERSION"] = "" # "2024-10-01-preview"
+
+model = LiteLLMModel(model_id="azure/" + AZURE_OPENAI_CHAT_DEPLOYMENT_NAME)
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+   "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
 </hfoption>
 </hfoptions>
 
@@ -141,7 +190,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 Here are a few useful attributes to inspect what happened after a run:
 - `agent.logs` stores the fine-grained logs of the agent. At every step of the agent's run, everything gets stored in a dictionary that then is appended to `agent.logs`.
-- Running `agent.write_inner_memory_from_logs()` creates an inner memory of the agent's logs for the LLM to view, as a list of chat messages. This method goes over each step of the log and only stores what it's interested in as a message: for instance, it will save the system prompt and task in separate messages, then for each step it will store the LLM output as a message, and the tool call output as another message. Use this if you want a higher-level view of what has happened - but not every log will be transcripted by this method.
+- Running `agent.write_memory_to_messages()` writes the agent's memory as list of chat messages for the Model to view. This method goes over each step of the log and only stores what it's interested in as a message: for instance, it will save the system prompt and task in separate messages, then for each step it will store the LLM output as a message, and the tool call output as another message. Use this if you want a higher-level view of what has happened - but not every log will be transcripted by this method.
 
 ## Tools
 
@@ -336,7 +385,7 @@ from smolagents import (
 )
 
 # Import tool from Hub
-image_generation_tool = load_tool("m-ric/text-to-image")
+image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
 model = HfApiModel(model_id)
 
