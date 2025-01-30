@@ -41,7 +41,7 @@ e2b = [
   "python-dotenv>=1.0.1",
 ]
 gradio = [
-  "gradio>=5.13.0",
+  "gradio>=5.13.2",
 ]
 litellm = [
   "litellm>=1.55.10",
@@ -53,11 +53,17 @@ mcp = [
 openai = [
   "openai>=1.58.1"
 ]
+telemetry = [
+  "arize-phoenix",
+  "opentelemetry-sdk", 
+  "opentelemetry-exporter-otlp",
+  "openinference-instrumentation-smolagents>=0.1.1"
+]
 quality = [
   "ruff>=0.9.0",
 ]
 all = [
-  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers]",
+  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers,telemetry]",
 ]
 test = [
   "ipython>=8.31.0", # for interactive environment tests

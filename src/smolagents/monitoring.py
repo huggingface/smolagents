@@ -41,7 +41,7 @@ class Monitor:
         """Update the metrics of the monitor.
 
         Args:
-            step_log ([`AgentStepLog`]): Step log to update the monitor with.
+            step_log ([`MemoryStep`]): Step log to update the monitor with.
         """
         step_duration = step_log.duration
         self.step_durations.append(step_duration)

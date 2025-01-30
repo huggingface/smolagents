@@ -19,13 +19,14 @@ import re
 import shutil
 from typing import Optional
 
-from .agents import ActionStep, AgentStepLog, MultiStepAgent
-from .types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
-from .utils import _is_package_available
+from smolagents.agents import ActionStep, MultiStepAgent
+from smolagents.memory import MemoryStep
+from smolagents.types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
+from smolagents.utils import _is_package_available
 
 
 def pull_messages_from_step(
-    step_log: AgentStepLog,
+    step_log: MemoryStep,
 ):
     """Extract ChatMessage objects from agent steps with proper nesting"""
     import gradio as gr
@@ -36,15 +37,15 @@ def pull_messages_from_step(
         yield gr.ChatMessage(role="assistant", content=f"**{step_number}**")
 
         # First yield the thought/reasoning from the LLM
-        if hasattr(step_log, "llm_output") and step_log.llm_output is not None:
+        if hasattr(step_log, "model_output") and step_log.model_output is not None:
             # Clean up the LLM output
-            llm_output = step_log.llm_output.strip()
+            model_output = step_log.model_output.strip()
             # Remove any trailing <end_code> and extra backticks, handling multiple possible formats
-            llm_output = re.sub(r"```\s*<end_code>", "```", llm_output)  # handles ```<end_code>
-            llm_output = re.sub(r"<end_code>\s*```", "```", llm_output)  # handles <end_code>```
-            llm_output = re.sub(r"```\s*\n\s*<end_code>", "```", llm_output)  # handles ```\n<end_code>
-            llm_output = llm_output.strip()
-            yield gr.ChatMessage(role="assistant", content=llm_output)
+            model_output = re.sub(r"```\s*<end_code>", "```", model_output)  # handles ```<end_code>
+            model_output = re.sub(r"<end_code>\s*```", "```", model_output)  # handles <end_code>```
+            model_output = re.sub(r"```\s*\n\s*<end_code>", "```", model_output)  # handles ```\n<end_code>
+            model_output = model_output.strip()
+            yield gr.ChatMessage(role="assistant", content=model_output)
 
         # For tool calls, create a parent message
         if hasattr(step_log, "tool_calls") and step_log.tool_calls is not None:
