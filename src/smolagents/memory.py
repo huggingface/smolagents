@@ -37,6 +37,7 @@ class ToolCall:
         }
 
 
+@dataclass
 class MemoryStep:
     raw: Any  # This is a placeholder for the raw data that the agent logs
 
