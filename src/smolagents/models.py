@@ -733,7 +733,6 @@ class OpenAIServerModel(Model):
         organization: Optional[str] | None = None,
         project: Optional[str] | None = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
-        chat_completion_kwargs: Optional[Dict] = None,
         **kwargs,
     ):
         try:
@@ -745,7 +744,6 @@ class OpenAIServerModel(Model):
 
         super().__init__(**kwargs)
         self.model_id = model_id
-        self.chat_completion_kwargs = chat_completion_kwargs
         self.client = openai.OpenAI(
             base_url=api_base,
             api_key=api_key,
@@ -772,7 +770,6 @@ class OpenAIServerModel(Model):
             model=self.model_id,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
-            **self.chat_completion_kwargs,
             **kwargs,
         )
 
