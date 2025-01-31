@@ -209,16 +209,18 @@ def get_clean_message_list(
             message["role"] = role_conversions[role]
         # encode images if needed
         if isinstance(message["content"], list):
-            for i, element in enumerate(message["content"]):
+            for element in message["content"]:
                 if element["type"] == "image":
                     assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
                     if convert_images_to_image_urls:
-                        message["content"][i] = {
-                            "type": "image_url",
-                            "image_url": {"url": make_image_url(encode_image_base64(element["image"]))},
-                        }
+                        element.update(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": make_image_url(encode_image_base64(element.pop("image")))},
+                            }
+                        )
                     else:
-                        message["content"][i]["image"] = encode_image_base64(element["image"])
+                        element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message["role"] == output_message_list[-1]["role"]:
             assert isinstance(message["content"], list), "Error: wrong content:" + str(message["content"])
