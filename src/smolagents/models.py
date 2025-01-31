@@ -78,7 +78,7 @@ class ChatMessageToolCall:
     type: str
 
     @classmethod
-    def from_hf_api(cls, tool_call, raw) -> "ChatMessageToolCall":
+    def from_hf_api(cls, tool_call) -> "ChatMessageToolCall":
         return cls(
             function=ChatMessageToolCallDefinition.from_hf_api(tool_call.function),
             id=tool_call.id,
