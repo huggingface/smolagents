@@ -57,7 +57,22 @@ class E2BExecutor:
         # )
         # print("Installation of agents package finished.")
         self.logger = logger
-        additional_imports = additional_imports + ["smolagents"]
+        
+        # Filter out standard library modules
+        non_stdlib_imports = []
+        for module in additional_imports:
+            try:
+                # Try to import the module
+                __import__(module)
+                # Check if it's a built-in module
+                import sys
+                if module not in sys.stdlib_module_names:
+                    non_stdlib_imports.append(module)
+            except ImportError:
+                # If import fails, it's not a standard library module
+                non_stdlib_imports.append(module)
+        
+        additional_imports = non_stdlib_imports + ["smolagents"]
         if len(additional_imports) > 0:
             execution = self.sbx.commands.run("pip install " + " ".join(additional_imports))
             if execution.error:
