@@ -46,6 +46,7 @@ gradio = [
 ]
 litellm = [
   "litellm>=1.55.10",
+  "legacy-cgi>=2.6.2",
 ]
 mcp = [
   "mcpadapt>=0.0.6",
