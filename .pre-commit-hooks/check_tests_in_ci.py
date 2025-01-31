@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # coding=utf-8
 # Copyright 2025-present, the HuggingFace Inc. team.
 #

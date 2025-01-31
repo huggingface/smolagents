@@ -1,13 +1,26 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: debug-statements
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.2.1
+    rev: v0.9.4
     hooks:
       - id: ruff
         args:
           - --fix
       - id: ruff-format
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+
+  - repo: local
     hooks:
-      - id: check-merge-conflict
-      - id: check-yaml
+      - id: check-tests-in-ci
+        name: check tests listed in ci
+        entry: .pre-commit-hooks/check_tests_in_ci.py
+        language: python
+        always_run: true
+        pass_filenames: false
+        types: [python, yaml]
+        files: ^tests/.*\.py$|^\.github/workflows/tests\.yml$

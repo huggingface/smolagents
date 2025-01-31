@@ -56,12 +56,9 @@ openai = [
 ]
 telemetry = [
   "arize-phoenix",
-  "opentelemetry-sdk", 
+  "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
   "openinference-instrumentation-smolagents>=0.1.1"
-]
-quality = [
-  "ruff>=0.9.0",
 ]
 all = [
   "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers,telemetry]",
@@ -74,8 +71,10 @@ test = [
   "rank-bm25", # For test_all_docs
 ]
 dev = [
-  "smolagents[quality,test]",
+  "smolagents[test]",
   "sqlalchemy", # for ./examples
+  "ruff==0.9.4", # for editor, synced with .pre-commit-config.yaml version
+  "pre-commit>=4.1.0",
 ]
 
 [tool.pytest.ini_options]
@@ -84,11 +83,19 @@ addopts = "-sv --durations=0"
 
 [tool.ruff]
 line-length = 119
-lint.ignore = [
-  "F403", # undefined-local-with-import-star
-  "E501", # line-too-long
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "W",   # pycodestyle warnings
 ]
-lint.select = ["E", "F", "I", "W"]
+
+ignore = [
+    "E501",    # Line too long (handled by formatter)
+    "F403", # undefined-local-with-import-star
+]
 
 [tool.ruff.lint.per-file-ignores]
 "examples/*" = [

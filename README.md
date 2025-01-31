@@ -99,24 +99,22 @@ At any moment, feel welcome to open an issue, citing your exact error traces and
 It's often even better to open a PR with your proposed fixes/changes!
 
 To install dev dependencies, run:
-```
+
+```bash
 pip install -e ".[dev]"
 ```
 
 When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
-To check code quality of the source code:
-```
+
+```bash
 make quality
 ```
 
-If the checks fail, you can run the formatter with:
-```
-make style
-```
-
-And commit the changes.
+If any issues are found, some of them will get fixed automatically, some will need manual intervention.
+Once all issues are fixed, you can commit your changes!
 
 To run tests locally, run this command:
+
 ```bash
 make test
 ```
