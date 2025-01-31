@@ -467,7 +467,6 @@ You have been provided with these additional arguments, that you can access usin
             final_memory_step = ActionStep(
                 step_number=self.step_number, error=AgentMaxStepsError(error_message, self.logger)
             )
-            final_memory_step = ActionStep(error=AgentMaxStepsError(error_message, self.logger))
             final_memory_step.action_output = final_answer
             final_memory_step.end_time = time.time()
             final_memory_step.duration = memory_step.end_time - step_start_time
