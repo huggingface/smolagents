@@ -652,6 +652,7 @@ class LiteLLMModel(Model):
         model_id="anthropic/claude-3-5-sonnet-20240620",
         api_base=None,
         api_key=None,
+        flatten_messages_as_text=False,
         **kwargs,
     ):
         try:
@@ -667,6 +668,7 @@ class LiteLLMModel(Model):
         litellm.add_function_to_prompt = True
         self.api_base = api_base
         self.api_key = api_key
+        slef.flatten_messages_as_text=flatten_messages_as_text
 
     def __call__(
         self,
@@ -687,6 +689,7 @@ class LiteLLMModel(Model):
             api_base=self.api_base,
             api_key=self.api_key,
             convert_images_to_image_urls=True,
+            flatten_messages_as_text=self.flatten_messages_as_text
             **kwargs,
         )
 
