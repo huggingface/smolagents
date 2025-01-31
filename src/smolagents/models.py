@@ -411,9 +411,9 @@ class HfApiModel(Model):
 
 
 class TransformersModel(Model):
-    """A class to interact with Hugging Face's Inference API for language model interaction.
+    """A class that uses Hugging Face's Transformers library for language model interaction.
 
-    This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+    This model allows you to load and use Hugging Face's models locally using the Transformers library. It supports features like stop sequences and grammar customization.
 
     > [!TIP]
     > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
