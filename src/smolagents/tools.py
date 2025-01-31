@@ -37,6 +37,7 @@ from huggingface_hub import (
 )
 from huggingface_hub.utils import is_torch_available
 from packaging import version
+from transformers.agents.tools import Tool as TransformersTool
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
@@ -414,10 +415,10 @@ class Tool:
         )
 
         tool_code = Path(tool_file).read_text()
-
         # Find the Tool subclass in the namespace
         with tempfile.TemporaryDirectory() as temp_dir:
             # Save the code to a file
+
             module_path = os.path.join(temp_dir, "tool.py")
             with open(module_path, "w") as f:
                 f.write(tool_code)
@@ -428,14 +429,12 @@ class Tool:
             spec = importlib.util.spec_from_file_location("tool", module_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
-
             # Find and instantiate the Tool class
             for item_name in dir(module):
                 item = getattr(module, item_name)
                 if isinstance(item, type) and issubclass(item, Tool) and item != Tool:
                     tool_class = item
                     break
-
             if tool_class is None:
                 raise ValueError("No Tool subclass found in the code.")
 
@@ -789,8 +788,29 @@ class ToolCollection:
     For example and usage, see: [`ToolCollection.from_hub`] and [`ToolCollection.from_mcp`]
     """
 
-    def __init__(self, tools: List[Tool]):
+    def __init__(self, tools: List[Union[Tool, TransformersTool]]):
         self.tools = tools
+
+    def detect_tool_type(repo_id: str) -> str:
+        try:
+            # Try to download tool_config.json
+            config_path = hf_hub_download(repo_id, filename="tool_config.json", repo_type="space")
+            if config_path:
+                return "transformers"
+        except Exception:
+            # If tool_config.json doesn't exist, check tool.py
+            try:
+                tool_path = hf_hub_download(repo_id, filename="tool.py", repo_type="space")
+                with open(tool_path, "r") as f:
+                    tool_code = f.read()
+
+                # Check imports in tool.py
+                if "from smolagents.tools import Tool" in tool_code:
+                    return "smolagents"
+                elif "from transformers.agents.tools import Tool" in tool_code:
+                    return "transformers"
+            except Exception:
+                raise ImportError("No tool_config.json or tool.py found")
 
     @classmethod
     def from_hub(
@@ -827,8 +847,12 @@ class ToolCollection:
         """
         _collection = get_collection(collection_slug, token=token)
         _hub_repo_ids = {item.item_id for item in _collection.items if item.item_type == "space"}
-
-        tools = {Tool.from_hub(repo_id, token, trust_remote_code) for repo_id in _hub_repo_ids}
+        tools = {
+            Tool.from_hub(repo_id, token, trust_remote_code)
+            if cls.detect_tool_type(repo_id) == "smolagents"
+            else TransformersTool.from_hub(repo_id, token)
+            for repo_id in _hub_repo_ids
+        }
 
         return cls(tools)
 
