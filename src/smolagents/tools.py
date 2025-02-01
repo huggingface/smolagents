@@ -37,7 +37,6 @@ from huggingface_hub import (
 )
 from huggingface_hub.utils import is_torch_available
 from packaging import version
-from transformers.agents.tools import Tool as TransformersTool
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
@@ -788,7 +787,7 @@ class ToolCollection:
     For example and usage, see: [`ToolCollection.from_hub`] and [`ToolCollection.from_mcp`]
     """
 
-    def __init__(self, tools: List[Union[Tool, TransformersTool]]):
+    def __init__(self, tools: List[Tool]):
         self.tools = tools
 
     def detect_tool_type(repo_id: str) -> str:
@@ -849,9 +848,8 @@ class ToolCollection:
         _hub_repo_ids = {item.item_id for item in _collection.items if item.item_type == "space"}
         tools = {
             Tool.from_hub(repo_id, token, trust_remote_code)
-            if cls.detect_tool_type(repo_id) == "smolagents"
-            else TransformersTool.from_hub(repo_id, token)
             for repo_id in _hub_repo_ids
+            if cls.detect_tool_type(repo_id) == "smolagents"
         }
 
         return cls(tools)
