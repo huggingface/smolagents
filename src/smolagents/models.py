@@ -491,7 +491,7 @@ class TransformersModel(Model):
         except ValueError as e:
             if "Unrecognized configuration class" in str(e):
                 self.model = AutoModelForImageTextToText.from_pretrained(
-                    model_id, 
+                    model_id,
                     device_map=device_map,
                     torch_dtype=torch_dtype,
                     quantization_config=quantization_config,
@@ -507,9 +507,9 @@ class TransformersModel(Model):
             self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_id, 
-                device_map=device_map, 
-                torch_dtype=torch_dtype, 
+                model_id,
+                device_map=device_map,
+                torch_dtype=torch_dtype,
                 quantization_config=quantization_config,
             )
 
