@@ -37,6 +37,9 @@ transformers = [
   "transformers>=4.0.0",
   "smolagents[torch]",
 ]
+outlines = [
+  "outlines",
+]
 e2b = [
   "e2b-code-interpreter>=1.0.3",
   "python-dotenv>=1.0.1",
