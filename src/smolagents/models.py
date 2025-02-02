@@ -33,6 +33,7 @@ from .utils import _is_package_available, encode_image_base64, make_image_url
 
 if TYPE_CHECKING:
     from transformers import StoppingCriteriaList
+    from transformers.utils.quantization_config import QuantizationConfigMixin
 
 logger = logging.getLogger(__name__)
 
@@ -429,8 +430,8 @@ class TransformersModel(Model):
             The torch_dtype to initialize your model with.
         trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
-        kwargs (dict, *optional*):
-            Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
+        quantization_config: (`Union[QuantizationConfigMixin, Dict]`, *optional*)
+            The quantization config that defines the quantization parameters of the model that you want to quantize.
         **kwargs:
             Additional keyword arguments to pass to `model.generate()`, for instance `max_new_tokens` or `device`.
     Raises:
@@ -457,6 +458,7 @@ class TransformersModel(Model):
         device_map: Optional[str] = None,
         torch_dtype: Optional[str] = None,
         trust_remote_code: bool = False,
+        quantization_config: Optional[Union["QuantizationConfigMixin", Dict]] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -483,11 +485,17 @@ class TransformersModel(Model):
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 trust_remote_code=trust_remote_code,
+                quantization_config=quantization_config,
             )
             self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         except ValueError as e:
             if "Unrecognized configuration class" in str(e):
-                self.model = AutoModelForImageTextToText.from_pretrained(model_id, device_map=device_map)
+                self.model = AutoModelForImageTextToText.from_pretrained(
+                    model_id, 
+                    device_map=device_map,
+                    torch_dtype=torch_dtype,
+                    quantization_config=quantization_config,
+                )
                 self.processor = AutoProcessor.from_pretrained(model_id)
                 self._is_vlm = True
             else:
@@ -498,7 +506,12 @@ class TransformersModel(Model):
             )
             self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_id, 
+                device_map=device_map, 
+                torch_dtype=torch_dtype, 
+                quantization_config=quantization_config,
+            )
 
     def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
