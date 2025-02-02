@@ -76,7 +76,7 @@ https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884
 
 ## Command Line Interface
 
-You can accomplish multi-step agentic tasks using two commands: `smolagent` and `webagent`. `smolagent` is a more generalist command to run a multi-step CodeAgent that can be equipped with various tools, meanwhile `webagent` is an agent equipped with web browsing tools using [helium](https://github.com/helium).
+You can accomplish multi-step agentic tasks using two commands: `smolagent` and `webagent`. `smolagent` is a more generalist command to run a multi-step CodeAgent that can be equipped with various tools, meanwhile `webagent` is an agent equipped with web browsing tools using [helium](https://github.com/mherrmann/helium).
 
 **Web Browser in CLI**
 
