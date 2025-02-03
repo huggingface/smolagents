@@ -25,6 +25,8 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
+from galadriel_agent.agent import Agent
+
 from smolagents.agent_types import AgentAudio, AgentImage, handle_agent_output_types
 from smolagents.memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, TaskStep, ToolCall
 from smolagents.monitoring import (
@@ -635,7 +637,7 @@ Now begin!""",
         self.memory.replay(self.logger, detailed=detailed)
 
 
-class ToolCallingAgent(MultiStepAgent):
+class ToolCallingAgent(MultiStepAgent, Agent):
     """
     This agent uses JSON-like tool calls, using method `model.get_tool_call` to leverage the LLM engine's tool calling capabilities.
 
@@ -750,7 +752,7 @@ class ToolCallingAgent(MultiStepAgent):
             return None
 
 
-class CodeAgent(MultiStepAgent):
+class CodeAgent(MultiStepAgent, Agent):
     """
     In this agent, the tool calls will be formulated by the LLM in code format, then parsed and executed.
 
