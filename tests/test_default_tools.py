@@ -17,7 +17,7 @@ import unittest
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, SpeechToTextTool, VisitWebpageTool
 
 from .test_tools import ToolTesterMixin
 
@@ -77,3 +77,13 @@ class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):
         with pytest.raises(Exception) as e:
             self.tool("import sympy as sp")
         assert "sympy" in str(e).lower()
+
+
+class TestSpeechToTextTool:
+    def test_new_instance(self):
+        from transformers.models.whisper import WhisperForConditionalGeneration, WhisperProcessor
+
+        tool = SpeechToTextTool()
+        assert tool is not None
+        assert tool.pre_processor_class == WhisperProcessor
+        assert tool.model_class == WhisperForConditionalGeneration
