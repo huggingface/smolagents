@@ -74,14 +74,16 @@ class E2BExecutor:
             tool_codes.append(tool_code)
 
         tool_definition_code = "\n".join([f"import {module}" for module in BASE_BUILTIN_MODULES])
-        tool_definition_code += textwrap.dedent("""
+        tool_definition_code += textwrap.dedent(
+            """
         class Tool:
             def __call__(self, *args, **kwargs):
                 return self.forward(*args, **kwargs)
 
             def forward(self, *args, **kwargs):
                 pass # to be implemented in child class
-        """)
+        """
+        )
         tool_definition_code += "\n\n".join(tool_codes)
 
         tool_definition_execution = self.run_code_raise_errors(tool_definition_code)
@@ -135,7 +137,7 @@ locals().update({key: value for key, value in pickle_dict.items()})
                         if getattr(result, attribute_name) is not None:
                             image_output = getattr(result, attribute_name)
                             decoded_bytes = base64.b64decode(image_output.encode("utf-8"))
-                            return Image.open(BytesIO(decoded_bytes)), execution_logs
+                            return Image.open(BytesIO(decoded_bytes)), execution_logs, self.final_answer
                     for attribute_name in [
                         "chart",
                         "data",

@@ -47,10 +47,10 @@ DEFAULT_CODEAGENT_REGEX_GRAMMAR = {
 }
 
 
-def get_dict_from_nested_dataclasses(obj):
+def get_dict_from_nested_dataclasses(obj, ignore_key=None):
     def convert(obj):
         if hasattr(obj, "__dataclass_fields__"):
-            return {k: convert(v) for k, v in asdict(obj).items()}
+            return {k: convert(v) for k, v in asdict(obj).items() if k != ignore_key}
         return obj
 
     return convert(obj)
@@ -91,16 +91,17 @@ class ChatMessage:
     role: str
     content: Optional[str] = None
     tool_calls: Optional[List[ChatMessageToolCall]] = None
+    raw: Optional[Any] = None  # Stores the raw output from the API
 
     def model_dump_json(self):
-        return json.dumps(get_dict_from_nested_dataclasses(self))
+        return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
 
     @classmethod
-    def from_hf_api(cls, message) -> "ChatMessage":
+    def from_hf_api(cls, message, raw) -> "ChatMessage":
         tool_calls = None
         if getattr(message, "tool_calls", None) is not None:
             tool_calls = [ChatMessageToolCall.from_hf_api(tool_call) for tool_call in message.tool_calls]
-        return cls(role=message.role, content=message.content, tool_calls=tool_calls)
+        return cls(role=message.role, content=message.content, tool_calls=tool_calls, raw=raw)
 
     @classmethod
     def from_dict(cls, data: dict) -> "ChatMessage":
@@ -113,6 +114,9 @@ class ChatMessage:
             ]
             data["tool_calls"] = tool_calls
         return cls(**data)
+
+    def dict(self):
+        return json.dumps(get_dict_from_nested_dataclasses(self))
 
 
 def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
@@ -205,16 +209,18 @@ def get_clean_message_list(
             message["role"] = role_conversions[role]
         # encode images if needed
         if isinstance(message["content"], list):
-            for i, element in enumerate(message["content"]):
+            for element in message["content"]:
                 if element["type"] == "image":
                     assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
                     if convert_images_to_image_urls:
-                        message["content"][i] = {
-                            "type": "image_url",
-                            "image_url": {"url": make_image_url(encode_image_base64(element["image"]))},
-                        }
+                        element.update(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": make_image_url(encode_image_base64(element.pop("image")))},
+                            }
+                        )
                     else:
-                        message["content"][i]["image"] = encode_image_base64(element["image"])
+                        element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message["role"] == output_message_list[-1]["role"]:
             assert isinstance(message["content"], list), "Error: wrong content:" + str(message["content"])
@@ -235,8 +241,6 @@ class Model:
     def __init__(self, **kwargs):
         self.last_input_token_count = None
         self.last_output_token_count = None
-        # Set default values for common parameters
-        kwargs.setdefault("max_tokens", 4096)
         self.kwargs = kwargs
 
     def _prepare_completion_kwargs(
@@ -334,6 +338,9 @@ class HfApiModel(Model):
     Parameters:
         model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        provider (`str`, *optional*):
+            Name of the provider to use for inference. Can be `"replicate"`, `"together"`, `"fal-ai"`, `"sambanova"` or `"hf-inference"`.
+            defaults to hf-inference (HF Inference API).
         token (`str`, *optional*):
             Token used by the Hugging Face API for authentication. This token need to be authorized 'Make calls to the serverless Inference API'.
             If the model is gated (like Llama-3 models), the token also needs 'Read access to contents of all public gated repos you can access'.
@@ -364,15 +371,17 @@ class HfApiModel(Model):
     def __init__(
         self,
         model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
+        provider: Optional[str] = None,
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.model_id = model_id
+        self.provider = provider
         if token is None:
             token = os.getenv("HF_TOKEN")
-        self.client = InferenceClient(self.model_id, token=token, timeout=timeout)
+        self.client = InferenceClient(self.model_id, provider=provider, token=token, timeout=timeout)
 
     def __call__(
         self,
@@ -395,16 +404,16 @@ class HfApiModel(Model):
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        message = ChatMessage.from_hf_api(response.choices[0].message)
+        message = ChatMessage.from_hf_api(response.choices[0].message, raw=response)
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
         return message
 
 
 class TransformersModel(Model):
-    """A class to interact with Hugging Face's Inference API for language model interaction.
+    """A class that uses Hugging Face's Transformers library for language model interaction.
 
-    This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+    This model allows you to load and use Hugging Face's models locally using the Transformers library. It supports features like stop sequences and grammar customization.
 
     > [!TIP]
     > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
@@ -587,7 +596,11 @@ class TransformersModel(Model):
             output = remove_stop_sequences(output, stop_sequences)
 
         if tools_to_call_from is None:
-            return ChatMessage(role="assistant", content=output)
+            return ChatMessage(
+                role="assistant",
+                content=output,
+                raw={"out": out, "completion_kwargs": completion_kwargs},
+            )
         else:
             if "Action:" in output:
                 output = output.split("Action:", 1)[1].strip()
@@ -614,6 +627,7 @@ class TransformersModel(Model):
                         function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
                     )
                 ],
+                raw={"out": out, "completion_kwargs": completion_kwargs},
             )
 
 
@@ -627,15 +641,19 @@ class LiteLLMModel(Model):
             The base URL of the OpenAI-compatible API server.
         api_key (`str`, *optional*):
             The API key to use for authentication.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
 
     def __init__(
         self,
-        model_id="anthropic/claude-3-5-sonnet-20240620",
+        model_id: str = "anthropic/claude-3-5-sonnet-20240620",
         api_base=None,
         api_key=None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
         try:
@@ -651,6 +669,7 @@ class LiteLLMModel(Model):
         litellm.add_function_to_prompt = True
         self.api_base = api_base
         self.api_key = api_key
+        self.custom_role_conversions = custom_role_conversions
 
     def __call__(
         self,
@@ -672,6 +691,7 @@ class LiteLLMModel(Model):
             api_key=self.api_key,
             convert_images_to_image_urls=True,
             flatten_messages_as_text=self.model_id.startswith("ollama"),
+            custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
 
@@ -679,10 +699,10 @@ class LiteLLMModel(Model):
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-
         message = ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
         )
+        message.raw = response
 
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
@@ -755,7 +775,6 @@ class OpenAIServerModel(Model):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-
         response = self.client.chat.completions.create(**completion_kwargs)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
@@ -763,6 +782,7 @@ class OpenAIServerModel(Model):
         message = ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
         )
+        message.raw = response
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
         return message

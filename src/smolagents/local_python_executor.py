@@ -18,6 +18,7 @@ import ast
 import builtins
 import difflib
 import inspect
+import logging
 import math
 import re
 from collections.abc import Mapping
@@ -29,6 +30,9 @@ import numpy as np
 import pandas as pd
 
 from .utils import BASE_BUILTIN_MODULES, truncate_content
+
+
+logger = logging.getLogger(__name__)
 
 
 class InterpreterError(ValueError):
@@ -960,10 +964,17 @@ def get_safe_module(raw_module, dangerous_patterns, authorized_imports, visited=
             pattern in raw_module.__name__.split(".") + [attr_name] and pattern not in authorized_imports
             for pattern in dangerous_patterns
         ):
+            logger.info(f"Skipping dangerous attribute {raw_module.__name__}.{attr_name}")
             continue
 
-        attr_value = getattr(raw_module, attr_name)
-
+        try:
+            attr_value = getattr(raw_module, attr_name)
+        except ImportError as e:
+            # lazy / dynamic loading module -> INFO log and skip
+            logger.info(
+                f"Skipping import error while copying {raw_module.__name__}.{attr_name}: {type(e).__name__} - {e}"
+            )
+            continue
         # Recursively process nested modules, passing visited set
         if isinstance(attr_value, ModuleType):
             attr_value = get_safe_module(attr_value, dangerous_patterns, authorized_imports, visited=visited)
@@ -1272,7 +1283,7 @@ def evaluate_python_code(
         expression = ast.parse(code)
     except SyntaxError as e:
         raise InterpreterError(
-            f"Code execution failed on line {e.lineno} due to: {type(e).__name__}\n"
+            f"Code parsing failed on line {e.lineno} due to: {type(e).__name__}\n"
             f"{e.text}"
             f"{' ' * (e.offset or 0)}^\n"
             f"Error: {str(e)}"
@@ -1305,11 +1316,10 @@ def evaluate_python_code(
         return e.value, is_final_answer
     except Exception as e:
         exception_type = type(e).__name__
-        error_msg = truncate_content(PRINT_OUTPUTS, max_length=max_print_outputs_length)
-        error_msg = (
+        state["print_outputs"] = truncate_content(PRINT_OUTPUTS, max_length=max_print_outputs_length)
+        raise InterpreterError(
             f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {exception_type}:{str(e)}"
         )
-        raise InterpreterError(error_msg)
 
 
 class LocalPythonInterpreter:
