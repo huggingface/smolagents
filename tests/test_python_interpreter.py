@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import types
 import unittest
 from textwrap import dedent
 
@@ -24,6 +25,7 @@ from smolagents.local_python_executor import (
     InterpreterError,
     evaluate_python_code,
     fix_final_answer_code,
+    get_safe_module,
 )
 
 
@@ -1069,3 +1071,23 @@ def test_evaluate_augassign_custom(operator, expected_result):
     state = {}
     result, _ = evaluate_python_code(code, {}, state=state)
     assert result == expected_result
+
+
+def test_get_safe_module_handle_lazy_imports():
+    class FakeModule(types.ModuleType):
+        def __init__(self, name):
+            super().__init__(name)
+            self.non_lazy_attribute = "ok"
+
+        def __getattr__(self, name):
+            if name == "lazy_attribute":
+                raise ImportError("lazy import failure")
+            return super().__getattr__(name)
+
+        def __dir__(self):
+            return super().__dir__() + ["lazy_attribute"]
+
+    fake_module = FakeModule("fake_module")
+    safe_module = get_safe_module(fake_module, dangerous_patterns=[], authorized_imports=set())
+    assert not hasattr(safe_module, "lazy_attribute")
+    assert getattr(safe_module, "non_lazy_attribute") == "ok"

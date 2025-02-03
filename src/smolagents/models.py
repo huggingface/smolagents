@@ -79,7 +79,7 @@ class ChatMessageToolCall:
     type: str
 
     @classmethod
-    def from_hf_api(cls, tool_call, raw) -> "ChatMessageToolCall":
+    def from_hf_api(cls, tool_call) -> "ChatMessageToolCall":
         return cls(
             function=ChatMessageToolCallDefinition.from_hf_api(tool_call.function),
             id=tool_call.id,
@@ -210,16 +210,18 @@ def get_clean_message_list(
             message["role"] = role_conversions[role]
         # encode images if needed
         if isinstance(message["content"], list):
-            for i, element in enumerate(message["content"]):
+            for element in message["content"]:
                 if element["type"] == "image":
                     assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
                     if convert_images_to_image_urls:
-                        message["content"][i] = {
-                            "type": "image_url",
-                            "image_url": {"url": make_image_url(encode_image_base64(element["image"]))},
-                        }
+                        element.update(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": make_image_url(encode_image_base64(element.pop("image")))},
+                            }
+                        )
                     else:
-                        message["content"][i]["image"] = encode_image_base64(element["image"])
+                        element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message["role"] == output_message_list[-1]["role"]:
             assert isinstance(message["content"], list), "Error: wrong content:" + str(message["content"])
@@ -240,8 +242,6 @@ class Model:
     def __init__(self, **kwargs):
         self.last_input_token_count = None
         self.last_output_token_count = None
-        # Set default values for common parameters
-        kwargs.setdefault("max_tokens", 4096)
         self.kwargs = kwargs
 
     def _prepare_completion_kwargs(
@@ -525,9 +525,9 @@ class MLXModel(Model):
 
 
 class TransformersModel(Model):
-    """A class to interact with Hugging Face's Inference API for language model interaction.
+    """A class that uses Hugging Face's Transformers library for language model interaction.
 
-    This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+    This model allows you to load and use Hugging Face's models locally using the Transformers library. It supports features like stop sequences and grammar customization.
 
     > [!TIP]
     > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
@@ -755,15 +755,19 @@ class LiteLLMModel(Model):
             The base URL of the OpenAI-compatible API server.
         api_key (`str`, *optional*):
             The API key to use for authentication.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
 
     def __init__(
         self,
-        model_id="anthropic/claude-3-5-sonnet-20240620",
+        model_id: str = "anthropic/claude-3-5-sonnet-20240620",
         api_base=None,
         api_key=None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
         try:
@@ -779,6 +783,7 @@ class LiteLLMModel(Model):
         litellm.add_function_to_prompt = True
         self.api_base = api_base
         self.api_key = api_key
+        self.custom_role_conversions = custom_role_conversions
 
     def __call__(
         self,
@@ -799,6 +804,8 @@ class LiteLLMModel(Model):
             api_base=self.api_base,
             api_key=self.api_key,
             convert_images_to_image_urls=True,
+            flatten_messages_as_text=self.model_id.startswith("ollama"),
+            custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
 
@@ -882,7 +889,6 @@ class OpenAIServerModel(Model):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-
         response = self.client.chat.completions.create(**completion_kwargs)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens

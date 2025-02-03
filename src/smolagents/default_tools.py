@@ -257,17 +257,15 @@ class SpeechToTextTool(PipelineTool):
     }
     output_type = "string"
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         from transformers.models.whisper import (
             WhisperForConditionalGeneration,
             WhisperProcessor,
         )
 
-        if not hasattr(cls, "pre_processor_class"):
-            cls.pre_processor_class = WhisperProcessor
-        if not hasattr(cls, "model_class"):
-            cls.model_class = WhisperForConditionalGeneration
-        return super().__new__()
+        cls.pre_processor_class = WhisperProcessor
+        cls.model_class = WhisperForConditionalGeneration
+        return super().__new__(cls, *args, **kwargs)
 
     def encode(self, audio):
         audio = AgentAudio(audio).to_raw()

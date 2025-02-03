@@ -45,7 +45,7 @@ Both require arguments `model` and list of tools `tools` at initialization.
 
 ### ManagedAgent
 
-[[autodoc]] ManagedAgent
+_This class is deprecated since 1.8.0: now you simply need to pass attributes `name` and `description` to a normal agent to make it callable by a manager agent._
 
 ### stream_to_gradio
 

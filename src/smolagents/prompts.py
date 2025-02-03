@@ -510,7 +510,7 @@ Your final_answer WILL HAVE to contain these parts:
 
 Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
 And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
-{{additional_prompting}}"""
+"""
 
 __all__ = [
     "USER_PROMPT_PLAN_UPDATE",

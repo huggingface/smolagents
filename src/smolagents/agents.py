@@ -140,6 +140,9 @@ class MultiStepAgent:
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
+        name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
+        description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
+        managed_agent_prompt (`str`, *optional*): Custom prompt for the managed agent. Defaults to None.
     """
 
     def __init__(
@@ -156,6 +159,9 @@ class MultiStepAgent:
         managed_agents: Optional[List] = None,
         step_callbacks: Optional[List[Callable]] = None,
         planning_interval: Optional[int] = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        managed_agent_prompt: Optional[str] = None,
     ):
         if system_prompt is None:
             system_prompt = CODE_SYSTEM_PROMPT
@@ -172,9 +178,16 @@ class MultiStepAgent:
         self.grammar = grammar
         self.planning_interval = planning_interval
         self.state = {}
+        self.name = name
+        self.description = description
+        self.managed_agent_prompt = managed_agent_prompt if managed_agent_prompt else MANAGED_AGENT_PROMPT
 
         self.managed_agents = {}
         if managed_agents is not None:
+            for managed_agent in managed_agents:
+                assert managed_agent.name and managed_agent.description, (
+                    "All managed agents need both a name and a description!"
+                )
             self.managed_agents = {agent.name: agent for agent in managed_agents}
 
         for tool in tools:
@@ -224,6 +237,10 @@ class MultiStepAgent:
         for memory_step in self.memory.steps:
             messages.extend(memory_step.to_messages(summary_mode=summary_mode))
         return messages
+
+    def visualize(self):
+        """Creates a rich tree visualization of the agent's structure."""
+        self.logger.visualize_agent_tree(self)
 
     def extract_action(self, model_output: str, split_token: str) -> Tuple[str, str]:
         """
@@ -350,7 +367,7 @@ class MultiStepAgent:
                 )
                 raise AgentExecutionError(error_msg, self.logger)
 
-    def step(self, log_entry: ActionStep) -> Union[None, Any]:
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
         pass
 
@@ -427,8 +444,8 @@ You have been provided with these additional arguments, that you can access usin
             images (`list[str]`): Paths to image(s).
         """
         final_answer = None
-        self.step_number = 0
-        while final_answer is None and self.step_number < self.max_steps:
+        self.step_number = 1
+        while final_answer is None and self.step_number <= self.max_steps:
             step_start_time = time.time()
             memory_step = ActionStep(
                 step_number=self.step_number,
@@ -461,13 +478,12 @@ You have been provided with these additional arguments, that you can access usin
                 self.step_number += 1
                 yield memory_step
 
-        if final_answer is None and self.step_number == self.max_steps:
+        if final_answer is None and self.step_number == self.max_steps + 1:
             error_message = "Reached max steps."
             final_answer = self.provide_final_answer(task, images)
             final_memory_step = ActionStep(
                 step_number=self.step_number, error=AgentMaxStepsError(error_message, self.logger)
             )
-            final_memory_step = ActionStep(error=AgentMaxStepsError(error_message, self.logger))
             final_memory_step.action_output = final_answer
             final_memory_step.end_time = time.time()
             final_memory_step.duration = memory_step.end_time - step_start_time
@@ -635,6 +651,22 @@ Now begin!""",
         """
         self.memory.replay(self.logger, detailed=detailed)
 
+    def __call__(self, request, provide_run_summary=False, **kwargs):
+        """Adds additional prompting for the managed agent, and runs it."""
+        full_task = self.managed_agent_prompt.format(name=self.name, task=request).strip()
+        output = self.run(full_task, **kwargs)
+        if provide_run_summary:
+            answer = f"Here is the final answer from your managed agent '{self.name}':\n"
+            answer += str(output)
+            answer += f"\n\nFor more detail, find below a summary of this agent's work:\nSUMMARY OF WORK FROM AGENT '{self.name}':\n"
+            for message in self.write_memory_to_messages(summary_mode=True):
+                content = message["content"]
+                answer += "\n" + truncate_content(str(content)) + "\n---"
+            answer += f"\nEND OF SUMMARY OF WORK FROM AGENT '{self.name}'."
+            return answer
+        else:
+            return output
+
 
 class ToolCallingAgent(MultiStepAgent):
     """
@@ -667,7 +699,7 @@ class ToolCallingAgent(MultiStepAgent):
             **kwargs,
         )
 
-    def step(self, log_entry: ActionStep) -> Union[None, Any]:
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Returns None if the step is not final.
@@ -677,7 +709,7 @@ class ToolCallingAgent(MultiStepAgent):
         self.input_messages = memory_messages
 
         # Add new step in logs
-        log_entry.model_input_messages = memory_messages.copy()
+        memory_step.model_input_messages = memory_messages.copy()
 
         try:
             model_message: ChatMessage = self.model(
@@ -685,7 +717,7 @@ class ToolCallingAgent(MultiStepAgent):
                 tools_to_call_from=list(self.tools.values()),
                 stop_sequences=["Observation:"],
             )
-            log_entry.model_output_message = model_message
+            memory_step.model_output_message = model_message
             if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
                 raise Exception("Model did not call any tools. Call `final_answer` tool to return a final answer.")
             tool_call = model_message.tool_calls[0]
@@ -695,7 +727,7 @@ class ToolCallingAgent(MultiStepAgent):
         except Exception as e:
             raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
 
-        log_entry.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
+        memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 
         # Execute
         self.logger.log(
@@ -725,7 +757,7 @@ class ToolCallingAgent(MultiStepAgent):
                     level=LogLevel.INFO,
                 )
 
-            log_entry.action_output = final_answer
+            memory_step.action_output = final_answer
             return final_answer
         else:
             if tool_arguments is None:
@@ -747,7 +779,7 @@ class ToolCallingAgent(MultiStepAgent):
                 f"Observations: {updated_information.replace('[', '|')}",  # escape potential rich-tag-like components
                 level=LogLevel.INFO,
             )
-            log_entry.observations = updated_information
+            memory_step.observations = updated_information
             return None
 
 
@@ -832,7 +864,7 @@ class CodeAgent(MultiStepAgent):
         )
         return self.system_prompt
 
-    def step(self, log_entry: ActionStep) -> Union[None, Any]:
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Returns None if the step is not final.
@@ -842,7 +874,7 @@ class CodeAgent(MultiStepAgent):
         self.input_messages = memory_messages.copy()
 
         # Add new step in logs
-        log_entry.model_input_messages = memory_messages.copy()
+        memory_step.model_input_messages = memory_messages.copy()
         try:
             additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
             chat_message: ChatMessage = self.model(
@@ -850,9 +882,9 @@ class CodeAgent(MultiStepAgent):
                 stop_sequences=["<end_code>", "Observation:"],
                 **additional_args,
             )
-            log_entry.model_output_message = chat_message
+            memory_step.model_output_message = chat_message
             model_output = chat_message.content
-            log_entry.model_output = model_output
+            memory_step.model_output = model_output
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
 
@@ -869,7 +901,7 @@ class CodeAgent(MultiStepAgent):
             error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
             raise AgentParsingError(error_msg, self.logger)
 
-        log_entry.tool_calls = [
+        memory_step.tool_calls = [
             ToolCall(
                 name="python_interpreter",
                 arguments=code_action,
@@ -879,7 +911,6 @@ class CodeAgent(MultiStepAgent):
 
         # Execute
         self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
-        observation = ""
         is_final_answer = False
         try:
             output, execution_logs, is_final_answer = self.python_executor(
@@ -892,8 +923,17 @@ class CodeAgent(MultiStepAgent):
                     Text("Execution logs:", style="bold"),
                     Text(execution_logs),
                 ]
-            observation += "Execution logs:\n" + execution_logs
+            observation = "Execution logs:\n" + execution_logs
         except Exception as e:
+            if hasattr(self.python_executor, "state") and "print_outputs" in self.python_executor.state:
+                execution_logs = self.python_executor.state["print_outputs"]
+                if len(execution_logs) > 0:
+                    execution_outputs_console = [
+                        Text("Execution logs:", style="bold"),
+                        Text(execution_logs),
+                    ]
+                    memory_step.observations = "Execution logs:\n" + execution_logs
+                    self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
             error_msg = str(e)
             if "Import of " in error_msg and " is not allowed" in error_msg:
                 self.logger.log(
@@ -904,7 +944,7 @@ class CodeAgent(MultiStepAgent):
 
         truncated_output = truncate_content(str(output))
         observation += "Last output from code snippet:\n" + truncated_output
-        log_entry.observations = observation
+        memory_step.observations = observation
 
         execution_outputs_console += [
             Text(
@@ -913,63 +953,8 @@ class CodeAgent(MultiStepAgent):
             ),
         ]
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
-        log_entry.action_output = output
+        memory_step.action_output = output
         return output if is_final_answer else None
 
 
-class ManagedAgent:
-    """
-    ManagedAgent class that manages an agent and provides additional prompting and run summaries.
-
-    Args:
-        agent (`object`): The agent to be managed.
-        name (`str`): The name of the managed agent.
-        description (`str`): A description of the managed agent.
-        additional_prompting (`Optional[str]`, *optional*): Additional prompting for the managed agent. Defaults to None.
-        provide_run_summary (`bool`, *optional*): Whether to provide a run summary after the agent completes its task. Defaults to False.
-        managed_agent_prompt (`Optional[str]`, *optional*): Custom prompt for the managed agent. Defaults to None.
-
-    """
-
-    def __init__(
-        self,
-        agent,
-        name,
-        description,
-        additional_prompting: Optional[str] = None,
-        provide_run_summary: bool = False,
-        managed_agent_prompt: Optional[str] = None,
-    ):
-        self.agent = agent
-        self.name = name
-        self.description = description
-        self.additional_prompting = additional_prompting
-        self.provide_run_summary = provide_run_summary
-        self.managed_agent_prompt = managed_agent_prompt if managed_agent_prompt else MANAGED_AGENT_PROMPT
-
-    def write_full_task(self, task):
-        """Adds additional prompting for the managed agent, like 'add more detail in your answer'."""
-        full_task = self.managed_agent_prompt.format(name=self.name, task=task)
-        if self.additional_prompting:
-            full_task = full_task.replace("\n{additional_prompting}", self.additional_prompting).strip()
-        else:
-            full_task = full_task.replace("\n{additional_prompting}", "").strip()
-        return full_task
-
-    def __call__(self, request, **kwargs):
-        full_task = self.write_full_task(request)
-        output = self.agent.run(full_task, **kwargs)
-        if self.provide_run_summary:
-            answer = f"Here is the final answer from your managed agent '{self.name}':\n"
-            answer += str(output)
-            answer += f"\n\nFor more detail, find below a summary of this agent's work:\nSUMMARY OF WORK FROM AGENT '{self.name}':\n"
-            for message in self.agent.write_memory_to_messages(summary_mode=True):
-                content = message["content"]
-                answer += "\n" + truncate_content(str(content)) + "\n---"
-            answer += f"\nEND OF SUMMARY OF WORK FROM AGENT '{self.name}'."
-            return answer
-        else:
-            return output
-
-
-__all__ = ["ManagedAgent", "MultiStepAgent", "CodeAgent", "ToolCallingAgent", "AgentMemory"]
+__all__ = ["MultiStepAgent", "CodeAgent", "ToolCallingAgent", "AgentMemory"]

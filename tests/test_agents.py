@@ -25,7 +25,6 @@ from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
     AgentMaxStepsError,
     CodeAgent,
-    ManagedAgent,
     MultiStepAgent,
     ToolCall,
     ToolCallingAgent,
@@ -178,6 +177,7 @@ def fake_code_model_error(messages, stop_sequences=None) -> str:
 Thought: I should multiply 2 by 3.6452. special_marker
 Code:
 ```py
+print("Flag!")
 def error_function():
     raise ValueError("error")
 
@@ -393,6 +393,11 @@ class AgentTests(unittest.TestCase):
         assert "Code execution failed at line 'error_function()'" in str(agent.memory.steps[1].error)
         assert "ValueError" in str(agent.memory.steps)
 
+    def test_code_agent_code_error_saves_previous_print_outputs(self):
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
+        agent.run("What is 2 multiplied by 3.6452?")
+        assert "Flag!" in str(agent.memory.steps[1].observations)
+
     def test_code_agent_syntax_error_show_offending_lines(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_syntax_error)
         output = agent.run("What is 2 multiplied by 3.6452?")
@@ -410,7 +415,7 @@ class AgentTests(unittest.TestCase):
             max_steps=5,
         )
         answer = agent.run("What is 2 multiplied by 3.6452?")
-        assert len(agent.memory.steps) == 7
+        assert len(agent.memory.steps) == 7  # Task step + 5 action steps + Final answer
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
 
@@ -459,22 +464,20 @@ class AgentTests(unittest.TestCase):
         assert res[0] == 0.5
 
     def test_init_managed_agent(self):
-        agent = CodeAgent(tools=[], model=fake_code_functiondef)
-        managed_agent = ManagedAgent(agent, name="managed_agent", description="Empty")
-        assert managed_agent.name == "managed_agent"
-        assert managed_agent.description == "Empty"
+        agent = CodeAgent(tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty")
+        assert agent.name == "managed_agent"
+        assert agent.description == "Empty"
 
     def test_agent_description_gets_correctly_inserted_in_system_prompt(self):
-        agent = CodeAgent(tools=[], model=fake_code_functiondef)
-        managed_agent = ManagedAgent(agent, name="managed_agent", description="Empty")
+        managed_agent = CodeAgent(tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty")
         manager_agent = CodeAgent(
             tools=[],
             model=fake_code_functiondef,
             managed_agents=[managed_agent],
         )
-        assert "You can also give requests to team members." not in agent.system_prompt
+        assert "You can also give requests to team members." not in managed_agent.system_prompt
         print("ok1")
-        assert "{{managed_agents_descriptions}}" not in agent.system_prompt
+        assert "{{managed_agents_descriptions}}" not in managed_agent.system_prompt
         assert "You can also give requests to team members." in manager_agent.system_prompt
 
     def test_code_agent_missing_import_triggers_advice_in_error_log(self):
@@ -581,10 +584,6 @@ final_answer("Final report.")
             tools=[],
             model=managed_model,
             max_steps=10,
-        )
-
-        managed_web_agent = ManagedAgent(
-            agent=web_agent,
             name="search_agent",
             description="Runs web searches for you. Give it your request as an argument. Make the request as detailed as needed, you can ask for thorough reports",
         )
@@ -592,7 +591,7 @@ final_answer("Final report.")
         manager_code_agent = CodeAgent(
             tools=[],
             model=manager_model,
-            managed_agents=[managed_web_agent],
+            managed_agents=[web_agent],
             additional_authorized_imports=["time", "numpy", "pandas"],
         )
 
@@ -602,7 +601,7 @@ final_answer("Final report.")
         manager_toolcalling_agent = ToolCallingAgent(
             tools=[],
             model=manager_model,
-            managed_agents=[managed_web_agent],
+            managed_agents=[web_agent],
         )
 
         report = manager_toolcalling_agent.run("Fake question.")

@@ -37,9 +37,8 @@ class ToolCall:
         }
 
 
+@dataclass
 class MemoryStep:
-    raw: Any  # This is a placeholder for the raw data that the agent logs
-
     def dict(self):
         return asdict(self)
 
@@ -91,40 +90,39 @@ class ActionStep(MemoryStep):
             messages.append(
                 Message(
                     role=MessageRole.ASSISTANT,
-                    content=[{"type": "text", "text": str([tc.dict() for tc in self.tool_calls])}],
+                    content=[
+                        {
+                            "type": "text",
+                            "text": "Calling tools:\n" + str([tc.dict() for tc in self.tool_calls]),
+                        }
+                    ],
                 )
             )
 
+        if self.observations is not None:
+            messages.append(
+                Message(
+                    role=MessageRole.TOOL_RESPONSE,
+                    content=[
+                        {
+                            "type": "text",
+                            "text": f"Call id: {self.tool_calls[0].id}\nObservation:\n{self.observations}",
+                        }
+                    ],
+                )
+            )
         if self.error is not None:
-            message_content = (
+            error_message = (
                 "Error:\n"
                 + str(self.error)
                 + "\nNow let's retry: take care not to repeat previous errors! If you have retried several times, try a completely different approach.\n"
             )
-            if self.tool_calls is None:
-                tool_response_message = Message(
-                    role=MessageRole.ASSISTANT, content=[{"type": "text", "text": message_content}]
-                )
-            else:
-                tool_response_message = Message(
-                    role=MessageRole.TOOL_RESPONSE,
-                    content=[{"type": "text", "text": f"Call id: {self.tool_calls[0].id}\n{message_content}"}],
-                )
+            message_content = f"Call id: {self.tool_calls[0].id}\n" if self.tool_calls else ""
+            message_content += error_message
+            messages.append(
+                Message(role=MessageRole.TOOL_RESPONSE, content=[{"type": "text", "text": message_content}])
+            )
 
-            messages.append(tool_response_message)
-        else:
-            if self.observations is not None and self.tool_calls is not None:
-                messages.append(
-                    Message(
-                        role=MessageRole.TOOL_RESPONSE,
-                        content=[
-                            {
-                                "type": "text",
-                                "text": f"Call id: {self.tool_calls[0].id}\nObservation:\n{self.observations}",
-                            }
-                        ],
-                    )
-                )
         if self.observations_images:
             messages.append(
                 Message(
