@@ -25,7 +25,7 @@ from transformers.testing_utils import (
     require_vision,
 )
 
-from smolagents.types import AgentAudio, AgentImage, AgentText
+from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 
 
 def get_new_path(suffix="") -> str:

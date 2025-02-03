@@ -80,12 +80,12 @@ Smolagents एक experimental API है जो किसी भी समय �
 
 ### AgentText
 
-[[autodoc]] smolagents.types.AgentText
+[[autodoc]] smolagents.agent_types.AgentText
 
 ### AgentImage
 
-[[autodoc]] smolagents.types.AgentImage
+[[autodoc]] smolagents.agent_types.AgentImage
 
 ### AgentAudio
 
-[[autodoc]] smolagents.types.AgentAudio
+[[autodoc]] smolagents.agent_types.AgentAudio

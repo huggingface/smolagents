@@ -28,9 +28,13 @@
     title: Master you knowledge base with agentic RAG
   - local: examples/multiagents
     title: Orchestrate a multi-agent system
+  - local: examples/web_browser
+    title: Build a web browser agent using vision models
 - title: Reference
   sections:
   - local: reference/agents
     title: Agent-related objects
+  - local: reference/models
+    title: Model-related objects
   - local: reference/tools
     title: Tool-related objects

@@ -9,7 +9,7 @@ from smolagents.agents import CodeAgent, ToolCallingAgent
 available_inferences = ["hf_api", "transformers", "ollama", "litellm"]
 chosen_inference = "transformers"
 
-print(f"Chose model {chosen_inference}")
+print(f"Chose model: '{chosen_inference}'")
 
 if chosen_inference == "hf_api":
     model = HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
@@ -22,6 +22,7 @@ elif chosen_inference == "ollama":
         model_id="ollama_chat/llama3.2",
         api_base="http://localhost:11434",  # replace with remote open-ai compatible server if necessary
         api_key="your-api-key",  # replace with API key if necessary
+        num_ctx=8192,  # ollama default is 2048 which will often fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
     )
 
 elif chosen_inference == "litellm":
@@ -48,4 +49,4 @@ print("ToolCallingAgent:", agent.run("What's the weather like in Paris?"))
 
 agent = CodeAgent(tools=[get_weather], model=model)
 
-print("ToolCallingAgent:", agent.run("What's the weather like in Paris?"))
+print("CodeAgent:", agent.run("What's the weather like in Paris?"))

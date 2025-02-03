@@ -16,6 +16,7 @@
 # limitations under the License.
 import base64
 import pickle
+import re
 import textwrap
 from io import BytesIO
 from typing import Any, List, Tuple
@@ -45,6 +46,8 @@ class E2BExecutor:
             )
 
         self.custom_tools = {}
+        self.final_answer = False
+        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$")
         self.sbx = Sandbox()  # "qywp2ctmu2q7jzprcf4j")
         # TODO: validate installing agents package or not
         # print("Installing agents package on remote executor...")
@@ -71,20 +74,24 @@ class E2BExecutor:
             tool_codes.append(tool_code)
 
         tool_definition_code = "\n".join([f"import {module}" for module in BASE_BUILTIN_MODULES])
-        tool_definition_code += textwrap.dedent("""
+        tool_definition_code += textwrap.dedent(
+            """
         class Tool:
             def __call__(self, *args, **kwargs):
                 return self.forward(*args, **kwargs)
 
             def forward(self, *args, **kwargs):
                 pass # to be implemented in child class
-        """)
+        """
+        )
         tool_definition_code += "\n\n".join(tool_codes)
 
         tool_definition_execution = self.run_code_raise_errors(tool_definition_code)
         self.logger.log(tool_definition_execution.logs)
 
     def run_code_raise_errors(self, code: str):
+        if self.final_answer_pattern.match(code):
+            self.final_answer = True
         execution = self.sbx.run_code(
             code,
         )
@@ -122,7 +129,7 @@ locals().update({key: value for key, value in pickle_dict.items()})
         execution = self.run_code_raise_errors(code_action)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
         if not execution.results:
-            return None, execution_logs
+            return None, execution_logs, self.final_answer
         else:
             for result in execution.results:
                 if result.is_main_result:
@@ -130,7 +137,7 @@ locals().update({key: value for key, value in pickle_dict.items()})
                         if getattr(result, attribute_name) is not None:
                             image_output = getattr(result, attribute_name)
                             decoded_bytes = base64.b64decode(image_output.encode("utf-8"))
-                            return Image.open(BytesIO(decoded_bytes)), execution_logs
+                            return Image.open(BytesIO(decoded_bytes)), execution_logs, self.final_answer
                     for attribute_name in [
                         "chart",
                         "data",
@@ -144,7 +151,7 @@ locals().update({key: value for key, value in pickle_dict.items()})
                         "text",
                     ]:
                         if getattr(result, attribute_name) is not None:
-                            return getattr(result, attribute_name), execution_logs
+                            return getattr(result, attribute_name), execution_logs, self.final_answer
             raise ValueError("No main result returned by executor!")
 
 
