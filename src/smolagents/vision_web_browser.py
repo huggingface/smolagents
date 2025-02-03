@@ -1,5 +1,4 @@
 import argparse
-import os
 from io import BytesIO
 from time import sleep
 
@@ -10,8 +9,9 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
-from smolagents import CodeAgent, HfApiModel, LiteLLMModel, OpenAIServerModel, TransformersModel, tool  # noqa: F401
+from smolagents import CodeAgent, DuckDuckGoSearchTool, tool
 from smolagents.agents import ActionStep
+from smolagents.cli import load_model
 
 
 github_request = """
@@ -27,7 +27,14 @@ Please navigate to https://en.wikipedia.org/wiki/Chicago and give me a sentence 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Run a web browser automation script with a specified model.")
     parser.add_argument(
-        "--model",
+        "prompt",
+        type=str,
+        nargs="?",  # Makes it optional
+        default=search_request,
+        help="The prompt to run with the agent",
+    )
+    parser.add_argument(
+        "--model-type",
         type=str,
         default="LiteLLMModel",
         help="The model type to use (e.g., OpenAIServerModel, LiteLLMModel, TransformersModel, HfApiModel)",
@@ -38,40 +45,9 @@ def parse_arguments():
         default="gpt-4o",
         help="The model ID to use for the specified model type",
     )
-    parser.add_argument("--prompt", type=str, default=search_request, help="The prompt to run with the agent")
     return parser.parse_args()
 
 
-# Load environment variables
-load_dotenv()
-
-# Parse command line arguments
-args = parse_arguments()
-
-# Initialize the model based on the provided arguments
-if args.model == "OpenAIServerModel":
-    model = OpenAIServerModel(
-        api_key=os.getenv("FIREWORKS_API_KEY"),
-        api_base="https://api.fireworks.ai/inference/v1",
-        model_id=args.model_id,
-    )
-elif args.model == "LiteLLMModel":
-    model = LiteLLMModel(
-        model_id=args.model_id,
-        api_key=os.getenv("OPENAI_API_KEY"),
-    )
-elif args.model == "TransformersModel":
-    model = TransformersModel(model_id=args.model_id, device_map="auto", flatten_messages_as_text=False)
-elif args.model == "HfApiModel":
-    model = HfApiModel(
-        token=os.getenv("HF_API_KEY"),
-        model_id=args.model_id,
-    )
-else:
-    raise ValueError(f"Unsupported model type: {args.model}")
-
-
-# Prepare callback
 def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
     sleep(1.0)  # Let JavaScript animations happen before taking the screenshot
     driver = helium.get_driver()
@@ -91,18 +67,6 @@ def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
         url_info if memory_step.observations is None else memory_step.observations + "\n" + url_info
     )
     return
-
-
-# Initialize driver and agent
-chrome_options = webdriver.ChromeOptions()
-chrome_options.add_argument("--force-device-scale-factor=1")
-chrome_options.add_argument("--window-size=1000,1350")
-chrome_options.add_argument("--disable-pdf-viewer")
-chrome_options.add_argument("--window-position=0,0")
-
-driver = helium.start_chrome(headless=False, options=chrome_options)
-
-# Initialize tools
 
 
 @tool
@@ -137,17 +101,32 @@ def close_popups() -> str:
     webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 
 
-agent = CodeAgent(
-    tools=[go_back, close_popups, search_item_ctrl_f],
-    model=model,
-    additional_authorized_imports=["helium"],
-    step_callbacks=[save_screenshot],
-    max_steps=20,
-    verbosity_level=2,
-)
+def initialize_driver():
+    """Initialize the Selenium WebDriver."""
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--force-device-scale-factor=1")
+    chrome_options.add_argument("--window-size=1000,1350")
+    chrome_options.add_argument("--disable-pdf-viewer")
+    chrome_options.add_argument("--window-position=0,0")
+    return helium.start_chrome(headless=False, options=chrome_options)
+
+
+def initialize_agent(model):
+    """Initialize the CodeAgent with the specified model."""
+    return CodeAgent(
+        tools=[DuckDuckGoSearchTool(), go_back, close_popups, search_item_ctrl_f],
+        model=model,
+        additional_authorized_imports=["helium"],
+        step_callbacks=[save_screenshot],
+        max_steps=20,
+        verbosity_level=2,
+    )
+
 
 helium_instructions = """
-You can use helium to access websites. Don't bother about the helium driver, it's already managed.
+Use your web_search tool when you want to get Google search results.
+Then you can use helium to access websites. Don't use helium for Google search, only for navigating websites!
+Don't bother about the helium driver, it's already managed.
 We've already ran "from helium import *"
 Then you can go to pages!
 Code:
@@ -207,7 +186,25 @@ Don't kill the browser.
 When you have modals or cookie banners on screen, you should get rid of them before you can click anything else.
 """
 
-# Run the agent with the provided prompt
 
-agent.python_executor("from helium import *", agent.state)
-agent.run(args.prompt + helium_instructions)
+def main():
+    # Load environment variables
+    load_dotenv()
+
+    # Parse command line arguments
+    args = parse_arguments()
+
+    # Initialize the model based on the provided arguments
+    model = load_model(args.model_type, args.model_id)
+
+    global driver
+    driver = initialize_driver()
+    agent = initialize_agent(model)
+
+    # Run the agent with the provided prompt
+    agent.python_executor("from helium import *", agent.state)
+    agent.run(args.prompt + helium_instructions)
+
+
+if __name__ == "__main__":
+    main()

@@ -25,13 +25,13 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
+from smolagents.agent_types import AgentAudio, AgentImage, handle_agent_output_types
 from smolagents.memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, TaskStep, ToolCall
 from smolagents.monitoring import (
     YELLOW_HEX,
     AgentLogger,
     LogLevel,
 )
-from smolagents.types import AgentAudio, AgentImage, handle_agent_output_types
 from smolagents.utils import (
     AgentError,
     AgentExecutionError,
@@ -43,6 +43,7 @@ from smolagents.utils import (
     truncate_content,
 )
 
+from .agent_types import AgentType
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .e2b_executor import E2BExecutor
 from .local_python_executor import (
@@ -73,7 +74,6 @@ from .tools import (
     Tool,
     get_tool_description_with_args,
 )
-from .types import AgentType
 
 
 logger = getLogger(__name__)
@@ -350,7 +350,7 @@ class MultiStepAgent:
                 )
                 raise AgentExecutionError(error_msg, self.logger)
 
-    def step(self, log_entry: ActionStep) -> Union[None, Any]:
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
         pass
 
@@ -427,8 +427,8 @@ You have been provided with these additional arguments, that you can access usin
             images (`list[str]`): Paths to image(s).
         """
         final_answer = None
-        self.step_number = 0
-        while final_answer is None and self.step_number < self.max_steps:
+        self.step_number = 1
+        while final_answer is None and self.step_number <= self.max_steps:
             step_start_time = time.time()
             memory_step = ActionStep(
                 step_number=self.step_number,
@@ -461,13 +461,12 @@ You have been provided with these additional arguments, that you can access usin
                 self.step_number += 1
                 yield memory_step
 
-        if final_answer is None and self.step_number == self.max_steps:
+        if final_answer is None and self.step_number == self.max_steps + 1:
             error_message = "Reached max steps."
             final_answer = self.provide_final_answer(task, images)
             final_memory_step = ActionStep(
                 step_number=self.step_number, error=AgentMaxStepsError(error_message, self.logger)
             )
-            final_memory_step = ActionStep(error=AgentMaxStepsError(error_message, self.logger))
             final_memory_step.action_output = final_answer
             final_memory_step.end_time = time.time()
             final_memory_step.duration = memory_step.end_time - step_start_time
@@ -494,15 +493,20 @@ You have been provided with these additional arguments, that you can access usin
         if is_first_step:
             message_prompt_facts = {
                 "role": MessageRole.SYSTEM,
-                "content": SYSTEM_PROMPT_FACTS,
+                "content": [{"type": "text", "text": SYSTEM_PROMPT_FACTS}],
             }
             message_prompt_task = {
                 "role": MessageRole.USER,
-                "content": f"""Here is the task:
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"""Here is the task:
 ```
 {task}
 ```
 Now begin!""",
+                    }
+                ],
             }
             input_messages = [message_prompt_facts, message_prompt_task]
 
@@ -511,16 +515,21 @@ Now begin!""",
 
             message_system_prompt_plan = {
                 "role": MessageRole.SYSTEM,
-                "content": SYSTEM_PROMPT_PLAN,
+                "content": [{"type": "text", "text": SYSTEM_PROMPT_PLAN}],
             }
             message_user_prompt_plan = {
                 "role": MessageRole.USER,
-                "content": USER_PROMPT_PLAN.format(
-                    task=task,
-                    tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
-                    managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
-                    answer_facts=answer_facts,
-                ),
+                "content": [
+                    {
+                        "type": "text",
+                        "text": USER_PROMPT_PLAN.format(
+                            task=task,
+                            tool_descriptions=get_tool_descriptions(self.tools, self.tool_description_template),
+                            managed_agents_descriptions=(show_agents_descriptions(self.managed_agents)),
+                            answer_facts=answer_facts,
+                        ),
+                    }
+                ],
             }
             chat_message_plan: ChatMessage = self.model(
                 [message_system_prompt_plan, message_user_prompt_plan],
@@ -657,7 +666,7 @@ class ToolCallingAgent(MultiStepAgent):
             **kwargs,
         )
 
-    def step(self, log_entry: ActionStep) -> Union[None, Any]:
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Returns None if the step is not final.
@@ -667,7 +676,7 @@ class ToolCallingAgent(MultiStepAgent):
         self.input_messages = memory_messages
 
         # Add new step in logs
-        log_entry.model_input_messages = memory_messages.copy()
+        memory_step.model_input_messages = memory_messages.copy()
 
         try:
             model_message: ChatMessage = self.model(
@@ -675,7 +684,7 @@ class ToolCallingAgent(MultiStepAgent):
                 tools_to_call_from=list(self.tools.values()),
                 stop_sequences=["Observation:"],
             )
-            log_entry.model_output_message = model_message
+            memory_step.model_output_message = model_message
             if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
                 raise Exception("Model did not call any tools. Call `final_answer` tool to return a final answer.")
             tool_call = model_message.tool_calls[0]
@@ -685,7 +694,7 @@ class ToolCallingAgent(MultiStepAgent):
         except Exception as e:
             raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
 
-        log_entry.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
+        memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 
         # Execute
         self.logger.log(
@@ -715,7 +724,7 @@ class ToolCallingAgent(MultiStepAgent):
                     level=LogLevel.INFO,
                 )
 
-            log_entry.action_output = final_answer
+            memory_step.action_output = final_answer
             return final_answer
         else:
             if tool_arguments is None:
@@ -737,7 +746,7 @@ class ToolCallingAgent(MultiStepAgent):
                 f"Observations: {updated_information.replace('[', '|')}",  # escape potential rich-tag-like components
                 level=LogLevel.INFO,
             )
-            log_entry.observations = updated_information
+            memory_step.observations = updated_information
             return None
 
 
@@ -822,7 +831,7 @@ class CodeAgent(MultiStepAgent):
         )
         return self.system_prompt
 
-    def step(self, log_entry: ActionStep) -> Union[None, Any]:
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Returns None if the step is not final.
@@ -832,7 +841,7 @@ class CodeAgent(MultiStepAgent):
         self.input_messages = memory_messages.copy()
 
         # Add new step in logs
-        log_entry.model_input_messages = memory_messages.copy()
+        memory_step.model_input_messages = memory_messages.copy()
         try:
             additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
             chat_message: ChatMessage = self.model(
@@ -840,9 +849,9 @@ class CodeAgent(MultiStepAgent):
                 stop_sequences=["<end_code>", "Observation:"],
                 **additional_args,
             )
-            log_entry.model_output_message = chat_message
+            memory_step.model_output_message = chat_message
             model_output = chat_message.content
-            log_entry.model_output = model_output
+            memory_step.model_output = model_output
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
 
@@ -859,7 +868,7 @@ class CodeAgent(MultiStepAgent):
             error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
             raise AgentParsingError(error_msg, self.logger)
 
-        log_entry.tool_calls = [
+        memory_step.tool_calls = [
             ToolCall(
                 name="python_interpreter",
                 arguments=code_action,
@@ -869,7 +878,6 @@ class CodeAgent(MultiStepAgent):
 
         # Execute
         self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
-        observation = ""
         is_final_answer = False
         try:
             output, execution_logs, is_final_answer = self.python_executor(
@@ -882,8 +890,17 @@ class CodeAgent(MultiStepAgent):
                     Text("Execution logs:", style="bold"),
                     Text(execution_logs),
                 ]
-            observation += "Execution logs:\n" + execution_logs
+            observation = "Execution logs:\n" + execution_logs
         except Exception as e:
+            if "print_outputs" in self.python_executor.state:
+                execution_logs = self.python_executor.state["print_outputs"]
+                if len(execution_logs) > 0:
+                    execution_outputs_console = [
+                        Text("Execution logs:", style="bold"),
+                        Text(execution_logs),
+                    ]
+                    memory_step.observations = "Execution logs:\n" + execution_logs
+                    self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
             error_msg = str(e)
             if "Import of " in error_msg and " is not allowed" in error_msg:
                 self.logger.log(
@@ -894,7 +911,7 @@ class CodeAgent(MultiStepAgent):
 
         truncated_output = truncate_content(str(output))
         observation += "Last output from code snippet:\n" + truncated_output
-        log_entry.observations = observation
+        memory_step.observations = observation
 
         execution_outputs_console += [
             Text(
@@ -903,7 +920,7 @@ class CodeAgent(MultiStepAgent):
             ),
         ]
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
-        log_entry.action_output = output
+        memory_step.action_output = output
         return output if is_final_answer else None
 
 

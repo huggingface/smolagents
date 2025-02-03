@@ -78,7 +78,7 @@ class ChatMessageToolCall:
     type: str
 
     @classmethod
-    def from_hf_api(cls, tool_call, raw) -> "ChatMessageToolCall":
+    def from_hf_api(cls, tool_call) -> "ChatMessageToolCall":
         return cls(
             function=ChatMessageToolCallDefinition.from_hf_api(tool_call.function),
             id=tool_call.id,
@@ -209,16 +209,18 @@ def get_clean_message_list(
             message["role"] = role_conversions[role]
         # encode images if needed
         if isinstance(message["content"], list):
-            for i, element in enumerate(message["content"]):
+            for element in message["content"]:
                 if element["type"] == "image":
                     assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
                     if convert_images_to_image_urls:
-                        message["content"][i] = {
-                            "type": "image_url",
-                            "image_url": {"url": make_image_url(encode_image_base64(element["image"]))},
-                        }
+                        element.update(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": make_image_url(encode_image_base64(element.pop("image")))},
+                            }
+                        )
                     else:
-                        message["content"][i]["image"] = encode_image_base64(element["image"])
+                        element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message["role"] == output_message_list[-1]["role"]:
             assert isinstance(message["content"], list), "Error: wrong content:" + str(message["content"])
@@ -411,9 +413,9 @@ class HfApiModel(Model):
 
 
 class TransformersModel(Model):
-    """A class to interact with Hugging Face's Inference API for language model interaction.
+    """A class that uses Hugging Face's Transformers library for language model interaction.
 
-    This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+    This model allows you to load and use Hugging Face's models locally using the Transformers library. It supports features like stop sequences and grammar customization.
 
     > [!TIP]
     > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
@@ -768,7 +770,6 @@ class OpenAIServerModel(Model):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-
         response = self.client.chat.completions.create(**completion_kwargs)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens

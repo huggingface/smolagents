@@ -19,9 +19,9 @@ import re
 import shutil
 from typing import Optional
 
+from smolagents.agent_types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 from smolagents.agents import ActionStep, MultiStepAgent
 from smolagents.memory import MemoryStep
-from smolagents.types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 from smolagents.utils import _is_package_available
 
 
