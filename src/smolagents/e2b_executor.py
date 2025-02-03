@@ -45,9 +45,11 @@ class E2BExecutor:
                 """Please install 'e2b' extra to use E2BExecutor: `pip install "smolagents[e2b]"`"""
             )
 
+        self.logger.log("Initializing E2B executor, hold on...")
+
         self.custom_tools = {}
         self.final_answer = False
-        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$")
+        self.final_answer_pattern = re.compile(r"final_answer\((.*?)\)")
         self.sbx = Sandbox()  # "qywp2ctmu2q7jzprcf4j")
         # TODO: validate installing agents package or not
         # print("Installing agents package on remote executor...")
@@ -74,21 +76,23 @@ class E2BExecutor:
             tool_codes.append(tool_code)
 
         tool_definition_code = "\n".join([f"import {module}" for module in BASE_BUILTIN_MODULES])
-        tool_definition_code += textwrap.dedent("""
+        tool_definition_code += textwrap.dedent(
+            """
         class Tool:
             def __call__(self, *args, **kwargs):
                 return self.forward(*args, **kwargs)
 
             def forward(self, *args, **kwargs):
                 pass # to be implemented in child class
-        """)
+        """
+        )
         tool_definition_code += "\n\n".join(tool_codes)
 
         tool_definition_execution = self.run_code_raise_errors(tool_definition_code)
         self.logger.log(tool_definition_execution.logs)
 
     def run_code_raise_errors(self, code: str):
-        if self.final_answer_pattern.match(code):
+        if self.final_answer_pattern.search(code) is not None:
             self.final_answer = True
         execution = self.sbx.run_code(
             code,
@@ -135,7 +139,7 @@ locals().update({key: value for key, value in pickle_dict.items()})
                         if getattr(result, attribute_name) is not None:
                             image_output = getattr(result, attribute_name)
                             decoded_bytes = base64.b64decode(image_output.encode("utf-8"))
-                            return Image.open(BytesIO(decoded_bytes)), execution_logs
+                            return Image.open(BytesIO(decoded_bytes)), execution_logs, self.final_answer
                     for attribute_name in [
                         "chart",
                         "data",
@@ -150,7 +154,9 @@ locals().update({key: value for key, value in pickle_dict.items()})
                     ]:
                         if getattr(result, attribute_name) is not None:
                             return getattr(result, attribute_name), execution_logs, self.final_answer
-            raise ValueError("No main result returned by executor!")
+            if self.final_answer:
+                raise ValueError("No main result returned by executor!")
+            return None, execution_logs, False
 
 
 __all__ = ["E2BExecutor"]

@@ -27,7 +27,7 @@ from smolagents.models import (
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,
 )
-from smolagents.utils import AgentLogger, LogLevel
+from smolagents.monitoring import AgentLogger, LogLevel
 
 
 class FakeLLMModel:

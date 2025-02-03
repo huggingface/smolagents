@@ -24,20 +24,19 @@ In this guided visit, you will learn how to build an agent, how to run it, and h
 To initialize a minimal agent, you need at least these two arguments:
 
 - `model`, a text-generation model to power your agent - because the agent is different from a simple LLM, it is a system that uses a LLM as its engine. You can use any of these options:
-  - [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
-  - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood.
-  - [`LiteLLMModel`] lets you call 100+ different models through [LiteLLM](https://docs.litellm.ai/)!
-  - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
-  - [`MLXModel`] takes a pre-initialized `mlx-lm` pipeline to run inference on your local machine using [mlx-lm](https://pypi.org/project/mlx-lm/).
+    - [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
+    - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood and supports all Inference Providers on the Hub.
+    - [`LiteLLMModel`] similarly lets you call 100+ different models and providers through [LiteLLM](https://docs.litellm.ai/)!
+    - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
 
 - `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Hugging Face API](https://huggingface.co/docs/api-inference/en/index), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), or [mlx-lm](https://pypi.org/project/mlx-lm/).
+Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), or [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
 
 <hfoptions id="Pick a LLM">
-<hfoption id="Hugging Face API">
+<hfoption id="HF Inference API">
 
-Hugging Face API is free to use without a token, but then it will have a rate limitation.
+HF Inference API is free to use without a token, but then it will have a rate limit.
 
 To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
 
@@ -47,13 +46,13 @@ from smolagents import CodeAgent, HfApiModel
 model_id = "meta-llama/Llama-3.3-70B-Instruct" 
 
 model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to HfApiModel to use a default free model
+# you can also specify a particular provider e.g. provider="together" or provider="sambanova"
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
 )
 ```
-
 </hfoption>
 <hfoption id="Local Transformers Model">
 
@@ -70,7 +69,6 @@ agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
 )
 ```
-
 </hfoption>
 <hfoption id="OpenAI or Anthropic API">
 
@@ -87,7 +85,6 @@ agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
 )
 ```
-
 </hfoption>
 <hfoption id="Ollama">
 
@@ -108,7 +105,6 @@ agent.run(
     "Could you give me the 118th number in the Fibonacci sequence?",
 )
 ```
-
 </hfoption>
 <hfoption id="Azure OpenAI">
 
@@ -153,19 +149,6 @@ agent.run(
 ```
 
 </hfoption>
-<hfoption id="MLX">
-
-```python
-# !pip install smolagents[mlx-lm]
-from smolagents import CodeAgent, MLXModel
-
-mlx_model = MLXModel("mlx-community/Qwen2.5-Coder-32B-Instruct-4bit")
-agent = CodeAgent(model=mlx_model, tools=[], add_base_tools=True)
-
-agent.run("Could you give me the 118th number in the Fibonacci sequence?")
-```
-
-</hfoption>
 </hfoptions>
 
 #### CodeAgent and ToolCallingAgent
@@ -206,14 +189,12 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 ### Inspecting an agent run
 
 Here are a few useful attributes to inspect what happened after a run:
-
 - `agent.logs` stores the fine-grained logs of the agent. At every step of the agent's run, everything gets stored in a dictionary that then is appended to `agent.logs`.
-- Running `agent.write_inner_memory_from_logs()` creates an inner memory of the agent's logs for the LLM to view, as a list of chat messages. This method goes over each step of the log and only stores what it's interested in as a message: for instance, it will save the system prompt and task in separate messages, then for each step it will store the LLM output as a message, and the tool call output as another message. Use this if you want a higher-level view of what has happened - but not every log will be transcripted by this method.
+- Running `agent.write_memory_to_messages()` writes the agent's memory as list of chat messages for the Model to view. This method goes over each step of the log and only stores what it's interested in as a message: for instance, it will save the system prompt and task in separate messages, then for each step it will store the LLM output as a message, and the tool call output as another message. Use this if you want a higher-level view of what has happened - but not every log will be transcripted by this method.
 
 ## Tools
 
 A tool is an atomic function to be used by an agent. To be used by an LLM, it also needs a few attributes that constitute its API and will be used to describe to the LLM how to call this tool:
-
 - A name
 - A description
 - Input types and descriptions
@@ -281,7 +262,6 @@ def model_download_tool(task: str) -> str:
 ```
 
 The function needs:
-
 - A clear name. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
 - Type hints on both inputs and output
 - A description, that includes an 'Args:' part where each argument is described (without a type indication this time, it will be pulled from the type hint). Same as for the tool name, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
@@ -307,18 +287,16 @@ class ModelDownloadTool(Tool):
 ```
 
 The subclass needs the following attributes:
-
 - A clear `name`. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
 - A `description`. Same as for the `name`, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
 - Input types and descriptions
 - Output type
 All these attributes will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
 </hfoption>
-
 </hfoptions>
 
-Then you can directly initialize your agent:
 
+Then you can directly initialize your agent:
 ```py
 from smolagents import CodeAgent, HfApiModel
 agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
@@ -328,7 +306,6 @@ agent.run(
 ```
 
 You get the following logs:
-
 ```text
 ╭──────────────────────────────────────── New run ─────────────────────────────────────────╮
 │                                                                                          │
@@ -394,6 +371,7 @@ manager_agent.run("Who is the CEO of Hugging Face?")
 > [!TIP]
 > For an in-depth example of an efficient multi-agent implementation, see [how we pushed our multi-agent system to the top of the GAIA leaderboard](https://huggingface.co/blog/beating-gaia).
 
+
 ## Talk with your agent and visualize its thoughts in a cool Gradio interface
 
 You can use `GradioUI` to interactively submit tasks to your agent and observe its thought and execution process, here is an example:
@@ -425,7 +403,6 @@ You can also use this `reset=False` argument to keep the conversation going in a
 ## Next steps
 
 For more in-depth usage, you will then want to check out our tutorials:
-
 - [the explanation of how our code agents work](./tutorials/secure_code_execution)
 - [this guide on how to build good agents](./tutorials/building_good_agents).
 - [the in-depth guide for tool usage](./tutorials/building_good_agents).

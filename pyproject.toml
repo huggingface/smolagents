@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.7.0.dev0"
+version = "1.8.0.dev0"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" }, { name="Thomas Wolf"},
@@ -12,7 +12,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "huggingface-hub>=0.24.0",
+  "huggingface-hub>=0.28.0",
   "requests>=2.32.3",
   "rich>=13.9.4",
   "pandas>=2.2.3",
@@ -20,6 +20,7 @@ dependencies = [
   "pillow>=11.0.0",
   "markdownify>=0.14.1",
   "duckduckgo-search>=6.3.7",
+  "python-dotenv"
 ]
 
 [project.optional-dependencies]
@@ -41,7 +42,7 @@ e2b = [
   "python-dotenv>=1.0.1",
 ]
 gradio = [
-  "gradio>=5.13.0",
+  "gradio>=5.13.2",
 ]
 litellm = [
   "litellm>=1.55.10",
@@ -56,11 +57,17 @@ mlx-lm = [
 openai = [
   "openai>=1.58.1"
 ]
+telemetry = [
+  "arize-phoenix",
+  "opentelemetry-sdk", 
+  "opentelemetry-exporter-otlp",
+  "openinference-instrumentation-smolagents>=0.1.1"
+]
 quality = [
   "ruff>=0.9.0",
 ]
 all = [
-  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers]",
+  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers,telemetry]",
 ]
 test = [
   "ipython>=8.31.0", # for interactive environment tests
@@ -94,3 +101,7 @@ lint.select = ["E", "F", "I", "W"]
 [tool.ruff.lint.isort]
 known-first-party = ["smolagents"]
 lines-after-imports = 2
+
+[project.scripts]
+smolagent = "smolagents.cli:main"
+webagent = "smolagents.vision_web_browser:main"

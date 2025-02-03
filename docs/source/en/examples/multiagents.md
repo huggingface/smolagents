@@ -19,7 +19,7 @@ rendered properly in your Markdown viewer.
 
 In this notebook we will make a **multi-agent web browser: an agentic system with several agents collaborating to solve problems using the web!**
 
-It will be a simple hierarchy, using a `ManagedAgent` object to wrap the managed web search agent:
+It will be a simple hierarchy:
 
 ```
               +----------------+
@@ -28,15 +28,12 @@ It will be a simple hierarchy, using a `ManagedAgent` object to wrap the managed
                        |
         _______________|______________
        |                              |
-  Code interpreter   +--------------------------------+
-       tool          |         Managed agent          |
-                     |      +------------------+      |
-                     |      | Web Search agent |      |
-                     |      +------------------+      |
-                     |         |            |         |
-                     |  Web Search tool     |         |
-                     |             Visit webpage tool |
-                     +--------------------------------+
+Code Interpreter            +------------------+
+    tool                    | Web Search agent |
+                            +------------------+
+                               |            |
+                        Web Search tool     |
+                                   Visit webpage tool
 ```
 Let's set up this system. 
 
@@ -127,7 +124,6 @@ from smolagents import (
     CodeAgent,
     ToolCallingAgent,
     HfApiModel,
-    ManagedAgent,
     DuckDuckGoSearchTool,
     LiteLLMModel,
 )
@@ -138,20 +134,14 @@ web_agent = ToolCallingAgent(
     tools=[DuckDuckGoSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
-)
-```
-
-We then wrap this agent into a `ManagedAgent` that will make it callable by its manager agent.
-
-```py
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
     name="search",
     description="Runs web searches for you. Give it your query as an argument.",
 )
 ```
 
-Finally we create a manager agent, and upon initialization we pass our managed agent to it in its `managed_agents` argument.
+Note that we gave this agent attributes `name` and `description`, mandatory attributes to make this agent callable by its manager agent.
+
+Then we create a manager agent, and upon initialization we pass our managed agent to it in its `managed_agents` argument.
 
 Since this agent is the one tasked with the planning and thinking, advanced reasoning will be beneficial, so a `CodeAgent` will be the best choice.
 
@@ -161,7 +151,7 @@ Also, we want to ask a question that involves the current year and does addition
 manager_agent = CodeAgent(
     tools=[],
     model=model,
-    managed_agents=[managed_web_agent],
+    managed_agents=[web_agent],
     additional_authorized_imports=["time", "numpy", "pandas"],
 )
 ```

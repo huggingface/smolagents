@@ -17,27 +17,28 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import MagicMock
 
-import pytest
 from transformers.testing_utils import get_tests_dir
 
+from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
     AgentMaxStepsError,
     CodeAgent,
-    ManagedAgent,
+    MultiStepAgent,
     ToolCall,
     ToolCallingAgent,
 )
 from smolagents.default_tools import PythonInterpreterTool
+from smolagents.memory import PlanningStep
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,
+    MessageRole,
     TransformersModel,
-    get_clean_message_list,
 )
 from smolagents.tools import tool
-from smolagents.types import AgentImage, AgentText
 from smolagents.utils import BASE_BUILTIN_MODULES
 
 
@@ -176,6 +177,7 @@ def fake_code_model_error(messages, stop_sequences=None) -> str:
 Thought: I should multiply 2 by 3.6452. special_marker
 Code:
 ```py
+print("Flag!")
 def error_function():
     raise ValueError("error")
 
@@ -310,9 +312,9 @@ class AgentTests(unittest.TestCase):
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, str)
         assert "7.2904" in output
-        assert agent.logs[1].task == "What is 2 multiplied by 3.6452?"
-        assert "7.2904" in agent.logs[2].observations
-        assert agent.logs[3].llm_output is None
+        assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
+        assert "7.2904" in agent.memory.steps[1].observations
+        assert agent.memory.steps[2].model_output is None
 
     def test_toolcalling_agent_handles_image_tool_outputs(self):
         from PIL import Image
@@ -355,9 +357,9 @@ class AgentTests(unittest.TestCase):
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, float)
         assert output == 7.2904
-        assert agent.logs[1].task == "What is 2 multiplied by 3.6452?"
-        assert agent.logs[3].tool_calls == [
-            ToolCall(name="python_interpreter", arguments="final_answer(7.2904)", id="call_3")
+        assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
+        assert agent.memory.steps[2].tool_calls == [
+            ToolCall(name="python_interpreter", arguments="final_answer(7.2904)", id="call_2")
         ]
 
     def test_additional_args_added_to_task(self):
@@ -373,30 +375,35 @@ class AgentTests(unittest.TestCase):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model)
         output = agent.run("What is 2 multiplied by 3.6452?", reset=True)
         assert output == 7.2904
-        assert len(agent.logs) == 4
+        assert len(agent.memory.steps) == 3
 
         output = agent.run("What is 2 multiplied by 3.6452?", reset=False)
         assert output == 7.2904
-        assert len(agent.logs) == 6
+        assert len(agent.memory.steps) == 5
 
         output = agent.run("What is 2 multiplied by 3.6452?", reset=True)
         assert output == 7.2904
-        assert len(agent.logs) == 4
+        assert len(agent.memory.steps) == 3
 
     def test_code_agent_code_errors_show_offending_line_and_error(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, AgentText)
         assert output == "got an error"
-        assert "Code execution failed at line 'error_function()'" in str(agent.logs[2].error)
-        assert "ValueError" in str(agent.logs)
+        assert "Code execution failed at line 'error_function()'" in str(agent.memory.steps[1].error)
+        assert "ValueError" in str(agent.memory.steps)
+
+    def test_code_agent_code_error_saves_previous_print_outputs(self):
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
+        agent.run("What is 2 multiplied by 3.6452?")
+        assert "Flag!" in str(agent.memory.steps[1].observations)
 
     def test_code_agent_syntax_error_show_offending_lines(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_syntax_error)
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, AgentText)
         assert output == "got an error"
-        assert '    print("Failing due to unexpected indent")' in str(agent.logs)
+        assert '    print("Failing due to unexpected indent")' in str(agent.memory.steps)
 
     def test_setup_agent_with_empty_toolbox(self):
         ToolCallingAgent(model=FakeToolCallModel(), tools=[])
@@ -408,8 +415,8 @@ class AgentTests(unittest.TestCase):
             max_steps=5,
         )
         answer = agent.run("What is 2 multiplied by 3.6452?")
-        assert len(agent.logs) == 8
-        assert type(agent.logs[-1].error) is AgentMaxStepsError
+        assert len(agent.memory.steps) == 7  # Task step + 5 action steps + Final answer
+        assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
 
     def test_tool_descriptions_get_baked_in_system_prompt(self):
@@ -457,22 +464,20 @@ class AgentTests(unittest.TestCase):
         assert res[0] == 0.5
 
     def test_init_managed_agent(self):
-        agent = CodeAgent(tools=[], model=fake_code_functiondef)
-        managed_agent = ManagedAgent(agent, name="managed_agent", description="Empty")
-        assert managed_agent.name == "managed_agent"
-        assert managed_agent.description == "Empty"
+        agent = CodeAgent(tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty")
+        assert agent.name == "managed_agent"
+        assert agent.description == "Empty"
 
     def test_agent_description_gets_correctly_inserted_in_system_prompt(self):
-        agent = CodeAgent(tools=[], model=fake_code_functiondef)
-        managed_agent = ManagedAgent(agent, name="managed_agent", description="Empty")
+        managed_agent = CodeAgent(tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty")
         manager_agent = CodeAgent(
             tools=[],
             model=fake_code_functiondef,
             managed_agents=[managed_agent],
         )
-        assert "You can also give requests to team members." not in agent.system_prompt
+        assert "You can also give requests to team members." not in managed_agent.system_prompt
         print("ok1")
-        assert "{{managed_agents_descriptions}}" not in agent.system_prompt
+        assert "{{managed_agents_descriptions}}" not in managed_agent.system_prompt
         assert "You can also give requests to team members." in manager_agent.system_prompt
 
     def test_code_agent_missing_import_triggers_advice_in_error_log(self):
@@ -481,7 +486,7 @@ class AgentTests(unittest.TestCase):
         with agent.logger.console.capture() as capture:
             agent.run("Count to 3")
         str_output = capture.get()
-        assert "Consider passing said import under" in str_output.replace("\n", "")
+        assert "`additional_authorized_imports`" in str_output.replace("\n", "")
 
     def test_multiagents(self):
         class FakeModelMultiagentsManagerAgent:
@@ -579,10 +584,6 @@ final_answer("Final report.")
             tools=[],
             model=managed_model,
             max_steps=10,
-        )
-
-        managed_web_agent = ManagedAgent(
-            agent=web_agent,
             name="search_agent",
             description="Runs web searches for you. Give it your request as an argument. Make the request as detailed as needed, you can ask for thorough reports",
         )
@@ -590,7 +591,7 @@ final_answer("Final report.")
         manager_code_agent = CodeAgent(
             tools=[],
             model=manager_model,
-            managed_agents=[managed_web_agent],
+            managed_agents=[web_agent],
             additional_authorized_imports=["time", "numpy", "pandas"],
         )
 
@@ -600,7 +601,7 @@ final_answer("Final report.")
         manager_toolcalling_agent = ToolCallingAgent(
             tools=[],
             model=manager_model,
-            managed_agents=[managed_web_agent],
+            managed_agents=[web_agent],
         )
 
         report = manager_toolcalling_agent.run("Fake question.")
@@ -645,23 +646,55 @@ nested_answer()
         )
         agent = ToolCallingAgent(model=model, tools=[get_weather], max_steps=1)
         agent.run("What's the weather in Paris?")
-        assert agent.logs[2].tool_calls[0].name == "get_weather"
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls[0].name == "get_weather"
+        step_memory_dict = agent.memory.get_succinct_steps()[1]
+        assert step_memory_dict["model_output_message"].tool_calls[0].function.name == "get_weather"
+        assert step_memory_dict["model_output_message"].raw["completion_kwargs"]["max_new_tokens"] == 100
+        assert "model_input_messages" in agent.memory.get_full_steps()[1]
 
 
-@pytest.mark.parametrize(
-    "flatten_messages_as_text, is_first_step",
-    [
-        (False, False),
-        (True, False),
-        (False, True),
-        (True, True),
-    ],
-)
-def test_agent_planning_step(flatten_messages_as_text, is_first_step):
-    agent = CodeAgent(
-        model=lambda x, stop_sequences=None: ChatMessage(
-            role="assistant", content=get_clean_message_list(x, flatten_messages_as_text=flatten_messages_as_text)
-        ),
-        tools=[],
-    )
-    agent.planning_step(task=[{"type": "text", "text": "text"}], is_first_step=is_first_step, step=0)
+class TestMultiStepAgent:
+    def test_planning_step_first_step(self):
+        fake_model = MagicMock()
+        agent = MultiStepAgent(
+            tools=[],
+            model=fake_model,
+        )
+        task = "Test task"
+        agent.planning_step(task, is_first_step=True, step=0)
+        assert len(agent.memory.steps) == 1
+        planning_step = agent.memory.steps[0]
+        assert isinstance(planning_step, PlanningStep)
+        messages = planning_step.model_input_messages
+        assert isinstance(messages, list)
+        assert len(messages) == 2
+        for message in messages:
+            assert isinstance(message, dict)
+            assert "role" in message
+            assert "content" in message
+            assert isinstance(message["role"], MessageRole)
+            assert isinstance(message["content"], list)
+            assert len(message["content"]) == 1
+            for content in message["content"]:
+                assert isinstance(content, dict)
+                assert "type" in content
+                assert "text" in content
+        # Test calls to model
+        assert len(fake_model.call_args_list) == 2
+        for call_args in fake_model.call_args_list:
+            assert len(call_args.args) == 1
+            messages = call_args.args[0]
+            assert isinstance(messages, list)
+            assert len(messages) == 2
+            for message in messages:
+                assert isinstance(message, dict)
+                assert "role" in message
+                assert "content" in message
+                assert isinstance(message["role"], MessageRole)
+                assert isinstance(message["content"], list)
+                assert len(message["content"]) == 1
+                for content in message["content"]:
+                    assert isinstance(content, dict)
+                    assert "type" in content
+                    assert "text" in content
