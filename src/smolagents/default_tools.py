@@ -221,7 +221,7 @@ class VisitWebpageTool(Tool):
             import playwright
             use_upgraded_version = True
         except ImportError as e:
-            warnings.warn("Loading basic version of the tool. You can install package `playwright` to get an upgraded version of this tool: : for instance run `pip install playwright` and then `plawright install`", UserWarning)
+            warnings.warn("Loading basic version of the tool. You can install package `playwright` to get an upgraded version of this tool: for instance run `pip install playwright` and then `plawright install`", UserWarning)
 
         if use_upgraded_version: # Use the upgraded version of the tool
             try:
