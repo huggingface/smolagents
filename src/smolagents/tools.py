@@ -875,48 +875,85 @@ class ToolCollection:
             yield cls(tools)
 
 
-def tool(tool_function: Callable) -> Tool:
+def tool(tool_function: Callable = None, *, force_types: bool = False) -> Tool:
     """
     Converts a function into an instance of a Tool subclass.
 
     Args:
         tool_function: Your function. Should have type hints for each input and a type hint for the output.
-        Should also have a docstring description including an 'Args:' part where each argument is described.
+            Should also have a docstring description including an 'Args:' part where each argument is described.
+        force_types: When True, enforces runtime type checking of function arguments and return value.
+            Raises TypeError with detailed message to help agent reformulate the call if types don't match the hints.
     """
-    tool_json_schema = get_json_schema(tool_function)["function"]
-    if "return" not in tool_json_schema:
-        raise TypeHintParsingException("Tool return type not found: make sure your function has a return type hint!")
 
-    class SimpleTool(Tool):
-        def __init__(
-            self,
-            name: str,
-            description: str,
-            inputs: Dict[str, Dict[str, str]],
-            output_type: str,
-            function: Callable,
-        ):
-            self.name = name
-            self.description = description
-            self.inputs = inputs
-            self.output_type = output_type
-            self.forward = function
-            self.is_initialized = True
+    def decorator(func):
+        tool_json_schema = get_json_schema(func)["function"]
+        if "return" not in tool_json_schema:
+            raise TypeHintParsingException(
+                "Tool return type not found: make sure your function has a return type hint!"
+            )
 
-    simple_tool = SimpleTool(
-        name=tool_json_schema["name"],
-        description=tool_json_schema["description"],
-        inputs=tool_json_schema["parameters"]["properties"],
-        output_type=tool_json_schema["return"]["type"],
-        function=tool_function,
-    )
-    original_signature = inspect.signature(tool_function)
-    new_parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)] + list(
-        original_signature.parameters.values()
-    )
-    new_signature = original_signature.replace(parameters=new_parameters)
-    simple_tool.forward.__signature__ = new_signature
-    return simple_tool
+        @wraps(func)
+        def type_checked_function(*args, **kwargs):
+            if not force_types:
+                return func(*args, **kwargs)
+
+            sig = inspect.signature(func)
+            bound_args = sig.bind(*args, **kwargs)
+            bound_args.apply_defaults()
+
+            for param_name, param_value in bound_args.arguments.items():
+                expected_type = sig.parameters[param_name].annotation
+                if expected_type != inspect.Parameter.empty and not isinstance(param_value, expected_type):
+                    raise TypeError(
+                        f"Argument '{param_name}' expected type {expected_type.__name__}, "
+                        f"but got {type(param_value).__name__}"
+                    )
+
+            result = func(*args, **kwargs)
+
+            return_type = sig.return_annotation
+            if return_type != inspect.Parameter.empty and not isinstance(result, return_type):
+                raise TypeError(f"Return value expected type {return_type.__name__}, but got {type(result).__name__}")
+
+            return result
+
+        class SimpleTool(Tool):
+            def __init__(
+                self,
+                name: str,
+                description: str,
+                inputs: Dict[str, Dict[str, str]],
+                output_type: str,
+                function: Callable,
+            ):
+                self.name = name
+                self.description = description
+                self.inputs = inputs
+                self.output_type = output_type
+                self.forward = function
+                self.is_initialized = True
+
+        simple_tool = SimpleTool(
+            name=tool_json_schema["name"],
+            description=tool_json_schema["description"],
+            inputs=tool_json_schema["parameters"]["properties"],
+            output_type=tool_json_schema["return"]["type"],
+            function=type_checked_function,
+        )
+
+        original_signature = inspect.signature(func)
+        new_parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)] + list(
+            original_signature.parameters.values()
+        )
+        new_signature = original_signature.replace(parameters=new_parameters)
+        simple_tool.forward.__signature__ = new_signature
+
+        return simple_tool
+
+    if tool_function is None:
+        return decorator
+    return decorator(tool_function)
 
 
 class PipelineTool(Tool):
