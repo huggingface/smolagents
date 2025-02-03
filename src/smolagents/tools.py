@@ -44,8 +44,8 @@ from ._function_type_hints_utils import (
     get_imports,
     get_json_schema,
 )
+from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .types import handle_agent_input_types, handle_agent_output_types
 from .utils import _is_package_available, _is_pillow_available, get_source, instance_to_source
 
 

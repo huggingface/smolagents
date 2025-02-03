@@ -26,8 +26,8 @@ import torch
 from transformers import is_torch_available, is_vision_available
 from transformers.testing_utils import get_tests_dir
 
+from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
-from smolagents.types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
 
 
 if is_torch_available():

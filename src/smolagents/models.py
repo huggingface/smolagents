@@ -48,10 +48,10 @@ DEFAULT_CODEAGENT_REGEX_GRAMMAR = {
 }
 
 
-def get_dict_from_nested_dataclasses(obj):
+def get_dict_from_nested_dataclasses(obj, ignore_key=None):
     def convert(obj):
         if hasattr(obj, "__dataclass_fields__"):
-            return {k: convert(v) for k, v in asdict(obj).items()}
+            return {k: convert(v) for k, v in asdict(obj).items() if k != ignore_key}
         return obj
 
     return convert(obj)
@@ -79,7 +79,7 @@ class ChatMessageToolCall:
     type: str
 
     @classmethod
-    def from_hf_api(cls, tool_call) -> "ChatMessageToolCall":
+    def from_hf_api(cls, tool_call, raw) -> "ChatMessageToolCall":
         return cls(
             function=ChatMessageToolCallDefinition.from_hf_api(tool_call.function),
             id=tool_call.id,
@@ -92,16 +92,17 @@ class ChatMessage:
     role: str
     content: Optional[str] = None
     tool_calls: Optional[List[ChatMessageToolCall]] = None
+    raw: Optional[Any] = None  # Stores the raw output from the API
 
     def model_dump_json(self):
-        return json.dumps(get_dict_from_nested_dataclasses(self))
+        return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
 
     @classmethod
-    def from_hf_api(cls, message) -> "ChatMessage":
+    def from_hf_api(cls, message, raw) -> "ChatMessage":
         tool_calls = None
         if getattr(message, "tool_calls", None) is not None:
             tool_calls = [ChatMessageToolCall.from_hf_api(tool_call) for tool_call in message.tool_calls]
-        return cls(role=message.role, content=message.content, tool_calls=tool_calls)
+        return cls(role=message.role, content=message.content, tool_calls=tool_calls, raw=raw)
 
     @classmethod
     def from_dict(cls, data: dict) -> "ChatMessage":
@@ -114,6 +115,9 @@ class ChatMessage:
             ]
             data["tool_calls"] = tool_calls
         return cls(**data)
+
+    def dict(self):
+        return json.dumps(get_dict_from_nested_dataclasses(self))
 
 
 def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
@@ -335,6 +339,9 @@ class HfApiModel(Model):
     Parameters:
         model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        provider (`str`, *optional*):
+            Name of the provider to use for inference. Can be `"replicate"`, `"together"`, `"fal-ai"`, `"sambanova"` or `"hf-inference"`.
+            defaults to hf-inference (HF Inference API).
         token (`str`, *optional*):
             Token used by the Hugging Face API for authentication. This token need to be authorized 'Make calls to the serverless Inference API'.
             If the model is gated (like Llama-3 models), the token also needs 'Read access to contents of all public gated repos you can access'.
@@ -365,15 +372,17 @@ class HfApiModel(Model):
     def __init__(
         self,
         model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
+        provider: Optional[str] = None,
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.model_id = model_id
+        self.provider = provider
         if token is None:
             token = os.getenv("HF_TOKEN")
-        self.client = InferenceClient(self.model_id, token=token, timeout=timeout)
+        self.client = InferenceClient(self.model_id, provider=provider, token=token, timeout=timeout)
 
     def __call__(
         self,
@@ -396,7 +405,7 @@ class HfApiModel(Model):
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        message = ChatMessage.from_hf_api(response.choices[0].message)
+        message = ChatMessage.from_hf_api(response.choices[0].message, raw=response)
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
         return message
@@ -701,7 +710,11 @@ class TransformersModel(Model):
             output = remove_stop_sequences(output, stop_sequences)
 
         if tools_to_call_from is None:
-            return ChatMessage(role="assistant", content=output)
+            return ChatMessage(
+                role="assistant",
+                content=output,
+                raw={"out": out, "completion_kwargs": completion_kwargs},
+            )
         else:
             if "Action:" in output:
                 output = output.split("Action:", 1)[1].strip()
@@ -728,6 +741,7 @@ class TransformersModel(Model):
                         function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
                     )
                 ],
+                raw={"out": out, "completion_kwargs": completion_kwargs},
             )
 
 
@@ -792,10 +806,10 @@ class LiteLLMModel(Model):
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-
         message = ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
         )
+        message.raw = response
 
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
@@ -876,6 +890,7 @@ class OpenAIServerModel(Model):
         message = ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
         )
+        message.raw = response
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
         return message

@@ -16,8 +16,8 @@ import unittest
 
 import pytest
 
+from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, VisitWebpageTool
-from smolagents.types import _AGENT_TYPE_MAPPING
 
 from .test_tools import ToolTesterMixin
 
