@@ -36,6 +36,7 @@ transformers = [
   "accelerate",
   "transformers>=4.0.0",
   "smolagents[torch]",
+  "sentencepiece",
 ]
 outlines = [
   "outlines",
@@ -101,7 +102,6 @@ lint.select = ["E", "F", "I", "W"]
 [tool.ruff.lint.isort]
 known-first-party = ["smolagents"]
 lines-after-imports = 2
-
 [project.scripts]
 smolagent = "smolagents.cli:main"
 webagent = "smolagents.vision_web_browser:main"
