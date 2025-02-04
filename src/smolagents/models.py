@@ -632,6 +632,137 @@ class TransformersModel(Model):
                 raw={"out": out, "completion_kwargs": completion_kwargs},
             )
 
+class OutlinesModel(Model):
+    """A class that uses Outlines library for language model interaction.
+
+    This model allows you to load and use models locally using the Outlines library. It notably supports structured generation.
+
+    > [!TIP]
+    > You must have `outlines`, `transformers`, and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
+
+    Parameters:
+        model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
+            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        device_map (`str`, *optional*):
+            The device_map to initialize your model with.
+        torch_dtype (`str`, *optional*):
+            The torch_dtype to initialize your model with.
+        trust_remote_code (bool, default `False`):
+            Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
+        kwargs (dict, *optional*):
+            Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
+        **kwargs:
+            Additional keyword arguments to pass to `model.generate()`, for instance `max_new_tokens` or `device`.
+    Raises:
+        ValueError:
+            If the model name is not provided.
+
+    Example:
+    ```python
+    >>> engine = OutlinesModel(
+    ...     model_id="meta-llama/Llama-3.2-3B-Instruct",
+    ...     device="cuda",
+    ...     max_new_tokens=5000,
+    ... )
+    >>> messages = [{"role": "user", "content": "Build a DnD character."}]
+    >>> response = engine(messages, json_schema={"name": "build_character", "parameters": {"name": {"type": "string", "description": "The name of the character to build."}}}
+    >>> print(response)
+    "{'name': 'john'}"
+    ```
+    """
+
+    def __init__(
+        self,
+        model_id: Optional[str] = None,
+        device_map: Optional[str] = None,
+        torch_dtype: Optional[str] = None,
+        trust_remote_code: bool = False,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        if not is_torch_available() or not _is_package_available("transformers"):
+            raise ModuleNotFoundError(
+                "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
+            )
+        import torch
+        from transformers import AutoTokenizer
+        import outlines
+
+        default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+        if model_id is None:
+            model_id = default_model_id
+            logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
+        self.model_id = model_id
+        self.kwargs = kwargs
+        if device_map is None:
+            device_map = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Using device: {device_map}")
+        self._is_vlm = False
+        try:
+            # self.model = AutoModelForCausalLM.from_pretrained(
+            #     model_id,
+            #     device_map=device_map,
+            #     torch_dtype=torch_dtype,
+            #     trust_remote_code=trust_remote_code,
+            # )
+            self.model = outlines.models.transformers(model_id)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+        # except ValueError as e:
+        #     if "Unrecognized configuration class" in str(e):
+        #         self.model = AutoModelForImageTextToText.from_pretrained(model_id, device_map=device_map)
+        #         self.processor = AutoProcessor.from_pretrained(model_id)
+        #         self._is_vlm = True
+        #     else:
+        #         raise e
+        except Exception as e:
+            logger.warning(
+                f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {default_model_id=}."
+            )
+            self.model_id = default_model_id
+            self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
+            # self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
+            self.model = outlines.models.transformers(default_model_id)
+
+    def make_chat_template(self, messages: List[Dict[str, str]]):
+        return self.tokenizer.apply_chat_template(messages, tokenize=False)
+
+    def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
+        from transformers import StoppingCriteria, StoppingCriteriaList
+
+        class StopOnStrings(StoppingCriteria):
+            def __init__(self, stop_strings: List[str], tokenizer):
+                self.stop_strings = stop_strings
+                self.tokenizer = tokenizer
+                self.stream = ""
+
+            def reset(self):
+                self.stream = ""
+
+            def __call__(self, input_ids, scores, **kwargs):
+                generated = self.tokenizer.decode(input_ids[0][-1], skip_special_tokens=True)
+                self.stream += generated
+                if any([self.stream.endswith(stop_string) for stop_string in self.stop_strings]):
+                    return True
+                return False
+
+        return StoppingCriteriaList([StopOnStrings(stop_sequences, tokenizer)])
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        images: Optional[List[Image.Image]] = None,
+        json_schema: Optional[dict] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        import outlines
+
+        json_schema_dump = json.dumps(json_schema)
+        generator = outlines.generate.json(self.model, json_schema_dump)
+        res = generator(self.make_chat_template(messages))
+        return res
 
 class LiteLLMModel(Model):
     """This model connects to [LiteLLM](https://www.litellm.ai/) as a gateway to hundreds of LLMs.

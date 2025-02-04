@@ -776,14 +776,12 @@ class RetrieveCharacter(Tool):
 
 class TestOutlinesAgent:
     def test_outlines_agent(self):
-        import outlines
-        from transformers import AutoTokenizer
+        from smolagents.models import OutlinesModel
 
         model_name = "meta-llama/Llama-3.2-3B-Instruct"
-        outlines_model = outlines.models.transformers(model_name)
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        outlines_model = OutlinesModel(model_name)
         agent = OutlinesAgent(
-            tools=[RetrieveCharacter()], model=outlines_model, tokenizer=tokenizer
+            tools=[RetrieveCharacter()], model=outlines_model, max_steps=2
         )
         agent.run("Find the id of the character Romeo")
         # verify that 113 is printed
