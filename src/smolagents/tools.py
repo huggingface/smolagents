@@ -631,6 +631,71 @@ class Tool:
 
         return LangChainToolWrapper(langchain_tool)
 
+    @staticmethod
+    def from_api(
+        api_url: str,
+        name: str,
+        description: str,
+        inputs: Dict[str, Dict[str, Union[str, type, bool]]],
+        output_type: str,
+        headers: Optional[Dict[str, str]] = None,
+    ):
+        """
+        Creates a [`Tool`] from a third-party API.
+
+        Args:
+            api_url (`str`):
+                The URL of the API endpoint.
+            name (`str`):
+                The name of the tool.
+            description (`str`):
+                The description of the tool.
+            inputs (`Dict[str, Dict[str, Union[str, type, bool]]]`):
+                The inputs expected by the API.
+            output_type (`str`):
+                The type of the output returned by the API.
+            headers (`Dict[str, str]`, *optional*):
+                Optional headers to include in the API request.
+
+        Returns:
+            [`Tool`]:
+                The API, as a tool.
+        """
+        import requests
+
+        class APIToolWrapper(Tool):
+            def __init__(
+                self,
+                api_url: str,
+                name: str,
+                description: str,
+                inputs: Dict[str, Dict[str, Union[str, type, bool]]],
+                output_type: str,
+                headers: Optional[Dict[str, str]] = None,
+            ):
+                self.api_url = api_url
+                self.name = name
+                self.description = description
+                self.inputs = inputs
+                self.output_type = output_type
+                self.headers = headers or {}
+                self.is_initialized = True
+
+            def forward(self, *args, **kwargs):
+                payload = {**kwargs}
+                response = requests.post(self.api_url, json=payload, headers=self.headers)
+                response.raise_for_status()
+                return response.json()
+
+        return APIToolWrapper(
+            api_url=api_url,
+            name=name,
+            description=description,
+            inputs=inputs,
+            output_type=output_type,
+            headers=headers,
+        )
+
 
 DEFAULT_TOOL_DESCRIPTION_TEMPLATE = """
 - {{ tool.name }}: {{ tool.description }}
