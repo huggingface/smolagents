@@ -52,10 +52,13 @@ Full documentation can be found [here](https://huggingface.co/docs/smolagents/in
 ## Quick demo
 
 First install the package.
+
 ```bash
 pip install smolagents
 ```
+
 Then define your agent, give it the tools it needs and run it!
+
 ```py
 from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel
 
@@ -65,7 +68,7 @@ agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
 ```
 
-https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884
+<https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884>
 
 You can even share your agent to hub:
 ```py
@@ -87,6 +90,7 @@ model = HfApiModel(
     provider="together",
 )
 ```
+
 </details>
 <details>
 <summary> <b>LiteLLM to access 100+ LLMs</b></summary>
@@ -100,6 +104,7 @@ model = LiteLLMModel(
     api_key=os.environ["ANTHROPIC_API_KEY"]
 )
 ```
+
 </details>
 <details>
 <summary> <b>OpenAI-compatible servers</b></summary>
@@ -114,6 +119,7 @@ model = OpenAIServerModel(
     api_key=os.environ["TOGETHER_API_KEY"], # Switch to the API key for the server you're targeting.
 )
 ```
+
 </details>
 <details>
 <summary> <b>Local `transformers` model</b></summary>
@@ -127,6 +133,7 @@ model = TransformersModel(
     device_map="auto"
 )
 ```
+
 </details>
 <details>
 <summary> <b>Azure models</b></summary>
@@ -142,6 +149,7 @@ model = AzureOpenAIServerModel(
     api_version=os.environ.get("OPENAI_API_VERSION")    
 )
 ```
+
 </details>
 
 ## CLI
@@ -157,6 +165,7 @@ smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --m
 Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
 
 For instance:
+
 ```bash
 webagent "go to xyz.com/men, get to sale section, click the first clothing item you see. Get the product details, and the price, return them. note that I'm shopping from France" --model-type "LiteLLMModel" --model-id "gpt-4o"
 ```
