@@ -632,6 +632,7 @@ class TransformersModel(Model):
                 raw={"out": out, "completion_kwargs": completion_kwargs},
             )
 
+
 class OutlinesModel(Model):
     """A class that uses Outlines library for language model interaction.
 
@@ -684,9 +685,9 @@ class OutlinesModel(Model):
             raise ModuleNotFoundError(
                 "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
             )
+        import outlines
         import torch
         from transformers import AutoTokenizer
-        import outlines
 
         default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         if model_id is None:
@@ -763,6 +764,7 @@ class OutlinesModel(Model):
         generator = outlines.generate.json(self.model, json_schema_dump)
         res = generator(self.make_chat_template(messages))
         return res
+
 
 class LiteLLMModel(Model):
     """This model connects to [LiteLLM](https://www.litellm.ai/) as a gateway to hundreds of LLMs.

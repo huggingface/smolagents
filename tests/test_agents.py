@@ -40,7 +40,7 @@ from smolagents.models import (
     MessageRole,
     TransformersModel,
 )
-from smolagents.tools import tool, Tool
+from smolagents.tools import Tool, tool
 from smolagents.utils import BASE_BUILTIN_MODULES
 
 
@@ -50,9 +50,7 @@ def get_new_path(suffix="") -> str:
 
 
 class FakeToolCallModel:
-    def __call__(
-        self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None
-    ):
+    def __call__(self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None):
         if len(messages) < 3:
             return ChatMessage(
                 role="assistant",
@@ -75,18 +73,14 @@ class FakeToolCallModel:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(
-                            name="final_answer", arguments={"answer": "7.2904"}
-                        ),
+                        function=ChatMessageToolCallDefinition(name="final_answer", arguments={"answer": "7.2904"}),
                     )
                 ],
             )
 
 
 class FakeToolCallModelImage:
-    def __call__(
-        self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None
-    ):
+    def __call__(self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None):
         if len(messages) < 3:
             return ChatMessage(
                 role="assistant",
@@ -110,18 +104,14 @@ class FakeToolCallModelImage:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(
-                            name="final_answer", arguments="image.png"
-                        ),
+                        function=ChatMessageToolCallDefinition(name="final_answer", arguments="image.png"),
                     )
                 ],
             )
 
 
 class FakeToolCallModelVL:
-    def __call__(
-        self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None
-    ):
+    def __call__(self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None):
         if len(messages) < 3:
             return ChatMessage(
                 role="assistant",
@@ -148,9 +138,7 @@ class FakeToolCallModelVL:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(
-                            name="final_answer", arguments="The image is a cat."
-                        ),
+                        function=ChatMessageToolCallDefinition(name="final_answer", arguments="The image is a cat."),
                     )
                 ],
             )
@@ -316,17 +304,13 @@ print(result)
 
 class AgentTests(unittest.TestCase):
     def test_fake_single_step_code_agent(self):
-        agent = CodeAgent(
-            tools=[PythonInterpreterTool()], model=fake_code_model_single_step
-        )
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_single_step)
         output = agent.run("What is 2 multiplied by 3.6452?", single_step=True)
         assert isinstance(output, str)
         assert "7.2904" in output
 
     def test_fake_toolcalling_agent(self):
-        agent = ToolCallingAgent(
-            tools=[PythonInterpreterTool()], model=FakeToolCallModel()
-        )
+        agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeToolCallModel())
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, str)
         assert "7.2904" in output
@@ -346,9 +330,7 @@ class AgentTests(unittest.TestCase):
             """
             return Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
 
-        agent = ToolCallingAgent(
-            tools=[fake_image_generation_tool], model=FakeToolCallModelImage()
-        )
+        agent = ToolCallingAgent(tools=[fake_image_generation_tool], model=FakeToolCallModelImage())
         output = agent.run("Make me an image.")
         assert isinstance(output, AgentImage)
         assert isinstance(agent.state["image.png"], Image.Image)
@@ -356,9 +338,7 @@ class AgentTests(unittest.TestCase):
     def test_toolcalling_agent_handles_image_inputs(self):
         from PIL import Image
 
-        image = Image.open(
-            Path(get_tests_dir("fixtures")) / "000000039769.png"
-        )  # dummy input
+        image = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")  # dummy input
 
         @tool
         def fake_image_understanding_tool(prompt: str, image: Image.Image) -> str:
@@ -370,9 +350,7 @@ class AgentTests(unittest.TestCase):
             """
             return "The image is a cat."
 
-        agent = ToolCallingAgent(
-            tools=[fake_image_understanding_tool], model=FakeToolCallModelVL()
-        )
+        agent = ToolCallingAgent(tools=[fake_image_understanding_tool], model=FakeToolCallModelVL())
         output = agent.run("Caption this image.", images=[image])
         assert output == "The image is a cat."
 
@@ -383,9 +361,7 @@ class AgentTests(unittest.TestCase):
         assert output == 7.2904
         assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
         assert agent.memory.steps[2].tool_calls == [
-            ToolCall(
-                name="python_interpreter", arguments="final_answer(7.2904)", id="call_2"
-            )
+            ToolCall(name="python_interpreter", arguments="final_answer(7.2904)", id="call_2")
         ]
 
     def test_additional_args_added_to_task(self):
@@ -416,9 +392,7 @@ class AgentTests(unittest.TestCase):
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, AgentText)
         assert output == "got an error"
-        assert "Code execution failed at line 'error_function()'" in str(
-            agent.memory.steps[1].error
-        )
+        assert "Code execution failed at line 'error_function()'" in str(agent.memory.steps[1].error)
         assert "ValueError" in str(agent.memory.steps)
 
     def test_code_agent_code_error_saves_previous_print_outputs(self):
@@ -427,15 +401,11 @@ class AgentTests(unittest.TestCase):
         assert "Flag!" in str(agent.memory.steps[1].observations)
 
     def test_code_agent_syntax_error_show_offending_lines(self):
-        agent = CodeAgent(
-            tools=[PythonInterpreterTool()], model=fake_code_model_syntax_error
-        )
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_syntax_error)
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, AgentText)
         assert output == "got an error"
-        assert '    print("Failing due to unexpected indent")' in str(
-            agent.memory.steps
-        )
+        assert '    print("Failing due to unexpected indent")' in str(agent.memory.steps)
 
     def test_setup_agent_with_empty_toolbox(self):
         ToolCallingAgent(model=FakeToolCallModel(), tools=[])
@@ -469,9 +439,7 @@ class AgentTests(unittest.TestCase):
     def test_init_agent_with_different_toolsets(self):
         toolset_1 = []
         agent = CodeAgent(tools=toolset_1, model=fake_code_model)
-        assert (
-            len(agent.tools) == 1
-        )  # when no tools are provided, only the final_answer tool is added by default
+        assert len(agent.tools) == 1  # when no tools are provided, only the final_answer tool is added by default
 
         toolset_2 = [PythonInterpreterTool(), PythonInterpreterTool()]
         agent = CodeAgent(tools=toolset_2, model=fake_code_model)
@@ -514,9 +482,7 @@ class AgentTests(unittest.TestCase):
         assert "You can also give requests to team members." not in agent.system_prompt
         print("ok1")
         assert "{{managed_agents_descriptions}}" not in agent.system_prompt
-        assert (
-            "You can also give requests to team members." in manager_agent.system_prompt
-        )
+        assert "You can also give requests to team members." in manager_agent.system_prompt
 
     def test_code_agent_missing_import_triggers_advice_in_error_log(self):
         agent = CodeAgent(tools=[], model=fake_code_model_import)
@@ -691,16 +657,8 @@ nested_answer()
         assert agent.memory.steps[0].task == "What's the weather in Paris?"
         assert agent.memory.steps[1].tool_calls[0].name == "get_weather"
         step_memory_dict = agent.memory.get_succinct_steps()[1]
-        assert (
-            step_memory_dict["model_output_message"].tool_calls[0].function.name
-            == "get_weather"
-        )
-        assert (
-            step_memory_dict["model_output_message"].raw["completion_kwargs"][
-                "max_new_tokens"
-            ]
-            == 100
-        )
+        assert step_memory_dict["model_output_message"].tool_calls[0].function.name == "get_weather"
+        assert step_memory_dict["model_output_message"].raw["completion_kwargs"]["max_new_tokens"] == 100
         assert "model_input_messages" in agent.memory.get_full_steps()[1]
 
 
@@ -780,9 +738,7 @@ class TestOutlinesAgent:
 
         model_name = "meta-llama/Llama-3.2-3B-Instruct"
         outlines_model = OutlinesModel(model_name)
-        agent = OutlinesAgent(
-            tools=[RetrieveCharacter()], model=outlines_model, max_steps=2
-        )
+        agent = OutlinesAgent(tools=[RetrieveCharacter()], model=outlines_model, max_steps=2)
         agent.run("Find the id of the character Romeo")
         # verify that 113 is printed
         assert "113" in str(agent.write_memory_to_messages())
