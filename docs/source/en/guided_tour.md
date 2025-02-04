@@ -395,6 +395,12 @@ agent = CodeAgent(tools=[image_generation_tool], model=model)
 GradioUI(agent).launch()
 ```
 
+If you prefer to keep this private and not accessible via a public link, you can set `share=False`:
+
+```py
+GradioUI(agent).launch(share=False)
+```
+
 Under the hood, when the user types a new answer, the agent is launched with `agent.run(user_request, reset=False)`.
 The `reset=False` flag means the agent's memory is not flushed before launching this new task, which lets the conversation go on.
 
