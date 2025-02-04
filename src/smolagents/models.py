@@ -435,7 +435,14 @@ class MLXModel(Model):
     ...     model_id="mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
     ...     max_tokens=10000,
     ... )
-    >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
+    >>> messages = [
+    ...     {
+    ...         "role": "user", 
+    ...         "content": [
+    ...             {"type": "text", "text": "Explain quantum mechanics in simple terms."}
+    ...         ]
+    ...     }
+    ... ]
     >>> response = engine(messages, stop_sequences=["END"])
     >>> print(response)
     "Quantum mechanics is the branch of physics that studies..."
@@ -488,6 +495,7 @@ class MLXModel(Model):
         self,
         messages: List[Dict[str, str]],
         stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
@@ -495,11 +503,12 @@ class MLXModel(Model):
             flatten_messages_as_text=True,  # mlx-lm doesn't support vision models
             messages=messages,
             stop_sequences=stop_sequences,
+            grammar=grammar,
             tools_to_call_from=tools_to_call_from,
             **kwargs,
         )
         messages = completion_kwargs.pop("messages")
-        stop_sequences = completion_kwargs.pop("stop", [])
+        prepared_stop_sequences = completion_kwargs.pop("stop", [])
         tools = completion_kwargs.pop("tools", None)
         completion_kwargs.pop("tool_choice", None)
 
@@ -516,7 +525,7 @@ class MLXModel(Model):
         for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
             self.last_output_token_count += 1
             text += _.text
-            for stop_sequence in stop_sequences:
+            for stop_sequence in prepared_stop_sequences:
                 if text.strip().endswith(stop_sequence):
                     text = text[: -len(stop_sequence)]
                     return self._to_message(text, tools_to_call_from)
