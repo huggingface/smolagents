@@ -1181,7 +1181,7 @@ class OutlinesAgent(MultiStepAgent):
         # ... rest of method
         pass
 
-    def step(self, log_entry: ActionStep) -> Union[None, Any]:
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Returns None if the step is not final.
@@ -1193,7 +1193,7 @@ class OutlinesAgent(MultiStepAgent):
         self.input_messages = memory_messages.copy()
 
         # Add new step in logs
-        log_entry.agent_memory = memory_messages.copy()
+        memory_step.model_input_messages = memory_messages.copy()
         try:
             # additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
             # llm_output = self.model(
@@ -1207,12 +1207,6 @@ class OutlinesAgent(MultiStepAgent):
             )
             print("\n\n\nconversation\n", conversation)
 
-            tool_decription_list = "\n- " + "\n- ".join(
-                [
-                    f"{self.tools[tool].name}: {self.tools[tool].description}"
-                    for tool in self.tools
-                ]
-            )
             tool_selection_schema = {
                 "title": "Tool selection",
                 "description": "Chose the best tool to use given the current context.",
@@ -1257,26 +1251,16 @@ class OutlinesAgent(MultiStepAgent):
 
                 llm_output = f"Chose to use the tool `{selected_tool_name}` with the inputs `{tool_inputs}`"
 
-            log_entry.llm_output = llm_output
+            memory_step.model_output_message = llm_output
+            memory_step.model_output = llm_output
         except Exception as e:
             raise AgentGenerationError(
                 f"Error in generating model output:\n{e}", self.logger
             ) from e
 
-        self.logger.log(
-            Group(
-                Rule(
-                    "[italic]Output message of the LLM:",
-                    align="left",
-                    style="orange",
-                ),
-                Syntax(
-                    llm_output,
-                    lexer="markdown",
-                    theme="github-dark",
-                    word_wrap=True,
-                ),
-            ),
+        self.logger.log_markdown(
+            content=llm_output,
+            title="Output message of the LLM:",
             level=LogLevel.DEBUG,
         )
 
@@ -1288,7 +1272,7 @@ class OutlinesAgent(MultiStepAgent):
         #     raise AgentParsingError(error_msg, self.logger)
 
         if selected_tool_name != "final_answer":
-            log_entry.tool_calls = [
+            memory_step.tool_calls = [
                 ToolCall(
                     name="function",
                     arguments=json.dumps(tool_inputs),
@@ -1358,7 +1342,7 @@ class OutlinesAgent(MultiStepAgent):
 
         truncated_output = truncate_content(str(output))
         observation += "Last output from code snippet:\n" + truncated_output
-        log_entry.observations = observation
+        memory_step.observations = observation
 
         execution_outputs_console += [
             Text(
@@ -1367,7 +1351,7 @@ class OutlinesAgent(MultiStepAgent):
             ),
         ]
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
-        log_entry.action_output = output
+        memory_step.action_output = output
         return output if is_final_answer else None
 
     def run(
