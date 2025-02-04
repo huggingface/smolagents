@@ -343,7 +343,7 @@ class Tool:
             space_sdk="gradio",
         )
         repo_id = repo_url.repo_id
-        metadata_update(repo_id, {"tags": ["tool"]}, repo_type="space")
+        metadata_update(repo_id, {"tags": ["tool"]}, repo_type="space", token=token)
 
         with tempfile.TemporaryDirectory() as work_dir:
             # Save all files.

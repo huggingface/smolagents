@@ -42,7 +42,7 @@ agent = CodeAgent(
 )
 
 agent.run(
-    "Return me an image of a cat. Directly use the image provided in your state.",
+    "Calculate how much is 2+2, then return me an image of a cat. Directly use the image provided in your state.",
     additional_args={"cat_image": get_cat_image()},
 )  # Asking to directly return the image from state tests that additional_args are properly sent to server.
 

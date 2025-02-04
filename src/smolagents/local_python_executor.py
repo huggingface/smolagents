@@ -50,8 +50,8 @@ ERRORS = {
     if isinstance(getattr(builtins, name), type) and issubclass(getattr(builtins, name), BaseException)
 }
 
-PRINT_OUTPUTS, DEFAULT_MAX_LEN_OUTPUT = "", 50000
-OPERATIONS_COUNT, MAX_OPERATIONS = 0, 10000000
+DEFAULT_MAX_LEN_OUTPUT = 50000
+MAX_OPERATIONS = 10000000
 
 
 def custom_print(*args):
@@ -112,6 +112,32 @@ BASE_PYTHON_TOOLS = {
     "type": type,
     "complex": complex,
 }
+
+
+class PrintContainer:
+    def __init__(self):
+        self.value = ""
+
+    def append(self, text):
+        self.value += text
+        return self
+
+    def __iadd__(self, other):
+        """Implements the += operator"""
+        self.value += str(other)
+        return self
+
+    def __str__(self):
+        """String representation"""
+        return self.value
+
+    def __repr__(self):
+        """Representation for debugging"""
+        return f"PrintContainer({self.value})"
+
+    def __len__(self):
+        """Implements len() function support"""
+        return len(self.value)
 
 
 class BreakException(Exception):
@@ -215,7 +241,7 @@ def evaluate_while(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> None:
-    max_iterations = 1000
+    max_iterations = 1000000
     iterations = 0
     while evaluate_ast(while_loop.test, state, static_tools, custom_tools, authorized_imports):
         for node in while_loop.body:
@@ -603,10 +629,7 @@ def evaluate_call(
             raise InterpreterError("super() takes at most 2 arguments")
     else:
         if func_name == "print":
-            output = " ".join(map(str, args))
-            global PRINT_OUTPUTS
-            PRINT_OUTPUTS += output + "\n"
-            # cap the number of lines
+            state["_print_outputs"] += " ".join(map(str, args)) + "\n"
             return None
         else:  # Assume it's a callable object
             if (
@@ -1090,6 +1113,42 @@ def evaluate_dictcomp(
     return result
 
 
+def evaluate_delete(
+    delete_node: ast.Delete,
+    state: Dict[str, Any],
+    static_tools: Dict[str, Callable],
+    custom_tools: Dict[str, Callable],
+    authorized_imports: List[str],
+) -> None:
+    """
+    Evaluate a delete statement (del x, del x[y]).
+
+    Args:
+        delete_node: The AST Delete node to evaluate
+        state: The current state dictionary
+        static_tools: Dictionary of static tools
+        custom_tools: Dictionary of custom tools
+        authorized_imports: List of authorized imports
+    """
+    for target in delete_node.targets:
+        if isinstance(target, ast.Name):
+            # Handle simple variable deletion (del x)
+            if target.id in state:
+                del state[target.id]
+            else:
+                raise InterpreterError(f"Cannot delete name '{target.id}': name is not defined")
+        elif isinstance(target, ast.Subscript):
+            # Handle index/key deletion (del x[y])
+            obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
+            index = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
+            try:
+                del obj[index]
+            except (TypeError, KeyError, IndexError) as e:
+                raise InterpreterError(f"Cannot delete index/key: {str(e)}")
+        else:
+            raise InterpreterError(f"Deletion of {type(target).__name__} targets is not supported")
+
+
 def evaluate_ast(
     expression: ast.AST,
     state: Dict[str, Any],
@@ -1117,12 +1176,11 @@ def evaluate_ast(
             The list of modules that can be imported by the code. By default, only a few safe modules are allowed.
             If it contains "*", it will authorize any import. Use this at your own risk!
     """
-    global OPERATIONS_COUNT
-    if OPERATIONS_COUNT >= MAX_OPERATIONS:
+    if state["_operations_count"] >= MAX_OPERATIONS:
         raise InterpreterError(
             f"Reached the max number of operations of {MAX_OPERATIONS}. Maybe there is an infinite loop somewhere in the code, or you're just asking too many calculations."
         )
-    OPERATIONS_COUNT += 1
+    state["_operations_count"] += 1
     if isinstance(expression, ast.Assign):
         # Assignment -> we evaluate the assignment which should update the state
         # We return the variable assigned as it may be used to determine the final result.
@@ -1241,6 +1299,8 @@ def evaluate_ast(
         )
     elif isinstance(expression, ast.Pass):
         return None
+    elif isinstance(expression, ast.Delete):
+        return evaluate_delete(expression, state, static_tools, custom_tools, authorized_imports)
     else:
         # For now we refuse anything else. Let's add things as we need them.
         raise InterpreterError(f"{expression.__class__.__name__} is not supported.")
@@ -1277,7 +1337,7 @@ def evaluate_python_code(
         state (`Dict[str, Any]`):
             A dictionary mapping variable names to values. The `state` should contain the initial inputs but will be
             updated by this function to contain all variables as they are evaluated.
-            The print outputs will be stored in the state under the key 'print_outputs'.
+            The print outputs will be stored in the state under the key "_print_outputs".
     """
     try:
         expression = ast.parse(code)
@@ -1294,10 +1354,8 @@ def evaluate_python_code(
     static_tools = static_tools.copy() if static_tools is not None else {}
     custom_tools = custom_tools if custom_tools is not None else {}
     result = None
-    global PRINT_OUTPUTS
-    PRINT_OUTPUTS = ""
-    global OPERATIONS_COUNT
-    OPERATIONS_COUNT = 0
+    state["_print_outputs"] = PrintContainer()
+    state["_operations_count"] = 0
 
     def final_answer(value):
         raise FinalAnswerException(value)
@@ -1307,16 +1365,22 @@ def evaluate_python_code(
     try:
         for node in expression.body:
             result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
-        state["print_outputs"] = truncate_content(PRINT_OUTPUTS, max_length=max_print_outputs_length)
+        state["_print_outputs"].value = truncate_content(
+            str(state["_print_outputs"]), max_length=max_print_outputs_length
+        )
         is_final_answer = False
         return result, is_final_answer
     except FinalAnswerException as e:
-        state["print_outputs"] = truncate_content(PRINT_OUTPUTS, max_length=max_print_outputs_length)
+        state["_print_outputs"].value = truncate_content(
+            str(state["_print_outputs"]), max_length=max_print_outputs_length
+        )
         is_final_answer = True
         return e.value, is_final_answer
     except Exception as e:
         exception_type = type(e).__name__
-        state["print_outputs"] = truncate_content(PRINT_OUTPUTS, max_length=max_print_outputs_length)
+        state["_print_outputs"].value = truncate_content(
+            str(state["_print_outputs"]), max_length=max_print_outputs_length
+        )
         raise InterpreterError(
             f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {exception_type}:{str(e)}"
         )
@@ -1353,7 +1417,7 @@ class LocalPythonInterpreter:
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
         )
-        logs = self.state["print_outputs"]
+        logs = str(self.state["_print_outputs"])
         return output, logs, is_final_answer
 
 

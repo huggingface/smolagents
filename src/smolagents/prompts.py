@@ -351,7 +351,8 @@ pope_age_search = web_search(query="current pope age")
 print("Pope age as per google search:", pope_age_search)
 ```<end_code>
 Observation:
-Pope age: "The pope Francis is currently 88 years old."
+Pope age as per wikipedia: "The pope Francis is currently 88 years old."
+Pope age as per google search: "The current pope, Francis, just turned 88."
 
 Thought: I know that the pope is 88 years old. Let's compute the result using python code.
 Code:
@@ -513,7 +514,7 @@ You have been submitted this task by your manager.
 Task:
 {task}
 ---
-You're helping your manager solve a wider task: so make sure to not provide a one-line answer, but give as much information as possible to give them a clear understanding of the answer.
+You're helping your manager solve a wider task: so do not just provide a one-line answer, instead give as much information as possible to give them a clear understanding of the answer.
 
 Your final_answer WILL HAVE to contain these parts:
 ### 1. Task outcome (short version):
@@ -522,7 +523,7 @@ Your final_answer WILL HAVE to contain these parts:
 
 Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
 And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
-{{additional_prompting}}"""
+"""
 
 __all__ = [
     "USER_PROMPT_PLAN_UPDATE",

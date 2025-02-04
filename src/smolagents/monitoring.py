@@ -23,7 +23,9 @@ from rich.console import Console, Group
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.syntax import Syntax
+from rich.table import Table
 from rich.text import Text
+from rich.tree import Tree
 
 
 class Monitor:
@@ -161,6 +163,43 @@ class AgentLogger:
                 word_wrap=True,
             )
         )
+
+    def visualize_agent_tree(self, agent):
+        def create_tools_section(tools_dict):
+            table = Table(show_header=True, header_style="bold")
+            table.add_column("Name", style="blue")
+            table.add_column("Description")
+            table.add_column("Arguments")
+
+            for name, tool in tools_dict.items():
+                args = [
+                    f"{arg_name} (`{info.get('type', 'Any')}`{', optional' if info.get('optional') else ''}): {info.get('description', '')}"
+                    for arg_name, info in getattr(tool, "inputs", {}).items()
+                ]
+                table.add_row(name, getattr(tool, "description", str(tool)), "\n".join(args))
+
+            return Group(Text("🛠️ Tools", style="bold italic blue"), table)
+
+        def build_agent_tree(parent_tree, agent_obj):
+            """Recursively builds the agent tree."""
+            if agent_obj.tools:
+                parent_tree.add(create_tools_section(agent_obj.tools))
+
+            if agent_obj.managed_agents:
+                agents_branch = parent_tree.add("[bold italic blue]🤖 Managed agents")
+                for name, managed_agent in agent_obj.managed_agents.items():
+                    agent_node_text = f"[bold {YELLOW_HEX}]{name} - {managed_agent.agent.__class__.__name__}"
+                    agent_tree = agents_branch.add(agent_node_text)
+                    if hasattr(managed_agent, "description"):
+                        agent_tree.add(
+                            f"[bold italic blue]📝 Description:[/bold italic blue] {managed_agent.description}"
+                        )
+                    if hasattr(managed_agent, "agent"):
+                        build_agent_tree(agent_tree, managed_agent.agent)
+
+        main_tree = Tree(f"[bold {YELLOW_HEX}]{agent.__class__.__name__}")
+        build_agent_tree(main_tree, agent)
+        self.console.print(main_tree)
 
 
 __all__ = ["AgentLogger", "Monitor"]

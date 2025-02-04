@@ -25,7 +25,6 @@ from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
     AgentMaxStepsError,
     CodeAgent,
-    ManagedAgent,
     MultiStepAgent,
     OutlinesAgent,
     ToolCall,
@@ -466,22 +465,20 @@ class AgentTests(unittest.TestCase):
         assert res[0] == 0.5
 
     def test_init_managed_agent(self):
-        agent = CodeAgent(tools=[], model=fake_code_functiondef)
-        managed_agent = ManagedAgent(agent, name="managed_agent", description="Empty")
-        assert managed_agent.name == "managed_agent"
-        assert managed_agent.description == "Empty"
+        agent = CodeAgent(tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty")
+        assert agent.name == "managed_agent"
+        assert agent.description == "Empty"
 
     def test_agent_description_gets_correctly_inserted_in_system_prompt(self):
-        agent = CodeAgent(tools=[], model=fake_code_functiondef)
-        managed_agent = ManagedAgent(agent, name="managed_agent", description="Empty")
+        managed_agent = CodeAgent(tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty")
         manager_agent = CodeAgent(
             tools=[],
             model=fake_code_functiondef,
             managed_agents=[managed_agent],
         )
-        assert "You can also give requests to team members." not in agent.system_prompt
+        assert "You can also give requests to team members." not in managed_agent.system_prompt
         print("ok1")
-        assert "{{managed_agents_descriptions}}" not in agent.system_prompt
+        assert "{{managed_agents_descriptions}}" not in managed_agent.system_prompt
         assert "You can also give requests to team members." in manager_agent.system_prompt
 
     def test_code_agent_missing_import_triggers_advice_in_error_log(self):
@@ -588,10 +585,6 @@ final_answer("Final report.")
             tools=[],
             model=managed_model,
             max_steps=10,
-        )
-
-        managed_web_agent = ManagedAgent(
-            agent=web_agent,
             name="search_agent",
             description="Runs web searches for you. Give it your request as an argument. Make the request as detailed as needed, you can ask for thorough reports",
         )
@@ -599,7 +592,7 @@ final_answer("Final report.")
         manager_code_agent = CodeAgent(
             tools=[],
             model=manager_model,
-            managed_agents=[managed_web_agent],
+            managed_agents=[web_agent],
             additional_authorized_imports=["time", "numpy", "pandas"],
         )
 
@@ -609,7 +602,7 @@ final_answer("Final report.")
         manager_toolcalling_agent = ToolCallingAgent(
             tools=[],
             model=manager_model,
-            managed_agents=[managed_web_agent],
+            managed_agents=[web_agent],
         )
 
         report = manager_toolcalling_agent.run("Fake question.")

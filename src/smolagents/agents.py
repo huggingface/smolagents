@@ -149,6 +149,10 @@ class MultiStepAgent:
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
+        name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
+        description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
+        managed_agent_prompt (`str`, *optional*): Custom prompt for the managed agent. Defaults to None.
+        provide_run_summary (`bool`, *optional*): Wether to provide a run summary when called as a managed agent.
     """
 
     def __init__(
@@ -165,6 +169,10 @@ class MultiStepAgent:
         managed_agents: Optional[List] = None,
         step_callbacks: Optional[List[Callable]] = None,
         planning_interval: Optional[int] = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        managed_agent_prompt: Optional[str] = None,
+        provide_run_summary: bool = False,
     ):
         if system_prompt is None:
             system_prompt = CODE_SYSTEM_PROMPT
@@ -181,9 +189,17 @@ class MultiStepAgent:
         self.grammar = grammar
         self.planning_interval = planning_interval
         self.state = {}
+        self.name = name
+        self.description = description
+        self.managed_agent_prompt = managed_agent_prompt if managed_agent_prompt else MANAGED_AGENT_PROMPT
+        self.provide_run_summary = provide_run_summary
 
         self.managed_agents = {}
         if managed_agents is not None:
+            for managed_agent in managed_agents:
+                assert managed_agent.name and managed_agent.description, (
+                    "All managed agents need both a name and a description!"
+                )
             self.managed_agents = {agent.name: agent for agent in managed_agents}
 
         for tool in tools:
@@ -233,6 +249,10 @@ class MultiStepAgent:
         for memory_step in self.memory.steps:
             messages.extend(memory_step.to_messages(summary_mode=summary_mode))
         return messages
+
+    def visualize(self):
+        """Creates a rich tree visualization of the agent's structure."""
+        self.logger.visualize_agent_tree(self)
 
     def extract_action(self, model_output: str, split_token: str) -> Tuple[str, str]:
         """
@@ -348,7 +368,7 @@ class MultiStepAgent:
             if tool_name in self.tools:
                 tool_description = get_tool_description_with_args(available_tools[tool_name])
                 error_msg = (
-                    f"Error in tool call execution: {e}\nYou should only use this tool with a correct input.\n"
+                    f"Error in tool call execution: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
                     f"As a reminder, this tool's description is the following:\n{tool_description}"
                 )
                 raise AgentExecutionError(error_msg, self.logger)
@@ -445,10 +465,10 @@ You have been provided with these additional arguments, that you can access usin
                 observations_images=images,
             )
             try:
-                if self.planning_interval is not None and self.step_number % self.planning_interval == 0:
+                if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
                     self.planning_step(
                         task,
-                        is_first_step=(self.step_number == 0),
+                        is_first_step=(self.step_number == 1),
                         step=self.step_number,
                     )
                 self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
@@ -648,6 +668,22 @@ Now begin!""",
                 Careful: will increase log length exponentially. Use only for debugging.
         """
         self.memory.replay(self.logger, detailed=detailed)
+
+    def __call__(self, request: str, **kwargs):
+        """
+        This methd is called only by a manager agent.
+        Adds additional prompting for the managed agent, runs it, and wraps the output.
+        """
+        full_task = self.managed_agent_prompt.format(name=self.name, task=request).strip()
+        output = self.run(full_task, **kwargs)
+        answer = f"Here is the final answer from your managed agent '{self.name}':\n{str(output)}"
+        if self.provide_run_summary:
+            answer += f"\n\nFor more detail, find below a summary of this agent's work:\nSUMMARY OF WORK FROM AGENT '{self.name}':\n"
+            for message in self.write_memory_to_messages(summary_mode=True):
+                content = message["content"]
+                answer += "\n" + truncate_content(str(content)) + "\n---"
+            answer += f"\nEND OF SUMMARY OF WORK FROM AGENT '{self.name}'."
+        return answer
 
 
 class ToolCallingAgent(MultiStepAgent):
@@ -907,8 +943,8 @@ class CodeAgent(MultiStepAgent):
                 ]
             observation = "Execution logs:\n" + execution_logs
         except Exception as e:
-            if "print_outputs" in self.python_executor.state:
-                execution_logs = self.python_executor.state["print_outputs"]
+            if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
+                execution_logs = str(self.python_executor.state["_print_outputs"])
                 if len(execution_logs) > 0:
                     execution_outputs_console = [
                         Text("Execution logs:", style="bold"),

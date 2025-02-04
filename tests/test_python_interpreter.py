@@ -35,19 +35,25 @@ def add_two(x):
 
 
 class PythonInterpreterTester(unittest.TestCase):
+    def assertDictEqualNoPrint(self, dict1, dict2):
+        return self.assertDictEqual(
+            {k: v for k, v in dict1.items() if k != "_print_outputs"},
+            {k: v for k, v in dict2.items() if k != "_print_outputs"},
+        )
+
     def test_evaluate_assign(self):
         code = "x = 3"
         state = {}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 3
-        self.assertDictEqual(state, {"x": 3, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": 2})
 
         code = "x = y"
         state = {"y": 5}
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 5
-        self.assertDictEqual(state, {"x": 5, "y": 5, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 5, "y": 5, "_operations_count": 2})
 
         code = "a=1;b=None"
         result, _ = evaluate_python_code(code, {}, state={})
@@ -73,7 +79,7 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqual(state, {"x": 3, "y": 5, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": 3})
 
         # Should not work without the tool
         with pytest.raises(InterpreterError) as e:
@@ -85,14 +91,14 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 3
-        self.assertDictEqual(state, {"x": 3, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": 2})
 
     def test_evaluate_dict(self):
         code = "test_dict = {'x': x, 'y': add_two(x)}"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         self.assertDictEqual(result, {"x": 3, "y": 5})
-        self.assertDictEqual(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 7})
 
     def test_evaluate_expression(self):
         code = "x = 3\ny = 5"
@@ -100,7 +106,7 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 5
-        self.assertDictEqual(state, {"x": 3, "y": 5, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": 4})
 
     def test_evaluate_f_string(self):
         code = "text = f'This is x: {x}.'"
@@ -108,7 +114,7 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == "This is x: 3."
-        self.assertDictEqual(state, {"x": 3, "text": "This is x: 3.", "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "text": "This is x: 3.", "_operations_count": 6})
 
     def test_evaluate_if(self):
         code = "if x <= 3:\n    y = 2\nelse:\n    y = 5"
@@ -116,40 +122,40 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 2
-        self.assertDictEqual(state, {"x": 3, "y": 2, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 2, "_operations_count": 6})
 
         state = {"x": 8}
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 5
-        self.assertDictEqual(state, {"x": 8, "y": 5, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 8, "y": 5, "_operations_count": 6})
 
     def test_evaluate_list(self):
         code = "test_list = [x, add_two(x)]"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         self.assertListEqual(result, [3, 5])
-        self.assertDictEqual(state, {"x": 3, "test_list": [3, 5], "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 5})
 
     def test_evaluate_name(self):
         code = "y = x"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 3
-        self.assertDictEqual(state, {"x": 3, "y": 3, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 3, "_operations_count": 2})
 
     def test_evaluate_subscript(self):
         code = "test_list = [x, add_two(x)]\ntest_list[1]"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqual(state, {"x": 3, "test_list": [3, 5], "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 9})
 
         code = "test_dict = {'x': x, 'y': add_two(x)}\ntest_dict['y']"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqual(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 11})
 
         code = "vendor = {'revenue': 31000, 'rent': 50312}; vendor['ratio'] = round(vendor['revenue'] / vendor['rent'], 2)"
         state = {}
@@ -173,14 +179,14 @@ for result in search_results:
         state = {}
         result, _ = evaluate_python_code(code, {"range": range}, state=state)
         assert result == 2
-        self.assertDictEqual(state, {"x": 2, "i": 2, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": 11})
 
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 9
-        self.assertDictEqual(state, {"x": 3, "y": 6, "print_outputs": ""})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 6, "_operations_count": 4})
 
     def test_recursive_function(self):
         code = """
@@ -377,7 +383,7 @@ if char.isalpha():
     print('2')"""
         state = {}
         evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
-        assert state["print_outputs"] == "2\n"
+        assert state["_print_outputs"].value == "2\n"
 
     def test_imports(self):
         code = "import math\nmath.sqrt(4)"
@@ -456,9 +462,9 @@ if char.isalpha():
         state = {}
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
         assert result is None
-        assert state["print_outputs"] == "Hello world!\nOk no one cares\n"
+        assert state["_print_outputs"].value == "Hello world!\nOk no one cares\n"
 
-        # test print in function
+        # Test print in function (state copy)
         code = """
 print("1")
 def function():
@@ -466,7 +472,17 @@ def function():
 function()"""
         state = {}
         evaluate_python_code(code, {"print": print}, state=state)
-        assert state["print_outputs"] == "1\n2\n"
+        assert state["_print_outputs"].value == "1\n2\n"
+
+        # Test print in list comprehension (state copy)
+        code = """
+print("1")
+def function():
+    print("2")
+[function() for i in range(10)]"""
+        state = {}
+        evaluate_python_code(code, {"print": print, "range": range}, state=state)
+        assert state["_print_outputs"].value == "1\n2\n2\n2\n2\n2\n2\n2\n2\n2\n2\n"
 
     def test_tuple_target_in_iterator(self):
         code = "for a, b in [('Ralf Weikert', 'Austria'), ('Samuel Seungwon Lee', 'South Korea')]:res = a.split()[0]"
@@ -588,7 +604,7 @@ except ValueError as e:
         code = "print(min([1, 2, 3]))"
         state = {}
         evaluate_python_code(code, {"min": min, "print": print}, state=state)
-        assert state["print_outputs"] == "1\n"
+        assert state["_print_outputs"].value == "1\n"
 
     def test_types_as_objects(self):
         code = "type_a = float(2); type_b = str; type_c = int"
