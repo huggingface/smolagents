@@ -655,6 +655,13 @@ nested_answer()
 
 
 class TestMultiStepAgent:
+    def test_step_number(self):
+        fake_model = MagicMock()
+        agent = MultiStepAgent(tools=[], model=fake_model)
+        agent.run("Test task", single_step=True)
+        assert hasattr(agent, "step_number"), "step_number attribute should be defined"
+        assert agent.step_number == 1, "step_number should be set to 1 after run method is called"
+
     def test_planning_step_first_step(self):
         fake_model = MagicMock()
         agent = MultiStepAgent(
