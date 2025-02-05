@@ -30,16 +30,22 @@ from .local_python_executor import (
     evaluate_python_code,
 )
 from .tools import TOOL_CONFIG_FILE, PipelineTool, Tool
-from .types import AgentAudio
+from .types import AgentAudio, AgentImage
 
 if is_torch_available():
     from transformers.models.whisper import (
         WhisperForConditionalGeneration,
         WhisperProcessor,
     )
+    from transformers.models.got_ocr2 import (
+        GotOcr2Processor,
+        GotOcr2ForConditionalGeneration,
+    )
 else:
     WhisperForConditionalGeneration = object
     WhisperProcessor = object
+    GotOcr2Processor = object
+    GotOcr2ForConditionalGeneration = object
 
 
 @dataclass
@@ -329,34 +335,36 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
-class PDFParsingTool(Tool):
+class PDFParsingTool(PipelineTool):
     name = "pdf_parser"
-    description = """Parses a given PDF into markdown."""
+    description = "A tool that parses a given PDF into markdown."
     inputs = {
         "image": {"type": "image", "description": "The path to PDF to be parsed."},
     }
     output_type = "string"
+    default_checkpoint = "stepfun-ai/GOT-OCR-2.0-hf"
+    pre_processor_class = GotOcr2Processor
+    model_class = GotOcr2ForConditionalGeneration
 
-    def __init__(self):
-        super().__init__(self)
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            "ucaslcl/GOT-OCR2_0", trust_remote_code=True
-        )
-        self.model = (
-            AutoModel.from_pretrained(
-                "ucaslcl/GOT-OCR2_0",
-                trust_remote_code=True,
-                low_cpu_mem_usage=True,
-                device_map="cuda",
-                use_safetensors=True,
-            )
-            .eval()
-            .cuda()
+    def encode(self, image):
+        image = AgentImage(image).to_raw()
+        self.inputs = self.pre_processor(image, return_tensors="pt", format=True)
+        return self.inputs
+
+    def forward(self, image):
+        self.inputs = self.encode(image)
+        return self.model.generate(
+            self.inputs,
+            do_sample=False,
+            tokenizer=self.pre_processor.tokenizer,
+            return_tensors="pt",
+            stop_strings="<|im_end|>",
         )
 
-    def forward(self, image) -> str:
-        res = self.model.chat(self.tokenizer, image, ocr_type="format", render=True)
-        return res
+    def decode(self, outputs):
+        return self.pre_processor.batch_decode(
+            outputs[0, self.inputs["input_ids"].shape[1] :], skip_special_tokens=True
+        )[0]
 
 
 TOOL_MAPPING = {
@@ -365,6 +373,7 @@ TOOL_MAPPING = {
         PythonInterpreterTool,
         DuckDuckGoSearchTool,
         VisitWebpageTool,
+        PDFParsingTool,
     ]
 }
 
