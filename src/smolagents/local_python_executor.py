@@ -1067,7 +1067,9 @@ def import_modules(expression, state, authorized_imports):
                     else:
                         raise InterpreterError(f"Module {expression.module} has no attribute {alias.name}")
         else:
-            raise InterpreterError(f"Import from {expression.module} is not allowed.")
+            raise InterpreterError(
+                f"Import from {expression.module} is not allowed. Authorized imports are: {str(authorized_imports)}"
+            )
         return None
 
 
