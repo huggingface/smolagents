@@ -481,7 +481,8 @@ class AgentTests(unittest.TestCase):
         assert "You can also give requests to team members." in manager_agent.system_prompt
 
     def test_code_agent_missing_import_triggers_advice_in_error_log(self):
-        agent = CodeAgent(tools=[], model=fake_code_model_import)
+        # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
+        agent = CodeAgent(tools=[], model=fake_code_model_import, verbosity_level=1)
 
         with agent.logger.console.capture() as capture:
             agent.run("Count to 3")
