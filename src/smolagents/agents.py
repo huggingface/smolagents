@@ -176,6 +176,7 @@ class MultiStepAgent:
             tool_description_template if tool_description_template else DEFAULT_TOOL_DESCRIPTION_TEMPLATE
         )
         self.max_steps = max_steps
+        self.step_number: int = 0
         self.tool_parser = tool_parser
         self.grammar = grammar
         self.planning_interval = planning_interval
