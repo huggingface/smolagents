@@ -655,6 +655,11 @@ nested_answer()
 
 
 class TestMultiStepAgent:
+    def test_logging_to_terminal_is_disabled(self):
+        fake_model = MagicMock()
+        agent = MultiStepAgent(tools=[], model=fake_model)
+        assert agent.logger.level == -1, "logging to terminal should be disabled for testing using a fixture"
+
     def test_step_number(self):
         fake_model = MagicMock()
         agent = MultiStepAgent(tools=[], model=fake_model)
