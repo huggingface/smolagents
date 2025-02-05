@@ -340,14 +340,16 @@ class OCRTool(PipelineTool):
     description = "A tool that parses a document into markdown text. It can be used to parse PDF, image, or any other document. It returns the text of the document."
     inputs = {
         "image": {"type": "image", "description": "The path to file to be parsed."},
+        "multi_page": {"type": "boolean", "description": "Whether the document is a multi-page document."},
+        "format": {"type": "boolean", "description": "Whether the document has different structure, e.g. charts, tables, etc."},
     }
     output_type = "string"
     default_checkpoint = "stepfun-ai/GOT-OCR-2.0-hf"
     pre_processor_class = GotOcr2Processor
     model_class = GotOcr2ForConditionalGeneration
 
-    def encode(self, image):
-        self.inputs = self.pre_processor(image, return_tensors="pt").to(self.device)
+    def encode(self, image, multi_page, format):
+        self.inputs = self.pre_processor(image, return_tensors="pt", multi_page=multi_page, format=format).to(self.device)
         return self.inputs
 
     def forward(self, image):
@@ -361,7 +363,7 @@ class OCRTool(PipelineTool):
         return outputs
 
     def decode(self, outputs):
-        decoded_output = self.pre_processor.batch_decode(
+        decoded_output = self.pre_processor.decode(
             outputs[0, self.inputs["input_ids"].shape[1]:], skip_special_tokens=True
         )
         print("decoded_output", decoded_output)
