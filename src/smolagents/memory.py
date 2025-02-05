@@ -190,12 +190,12 @@ class SystemPromptStep(MemoryStep):
 
 
 class AgentMemory:
-    def __init__(self, system_prompt: str):
-        self.system_prompt = SystemPromptStep(system_prompt=system_prompt)
-        self.steps: List[Union[TaskStep, ActionStep, PlanningStep]] = []
+    def __init__(self, init_steps: List[MemoryStep]):
+        self.init_steps = init_steps
+        self.steps: List[MemoryStep] = init_steps
 
     def reset(self):
-        self.steps = []
+        self.steps = self.init_steps
 
     def get_succinct_steps(self) -> list[dict]:
         return [
