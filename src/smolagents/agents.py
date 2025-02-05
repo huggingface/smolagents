@@ -423,6 +423,7 @@ You have been provided with these additional arguments, that you can access usin
 
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
         if single_step:
+            self.step_number = 1
             step_start_time = time.time()
             memory_step = ActionStep(start_time=step_start_time, observations_images=images)
             memory_step.end_time = time.time()
