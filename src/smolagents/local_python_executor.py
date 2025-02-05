@@ -33,25 +33,6 @@ from .utils import BASE_BUILTIN_MODULES, truncate_content
 
 
 logger = logging.getLogger(__name__)
-DANGEROUS_PATTERNS = (
-    "_os",
-    "os",
-    "subprocess",
-    "_subprocess",
-    "pty",
-    "system",
-    "popen",
-    "spawn",
-    "shutil",
-    "sys",
-    "pathlib",
-    "io",
-    "socket",
-    "compile",
-    "eval",
-    "exec",
-    "multiprocessing",
-)
 
 
 class InterpreterError(ValueError):
@@ -132,6 +113,26 @@ BASE_PYTHON_TOOLS = {
     "type": type,
     "complex": complex,
 }
+
+DANGEROUS_PATTERNS = (
+    "_os",
+    "os",
+    "subprocess",
+    "_subprocess",
+    "pty",
+    "system",
+    "popen",
+    "spawn",
+    "shutil",
+    "sys",
+    "pathlib",
+    "io",
+    "socket",
+    "compile",
+    "eval",
+    "exec",
+    "multiprocessing",
+)
 
 
 class PrintContainer:
