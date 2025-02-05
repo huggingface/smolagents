@@ -335,11 +335,11 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
-class PDFParsingTool(PipelineTool):
-    name = "pdf_parser"
-    description = "A tool that parses a given PDF into markdown."
+class OCRTool(PipelineTool):
+    name = "ocr"
+    description = "A tool that parses a given document into markdown text."
     inputs = {
-        "image": {"type": "image", "description": "The path to PDF to be parsed."},
+        "image": {"type": "image", "description": "The path to file to be parsed."},
     }
     output_type = "string"
     default_checkpoint = "stepfun-ai/GOT-OCR-2.0-hf"
@@ -347,8 +347,8 @@ class PDFParsingTool(PipelineTool):
     model_class = GotOcr2ForConditionalGeneration
 
     def encode(self, image):
-        image = AgentImage(image).to_raw()
-        self.inputs = self.pre_processor(image, return_tensors="pt", format=True)
+        image = AgentImage(image)
+        self.inputs = self.pre_processor(image, return_tensors="pt")
         return self.inputs
 
     def forward(self, image):
@@ -373,7 +373,7 @@ TOOL_MAPPING = {
         PythonInterpreterTool,
         DuckDuckGoSearchTool,
         VisitWebpageTool,
-        PDFParsingTool,
+        OCRTool,
     ]
 }
 
@@ -385,5 +385,5 @@ __all__ = [
     "GoogleSearchTool",
     "VisitWebpageTool",
     "SpeechToTextTool",
-    "PDFParsingTool",
+    "OCRTool",
 ]
