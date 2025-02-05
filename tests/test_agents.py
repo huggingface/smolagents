@@ -658,7 +658,7 @@ class TestMultiStepAgent:
     def test_step_number(self):
         fake_model = MagicMock()
         agent = MultiStepAgent(tools=[], model=fake_model)
-        assert hasattr(agent, 'step_number'), "step_number attribute should be defined"
+        assert hasattr(agent, "step_number"), "step_number attribute should be defined"
         assert agent.step_number == 0, "step_number should be initialized to 0"
         agent.run("Test task", single_step=True)
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
