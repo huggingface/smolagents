@@ -258,7 +258,7 @@ class GradioUI:
             "",
         )
 
-    def launch(self, share: bool = True, **kwargs):
+    def launch(self, share: bool = False, **kwargs):
         import gradio as gr
 
         with gr.Blocks(fill_height=True) as demo:
