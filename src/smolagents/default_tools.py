@@ -245,6 +245,61 @@ class VisitWebpageTool(Tool):
             return f"An unexpected error occurred: {str(e)}"
 
 
+class WikipediaSearchTool(Tool):
+    """
+    WikipediaSearchTool searches Wikipedia and returns a summary of the given topic, along with the page URL.
+
+    Attributes:
+        user_agent (str): A custom user-agent string to identify the project.
+        language (str): The language in which to retrieve Wikipedia articles.
+
+    Example:
+        >>> from smolagents import CodeAgent, HfApiModel, WikipediaSearchTool
+        >>> agent = CodeAgent(
+        >>>     tools=[WikipediaSearchTool(user_agent="MyResearchBot (myemail@example.com)", language="en")],
+        >>>     model=HfApiModel(),
+        >>> )
+        >>> agent.run("Python_(programming_language)")
+    """
+
+    name = "wikipedia_search"
+    description = "Searches Wikipedia and returns a summary of the given topic, along with the page URL."
+    inputs = {"query": {"type": "string", "description": "The topic to search on Wikipedia."}}
+    output_type = "string"
+
+    def __init__(self, user_agent: str, language: str = "en"):
+        super().__init__()
+        try:
+            import wikipediaapi
+        except ImportError as e:
+            raise ImportError(
+                "You must install `wikipedia-api` to run this tool: for instance run `pip install wikipedia-api`"
+            ) from e
+        if not user_agent:
+            raise ValueError("User-agent is required. Provide a meaningful identifier for your project.")
+
+        self.user_agent = user_agent
+        self.language = language
+
+        self.wiki = wikipediaapi.Wikipedia(user_agent=self.user_agent, language=self.language)
+
+    def forward(self, query: str) -> str:
+        try:
+            page = self.wiki.page(query)
+
+            if not page.exists():
+                return f"No Wikipedia page found for '{query}'. Try a different query."
+
+            title = page.title
+            summary = page.summary
+            url = page.fullurl
+
+            return f"**Wikipedia Page:** {title}\n\n**Summary:** {summary}...\n\n**Read more:** {url}"
+
+        except Exception as e:
+            return f"Error fetching Wikipedia summary: {str(e)}"
+
+
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
@@ -294,5 +349,6 @@ __all__ = [
     "DuckDuckGoSearchTool",
     "GoogleSearchTool",
     "VisitWebpageTool",
+    "WikipediaSearchTool",
     "SpeechToTextTool",
 ]
