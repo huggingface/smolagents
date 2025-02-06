@@ -69,6 +69,7 @@ class Monitor:
 
 
 class LogLevel(IntEnum):
+    OFF = -1  # No output
     ERROR = 0  # Only errors
     INFO = 1  # Normal output (default)
     DEBUG = 2  # Detailed output
