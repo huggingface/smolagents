@@ -659,7 +659,7 @@ Now begin!""",
     def __call__(self, request: str, **kwargs):
         """Adds additional prompting for the managed agent, runs it, and wraps the output.
 
-        This method is called only by a manager agent.
+        This method is called only by a managed agent.
         """
         full_task = self.managed_agent_prompt.format(name=self.name, task=request).strip()
         output = self.run(full_task, **kwargs)
