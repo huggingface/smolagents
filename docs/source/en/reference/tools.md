@@ -49,17 +49,29 @@ contains the API docs for the underlying classes.
 
 [[autodoc]] PythonInterpreterTool
 
+### FinalAnswerTool
+
+[[autodoc]] FinalAnswerTool
+
+### UserInputTool
+
+[[autodoc]] UserInputTool
+
 ### DuckDuckGoSearchTool
 
 [[autodoc]] DuckDuckGoSearchTool
+
+### GoogleSearchTool
+
+[[autodoc]] GoogleSearchTool
 
 ### VisitWebpageTool
 
 [[autodoc]] VisitWebpageTool
 
-### UserInputTool
+### SpeechToTextTool
 
-[[autodoc]] UserInputTool
+[[autodoc]] SpeechToTextTool
 
 ## ToolCollection
 
