@@ -928,7 +928,7 @@ shift_intervals
         code = "import random;random._os.system('echo bad command passed')"
         with pytest.raises(InterpreterError) as e:
             evaluate_python_code(code)
-        assert "AttributeError:module 'random' has no attribute '_os'" in str(e)
+        assert "AttributeError: module 'random' has no attribute '_os'" in str(e)
 
         code = "import doctest;doctest.inspect.os.system('echo bad command passed')"
         with pytest.raises(InterpreterError):
