@@ -46,6 +46,7 @@ from smolagents.utils import (
 from .agent_types import AgentType
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .e2b_executor import E2BExecutor
+from .riza_executor import RizaExecutor
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
     LocalPythonInterpreter,
@@ -799,7 +800,7 @@ class CodeAgent(MultiStepAgent):
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
-        use_e2b_executor (`bool`, default `False`): Whether to use the E2B executor for remote code execution.
+        python_executor (`str`, *optional*): The Python executor to use. Either `"local"` (the default), `"e2b"` or `"riza"`.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         **kwargs: Additional keyword arguments.
 
@@ -813,7 +814,7 @@ class CodeAgent(MultiStepAgent):
         grammar: Optional[Dict[str, str]] = None,
         additional_authorized_imports: Optional[List[str]] = None,
         planning_interval: Optional[int] = None,
-        use_e2b_executor: bool = False,
+        python_executor: Optional[str] = None,
         max_print_outputs_length: Optional[int] = None,
         **kwargs,
     ):
@@ -838,17 +839,27 @@ class CodeAgent(MultiStepAgent):
                 0,
             )
 
-        if use_e2b_executor and len(self.managed_agents) > 0:
+        if python_executor is None:
+            python_executor = "local"
+
+        if python_executor != "local" and len(self.managed_agents) > 0:
             raise Exception(
-                f"You passed both {use_e2b_executor=} and some managed agents. Managed agents is not yet supported with remote code execution."
+                f"You passed both {python_executor=} and some managed agents. Managed agents is not yet supported with remote code execution."
             )
 
         all_tools = {**self.tools, **self.managed_agents}
-        if use_e2b_executor:
+
+        if python_executor == "e2b":
             self.python_executor = E2BExecutor(
                 self.additional_authorized_imports,
                 list(all_tools.values()),
                 self.logger,
+            )
+        elif python_executor == "riza":
+            self.python_executor = RizaExecutor(
+                self.additional_authorized_imports,
+                self.tools,
+                self.logger
             )
         else:
             self.python_executor = LocalPythonInterpreter(
