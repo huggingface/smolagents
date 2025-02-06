@@ -24,6 +24,7 @@ from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     InterpreterError,
     PrintContainer,
+    check_module_authorized,
     evaluate_python_code,
     fix_final_answer_code,
     get_safe_module,
@@ -1139,3 +1140,39 @@ class TestPrintContainer:
         pc = PrintContainer()
         pc.append("Hello")
         assert len(pc) == 5
+
+
+@pytest.mark.parametrize(
+    "module,authorized_imports,expected",
+    [
+        ("os", ["*"], True),
+        ("AnyModule", ["*"], True),
+        ("os", ["os"], True),
+        ("AnyModule", ["AnyModule"], True),
+        ("Module.os", ["Module"], False),
+        ("Module.os", ["Module", "os"], True),
+        ("os.path", ["os"], True),
+        ("os", ["os.path"], False),
+    ],
+)
+def test_check_module_authorized(module: str, authorized_imports: list[str], expected: bool):
+    dangerous_patterns = (
+        "_os",
+        "os",
+        "subprocess",
+        "_subprocess",
+        "pty",
+        "system",
+        "popen",
+        "spawn",
+        "shutil",
+        "sys",
+        "pathlib",
+        "io",
+        "socket",
+        "compile",
+        "eval",
+        "exec",
+        "multiprocessing",
+    )
+    assert check_module_authorized(module, authorized_imports, dangerous_patterns) == expected
