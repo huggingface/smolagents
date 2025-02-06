@@ -23,6 +23,7 @@ import pytest
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     InterpreterError,
+    PrintContainer,
     evaluate_python_code,
     fix_final_answer_code,
     get_safe_module,
@@ -1107,3 +1108,34 @@ def test_get_safe_module_handle_lazy_imports():
     safe_module = get_safe_module(fake_module, dangerous_patterns=[], authorized_imports=set())
     assert not hasattr(safe_module, "lazy_attribute")
     assert getattr(safe_module, "non_lazy_attribute") == "ok"
+
+
+class TestPrintContainer:
+    def test_initial_value(self):
+        pc = PrintContainer()
+        assert pc.value == ""
+
+    def test_append(self):
+        pc = PrintContainer()
+        pc.append("Hello")
+        assert pc.value == "Hello"
+
+    def test_iadd(self):
+        pc = PrintContainer()
+        pc += "World"
+        assert pc.value == "World"
+
+    def test_str(self):
+        pc = PrintContainer()
+        pc.append("Hello")
+        assert str(pc) == "Hello"
+
+    def test_repr(self):
+        pc = PrintContainer()
+        pc.append("Hello")
+        assert repr(pc) == "PrintContainer(Hello)"
+
+    def test_len(self):
+        pc = PrintContainer()
+        pc.append("Hello")
+        assert len(pc) == 5
