@@ -1302,7 +1302,7 @@ def test_get_safe_module_handle_lazy_imports():
             return super().__dir__() + ["lazy_attribute"]
 
     fake_module = FakeModule("fake_module")
-    safe_module = get_safe_module(fake_module, dangerous_patterns=[], authorized_imports=set())
+    safe_module = get_safe_module(fake_module, authorized_imports=set())
     assert not hasattr(safe_module, "lazy_attribute")
     assert getattr(safe_module, "non_lazy_attribute") == "ok"
 
