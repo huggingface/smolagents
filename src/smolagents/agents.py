@@ -143,7 +143,7 @@ class MultiStepAgent:
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
         managed_agent_prompt (`str`, *optional*): Custom prompt for the managed agent. Defaults to None.
-        provide_run_summary (`bool`, *optional*): Wether to provide a run summary when called as a managed agent.
+        provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
     """
 
     def __init__(
@@ -658,7 +658,7 @@ Now begin!""",
 
     def __call__(self, request: str, **kwargs):
         """
-        This methd is called only by a manager agent.
+        This method is called only by a manager agent.
         Adds additional prompting for the managed agent, runs it, and wraps the output.
         """
         full_task = self.managed_agent_prompt.format(name=self.name, task=request).strip()
