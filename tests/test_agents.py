@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.agent_types import AgentImage, AgentText
@@ -713,3 +714,22 @@ class TestMultiStepAgent:
                     assert isinstance(content, dict)
                     assert "type" in content
                     assert "text" in content
+
+    @pytest.mark.parametrize("provide_run_summary", [False, True])
+    def test_call_with_provide_run_summary(self, provide_run_summary):
+        agent = MultiStepAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
+        assert agent.provide_run_summary is provide_run_summary
+        agent.managed_agent_prompt = "Task: {task}"
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+        agent.write_memory_to_messages = MagicMock(return_value=[{"content": "Test summary"}])
+
+        result = agent("Test request")
+        expected_summary = "Here is the final answer from your managed agent 'test_agent':\nTest output"
+        if provide_run_summary:
+            expected_summary += (
+                "\n\nFor more detail, find below a summary of this agent's work:\n"
+                "SUMMARY OF WORK FROM AGENT 'test_agent':\n\nTest summary\n---\n"
+                "END OF SUMMARY OF WORK FROM AGENT 'test_agent'."
+            )
+        assert result == expected_summary
