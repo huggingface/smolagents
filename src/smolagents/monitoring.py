@@ -28,6 +28,9 @@ from rich.text import Text
 from rich.tree import Tree
 
 
+__all__ = ["AgentLogger", "LogLevel", "Monitor"]
+
+
 class Monitor:
     def __init__(self, tracked_model, logger):
         self.step_durations = []
@@ -201,6 +204,3 @@ class AgentLogger:
         main_tree = Tree(f"[bold {YELLOW_HEX}]{agent.__class__.__name__}")
         build_agent_tree(main_tree, agent)
         self.console.print(main_tree)
-
-
-__all__ = ["AgentLogger", "Monitor"]
