@@ -974,6 +974,10 @@ texec(tcompile("1 + 1", "no filename", "exec"))
         dangerous_code = "import os; os.listdir('./')"
         evaluate_python_code(dangerous_code, authorized_imports=["os"])
 
+    def test_can_import_os_if_all_imports_authorized(self):
+        dangerous_code = "import os; os.listdir('./')"
+        evaluate_python_code(dangerous_code, authorized_imports=["*"])
+
 
 @pytest.mark.parametrize(
     "code, expected_result",
