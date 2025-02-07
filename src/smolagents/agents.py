@@ -125,6 +125,7 @@ class MultiStepAgent:
             tool_parser = parse_json_tool_call
         self.agent_name = self.__class__.__name__
         self.model = model
+        self.prompts_path = prompts_path
         self.max_steps = max_steps
         self.step_number: int = 0
         self.tool_parser = tool_parser
@@ -646,8 +647,8 @@ class ToolCallingAgent(MultiStepAgent):
         planning_interval: Optional[int] = None,
         **kwargs,
     ):
-        yaml_path = os.path.join(os.path.dirname(__file__), "prompts", "toolcalling_agent.yaml")
-        with open(yaml_path, "r") as f:
+        prompts_path = prompts_path or os.path.join(os.path.dirname(__file__), "prompts", "toolcalling_agent.yaml")
+        with open(prompts_path, "r") as f:
             self.prompt_templates = yaml.safe_load(f)
         super().__init__(
             tools=tools,
@@ -779,12 +780,13 @@ class CodeAgent(MultiStepAgent):
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        yaml_path = os.path.join(os.path.dirname(__file__), "prompts", "code_agent.yaml")
-        with open(yaml_path, "r") as f:
+        prompts_path = prompts_path or os.path.join(os.path.dirname(__file__), "prompts", "code_agent.yaml")
+        with open(prompts_path, "r") as f:
             self.prompt_templates = yaml.safe_load(f)
         super().__init__(
             tools=tools,
             model=model,
+            prompts_path=prompts_path,
             grammar=grammar,
             planning_interval=planning_interval,
             **kwargs,
