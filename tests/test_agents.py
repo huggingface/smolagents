@@ -665,10 +665,18 @@ nested_answer()
 
 
 class TestMultiStepAgent:
-    def test_logging_to_terminal_is_disabled(self):
+    def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
         agent = MultiStepAgent(tools=[], model=fake_model)
         assert agent.logger.level == -1, "logging to terminal should be disabled for testing using a fixture"
+
+    def test_instantiation_with_prompt_templates(self, prompt_templates):
+        agent = MultiStepAgent(tools=[], model=MagicMock(), prompt_templates=prompt_templates)
+        assert agent.prompt_templates == prompt_templates
+        assert agent.prompt_templates["system_prompt"] == "This is a test system prompt."
+        assert "managed_agent" in agent.prompt_templates
+        assert agent.prompt_templates["managed_agent"]["task"] == "Task for {{name}}: {{task}}"
+        assert agent.prompt_templates["managed_agent"]["report"] == "Report for {{name}}: {{final_answer}}"
 
     def test_step_number(self):
         fake_model = MagicMock()
@@ -744,3 +752,11 @@ class TestMultiStepAgent:
                 "END OF SUMMARY OF WORK FROM AGENT 'test_agent'."
             )
         assert result == expected_summary
+
+
+@pytest.fixture
+def prompt_templates():
+    return {
+        "system_prompt": "This is a test system prompt.",
+        "managed_agent": {"task": "Task for {{name}}: {{task}}", "report": "Report for {{name}}: {{final_answer}}"},
+    }
