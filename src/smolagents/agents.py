@@ -136,6 +136,12 @@ class MultiStepAgent:
         self.description = description
         self.provide_run_summary = provide_run_summary
 
+        if prompt_path is not None:
+            with open(prompt_path, "r") as f:
+                self.prompt_templates = yaml.safe_load(f)
+        else:
+            self.prompt_templates = {}
+
         self.managed_agents = {}
         if managed_agents is not None:
             for managed_agent in managed_agents:
@@ -648,8 +654,6 @@ class ToolCallingAgent(MultiStepAgent):
         **kwargs,
     ):
         prompt_path = prompt_path or os.path.join(os.path.dirname(__file__), "prompts", "toolcalling_agent.yaml")
-        with open(prompt_path, "r") as f:
-            self.prompt_templates = yaml.safe_load(f)
         super().__init__(
             tools=tools,
             model=model,
@@ -781,8 +785,6 @@ class CodeAgent(MultiStepAgent):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         prompt_path = prompt_path or os.path.join(os.path.dirname(__file__), "prompts", "code_agent.yaml")
-        with open(prompt_path, "r") as f:
-            self.prompt_templates = yaml.safe_load(f)
         super().__init__(
             tools=tools,
             model=model,
