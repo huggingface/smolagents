@@ -14,8 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib.resources
 import inspect
-import os
 import re
 import textwrap
 import time
@@ -646,9 +646,9 @@ class ToolCallingAgent(MultiStepAgent):
         planning_interval: Optional[int] = None,
         **kwargs,
     ):
-        yaml_path = os.path.join(os.path.dirname(__file__), "prompts", "toolcalling_agent.yaml")
-        with open(yaml_path, "r") as f:
-            self.prompt_templates = yaml.safe_load(f)
+        self.prompt_templates = yaml.safe_load(
+            importlib.resources.read_text("smolagents.prompts", "toolcalling_agent.yaml")
+        )
         super().__init__(
             tools=tools,
             model=model,
@@ -779,9 +779,7 @@ class CodeAgent(MultiStepAgent):
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        yaml_path = os.path.join(os.path.dirname(__file__), "prompts", "code_agent.yaml")
-        with open(yaml_path, "r") as f:
-            self.prompt_templates = yaml.safe_load(f)
+        self.prompt_templates = yaml.safe_load(importlib.resources.read_text("smolagents.prompts", "code_agent.yaml"))
         super().__init__(
             tools=tools,
             model=model,
