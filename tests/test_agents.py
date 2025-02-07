@@ -734,9 +734,11 @@ class TestMultiStepAgent:
                     assert "type" in content
                     assert "text" in content
 
+
+class TestCodeAgent:
     @pytest.mark.parametrize("provide_run_summary", [False, True])
     def test_call_with_provide_run_summary(self, provide_run_summary):
-        agent = MultiStepAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
         assert agent.provide_run_summary is provide_run_summary
         agent.managed_agent_prompt = "Task: {task}"
         agent.name = "test_agent"
@@ -748,8 +750,7 @@ class TestMultiStepAgent:
         if provide_run_summary:
             expected_summary += (
                 "\n\nFor more detail, find below a summary of this agent's work:\n"
-                "SUMMARY OF WORK FROM AGENT 'test_agent':\n\nTest summary\n---\n"
-                "END OF SUMMARY OF WORK FROM AGENT 'test_agent'."
+                "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
             )
         assert result == expected_summary
 
