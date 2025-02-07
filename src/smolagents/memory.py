@@ -156,7 +156,7 @@ class PlanningStep(MemoryStep):
             )
         )
 
-        if not summary_mode:
+        if not summary_mode:  # This step is not shown to a model writing a plan to avoid influencing the new plan
             messages.append(
                 Message(
                     role=MessageRole.ASSISTANT, content=[{"type": "text", "text": f"[PLAN]:\n{self.plan.strip()}"}]
@@ -186,7 +186,7 @@ class SystemPromptStep(MemoryStep):
     def to_messages(self, summary_mode: bool = False, **kwargs) -> List[Message]:
         if summary_mode:
             return []
-        return [Message(role=MessageRole.SYSTEM, content=[{"type": "text", "text": self.system_prompt.strip()}])]
+        return [Message(role=MessageRole.SYSTEM, content=[{"type": "text", "text": self.system_prompt}])]
 
 
 class AgentMemory:

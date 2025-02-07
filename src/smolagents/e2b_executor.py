@@ -38,6 +38,7 @@ except ModuleNotFoundError:
 
 class E2BExecutor:
     def __init__(self, additional_imports: List[str], tools: List[Tool], logger):
+        self.logger = logger
         try:
             from e2b_code_interpreter import Sandbox
         except ModuleNotFoundError:
@@ -58,7 +59,6 @@ class E2BExecutor:
         #     timeout=300
         # )
         # print("Installation of agents package finished.")
-        self.logger = logger
         additional_imports = additional_imports + ["smolagents"]
         if len(additional_imports) > 0:
             execution = self.sbx.commands.run("pip install " + " ".join(additional_imports))

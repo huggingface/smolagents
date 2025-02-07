@@ -24,7 +24,7 @@ import sys
 import tempfile
 import textwrap
 from contextlib import contextmanager
-from functools import lru_cache, wraps
+from functools import wraps
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -36,7 +36,6 @@ from huggingface_hub import (
     upload_folder,
 )
 from huggingface_hub.utils import is_torch_available
-from packaging import version
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
@@ -630,43 +629,6 @@ class Tool:
                 return self.langchain_tool.run(tool_input)
 
         return LangChainToolWrapper(langchain_tool)
-
-
-DEFAULT_TOOL_DESCRIPTION_TEMPLATE = """
-- {{ tool.name }}: {{ tool.description }}
-    Takes inputs: {{tool.inputs}}
-    Returns an output of type: {{tool.output_type}}
-"""
-
-
-def get_tool_description_with_args(tool: Tool, description_template: Optional[str] = None) -> str:
-    if description_template is None:
-        description_template = DEFAULT_TOOL_DESCRIPTION_TEMPLATE
-    compiled_template = compile_jinja_template(description_template)
-    tool_description = compiled_template.render(
-        tool=tool,
-    )
-    return tool_description
-
-
-@lru_cache
-def compile_jinja_template(template):
-    try:
-        import jinja2
-        from jinja2.exceptions import TemplateError
-        from jinja2.sandbox import ImmutableSandboxedEnvironment
-    except ImportError:
-        raise ImportError("template requires jinja2 to be installed.")
-
-    if version.parse(jinja2.__version__) < version.parse("3.1.0"):
-        raise ImportError(f"template requires jinja2>=3.1.0 to be installed. Your version is {jinja2.__version__}.")
-
-    def raise_exception(message):
-        raise TemplateError(message)
-
-    jinja_env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
-    jinja_env.globals["raise_exception"] = raise_exception
-    return jinja_env.from_string(template)
 
 
 def launch_gradio_demo(tool: Tool):

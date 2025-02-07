@@ -73,9 +73,9 @@ jobs:
           uv run pytest ./tests/test_monitoring.py
         if: ${{ success() || failure() }}
 
-      - name: Python interpreter tests
+      - name: Local Python executor tests
         run: |
-          uv run pytest ./tests/test_python_interpreter.py
+          uv run pytest ./tests/test_local_python_executor.py
         if: ${{ success() || failure() }}
 
       - name: Search tests

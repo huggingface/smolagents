@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import traceback
+import zipfile
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import parse_qs, quote, unquote, urlparse, urlunparse
 
@@ -624,6 +625,54 @@ class Mp3Converter(WavConverter):
         )
 
 
+class ZipConverter(DocumentConverter):
+    """
+    Extracts ZIP files to a permanent local directory and returns a listing of extracted files.
+    """
+
+    def __init__(self, extract_dir: str = "downloads"):
+        """
+        Initialize with path to extraction directory.
+
+        Args:
+            extract_dir: The directory where files will be extracted. Defaults to "downloads"
+        """
+        self.extract_dir = extract_dir
+        # Create the extraction directory if it doesn't exist
+        os.makedirs(self.extract_dir, exist_ok=True)
+
+    def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
+        # Bail if not a ZIP file
+        extension = kwargs.get("file_extension", "")
+        if extension.lower() != ".zip":
+            return None
+
+        # Verify it's actually a ZIP file
+        if not zipfile.is_zipfile(local_path):
+            return None
+
+        # Extract all files and build list
+        extracted_files = []
+        with zipfile.ZipFile(local_path, "r") as zip_ref:
+            # Extract all files
+            zip_ref.extractall(self.extract_dir)
+            # Get list of all files
+            for file_path in zip_ref.namelist():
+                # Skip directories
+                if not file_path.endswith("/"):
+                    extracted_files.append(self.extract_dir + "/" + file_path)
+
+        # Sort files for consistent output
+        extracted_files.sort()
+
+        # Build the markdown content
+        md_content = "Downloaded the following files:\n"
+        for file in extracted_files:
+            md_content += f"* {file}\n"
+
+        return DocumentConverterResult(title="Extracted Files", text_content=md_content.strip())
+
+
 class ImageConverter(MediaConverter):
     """
     Converts images to markdown via extraction of metadata (if `exiftool` is installed), OCR (if `easyocr` is installed), and description via a multimodal LLM (if an mlm_client is configured).
@@ -705,11 +754,11 @@ class ImageConverter(MediaConverter):
         return response.choices[0].message.content
 
 
-class FileConversionException(BaseException):
+class FileConversionException(Exception):
     pass
 
 
-class UnsupportedFormatException(BaseException):
+class UnsupportedFormatException(Exception):
     pass
 
 
@@ -746,6 +795,7 @@ class MarkdownConverter:
         self.register_page_converter(WavConverter())
         self.register_page_converter(Mp3Converter())
         self.register_page_converter(ImageConverter())
+        self.register_page_converter(ZipConverter())
         self.register_page_converter(PdfConverter())
 
     def convert(

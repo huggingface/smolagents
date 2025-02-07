@@ -394,7 +394,7 @@ class SearchInformationTool(Tool):
 class VisitTool(Tool):
     name = "visit_page"
     description = "Visit a webpage at a given URL and return its text. Given a url to a YouTube video, this returns the transcript."
-    inputs = {"url": {"type": "string", "description": "The relative or absolute url of the webapge to visit."}}
+    inputs = {"url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}}
     output_type = "string"
 
     def __init__(self, browser):
