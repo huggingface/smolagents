@@ -72,6 +72,7 @@ test = [
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
+  "uv", # For test_import_smolagents_without_extras
 ]
 dev = [
   "smolagents[quality,test]",
