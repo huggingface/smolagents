@@ -178,13 +178,15 @@ def stream_to_gradio(
 class GradioUI:
     """A one-line interface to launch your agent in Gradio"""
 
-    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None):
+    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None, **kwargs):
         if not _is_package_available("gradio"):
             raise ModuleNotFoundError(
                 "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
             )
         self.agent = agent
         self.file_upload_folder = file_upload_folder
+        self.launch_kwargs = {"debug": True, "share": True}  # Default values
+        self.launch_kwargs.update(kwargs)  # Override with any provided kwargs
         if self.file_upload_folder is not None:
             if not os.path.exists(file_upload_folder):
                 os.mkdir(file_upload_folder)
@@ -261,6 +263,10 @@ class GradioUI:
     def launch(self, **kwargs):
         import gradio as gr
 
+        # Merge kwargs with defaults, with method kwargs taking precedence
+        launch_kwargs = self.launch_kwargs.copy()
+        launch_kwargs.update(kwargs)
+
         with gr.Blocks(fill_height=True) as demo:
             stored_messages = gr.State([])
             file_uploads_log = gr.State([])
@@ -290,7 +296,7 @@ class GradioUI:
                 [stored_messages, text_input],
             ).then(self.interact_with_agent, [stored_messages, chatbot], [chatbot])
 
-        demo.launch(debug=True, share=True, **kwargs)
+        demo.launch(**launch_kwargs)
 
 
 __all__ = ["stream_to_gradio", "GradioUI"]
