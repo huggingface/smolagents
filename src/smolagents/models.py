@@ -287,7 +287,7 @@ class Model:
             completion_kwargs.update(
                 {
                     "tools": [get_tool_json_schema(tool) for tool in tools_to_call_from],
-                    "tool_choice": "required",
+                    "tool_choice": "auto",
                 }
             )
 
