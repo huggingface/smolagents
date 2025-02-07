@@ -141,15 +141,23 @@ async def stream_agent_response(
                         content = str(content.get("answer", str(content)))
                     content = re.sub(r"(```.*?\n|<end_code>|^python\n)", "", content.strip())
                     if content:
+                        yield create_stream_chunk(completion_id, created, model, '<think type="code">')
                         yield create_stream_chunk(completion_id, created, model, "```python\n")
                         yield create_stream_chunk(completion_id, created, model, content)
-                        yield create_stream_chunk(completion_id, created, model, "\n```\n")
+                        yield create_stream_chunk(completion_id, created, model, "\n```")
+                        yield create_stream_chunk(completion_id, created, model, "</think>\n")
 
                 if step_log.observations and step_log.observations.strip():
+                    print(tool_call.arguments)
                     log_content = step_log.observations.strip()
                     log_content = clean_output(log_content)
                     if log_content and log_content != "None":
-                        yield create_stream_chunk(completion_id, created, model, f"{log_content}\n")
+                        if "final_answer" in tool_call.arguments:
+                            yield create_stream_chunk(completion_id, created, model, f"{log_content}")
+                        else:
+                            yield create_stream_chunk(completion_id, created, model, '<think type="result">')
+                            yield create_stream_chunk(completion_id, created, model, f"{log_content}")
+                            yield create_stream_chunk(completion_id, created, model, "</think>\n")
 
                 if step_log.error:
                     duration = round(float(step_log.duration), 2) if hasattr(step_log, "duration") else None
@@ -157,7 +165,7 @@ async def stream_agent_response(
                         completion_id,
                         created,
                         model,
-                        f'<think duration="{duration}">Error: {step_log.error}</think>\n',
+                        f'<think type="error" duration="{duration}">Error: {step_log.error}</think>\n',
                     )
 
         if not hasattr(step_log, "step_number") and step_log.observations:
