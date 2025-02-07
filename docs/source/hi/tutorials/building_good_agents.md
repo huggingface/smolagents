@@ -195,7 +195,7 @@ Final answer:
 आइए देखें कि यह कैसे काम करता है। उदाहरण के लिए, आइए [`CodeAgent`] के लिए डिफ़ॉल्ट सिस्टम प्रॉम्प्ट की जाँच करें (नीचे दिया गया वर्जन जीरो-शॉट उदाहरणों को छोड़कर छोटा किया गया है)।
 
 ```python
-print(agent.system_prompt_template)
+print(agent.prompt_templates["system_prompt"])
 ```
 Here is what you get:
 ```text

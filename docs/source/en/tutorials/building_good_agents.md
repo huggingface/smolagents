@@ -194,7 +194,7 @@ If above clarifications are not sufficient, you can change the system prompt.
 Let's see how it works. For example, let us check the default system prompt for the [`CodeAgent`] (below version is shortened by skipping zero-shot examples).
 
 ```python
-print(agent.system_prompt_template)
+print(agent.prompt_templates["system_prompt"])
 ```
 Here is what you get:
 ```text

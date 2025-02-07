@@ -193,7 +193,7 @@ Final answer:
 让我们看看它是如何工作的。例如，让我们检查 [`CodeAgent`] 的默认系统提示（下面的版本通过跳过零样本示例进行了缩短）。
 
 ```python
-print(agent.system_prompt_template)
+print(agent.prompt_templates["system_prompt"])
 ```
 你会得到：
 ```text
