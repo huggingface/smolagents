@@ -20,7 +20,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-import yaml
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.agent_types import AgentImage, AgentText
@@ -671,9 +670,9 @@ class TestMultiStepAgent:
         agent = MultiStepAgent(tools=[], model=fake_model)
         assert agent.logger.level == -1, "logging to terminal should be disabled for testing using a fixture"
 
-    def test_instantiation_with_prompt_templates_path(self, prompt_templates_path):
-        agent = MultiStepAgent(tools=[], model=MagicMock(), prompt_templates_path=prompt_templates_path)
-        assert agent.prompt_templates_path == prompt_templates_path
+    def test_instantiation_with_prompt_templates(self, prompt_templates):
+        agent = MultiStepAgent(tools=[], model=MagicMock(), prompt_templates=prompt_templates)
+        assert agent.prompt_templates == prompt_templates
         assert agent.prompt_templates["system_prompt"] == "This is a test system prompt."
         assert "managed_agent" in agent.prompt_templates
         assert agent.prompt_templates["managed_agent"]["task"] == "Task for {{name}}: {{task}}"
@@ -737,12 +736,8 @@ class TestMultiStepAgent:
 
 
 @pytest.fixture
-def prompt_templates_path(tmp_path):
-    prompt_templates_data = {
+def prompt_templates():
+    return {
         "system_prompt": "This is a test system prompt.",
         "managed_agent": {"task": "Task for {{name}}: {{task}}", "report": "Report for {{name}}: {{final_answer}}"},
     }
-    prompt_templates_file = tmp_path / "prompt.yaml"
-    with open(prompt_templates_file, "w") as f:
-        yaml.dump(prompt_templates_data, f)
-    return str(prompt_templates_file)
