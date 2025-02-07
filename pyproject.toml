@@ -32,11 +32,6 @@ audio = [
   "soundfile",
   "smolagents[torch]",
 ]
-transformers = [
-  "accelerate",
-  "transformers>=4.0.0",
-  "smolagents[torch]",
-]
 e2b = [
   "e2b-code-interpreter>=1.0.3",
   "python-dotenv>=1.0.1",
@@ -60,11 +55,16 @@ telemetry = [
   "opentelemetry-exporter-otlp",
   "openinference-instrumentation-smolagents>=0.1.1"
 ]
-quality = [
-  "ruff>=0.9.0",
+transformers = [
+  "accelerate",
+  "transformers>=4.0.0",
+  "smolagents[torch]",
 ]
 all = [
   "smolagents[audio,e2b,gradio,litellm,mcp,openai,telemetry,transformers]",
+]
+quality = [
+  "ruff>=0.9.0",
 ]
 test = [
   "ipython>=8.31.0", # for interactive environment tests
