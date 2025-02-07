@@ -99,6 +99,9 @@ lint.select = ["E", "F", "I", "W"]
 known-first-party = ["smolagents"]
 lines-after-imports = 2
 
+[tool.setuptools.package-data]
+"smolagents.prompts" = ["*.yaml"]
+
 [project.scripts]
 smolagent = "smolagents.cli:main"
 webagent = "smolagents.vision_web_browser:main"
