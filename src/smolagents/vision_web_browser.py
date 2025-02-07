@@ -61,11 +61,11 @@ def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
         print(f"Captured a browser screenshot: {image.size} pixels")
         memory_step.observations_images = [image.copy()]  # Create a copy to ensure it persists, important!
 
-    # Update observations with current URL
-    url_info = f"Current url: {driver.current_url}"
-    memory_step.observations = (
-        url_info if memory_step.observations is None else memory_step.observations + "\n" + url_info
-    )
+        # Update observations with current URL
+        url_info = f"Current url: {driver.current_url}"
+        memory_step.observations = (
+            url_info if memory_step.observations is None else memory_step.observations + "\n" + url_info
+        )
     return
 
 
@@ -77,6 +77,7 @@ def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
         text: The text to search for
         nth_result: Which occurrence to jump to (default: 1)
     """
+    driver = helium.get_driver()
     elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{text}')]")
     if nth_result > len(elements):
         raise Exception(f"Match n°{nth_result} not found (only {len(elements)} matches found)")
@@ -90,6 +91,7 @@ def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
 @tool
 def go_back() -> None:
     """Goes back to previous page."""
+    driver = helium.get_driver()
     driver.back()
 
 
@@ -98,6 +100,7 @@ def close_popups() -> str:
     """
     Closes any visible modal or pop-up on the page. Use this to dismiss pop-up windows! This does not work on cookie consent banners.
     """
+    driver = helium.get_driver()
     webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 
 
@@ -131,6 +134,8 @@ We've already ran "from helium import *"
 Then you can go to pages!
 Code:
 ```py
+# do not forget to start a browser session first!
+start_chrome()
 go_to('github.com/trending')
 ```<end_code>
 
