@@ -20,10 +20,21 @@ dependencies = [
   "pillow>=11.0.0",
   "markdownify>=0.14.1",
   "duckduckgo-search>=6.3.7",
-  "python-dotenv"
+  "python-dotenv",
+  "fastapi>=0.109.0",
+  "uvicorn>=0.27.0",
+  "sse-starlette>=1.8.2",
+  "pydantic>=2.6.0",
 ]
 
 [project.optional-dependencies]
+server = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "sse-starlette>=1.8.2",
+    "pydantic>=2.6.0",
+]
+
 torch = [
   "torch",
   "torchvision",
@@ -64,14 +75,16 @@ quality = [
   "ruff>=0.9.0",
 ]
 all = [
-  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers,telemetry]",
+  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers,telemetry,server]",
 ]
 test = [
   "ipython>=8.31.0", # for interactive environment tests
   "pytest>=8.1.0",
+  "pytest-asyncio>=0.23.5", # for async tests
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
+  "httpx>=0.27.0", # For FastAPI testing
 ]
 dev = [
   "smolagents[quality,test]",
@@ -102,3 +115,4 @@ lines-after-imports = 2
 [project.scripts]
 smolagent = "smolagents.cli:main"
 webagent = "smolagents.vision_web_browser:main"
+smolagents-server = "smolagents.server.cli:main"
