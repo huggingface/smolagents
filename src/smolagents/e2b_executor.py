@@ -15,12 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import os
 import pickle
 import re
 import textwrap
 from io import BytesIO
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
+from huggingface_hub import HfApi
 from PIL import Image
 
 from .tool_validation import validate_tool_attributes
@@ -37,7 +39,7 @@ except ModuleNotFoundError:
 
 
 class E2BExecutor:
-    def __init__(self, additional_imports: List[str], tools: List[Tool], logger):
+    def __init__(self, additional_imports: List[str], tools: List[Tool], logger, template: Optional[str] = None):
         self.logger = logger
         try:
             from e2b_code_interpreter import Sandbox
@@ -47,11 +49,15 @@ class E2BExecutor:
             )
         self.logger = logger
         self.logger.log("Initializing E2B executor, hold on...")
+        if os.environ.get("E2B_API_KEY") is None:
+            logger.log("E2B_API_KEY is not set in environment variables. Fetching E2B_API_KEY from Hugging Face.")
+            key = HfApi().whoami()["auth"]["accessToken"]["displayName"]
+            os.environ["E2B_API_KEY"] = key
 
         self.custom_tools = {}
         self.final_answer = False
         self.final_answer_pattern = re.compile(r"final_answer\((.*?)\)")
-        self.sbx = Sandbox()  # "qywp2ctmu2q7jzprcf4j")
+        self.sbx = Sandbox(template=template)  # "qywp2ctmu2q7jzprcf4j")
         # TODO: validate installing agents package or not
         # print("Installing agents package on remote executor...")
         # self.sbx.commands.run(

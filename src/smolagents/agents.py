@@ -775,6 +775,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports: Optional[List[str]] = None,
         planning_interval: Optional[int] = None,
         use_e2b_executor: bool = False,
+        template: Optional[str] = None,
         max_print_outputs_length: Optional[int] = None,
         **kwargs,
     ):
@@ -808,6 +809,7 @@ class CodeAgent(MultiStepAgent):
                 self.additional_authorized_imports,
                 list(all_tools.values()),
                 self.logger,
+                template,
             )
         else:
             self.python_executor = LocalPythonInterpreter(
