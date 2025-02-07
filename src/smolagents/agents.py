@@ -88,7 +88,7 @@ class MultiStepAgent:
     Args:
         tools (`list[Tool]`): [`Tool`]s that the agent can use.
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
-        prompt_templates_path (`str`, *optional*): Path from which to load this agent's prompt templates.
+        prompt_templates (`dict`, *optional*): Prompt templates.
         max_steps (`int`, default `6`): Maximum number of steps the agent can take to solve the task.
         tool_parser (`Callable`, *optional*): Function used to parse the tool calls from the LLM output.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
@@ -107,7 +107,7 @@ class MultiStepAgent:
         self,
         tools: List[Tool],
         model: Callable[[List[Dict[str, str]]], ChatMessage],
-        prompt_templates_path: Optional[str] = None,
+        prompt_templates: Optional[dict] = None,
         max_steps: int = 6,
         tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
@@ -125,7 +125,7 @@ class MultiStepAgent:
             tool_parser = parse_json_tool_call
         self.agent_name = self.__class__.__name__
         self.model = model
-        self.prompt_templates_path = prompt_templates_path
+        self.prompt_templates = prompt_templates or {}
         self.max_steps = max_steps
         self.step_number: int = 0
         self.tool_parser = tool_parser
@@ -135,12 +135,6 @@ class MultiStepAgent:
         self.name = name
         self.description = description
         self.provide_run_summary = provide_run_summary
-
-        if prompt_templates_path is not None:
-            with open(prompt_templates_path, "r") as f:
-                self.prompt_templates = yaml.safe_load(f)
-        else:
-            self.prompt_templates = {}
 
         self.managed_agents = {}
         if managed_agents is not None:
@@ -640,7 +634,7 @@ class ToolCallingAgent(MultiStepAgent):
     Args:
         tools (`list[Tool]`): [`Tool`]s that the agent can use.
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
-        prompt_templates_path (`str`, *optional*): Path from which to load this agent's prompt templates.
+        prompt_templates (`dict`, *optional*): Prompt templates.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         **kwargs: Additional keyword arguments.
     """
@@ -649,17 +643,17 @@ class ToolCallingAgent(MultiStepAgent):
         self,
         tools: List[Tool],
         model: Callable[[List[Dict[str, str]]], ChatMessage],
-        prompt_templates_path: Optional[str] = None,
+        prompt_templates: Optional[dict] = None,
         planning_interval: Optional[int] = None,
         **kwargs,
     ):
-        prompt_templates_path = (
-            prompt_templates_path or importlib.resources.files("smolagents.prompts") / "toolcalling_agent.yaml"
+        prompt_templates = prompt_templates or yaml.safe_load(
+            importlib.resources.read_text("smolagents.prompts", "toolcalling_agent.yaml")
         )
         super().__init__(
             tools=tools,
             model=model,
-            prompt_templates_path=prompt_templates_path,
+            prompt_templates=prompt_templates,
             planning_interval=planning_interval,
             **kwargs,
         )
@@ -762,7 +756,7 @@ class CodeAgent(MultiStepAgent):
     Args:
         tools (`list[Tool]`): [`Tool`]s that the agent can use.
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
-        prompt_templates_path (`str`, *optional*): Path from which to load this agent's prompt templates.
+        prompt_templates (`dict`, *optional*): Prompt templates.
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
@@ -776,7 +770,7 @@ class CodeAgent(MultiStepAgent):
         self,
         tools: List[Tool],
         model: Callable[[List[Dict[str, str]]], ChatMessage],
-        prompt_templates_path: Optional[str] = None,
+        prompt_templates: Optional[dict] = None,
         grammar: Optional[Dict[str, str]] = None,
         additional_authorized_imports: Optional[List[str]] = None,
         planning_interval: Optional[int] = None,
@@ -786,13 +780,13 @@ class CodeAgent(MultiStepAgent):
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        prompt_templates_path = (
-            prompt_templates_path or importlib.resources.files("smolagents.prompts") / "code_agent.yaml"
+        prompt_templates = prompt_templates or yaml.safe_load(
+            importlib.resources.read_text("smolagents.prompts", "code_agent.yaml")
         )
         super().__init__(
             tools=tools,
             model=model,
-            prompt_templates_path=prompt_templates_path,
+            prompt_templates=prompt_templates,
             grammar=grammar,
             planning_interval=planning_interval,
             **kwargs,
