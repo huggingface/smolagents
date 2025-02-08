@@ -761,6 +761,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         use_e2b_executor (`bool`, default `False`): Whether to use the E2B executor for remote code execution.
+        template (`str`, *optional*): Template to use for the E2B executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         **kwargs: Additional keyword arguments.
 

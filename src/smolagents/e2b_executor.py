@@ -50,9 +50,16 @@ class E2BExecutor:
         self.logger = logger
         self.logger.log("Initializing E2B executor, hold on...")
         if os.environ.get("E2B_API_KEY") is None:
-            logger.log("E2B_API_KEY is not set in environment variables. Fetching E2B_API_KEY from Hugging Face.")
-            key = HfApi().whoami()["auth"]["accessToken"]["displayName"]
-            os.environ["E2B_API_KEY"] = key
+            logger.log("E2B_API_KEY is not set in environment variables. Attempting to fetch it from Hugging Face.")
+            try:
+                key = HfApi().whoami()["auth"]["accessToken"]["displayName"]
+                if key.startswith("e2b_"):
+                    os.environ["E2B_API_KEY"] = key
+                    logger.log("E2B_API_KEY fetched successfully.")
+                else:
+                    os.environ["E2B_API_KEY"] = ""
+            except Exception as e:
+                raise RuntimeError("Please set E2B_API_KEY in environment variables or Hugging Face access token name as key.")
 
         self.custom_tools = {}
         self.final_answer = False
