@@ -16,6 +16,7 @@
 # limitations under the License.
 import importlib.resources
 import inspect
+import json
 import re
 import textwrap
 import time
@@ -749,6 +750,80 @@ class ToolCallingAgent(MultiStepAgent):
             return None
 
 
+class ToolCallCacheMixin:
+    """Mixin class that adds caching capabilities to tool calls."""
+
+    def __init__(self, cache_size: int = 128, cached_tools: Optional[List[str]] = None, *args, **kwargs):
+        """
+        Initialize the caching mixin.
+
+        Args:
+            cache_size: Maximum number of entries to keep in cache
+            cached_tools: List of tool names to cache. If None, all tools are cached.
+        """
+        self.tool_cache: Dict[str, Any] = {}
+        self.cache_size = cache_size
+        self.cached_tools = set(cached_tools) if cached_tools is not None else None
+        super().__init__(*args, **kwargs)
+
+    def _get_cache_key(self, tool_name: str, tool_arguments: Dict) -> str:
+        """Create a unique cache key from tool name and arguments."""
+        sorted_args = json.dumps(tool_arguments, sort_keys=True)
+        return f"{tool_name}:{sorted_args}"
+
+    def _get_from_cache(self, tool_name: str, tool_arguments: Dict) -> Tuple[bool, Any]:
+        """Try to get a result from cache. Returns (hit, result)."""
+        cache_key = self._get_cache_key(tool_name, tool_arguments)
+        if cache_key in self.tool_cache:
+            return True, self.tool_cache[cache_key]
+        return False, None
+
+    def _add_to_cache(self, tool_name: str, tool_arguments: Dict, result: Any):
+        """Add a result to the cache."""
+        if len(self.tool_cache) >= self.cache_size:
+            # Remove oldest entry if cache is full (FIFO)
+            self.tool_cache.pop(next(iter(self.tool_cache)))
+        cache_key = self._get_cache_key(tool_name, tool_arguments)
+        self.tool_cache[cache_key] = result
+
+    def execute_tool_call(self, tool_name: str, tool_arguments: Dict) -> Any:
+        """Override of execute_tool_call that implements caching."""
+        # Skip caching if tool is not in cached_tools (when specified)
+        if self.cached_tools is not None and tool_name not in self.cached_tools:
+            return super().execute_tool_call(tool_name, tool_arguments)
+
+        cache_hit, cached_result = self._get_from_cache(tool_name, tool_arguments)
+        if cache_hit:
+            self.logger.log(f"Retrieved result from cache for tool '{tool_name}'", level=LogLevel.INFO)
+            return cached_result
+
+        result = super().execute_tool_call(tool_name, tool_arguments)
+        self._add_to_cache(tool_name, tool_arguments, result)
+        return result
+
+
+class CachedToolCallingAgent(ToolCallCacheMixin, ToolCallingAgent):
+    """
+    A version of ToolCallingAgent that includes caching functionality.
+
+    Usage:
+        # Cache all tools
+        agent = CachedToolCallingAgent(
+            tools=tools,
+            model=model,
+            cache_size=128  # optional, defaults to 128
+        )
+
+        # Cache only specific tools
+        agent = CachedToolCallingAgent(
+            tools=tools,
+            model=model,
+            cached_tools=['search', 'fetch_data']  # only cache these tools
+        )
+    """
+    pass
+
+
 class CodeAgent(MultiStepAgent):
     """
     In this agent, the tool calls will be formulated by the LLM in code format, then parsed and executed.
@@ -924,4 +999,4 @@ class CodeAgent(MultiStepAgent):
         return output if is_final_answer else None
 
 
-__all__ = ["MultiStepAgent", "CodeAgent", "ToolCallingAgent", "AgentMemory"]
+__all__ = ["MultiStepAgent", "CodeAgent", "ToolCallingAgent", "AgentMemory", "CachedToolCallingAgent"]
