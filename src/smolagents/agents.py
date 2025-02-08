@@ -607,7 +607,7 @@ You have been provided with these additional arguments, that you can access usin
 
     def __call__(self, task: str, **kwargs):
         """
-        This methd is called only by a manager agent.
+        This method is called only by a manager agent.
         Adds additional prompting for the managed agent, runs it, and wraps the output.
         """
         full_task = populate_template(
