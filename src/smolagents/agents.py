@@ -456,10 +456,23 @@ You have been provided with these additional arguments, that you can access usin
         """
         if is_first_step:
             message_prompt_facts = {
-                "role": MessageRole.USER,
+                "role": MessageRole.SYSTEM,
                 "content": [{"type": "text", "text": self.prompt_templates["planning"]["initial_facts"]}],
             }
-            input_messages = [message_prompt_facts]
+            message_prompt_task = {
+                "role": MessageRole.USER,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"""Here is the task:
+```
+{task}
+```
+Now begin!""",
+                    }
+                ]
+            }
+            input_messages = [message_prompt_facts, message_prompt_task]
 
             chat_message_facts: ChatMessage = self.model(input_messages)
             answer_facts = chat_message_facts.content
@@ -520,7 +533,7 @@ You have been provided with these additional arguments, that you can access usin
                 "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_pre_messages"]}],
             }
             facts_update_post_messages = {
-                "role": MessageRole.SYSTEM,
+                "role": MessageRole.USER,
                 "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_post_messages"]}],
             }
             input_messages = [facts_update_pre_messages] + memory_messages + [facts_update_post_messages]
@@ -540,12 +553,12 @@ You have been provided with these additional arguments, that you can access usin
                 ],
             }
             update_plan_post_messages = {
-                "role": MessageRole.SYSTEM,
+                "role": MessageRole.USER,
                 "content": [
                     {
                         "type": "text",
                         "text": populate_template(
-                            self.prompt_templates["planning"]["update_plan_pre_messages"],
+                            self.prompt_templates["planning"]["update_plan_post_messages"],
                             variables={
                                 "task": task,
                                 "tools": self.tools,
