@@ -353,7 +353,7 @@ from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ToolCallingA
 
 model = HfApiModel()
 
-managed_web_agent = ToolCallingAgent(
+managed_web_agent = CodeAgent(
     tools=[DuckDuckGoSearchTool()],
     model=model,
     name="web_search",
