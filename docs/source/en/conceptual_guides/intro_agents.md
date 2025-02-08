@@ -68,7 +68,7 @@ If that deterministic workflow fits all queries, by all means just code everythi
 
 But what if the workflow can't be determined that well in advance? 
 
-For instance, a user wants to ask : `"I can come on Monday, but I forgot my passport so risk being delayed to Wednesday, is it possible to take me and my stuff to surf on Tuesday morning, with a cancellation insurance?"` This question hinges on many factors, and probably none of the predetermined criteria above will suffice for this request.
+For instance, a user wants to ask: `"I can come on Monday, but I forgot my passport so risk being delayed to Wednesday, is it possible to take me and my stuff to surf on Tuesday morning, with a cancellation insurance?"` This question hinges on many factors, and probably none of the predetermined criteria above will suffice for this request.
 
 If the pre-determined workflow falls short too often, that means you need more flexibility.
 
@@ -106,7 +106,7 @@ In a multi-step agent, at each step, the LLM can write an action, in the form of
 
 The reason for this simply that *we crafted our code languages specifically to be the best possible way to express actions performed by a computer*. If JSON snippets were a better expression, JSON would be the top programming language and programming would be hell on earth.
 
-The figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030), illustrate some advantages of writing actions in code:
+The figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030), illustrates some advantages of writing actions in code:
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_vs_json_actions.png">
 
@@ -115,4 +115,4 @@ Writing actions in code rather than JSON-like snippets provides better:
 - **Composability:** could you nest JSON actions within each other, or define a set of JSON actions to re-use later, the same way you could just define a python function?
 - **Object management:** how do you store the output of an action like `generate_image` in JSON?
 - **Generality:** code is built to express simply anything you can have a computer do.
-- **Representation in LLM training data:** plenty of quality code actions is already included in LLMs’ training data which means they’re already trained for this!
+- **Representation in LLM training data:** plenty of quality code actions are already included in LLMs’ training data which means they’re already trained for this!
