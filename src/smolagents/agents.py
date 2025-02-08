@@ -456,7 +456,7 @@ You have been provided with these additional arguments, that you can access usin
         """
         if is_first_step:
             message_prompt_facts = {
-                "role": MessageRole.SYSTEM,
+                "role": MessageRole.USER,
                 "content": [{"type": "text", "text": self.prompt_templates["planning"]["initial_facts"]}],
             }
             input_messages = [message_prompt_facts]
