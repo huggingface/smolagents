@@ -17,6 +17,10 @@ import os
 import re
 import shutil
 from typing import Optional
+from uuid import main
+
+import magic
+from numpy import core
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 from smolagents.agents import ActionStep, MultiStepAgent
@@ -213,31 +217,54 @@ class GradioUI:
 
     def upload_file(self, file, file_uploads_log, allowed_file_types=None):
         """
-        Handle file uploads, default allowed types are .pdf, .docx, and .txt
+        Secure file upload handling with real MIME-type validation.
+        Uses `filetype` to dynamically determine the correct file extension.
         """
         import gradio as gr
+
+        if allowed_file_types is None:
+            allowed_file_types = [
+                "application/pdf",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "text/plain",
+            ]
 
         if file is None:
             return gr.Textbox(value="No file uploaded", visible=True), file_uploads_log
 
-        if allowed_file_types is None:
-            allowed_file_types = [".pdf", ".docx", ".txt"]
+        try:
+            base_name, ext = self._validate_file_type(file, allowed_file_types)
+        except Exception as e:
+            return gr.Textbox(value=str(e), visible=True), file_uploads_log
 
-        file_ext = os.path.splitext(file.name)[1].lower()
-        if file_ext not in allowed_file_types:
-            return gr.Textbox("File type disallowed", visible=True), file_uploads_log
+        file_path = os.path.join(self.file_upload_folder, f"{base_name}{ext}")
 
-        # Sanitize file name
-        original_name = os.path.basename(file.name)
-        sanitized_name = re.sub(
-            r"[^\w\-.]", "_", original_name
-        )  # Replace any non-alphanumeric, non-dash, or non-dot characters with underscores
+        # Prevent overwriting files by appending a counter if needed
+        counter = 1
+        while os.path.exists(file_path):
+            file_path = os.path.join(self.file_upload_folder, f"{base_name}_{counter}{ext}")
+            counter += 1
 
-        # Save the uploaded file to the specified folder
-        file_path = os.path.join(self.file_upload_folder, os.path.basename(sanitized_name))
+        print("COPYING ", file_path, ext)
         shutil.copy(file.name, file_path)
 
         return gr.Textbox(f"File uploaded: {file_path}", visible=True), file_uploads_log + [file_path]
+
+    def _validate_file_type(self, file, allowed_file_types) -> tuple[str, str]:
+        try:
+            kind = magic.from_file(file.name, mime=True)
+        except Exception as e:
+            raise Exception(f"Error reading file: {e}")
+
+        if kind not in (*allowed_file_types, "inode/x-empty"):
+            raise Exception(f"File type disallowed or undetected: {kind}")
+
+        original_name = os.path.basename(file.name)
+        sanitized_name = re.sub(r"[^\w\-.]", "_", original_name)
+
+        base_name, ext = os.path.splitext(sanitized_name)
+
+        return (base_name, ext)
 
     def log_user_message(self, text_input, file_uploads_log):
         import gradio as gr

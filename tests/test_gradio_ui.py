@@ -119,7 +119,7 @@ class GradioUITester(unittest.TestCase):
             mock_file = Mock()
             mock_file.name = temp_file.name
 
-            textbox, uploads_log = self.ui.upload_file(mock_file, [], allowed_file_types=[".csv"])
+            textbox, uploads_log = self.ui.upload_file(mock_file, [], allowed_file_types=["text/csv"])
 
             self.assertIn("File uploaded:", textbox.value)
             self.assertEqual(len(uploads_log), 1)
