@@ -96,12 +96,12 @@ These types have three specific purposes:
 
 ### AgentText
 
-[[autodoc]] smolagents.agent_types.AgentText
+[[autodoc]] smolagents.AgentText
 
 ### AgentImage
 
-[[autodoc]] smolagents.agent_types.AgentImage
+[[autodoc]] smolagents.AgentImage
 
 ### AgentAudio
 
-[[autodoc]] smolagents.agent_types.AgentAudio
+[[autodoc]] smolagents.AgentAudio
