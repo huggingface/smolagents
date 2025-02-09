@@ -1,0 +1,5 @@
+smolagents[transformers]
+datasets
+langchain
+langchain_community
+rank_bm25
