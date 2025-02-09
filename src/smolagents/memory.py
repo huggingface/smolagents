@@ -106,7 +106,7 @@ class ActionStep(MemoryStep):
                     content=[
                         {
                             "type": "text",
-                            "text": f"Call id: {self.tool_calls[0].id}\nObservation:\n{self.observations}",
+                            "text": f"f{'Call id: {self.tool_calls[0].id}\n' if self.tool_calls else ''}Observation:\n{self.observations}",
                         }
                     ],
                 )
