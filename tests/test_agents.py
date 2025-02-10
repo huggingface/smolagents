@@ -771,6 +771,76 @@ class TestMultiStepAgent:
                     assert "type" in content
                     assert "text" in content
 
+    @pytest.mark.parametrize(
+        "images, expected_messages_list",
+        [
+            (
+                None,
+                [
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
+                        },
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}]},
+                    ]
+                ],
+            ),
+            (
+                ["image1.png"],
+                [
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}, {"type": "image"}],
+                        },
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}]},
+                    ]
+                ],
+            ),
+        ],
+    )
+    def test_provide_final_answer(self, images, expected_messages_list):
+        fake_model = MagicMock()
+        fake_model.return_value.content = "Final answer."
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+        )
+        task = "Test task"
+        final_answer = agent.provide_final_answer(task, images=images)
+        expected_message_texts = {
+            "FINAL_ANSWER_SYSTEM_PROMPT": agent.prompt_templates["final_answer"]["pre_messages"],
+            "FINAL_ANSWER_USER_PROMPT": populate_template(
+                agent.prompt_templates["final_answer"]["post_messages"], variables=dict(task=task)
+            ),
+        }
+        for expected_messages in expected_messages_list:
+            for expected_message in expected_messages:
+                for expected_content in expected_message["content"]:
+                    if "text" in expected_content:
+                        expected_content["text"] = expected_message_texts[expected_content["text"]]
+        assert final_answer == "Final answer."
+        # Test calls to model
+        assert len(fake_model.call_args_list) == 1
+        for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
+            assert len(call_args.args) == 1
+            messages = call_args.args[0]
+            assert isinstance(messages, list)
+            assert len(messages) == len(expected_messages)
+            for message, expected_message in zip(messages, expected_messages):
+                assert isinstance(message, dict)
+                assert "role" in message
+                assert "content" in message
+                assert message["role"] in MessageRole.__members__.values()
+                assert message["role"] == expected_message["role"]
+                assert isinstance(message["content"], list)
+                assert len(message["content"]) == len(expected_message["content"])
+                for content, expected_content in zip(message["content"], expected_message["content"]):
+                    # if "text" in expected_content:
+                    #     expected_content["text"] = expected_message_texts[expected_content["text"]]
+                    assert content == expected_content
+
 
 @pytest.fixture
 def prompt_templates():
