@@ -584,21 +584,21 @@ You have been provided with these additional arguments, that you can access usin
             # Log final facts and plan
             final_plan_redaction = textwrap.dedent(
                 f"""I still need to solve the task I was given:
-```
-{task}
-```
+                ```
+                {task}
+                ```
 
-Here is my new/updated plan of action to solve the task:
-```
-{chat_message_plan.content}
-```"""
+                Here is my new/updated plan of action to solve the task:
+                ```
+                {chat_message_plan.content}
+                ```"""
             )
 
             final_facts_redaction = textwrap.dedent(
                 f"""Here is the updated list of the facts that I know:
-```
-{facts_update}
-```"""
+                ```
+                {facts_update}
+                ```"""
             )
             self.memory.steps.append(
                 PlanningStep(
