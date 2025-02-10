@@ -455,26 +455,15 @@ You have been provided with these additional arguments, that you can access usin
             step (`int`): The number of the current step, used as an indication for the LLM.
         """
         if is_first_step:
-            message_prompt_facts = {
-                "role": MessageRole.SYSTEM,
-                "content": [{"type": "text", "text": self.prompt_templates["planning"]["initial_facts"]}],
-            }
-            message_prompt_task = {
-                "role": MessageRole.USER,
-                "content": [
-                    {
-                        "type": "text",
-                        "text": textwrap.dedent(
-                            f"""Here is the task:
-                            ```
-                            {task}
-                            ```
-                            Now begin!"""
-                        ),
-                    },
-                ],
-            }
-            input_messages = [message_prompt_facts, message_prompt_task]
+            input_messages = [
+                {
+                    "role": template["role"],
+                    "content": [
+                        {"type": "text", "text": populate_template(template["content"], variables={"task": task})}
+                    ],
+                }
+                for template in self.prompt_templates["planning"]["initial_facts"]
+            ]
 
             chat_message_facts: ChatMessage = self.model(input_messages)
             answer_facts = chat_message_facts.content

@@ -173,29 +173,38 @@ system_prompt: |-
 
   Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
 planning:
-  initial_facts: |-
-    Below I will present you a task.
+  initial_facts:
+    - role: "system"
+      content: |-
+        Below I will present you a task.
 
-    You will now build a comprehensive preparatory survey of which facts we have at our disposal and which ones we still need.
-    To do so, you will have to read the task and identify things that must be discovered in order to successfully complete it.
-    Don't make any assumptions. For each item, provide a thorough reasoning. Here is how you will structure this survey:
+        You will now build a comprehensive preparatory survey of which facts we have at our disposal and which ones we still need.
+        To do so, you will have to read the task and identify things that must be discovered in order to successfully complete it.
+        Don't make any assumptions. For each item, provide a thorough reasoning. Here is how you will structure this survey:
 
-    ---
-    ### 1. Facts given in the task
-    List here the specific facts given in the task that could help you (there might be nothing here).
+        ---
+        ### 1. Facts given in the task
+        List here the specific facts given in the task that could help you (there might be nothing here).
 
-    ### 2. Facts to look up
-    List here any facts that we may need to look up.
-    Also list where to find each of these, for instance a website, a file... - maybe the task contains some sources that you should re-use here.
+        ### 2. Facts to look up
+        List here any facts that we may need to look up.
+        Also list where to find each of these, for instance a website, a file... - maybe the task contains some sources that you should re-use here.
 
-    ### 3. Facts to derive
-    List here anything that we want to derive from the above by logical reasoning, for instance computation or simulation.
+        ### 3. Facts to derive
+        List here anything that we want to derive from the above by logical reasoning, for instance computation or simulation.
 
-    Keep in mind that "facts" will typically be specific names, dates, values, etc. Your answer should use the below headings:
-    ### 1. Facts given in the task
-    ### 2. Facts to look up
-    ### 3. Facts to derive
-    Do not add anything else.
+        Keep in mind that "facts" will typically be specific names, dates, values, etc. Your answer should use the below headings:
+        ### 1. Facts given in the task
+        ### 2. Facts to look up
+        ### 3. Facts to derive
+        Do not add anything else.
+    - role: "user"
+      content: |-
+        Here is the task:
+        ```
+        {{task}}
+        ```
+        Now begin!
   initial_plan : |-
     You are a world expert at making efficient plans to solve any task using a set of carefully crafted tools.
 
