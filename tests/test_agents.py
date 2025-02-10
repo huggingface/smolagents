@@ -766,6 +766,10 @@ class TestMultiStepAgent:
                 ),
             ),
         }
+        for expected_messages in expected_messages_list:
+            for expected_message in expected_messages:
+                for expected_content in expected_message["content"]:
+                    expected_content["text"] = expected_message_texts[expected_content["text"]]
         assert len(agent.memory.steps) == 1
         planning_step = agent.memory.steps[0]
         assert isinstance(planning_step, PlanningStep)
@@ -782,11 +786,7 @@ class TestMultiStepAgent:
             assert isinstance(message["content"], list)
             assert len(message["content"]) == 1
             for content, expected_content in zip(message["content"], expected_message["content"]):
-                assert isinstance(content, dict)
-                assert "type" in content
-                assert "text" in content
-                assert content["type"] == "text"
-                assert content["text"] == expected_message_texts[expected_content["text"]]
+                assert content == expected_content
         # Test calls to model
         assert len(fake_model.call_args_list) == 2
         for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
@@ -803,11 +803,7 @@ class TestMultiStepAgent:
                 assert isinstance(message["content"], list)
                 assert len(message["content"]) == 1
                 for content, expected_content in zip(message["content"], expected_message["content"]):
-                    assert isinstance(content, dict)
-                    assert "type" in content
-                    assert "text" in content
-                    assert content["type"] == "text"
-                    assert content["text"] == expected_message_texts[expected_content["text"]]
+                    assert content == expected_content
 
 
 @pytest.fixture
