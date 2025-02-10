@@ -711,7 +711,6 @@ class TestMultiStepAgent:
                             "role": MessageRole.SYSTEM,
                             "content": [{"type": "text", "text": "FACTS_UPDATE_SYSTEM_PROMPT"}],
                         },
-                        {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "MEMORY_MESSAGES"}]},  # TODO
                         {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_UPDATE_USER_PROMPT"}]},
                     ],
                     [
@@ -719,7 +718,6 @@ class TestMultiStepAgent:
                             "role": MessageRole.SYSTEM,
                             "content": [{"type": "text", "text": "PLAN_UPDATE_SYSTEM_PROMPT"}],
                         },
-                        {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "MEMORY_MESSAGES"}]},  # TODO
                         {"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_UPDATE_USER_PROMPT"}]},
                     ],
                 ],
