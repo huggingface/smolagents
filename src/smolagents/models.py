@@ -834,7 +834,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         if api_key is None:
             api_key = os.environ.get("AZURE_OPENAI_API_KEY")
 
-        super().__init__(model_id=model_id, api_key=api_key, azure_ad_token_provider=azure_ad_token_provider, custom_role_conversions=custom_role_conversions, **kwargs)
+        super().__init__(model_id=model_id, api_key=api_key, custom_role_conversions=custom_role_conversions, **kwargs)
         # if we've reached this point, it means the openai package is available (checked in baseclass) so go ahead and import it
         import openai
 
