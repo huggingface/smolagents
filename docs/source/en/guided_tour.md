@@ -95,8 +95,8 @@ from smolagents import CodeAgent, LiteLLMModel
 model = LiteLLMModel(
     model_id="ollama_chat/llama3.2", # This model is a bit weak for agentic behaviours though
     api_base="http://localhost:11434", # replace with 127.0.0.1:11434 or remote open-ai compatible server if necessary
-    api_key="YOUR_API_KEY" # replace with API key if necessary
-    num_ctx=8192 # ollama default is 2048 which will fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
+    api_key="YOUR_API_KEY", # replace with API key if necessary
+    num_ctx=8192, # ollama default is 2048 which will fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
@@ -344,19 +344,18 @@ It empirically yields better performance on most benchmarks. The reason for this
 
 You can easily build hierarchical multi-agent systems with `smolagents`.
 
-To do so, encapsulate the agent in a [`ManagedAgent`] object. This object needs arguments `agent`, `name`, and a `description`, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
+To create a managed agent, give your `CodeAgent` or `ToolCallingAgent` the attributes `name` and `description` - these are mandatory to make the agent callable by its manager agent. The manager agent will receive the managed agent via its managed_agents argument during initialization.
 
 Here's an example of making an agent that managed a specific web search agent using our [`DuckDuckGoSearchTool`]:
 
 ```py
-from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ManagedAgent
+from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ToolCallingAgent
 
 model = HfApiModel()
 
-web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
-
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
+managed_web_agent = CodeAgent(
+    tools=[DuckDuckGoSearchTool()],
+    model=model,
     name="web_search",
     description="Runs web searches for you. Give it your query as an argument."
 )

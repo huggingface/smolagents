@@ -471,8 +471,8 @@ You have been provided with these additional arguments, that you can access usin
                             ```
                             Now begin!"""
                         ),
-                    }
-                ]
+                    },
+                ],
             }
             input_messages = [message_prompt_facts, message_prompt_task]
 
@@ -502,14 +502,18 @@ You have been provided with these additional arguments, that you can access usin
             )
             answer_plan = chat_message_plan.content
 
-            final_plan_redaction = f"""Here is the plan of action that I will follow to solve the task:
-```
-{answer_plan}
-```"""
-            final_facts_redaction = f"""Here are the facts that I know so far:
-```
-{answer_facts}
-```""".strip()
+            final_plan_redaction = textwrap.dedent(
+                f"""Here is the plan of action that I will follow to solve the task:
+                ```
+                {answer_plan}
+                ```"""
+            )
+            final_facts_redaction = textwrap.dedent(
+                f"""Here are the facts that I know so far:
+                ```
+                {answer_facts}
+                ```""".strip()
+            )
             self.memory.steps.append(
                 PlanningStep(
                     model_input_messages=input_messages,
@@ -622,7 +626,7 @@ Here is my new/updated plan of action to solve the task:
 
     def __call__(self, task: str, **kwargs):
         """
-        This methd is called only by a manager agent.
+        This method is called only by a manager agent.
         Adds additional prompting for the managed agent, runs it, and wraps the output.
         """
         full_task = populate_template(
