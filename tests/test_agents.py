@@ -691,6 +691,13 @@ class TestMultiStepAgent:
         assert agent.step_number == max_steps + 1, "step_number should be max_steps + 1 after run method is called"
 
     def test_planning_step_first_step(self):
+        expected_messages_list = [
+            [
+                {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "FACTS_SYSTEM_PROMPT"}]},
+                {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_USER_PROMPT"}]},
+            ],
+            [{"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_USER_PROMPT"}]}],
+        ]
         fake_model = MagicMock()
         agent = CodeAgent(
             tools=[],
@@ -701,16 +708,16 @@ class TestMultiStepAgent:
         assert len(agent.memory.steps) == 1
         planning_step = agent.memory.steps[0]
         assert isinstance(planning_step, PlanningStep)
-        messages = planning_step.model_input_messages
-        assert isinstance(messages, list)
-        assert len(messages) == 2
-        expected_roles = [MessageRole.SYSTEM, MessageRole.USER]
-        for i, message in enumerate(messages):
+        expected_model_input_messages = expected_messages_list[0]
+        model_input_messages = planning_step.model_input_messages
+        assert isinstance(model_input_messages, list)
+        assert len(model_input_messages) == len(expected_model_input_messages)  # 2
+        for message, expected_message in zip(model_input_messages, expected_model_input_messages):
             assert isinstance(message, dict)
             assert "role" in message
             assert "content" in message
             assert isinstance(message["role"], MessageRole)
-            assert message["role"] == expected_roles[i]
+            assert message["role"] == expected_message["role"]
             assert isinstance(message["content"], list)
             assert len(message["content"]) == 1
             for content in message["content"]:
@@ -719,16 +726,17 @@ class TestMultiStepAgent:
                 assert "text" in content
         # Test calls to model
         assert len(fake_model.call_args_list) == 2
-        for call_args in fake_model.call_args_list:
+        for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
             assert len(call_args.args) == 1
             messages = call_args.args[0]
             assert isinstance(messages, list)
-            # assert len(messages) == 1  # TODO
-            for message in messages:
+            assert len(messages) == len(expected_messages)
+            for message, expected_message in zip(messages, expected_messages):
                 assert isinstance(message, dict)
                 assert "role" in message
                 assert "content" in message
                 assert isinstance(message["role"], MessageRole)
+                assert message["role"] == expected_message["role"]
                 assert isinstance(message["content"], list)
                 assert len(message["content"]) == 1
                 for content in message["content"]:
