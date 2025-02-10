@@ -22,6 +22,7 @@ from smolagents import (
     # HfApiModel,
     LiteLLMModel,
     ToolCallingAgent,
+    ManagedAgent,
 )
 
 
@@ -115,6 +116,10 @@ def main():
         max_steps=20,
         verbosity_level=2,
         planning_interval=4,
+    )
+
+    managed_text_webbrowser_agent = ManagedAgent(
+        agent=text_webbrowser_agent,
         name="search_agent",
         description="""A team member that will search the internet to answer your question.
     Ask him for all your questions that require browsing the web.
@@ -124,9 +129,13 @@ def main():
     """,
         provide_run_summary=True,
     )
-    text_webbrowser_agent.prompt_templates["managed_agent"]["task"] += """You can navigate to .txt online files.
+    '''
+    managed_text_webbrowser_agent.prompt_templates["managed_agent"]["task"] += """You can navigate to .txt online files.
     If a non-html page is in another format, especially .pdf or a Youtube video, use tool 'inspect_file_as_text' to inspect it.
     Additionally, if after some searching you find out that you need more information to answer the question, you can use `final_answer` with your request for clarification as argument to request for more information."""
+    '''
+
+
 
     manager_agent = CodeAgent(
         model=model,
@@ -135,7 +144,7 @@ def main():
         verbosity_level=2,
         additional_authorized_imports=AUTHORIZED_IMPORTS,
         planning_interval=4,
-        managed_agents=[text_webbrowser_agent],
+        managed_agents=[managed_text_webbrowser_agent],
     )
 
     answer = manager_agent.run(args.question)
