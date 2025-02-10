@@ -18,5 +18,5 @@ pip install -e .[dev]
 
 Then you're good to go! Run the run.py script, as in:
 ```bash
-python --model-id "o1" --question "Your question here!"
+python run.py --model-id "o1" --question "Your question here!"
 ```
