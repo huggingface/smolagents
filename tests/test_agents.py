@@ -728,7 +728,7 @@ class TestMultiStepAgent:
             ),
         ],
     )
-    def test_planning_step_first_step(self, step, expected_messages_list):
+    def test_planning_step(self, step, expected_messages_list):
         fake_model = MagicMock()
         agent = CodeAgent(
             tools=[],
