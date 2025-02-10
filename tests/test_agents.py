@@ -690,21 +690,50 @@ class TestMultiStepAgent:
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
         assert agent.step_number == max_steps + 1, "step_number should be max_steps + 1 after run method is called"
 
-    def test_planning_step_first_step(self):
-        expected_messages_list = [
-            [
-                {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "FACTS_SYSTEM_PROMPT"}]},
-                {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_USER_PROMPT"}]},
-            ],
-            [{"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_USER_PROMPT"}]}],
-        ]
+    @pytest.mark.parametrize(
+        "step, expected_messages_list",
+        [
+            (
+                1,
+                [
+                    [
+                        {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "FACTS_SYSTEM_PROMPT"}]},
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_USER_PROMPT"}]},
+                    ],
+                    [{"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_USER_PROMPT"}]}],
+                ],
+            ),
+            (
+                2,
+                [
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "FACTS_UPDATE_SYSTEM_PROMPT"}],
+                        },
+                        {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "MEMORY_MESSAGES"}]},  # TODO
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_UPDATE_USER_PROMPT"}]},
+                    ],
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "PLAN_UPDATE_SYSTEM_PROMPT"}],
+                        },
+                        {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "MEMORY_MESSAGES"}]},  # TODO
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_UPDATE_USER_PROMPT"}]},
+                    ],
+                ],
+            ),
+        ],
+    )
+    def test_planning_step_first_step(self, step, expected_messages_list):
         fake_model = MagicMock()
         agent = CodeAgent(
             tools=[],
             model=fake_model,
         )
         task = "Test task"
-        agent.planning_step(task, is_first_step=True, step=0)
+        agent.planning_step(task, is_first_step=(step == 1), step=step)
         assert len(agent.memory.steps) == 1
         planning_step = agent.memory.steps[0]
         assert isinstance(planning_step, PlanningStep)
