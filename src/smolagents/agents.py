@@ -224,46 +224,33 @@ class MultiStepAgent:
         Returns:
             `str`: Final answer to the task.
         """
-        messages = [{"role": MessageRole.SYSTEM, "content": []}]
+        messages = [
+            {
+                "role": MessageRole.SYSTEM,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": self.prompt_templates["final_answer"]["pre_messages"],
+                    }
+                ],
+            }
+        ]
         if images:
-            messages[0]["content"] = [
-                {
-                    "type": "text",
-                    "text": "An agent tried to answer a user query but it got stuck and failed to do so. You are tasked with providing an answer instead. Here is the agent's memory:",
-                }
-            ]
             messages[0]["content"].append({"type": "image"})
-            messages += self.write_memory_to_messages()[1:]
-            messages += [
-                {
-                    "role": MessageRole.USER,
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"Based on the above, please provide an answer to the following user request:\n{task}",
-                        }
-                    ],
-                }
-            ]
-        else:
-            messages[0]["content"] = [
-                {
-                    "type": "text",
-                    "text": "An agent tried to answer a user query but it got stuck and failed to do so. You are tasked with providing an answer instead. Here is the agent's memory:",
-                }
-            ]
-            messages += self.write_memory_to_messages()[1:]
-            messages += [
-                {
-                    "role": MessageRole.USER,
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"Based on the above, please provide an answer to the following user request:\n{task}",
-                        }
-                    ],
-                }
-            ]
+        messages += self.write_memory_to_messages()[1:]
+        messages += [
+            {
+                "role": MessageRole.USER,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": populate_template(
+                            self.prompt_templates["final_answer"]["post_messages"], variables={"task": task}
+                        ),
+                    }
+                ],
+            }
+        ]
         try:
             chat_message: ChatMessage = self.model(messages)
             return chat_message.content
