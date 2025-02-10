@@ -529,9 +529,9 @@ You have been provided with these additional arguments, that you can access usin
                 level=LogLevel.INFO,
             )
         else:  # update plan
-            memory_messages = self.write_memory_to_messages(
-                summary_mode=False
-            )  # This will not log the plan but will log facts
+            # Do not take the system prompt message from the memory
+            # summary_mode=False: Do not take previous plan steps to avoid influencing the new plan
+            memory_messages = self.write_memory_to_messages()[1:]
 
             # Redact updated facts
             facts_update_pre_messages = {
