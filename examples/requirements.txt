@@ -1,4 +1,4 @@
-smolagents[transformers]
+smolagents[transformers,e2b]
 datasets
 langchain
 langchain_community
