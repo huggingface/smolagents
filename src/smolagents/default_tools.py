@@ -250,7 +250,7 @@ class WikipediaSearchTool(Tool):
     WikipediaSearchTool searches Wikipedia and returns a summary of the given topic, along with the page URL.
 
     Attributes:
-        user_agent (str): A custom user-agent string to identify the project.
+        user_agent (str): A custom user-agent string to identify the project. This is required as per Wikipedia API policies, read more here: http://github.com/martin-majlis/Wikipedia-API/blob/master/README.rst
         language (str): The language in which to retrieve Wikipedia articles.
 
     Example:
