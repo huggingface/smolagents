@@ -464,11 +464,13 @@ You have been provided with these additional arguments, that you can access usin
                 "content": [
                     {
                         "type": "text",
-                        "text": f"""Here is the task:
-```
-{task}
-```
-Now begin!""",
+                        "text": textwrap.dedent(
+                            f"""Here is the task:
+                            ```
+                            {task}
+                            ```
+                            Now begin!"""
+                        ),
                     }
                 ]
             }
