@@ -15,7 +15,7 @@ This directory contains example scripts demonstrating how to use smolagents. The
 ### Basic Agent Usage
 - `agent_from_any_llm.py` - Shows how to use different LLM backends (HuggingFace, Transformers, Ollama, LiteLLM)
 - `rag.py` - Basic retrieval-augmented generation using BM25 with transformers documentation
-- `rag_using_chromadb.py` - Advanced RAG implementation using ChromaDB and embeddings
+- `rag_using_chromadb.py` - Advanced RAG implementation using ChromaDB and `HuggingFaceEmbeddings`
 - `multiple_tools.py` - Comprehensive example showing how to create and use multiple API-based tools
 
 ### Code and Database Interaction
