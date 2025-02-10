@@ -720,9 +720,9 @@ class TestMultiStepAgent:
                     [
                         {
                             "role": MessageRole.SYSTEM,
-                            "content": [{"type": "text", "text": "PLAN_UPDATE_SYSTEM_PROMPT"}],
+                            "content": [{"type": "text", "text": "UPDATE_PLAN_SYSTEM_PROMPT"}],
                         },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_UPDATE_USER_PROMPT"}]},
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "UPDATE_PLAN_USER_PROMPT"}]},
                     ],
                 ],
             ),
@@ -752,10 +752,10 @@ class TestMultiStepAgent:
             ),
             "UPDATE_FACTS_SYSTEM_PROMPT": agent.prompt_templates["planning"]["update_facts_pre_messages"],
             "UPDATE_FACTS_USER_PROMPT": agent.prompt_templates["planning"]["update_facts_post_messages"],
-            "PLAN_UPDATE_SYSTEM_PROMPT": populate_template(
+            "UPDATE_PLAN_SYSTEM_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["update_plan_pre_messages"], variables=dict(task=task)
             ),
-            "PLAN_UPDATE_USER_PROMPT": populate_template(
+            "UPDATE_PLAN_USER_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["update_plan_post_messages"],
                 variables=dict(
                     task=task,
