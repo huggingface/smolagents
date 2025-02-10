@@ -182,6 +182,25 @@ def remove_stop_sequences(content: str, stop_sequences: List[str]) -> str:
     return content
 
 
+def has_image_in_messages(message_list: List[Dict[str, str]]) -> bool:
+    """
+    Check if any message in the provided list contains an image element.
+
+    Args:
+        message_list (`list[dict[str, str]]`): List of chat messages.
+
+    Returns:
+        bool: True if an image element is found in any message, False otherwise.
+
+    """
+    for message in message_list:
+        if isinstance(message["content"], list):
+            for element in message["content"]:
+                if element["type"] == "image":
+                    return True
+    return False
+
+
 def get_clean_message_list(
     message_list: List[Dict[str, str]],
     role_conversions: Dict[MessageRole, MessageRole] = {},
@@ -770,6 +789,7 @@ class OpenAIServerModel(Model):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
+        messages_contain_image = has_image_in_messages(messages)
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -778,6 +798,7 @@ class OpenAIServerModel(Model):
             model=self.model_id,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
+            flatten_messages_as_text=not messages_contain_image,
             **kwargs,
         )
         response = self.client.chat.completions.create(**completion_kwargs)
