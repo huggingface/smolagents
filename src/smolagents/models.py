@@ -801,7 +801,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
             The model deployment name to use when connecting (e.g. "gpt-4o-mini").
         azure_endpoint (`str`, *optional*):
             The Azure endpoint, including the resource, e.g. `https://example-resource.azure.openai.com/`. If not provided, it will be inferred from the `AZURE_OPENAI_ENDPOINT` environment variable.
-        azure_ad_token_provider: (`Callable[[], str], *optional*):
+        azure_ad_token_provider: (`Callable[[], str]`, *optional*):
             The Azure active directory token provider. For authentication via Microsoft Entra ID. See `https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/managed-identity#chat-completions`.
         api_key (`str`, *optional*):
             The API key to use for authentication. If not provided, it will be inferred from the `AZURE_OPENAI_API_KEY` environment variable.
