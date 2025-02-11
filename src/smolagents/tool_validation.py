@@ -117,6 +117,31 @@ class MethodChecker(ast.NodeVisitor):
                 self.errors.append(f"Name '{node.func.id}' is undefined.")
         self.generic_visit(node)
 
+    def visit_ListComp(self, node):
+        """Handle list comprehension variables"""
+        # Save current assigned names
+        old_assigned = self.assigned_names.copy()
+
+        # Add comprehension variables
+        for generator in node.generators:
+            if isinstance(generator.target, ast.Name):
+                self.assigned_names.add(generator.target.id)
+            # Handle tuple unpacking in comprehension
+            elif isinstance(generator.target, ast.Tuple):
+                for elt in generator.target.elts:
+                    if isinstance(elt, ast.Name):
+                        self.assigned_names.add(elt.id)
+
+        # Visit the comprehension
+        self.generic_visit(node)
+
+        # Restore original assigned names (scope handling)
+        self.assigned_names = old_assigned
+
+    # Add similar handlers for other comprehension types
+    visit_SetComp = visit_ListComp
+    visit_GeneratorExp = visit_ListComp
+    visit_DictComp = visit_ListComp
 
 def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     """
