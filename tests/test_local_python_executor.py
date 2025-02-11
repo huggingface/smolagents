@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import types
 import unittest
 from textwrap import dedent
@@ -24,6 +25,7 @@ from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     InterpreterError,
     PrintContainer,
+    evaluate_delete,
     evaluate_python_code,
     fix_final_answer_code,
     get_safe_module,
@@ -926,7 +928,7 @@ shift_intervals
         code = "import random;random._os.system('echo bad command passed')"
         with pytest.raises(InterpreterError) as e:
             evaluate_python_code(code)
-        assert "AttributeError:module 'random' has no attribute '_os'" in str(e)
+        assert "AttributeError: module 'random' has no attribute '_os'" in str(e)
 
         code = "import doctest;doctest.inspect.os.system('echo bad command passed')"
         with pytest.raises(InterpreterError):
@@ -1088,6 +1090,70 @@ def test_evaluate_augassign_custom(operator, expected_result):
     state = {}
     result, _ = evaluate_python_code(code, {}, state=state)
     assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "code, expected_error_message",
+    [
+        (
+            dedent("""\
+                x = 5
+                del x
+                x
+            """),
+            "The variable `x` is not defined",
+        ),
+        (
+            dedent("""\
+                x = [1, 2, 3]
+                del x[2]
+                x[2]
+            """),
+            "Index 2 out of bounds for list of length 2",
+        ),
+        (
+            dedent("""\
+                x = {"key": "value"}
+                del x["key"]
+                x["key"]
+            """),
+            "Could not index {} with 'key'",
+        ),
+        (
+            dedent("""\
+                del x
+            """),
+            "Cannot delete name 'x': name is not defined",
+        ),
+    ],
+)
+def test_evaluate_python_code_with_evaluate_delete(code, expected_error_message):
+    state = {}
+    with pytest.raises(InterpreterError) as exception_info:
+        evaluate_python_code(code, {}, state=state)
+    assert expected_error_message in str(exception_info.value)
+
+
+@pytest.mark.parametrize(
+    "code, state, expectation",
+    [
+        ("del x", {"x": 1}, {}),
+        ("del x[1]", {"x": [1, 2, 3]}, {"x": [1, 3]}),
+        ("del x['key']", {"x": {"key": "value"}}, {"x": {}}),
+        ("del x", {}, InterpreterError("Cannot delete name 'x': name is not defined")),
+    ],
+)
+def test_evaluate_delete(code, state, expectation):
+    state["_operations_count"] = 0
+    delete_node = ast.parse(code).body[0]
+    if isinstance(expectation, Exception):
+        with pytest.raises(type(expectation)) as exception_info:
+            evaluate_delete(delete_node, state, {}, {}, [])
+        assert str(expectation) in str(exception_info.value)
+    else:
+        evaluate_delete(delete_node, state, {}, {}, [])
+        del state["_operations_count"]
+        assert state == expectation
 
 
 def test_get_safe_module_handle_lazy_imports():

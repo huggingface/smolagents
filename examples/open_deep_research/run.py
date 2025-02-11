@@ -108,6 +108,7 @@ def main():
         ArchiveSearchTool(browser),
         TextInspectorTool(model, text_limit),
     ]
+
     text_webbrowser_agent = ToolCallingAgent(
         model=model,
         tools=WEB_TOOLS,
