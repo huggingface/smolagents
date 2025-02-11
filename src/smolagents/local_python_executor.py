@@ -1034,7 +1034,6 @@ def check_module_authorized(module_name, authorized_imports):
 
 
 def import_modules(expression, state, authorized_imports):
-
     if isinstance(expression, ast.Import):
         for alias in expression.names:
             if check_module_authorized(alias.name, authorized_imports):

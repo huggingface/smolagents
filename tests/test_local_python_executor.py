@@ -1377,23 +1377,4 @@ class TestPrintContainer:
     ],
 )
 def test_check_module_authorized(module: str, authorized_imports: list[str], expected: bool):
-    dangerous_patterns = (
-        "_os",
-        "os",
-        "subprocess",
-        "_subprocess",
-        "pty",
-        "system",
-        "popen",
-        "spawn",
-        "shutil",
-        "sys",
-        "pathlib",
-        "io",
-        "socket",
-        "compile",
-        "eval",
-        "exec",
-        "multiprocessing",
-    )
-    assert check_module_authorized(module, authorized_imports, dangerous_patterns) == expected
+    assert check_module_authorized(module, authorized_imports) == expected
