@@ -147,3 +147,11 @@ print(model(messages))
 ```
 
 [[autodoc]] LiteLLMModel
+
+## Prompts
+
+[[autodoc]] PromptTemplates
+
+[[autodoc]] PlanningPromptTemplate
+
+[[autodoc]] ManagedAgentPromptTemplate
