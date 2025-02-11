@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.agent_types import AgentImage, AgentText
@@ -664,10 +665,18 @@ nested_answer()
 
 
 class TestMultiStepAgent:
-    def test_logging_to_terminal_is_disabled(self):
+    def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
         agent = MultiStepAgent(tools=[], model=fake_model)
         assert agent.logger.level == -1, "logging to terminal should be disabled for testing using a fixture"
+
+    def test_instantiation_with_prompt_templates(self, prompt_templates):
+        agent = MultiStepAgent(tools=[], model=MagicMock(), prompt_templates=prompt_templates)
+        assert agent.prompt_templates == prompt_templates
+        assert agent.prompt_templates["system_prompt"] == "This is a test system prompt."
+        assert "managed_agent" in agent.prompt_templates
+        assert agent.prompt_templates["managed_agent"]["task"] == "Task for {{name}}: {{task}}"
+        assert agent.prompt_templates["managed_agent"]["report"] == "Report for {{name}}: {{final_answer}}"
 
     def test_step_number(self):
         fake_model = MagicMock()
@@ -681,25 +690,61 @@ class TestMultiStepAgent:
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
         assert agent.step_number == max_steps + 1, "step_number should be max_steps + 1 after run method is called"
 
-    def test_planning_step_first_step(self):
+    @pytest.mark.parametrize(
+        "step, expected_messages_list",
+        [
+            (
+                1,
+                [
+                    [
+                        {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "FACTS_SYSTEM_PROMPT"}]},
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_USER_PROMPT"}]},
+                    ],
+                    [{"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_USER_PROMPT"}]}],
+                ],
+            ),
+            (
+                2,
+                [
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "FACTS_UPDATE_SYSTEM_PROMPT"}],
+                        },
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_UPDATE_USER_PROMPT"}]},
+                    ],
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "PLAN_UPDATE_SYSTEM_PROMPT"}],
+                        },
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_UPDATE_USER_PROMPT"}]},
+                    ],
+                ],
+            ),
+        ],
+    )
+    def test_planning_step_first_step(self, step, expected_messages_list):
         fake_model = MagicMock()
         agent = CodeAgent(
             tools=[],
             model=fake_model,
         )
         task = "Test task"
-        agent.planning_step(task, is_first_step=True, step=0)
+        agent.planning_step(task, is_first_step=(step == 1), step=step)
         assert len(agent.memory.steps) == 1
         planning_step = agent.memory.steps[0]
         assert isinstance(planning_step, PlanningStep)
-        messages = planning_step.model_input_messages
-        assert isinstance(messages, list)
-        assert len(messages) == 1
-        for message in messages:
+        expected_model_input_messages = expected_messages_list[0]
+        model_input_messages = planning_step.model_input_messages
+        assert isinstance(model_input_messages, list)
+        assert len(model_input_messages) == len(expected_model_input_messages)  # 2
+        for message, expected_message in zip(model_input_messages, expected_model_input_messages):
             assert isinstance(message, dict)
             assert "role" in message
             assert "content" in message
             assert isinstance(message["role"], MessageRole)
+            assert message["role"] == expected_message["role"]
             assert isinstance(message["content"], list)
             assert len(message["content"]) == 1
             for content in message["content"]:
@@ -708,19 +753,28 @@ class TestMultiStepAgent:
                 assert "text" in content
         # Test calls to model
         assert len(fake_model.call_args_list) == 2
-        for call_args in fake_model.call_args_list:
+        for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
             assert len(call_args.args) == 1
             messages = call_args.args[0]
             assert isinstance(messages, list)
-            assert len(messages) == 1
-            for message in messages:
+            assert len(messages) == len(expected_messages)
+            for message, expected_message in zip(messages, expected_messages):
                 assert isinstance(message, dict)
                 assert "role" in message
                 assert "content" in message
                 assert isinstance(message["role"], MessageRole)
+                assert message["role"] == expected_message["role"]
                 assert isinstance(message["content"], list)
                 assert len(message["content"]) == 1
                 for content in message["content"]:
                     assert isinstance(content, dict)
                     assert "type" in content
                     assert "text" in content
+
+
+@pytest.fixture
+def prompt_templates():
+    return {
+        "system_prompt": "This is a test system prompt.",
+        "managed_agent": {"task": "Task for {{name}}: {{task}}", "report": "Report for {{name}}: {{final_answer}}"},
+    }

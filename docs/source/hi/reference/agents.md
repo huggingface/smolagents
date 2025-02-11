@@ -146,6 +146,7 @@ print(model(messages))
 यह क्लास आपको किसी भी OpenAIServer कम्पैटिबल मॉडल को कॉल करने देती है।
 यहाँ बताया गया है कि आप इसे कैसे सेट कर सकते हैं (आप दूसरे सर्वर को पॉइंट करने के लिए `api_base` url को कस्टमाइज़ कर सकते हैं):
 ```py
+import os
 from smolagents import OpenAIServerModel
 
 model = OpenAIServerModel(
