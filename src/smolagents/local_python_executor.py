@@ -52,6 +52,7 @@ ERRORS = {
 
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
+MAX_WHILE_ITERATIONS = 1000000
 
 
 def custom_print(*args):
@@ -241,7 +242,6 @@ def evaluate_while(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> None:
-    max_iterations = 1000000
     iterations = 0
     while evaluate_ast(while_loop.test, state, static_tools, custom_tools, authorized_imports):
         for node in while_loop.body:
@@ -252,8 +252,8 @@ def evaluate_while(
             except ContinueException:
                 break
         iterations += 1
-        if iterations > max_iterations:
-            raise InterpreterError(f"Maximum number of {max_iterations} iterations in While loop exceeded")
+        if iterations > MAX_WHILE_ITERATIONS:
+            raise InterpreterError(f"Maximum number of {MAX_WHILE_ITERATIONS} iterations in While loop exceeded")
     return None
 
 
@@ -1067,7 +1067,9 @@ def import_modules(expression, state, authorized_imports):
                     else:
                         raise InterpreterError(f"Module {expression.module} has no attribute {alias.name}")
         else:
-            raise InterpreterError(f"Import from {expression.module} is not allowed.")
+            raise InterpreterError(
+                f"Import from {expression.module} is not allowed. Authorized imports are: {str(authorized_imports)}"
+            )
         return None
 
 
@@ -1377,12 +1379,11 @@ def evaluate_python_code(
         is_final_answer = True
         return e.value, is_final_answer
     except Exception as e:
-        exception_type = type(e).__name__
         state["_print_outputs"].value = truncate_content(
             str(state["_print_outputs"]), max_length=max_print_outputs_length
         )
         raise InterpreterError(
-            f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {exception_type}:{str(e)}"
+            f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
         )
 
 

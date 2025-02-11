@@ -45,7 +45,7 @@ class E2BExecutor:
             raise ModuleNotFoundError(
                 """Please install 'e2b' extra to use E2BExecutor: `pip install "smolagents[e2b]"`"""
             )
-
+        self.logger = logger
         self.logger.log("Initializing E2B executor, hold on...")
 
         self.custom_tools = {}

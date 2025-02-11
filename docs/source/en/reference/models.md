@@ -114,6 +114,7 @@ print(model(messages))
 This class lets you call any OpenAIServer compatible model.
 Here's how you can set it (you can customise the `api_base` url to point to another server):
 ```py
+import os
 from smolagents import OpenAIServerModel
 
 model = OpenAIServerModel(

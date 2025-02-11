@@ -14,8 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib.resources
 import inspect
-import os
 import re
 import textwrap
 import time
@@ -88,11 +88,11 @@ class MultiStepAgent:
     Args:
         tools (`list[Tool]`): [`Tool`]s that the agent can use.
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
-        prompts_path (`str`, *optional*): The path from which to load this agent's prompt dictionary.
+        prompt_templates (`dict`, *optional*): Prompt templates.
         max_steps (`int`, default `6`): Maximum number of steps the agent can take to solve the task.
         tool_parser (`Callable`, *optional*): Function used to parse the tool calls from the LLM output.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
-        verbosity_level (`int`, default `1`): Level of verbosity of the agent's logs.
+        verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]`, *optional*): Callbacks that will be called at each step.
@@ -107,11 +107,11 @@ class MultiStepAgent:
         self,
         tools: List[Tool],
         model: Callable[[List[Dict[str, str]]], ChatMessage],
-        prompts_path: Optional[str] = None,
+        prompt_templates: Optional[dict] = None,
         max_steps: int = 6,
         tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
-        verbosity_level: int = 1,
+        verbosity_level: LogLevel = LogLevel.INFO,
         grammar: Optional[Dict[str, str]] = None,
         managed_agents: Optional[List] = None,
         step_callbacks: Optional[List[Callable]] = None,
@@ -125,6 +125,7 @@ class MultiStepAgent:
             tool_parser = parse_json_tool_call
         self.agent_name = self.__class__.__name__
         self.model = model
+        self.prompt_templates = prompt_templates or {}
         self.max_steps = max_steps
         self.step_number: int = 0
         self.tool_parser = tool_parser
@@ -458,7 +459,22 @@ You have been provided with these additional arguments, that you can access usin
                 "role": MessageRole.SYSTEM,
                 "content": [{"type": "text", "text": self.prompt_templates["planning"]["initial_facts"]}],
             }
-            input_messages = [message_prompt_facts]
+            message_prompt_task = {
+                "role": MessageRole.USER,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": textwrap.dedent(
+                            f"""Here is the task:
+                            ```
+                            {task}
+                            ```
+                            Now begin!"""
+                        ),
+                    },
+                ],
+            }
+            input_messages = [message_prompt_facts, message_prompt_task]
 
             chat_message_facts: ChatMessage = self.model(input_messages)
             answer_facts = chat_message_facts.content
@@ -486,14 +502,18 @@ You have been provided with these additional arguments, that you can access usin
             )
             answer_plan = chat_message_plan.content
 
-            final_plan_redaction = f"""Here is the plan of action that I will follow to solve the task:
-```
-{answer_plan}
-```"""
-            final_facts_redaction = f"""Here are the facts that I know so far:
-```
-{answer_facts}
-```""".strip()
+            final_plan_redaction = textwrap.dedent(
+                f"""Here is the plan of action that I will follow to solve the task:
+                ```
+                {answer_plan}
+                ```"""
+            )
+            final_facts_redaction = textwrap.dedent(
+                f"""Here are the facts that I know so far:
+                ```
+                {answer_facts}
+                ```""".strip()
+            )
             self.memory.steps.append(
                 PlanningStep(
                     model_input_messages=input_messages,
@@ -509,9 +529,9 @@ You have been provided with these additional arguments, that you can access usin
                 level=LogLevel.INFO,
             )
         else:  # update plan
-            memory_messages = self.write_memory_to_messages(
-                summary_mode=False
-            )  # This will not log the plan but will log facts
+            # Do not take the system prompt message from the memory
+            # summary_mode=False: Do not take previous plan steps to avoid influencing the new plan
+            memory_messages = self.write_memory_to_messages()[1:]
 
             # Redact updated facts
             facts_update_pre_messages = {
@@ -519,7 +539,7 @@ You have been provided with these additional arguments, that you can access usin
                 "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_pre_messages"]}],
             }
             facts_update_post_messages = {
-                "role": MessageRole.SYSTEM,
+                "role": MessageRole.USER,
                 "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_post_messages"]}],
             }
             input_messages = [facts_update_pre_messages] + memory_messages + [facts_update_post_messages]
@@ -539,12 +559,12 @@ You have been provided with these additional arguments, that you can access usin
                 ],
             }
             update_plan_post_messages = {
-                "role": MessageRole.SYSTEM,
+                "role": MessageRole.USER,
                 "content": [
                     {
                         "type": "text",
                         "text": populate_template(
-                            self.prompt_templates["planning"]["update_plan_pre_messages"],
+                            self.prompt_templates["planning"]["update_plan_post_messages"],
                             variables={
                                 "task": task,
                                 "tools": self.tools,
@@ -606,7 +626,7 @@ You have been provided with these additional arguments, that you can access usin
 
     def __call__(self, task: str, **kwargs):
         """
-        This methd is called only by a manager agent.
+        This method is called only by a manager agent.
         Adds additional prompting for the managed agent, runs it, and wraps the output.
         """
         full_task = populate_template(
@@ -633,7 +653,7 @@ class ToolCallingAgent(MultiStepAgent):
     Args:
         tools (`list[Tool]`): [`Tool`]s that the agent can use.
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
-        prompts_path (`str`, *optional*): The path from which to load this agent's prompt dictionary.
+        prompt_templates (`dict`, *optional*): Prompt templates.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         **kwargs: Additional keyword arguments.
     """
@@ -642,17 +662,17 @@ class ToolCallingAgent(MultiStepAgent):
         self,
         tools: List[Tool],
         model: Callable[[List[Dict[str, str]]], ChatMessage],
-        prompts_path: Optional[str] = None,
+        prompt_templates: Optional[dict] = None,
         planning_interval: Optional[int] = None,
         **kwargs,
     ):
-        yaml_path = os.path.join(os.path.dirname(__file__), "prompts", "toolcalling_agent.yaml")
-        with open(yaml_path, "r") as f:
-            self.prompt_templates = yaml.safe_load(f)
+        prompt_templates = prompt_templates or yaml.safe_load(
+            importlib.resources.files("smolagents.prompts").joinpath("toolcalling_agent.yaml").read_text()
+        )
         super().__init__(
             tools=tools,
             model=model,
-            prompts_path=prompts_path,
+            prompt_templates=prompt_templates,
             planning_interval=planning_interval,
             **kwargs,
         )
@@ -755,7 +775,7 @@ class CodeAgent(MultiStepAgent):
     Args:
         tools (`list[Tool]`): [`Tool`]s that the agent can use.
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
-        prompts_path (`str`, *optional*): The path from which to load this agent's prompt dictionary.
+        prompt_templates (`dict`, *optional*): Prompt templates.
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
@@ -769,7 +789,7 @@ class CodeAgent(MultiStepAgent):
         self,
         tools: List[Tool],
         model: Callable[[List[Dict[str, str]]], ChatMessage],
-        prompts_path: Optional[str] = None,
+        prompt_templates: Optional[dict] = None,
         grammar: Optional[Dict[str, str]] = None,
         additional_authorized_imports: Optional[List[str]] = None,
         planning_interval: Optional[int] = None,
@@ -779,12 +799,13 @@ class CodeAgent(MultiStepAgent):
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        yaml_path = os.path.join(os.path.dirname(__file__), "prompts", "code_agent.yaml")
-        with open(yaml_path, "r") as f:
-            self.prompt_templates = yaml.safe_load(f)
+        prompt_templates = prompt_templates or yaml.safe_load(
+            importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
+        )
         super().__init__(
             tools=tools,
             model=model,
+            prompt_templates=prompt_templates,
             grammar=grammar,
             planning_interval=planning_interval,
             **kwargs,

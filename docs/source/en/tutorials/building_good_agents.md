@@ -18,7 +18,7 @@ rendered properly in your Markdown viewer.
 [[open-in-colab]]
 
 There's a world of difference between building an agent that works and one that doesn't.
-How can we build agents that fall into the latter category?
+How can we build agents that fall into the former category?
 In this guide, we're going to talk about best practices for building agents.
 
 > [!TIP]
@@ -194,7 +194,7 @@ If above clarifications are not sufficient, you can change the system prompt.
 Let's see how it works. For example, let us check the default system prompt for the [`CodeAgent`] (below version is shortened by skipping zero-shot examples).
 
 ```python
-print(agent.system_prompt_template)
+print(agent.prompt_templates["system_prompt"])
 ```
 Here is what you get:
 ```text
