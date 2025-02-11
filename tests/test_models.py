@@ -49,6 +49,7 @@ class ModelTests(unittest.TestCase):
         data = json.loads(message.model_dump_json())
         assert data["content"] == [{"type": "text", "text": "Hello!"}]
 
+    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
     def test_get_hfapi_message_no_tool(self):
         model = HfApiModel(max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
