@@ -713,7 +713,7 @@ def evaluate_condition(
     static_tools: Dict[str, Callable],
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
-) -> bool:
+) -> bool | object:
     left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
     comparators = [
         evaluate_ast(c, state, static_tools, custom_tools, authorized_imports) for c in condition.comparators
@@ -746,6 +746,9 @@ def evaluate_condition(
             current_result = current_left not in comparator
         else:
             raise InterpreterError(f"Operator not supported: {op}")
+
+        if not isinstance(current_result, bool):
+            return current_result
 
         result = result & current_result
         current_left = comparator

@@ -1181,6 +1181,31 @@ def test_get_safe_module_handle_lazy_imports():
     assert getattr(safe_module, "non_lazy_attribute") == "ok"
 
 
+def test_non_standard_comparisons():
+    code = """
+class NonStdEqualsResult:
+    def __init__(self, left:object, right:object):
+        self._left = left
+        self._right = right
+    def __str__(self) -> str:
+        return f'{self._left}=={self._right}'
+
+class NonStdComparisonClass:
+    def __init__(self, value: str ):
+        self._value = value
+    def __str__(self):
+        return self._value
+    def __eq__(self, other):
+        return NonStdEqualsResult(self, other)
+a = NonStdComparisonClass("a")
+b = NonStdComparisonClass("b")
+result = a == b
+    """
+    result, _ = evaluate_python_code(code, state={})
+    assert not isinstance(result, bool)
+    assert str(result) == "a==b"
+
+
 class TestPrintContainer:
     def test_initial_value(self):
         pc = PrintContainer()
