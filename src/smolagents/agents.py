@@ -84,6 +84,18 @@ def populate_template(template: str, variables: Dict[str, Any]) -> str:
 
 
 class PlanningPromptTemplate(TypedDict):
+    """
+    Prompt templates for the planning step.
+
+    Args:
+        initial_facts (`str`): Initial facts prompt.
+        initial_plan (`str`): Initial plan prompt.
+        update_facts_pre_messages (`str`): Update facts pre-messages prompt.
+        update_facts_post_messages (`str`): Update facts post-messages prompt.
+        update_plan_pre_messages (`str`): Update plan pre-messages prompt.
+        update_plan_post_messages (`str`): Update plan post-messages prompt.
+    """
+
     initial_facts: str
     initial_plan: str
     update_facts_pre_messages: str
@@ -93,11 +105,28 @@ class PlanningPromptTemplate(TypedDict):
 
 
 class ManagedAgentPromptTemplate(TypedDict):
+    """
+    Prompt templates for the managed agent.
+
+    Args:
+        task (`str`): Task prompt.
+        report (`str`): Report prompt.
+    """
+
     task: str
     report: str
 
 
 class PromptTemplates(TypedDict):
+    """
+    Prompt templates for the agent.
+
+    Args:
+        system_prompt (`str`): System prompt.
+        planning ([`PlanningPromptTemplate`]): Planning prompt template.
+        managed_agent ([`ManagedAgentPromptTemplate`]): Managed agent prompt template.
+    """
+
     system_prompt: str
     planning: PlanningPromptTemplate
     managed_agent: ManagedAgentPromptTemplate
