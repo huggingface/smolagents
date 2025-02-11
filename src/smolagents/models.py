@@ -551,8 +551,13 @@ class TransformersModel(Model):
             or self.kwargs.get("max_tokens")
         )
 
-        if max_new_tokens:
-            completion_kwargs["max_new_tokens"] = max_new_tokens
+        default_max_tokens = 5000
+        if not max_new_tokens:
+            max_new_tokens = default_max_tokens
+            logger.warning(
+                f"`max_new_tokens` or `max_tokens` not provided, using this default value for `max_new_tokens`: {max_new_tokens}"
+            )
+        completion_kwargs["max_new_tokens"] = max_new_tokens
 
         if hasattr(self, "processor"):
             images = [Image.open(image) for image in images] if images else None
