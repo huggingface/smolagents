@@ -130,8 +130,9 @@ def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
 
 
 def parse_tool_args_if_needed(message: ChatMessage) -> ChatMessage:
-    for tool_call in message.tool_calls:
-        tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+    if message.tool_calls is not None:
+        for tool_call in message.tool_calls:
+            tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
     return message
 
 
