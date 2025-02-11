@@ -21,7 +21,7 @@ import random
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from huggingface_hub import InferenceClient
 from huggingface_hub.utils import is_torch_available
@@ -801,6 +801,8 @@ class AzureOpenAIServerModel(OpenAIServerModel):
             The model deployment name to use when connecting (e.g. "gpt-4o-mini").
         azure_endpoint (`str`, *optional*):
             The Azure endpoint, including the resource, e.g. `https://example-resource.azure.openai.com/`. If not provided, it will be inferred from the `AZURE_OPENAI_ENDPOINT` environment variable.
+        azure_ad_token_provider: (`Callable[[], str], *optional*):
+            The Azure active directory token provider. For authentication via Microsoft Entra ID. See `https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/managed-identity#chat-completions`.
         api_key (`str`, *optional*):
             The API key to use for authentication. If not provided, it will be inferred from the `AZURE_OPENAI_API_KEY` environment variable.
         api_version (`str`, *optional*):
@@ -816,20 +818,33 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         self,
         model_id: str,
         azure_endpoint: Optional[str] = None,
+        azure_ad_token_provider: Optional[Callable[[], str]] = None,
         api_key: Optional[str] = None,
         api_version: Optional[str] = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
-        # read the api key manually, to avoid super().__init__() trying to use the wrong api_key (OPENAI_API_KEY)
-        if api_key is None:
-            api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+        try:
+            import openai
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from None
 
-        super().__init__(model_id=model_id, api_key=api_key, custom_role_conversions=custom_role_conversions, **kwargs)
-        # if we've reached this point, it means the openai package is available (checked in baseclass) so go ahead and import it
-        import openai
-
-        self.client = openai.AzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
+        super().__init__(
+            model_id=model_id,
+            # NOTE: passing dummy key for parent class client initialization, will be overridden
+            api_key=api_key or "n/a",
+            **kwargs,
+        )
+        self.model_id = model_id
+        self.client = openai.AzureOpenAI(
+            api_key=api_key,
+            api_version=api_version,
+            azure_endpoint=azure_endpoint,
+            azure_ad_token_provider=azure_ad_token_provider,
+        )
+        self.custom_role_conversions = custom_role_conversions
 
 
 __all__ = [

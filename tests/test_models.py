@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from transformers.testing_utils import get_tests_dir
 
-from smolagents import ChatMessage, HfApiModel, TransformersModel, models, tool
+from smolagents import AzureOpenAIServerModel, ChatMessage, HfApiModel, TransformersModel, models, tool
 from smolagents.models import MessageRole, get_clean_message_list, parse_json_if_needed
 
 
@@ -102,6 +102,21 @@ class ModelTests(unittest.TestCase):
         args = 3
         parsed_args = parse_json_if_needed(args)
         assert parsed_args == 3
+
+
+class TestAzureOpenAIServerModel:
+    def test_azure_ad_token_provider(self):
+        def token_provider() -> str:
+            return "azure-ad-token"
+
+        model = AzureOpenAIServerModel(
+            model_id="test",
+            api_version="test-version",
+            azure_endpoint="test-endpoint",
+            azure_ad_token_provider=token_provider,
+        )
+        token = model.client._get_azure_ad_token()
+        assert token == token_provider()
 
 
 class TestHfApiModel:
