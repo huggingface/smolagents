@@ -664,6 +664,21 @@ nested_answer()
         assert "Error raised in check" in str(agent.write_memory_to_messages())
 
 
+@pytest.fixture
+def planning_prompt_templates():
+    return {
+        "system_prompt": "Test system prompt",
+        "planning": {
+            "initial_facts": "FACTS_SYSTEM_PROMPT",
+            "initial_plan": "PLAN_USER_PROMPT",
+            "update_facts_pre_messages": "FACTS_UPDATE_SYSTEM_PROMPT",
+            "update_facts_post_messages": "FACTS_UPDATE_USER_PROMPT",
+            "update_plan_pre_messages": "PLAN_UPDATE_SYSTEM_PROMPT",
+            "update_plan_post_messages": "PLAN_UPDATE_USER_PROMPT",
+        },
+    }
+
+
 class TestMultiStepAgent:
     def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
@@ -698,9 +713,16 @@ class TestMultiStepAgent:
                 [
                     [
                         {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "FACTS_SYSTEM_PROMPT"}]},
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_USER_PROMPT"}]},
+                        {
+                            "role": MessageRole.USER,
+                            "content": [
+                                {"type": "text", "text": "Here is the task:\n```\nTest task\n```\nNow begin!"}
+                            ],
+                        },
                     ],
-                    [{"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_USER_PROMPT"}]}],
+                    [
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_USER_PROMPT"}]},
+                    ],
                 ],
             ),
             (
@@ -724,41 +746,32 @@ class TestMultiStepAgent:
             ),
         ],
     )
-    def test_planning_step_first_step(self, step, expected_messages_list):
+    def test_planning_step_first_step(self, step, expected_messages_list, planning_prompt_templates):
         fake_model = MagicMock()
-        agent = CodeAgent(
-            tools=[],
-            model=fake_model,
-        )
+        # Set up the mock to store the input messages
+        input_messages_list = []
+
+        def mock_model_call(messages, *args, **kwargs):
+            input_messages_list.append(messages)
+            return ChatMessage(role="assistant", content="Test response")
+
+        fake_model.side_effect = mock_model_call
+
+        agent = CodeAgent(tools=[], model=fake_model, prompt_templates=planning_prompt_templates)
         task = "Test task"
+        agent.task = task  # Set the task explicitly since we're not calling run()
         agent.planning_step(task, is_first_step=(step == 1), step=step)
+
         assert len(agent.memory.steps) == 1
         planning_step = agent.memory.steps[0]
         assert isinstance(planning_step, PlanningStep)
-        expected_model_input_messages = expected_messages_list[0]
-        model_input_messages = planning_step.model_input_messages
-        assert isinstance(model_input_messages, list)
-        assert len(model_input_messages) == len(expected_model_input_messages)  # 2
-        for message, expected_message in zip(model_input_messages, expected_model_input_messages):
-            assert isinstance(message, dict)
-            assert "role" in message
-            assert "content" in message
-            assert isinstance(message["role"], MessageRole)
-            assert message["role"] == expected_message["role"]
-            assert isinstance(message["content"], list)
-            assert len(message["content"]) == 1
-            for content in message["content"]:
-                assert isinstance(content, dict)
-                assert "type" in content
-                assert "text" in content
-        # Test calls to model
+
+        # Verify model was called twice with correct messages
         assert len(fake_model.call_args_list) == 2
-        for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
-            assert len(call_args.args) == 1
-            messages = call_args.args[0]
-            assert isinstance(messages, list)
-            assert len(messages) == len(expected_messages)
-            for message, expected_message in zip(messages, expected_messages):
+        for call_args, expected_messages in zip(input_messages_list, expected_messages_list):
+            assert isinstance(call_args, list)
+            assert len(call_args) == len(expected_messages)
+            for message, expected_message in zip(call_args, expected_messages):
                 assert isinstance(message, dict)
                 assert "role" in message
                 assert "content" in message
@@ -770,6 +783,7 @@ class TestMultiStepAgent:
                     assert isinstance(content, dict)
                     assert "type" in content
                     assert "text" in content
+                    assert content["text"] == expected_message["content"][0]["text"]
 
 
 @pytest.fixture
