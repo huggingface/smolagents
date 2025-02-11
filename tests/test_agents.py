@@ -29,6 +29,7 @@ from smolagents.agents import (
     MultiStepAgent,
     ToolCall,
     ToolCallingAgent,
+    populate_template,
 )
 from smolagents.default_tools import PythonInterpreterTool
 from smolagents.memory import PlanningStep
