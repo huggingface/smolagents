@@ -150,8 +150,8 @@ print(model(messages))
 
 ## Prompts
 
-[[autodoc]] PromptTemplates
+[[autodoc]] smolagents.agents.PromptTemplates
 
-[[autodoc]] PlanningPromptTemplate
+[[autodoc]] smolagents.agents.PlanningPromptTemplate
 
-[[autodoc]] ManagedAgentPromptTemplate
+[[autodoc]] smolagents.agents.ManagedAgentPromptTemplate

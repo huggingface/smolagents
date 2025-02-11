@@ -60,8 +60,8 @@ _This class is deprecated since 1.8.0: now you simply need to pass attributes `n
 
 ## Prompts
 
-[[autodoc]] PromptTemplates
+[[autodoc]] smolagents.agents.PromptTemplates
 
-[[autodoc]] PlanningPromptTemplate
+[[autodoc]] smolagents.agents.PlanningPromptTemplate
 
-[[autodoc]] ManagedAgentPromptTemplate
+[[autodoc]] smolagents.agents.ManagedAgentPromptTemplate
