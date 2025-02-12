@@ -155,3 +155,5 @@ print(model(messages))
 [[autodoc]] smolagents.agents.PlanningPromptTemplate
 
 [[autodoc]] smolagents.agents.ManagedAgentPromptTemplate
+
+[[autodoc]] smolagents.agents.FinalAnswerPromptTemplate

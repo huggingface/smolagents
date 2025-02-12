@@ -163,3 +163,5 @@ model = OpenAIServerModel(
 [[autodoc]] smolagents.agents.PlanningPromptTemplate
 
 [[autodoc]] smolagents.agents.ManagedAgentPromptTemplate
+
+[[autodoc]] smolagents.agents.FinalAnswerPromptTemplate
