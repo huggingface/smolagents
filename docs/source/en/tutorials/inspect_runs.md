@@ -42,7 +42,7 @@ Here's how it then looks like on the platform:
 
 
 ## Setting up telemetry with Arize AI Phoenix
-First install the required packages. Here we install [Phoenix by Arize AI](https://github.com/Arize-ai/phoenix) because that's a good solution to collect and inspect the logs, but there are other OpenTelemetry-compatible platforms that you could use for this collection & inspection part (e.g. [Langfuse example below](/docs/smolagents/en/tutorials/inspect_runs#setting-up-telemetry-with-langfuse)).
+First install the required packages. Here we install [Phoenix by Arize AI](https://github.com/Arize-ai/phoenix) because that's a good solution to collect and inspect the logs, but there are other OpenTelemetry-compatible platforms that you could use for this collection & inspection part.
 
 ```shell
 pip install smolagents
