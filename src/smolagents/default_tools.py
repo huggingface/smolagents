@@ -285,7 +285,7 @@ class WikipediaSearchTool(Tool):
 
     def __init__(
         self,
-        user_agent: str,
+        user_agent: str = "Smolagents (myemail@example.com)",
         language: str = "en",
         summary_only: bool = False,
         full_text: bool = True,
