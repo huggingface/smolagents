@@ -69,6 +69,18 @@ class ModelTests(unittest.TestCase):
         output = model(messages, stop_sequences=["great"]).content
         assert output.startswith("Hello")
 
+    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    def test_get_mlx_message_tricky_stop_sequence(self):
+        # In this test HuggingFaceTB/SmolLM2-135M-Instruct generates the token ">'"
+        # which is required to test capturing stop_sequences that have extra chars at the end.
+        model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=100)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Please print '>'"}]}]
+        # check our assumption that that ">" is followed by "'"
+        assert model.tokenizer.vocab[">'"]
+        assert model(messages, stop_sequences=[]).content == "I'm ready to help you print '>'"
+        # check stop_sequence capture when output has trailing chars
+        assert model(messages, stop_sequences=[" print '>"]).content == "I'm ready to help you"
+
     def test_transformers_message_no_tool(self):
         model = TransformersModel(
             model_id="HuggingFaceTB/SmolLM2-135M-Instruct",

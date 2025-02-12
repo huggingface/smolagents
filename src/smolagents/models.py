@@ -531,8 +531,9 @@ class MLXModel(Model):
             self.last_output_token_count += 1
             text += _.text
             for stop_sequence in prepared_stop_sequences:
-                if text.rstrip().endswith(stop_sequence):
-                    text = text.rstrip()[: -len(stop_sequence)]
+                stop_sequence_start = text.find(stop_sequence)
+                if stop_sequence_start != -1:
+                    text = text[:stop_sequence_start]
                     return self._to_message(text, tools_to_call_from)
 
         return self._to_message(text, tools_to_call_from)
