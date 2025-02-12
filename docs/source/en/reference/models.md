@@ -151,7 +151,6 @@ model = AzureOpenAIServerModel(
 
 ### MLXModel
 
-For convenience, we have added a `MLXModel` that implements the points above by building a local `mlx-lm` pipeline for the model_id given at initialization.
 
 ```python
 from smolagents import MLXModel
