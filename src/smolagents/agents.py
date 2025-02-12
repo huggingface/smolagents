@@ -88,7 +88,8 @@ class PlanningPromptTemplate(TypedDict):
     Prompt templates for the planning step.
 
     Args:
-        initial_facts (`str`): Initial facts prompt.
+        initial_facts_pre_task (`str`): Initial facts pre-task prompt.
+        initial_facts_task (`str`): Initial facts task prompt.
         initial_plan (`str`): Initial plan prompt.
         update_facts_pre_messages (`str`): Update facts pre-messages prompt.
         update_facts_post_messages (`str`): Update facts post-messages prompt.
@@ -96,7 +97,8 @@ class PlanningPromptTemplate(TypedDict):
         update_plan_post_messages (`str`): Update plan post-messages prompt.
     """
 
-    initial_facts: str
+    initial_facts_pre_task: str
+    initial_facts_task: str
     initial_plan: str
     update_facts_pre_messages: str
     update_facts_post_messages: str
