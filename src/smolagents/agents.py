@@ -117,19 +117,34 @@ class ManagedAgentPromptTemplate(TypedDict):
     report: str
 
 
+class FinalAnswerPromptTemplate(TypedDict):
+    """
+    Prompt templates for the final answer.
+
+    Args:
+        pre_messages (`str`): Pre-messages prompt.
+        post_messages (`str`): Post-messages prompt.
+    """
+
+    pre_messages: str
+    post_messages: str
+
+
 class PromptTemplates(TypedDict):
     """
     Prompt templates for the agent.
 
     Args:
         system_prompt (`str`): System prompt.
-        planning ([`~agents.PlanningPromptTemplate`]): Planning prompt template.
-        managed_agent ([`~agents.ManagedAgentPromptTemplate`]): Managed agent prompt template.
+        planning ([`~agents.PlanningPromptTemplate`]): Planning prompt templates.
+        managed_agent ([`~agents.ManagedAgentPromptTemplate`]): Managed agent prompt templates.
+        final_answer ([`~agents.FinalAnswerPromptTemplate`]): Final answer prompt templates.
     """
 
     system_prompt: str
     planning: PlanningPromptTemplate
     managed_agent: ManagedAgentPromptTemplate
+    final_answer: FinalAnswerPromptTemplate
 
 
 EMPTY_PROMPT_TEMPLATES = PromptTemplates(
@@ -143,6 +158,7 @@ EMPTY_PROMPT_TEMPLATES = PromptTemplates(
         update_plan_post_messages="",
     ),
     managed_agent=ManagedAgentPromptTemplate(task="", report=""),
+    final_answer=FinalAnswerPromptTemplate(pre_messages="", post_messages=""),
 )
 
 
