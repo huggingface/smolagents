@@ -732,6 +732,8 @@ class OpenAIServerModel(Model):
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
+        http_client (`httpx.Client`, *optional*):
+            A HTTPx client to use for the API requests.
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
