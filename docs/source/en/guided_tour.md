@@ -349,7 +349,7 @@ To create a managed agent, give your `CodeAgent` or `ToolCallingAgent` the attri
 Here's an example of making an agent that managed a specific web search agent using our [`DuckDuckGoSearchTool`]:
 
 ```py
-from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ToolCallingAgent
+from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool
 
 model = HfApiModel()
 
