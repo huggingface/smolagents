@@ -737,9 +737,9 @@ class TestMultiStepAgent:
         task = "Test task"
         agent.planning_step(task, is_first_step=(step == 1), step=step)
         expected_message_texts = {
-            "INITIAL_FACTS_SYSTEM_PROMPT": agent.prompt_templates["planning"]["initial_facts"][0]["content"],
+            "INITIAL_FACTS_SYSTEM_PROMPT": agent.prompt_templates["planning"]["initial_facts_pre_task"],
             "INITIAL_FACTS_USER_PROMPT": populate_template(
-                agent.prompt_templates["planning"]["initial_facts"][1]["content"], variables=dict(task=task)
+                agent.prompt_templates["planning"]["initial_facts_task"], variables=dict(task=task)
             ),
             "INITIAL_PLAN_USER_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["initial_plan"],
