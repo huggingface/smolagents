@@ -85,7 +85,7 @@ BASE_PYTHON_TOOLS = {
     "atan2": math.atan2,
     "degrees": math.degrees,
     "radians": math.radians,
-    "pow": math.pow,
+    "pow": pow,
     "sqrt": math.sqrt,
     "len": len,
     "sum": sum,
