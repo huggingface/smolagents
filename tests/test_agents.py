@@ -838,8 +838,6 @@ class TestMultiStepAgent:
                 assert isinstance(message["content"], list)
                 assert len(message["content"]) == len(expected_message["content"])
                 for content, expected_content in zip(message["content"], expected_message["content"]):
-                    # if "text" in expected_content:
-                    #     expected_content["text"] = expected_message_texts[expected_content["text"]]
                     assert content == expected_content
 
 
