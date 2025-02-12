@@ -348,6 +348,9 @@ class HfApiModel(Model):
             If not provided, the class will try to use environment variable 'HF_TOKEN', else use the token stored in the Hugging Face CLI configuration.
         timeout (`int`, *optional*, defaults to 120):
             Timeout for the API request, in seconds.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
         **kwargs:
             Additional keyword arguments to pass to the Hugging Face API.
 
@@ -375,6 +378,7 @@ class HfApiModel(Model):
         provider: Optional[str] = None,
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -383,6 +387,7 @@ class HfApiModel(Model):
         if token is None:
             token = os.getenv("HF_TOKEN")
         self.client = InferenceClient(self.model_id, provider=provider, token=token, timeout=timeout)
+        self.custom_role_conversions = custom_role_conversions
 
     def __call__(
         self,
@@ -398,9 +403,9 @@ class HfApiModel(Model):
             grammar=grammar,
             tools_to_call_from=tools_to_call_from,
             convert_images_to_image_urls=True,
+            custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
-
         response = self.client.chat_completion(**completion_kwargs)
 
         self.last_input_token_count = response.usage.prompt_tokens

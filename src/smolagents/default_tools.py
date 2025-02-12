@@ -76,7 +76,7 @@ class PythonInterpreterTool(Tool):
                 authorized_imports=self.authorized_imports,
             )[0]  # The second element is boolean is_final_answer
         )
-        return f"Stdout:\n{state['print_outputs']}\nOutput: {output}"
+        return f"Stdout:\n{str(state['_print_outputs'])}\nOutput: {output}"
 
 
 class FinalAnswerTool(Tool):
@@ -169,10 +169,10 @@ class GoogleSearchTool(Tool):
         if "organic_results" not in results.keys():
             if filter_year is not None:
                 raise Exception(
-                    f"'organic_results' key not found for query: '{query}' with filtering on year={filter_year}. Use a less restrictive query or do not filter on year."
+                    f"No results found for query: '{query}' with filtering on year={filter_year}. Use a less restrictive query or do not filter on year."
                 )
             else:
-                raise Exception(f"'organic_results' key not found for query: '{query}'. Use a less restrictive query.")
+                raise Exception(f"No results found for query: '{query}'. Use a less restrictive query.")
         if len(results["organic_results"]) == 0:
             year_filter_message = f" with filter year={filter_year}" if filter_year is not None else ""
             return f"No results found for '{query}'{year_filter_message}. Try with a more general query, or remove the year filter."
