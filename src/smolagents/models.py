@@ -442,7 +442,7 @@ class MLXModel(Model):
     ... )
     >>> messages = [
     ...     {
-    ...         "role": "user", 
+    ...         "role": "user",
     ...         "content": [
     ...             {"type": "text", "text": "Explain quantum mechanics in simple terms."}
     ...         ]
@@ -598,7 +598,16 @@ class TransformersModel(Model):
             model_id = default_model_id
             logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
         self.model_id = model_id
+
+        default_max_tokens = 5000
+        max_new_tokens = kwargs.get("max_new_tokens") or kwargs.get("max_tokens")
+        if not max_new_tokens:
+            kwargs["max_new_tokens"] = default_max_tokens
+            logger.warning(
+                f"`max_new_tokens` not provided, using this default value for `max_new_tokens`: {default_max_tokens}"
+            )
         self.kwargs = kwargs
+
         if device_map is None:
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
@@ -674,13 +683,8 @@ class TransformersModel(Model):
             or self.kwargs.get("max_tokens")
         )
 
-        default_max_tokens = 5000
-        if not max_new_tokens:
-            max_new_tokens = default_max_tokens
-            logger.warning(
-                f"`max_new_tokens` or `max_tokens` not provided, using this default value for `max_new_tokens`: {max_new_tokens}"
-            )
-        completion_kwargs["max_new_tokens"] = max_new_tokens
+        if max_new_tokens:
+            completion_kwargs["max_new_tokens"] = max_new_tokens
 
         if hasattr(self, "processor"):
             images = [Image.open(image) for image in images] if images else None
