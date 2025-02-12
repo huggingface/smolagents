@@ -526,12 +526,20 @@ You have been provided with these additional arguments, that you can access usin
         if is_first_step:
             input_messages = [
                 {
-                    "role": template["role"],
+                    "role": MessageRole.SYSTEM,
+                    "content": [{"type": "text", "text": self.prompt_templates["planning"]["initial_facts_pre_task"]}],
+                },
+                {
+                    "role": MessageRole.USER,
                     "content": [
-                        {"type": "text", "text": populate_template(template["content"], variables={"task": task})}
+                        {
+                            "type": "text",
+                            "text": populate_template(
+                                self.prompt_templates["planning"]["initial_facts_task"], variables={"task": task}
+                            ),
+                        }
                     ],
-                }
-                for template in self.prompt_templates["planning"]["initial_facts"]
+                },
             ]
 
             chat_message_facts: ChatMessage = self.model(input_messages)
