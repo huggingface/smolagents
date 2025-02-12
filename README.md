@@ -157,7 +157,7 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`. `smo
 
 Run the following command to get started:
 ```bash
-webagent {YOUR_PROMPT_HERE} --model "LiteLLMModel" --model-id "gpt-4o"
+webagent {YOUR_PROMPT_HERE} --model-type "LiteLLMModel" --model-id "gpt-4o"
 ```
 
 For instance:
