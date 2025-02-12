@@ -73,7 +73,9 @@ class FakeToolCallModel:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="final_answer", arguments={"answer": "7.2904"}),
+                        function=ChatMessageToolCallDefinition(
+                            name="final_answer", arguments={"answer": "7.2904"}
+                        ),
                     )
                 ],
             )
@@ -104,7 +106,9 @@ class FakeToolCallModelImage:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="final_answer", arguments="image.png"),
+                        function=ChatMessageToolCallDefinition(
+                            name="final_answer", arguments="image.png"
+                        ),
                     )
                 ],
             )
@@ -138,7 +142,9 @@ class FakeToolCallModelVL:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="final_answer", arguments="The image is a cat."),
+                        function=ChatMessageToolCallDefinition(
+                            name="final_answer", arguments="The image is a cat."
+                        ),
                     )
                 ],
             )
@@ -386,7 +392,9 @@ class AgentTests(unittest.TestCase):
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, AgentText)
         assert output == "got an error"
-        assert "Code execution failed at line 'error_function()'" in str(agent.memory.steps[1].error)
+        assert "Code execution failed at line 'error_function()'" in str(
+            agent.memory.steps[1].error
+        )
         assert "ValueError" in str(agent.memory.steps)
 
     def test_code_agent_code_error_saves_previous_print_outputs(self):
@@ -433,7 +441,9 @@ class AgentTests(unittest.TestCase):
     def test_init_agent_with_different_toolsets(self):
         toolset_1 = []
         agent = CodeAgent(tools=toolset_1, model=fake_code_model)
-        assert len(agent.tools) == 1  # when no tools are provided, only the final_answer tool is added by default
+        assert (
+            len(agent.tools) == 1
+        )  # when no tools are provided, only the final_answer tool is added by default
 
         toolset_2 = [PythonInterpreterTool(), PythonInterpreterTool()]
         agent = CodeAgent(tools=toolset_2, model=fake_code_model)
@@ -460,12 +470,16 @@ class AgentTests(unittest.TestCase):
         assert res[0] == 0.5
 
     def test_init_managed_agent(self):
-        agent = CodeAgent(tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty")
+        agent = CodeAgent(
+            tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty"
+        )
         assert agent.name == "managed_agent"
         assert agent.description == "Empty"
 
     def test_agent_description_gets_correctly_inserted_in_system_prompt(self):
-        managed_agent = CodeAgent(tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty")
+        managed_agent = CodeAgent(
+            tools=[], model=fake_code_functiondef, name="managed_agent", description="Empty"
+        )
         manager_agent = CodeAgent(
             tools=[],
             model=fake_code_functiondef,
@@ -653,7 +667,10 @@ nested_answer()
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
         step_memory_dict = agent.memory.get_succinct_steps()[1]
         assert step_memory_dict["model_output_message"].tool_calls[0].function.name == "weather_api"
-        assert step_memory_dict["model_output_message"].raw["completion_kwargs"]["max_new_tokens"] == 100
+        assert (
+            step_memory_dict["model_output_message"].raw["completion_kwargs"]["max_new_tokens"]
+            == 100
+        )
         assert "model_input_messages" in agent.memory.get_full_steps()[1]
 
     def test_final_answer_checks(self):
@@ -669,7 +686,9 @@ class TestMultiStepAgent:
     def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
         agent = MultiStepAgent(tools=[], model=fake_model)
-        assert agent.logger.level == -1, "logging to terminal should be disabled for testing using a fixture"
+        assert agent.logger.level == -1, (
+            "logging to terminal should be disabled for testing using a fixture"
+        )
 
     def test_instantiation_with_prompt_templates(self, prompt_templates):
         agent = MultiStepAgent(tools=[], model=MagicMock(), prompt_templates=prompt_templates)
@@ -677,7 +696,10 @@ class TestMultiStepAgent:
         assert agent.prompt_templates["system_prompt"] == "This is a test system prompt."
         assert "managed_agent" in agent.prompt_templates
         assert agent.prompt_templates["managed_agent"]["task"] == "Task for {{name}}: {{task}}"
-        assert agent.prompt_templates["managed_agent"]["report"] == "Report for {{name}}: {{final_answer}}"
+        assert (
+            agent.prompt_templates["managed_agent"]["report"]
+            == "Report for {{name}}: {{final_answer}}"
+        )
 
     def test_step_number(self):
         fake_model = MagicMock()
@@ -689,7 +711,9 @@ class TestMultiStepAgent:
         assert agent.step_number == 0, "step_number should be initialized to 0"
         agent.run("Test task")
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
-        assert agent.step_number == max_steps + 1, "step_number should be max_steps + 1 after run method is called"
+        assert agent.step_number == max_steps + 1, (
+            "step_number should be max_steps + 1 after run method is called"
+        )
 
     @pytest.mark.parametrize(
         "step, expected_messages_list",
@@ -698,10 +722,21 @@ class TestMultiStepAgent:
                 1,
                 [
                     [
-                        {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "FACTS_SYSTEM_PROMPT"}]},
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_USER_PROMPT"}]},
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "FACTS_SYSTEM_PROMPT"}],
+                        },
+                        {
+                            "role": MessageRole.USER,
+                            "content": [{"type": "text", "text": "FACTS_USER_PROMPT"}],
+                        },
                     ],
-                    [{"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_USER_PROMPT"}]}],
+                    [
+                        {
+                            "role": MessageRole.USER,
+                            "content": [{"type": "text", "text": "PLAN_USER_PROMPT"}],
+                        }
+                    ],
                 ],
             ),
             (
@@ -712,14 +747,20 @@ class TestMultiStepAgent:
                             "role": MessageRole.SYSTEM,
                             "content": [{"type": "text", "text": "FACTS_UPDATE_SYSTEM_PROMPT"}],
                         },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_UPDATE_USER_PROMPT"}]},
+                        {
+                            "role": MessageRole.USER,
+                            "content": [{"type": "text", "text": "FACTS_UPDATE_USER_PROMPT"}],
+                        },
                     ],
                     [
                         {
                             "role": MessageRole.SYSTEM,
                             "content": [{"type": "text", "text": "PLAN_UPDATE_SYSTEM_PROMPT"}],
                         },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_UPDATE_USER_PROMPT"}]},
+                        {
+                            "role": MessageRole.USER,
+                            "content": [{"type": "text", "text": "PLAN_UPDATE_USER_PROMPT"}],
+                        },
                     ],
                 ],
             ),
@@ -783,7 +824,10 @@ class TestMultiStepAgent:
                             "role": MessageRole.SYSTEM,
                             "content": [{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
                         },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}]},
+                        {
+                            "role": MessageRole.USER,
+                            "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                        },
                     ]
                 ],
             ),
@@ -793,9 +837,15 @@ class TestMultiStepAgent:
                     [
                         {
                             "role": MessageRole.SYSTEM,
-                            "content": [{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}, {"type": "image"}],
+                            "content": [
+                                {"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"},
+                                {"type": "image"},
+                            ],
                         },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}]},
+                        {
+                            "role": MessageRole.USER,
+                            "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                        },
                     ]
                 ],
             ),
@@ -837,7 +887,9 @@ class TestMultiStepAgent:
                 assert message["role"] == expected_message["role"]
                 assert isinstance(message["content"], list)
                 assert len(message["content"]) == len(expected_message["content"])
-                for content, expected_content in zip(message["content"], expected_message["content"]):
+                for content, expected_content in zip(
+                    message["content"], expected_message["content"]
+                ):
                     assert content == expected_content
 
 
@@ -846,13 +898,15 @@ class TestCodeAgent:
     def test_call_with_provide_run_summary(self, provide_run_summary):
         agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
         assert agent.provide_run_summary is provide_run_summary
-        agent.managed_agent_prompt = "Task: {request}"
+        agent.managed_agent_prompt = "Task: {task}"
         agent.name = "test_agent"
         agent.run = MagicMock(return_value="Test output")
         agent.write_memory_to_messages = MagicMock(return_value=[{"content": "Test summary"}])
 
         result = agent("Test request")
-        expected_summary = "Here is the final answer from your managed agent 'test_agent':\nTest output"
+        expected_summary = (
+            "Here is the final answer from your managed agent 'test_agent':\nTest output"
+        )
         if provide_run_summary:
             expected_summary += (
                 "\n\nFor more detail, find below a summary of this agent's work:\n"
@@ -865,5 +919,8 @@ class TestCodeAgent:
 def prompt_templates():
     return {
         "system_prompt": "This is a test system prompt.",
-        "managed_agent": {"task": "Task for {{name}}: {{task}}", "report": "Report for {{name}}: {{final_answer}}"},
+        "managed_agent": {
+            "task": "Task for {{name}}: {{task}}",
+            "report": "Report for {{name}}: {{final_answer}}",
+        },
     }
