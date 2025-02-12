@@ -123,8 +123,8 @@ class PromptTemplates(TypedDict):
 
     Args:
         system_prompt (`str`): System prompt.
-        planning ([`agents.PlanningPromptTemplate`]): Planning prompt template.
-        managed_agent ([`agents.ManagedAgentPromptTemplate`]): Managed agent prompt template.
+        planning ([`~agents.PlanningPromptTemplate`]): Planning prompt template.
+        managed_agent ([`~agents.ManagedAgentPromptTemplate`]): Managed agent prompt template.
     """
 
     system_prompt: str
