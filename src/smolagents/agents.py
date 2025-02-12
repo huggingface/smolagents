@@ -766,14 +766,14 @@ You have been provided with these additional arguments, that you can access usin
         """
         self.memory.replay(self.logger, detailed=detailed)
 
-    def __call__(self, task: str, **kwargs):
+    def __call__(self, request: str, **kwargs):
         """Adds additional prompting for the managed agent, runs it, and wraps the output.
 
         This method is called only by a managed agent.
         """
         full_task = populate_template(
             self.prompt_templates["managed_agent"]["task"],
-            variables=dict(name=self.name, task=task),
+            variables=dict(name=self.name, task=request),
         )
         report = self.run(full_task, **kwargs)
         answer = populate_template(
