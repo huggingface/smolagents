@@ -59,11 +59,11 @@ append_answer_lock = threading.Lock()
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "question", type=str, help="for example: 'How many studio albums did Mercedes Sosa release before 2007?'"
+    )
     parser.add_argument("--model-id", type=str, default="o1")
     parser.add_argument("--api-base", type=str, default=None)
-    parser.add_argument(
-        "--question", type=str, default="How many studio albums did Mercedes Sosa release before 2007?"
-    )
     return parser.parse_args()
 
 
