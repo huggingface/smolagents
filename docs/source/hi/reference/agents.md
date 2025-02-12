@@ -155,3 +155,11 @@ model = OpenAIServerModel(
     api_key=os.environ["OPENAI_API_KEY"],
 )
 ```
+
+## Prompts
+
+[[autodoc]] smolagents.agents.PromptTemplates
+
+[[autodoc]] smolagents.agents.PlanningPromptTemplate
+
+[[autodoc]] smolagents.agents.ManagedAgentPromptTemplate

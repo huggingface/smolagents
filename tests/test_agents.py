@@ -843,6 +843,26 @@ class TestMultiStepAgent:
                     assert content == expected_content
 
 
+class TestCodeAgent:
+    @pytest.mark.parametrize("provide_run_summary", [False, True])
+    def test_call_with_provide_run_summary(self, provide_run_summary):
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
+        assert agent.provide_run_summary is provide_run_summary
+        agent.managed_agent_prompt = "Task: {task}"
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+        agent.write_memory_to_messages = MagicMock(return_value=[{"content": "Test summary"}])
+
+        result = agent("Test request")
+        expected_summary = "Here is the final answer from your managed agent 'test_agent':\nTest output"
+        if provide_run_summary:
+            expected_summary += (
+                "\n\nFor more detail, find below a summary of this agent's work:\n"
+                "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
+            )
+        assert result == expected_summary
+
+
 @pytest.fixture
 def prompt_templates():
     return {

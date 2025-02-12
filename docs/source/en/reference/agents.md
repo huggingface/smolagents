@@ -57,3 +57,11 @@ _This class is deprecated since 1.8.0: now you simply need to pass attributes `n
 > You must have `gradio` installed to use the UI. Please run `pip install smolagents[gradio]` if it's not the case.
 
 [[autodoc]] GradioUI
+
+## Prompts
+
+[[autodoc]] smolagents.agents.PromptTemplates
+
+[[autodoc]] smolagents.agents.PlanningPromptTemplate
+
+[[autodoc]] smolagents.agents.ManagedAgentPromptTemplate
