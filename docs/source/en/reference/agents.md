@@ -65,3 +65,5 @@ _This class is deprecated since 1.8.0: now you simply need to pass attributes `n
 [[autodoc]] smolagents.agents.PlanningPromptTemplate
 
 [[autodoc]] smolagents.agents.ManagedAgentPromptTemplate
+
+[[autodoc]] smolagents.agents.FinalAnswerPromptTemplate
