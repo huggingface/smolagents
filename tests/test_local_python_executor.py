@@ -19,6 +19,7 @@ import unittest
 from textwrap import dedent
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from smolagents.default_tools import BASE_PYTHON_TOOLS
@@ -1199,6 +1200,56 @@ def test_evaluate_condition(condition, state, expected_result):
     condition_ast = ast.parse(condition, mode="eval").body
     result = evaluate_condition(condition_ast, state, {}, {}, [])
     assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "condition, state, expected_result",
+    [
+        ("a == b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, True, False])),
+        ("a != b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, False, True])),
+        ("a < b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, False, False])),
+        ("a <= b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, True, False])),
+        ("a > b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, False, True])),
+        ("a >= b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, True, True])),
+        (
+            "a == b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [1, 2], "y": [3, 5]})},
+            pd.DataFrame({"x": [True, True], "y": [True, False]}),
+        ),
+        (
+            "a != b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [1, 2], "y": [3, 5]})},
+            pd.DataFrame({"x": [False, False], "y": [False, True]}),
+        ),
+        (
+            "a < b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+            pd.DataFrame({"x": [True, False], "y": [False, False]}),
+        ),
+        (
+            "a <= b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+            pd.DataFrame({"x": [True, True], "y": [False, False]}),
+        ),
+        (
+            "a > b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+            pd.DataFrame({"x": [False, False], "y": [True, True]}),
+        ),
+        (
+            "a >= b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+            pd.DataFrame({"x": [False, True], "y": [True, True]}),
+        ),
+    ],
+)
+def test_evaluate_condition_with_pandas(condition, state, expected_result):
+    condition_ast = ast.parse(condition, mode="eval").body
+    result = evaluate_condition(condition_ast, state, {}, {}, [])
+    if isinstance(result, pd.Series):
+        pd.testing.assert_series_equal(result, expected_result)
+    else:
+        pd.testing.assert_frame_equal(result, expected_result)
 
 
 def test_get_safe_module_handle_lazy_imports():
