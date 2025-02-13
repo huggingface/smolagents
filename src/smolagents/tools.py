@@ -235,10 +235,10 @@ class Tool:
             from typing import Optional
 
             class {class_name}(Tool):
-                name = {json.dumps(self.name)}
+                name = "{self.name}"
                 description = {json.dumps(textwrap.dedent(self.description).strip())}
                 inputs = {json.dumps(self.inputs, separators=(",", ":"))}
-                output_type = {json.dumps(self.output_type)}
+                output_type = "{self.output_type}"
             """
             ).strip()
             import re
