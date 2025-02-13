@@ -1291,6 +1291,8 @@ def test_non_standard_comparisons(expected_result):
                 self._right = right
             def __str__(self) -> str:
                 return f'{{self._left}} == {{self._right}}'
+            def __eq__(self, other):
+                return NonStdEqualsResult(self, other)
 
         class NonStdComparisonClass:
             def __init__(self, value: str ):
