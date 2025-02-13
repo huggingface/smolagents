@@ -697,13 +697,7 @@ class TestMultiStepAgent:
             (
                 1,
                 [
-                    [
-                        {
-                            "role": MessageRole.SYSTEM,
-                            "content": [{"type": "text", "text": "INITIAL_FACTS_SYSTEM_PROMPT"}],
-                        },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "INITIAL_FACTS_USER_PROMPT"}]},
-                    ],
+                    [{"role": MessageRole.USER, "content": [{"type": "text", "text": "INITIAL_FACTS_USER_PROMPT"}]}],
                     [{"role": MessageRole.USER, "content": [{"type": "text", "text": "INITIAL_PLAN_USER_PROMPT"}]}],
                 ],
             ),
@@ -737,9 +731,8 @@ class TestMultiStepAgent:
         task = "Test task"
         agent.planning_step(task, is_first_step=(step == 1), step=step)
         expected_message_texts = {
-            "INITIAL_FACTS_SYSTEM_PROMPT": agent.prompt_templates["planning"]["initial_facts_pre_task"],
             "INITIAL_FACTS_USER_PROMPT": populate_template(
-                agent.prompt_templates["planning"]["initial_facts_task"], variables=dict(task=task)
+                agent.prompt_templates["planning"]["initial_facts"], variables=dict(task=task)
             ),
             "INITIAL_PLAN_USER_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["initial_plan"],
