@@ -528,16 +528,12 @@ You have been provided with these additional arguments, that you can access usin
         if is_first_step:
             input_messages = [
                 {
-                    "role": MessageRole.SYSTEM,
-                    "content": [{"type": "text", "text": self.prompt_templates["planning"]["initial_facts_pre_task"]}],
-                },
-                {
                     "role": MessageRole.USER,
                     "content": [
                         {
                             "type": "text",
                             "text": populate_template(
-                                self.prompt_templates["planning"]["initial_facts_task"], variables={"task": task}
+                                self.prompt_templates["planning"]["initial_facts"], variables={"task": task}
                             ),
                         }
                     ],

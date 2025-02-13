@@ -173,7 +173,7 @@ system_prompt: |-
 
   Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
 planning:
-  initial_facts_pre_task: |-
+  initial_facts: |-
     Below I will present you a task.
 
     You will now build a comprehensive preparatory survey of which facts we have at our disposal and which ones we still need.
@@ -196,7 +196,7 @@ planning:
     ### 2. Facts to look up
     ### 3. Facts to derive
     Do not add anything else.
-  initial_facts_task: |-
+
     Here is the task:
     ```
     {{task}}
