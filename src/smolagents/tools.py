@@ -873,11 +873,23 @@ def tool(tool_function: Callable) -> Tool:
         function=tool_function,
     )
     original_signature = inspect.signature(tool_function)
-    new_parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)] + list(
-        original_signature.parameters.values()
-    )
-    new_signature = original_signature.replace(parameters=new_parameters)
+    original_params = list(original_signature.parameters.values())
+
+    # check if the function already has a "self" or "cls" as the first parameter
+    if not original_params:
+        new_params = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)]
+    else:
+        first_param_name = original_params[0].name
+        if first_param_name in ("self", "cls"):
+            # already a method signature; don't add an extra self.
+            new_params = original_params
+        else:
+            # free function signature; prepend self.
+            new_params = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)] + original_params
+
+    new_signature = original_signature.replace(parameters=new_params)
     simple_tool.forward.__signature__ = new_signature
+
     return simple_tool
 
 
