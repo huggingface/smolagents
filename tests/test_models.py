@@ -74,12 +74,13 @@ class ModelTests(unittest.TestCase):
         # In this test HuggingFaceTB/SmolLM2-135M-Instruct generates the token ">'"
         # which is required to test capturing stop_sequences that have extra chars at the end.
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=100)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Please print '>'"}]}]
+        stop_sequence = " print '>"
+        messages = [{"role": "user", "content": [{"type": "text", "text": f"Please{stop_sequence}'"}]}]
         # check our assumption that that ">" is followed by "'"
         assert model.tokenizer.vocab[">'"]
-        assert model(messages, stop_sequences=[]).content == "I'm ready to help you print '>'"
+        assert model(messages, stop_sequences=[]).content == f"I'm ready to help you{stop_sequence}'"
         # check stop_sequence capture when output has trailing chars
-        assert model(messages, stop_sequences=[" print '>"]).content == "I'm ready to help you"
+        assert model(messages, stop_sequences=[stop_sequence]).content == "I'm ready to help you"
 
     def test_transformers_message_no_tool(self):
         model = TransformersModel(
