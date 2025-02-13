@@ -1196,7 +1196,6 @@ def test_evaluate_delete(code, state, expectation):
     ],
 )
 def test_evaluate_condition(condition, state, expected_result):
-    state["_operations_count"] = 0
     condition_ast = ast.parse(condition, mode="eval").body
     result = evaluate_condition(condition_ast, state, {}, {}, [])
     assert result == expected_result
