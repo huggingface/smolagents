@@ -932,6 +932,10 @@ class TestCodeAgent:
 
 
 class MultiAgentsTests(unittest.TestCase):
+    @pytest.fixture(autouse=True)
+    def initdir(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
     def test_multiagents_save(self):
         model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=2096, temperature=0.5)
 
