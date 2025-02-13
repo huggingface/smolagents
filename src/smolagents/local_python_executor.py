@@ -715,47 +715,34 @@ def evaluate_condition(
     authorized_imports: List[str],
 ) -> bool | object:
     left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
-    comparators = [
-        evaluate_ast(c, state, static_tools, custom_tools, authorized_imports) for c in condition.comparators
-    ]
-    ops = [type(op) for op in condition.ops]
-
-    result = True
-    current_left = left
-
-    for op, comparator in zip(ops, comparators):
+    for op, comparator in zip(condition.ops, condition.comparators):
+        op = type(op)
+        right = evaluate_ast(comparator, state, static_tools, custom_tools, authorized_imports)
         if op == ast.Eq:
-            current_result = current_left == comparator
+            result = left == right
         elif op == ast.NotEq:
-            current_result = current_left != comparator
+            result = left != right
         elif op == ast.Lt:
-            current_result = current_left < comparator
+            result = left < right
         elif op == ast.LtE:
-            current_result = current_left <= comparator
+            result = left <= right
         elif op == ast.Gt:
-            current_result = current_left > comparator
+            result = left > right
         elif op == ast.GtE:
-            current_result = current_left >= comparator
+            result = left >= right
         elif op == ast.Is:
-            current_result = current_left is comparator
+            result = left is right
         elif op == ast.IsNot:
-            current_result = current_left is not comparator
+            result = left is not right
         elif op == ast.In:
-            current_result = current_left in comparator
+            result = left in right
         elif op == ast.NotIn:
-            current_result = current_left not in comparator
+            result = left not in right
         else:
             raise InterpreterError(f"Operator not supported: {op}")
-
-        if not isinstance(current_result, bool):
-            return current_result
-
-        result = result & current_result
-        current_left = comparator
-
         if isinstance(result, bool) and not result:
             break
-
+        left = result
     return result
 
 
