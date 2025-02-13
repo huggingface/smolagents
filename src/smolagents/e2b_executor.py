@@ -56,12 +56,8 @@ class E2BExecutor:
                 if key.startswith("e2b_"):
                     os.environ["E2B_API_KEY"] = key
                     logger.log("E2B_API_KEY fetched successfully.")
-                else:
-                    os.environ["E2B_API_KEY"] = ""
             except Exception:
-                raise RuntimeError(
-                    "Please set E2B_API_KEY in environment variables or Hugging Face access token name as key."
-                )
+                logger.log("Failed to fetch E2B_API_KEY from Hugging Face.")
 
         self.custom_tools = {}
         self.final_answer = False
