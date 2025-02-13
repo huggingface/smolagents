@@ -442,7 +442,7 @@ class MLXModel(Model):
     ... )
     >>> messages = [
     ...     {
-    ...         "role": "user", 
+    ...         "role": "user",
     ...         "content": [
     ...             {"type": "text", "text": "Explain quantum mechanics in simple terms."}
     ...         ]

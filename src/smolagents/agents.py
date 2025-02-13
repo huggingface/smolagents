@@ -88,7 +88,8 @@ class PlanningPromptTemplate(TypedDict):
     Prompt templates for the planning step.
 
     Args:
-        initial_facts (`str`): Initial facts prompt.
+        initial_facts_pre_task (`str`): Initial facts pre-task prompt.
+        initial_facts_task (`str`): Initial facts task prompt.
         initial_plan (`str`): Initial plan prompt.
         update_facts_pre_messages (`str`): Update facts pre-messages prompt.
         update_facts_post_messages (`str`): Update facts post-messages prompt.
@@ -96,7 +97,8 @@ class PlanningPromptTemplate(TypedDict):
         update_plan_post_messages (`str`): Update plan post-messages prompt.
     """
 
-    initial_facts: str
+    initial_facts_pre_task: str
+    initial_facts_task: str
     initial_plan: str
     update_facts_pre_messages: str
     update_facts_post_messages: str
@@ -524,26 +526,19 @@ You have been provided with these additional arguments, that you can access usin
             step (`int`): The number of the current step, used as an indication for the LLM.
         """
         if is_first_step:
-            message_prompt_facts = {
-                "role": MessageRole.SYSTEM,
-                "content": [{"type": "text", "text": self.prompt_templates["planning"]["initial_facts"]}],
-            }
-            message_prompt_task = {
-                "role": MessageRole.USER,
-                "content": [
-                    {
-                        "type": "text",
-                        "text": textwrap.dedent(
-                            f"""Here is the task:
-                            ```
-                            {task}
-                            ```
-                            Now begin!"""
-                        ),
-                    },
-                ],
-            }
-            input_messages = [message_prompt_facts, message_prompt_task]
+            input_messages = [
+                {
+                    "role": MessageRole.USER,
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": populate_template(
+                                self.prompt_templates["planning"]["initial_facts"], variables={"task": task}
+                            ),
+                        }
+                    ],
+                },
+            ]
 
             chat_message_facts: ChatMessage = self.model(input_messages)
             answer_facts = chat_message_facts.content
