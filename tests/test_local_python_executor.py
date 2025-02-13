@@ -1149,7 +1149,6 @@ def test_evaluate_python_code_with_evaluate_delete(code, expected_error_message)
     ],
 )
 def test_evaluate_delete(code, state, expectation):
-    state["_operations_count"] = 0
     delete_node = ast.parse(code).body[0]
     if isinstance(expectation, Exception):
         with pytest.raises(type(expectation)) as exception_info:
@@ -1157,7 +1156,7 @@ def test_evaluate_delete(code, state, expectation):
         assert str(expectation) in str(exception_info.value)
     else:
         evaluate_delete(delete_node, state, {}, {}, [])
-        del state["_operations_count"]
+        _ = state.pop("_operations_count", None)
         assert state == expectation
 
 
