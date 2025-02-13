@@ -358,7 +358,8 @@ It empirically yields better performance on most benchmarks. The reason for this
 
 You can easily build hierarchical multi-agent systems with `smolagents`.
 
-To create a managed agent, give your `CodeAgent` or `ToolCallingAgent` the attributes `name` and `description` - these are mandatory to make the agent callable by its manager agent. The manager agent will receive the managed agent via its managed_agents argument during initialization.
+To do so, just ensure your agent has `name` and`description` attributes, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
+Then you can pass this managed agent in the parameter managed_agents upon initialization of the manager agent.
 
 Here's an example of making an agent that managed a specific web search agent using our [`DuckDuckGoSearchTool`]:
 
@@ -367,7 +368,7 @@ from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool
 
 model = HfApiModel()
 
-managed_web_agent = CodeAgent(
+web_agent = CodeAgent(
     tools=[DuckDuckGoSearchTool()],
     model=model,
     name="web_search",
@@ -375,7 +376,7 @@ managed_web_agent = CodeAgent(
 )
 
 manager_agent = CodeAgent(
-    tools=[], model=model, managed_agents=[managed_web_agent]
+    tools=[], model=model, managed_agents=[web_agent]
 )
 
 manager_agent.run("Who is the CEO of Hugging Face?")

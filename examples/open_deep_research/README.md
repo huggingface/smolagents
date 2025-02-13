@@ -13,7 +13,7 @@ pip install -r requirements.txt
 
 And install smolagents dev version
 ```bash
-pip install -e .[dev]
+pip install -e smolagents[dev]
 ```
 
 Then you're good to go! Run the run.py script, as in:
