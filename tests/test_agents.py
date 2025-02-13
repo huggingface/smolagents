@@ -33,7 +33,7 @@ from smolagents.agents import (
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
-from smolagents.memory import PlanningStep
+from smolagents.memory import PlanningStep, ActionStep
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -299,6 +299,18 @@ Code:
 ```py
 result = python_interpreter(code="2*3.6452")
 print(result)
+```
+""",
+    )
+
+
+def fake_no_valid_code_block(messages, stop_sequences=None, grammar=None) -> ChatMessage:
+    return ChatMessage(
+        role="assistant",
+        content="""
+Thought: I should multiply 2 by 3.6452. special_marker
+Code:
+ I am Incorrect Python Code !rint(result)
 ```
 """,
     )
@@ -734,6 +746,22 @@ class TestMultiStepAgent:
                 assert len(message["content"]) == 1
                 for content, expected_content in zip(message["content"], expected_message["content"]):
                     assert content == expected_content
+
+    def test_agent_memory_to_messages_suceeds_when_tool_fails_by_obeservation_is_set(self):
+        tool = PythonInterpreterTool()
+
+        def _fake_callback(memory_step: ActionStep, agent: CodeAgent) -> None:
+            memory_step.observations = "observed something"
+
+        agent = CodeAgent(
+            tools=[tool],
+            model=fake_no_valid_code_block,
+            step_callbacks=[_fake_callback],
+        )
+        agent.run("some task")
+
+        for s in agent.memory.steps:
+            s.to_messages()
 
     @pytest.mark.parametrize(
         "images, expected_messages_list",
