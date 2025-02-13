@@ -146,7 +146,7 @@ class FakeToolCallModelVL:
             )
 
 
-def fake_code_model(messages, stop_sequences=None, grammar=None) -> str:
+def fake_code_model(messages, stop_sequences=None, grammar=None) -> ChatMessage:
     prompt = str(messages)
     if "special_marker" not in prompt:
         return ChatMessage(
@@ -172,7 +172,7 @@ final_answer(7.2904)
         )
 
 
-def fake_code_model_error(messages, stop_sequences=None) -> str:
+def fake_code_model_error(messages, stop_sequences=None) -> ChatMessage:
     prompt = str(messages)
     if "special_marker" not in prompt:
         return ChatMessage(
@@ -202,7 +202,7 @@ final_answer("got an error")
         )
 
 
-def fake_code_model_syntax_error(messages, stop_sequences=None) -> str:
+def fake_code_model_syntax_error(messages, stop_sequences=None) -> ChatMessage:
     prompt = str(messages)
     if "special_marker" not in prompt:
         return ChatMessage(
@@ -231,7 +231,7 @@ final_answer("got an error")
         )
 
 
-def fake_code_model_import(messages, stop_sequences=None) -> str:
+def fake_code_model_import(messages, stop_sequences=None) -> ChatMessage:
     return ChatMessage(
         role="assistant",
         content="""
@@ -245,7 +245,7 @@ final_answer("got an error")
     )
 
 
-def fake_code_functiondef(messages, stop_sequences=None) -> str:
+def fake_code_functiondef(messages, stop_sequences=None) -> ChatMessage:
     prompt = str(messages)
     if "special_marker" not in prompt:
         return ChatMessage(
@@ -276,7 +276,7 @@ final_answer(res)
         )
 
 
-def fake_code_model_single_step(messages, stop_sequences=None, grammar=None) -> str:
+def fake_code_model_single_step(messages, stop_sequences=None, grammar=None) -> ChatMessage:
     return ChatMessage(
         role="assistant",
         content="""
@@ -290,7 +290,7 @@ final_answer(result)
     )
 
 
-def fake_code_model_no_return(messages, stop_sequences=None, grammar=None) -> str:
+def fake_code_model_no_return(messages, stop_sequences=None, grammar=None) -> ChatMessage:
     return ChatMessage(
         role="assistant",
         content="""
