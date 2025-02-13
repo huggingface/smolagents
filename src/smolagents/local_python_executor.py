@@ -740,7 +740,7 @@ def evaluate_condition(
             result = left not in right
         else:
             raise InterpreterError(f"Operator not supported: {op}")
-        if isinstance(result, bool) and not result:
+        if isinstance(result, bool) and result is False:
             break
         left = result
     return result
