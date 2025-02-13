@@ -17,7 +17,13 @@ import unittest
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, SpeechToTextTool, VisitWebpageTool
+from smolagents.default_tools import (
+    DuckDuckGoSearchTool,
+    PythonInterpreterTool,
+    SpeechToTextTool,
+    VisitWebpageTool,
+    WikipediaSearchTool,
+)
 
 from .test_tools import ToolTesterMixin
 
@@ -32,6 +38,41 @@ class DefaultToolTests(unittest.TestCase):
     def test_ddgs_with_kwargs(self):
         result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
         assert isinstance(result, str)
+
+    # ✅ Use `self.subTest()` instead of `pytest.mark.parametrize`
+    def test_wikipedia_search_tool(self):
+        test_cases = [
+            ("en", True, False, "HTML", "Python_(programming_language)"),  # English, Summary Mode, HTML format
+            ("en", False, True, "WIKI", "Python_(programming_language)"),  # English, Full Text Mode, WIKI format
+            ("es", True, False, "HTML", "Python_(lenguaje_de_programación)"),  # Spanish, Summary Mode, HTML format
+            ("es", False, True, "WIKI", "Python_(lenguaje_de_programación)"),  # Spanish, Full Text Mode, WIKI format
+        ]
+
+        for language, summary_only, full_text, extract_format, query in test_cases:
+            with self.subTest(
+                language=language,
+                summary_only=summary_only,
+                full_text=full_text,
+                extract_format=extract_format,
+                query=query,
+            ):
+                tool = WikipediaSearchTool(
+                    language=language,
+                    summary_only=summary_only,
+                    full_text=full_text,
+                    extract_format=extract_format,
+                )
+
+                result = tool.forward(query)
+
+                self.assertIsInstance(result, str, "Output should be a string")
+                self.assertIn("✅ **Wikipedia Page:**", result, "Response should contain Wikipedia page title")
+                self.assertIn("🔗 **Read more:**", result, "Response should contain Wikipedia page URL")
+
+                if summary_only:
+                    self.assertLess(len(result.split()), 1000, "Summary mode should return a shorter text")
+                if full_text:
+                    self.assertGreater(len(result.split()), 1000, "Full text mode should return a longer text")
 
 
 class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):
