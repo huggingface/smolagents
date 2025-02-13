@@ -1189,7 +1189,7 @@ def test_evaluate_delete(code, state, expectation):
         ("a in b", {"a": 4, "b": [1, 2, 3]}, False),
         ("a not in b", {"a": 1, "b": [1, 2, 3]}, False),
         ("a not in b", {"a": 4, "b": [1, 2, 3]}, True),
-        # Composite conditions:
+        # Chained conditions:
         ("a == b == c", {"a": 1, "b": 1, "c": 1}, True),
         ("a == b == c", {"a": 1, "b": 2, "c": 1}, False),
         ("a == b < c", {"a": 1, "b": 1, "c": 1}, False),
@@ -1240,6 +1240,16 @@ def test_evaluate_condition(condition, state, expected_result):
             "a >= b",
             {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
             pd.DataFrame({"x": [False, True], "y": [True, True]}),
+        ),
+        # Chained conditions:
+        (
+            "a == b == c",
+            {
+                "a": pd.Series([1, 2, 3]),
+                "b": pd.Series([2, 2, 2]),
+                "c": pd.Series([3, 3, 3]),
+            },
+            pd.Series([False, False, False]),
         ),
     ],
 )
