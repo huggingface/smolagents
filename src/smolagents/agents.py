@@ -878,6 +878,10 @@ You have been provided with these additional arguments, that you can access usin
         }
         if hasattr(self, "authorized_imports"):
             agent_dict["authorized_imports"] = self.authorized_imports
+        if hasattr(self, "use_e2b_executor"):
+            agent_dict["use_e2b_executor"] = self.use_e2b_executor
+        if hasattr(self, "max_print_outputs_length"):
+            agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
 
     @classmethod

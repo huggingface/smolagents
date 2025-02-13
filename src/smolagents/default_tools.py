@@ -101,7 +101,7 @@ class UserInputTool(Tool):
 
 
 class DuckDuckGoSearchTool(Tool):
-    name = "web_search"
+    name = "DuckDuckGo_web_search"
     description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results."""
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
@@ -126,7 +126,7 @@ class DuckDuckGoSearchTool(Tool):
 
 
 class GoogleSearchTool(Tool):
-    name = "web_search"
+    name = "Google_web_search"
     description = """Performs a google web search for your query then returns a string of the top search results."""
     inputs = {
         "query": {"type": "string", "description": "The search query to perform."},
