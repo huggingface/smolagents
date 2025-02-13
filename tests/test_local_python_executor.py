@@ -1192,8 +1192,8 @@ def test_evaluate_delete(code, state, expectation):
         # Chained conditions:
         ("a == b == c", {"a": 1, "b": 1, "c": 1}, True),
         ("a == b == c", {"a": 1, "b": 2, "c": 1}, False),
-        ("a == b < c", {"a": 1, "b": 1, "c": 1}, False),
-        ("a == b < c", {"a": 1, "b": 1, "c": 2}, True),
+        ("a == b < c", {"a": 2, "b": 2, "c": 2}, False),
+        ("a == b < c", {"a": 0, "b": 0, "c": 1}, True),
     ],
 )
 def test_evaluate_condition(condition, state, expected_result):
