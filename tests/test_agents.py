@@ -29,6 +29,7 @@ from smolagents.agents import (
     MultiStepAgent,
     ToolCall,
     ToolCallingAgent,
+    populate_template,
 )
 from smolagents.default_tools import PythonInterpreterTool
 from smolagents.memory import PlanningStep
@@ -690,25 +691,61 @@ class TestMultiStepAgent:
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
         assert agent.step_number == max_steps + 1, "step_number should be max_steps + 1 after run method is called"
 
-    def test_planning_step_first_step(self):
+    @pytest.mark.parametrize(
+        "step, expected_messages_list",
+        [
+            (
+                1,
+                [
+                    [
+                        {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "FACTS_SYSTEM_PROMPT"}]},
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_USER_PROMPT"}]},
+                    ],
+                    [{"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_USER_PROMPT"}]}],
+                ],
+            ),
+            (
+                2,
+                [
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "FACTS_UPDATE_SYSTEM_PROMPT"}],
+                        },
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FACTS_UPDATE_USER_PROMPT"}]},
+                    ],
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "PLAN_UPDATE_SYSTEM_PROMPT"}],
+                        },
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "PLAN_UPDATE_USER_PROMPT"}]},
+                    ],
+                ],
+            ),
+        ],
+    )
+    def test_planning_step_first_step(self, step, expected_messages_list):
         fake_model = MagicMock()
         agent = CodeAgent(
             tools=[],
             model=fake_model,
         )
         task = "Test task"
-        agent.planning_step(task, is_first_step=True, step=0)
+        agent.planning_step(task, is_first_step=(step == 1), step=step)
         assert len(agent.memory.steps) == 1
         planning_step = agent.memory.steps[0]
         assert isinstance(planning_step, PlanningStep)
-        messages = planning_step.model_input_messages
-        assert isinstance(messages, list)
-        assert len(messages) == 1
-        for message in messages:
+        expected_model_input_messages = expected_messages_list[0]
+        model_input_messages = planning_step.model_input_messages
+        assert isinstance(model_input_messages, list)
+        assert len(model_input_messages) == len(expected_model_input_messages)  # 2
+        for message, expected_message in zip(model_input_messages, expected_model_input_messages):
             assert isinstance(message, dict)
             assert "role" in message
             assert "content" in message
             assert isinstance(message["role"], MessageRole)
+            assert message["role"] == expected_message["role"]
             assert isinstance(message["content"], list)
             assert len(message["content"]) == 1
             for content in message["content"]:
@@ -717,22 +754,111 @@ class TestMultiStepAgent:
                 assert "text" in content
         # Test calls to model
         assert len(fake_model.call_args_list) == 2
-        for call_args in fake_model.call_args_list:
+        for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
             assert len(call_args.args) == 1
             messages = call_args.args[0]
             assert isinstance(messages, list)
-            assert len(messages) == 1
-            for message in messages:
+            assert len(messages) == len(expected_messages)
+            for message, expected_message in zip(messages, expected_messages):
                 assert isinstance(message, dict)
                 assert "role" in message
                 assert "content" in message
                 assert isinstance(message["role"], MessageRole)
+                assert message["role"] == expected_message["role"]
                 assert isinstance(message["content"], list)
                 assert len(message["content"]) == 1
                 for content in message["content"]:
                     assert isinstance(content, dict)
                     assert "type" in content
                     assert "text" in content
+
+    @pytest.mark.parametrize(
+        "images, expected_messages_list",
+        [
+            (
+                None,
+                [
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
+                        },
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}]},
+                    ]
+                ],
+            ),
+            (
+                ["image1.png"],
+                [
+                    [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}, {"type": "image"}],
+                        },
+                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}]},
+                    ]
+                ],
+            ),
+        ],
+    )
+    def test_provide_final_answer(self, images, expected_messages_list):
+        fake_model = MagicMock()
+        fake_model.return_value.content = "Final answer."
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+        )
+        task = "Test task"
+        final_answer = agent.provide_final_answer(task, images=images)
+        expected_message_texts = {
+            "FINAL_ANSWER_SYSTEM_PROMPT": agent.prompt_templates["final_answer"]["pre_messages"],
+            "FINAL_ANSWER_USER_PROMPT": populate_template(
+                agent.prompt_templates["final_answer"]["post_messages"], variables=dict(task=task)
+            ),
+        }
+        for expected_messages in expected_messages_list:
+            for expected_message in expected_messages:
+                for expected_content in expected_message["content"]:
+                    if "text" in expected_content:
+                        expected_content["text"] = expected_message_texts[expected_content["text"]]
+        assert final_answer == "Final answer."
+        # Test calls to model
+        assert len(fake_model.call_args_list) == 1
+        for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
+            assert len(call_args.args) == 1
+            messages = call_args.args[0]
+            assert isinstance(messages, list)
+            assert len(messages) == len(expected_messages)
+            for message, expected_message in zip(messages, expected_messages):
+                assert isinstance(message, dict)
+                assert "role" in message
+                assert "content" in message
+                assert message["role"] in MessageRole.__members__.values()
+                assert message["role"] == expected_message["role"]
+                assert isinstance(message["content"], list)
+                assert len(message["content"]) == len(expected_message["content"])
+                for content, expected_content in zip(message["content"], expected_message["content"]):
+                    assert content == expected_content
+
+
+class TestCodeAgent:
+    @pytest.mark.parametrize("provide_run_summary", [False, True])
+    def test_call_with_provide_run_summary(self, provide_run_summary):
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
+        assert agent.provide_run_summary is provide_run_summary
+        agent.managed_agent_prompt = "Task: {task}"
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+        agent.write_memory_to_messages = MagicMock(return_value=[{"content": "Test summary"}])
+
+        result = agent("Test request")
+        expected_summary = "Here is the final answer from your managed agent 'test_agent':\nTest output"
+        if provide_run_summary:
+            expected_summary += (
+                "\n\nFor more detail, find below a summary of this agent's work:\n"
+                "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
+            )
+        assert result == expected_summary
 
 
 @pytest.fixture
