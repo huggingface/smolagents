@@ -39,7 +39,6 @@ class DefaultToolTests(unittest.TestCase):
         result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
         assert isinstance(result, str)
 
-    # ✅ Use `self.subTest()` instead of `pytest.mark.parametrize`
     def test_wikipedia_search_tool(self):
         test_cases = [
             ("en", True, False, "HTML", "Python_(programming_language)"),  # English, Summary Mode, HTML format
