@@ -872,24 +872,33 @@ def tool(tool_function: Callable) -> Tool:
         output_type=tool_json_schema["return"]["type"],
         function=tool_function,
     )
-    original_signature = inspect.signature(tool_function)
-    original_params = list(original_signature.parameters.values())
+    original_sigature = inspect.signature(tool_function)
+    original_params = list(original_sig.parameters.values())
 
-    # check if the function already has a "self" or "cls" as the first parameter
-    if not original_params:
-        new_params = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)]
-    else:
-        first_param_name = original_params[0].name
-        if first_param_name in ("self", "cls"):
-            # already a method signature; don't add an extra self.
-            new_params = original_params
+    is_method = (
+        len(original_params) > 0
+        and original_params[0].name in ("self", "cls")
+    )
+
+    @functools.wraps(tool_function)
+    def forward(*args, **kwargs):
+        if is_method:
+            return tool_function(*args, **kwargs)
         else:
-            # free function signature; prepend self.
-            new_params = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)] + original_params
+            # skip the 'self' argument.
+            return tool_function(*args[1:], **kwargs)
 
-    new_signature = original_signature.replace(parameters=new_params)
-    simple_tool.forward.__signature__ = new_signature
+    if is_method:
+        new_sig = original_sig
+    else:
+        new_params = [
+            inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)
+        ] + original_params
+        new_sig = original_signature.replace(parameters=new_params)
 
+    forward.__signature__ = new_sig
+
+    simple_tool.forward = forward
     return simple_tool
 
 
