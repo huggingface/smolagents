@@ -126,7 +126,7 @@ class DuckDuckGoSearchTool(Tool):
 
 
 class GoogleSearchTool(Tool):
-    name = "Google_web_search"
+    name = "web_search"
     description = """Performs a google web search for your query then returns a string of the top search results."""
     inputs = {
         "query": {"type": "string", "description": "The search query to perform."},
