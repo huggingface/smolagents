@@ -87,7 +87,7 @@ class ModelTests(unittest.TestCase):
         assert output == "Hello! How can"
 
     def test_parse_tool_args_if_needed(self):
-        original_message = ChatMessage(role='user', content=[{'type': 'text', 'text': 'Hello!'}])
+        original_message = ChatMessage(role="user", content=[{"type": "text", "text": "Hello!"}])
         parsed_message = models.parse_tool_args_if_needed(original_message)
         assert parsed_message == original_message
 
