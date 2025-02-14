@@ -875,10 +875,7 @@ def tool(tool_function: Callable) -> Tool:
     original_sigature = inspect.signature(tool_function)
     original_params = list(original_sig.parameters.values())
 
-    is_method = (
-        len(original_params) > 0
-        and original_params[0].name in ("self", "cls")
-    )
+    is_method = inspect.ismethod(tool_function)
 
     @functools.wraps(tool_function)
     def forward(*args, **kwargs):
