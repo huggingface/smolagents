@@ -14,6 +14,7 @@
 # limitations under the License.
 import json
 import os
+import sys
 import unittest
 from pathlib import Path
 from typing import Optional
@@ -22,7 +23,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from transformers.testing_utils import get_tests_dir
 
-from smolagents import ChatMessage, HfApiModel, TransformersModel, models, tool
+from smolagents import ChatMessage, HfApiModel, MLXModel, TransformersModel, models, tool
 from smolagents.models import MessageRole, get_clean_message_list, parse_json_if_needed
 
 
@@ -60,6 +61,13 @@ class ModelTests(unittest.TestCase):
         model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
+
+    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    def test_get_mlx_message_no_tool(self):
+        model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        output = model(messages, stop_sequences=["great"]).content
+        assert output.startswith("Hello")
 
     def test_transformers_message_no_tool(self):
         model = TransformersModel(

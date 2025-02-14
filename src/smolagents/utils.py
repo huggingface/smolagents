@@ -20,6 +20,7 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import os
 import re
 import textwrap
 import types
@@ -414,3 +415,10 @@ def encode_image_base64(image):
 
 def make_image_url(base64_image):
     return f"data:image/png;base64,{base64_image}"
+
+
+def make_init_file(folder: str):
+    os.makedirs(folder, exist_ok=True)
+    # Create __init__
+    with open(os.path.join(folder, "__init__.py"), "w"):
+        pass

@@ -18,9 +18,11 @@ import json
 import logging
 import os
 import random
+import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from huggingface_hub import InferenceClient
@@ -329,6 +331,53 @@ class Model:
         """
         pass  # To be implemented in child classes!
 
+    def to_dict(self) -> Dict:
+        """
+        Converts the model into a JSON-compatible dictionary.
+        """
+        model_dictionary = {
+            **self.kwargs,
+            "last_input_token_count": self.last_input_token_count,
+            "last_output_token_count": self.last_output_token_count,
+            "model_id": self.model_id,
+        }
+        for attribute in [
+            "custom_role_conversion",
+            "temperature",
+            "max_tokens",
+            "provider",
+            "timeout",
+            "api_base",
+            "torch_dtype",
+            "device_map",
+            "organization",
+            "project",
+            "azure_endpoint",
+        ]:
+            if hasattr(self, attribute):
+                model_dictionary[attribute] = getattr(self, attribute)
+
+        dangerous_attributes = ["token", "api_key"]
+        for attribute_name in dangerous_attributes:
+            if hasattr(self, attribute_name):
+                print(
+                    f"For security reasons, we do not export the `{attribute_name}` attribute of your model. Please export it manually."
+                )
+        return model_dictionary
+
+    @classmethod
+    def from_dict(cls, model_dictionary: Dict[str, Any]) -> "Model":
+        model_instance = cls(
+            **{
+                k: v
+                for k, v in model_dictionary.items()
+                if k not in ["last_input_token_count", "last_output_token_count"]
+            }
+        )
+        model_instance.last_input_token_count = model_dictionary.pop("last_input_token_count", None)
+        model_instance.last_output_token_count = model_dictionary.pop("last_output_token_count", None)
+        return model_instance
+
 
 class HfApiModel(Model):
     """A class to interact with Hugging Face's Inference API for language model interaction.
@@ -415,6 +464,128 @@ class HfApiModel(Model):
         return message
 
 
+class MLXModel(Model):
+    """A class to interact with models loaded using MLX on Apple silicon.
+
+    > [!TIP]
+    > You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
+
+    Parameters:
+        model_id (str):
+            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        tool_name_key (str):
+            The key, which can usually be found in the model's chat template, for retrieving a tool name.
+        tool_arguments_key (str):
+            The key, which can usually be found in the model's chat template, for retrieving tool arguments.
+        trust_remote_code (bool):
+            Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
+        kwargs (dict, *optional*):
+            Any additional keyword arguments that you want to use in model.generate(), for instance `max_tokens`.
+
+    Example:
+    ```python
+    >>> engine = MLXModel(
+    ...     model_id="mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
+    ...     max_tokens=10000,
+    ... )
+    >>> messages = [
+    ...     {
+    ...         "role": "user",
+    ...         "content": [
+    ...             {"type": "text", "text": "Explain quantum mechanics in simple terms."}
+    ...         ]
+    ...     }
+    ... ]
+    >>> response = engine(messages, stop_sequences=["END"])
+    >>> print(response)
+    "Quantum mechanics is the branch of physics that studies..."
+    ```
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        tool_name_key: str = "name",
+        tool_arguments_key: str = "arguments",
+        trust_remote_code: bool = False,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        if not _is_package_available("mlx_lm"):
+            raise ModuleNotFoundError(
+                "Please install 'mlx-lm' extra to use 'MLXModel': `pip install 'smolagents[mlx-lm]'`"
+            )
+        import mlx_lm
+
+        self.model_id = model_id
+        self.model, self.tokenizer = mlx_lm.load(model_id, tokenizer_config={"trust_remote_code": trust_remote_code})
+        self.stream_generate = mlx_lm.stream_generate
+        self.tool_name_key = tool_name_key
+        self.tool_arguments_key = tool_arguments_key
+
+    def _to_message(self, text, tools_to_call_from):
+        if tools_to_call_from:
+            # tmp solution for extracting tool JSON without assuming a specific model output format
+            maybe_json = "{" + text.split("{", 1)[-1][::-1].split("}", 1)[-1][::-1] + "}"
+            parsed_text = json.loads(maybe_json)
+            tool_name = parsed_text.get(self.tool_name_key, None)
+            tool_arguments = parsed_text.get(self.tool_arguments_key, None)
+            if tool_name:
+                return ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id=uuid.uuid4(),
+                            type="function",
+                            function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
+                        )
+                    ],
+                )
+        return ChatMessage(role="assistant", content=text)
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        completion_kwargs = self._prepare_completion_kwargs(
+            flatten_messages_as_text=True,  # mlx-lm doesn't support vision models
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            **kwargs,
+        )
+        messages = completion_kwargs.pop("messages")
+        prepared_stop_sequences = completion_kwargs.pop("stop", [])
+        tools = completion_kwargs.pop("tools", None)
+        completion_kwargs.pop("tool_choice", None)
+
+        prompt_ids = self.tokenizer.apply_chat_template(
+            messages,
+            tools=tools,
+            add_generation_prompt=True,
+        )
+
+        self.last_input_token_count = len(prompt_ids)
+        self.last_output_token_count = 0
+        text = ""
+
+        for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
+            self.last_output_token_count += 1
+            text += _.text
+            for stop_sequence in prepared_stop_sequences:
+                if text.strip().endswith(stop_sequence):
+                    text = text[: -len(stop_sequence)]
+                    return self._to_message(text, tools_to_call_from)
+
+        return self._to_message(text, tools_to_call_from)
+
+
 class TransformersModel(Model):
     """A class that uses Hugging Face's Transformers library for language model interaction.
 
@@ -475,7 +646,16 @@ class TransformersModel(Model):
             model_id = default_model_id
             logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
         self.model_id = model_id
+
+        default_max_tokens = 5000
+        max_new_tokens = kwargs.get("max_new_tokens") or kwargs.get("max_tokens")
+        if not max_new_tokens:
+            kwargs["max_new_tokens"] = default_max_tokens
+            logger.warning(
+                f"`max_new_tokens` not provided, using this default value for `max_new_tokens`: {default_max_tokens}"
+            )
         self.kwargs = kwargs
+
         if device_map is None:
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
@@ -676,6 +856,15 @@ class LiteLLMModel(Model):
         self.api_key = api_key
         self.custom_role_conversions = custom_role_conversions
 
+    @cached_property
+    def _flatten_messages_as_text(self):
+        import litellm
+
+        model_info: dict = litellm.get_model_info(self.model_id)
+        if model_info["litellm_provider"] in ["ollama", "groq"]:
+            return model_info["key"] != "llava"
+        return False
+
     def __call__(
         self,
         messages: List[Dict[str, str]],
@@ -695,7 +884,7 @@ class LiteLLMModel(Model):
             api_base=self.api_base,
             api_key=self.api_key,
             convert_images_to_image_urls=True,
-            flatten_messages_as_text=self.model_id.startswith(("groq", "ollama")),
+            flatten_messages_as_text=self._flatten_messages_as_text,
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
@@ -837,6 +1026,7 @@ __all__ = [
     "tool_role_conversions",
     "get_clean_message_list",
     "Model",
+    "MLXModel",
     "TransformersModel",
     "HfApiModel",
     "LiteLLMModel",
