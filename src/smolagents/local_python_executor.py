@@ -714,35 +714,38 @@ def evaluate_condition(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> bool | object:
+    result = True
     left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
-    for op, comparator in zip(condition.ops, condition.comparators):
+    for i, (op, comparator) in enumerate(zip(condition.ops, condition.comparators)):
         op = type(op)
         right = evaluate_ast(comparator, state, static_tools, custom_tools, authorized_imports)
         if op == ast.Eq:
-            result = left == right
+            current_result = left == right
         elif op == ast.NotEq:
-            result = left != right
+            current_result = left != right
         elif op == ast.Lt:
-            result = left < right
+            current_result = left < right
         elif op == ast.LtE:
-            result = left <= right
+            current_result = left <= right
         elif op == ast.Gt:
-            result = left > right
+            current_result = left > right
         elif op == ast.GtE:
-            result = left >= right
+            current_result = left >= right
         elif op == ast.Is:
-            result = left is right
+            current_result = left is right
         elif op == ast.IsNot:
-            result = left is not right
+            current_result = left is not right
         elif op == ast.In:
-            result = left in right
+            current_result = left in right
         elif op == ast.NotIn:
-            result = left not in right
+            current_result = left not in right
         else:
-            raise InterpreterError(f"Operator not supported: {op}")
-        if result is False:
-            break
-        left = result
+            raise InterpreterError(f"Unsupported comparison operator: {op}")
+
+        if current_result is False:
+            return False
+        result = current_result if i == 0 else (result and current_result)
+        left = right
     return result
 
 
