@@ -925,7 +925,6 @@ You have been provided with these additional arguments, that you can access usin
                 "resume_download",
                 "proxies",
                 "revision",
-                "subfolder",
                 "local_files_only",
             ]
             if key in kwargs
