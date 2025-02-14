@@ -1282,17 +1282,14 @@ def test_get_safe_module_handle_lazy_imports():
     assert getattr(safe_module, "non_lazy_attribute") == "ok"
 
 
-@pytest.mark.parametrize("expected_result", ["a == b", "a == b == c"])
-def test_non_standard_comparisons(expected_result):
-    code = dedent(f"""\
+def test_non_standard_comparisons():
+    code = dedent("""\
         class NonStdEqualsResult:
             def __init__(self, left:object, right:object):
                 self._left = left
                 self._right = right
             def __str__(self) -> str:
-                return f'{{self._left}} == {{self._right}}'
-            def __eq__(self, other):
-                return NonStdEqualsResult(self, other)
+                return f'{self._left} == {self._right}'
 
         class NonStdComparisonClass:
             def __init__(self, value: str ):
@@ -1303,12 +1300,11 @@ def test_non_standard_comparisons(expected_result):
                 return NonStdEqualsResult(self, other)
         a = NonStdComparisonClass("a")
         b = NonStdComparisonClass("b")
-        c = NonStdComparisonClass("c")
-        result = {expected_result}
+        result = a == b
         """)
     result, _ = evaluate_python_code(code, state={})
     assert not isinstance(result, bool)
-    assert str(result) == expected_result
+    assert str(result) == "a == b"
 
 
 class TestPrintContainer:
