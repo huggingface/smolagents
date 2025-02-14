@@ -1267,13 +1267,24 @@ def test_evaluate_condition_with_pandas(condition, state, expected_result):
                 "The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
             ),
         ),
+        (
+            "a == b == c",
+            {
+                "a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+                "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]}),
+                "c": pd.DataFrame({"x": [3, 3], "y": [3, 3]}),
+            },
+            ValueError(
+                "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+            ),
+        ),
     ],
 )
 def test_evaluate_condition_with_pandas_exceptions(condition, state, expected_exception):
     condition_ast = ast.parse(condition, mode="eval").body
     with pytest.raises(type(expected_exception)) as exception_info:
         _ = evaluate_condition(condition_ast, state, {}, {}, [])
-        assert str(expected_exception) in str(exception_info.value)
+    assert str(expected_exception) in str(exception_info.value)
 
 
 def test_get_safe_module_handle_lazy_imports():
