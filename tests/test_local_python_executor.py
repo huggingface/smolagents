@@ -1241,16 +1241,6 @@ def test_evaluate_condition(condition, state, expected_result):
             {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
             pd.DataFrame({"x": [False, True], "y": [True, True]}),
         ),
-        # Chained conditions:
-        (
-            "a == b == c",
-            {
-                "a": pd.Series([1, 2, 3]),
-                "b": pd.Series([2, 2, 2]),
-                "c": pd.Series([3, 3, 3]),
-            },
-            pd.Series([False, False, False]),
-        ),
     ],
 )
 def test_evaluate_condition_with_pandas(condition, state, expected_result):
@@ -1260,6 +1250,30 @@ def test_evaluate_condition_with_pandas(condition, state, expected_result):
         pd.testing.assert_series_equal(result, expected_result)
     else:
         pd.testing.assert_frame_equal(result, expected_result)
+
+
+@pytest.mark.parametrize(
+    "condition, state, expected_exception",
+    [
+        # Chained conditions:
+        (
+            "a == b == c",
+            {
+                "a": pd.Series([1, 2, 3]),
+                "b": pd.Series([2, 2, 2]),
+                "c": pd.Series([3, 3, 3]),
+            },
+            ValueError(
+                "The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+            ),
+        ),
+    ],
+)
+def test_evaluate_condition_with_pandas_exceptions(condition, state, expected_exception):
+    condition_ast = ast.parse(condition, mode="eval").body
+    with pytest.raises(type(expected_exception)) as exception_info:
+        _ = evaluate_condition(condition_ast, state, {}, {}, [])
+        assert str(expected_exception) in str(exception_info.value)
 
 
 def test_get_safe_module_handle_lazy_imports():
