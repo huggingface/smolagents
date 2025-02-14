@@ -44,6 +44,32 @@ There are several ways you can contribute to smolagents.
 If you notice an issue with the existing code and have a fix in mind, feel free to [start contributing](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) and open
 a Pull Request!
 
+### Making code changes
+
+To install dev dependencies, run:
+```
+pip install -e ".[dev]"
+```
+
+When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
+To check code quality of the source code:
+```
+make quality
+```
+
+If the checks fail, you can run the formatter with:
+```
+make style
+```
+
+And commit the changes.
+
+To run tests locally, run this command:
+```bash
+make test
+```
+</details>
+
 ## Submitting a bug-related issue or feature request
 
 At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
@@ -85,32 +111,6 @@ If there is a new feature you'd like to see in smolagents, please open an issue 
 4. If the feature is related to a paper, please include a link.
 
 If your issue is well written we're already 80% of the way there by the time you create it.
-
-### Code changes
-
-To install dev dependencies, run:
-```
-pip install -e ".[dev]"
-```
-
-When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
-To check code quality of the source code:
-```
-make quality
-```
-
-If the checks fail, you can run the formatter with:
-```
-make style
-```
-
-And commit the changes.
-
-To run tests locally, run this command:
-```bash
-make test
-```
-</details>
 
 ## Do you want to add documentation?
 
