@@ -936,7 +936,12 @@ You have been provided with these additional arguments, that you can access usin
 
     @classmethod
     def from_folder(cls, folder: Union[str, Path], **kwargs):
-        """Loads an agent from a local folder"""
+        """Loads an agent from a local folder.
+
+        Args:
+            folder (`str` or `Path`): The folder where the agent is saved.
+            **kwargs: Additional keyword arguments that will be passed to the agent's init.
+        """
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
 
