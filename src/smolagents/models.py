@@ -444,7 +444,7 @@ class TransformersModel(Model):
     ```python
     >>> engine = TransformersModel(
     ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
-    ...     device="cuda"
+    ...     device="cuda",
     ...     max_new_tokens=5000,
     ... )
     >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
