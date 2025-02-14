@@ -10,7 +10,7 @@ class TextInspectorTool(Tool):
     name = "inspect_file_as_text"
     description = """
 You cannot load files yourself: instead call this tool to read a file as markdown text and ask questions about it.
-This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pptx", ".wav", ".mp3", ".flac", ".pdf", ".docx"], and all other types of text files. IT DOES NOT HANDLE IMAGES."""
+This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".flac", ".pdf", ".docx"], and all other types of text files. IT DOES NOT HANDLE IMAGES."""
 
     inputs = {
         "file_path": {

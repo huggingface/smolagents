@@ -1,3 +1,4 @@
+
 <!--Copyright 2024 The HuggingFace Team. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
@@ -13,19 +14,17 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Tools
+# 工具
 
 <Tip warning={true}>
 
-Smolagents is an experimental API which is subject to change at any time. Results returned by the agents
-can vary as the APIs or underlying models are prone to change.
+Smolagents 是一个实验性 API，可能会随时更改。由于 API 或底层模型可能发生变化，代理返回的结果可能会有所不同。
 
 </Tip>
 
-To learn more about agents and tools make sure to read the [introductory guide](../index). This page
-contains the API docs for the underlying classes.
+要了解更多关于智能体和工具的信息，请务必阅读[入门指南](../index)。本页面包含底层类的 API 文档。
 
-## Tools
+## 工具
 
 ### load_tool
 
@@ -43,40 +42,51 @@ contains the API docs for the underlying classes.
 
 [[autodoc]] launch_gradio_demo
 
-## Default tools
+## 默认工具
 
 ### PythonInterpreterTool
 
 [[autodoc]] PythonInterpreterTool
 
+### FinalAnswerTool
+
+[[autodoc]] FinalAnswerTool
+
+### UserInputTool
+
+[[autodoc]] UserInputTool
+
 ### DuckDuckGoSearchTool
 
 [[autodoc]] DuckDuckGoSearchTool
+
+### GoogleSearchTool
+
+[[autodoc]] GoogleSearchTool
 
 ### VisitWebpageTool
 
 [[autodoc]] VisitWebpageTool
 
-## ToolCollection
+### SpeechToTextTool
+
+[[autodoc]] SpeechToTextTool
+
+## 工具集合
 
 [[autodoc]] ToolCollection
 
-## Agent Types
+## 智能体类型
 
-Agents can handle any type of object in-between tools; tools, being completely multimodal, can accept and return
-text, image, audio, video, among other types. In order to increase compatibility between tools, as well as to 
-correctly render these returns in ipython (jupyter, colab, ipython notebooks, ...), we implement wrapper classes
-around these types.
+智能体可以处理工具之间的任何类型的对象；工具是完全多模态的，可以接受和返回文本、图像、音频、视频以及其他类型的对象。为了增加工具之间的兼容性，以及正确呈现在 ipython（jupyter、colab、ipython notebooks 等）中的返回结果，我们为这些类型实现了包装类。
 
-The wrapped objects should continue behaving as initially; a text object should still behave as a string, an image
-object should still behave as a `PIL.Image`.
+被包装的对象应该继续保持其初始行为；例如，一个文本对象应继续表现为字符串，一个图像对象应继续表现为 `PIL.Image`。
 
-These types have three specific purposes:
+这些类型有三个特定的用途：
 
-- Calling `to_raw` on the type should return the underlying object
-- Calling `to_string` on the type should return the object as a string: that can be the string in case of an `AgentText`
-  but will be the path of the serialized version of the object in other instances
-- Displaying it in an ipython kernel should display the object correctly
+- 调用 `to_raw` 方法时，应返回底层对象
+- 调用 `to_string` 方法时，应将对象转换为字符串：对于 `AgentText` 类型，可以直接返回字符串；对于其他实例，则返回对象序列化版本的路径
+- 在 ipython 内核中显示时，应正确显示对象
 
 ### AgentText
 

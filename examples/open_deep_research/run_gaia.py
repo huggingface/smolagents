@@ -75,7 +75,6 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--model-id", type=str, default="o1")
-    parser.add_argument("--api-base", type=str, default=None)
     parser.add_argument("--run-name", type=str, required=True)
     return parser.parse_args()
 

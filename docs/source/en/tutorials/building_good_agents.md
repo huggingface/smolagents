@@ -18,7 +18,7 @@ rendered properly in your Markdown viewer.
 [[open-in-colab]]
 
 There's a world of difference between building an agent that works and one that doesn't.
-How can we build agents that fall into the latter category?
+How can we build agents that fall into the former category?
 In this guide, we're going to talk about best practices for building agents.
 
 > [!TIP]

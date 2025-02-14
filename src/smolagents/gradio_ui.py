@@ -141,7 +141,7 @@ def stream_to_gradio(
 
     for step_log in agent.run(task, stream=True, reset=reset_agent_memory, additional_args=additional_args):
         # Track tokens if model provides them
-        if hasattr(agent.model, "last_input_token_count"):
+        if getattr(agent.model, "last_input_token_count", None):
             total_input_tokens += agent.model.last_input_token_count
             total_output_tokens += agent.model.last_output_token_count
             if isinstance(step_log, ActionStep):
@@ -258,7 +258,7 @@ class GradioUI:
             "",
         )
 
-    def launch(self, **kwargs):
+    def launch(self, share: bool = False, **kwargs):
         import gradio as gr
 
         with gr.Blocks(fill_height=True) as demo:
@@ -290,7 +290,7 @@ class GradioUI:
                 [stored_messages, text_input],
             ).then(self.interact_with_agent, [stored_messages, chatbot], [chatbot])
 
-        demo.launch(debug=True, share=True, **kwargs)
+        demo.launch(debug=True, share=share, **kwargs)
 
 
 __all__ = ["stream_to_gradio", "GradioUI"]

@@ -28,10 +28,11 @@ To initialize a minimal agent, you need at least these two arguments:
     - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood and supports all Inference Providers on the Hub.
     - [`LiteLLMModel`] similarly lets you call 100+ different models and providers through [LiteLLM](https://docs.litellm.ai/)!
     - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
+    - [`MLXModel`] creates a [mlx-lm](https://pypi.org/project/mlx-lm/) pipeline to run inference on your local machine.
 
 - `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), or [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
+Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), or [mlx-lm](https://pypi.org/project/mlx-lm/).
 
 <hfoptions id="Pick a LLM">
 <hfoption id="HF Inference API">
@@ -95,8 +96,8 @@ from smolagents import CodeAgent, LiteLLMModel
 model = LiteLLMModel(
     model_id="ollama_chat/llama3.2", # This model is a bit weak for agentic behaviours though
     api_base="http://localhost:11434", # replace with 127.0.0.1:11434 or remote open-ai compatible server if necessary
-    api_key="YOUR_API_KEY" # replace with API key if necessary
-    num_ctx=8192 # ollama default is 2048 which will fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
+    api_key="YOUR_API_KEY", # replace with API key if necessary
+    num_ctx=8192, # ollama default is 2048 which will fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
@@ -146,6 +147,19 @@ agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.run(
    "Could you give me the 118th number in the Fibonacci sequence?",
 )
+```
+
+</hfoption>
+<hfoption id="mlx-lm">
+
+```python
+# !pip install smolagents[mlx-lm]
+from smolagents import CodeAgent, MLXModel
+
+mlx_model = MLXModel("mlx-community/Qwen2.5-Coder-32B-Instruct-4bit")
+agent = CodeAgent(model=mlx_model, tools=[], add_base_tools=True)
+
+agent.run("Could you give me the 118th number in the Fibonacci sequence?")
 ```
 
 </hfoption>
@@ -206,7 +220,7 @@ When the agent is initialized, the tool attributes are used to generate a tool d
 
 ### Default toolbox
 
-Transformers comes with a default toolbox for empowering agents, that you can add to your agent upon initialization with argument `add_base_tools = True`:
+`smolagents` comes with a default toolbox for empowering agents, that you can add to your agent upon initialization with argument `add_base_tools = True`:
 
 - **DuckDuckGo web search***: performs a web search using DuckDuckGo browser.
 - **Python code interpreter**: runs your LLM generated Python code in a secure environment. This tool will only be added to [`ToolCallingAgent`] if you initialize it with `add_base_tools=True`, since code-based agent can already natively execute Python code
@@ -344,25 +358,25 @@ It empirically yields better performance on most benchmarks. The reason for this
 
 You can easily build hierarchical multi-agent systems with `smolagents`.
 
-To do so, encapsulate the agent in a [`ManagedAgent`] object. This object needs arguments `agent`, `name`, and a `description`, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
+To do so, just ensure your agent has `name` and`description` attributes, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
+Then you can pass this managed agent in the parameter managed_agents upon initialization of the manager agent.
 
 Here's an example of making an agent that managed a specific web search agent using our [`DuckDuckGoSearchTool`]:
 
 ```py
-from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ManagedAgent
+from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool
 
 model = HfApiModel()
 
-web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
-
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
+web_agent = CodeAgent(
+    tools=[DuckDuckGoSearchTool()],
+    model=model,
     name="web_search",
     description="Runs web searches for you. Give it your query as an argument."
 )
 
 manager_agent = CodeAgent(
-    tools=[], model=model, managed_agents=[managed_web_agent]
+    tools=[], model=model, managed_agents=[web_agent]
 )
 
 manager_agent.run("Who is the CEO of Hugging Face?")

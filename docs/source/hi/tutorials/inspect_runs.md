@@ -71,7 +71,6 @@ SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
 from smolagents import (
     CodeAgent,
     ToolCallingAgent,
-    ManagedAgent,
     DuckDuckGoSearchTool,
     VisitWebpageTool,
     HfApiModel,
@@ -79,15 +78,13 @@ from smolagents import (
 
 model = HfApiModel()
 
-agent = ToolCallingAgent(
+managed_agent = ToolCallingAgent(
     tools=[DuckDuckGoSearchTool(), VisitWebpageTool()],
     model=model,
-)
-managed_agent = ManagedAgent(
-    agent=agent,
     name="managed_agent",
     description="This is an agent that can do web search.",
 )
+
 manager_agent = CodeAgent(
     tools=[],
     model=model,

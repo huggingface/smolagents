@@ -30,7 +30,7 @@ def check_tests_in_ci():
     tests, hence this check.
 
     NOTE: current implementation is quite naive but should work for now. Must be updated if one want to ignore some
-          tests or if file naming is updated (currently only files starting by `test_*` are cheked)
+          tests or if file naming is updated (currently only files starting by `test_*` are checked)
     """
     test_files = [
         path.relative_to(TESTS_FOLDER).as_posix()

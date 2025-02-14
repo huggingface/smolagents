@@ -567,13 +567,13 @@ class WavConverter(MediaConverter):
 
 class Mp3Converter(WavConverter):
     """
-    Converts MP3 files to markdown via extraction of metadata (if `exiftool` is installed), and speech transcription (if `speech_recognition` AND `pydub` are installed).
+    Converts MP3 and M4A files to markdown via extraction of metadata (if `exiftool` is installed), and speech transcription (if `speech_recognition` AND `pydub` are installed).
     """
 
     def convert(self, local_path, **kwargs) -> Union[None, DocumentConverterResult]:
         # Bail if not a MP3
         extension = kwargs.get("file_extension", "")
-        if extension.lower() != ".mp3":
+        if extension.lower() not in [".mp3", ".m4a"]:
             return None
 
         md_content = ""
@@ -600,7 +600,10 @@ class Mp3Converter(WavConverter):
         handle, temp_path = tempfile.mkstemp(suffix=".wav")
         os.close(handle)
         try:
-            sound = pydub.AudioSegment.from_mp3(local_path)
+            if extension.lower() == ".mp3":
+                sound = pydub.AudioSegment.from_mp3(local_path)
+            else:
+                sound = pydub.AudioSegment.from_file(local_path, format="m4a")
             sound.export(temp_path, format="wav")
 
             _args = dict()

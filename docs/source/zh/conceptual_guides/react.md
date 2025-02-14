@@ -42,6 +42,3 @@ ReAct 过程涉及保留过去步骤的记忆。
 我们实现了两个版本的 ToolCallingAgent：
 - [`ToolCallingAgent`] 在其输出中生成 JSON 格式的工具调用。
 - [`CodeAgent`] 是一种新型的 ToolCallingAgent，它生成代码块形式的工具调用，这对于具有强大编码性能的 LLM 非常有效。
-
-> [!TIP]
-> 我们还提供了一个选项来以单步模式运行 agent：只需在启动 agent 时传递 `single_step=True`，例如 `agent.run(your_task, single_step=True)`

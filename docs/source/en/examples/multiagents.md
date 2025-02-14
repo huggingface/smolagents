@@ -116,7 +116,7 @@ print(visit_webpage("https://en.wikipedia.org/wiki/Hugging_Face")[:500])
 Now that we have all the tools `search` and `visit_webpage`, we can use them to create the web agent.
 
 Which configuration to choose for this agent?
-- Web browsing is a single-timeline task that does not require parallel tool calls, so JSON tool calling works well for that. We thus choose a `JsonAgent`.
+- Web browsing is a single-timeline task that does not require parallel tool calls, so JSON tool calling works well for that. We thus choose a `ToolCallingAgent`.
 - Also, since sometimes web search requires exploring many pages before finding the correct answer, we prefer to increase the number of `max_steps` to 10.
 
 ```py

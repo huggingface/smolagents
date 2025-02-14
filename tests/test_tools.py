@@ -215,8 +215,9 @@ class ToolTests(unittest.TestCase):
 
                 return str(datetime.now())
 
-    def test_saving_tool_allows_no_arg_in_init(self):
-        # Test one cannot save tool with additional args in init
+    def test_tool_to_dict_allows_no_arg_in_init(self):
+        """Test that a tool cannot be saved with required args in init"""
+
         class FailTool(Tool):
             name = "specific"
             description = "test description"
@@ -225,15 +226,31 @@ class ToolTests(unittest.TestCase):
 
             def __init__(self, url):
                 super().__init__(self)
-                self.url = "none"
+                self.url = url
 
             def forward(self, string_input: str) -> str:
                 return self.url + string_input
 
         fail_tool = FailTool("dummy_url")
         with pytest.raises(Exception) as e:
-            fail_tool.save("output")
-        assert "__init__" in str(e)
+            fail_tool.to_dict()
+        assert "All parameters of __init__ must have default values!" in str(e)
+
+        class PassTool(Tool):
+            name = "specific"
+            description = "test description"
+            inputs = {"string_input": {"type": "string", "description": "input description"}}
+            output_type = "string"
+
+            def __init__(self, url: Optional[str] = "none"):
+                super().__init__(self)
+                self.url = url
+
+            def forward(self, string_input: str) -> str:
+                return self.url + string_input
+
+        fail_tool = PassTool()
+        fail_tool.to_dict()
 
     def test_saving_tool_allows_no_imports_from_outside_methods(self):
         # Test that using imports from outside functions fails

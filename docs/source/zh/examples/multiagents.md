@@ -120,7 +120,7 @@ print(visit_webpage("https://en.wikipedia.org/wiki/Hugging_Face")[:500])
 现在我们有了所有工具`search`和`visit_webpage`，我们可以使用它们来创建web agent。
 
 我们该选取什么样的配置来构建这个agent呢？
-- 网页浏览是一个单线程任务，不需要并行工具调用，因此JSON工具调用对于这个任务非常有效。因此我们选择`JsonAgent`。
+- 网页浏览是一个单线程任务，不需要并行工具调用，因此JSON工具调用对于这个任务非常有效。因此我们选择`ToolCallingAgent`。
 - 有时候网页搜索需要探索许多页面才能找到正确答案，所以我们更喜欢将 `max_steps` 增加到10。
 
 ```py

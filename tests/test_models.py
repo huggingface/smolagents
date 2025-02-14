@@ -14,6 +14,7 @@
 # limitations under the License.
 import json
 import os
+import sys
 import unittest
 from pathlib import Path
 from typing import Optional
@@ -22,7 +23,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from transformers.testing_utils import get_tests_dir
 
-from smolagents import ChatMessage, HfApiModel, TransformersModel, models, tool
+from smolagents import ChatMessage, HfApiModel, MLXModel, TransformersModel, models, tool
 from smolagents.models import MessageRole, get_clean_message_list, parse_json_if_needed
 
 
@@ -49,6 +50,7 @@ class ModelTests(unittest.TestCase):
         data = json.loads(message.model_dump_json())
         assert data["content"] == [{"type": "text", "text": "Hello!"}]
 
+    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
     def test_get_hfapi_message_no_tool(self):
         model = HfApiModel(max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
@@ -59,6 +61,26 @@ class ModelTests(unittest.TestCase):
         model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
+
+    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    def test_get_mlx_message_no_tool(self):
+        model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        output = model(messages, stop_sequences=["great"]).content
+        assert output.startswith("Hello")
+
+    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    def test_get_mlx_message_tricky_stop_sequence(self):
+        # In this test HuggingFaceTB/SmolLM2-135M-Instruct generates the token ">'"
+        # which is required to test capturing stop_sequences that have extra chars at the end.
+        model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=100)
+        stop_sequence = " print '>"
+        messages = [{"role": "user", "content": [{"type": "text", "text": f"Please{stop_sequence}'"}]}]
+        # check our assumption that that ">" is followed by "'"
+        assert model.tokenizer.vocab[">'"]
+        assert model(messages, stop_sequences=[]).content == f"I'm ready to help you{stop_sequence}'"
+        # check stop_sequence capture when output has trailing chars
+        assert model(messages, stop_sequences=[stop_sequence]).content == "I'm ready to help you"
 
     def test_transformers_message_no_tool(self):
         model = TransformersModel(

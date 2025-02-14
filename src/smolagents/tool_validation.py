@@ -83,6 +83,31 @@ class MethodChecker(ast.NodeVisitor):
                     self.assigned_names.add(elt.id)
         self.generic_visit(node)
 
+    def _handle_comprehension_generators(self, generators):
+        """Helper method to handle generators in all types of comprehensions"""
+        for generator in generators:
+            if isinstance(generator.target, ast.Name):
+                self.assigned_names.add(generator.target.id)
+            elif isinstance(generator.target, ast.Tuple):
+                for elt in generator.target.elts:
+                    if isinstance(elt, ast.Name):
+                        self.assigned_names.add(elt.id)
+
+    def visit_ListComp(self, node):
+        """Track variables in list comprehensions"""
+        self._handle_comprehension_generators(node.generators)
+        self.generic_visit(node)
+
+    def visit_DictComp(self, node):
+        """Track variables in dictionary comprehensions"""
+        self._handle_comprehension_generators(node.generators)
+        self.generic_visit(node)
+
+    def visit_SetComp(self, node):
+        """Track variables in set comprehensions"""
+        self._handle_comprehension_generators(node.generators)
+        self.generic_visit(node)
+
     def visit_Attribute(self, node):
         if not (isinstance(node.value, ast.Name) and node.value.id == "self"):
             self.generic_visit(node)
@@ -121,7 +146,8 @@ class MethodChecker(ast.NodeVisitor):
 def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     """
     Validates that a Tool class follows the proper patterns:
-    0. __init__ takes no argument (args chosen at init are not traceable so we cannot rebuild the source code for them, make them class attributes!).
+    0. Any argument of __init__ should have a default.
+    Args chosen at init are not traceable, so we cannot rebuild the source code for them, thus any important arg should be defined as a class attribute.
     1. About the class:
         - Class attributes should only be strings or dicts
         - Class attributes cannot be complex attributes
@@ -140,13 +166,20 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     if not isinstance(tree.body[0], ast.ClassDef):
         raise ValueError("Source code must define a class")
 
-    # Check that __init__ method takes no arguments
+    # Check that __init__ method only has arguments with defaults
     if not cls.__init__.__qualname__ == "Tool.__init__":
         sig = inspect.signature(cls.__init__)
-        non_self_params = list([arg_name for arg_name in sig.parameters.keys() if arg_name != "self"])
-        if len(non_self_params) > 0:
+        non_default_params = [
+            arg_name
+            for arg_name, param in sig.parameters.items()
+            if arg_name != "self"
+            and param.default == inspect.Parameter.empty
+            and param.kind != inspect.Parameter.VAR_KEYWORD  # Excludes **kwargs
+        ]
+        if non_default_params:
             errors.append(
-                f"This tool has additional args specified in __init__(self): {non_self_params}. Make sure it does not, all values should be hardcoded!"
+                f"This tool has required arguments in __init__: {non_default_params}. "
+                "All parameters of __init__ must have default values!"
             )
 
     class_node = tree.body[0]
@@ -198,5 +231,5 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
             errors += [f"- {node.name}: {error}" for error in method_checker.errors]
 
     if errors:
-        raise ValueError("Tool validation failed:\n" + "\n".join(errors))
+        raise ValueError(f"Tool validation failed for {cls.__name__}:\n" + "\n".join(errors))
     return

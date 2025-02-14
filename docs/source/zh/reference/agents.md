@@ -1,3 +1,4 @@
+
 <!--Copyright 2024 The HuggingFace Team. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
@@ -13,30 +14,27 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Agents
+# Agents（智能体）
 
 <Tip warning={true}>
 
-Smolagents is an experimental API which is subject to change at any time. Results returned by the agents
-can vary as the APIs or underlying models are prone to change.
+Smolagents 是一个实验性的 API，可能会随时发生变化。由于 API 或底层模型可能发生变化，代理返回的结果也可能有所不同。
 
 </Tip>
 
-To learn more about agents and tools make sure to read the [introductory guide](../index). This page
-contains the API docs for the underlying classes.
+要了解有关智能体和工具的更多信息，请务必阅读[入门指南](../index)。本页面包含基础类的 API 文档。
 
-## Agents
+## 智能体（Agents）
 
-Our agents inherit from [`MultiStepAgent`], which means they can act in multiple steps, each step consisting of one thought, then one tool call and execution. Read more in [this conceptual guide](../conceptual_guides/react).
+我们的智能体继承自 [`MultiStepAgent`]，这意味着它们可以执行多步操作，每一步包含一个思考（thought），然后是一个工具调用和执行。请阅读[概念指南](../conceptual_guides/react)以了解更多信息。
 
-We provide two types of agents, based on the main [`Agent`] class.
-  - [`CodeAgent`] is the default agent, it writes its tool calls in Python code.
-  - [`ToolCallingAgent`] writes its tool calls in JSON.
+我们提供两种类型的代理，它们基于主要的 [`Agent`] 类：
+  - [`CodeAgent`] 是默认代理，它以 Python 代码编写工具调用。
+  - [`ToolCallingAgent`] 以 JSON 编写工具调用。
 
-Both require arguments `model` and list of tools `tools` at initialization.
+两者在初始化时都需要提供参数 `model` 和工具列表 `tools`。
 
-
-### Classes of agents
+### 智能体类
 
 [[autodoc]] MultiStepAgent
 
@@ -44,10 +42,9 @@ Both require arguments `model` and list of tools `tools` at initialization.
 
 [[autodoc]] ToolCallingAgent
 
-
 ### ManagedAgent
 
-_This class is deprecated since 1.8.0: now you just need to pass name and description attributes to an agent to use it as a ManagedAgent._
+_此类自 1.8.0 起已被弃用：现在您只需向普通代理传递 `name` 和 `description` 属性即可使其可被管理代理调用。_
 
 ### stream_to_gradio
 
@@ -56,94 +53,16 @@ _This class is deprecated since 1.8.0: now you just need to pass name and descri
 ### GradioUI
 
 > [!TIP]
-> You must have `gradio` installed to use the UI. Please run `pip install smolagents[gradio]` if it's not the case.
+> 您必须安装 `gradio` 才能使用 UI。如果尚未安装，请运行 `pip install smolagents[gradio]`。
 
 [[autodoc]] GradioUI
 
-## Models
+## 提示（Prompts）
 
-You're free to create and use your own models to power your agent.
+[[autodoc]] smolagents.agents.PromptTemplates
 
-You could use any `model` callable for your agent, as long as:
-1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns a `str`.
-2. It stops generating outputs *before* the sequences passed in the argument `stop_sequences`
+[[autodoc]] smolagents.agents.PlanningPromptTemplate
 
-For defining your LLM, you can make a `custom_model` method which accepts a list of [messages](./chat_templating) and returns text. This callable also needs to accept a `stop_sequences` argument that indicates when to stop generating.
+[[autodoc]] smolagents.agents.ManagedAgentPromptTemplate
 
-```python
-from huggingface_hub import login, InferenceClient
-
-login("<YOUR_HUGGINGFACEHUB_API_TOKEN>")
-
-model_id = "meta-llama/Llama-3.3-70B-Instruct"
-
-client = InferenceClient(model=model_id)
-
-def custom_model(messages, stop_sequences=["Task"]) -> str:
-    response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1000)
-    answer = response.choices[0].message.content
-    return answer
-```
-
-Additionally, `custom_model` can also take a `grammar` argument. In the case where you specify a `grammar` upon agent initialization, this argument will be passed to the calls to model, with the `grammar` that you defined upon initialization, to allow [constrained generation](https://huggingface.co/docs/text-generation-inference/conceptual/guidance) in order to force properly-formatted agent outputs.
-
-### TransformersModel
-
-For convenience, we have added a `TransformersModel` that implements the points above by building a local `transformers` pipeline for the model_id given at initialization.
-
-```python
-from smolagents import TransformersModel
-
-model = TransformersModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
-
-print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
-```
-```text
->>> What a
-```
-
-> [!TIP]
-> You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
-
-[[autodoc]] TransformersModel
-
-### HfApiModel
-
-The `HfApiModel` wraps an [HF Inference API](https://huggingface.co/docs/api-inference/index) client for the execution of the LLM.
-
-```python
-from smolagents import HfApiModel
-
-messages = [
-  {"role": "user", "content": "Hello, how are you?"},
-  {"role": "assistant", "content": "I'm doing great. How can I help you today?"},
-  {"role": "user", "content": "No need to help, take it easy."},
-]
-
-model = HfApiModel()
-print(model(messages))
-```
-```text
->>> Of course! If you change your mind, feel free to reach out. Take care!
-```
-[[autodoc]] HfApiModel
-
-### LiteLLMModel
-
-The `LiteLLMModel` leverages [LiteLLM](https://www.litellm.ai/) to support 100+ LLMs from various providers.
-You can pass kwargs upon model initialization that will then be used whenever using the model, for instance below we pass `temperature`.
-
-```python
-from smolagents import LiteLLMModel
-
-messages = [
-  {"role": "user", "content": "Hello, how are you?"},
-  {"role": "assistant", "content": "I'm doing great. How can I help you today?"},
-  {"role": "user", "content": "No need to help, take it easy."},
-]
-
-model = LiteLLMModel("anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10)
-print(model(messages))
-```
-
-[[autodoc]] LiteLLMModel
+[[autodoc]] smolagents.agents.FinalAnswerPromptTemplate
