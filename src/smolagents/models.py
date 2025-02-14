@@ -22,6 +22,7 @@ import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from huggingface_hub import InferenceClient
@@ -131,8 +132,9 @@ def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
 
 
 def parse_tool_args_if_needed(message: ChatMessage) -> ChatMessage:
-    for tool_call in message.tool_calls:
-        tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+    if message.tool_calls is not None:
+        for tool_call in message.tool_calls:
+            tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
     return message
 
 
@@ -330,6 +332,53 @@ class Model:
         """
         pass  # To be implemented in child classes!
 
+    def to_dict(self) -> Dict:
+        """
+        Converts the model into a JSON-compatible dictionary.
+        """
+        model_dictionary = {
+            **self.kwargs,
+            "last_input_token_count": self.last_input_token_count,
+            "last_output_token_count": self.last_output_token_count,
+            "model_id": self.model_id,
+        }
+        for attribute in [
+            "custom_role_conversion",
+            "temperature",
+            "max_tokens",
+            "provider",
+            "timeout",
+            "api_base",
+            "torch_dtype",
+            "device_map",
+            "organization",
+            "project",
+            "azure_endpoint",
+        ]:
+            if hasattr(self, attribute):
+                model_dictionary[attribute] = getattr(self, attribute)
+
+        dangerous_attributes = ["token", "api_key"]
+        for attribute_name in dangerous_attributes:
+            if hasattr(self, attribute_name):
+                print(
+                    f"For security reasons, we do not export the `{attribute_name}` attribute of your model. Please export it manually."
+                )
+        return model_dictionary
+
+    @classmethod
+    def from_dict(cls, model_dictionary: Dict[str, Any]) -> "Model":
+        model_instance = cls(
+            **{
+                k: v
+                for k, v in model_dictionary.items()
+                if k not in ["last_input_token_count", "last_output_token_count"]
+            }
+        )
+        model_instance.last_input_token_count = model_dictionary.pop("last_input_token_count", None)
+        model_instance.last_output_token_count = model_dictionary.pop("last_output_token_count", None)
+        return model_instance
+
 
 class HfApiModel(Model):
     """A class to interact with Hugging Face's Inference API for language model interaction.
@@ -442,7 +491,7 @@ class MLXModel(Model):
     ... )
     >>> messages = [
     ...     {
-    ...         "role": "user", 
+    ...         "role": "user",
     ...         "content": [
     ...             {"type": "text", "text": "Explain quantum mechanics in simple terms."}
     ...         ]
@@ -477,7 +526,7 @@ class MLXModel(Model):
 
     def _to_message(self, text, tools_to_call_from):
         if tools_to_call_from:
-            # tmp solution for extracting tool JSON without assuming a specific model output format
+            # solution for extracting tool JSON without assuming a specific model output format
             maybe_json = "{" + text.split("{", 1)[-1][::-1].split("}", 1)[-1][::-1] + "}"
             parsed_text = json.loads(maybe_json)
             tool_name = parsed_text.get(self.tool_name_key, None)
@@ -531,8 +580,9 @@ class MLXModel(Model):
             self.last_output_token_count += 1
             text += _.text
             for stop_sequence in prepared_stop_sequences:
-                if text.strip().endswith(stop_sequence):
-                    text = text[: -len(stop_sequence)]
+                stop_sequence_start = text.rfind(stop_sequence)
+                if stop_sequence_start != -1:
+                    text = text[:stop_sequence_start]
                     return self._to_message(text, tools_to_call_from)
 
         return self._to_message(text, tools_to_call_from)
@@ -598,7 +648,16 @@ class TransformersModel(Model):
             model_id = default_model_id
             logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
         self.model_id = model_id
+
+        default_max_tokens = 5000
+        max_new_tokens = kwargs.get("max_new_tokens") or kwargs.get("max_tokens")
+        if not max_new_tokens:
+            kwargs["max_new_tokens"] = default_max_tokens
+            logger.warning(
+                f"`max_new_tokens` not provided, using this default value for `max_new_tokens`: {default_max_tokens}"
+            )
         self.kwargs = kwargs
+
         if device_map is None:
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
@@ -799,6 +858,16 @@ class LiteLLMModel(Model):
         self.api_key = api_key
         self.custom_role_conversions = custom_role_conversions
 
+    @cached_property
+    def _flatten_messages_as_text(self):
+        import litellm
+
+        model_info: dict = litellm.get_model_info(self.model_id)
+        if model_info["litellm_provider"] == "ollama":
+            return model_info["key"] != "llava"
+
+        return False
+
     def __call__(
         self,
         messages: List[Dict[str, str]],
@@ -818,7 +887,7 @@ class LiteLLMModel(Model):
             api_base=self.api_base,
             api_key=self.api_key,
             convert_images_to_image_urls=True,
-            flatten_messages_as_text=self.model_id.startswith("ollama"),
+            flatten_messages_as_text=self._flatten_messages_as_text,
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
