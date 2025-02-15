@@ -33,7 +33,7 @@ from smolagents.agents import (
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
-from smolagents.memory import PlanningStep, ActionStep
+from smolagents.memory import ActionStep, PlanningStep
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -747,7 +747,7 @@ class TestMultiStepAgent:
                 for content, expected_content in zip(message["content"], expected_message["content"]):
                     assert content == expected_content
 
-    def test_agent_memory_to_messages_suceeds_when_tool_fails_by_obeservation_is_set(self):
+    def test_agent_memory_to_messages_suceeds_when_tool_fails_but_obeservation_is_set(self):
         tool = PythonInterpreterTool()
 
         def _fake_callback(memory_step: ActionStep, agent: CodeAgent) -> None:
@@ -758,8 +758,12 @@ class TestMultiStepAgent:
             model=fake_no_valid_code_block,
             step_callbacks=[_fake_callback],
         )
+
+        # Perform a task. A tool call will fail since the fake model returns invalid response, but a _fake_callback
+        # sets an observation
         agent.run("some task")
 
+        # This should not fail, even though no tool call have been recorded, and observation came from a callback
         for s in agent.memory.steps:
             s.to_messages()
 
