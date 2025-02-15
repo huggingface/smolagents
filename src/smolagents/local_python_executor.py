@@ -1230,8 +1230,23 @@ def evaluate_ast(
         # For loop -> execute the loop
         return evaluate_for(expression, state, static_tools, custom_tools, authorized_imports)
     elif isinstance(expression, ast.FormattedValue):
-        # Formatted value (part of f-string) -> evaluate the content and return
-        return evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+        # Formatted value (part of f-string) -> evaluate the content and format it
+        value = evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+        # Get the format spec if it exists
+        format_spec = None
+        if expression.format_spec:
+            format_spec = (
+                "".join(
+                    str(evaluate_ast(v, state, static_tools, custom_tools, authorized_imports))
+                    for v in expression.format_spec.values
+                )
+                if isinstance(expression.format_spec, ast.JoinedStr)
+                else expression.format_spec.value
+            )
+        # Apply formatting if format_spec exists
+        if format_spec is not None:
+            return format(value, format_spec)
+        return value
     elif isinstance(expression, ast.If):
         # If -> execute the right branch
         return evaluate_if(expression, state, static_tools, custom_tools, authorized_imports)
