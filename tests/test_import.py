@@ -3,9 +3,13 @@ import sys
 
 
 def test_import_smolagents_without_extras():
-    # Create a new Python process to test the import
-    cmd = [sys.executable, "-c", "import smolagents"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    # Run the import statement in an isolated virtual environment
+    result = subprocess.run(
+        ["uv", "run", "--isolated", "--no-editable", "-"], 
+        input="import smolagents", 
+        text=True, 
+        capture_output=True
+    )
 
     # Check if the import was successful
     assert result.returncode == 0, (
