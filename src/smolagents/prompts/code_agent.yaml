@@ -196,6 +196,12 @@ planning:
     ### 2. Facts to look up
     ### 3. Facts to derive
     Do not add anything else.
+
+    Here is the task:
+    ```
+    {{task}}
+    ```
+    Now begin!
   initial_plan : |-
     You are a world expert at making efficient plans to solve any task using a set of carefully crafted tools.
 

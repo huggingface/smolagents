@@ -42,10 +42,9 @@ Agents और tools के बारे में अधिक जानने �
 
 [[autodoc]] ToolCallingAgent
 
-
 ### ManagedAgent
 
-[[autodoc]] ManagedAgent
+_This class is deprecated since 1.8.0: now you just need to pass name and description attributes to an agent to directly use it as previously done with a ManagedAgent._
 
 ### stream_to_gradio
 
