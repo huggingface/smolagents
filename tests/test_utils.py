@@ -109,17 +109,17 @@ def test_get_source_standard_function():
 def test_get_source_ipython_errors_empty_cells(ipython_shell):
     test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
     ipython_shell.user_ns["In"] = [""]
-    exec(test_code)
+    ipython_shell.run_cell(test_code, store_history=True)
     with pytest.raises(ValueError, match="No code cells found in IPython session"):
-        get_source(locals()["TestClass"])
+        get_source(ipython_shell.user_ns["TestClass"])
 
 
 def test_get_source_ipython_errors_definition_not_found(ipython_shell):
     test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
     ipython_shell.user_ns["In"] = ["", "print('No class definition here')"]
-    exec(test_code)
+    ipython_shell.run_cell(test_code, store_history=True)
     with pytest.raises(ValueError, match="Could not find source code for TestClass in IPython history"):
-        get_source(locals()["TestClass"])
+        get_source(ipython_shell.user_ns["TestClass"])
 
 
 def test_get_source_ipython_errors_type_error():
