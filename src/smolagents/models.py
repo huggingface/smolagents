@@ -613,8 +613,9 @@ class TransformersModel(Model):
             Custom configuration for model quantization using BitsAndBytesConfig. If provided, overrides load_in_4bit and load_in_8bit.
         model_config (Dict[str, Any], *optional*):
             Configuration overrides for the model. These will be passed as config_overrides to from_pretrained.
-        use_flash_attention_2 (bool, default `False`):
-            Whether to use Flash Attention 2 for faster inference on supported models.
+        attn_implementation (`str`, *optional*, defaults to `None`):
+            Attention implementation to use. Options: "eager" (default, the worst one), "sdpa" (better than eager and runs on old 
+            gpus too), or "flash_attention_2" (best, but requires at least Ampere gpus).
         **kwargs:
             Additional keyword arguments to pass to `model.generate()`, for instance `max_new_tokens` or `device`.
 
@@ -637,7 +638,7 @@ class TransformersModel(Model):
     engine = TransformersModel(
         model_id="mistralai/Mistral-7B-Instruct-v0.2",
         load_in_4bit=True,
-        use_flash_attention_2=True,
+        attn_implementation="flash_attention_2",        
         device_map="auto",
     )
 
@@ -667,8 +668,8 @@ class TransformersModel(Model):
         load_in_4bit: bool = False,
         load_in_8bit: bool = False,
         quantization_config: Optional[Dict[str, Any]] = None,
-        model_config: Optional[Dict[str, Any]] = None,
-        use_flash_attention_2: bool = False,
+        model_config: Optional[Dict[str, Any]] = None
+        attn_implementation: str = "None",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -723,8 +724,8 @@ class TransformersModel(Model):
         if quant_config:
             model_kwargs["quantization_config"] = quant_config
         
-        if use_flash_attention_2:
-            model_kwargs["use_flash_attention_2"] = True
+        if attn_implementation:
+            model_kwargs["attn_implementation"] = attn_implementation
             
         if model_config:
             model_kwargs["config_overrides"] = model_config
