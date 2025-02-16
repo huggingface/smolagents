@@ -225,8 +225,8 @@ planning:
 
     {%- if managed_agents and managed_agents.values() | list %}
     You can also give tasks to team members.
-    Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'request', a long string explaining your request.
-    Given that this team member is a real human, you should be very verbose in your request.
+    Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'task', a long string explaining your task.
+    Given that this team member is a real human, you should be very verbose in your task.
     Here is a list of the team members that you can call:
     {%- for agent in managed_agents.values() %}
     - {{ agent.name }}: {{ agent.description }}
@@ -329,5 +329,5 @@ final_answer:
   pre_messages: |-
     An agent tried to answer a user query but it got stuck and failed to do so. You are tasked with providing an answer instead. Here is the agent's memory:
   post_messages: |-
-    Based on the above, please provide an answer to the following user request:
+    Based on the above, please provide an answer to the following user task:
     {{task}}

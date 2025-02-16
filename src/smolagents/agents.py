@@ -876,6 +876,10 @@ You have been provided with these additional arguments, that you can access usin
         }
         if hasattr(self, "authorized_imports"):
             agent_dict["authorized_imports"] = self.authorized_imports
+        if hasattr(self, "use_e2b_executor"):
+            agent_dict["use_e2b_executor"] = self.use_e2b_executor
+        if hasattr(self, "max_print_outputs_length"):
+            agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
 
     @classmethod
@@ -922,7 +926,6 @@ You have been provided with these additional arguments, that you can access usin
             for key in [
                 "cache_dir",
                 "force_download",
-                "resume_download",
                 "proxies",
                 "revision",
                 "local_files_only",
@@ -971,6 +974,8 @@ You have been provided with these additional arguments, that you can access usin
         )
         if cls.__name__ == "CodeAgent":
             args["additional_authorized_imports"] = agent_dict["authorized_imports"]
+            args["use_e2b_executor"] = agent_dict["use_e2b_executor"]
+            args["max_print_outputs_length"] = agent_dict["max_print_outputs_length"]
         args.update(kwargs)
         return cls(**args)
 
