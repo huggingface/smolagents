@@ -110,7 +110,7 @@ Head to our [vision web browser code](https://github.com/huggingface/smolagents/
 ### Run agents one step at a time
 
 This can be useful in case you have tool calls that take days: you can just run your agents step by step.
-This will also let you do update to memory on each step.
+This will also let you update the memory on each step.
 
 ```py
 from smolagents import HfApiModel, CodeAgent, ActionStep, SystemPromptStep, TaskStep
