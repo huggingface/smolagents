@@ -85,7 +85,7 @@ BASE_PYTHON_TOOLS = {
     "atan2": math.atan2,
     "degrees": math.degrees,
     "radians": math.radians,
-    "pow": math.pow,
+    "pow": pow,
     "sqrt": math.sqrt,
     "len": len,
     "sum": sum,
@@ -714,49 +714,39 @@ def evaluate_condition(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> bool | object:
-    left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
-    comparators = [
-        evaluate_ast(c, state, static_tools, custom_tools, authorized_imports) for c in condition.comparators
-    ]
-    ops = [type(op) for op in condition.ops]
-
     result = True
-    current_left = left
-
-    for op, comparator in zip(ops, comparators):
+    left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
+    for i, (op, comparator) in enumerate(zip(condition.ops, condition.comparators)):
+        op = type(op)
+        right = evaluate_ast(comparator, state, static_tools, custom_tools, authorized_imports)
         if op == ast.Eq:
-            current_result = current_left == comparator
+            current_result = left == right
         elif op == ast.NotEq:
-            current_result = current_left != comparator
+            current_result = left != right
         elif op == ast.Lt:
-            current_result = current_left < comparator
+            current_result = left < right
         elif op == ast.LtE:
-            current_result = current_left <= comparator
+            current_result = left <= right
         elif op == ast.Gt:
-            current_result = current_left > comparator
+            current_result = left > right
         elif op == ast.GtE:
-            current_result = current_left >= comparator
+            current_result = left >= right
         elif op == ast.Is:
-            current_result = current_left is comparator
+            current_result = left is right
         elif op == ast.IsNot:
-            current_result = current_left is not comparator
+            current_result = left is not right
         elif op == ast.In:
-            current_result = current_left in comparator
+            current_result = left in right
         elif op == ast.NotIn:
-            current_result = current_left not in comparator
+            current_result = left not in right
         else:
-            raise InterpreterError(f"Operator not supported: {op}")
+            raise InterpreterError(f"Unsupported comparison operator: {op}")
 
-        if not isinstance(current_result, bool):
-            return current_result
-
-        result = result & current_result
-        current_left = comparator
-
-        if isinstance(result, bool) and not result:
-            break
-
-    return result if isinstance(result, (bool, pd.Series)) else result.all()
+        if current_result is False:
+            return False
+        result = current_result if i == 0 else (result and current_result)
+        left = right
+    return result
 
 
 def evaluate_if(
@@ -1184,7 +1174,7 @@ def evaluate_ast(
             The list of modules that can be imported by the code. By default, only a few safe modules are allowed.
             If it contains "*", it will authorize any import. Use this at your own risk!
     """
-    if state["_operations_count"] >= MAX_OPERATIONS:
+    if state.setdefault("_operations_count", 0) >= MAX_OPERATIONS:
         raise InterpreterError(
             f"Reached the max number of operations of {MAX_OPERATIONS}. Maybe there is an infinite loop somewhere in the code, or you're just asking too many calculations."
         )
@@ -1363,7 +1353,6 @@ def evaluate_python_code(
     custom_tools = custom_tools if custom_tools is not None else {}
     result = None
     state["_print_outputs"] = PrintContainer()
-    state["_operations_count"] = 0
 
     def final_answer(value):
         raise FinalAnswerException(value)

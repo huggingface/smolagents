@@ -32,7 +32,7 @@ limitations under the License.
 
 `smolagents` is a library that enables you to run powerful agents in a few lines of code. It offers:
 
-✨ **Simplicity**: the logic for agents fits in 1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)). We kept abstractions to their minimal shape above raw code!
+✨ **Simplicity**: the logic for agents fits in ~1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)). We kept abstractions to their minimal shape above raw code!
 
 🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/).
 
@@ -48,16 +48,6 @@ Full documentation can be found [here](https://huggingface.co/docs/smolagents/in
 
 > [!NOTE]
 > Check the our [launch blog post](https://huggingface.co/blog/smolagents) to learn more about `smolagents`!
-
-## Table of Contents
-- [Introduction](#introduction)
-- [Quick Demo](#quick-demo)
-- [Command Line Interface](#command-line-interface)
-- [Code Agents](#code-agents)
-- [How smol is this library?](#how-smol-is-this-library)
-- [How Strong are Open Models for Agentic Workflows?](#how-strong-are-open-models-for-agentic-workflows)
-- [Contributing](#contributing)
-- [Citing smolagents](#citing-smolagents)
 
 ## Quick demo
 
@@ -76,6 +66,13 @@ agent.run("How many seconds would it take for a leopard at full speed to run thr
 ```
 
 https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884
+
+You can even share your agent to hub:
+```py
+agent.push_to_hub("m-ric/my_agent")
+
+# agent.from_hub("m-ric/my_agent") to load an agent from Hub
+```
 
 Our library is LLM-agnostic: you could switch the example above to any inference provider.
 
@@ -147,42 +144,60 @@ model = AzureOpenAIServerModel(
 ```
 </details>
 
-## Command Line Interface
+## CLI
 
-You can run agents from CLI using two commands: `smolagent` and `webagent`. `smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools, meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium).
+You can run agents from CLI using two commands: `smolagent` and `webagent`.
 
-**Web Browser Agent in CLI**
+`smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools.
 
-`webagent` allows users to automate web browsing tasks. It uses the [helium](https://github.com/mherrmann/helium) library to interact with web pages and uses defined tools to browse the web. Read more about this agent [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py).
-
-Run the following command to get started:
 ```bash
-webagent {YOUR_PROMPT_HERE} --model-type "LiteLLMModel" --model-id "gpt-4o"
+smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "HfApiModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search translation"
 ```
+
+Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
 
 For instance:
 ```bash
-webagent --prompt "go to xyz.com/women, get to sale section, click the first clothing item you see. Get the product details, and the price, return them. note that I'm shopping from France"
-```
-We redacted the website here, modify it with the website of your choice.
-
-**CodeAgent in CLI**
-
-Use `smolagent` to run a multi-step agent with [tools](https://huggingface.co/docs/smolagents/en/reference/tools). It uses web search tool by default.
-You can easily get started with `$ smolagent {YOUR_PROMPT_HERE}`. You can customize this as follows (more details [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/cli.py)).
-
-```bash
-smolagent {YOUR_PROMPT_HERE} --model-type "HfApiModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search translation"
+webagent "go to xyz.com/men, get to sale section, click the first clothing item you see. Get the product details, and the price, return them. note that I'm shopping from France" --model-type "LiteLLMModel" --model-id "gpt-4o"
 ```
 
-For instance:
-```bash
-smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7. Allocate time according to number of public attraction in each, and optimize for distance and travel time. Bring all the public transportation options."
-``` 
+## How do Code agents work?
 
-## Code agents?
+Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) works mostly like classical ReAct agents - the exception being that the LLM engine writes its actions as Python code snippets.
 
-In our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent),  the LLM engine writes its actions in code. This approach is demonstrated to work better than the current industry practice of letting the LLM output a dictionary of the tools it wants to calls: [uses 30% fewer steps](https://huggingface.co/papers/2402.01030) (thus 30% fewer LLM calls) and [reaches higher performance on difficult benchmarks](https://huggingface.co/papers/2411.01747). Head to [our high-level intro to agents](https://huggingface.co/docs/smolagents/conceptual_guides/intro_agents) to learn more on that.
+```mermaid
+flowchart TB
+    Task[User Task]
+    Memory[agent.memory]
+    Generate[Generate from agent.model]
+    Execute[Execute Code action - Tool calls are written as functions]
+    Answer[Return the argument given to 'final_answer']
+
+    Task -->|Add task to agent.memory| Memory
+
+    subgraph ReAct[ReAct loop]
+        Memory -->|Memory as chat messages| Generate
+        Generate -->|Parse output to extract code action| Execute
+        Execute -->|No call to 'final_answer' tool => Store execution logs in memory and keep running| Memory
+    end
+    
+    Execute -->|Call to 'final_answer' tool| Answer
+
+    %% Styling
+    classDef default fill:#d4b702,stroke:#8b7701,color:#ffffff
+    classDef io fill:#4a5568,stroke:#2d3748,color:#ffffff
+    
+    class Task,Answer io
+```
+
+Actions are now Python code snippets. Hence, tool calls will be performed as Python function calls. For instance, here is how the agent can perform web search over several websites in one single action:
+```py
+requests_to_search = ["gulf of mexico america", "greenland denmark", "tariffs"]
+for request in requests_to_search:
+    print(f"Here are the search results for {request}:", web_search(request))
+```
+
+Writing actions as code snippets is demonstrated to work better than the current industry practice of letting the LLM output a dictionary of the tools it wants to call: [uses 30% fewer steps](https://huggingface.co/papers/2402.01030) (thus 30% fewer LLM calls) and [reaches higher performance on difficult benchmarks](https://huggingface.co/papers/2411.01747). Head to [our high-level intro to agents](https://huggingface.co/docs/smolagents/conceptual_guides/intro_agents) to learn more on that.
 
 Especially, since code execution can be a security concern (arbitrary code execution!), we provide options at runtime:
   - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)

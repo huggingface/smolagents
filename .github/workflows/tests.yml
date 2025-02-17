@@ -103,6 +103,11 @@ jobs:
           uv run pytest ./tests/test_utils.py
         if: ${{ success() || failure() }}
 
+      - name: Gradio UI tests
+        run: |
+          uv run pytest ./tests/test_gradio_ui.py
+        if: ${{ success() || failure() }}
+
       - name: Function type hints utils tests
         run: |
           uv run pytest ./tests/test_function_type_hints_utils.py
