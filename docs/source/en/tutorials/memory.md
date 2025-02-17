@@ -42,7 +42,6 @@ If you want to replay this last run, just use:
 agent.replay()
 ```
 
-
 ### Dynamically change the agent's memory
 
 Many advanced use cases require dynamic modification of the agent's memory.
