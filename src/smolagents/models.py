@@ -668,7 +668,7 @@ class TransformersModel(Model):
         load_in_4bit: bool = False,
         load_in_8bit: bool = False,
         quantization_config: Optional[Dict[str, Any]] = None,
-        model_config: Optional[Dict[str, Any]] = None
+        model_config: Optional[Dict[str, Any]] = None,
         attn_implementation: str = "None",
         **kwargs,
     ):
