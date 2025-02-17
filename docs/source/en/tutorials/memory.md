@@ -113,7 +113,7 @@ This can be useful in case you have tool calls that take days: you can just run 
 This will also let you update the memory on each step.
 
 ```py
-from smolagents import HfApiModel, CodeAgent, ActionStep, SystemPromptStep, TaskStep
+from smolagents import HfApiModel, CodeAgent, ActionStep, TaskStep
 
 agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=1)
 print(agent.memory.system_prompt)
