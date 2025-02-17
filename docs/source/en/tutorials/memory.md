@@ -72,7 +72,7 @@ Use `agent.memory.get_full_steps()` to get full steps as dictionaries.
 
 You can also use step callbacks to dynamically change the agent's memory.
 
-Step callbacks can access the `agent` itself in their arguments, so they can access any memory step as highlighted above, and change it if needed. For instance, let's say you are observing screenshots of each step performed a web browser agnent. You want to log the newest screenshot, and remove the images from ancient steps to save on token costs:
+Step callbacks can access the `agent` itself in their arguments, so they can access any memory step as highlighted above, and change it if needed. For instance, let's say you are observing screenshots of each step performed a web browser agent. You want to log the newest screenshot, and remove the images from ancient steps to save on token costs:
 
 ```py
 import helium
@@ -120,10 +120,10 @@ print(agent.memory.system_prompt)
 
 task = "What is the 20th Fibonacci number?"
 
-# You could modify the memory as needed here by ionputting he memory of a previous agent!
+# You could modify the memory as needed here by inputting the memory of another agent.
 # agent.memory.steps = previous_agent.memory.steps
 
-# Let's start a new task
+# Let's start a new task!
 agent.memory.steps.append(TaskStep(task=task, task_images=[]))
 
 final_answer = None
@@ -133,7 +133,7 @@ while final_answer is None and step_number <= 10:
         step_number=step_number,
         observations_images=[],
     )
-    # Run one step!
+    # Run one step.
     final_answer = agent.step(memory_step)
     agent.memory.steps.append(memory_step)
     step_number += 1
