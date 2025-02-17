@@ -22,7 +22,6 @@ import logging
 import math
 import re
 from collections.abc import Mapping
-from functools import partial
 from importlib import import_module
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -1191,7 +1190,6 @@ def evaluate_ast(
         )
     state["_operations_count"] += 1
     common_params = (state, static_tools, custom_tools, authorized_imports)
-    evaluate_ast_partial = partial(evaluate_ast, state=state, static_tools=static_tools, custom_tools=custom_tools, authorized_imports=authorized_imports)
     if isinstance(expression, ast.Assign):
         # Assignment -> we evaluate the assignment which should update the state
         # We return the variable assigned as it may be used to determine the final result.
@@ -1205,7 +1203,7 @@ def evaluate_ast(
         # Constant -> just return the value
         return expression.value
     elif isinstance(expression, ast.Tuple):
-        return tuple(map(evaluate_ast_partial, expression.elts))
+        return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
     elif isinstance(expression, (ast.ListComp, ast.GeneratorExp)):
         return evaluate_listcomp(expression, *common_params)
     elif isinstance(expression, ast.UnaryOp):
@@ -1231,8 +1229,8 @@ def evaluate_ast(
         return evaluate_function_def(expression, *common_params)
     elif isinstance(expression, ast.Dict):
         # Dict -> evaluate all keys and values
-        keys = map(evaluate_ast_partial, expression.keys)
-        values = map(evaluate_ast_partial, expression.values)
+        keys = (evaluate_ast(k, *common_params) for k in expression.keys)
+        values = (evaluate_ast(v, *common_params) for v in expression.values)
         return dict(zip(keys, values))
     elif isinstance(expression, ast.Expr):
         # Expression -> evaluate the content
@@ -1250,11 +1248,11 @@ def evaluate_ast(
         return evaluate_ast(expression.value, *common_params)
     elif isinstance(expression, ast.JoinedStr):
         return "".join(
-            [str(evaluate_ast_partial(v)) for v in expression.values]
+            [str(evaluate_ast(v, *common_params)) for v in expression.values]
         )
     elif isinstance(expression, ast.List):
         # List -> evaluate all elements
-        return [evaluate_ast_partial(elt) for elt in expression.elts]
+        return [evaluate_ast(elt, *common_params) for elt in expression.elts]
     elif isinstance(expression, ast.Name):
         # Name -> pick up the value in the state
         return evaluate_name(expression, *common_params)
@@ -1299,7 +1297,7 @@ def evaluate_ast(
     elif isinstance(expression, ast.With):
         return evaluate_with(expression, *common_params)
     elif isinstance(expression, ast.Set):
-        return set(map(evaluate_ast_partial, expression.elts))
+        return set((evaluate_ast(elt, *common_params) for elt in expression.elts))
     elif isinstance(expression, ast.Return):
         raise ReturnException(
             evaluate_ast(expression.value, *common_params)
