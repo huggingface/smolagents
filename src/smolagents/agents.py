@@ -926,7 +926,6 @@ You have been provided with these additional arguments, that you can access usin
             for key in [
                 "cache_dir",
                 "force_download",
-                "resume_download",
                 "proxies",
                 "revision",
                 "local_files_only",
