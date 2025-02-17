@@ -125,6 +125,75 @@ class DuckDuckGoSearchTool(Tool):
         return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
 
 
+class SearXNGSearchTool(Tool):
+    name = "searxng_search"
+    description = """Performs a SearXNG web search based on your query and returns the top search results."""
+    inputs = {
+        "query": {"type": "string", "description": "The search query to perform."},
+        "category": {
+            "type": "string", 
+            "description": "Search category (general, images, news etc)",
+            "nullable": True
+        }
+    }
+    output_type = "string"
+
+    def __init__(self, instance_url, api_key=None, max_results=10):
+        super().__init__()
+        self.instance_url = instance_url.rstrip('/')
+        self.api_key = api_key
+        self.max_results = max_results
+        try:
+            import requests
+        except ImportError as e:
+            raise ImportError(
+                "You must install package `requests` to run this tool: run `pip install requests`"
+            ) from e
+
+    def forward(self, query: str, category: Optional[str] = None) -> str:
+        import requests
+
+        headers = {}
+        if self.api_key:
+            headers['X-API-Key'] = self.api_key
+
+        params = {
+            'q': query,
+            'format': 'json',
+            'engines': 'general',  # Can be customized based on category
+            'limit': self.max_results
+        }
+
+        if category:
+            params['engines'] = category
+
+        response = requests.get(
+            f"{self.instance_url}/search",
+            params=params,
+            headers=headers
+        )
+
+        if response.status_code != 200:
+            raise ValueError(f"Search failed with status code {response.status_code}: {response.text}")
+
+        results = response.json()
+        
+        if not results.get('results'):
+            return f"No results found for '{query}'. Try a different search query."
+
+        search_results = []
+        for idx, result in enumerate(results['results']):
+            title = result.get('title', 'No title')
+            url = result.get('url', '')
+            snippet = result.get('content', '')
+            
+            formatted_result = f"{idx}. [{title}]({url})\n{snippet}"
+            search_results.append(formatted_result)
+
+        return "## Search Results\n\n" + "\n\n".join(search_results)
+
+
+
 class GoogleSearchTool(Tool):
     name = "web_search"
     description = """Performs a google web search for your query then returns a string of the top search results."""
