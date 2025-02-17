@@ -1090,6 +1090,8 @@ class ToolCallingAgent(MultiStepAgent):
                 tools_to_call_from=list(self.tools.values()),
                 stop_sequences=["Observation:"],
             )
+            if model_message.finish_reason == "length":
+                raise Exception("Max tokens exceeded.")
             memory_step.model_output_message = model_message
             if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
                 raise Exception("Model did not call any tools. Call `final_answer` tool to return a final answer.")
@@ -1258,11 +1260,14 @@ class CodeAgent(MultiStepAgent):
                 stop_sequences=["<end_code>", "Observation:"],
                 **additional_args,
             )
+            if chat_message.finish_reason == "length":
+                raise Exception("Max tokens exceeded.")
             memory_step.model_output_message = chat_message
             model_output = chat_message.content
             memory_step.model_output = model_output
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
+
 
         self.logger.log_markdown(
             content=model_output,

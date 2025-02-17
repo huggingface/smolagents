@@ -93,6 +93,7 @@ class ChatMessage:
     content: Optional[str] = None
     tool_calls: Optional[List[ChatMessageToolCall]] = None
     raw: Optional[Any] = None  # Stores the raw output from the API
+    finish_reason: Optional[str] = None
 
     def model_dump_json(self):
         return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
@@ -523,7 +524,7 @@ class MLXModel(Model):
         self.tool_name_key = tool_name_key
         self.tool_arguments_key = tool_arguments_key
 
-    def _to_message(self, text, tools_to_call_from):
+    def _to_message(self, text, tools_to_call_from, finish_reason=None):
         if tools_to_call_from:
             # solution for extracting tool JSON without assuming a specific model output format
             maybe_json = "{" + text.split("{", 1)[-1][::-1].split("}", 1)[-1][::-1] + "}"
@@ -534,6 +535,7 @@ class MLXModel(Model):
                 return ChatMessage(
                     role="assistant",
                     content="",
+                    finish_reason=finish_reason,
                     tool_calls=[
                         ChatMessageToolCall(
                             id=uuid.uuid4(),
@@ -542,7 +544,7 @@ class MLXModel(Model):
                         )
                     ],
                 )
-        return ChatMessage(role="assistant", content=text)
+        return ChatMessage(role="assistant", content=text, finish_reason=finish_reason)
 
     def __call__(
         self,
@@ -582,9 +584,9 @@ class MLXModel(Model):
                 stop_sequence_start = text.rfind(stop_sequence)
                 if stop_sequence_start != -1:
                     text = text[:stop_sequence_start]
-                    return self._to_message(text, tools_to_call_from)
+                    return self._to_message(text, tools_to_call_from, finish_reason="stop_sequence")
 
-        return self._to_message(text, tools_to_call_from)
+        return self._to_message(text, tools_to_call_from, finish_reason=_.finish_reason)
 
 
 class TransformersModel(Model):
