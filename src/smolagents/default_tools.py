@@ -138,7 +138,7 @@ class SearXNGSearchTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, instance_url, api_key=None, max_results=10):
+    def __init__(self, instance_url='http://localhost:8080', api_key=None, max_results=10):
         super().__init__()
         self.instance_url = instance_url.rstrip('/')
         self.api_key = api_key
