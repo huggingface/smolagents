@@ -16,13 +16,12 @@
 import os
 import shutil
 import tempfile
-import unittest
 from unittest.mock import Mock, patch
 
 from smolagents.gradio_ui import GradioUI
 
 
-class GradioUITester(unittest.TestCase):
+class GradioUITester:
     def setUp(self):
         """Initialize test environment"""
         self.temp_dir = tempfile.mkdtemp()
