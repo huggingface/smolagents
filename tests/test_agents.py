@@ -490,6 +490,20 @@ class AgentTests(unittest.TestCase):
         str_output = capture.get()
         assert "`additional_authorized_imports`" in str_output.replace("\n", "")
 
+    def test_replay_shows_logs(self):
+        agent = CodeAgent(
+            tools=[], model=fake_code_model_import, verbosity_level=0, additional_authorized_imports=["numpy"]
+        )
+        agent.run("Count to 3")
+
+        with agent.logger.console.capture() as capture:
+            agent.replay()
+        str_output = capture.get().replace("\n", "")
+        assert "New run" in str_output
+        assert "Agent output:" in str_output
+        assert 'final_answer("got' in str_output
+        assert "```<end_code>" in str_output
+
     def test_code_nontrivial_final_answer_works(self):
         def fake_code_model_final_answer(messages, stop_sequences=None, grammar=None):
             return ChatMessage(
