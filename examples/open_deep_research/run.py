@@ -66,7 +66,7 @@ def parse_args():
     return parser.parse_args()
 
 
-custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
+
 
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
 
@@ -89,7 +89,6 @@ def main():
 
     model = LiteLLMModel(
         args.model_id,
-        custom_role_conversions=custom_role_conversions,
         max_completion_tokens=8192,
         reasoning_effort="high",
     )
