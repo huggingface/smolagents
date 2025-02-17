@@ -120,7 +120,12 @@ print(agent.memory.system_prompt)
 
 task = "What is the 20th Fibonacci number?"
 
+# You could modify the memory as needed here by ionputting he memory of a previous agent!
+# agent.memory.steps = previous_agent.memory.steps
+
+# Let's start a new task
 agent.memory.steps.append(TaskStep(task=task, task_images=[]))
+
 final_answer = None
 step_number = 1
 while final_answer is None and step_number <= 10:
