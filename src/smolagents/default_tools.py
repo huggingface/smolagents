@@ -361,6 +361,7 @@ __all__ = [
     "FinalAnswerTool",
     "UserInputTool",
     "DuckDuckGoSearchTool",
+    "SearXNGSearchTool",
     "GoogleSearchTool",
     "VisitWebpageTool",
     "SpeechToTextTool",
