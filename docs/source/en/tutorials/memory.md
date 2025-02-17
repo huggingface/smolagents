@@ -18,7 +18,7 @@ rendered properly in your Markdown viewer.
 [[open-in-colab]]
 
 In the end, an agent can be defined by simple components: it has tools, prompts.
-And most importantly, it has a memory of past steps, that draw a history of planning, execution, errors.
+And most importantly, it has a memory of past steps, drawing a history of planning, execution, and errors.
 
 ### Replay your agent's memory
 
