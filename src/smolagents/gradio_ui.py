@@ -17,10 +17,8 @@ import os
 import re
 import shutil
 from typing import Optional
-from uuid import main
 
 import magic
-from numpy import core
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 from smolagents.agents import ActionStep, MultiStepAgent
@@ -227,6 +225,9 @@ class GradioUI:
                 "application/pdf",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 "text/plain",
+                "text/html",
+                "application/json",
+                "applicaion/xml",
             ]
 
         if file is None:
@@ -245,7 +246,6 @@ class GradioUI:
             file_path = os.path.join(self.file_upload_folder, f"{base_name}_{counter}{ext}")
             counter += 1
 
-        print("COPYING ", file_path, ext)
         shutil.copy(file.name, file_path)
 
         return gr.Textbox(f"File uploaded: {file_path}", visible=True), file_uploads_log + [file_path]
@@ -257,7 +257,7 @@ class GradioUI:
             raise Exception(f"Error reading file: {e}")
 
         if kind not in (*allowed_file_types, "inode/x-empty"):
-            raise Exception(f"File type disallowed or undetected: {kind}")
+            raise Exception("File type disallowed")
 
         original_name = os.path.basename(file.name)
         sanitized_name = re.sub(r"[^\w\-.]", "_", original_name)

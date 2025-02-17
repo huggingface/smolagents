@@ -20,8 +20,7 @@ dependencies = [
   "pillow>=11.0.0",
   "markdownify>=0.14.1",
   "duckduckgo-search>=6.3.7",
-  "python-dotenv",
-  "filetype"
+  "python-magic>=0.4.27,<0.5.0",
 ]
 
 [project.optional-dependencies]
@@ -80,6 +79,7 @@ test = [
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
+  "pytest-datadir",
 ]
 dev = [
   "smolagents[quality,test]",
