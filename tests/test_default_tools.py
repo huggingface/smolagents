@@ -1,17 +1,3 @@
-# coding=utf-8
-# Copyright 2024 HuggingFace Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 import unittest
 
 import pytest
@@ -38,40 +24,6 @@ class DefaultToolTests(unittest.TestCase):
     def test_ddgs_with_kwargs(self):
         result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
         assert isinstance(result, str)
-
-    def test_wikipedia_search_tool(self):
-        test_cases = [
-            ("en", True, False, "HTML", "Python_(programming_language)"),  # English, Summary Mode, HTML format
-            ("en", False, True, "WIKI", "Python_(programming_language)"),  # English, Full Text Mode, WIKI format
-            ("es", True, False, "HTML", "Python_(lenguaje_de_programación)"),  # Spanish, Summary Mode, HTML format
-            ("es", False, True, "WIKI", "Python_(lenguaje_de_programación)"),  # Spanish, Full Text Mode, WIKI format
-        ]
-
-        for language, summary_only, full_text, extract_format, query in test_cases:
-            with self.subTest(
-                language=language,
-                summary_only=summary_only,
-                full_text=full_text,
-                extract_format=extract_format,
-                query=query,
-            ):
-                tool = WikipediaSearchTool(
-                    language=language,
-                    summary_only=summary_only,
-                    full_text=full_text,
-                    extract_format=extract_format,
-                )
-
-                result = tool.forward(query)
-
-                self.assertIsInstance(result, str, "Output should be a string")
-                self.assertIn("✅ **Wikipedia Page:**", result, "Response should contain Wikipedia page title")
-                self.assertIn("🔗 **Read more:**", result, "Response should contain Wikipedia page URL")
-
-                if summary_only:
-                    self.assertLess(len(result.split()), 1000, "Summary mode should return a shorter text")
-                if full_text:
-                    self.assertGreater(len(result.split()), 1000, "Full text mode should return a longer text")
 
 
 class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):
@@ -127,3 +79,33 @@ class TestSpeechToTextTool:
         assert tool is not None
         assert tool.pre_processor_class == WhisperProcessor
         assert tool.model_class == WhisperForConditionalGeneration
+
+
+@pytest.mark.parametrize(
+    "language, summary_only, full_text, extract_format, query",
+    [
+        ("en", True, False, "HTML", "Python_(programming_language)"),  # English, Summary Mode, HTML format
+        ("en", False, True, "WIKI", "Python_(programming_language)"),  # English, Full Text Mode, WIKI format
+        ("es", True, False, "HTML", "Python_(lenguaje_de_programación)"),  # Spanish, Summary Mode, HTML format
+        ("es", False, True, "WIKI", "Python_(lenguaje_de_programación)"),  # Spanish, Full Text Mode, WIKI format
+    ],
+)
+def test_wikipedia_search(language, summary_only, full_text, extract_format, query):
+    tool = WikipediaSearchTool(
+        user_agent="TestAgent (test@example.com)",
+        language=language,
+        summary_only=summary_only,
+        full_text=full_text,
+        extract_format=extract_format,
+    )
+
+    result = tool.forward(query)
+
+    assert isinstance(result, str), "Output should be a string"
+    assert "✅ **Wikipedia Page:**" in result, "Response should contain Wikipedia page title"
+    assert "🔗 **Read more:**" in result, "Response should contain Wikipedia page URL"
+
+    if summary_only:
+        assert len(result.split()) < 1000, "Summary mode should return a shorter text"
+    if full_text:
+        assert len(result.split()) > 1000, "Full text mode should return a longer text"
