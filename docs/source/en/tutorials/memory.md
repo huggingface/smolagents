@@ -72,7 +72,7 @@ Use `agent.memory.get_full_steps()` to get full steps as dictionaries.
 
 You can also use step callbacks to dynamically change the agent's memory.
 
-Step callbacks can access the `agent` itself in their arguments, so they can access any memory step as highlighted above, and change it if needed. For instance, let's say you are observing screenshots of each step performed a web browser agent. You want to log the newest screenshot, and remove the images from ancient steps to save on token costs:
+Step callbacks can access the `agent` itself in their arguments, so they can access any memory step as highlighted above, and change it if needed. For instance, let's say you are observing screenshots of each step performed by a web browser agent. You want to log the newest screenshot, and remove the images from ancient steps to save on token costs:
 
 ```py
 import helium
