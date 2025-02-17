@@ -142,4 +142,3 @@ while final_answer is None and step_number <= 10:
     # agent.memory.steps[-1] = ...
 
 print("The final answer is:", final_answer)
-```
