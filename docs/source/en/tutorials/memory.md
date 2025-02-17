@@ -22,7 +22,7 @@ And most importantly, it has a memory of past steps, drawing a history of planni
 
 ### Replay your agent's memory
 
-We propose several features for inspecting the run of a past agent.
+We propose several features to inspect a past agent run.
 
 You can instrument the agent's run to display it in a great UI that lets you zoom in/out of specific steps, as highlighted in [the instrumentation guide](./inspect_runs).
 
