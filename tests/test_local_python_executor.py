@@ -1320,7 +1320,7 @@ def test_get_safe_module_handle_lazy_imports():
             return super().__dir__() + ["lazy_attribute"]
 
     fake_module = FakeModule("fake_module")
-    safe_module = get_safe_module(fake_module, dangerous_patterns=[], authorized_imports=set())
+    safe_module = get_safe_module(fake_module, authorized_imports=set())
     assert not hasattr(safe_module, "lazy_attribute")
     assert getattr(safe_module, "non_lazy_attribute") == "ok"
 
@@ -1395,23 +1395,4 @@ class TestPrintContainer:
     ],
 )
 def test_check_module_authorized(module: str, authorized_imports: list[str], expected: bool):
-    dangerous_patterns = (
-        "_os",
-        "os",
-        "subprocess",
-        "_subprocess",
-        "pty",
-        "system",
-        "popen",
-        "spawn",
-        "shutil",
-        "sys",
-        "pathlib",
-        "io",
-        "socket",
-        "compile",
-        "eval",
-        "exec",
-        "multiprocessing",
-    )
-    assert check_module_authorized(module, authorized_imports, dangerous_patterns) == expected
+    assert check_module_authorized(module, authorized_imports) == expected

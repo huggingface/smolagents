@@ -490,6 +490,20 @@ class AgentTests(unittest.TestCase):
         str_output = capture.get()
         assert "`additional_authorized_imports`" in str_output.replace("\n", "")
 
+    def test_replay_shows_logs(self):
+        agent = CodeAgent(
+            tools=[], model=fake_code_model_import, verbosity_level=0, additional_authorized_imports=["numpy"]
+        )
+        agent.run("Count to 3")
+
+        with agent.logger.console.capture() as capture:
+            agent.replay()
+        str_output = capture.get().replace("\n", "")
+        assert "New run" in str_output
+        assert "Agent output:" in str_output
+        assert 'final_answer("got' in str_output
+        assert "```<end_code>" in str_output
+
     def test_code_nontrivial_final_answer_works(self):
         def fake_code_model_final_answer(messages, stop_sequences=None, grammar=None):
             return ChatMessage(
@@ -784,6 +798,7 @@ class MultiAgentsTests(unittest.TestCase):
             tools=[],
             additional_authorized_imports=["pandas", "datetime"],
             managed_agents=[web_agent, code_agent],
+            max_print_outputs_length=1000,
         )
         agent.save("agent_export")
 
@@ -820,6 +835,8 @@ class MultiAgentsTests(unittest.TestCase):
         agent2 = CodeAgent.from_folder("agent_export", planning_interval=5)
         assert agent2.planning_interval == 5  # Check that kwargs are used
         assert set(agent2.authorized_imports) == set(["pandas", "datetime"] + BASE_BUILTIN_MODULES)
+        assert agent2.max_print_outputs_length == 1000
+        assert agent2.use_e2b_executor is False
         assert (
             agent2.managed_agents["web_agent"].tools["web_search"].max_results == 10
         )  # For now tool init parameters are forgotten

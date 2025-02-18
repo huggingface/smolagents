@@ -416,6 +416,17 @@ You can also use this `reset=False` argument to keep the conversation going in a
 
 ## Next steps
 
+Finally, when you've configured your agent to your needs, you can share it to the Hub!
+
+```py
+agent.push_to_hub("m-ric/my_agent")
+```
+
+Similarly, to load an agent that has been pushed to hub, if you trust the code from its tools, use:
+```py
+agent.from_hub("m-ric/my_agent", trust_remote_code=True)
+```
+
 For more in-depth usage, you will then want to check out our tutorials:
 - [the explanation of how our code agents work](./tutorials/secure_code_execution)
 - [this guide on how to build good agents](./tutorials/building_good_agents).
