@@ -1,4 +1,4 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
+from calendar import different_locale<!--Copyright 2024 The HuggingFace Team. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
 the License. You may obtain a copy of the License at
@@ -348,6 +348,53 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 
 > [!TIP]
 > Read more on tools in the [dedicated tutorial](./tutorials/tools#what-is-a-tool-and-how-to-build-one).
+
+
+### Tools from methods
+If your tool requires some form of persistent state or initialization, such as handling authentication tokens, API clients, or other shared resources, you can define it within a class.
+
+You can still use the @tool decorator, but now as a method inside a class. Let's modify our previous example to handle authentication using a Hugging Face token:
+```python
+from smolagents import tool
+
+class DownloadTools:
+    def __init__(self, hf_token: str):
+        """
+        Initializes the tool with an authentication token.
+
+        Args:
+            hf_token: Your Hugging Face API token.
+        """
+        self.hf_token = hf_token
+      
+    @tool
+    def model_download_tool(self, task: str) -> str:
+        """
+        Returns the most downloaded model of a given task on the Hugging Face Hub.
+        Uses the authentication token from initialization.
+
+        Args:
+            task: The task for which to get the most downloaded model.
+        """
+        most_downloaded_model = next(iter(
+            list_models(
+                filter=task,
+                sort="downloads",
+                direction=-1,
+                token=self.hf_token  # Pass the token from init
+            )
+        ))
+        return most_downloaded_model.id
+
+# Usage:
+dl_tools = DownloadTools(hf_token="hf_xxxxxxxx")
+agent = CodeAgent(tools=[dl_tools.model_download_tool], model=HfApiModel())
+```
+
+> [!TIP]
+> You can define multiple tools in a single class by decorating multiple methods with @tool.
+> Additionally, you can combine both function-based and class-based tools within the same agent—choose the approach that best fits your needs!
+ 
 
 ## Multi-agents
 
