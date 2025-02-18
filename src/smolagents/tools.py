@@ -24,7 +24,7 @@ import tempfile
 import textwrap
 import types
 from contextlib import contextmanager
-from functools import wraps, partial
+from functools import wraps
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -38,11 +38,11 @@ from huggingface_hub import (
 from huggingface_hub.utils import is_torch_available
 
 from ._function_type_hints_utils import (
+    ToolCreationException,
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
     get_imports,
     get_json_schema,
-    ToolCreationException,
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
