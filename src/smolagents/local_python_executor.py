@@ -1247,9 +1247,7 @@ def evaluate_ast(
     elif hasattr(ast, "Index") and isinstance(expression, ast.Index):
         return evaluate_ast(expression.value, *common_params)
     elif isinstance(expression, ast.JoinedStr):
-        return "".join(
-            [str(evaluate_ast(v, *common_params)) for v in expression.values]
-        )
+        return "".join([str(evaluate_ast(v, *common_params)) for v in expression.values])
     elif isinstance(expression, ast.List):
         # List -> evaluate all elements
         return [evaluate_ast(elt, *common_params) for elt in expression.elts]
@@ -1270,15 +1268,9 @@ def evaluate_ast(
         return getattr(value, expression.attr)
     elif isinstance(expression, ast.Slice):
         return slice(
-            evaluate_ast(expression.lower, *common_params)
-            if expression.lower is not None
-            else None,
-            evaluate_ast(expression.upper, *common_params)
-            if expression.upper is not None
-            else None,
-            evaluate_ast(expression.step, *common_params)
-            if expression.step is not None
-            else None,
+            evaluate_ast(expression.lower, *common_params) if expression.lower is not None else None,
+            evaluate_ast(expression.upper, *common_params) if expression.upper is not None else None,
+            evaluate_ast(expression.step, *common_params) if expression.step is not None else None,
         )
     elif isinstance(expression, ast.DictComp):
         return evaluate_dictcomp(expression, *common_params)
@@ -1299,11 +1291,7 @@ def evaluate_ast(
     elif isinstance(expression, ast.Set):
         return set((evaluate_ast(elt, *common_params) for elt in expression.elts))
     elif isinstance(expression, ast.Return):
-        raise ReturnException(
-            evaluate_ast(expression.value, *common_params)
-            if expression.value
-            else None
-        )
+        raise ReturnException(evaluate_ast(expression.value, *common_params) if expression.value else None)
     elif isinstance(expression, ast.Pass):
         return None
     elif isinstance(expression, ast.Delete):
