@@ -139,26 +139,24 @@ web_agent = ToolCallingAgent(
     tools=[DuckDuckGoSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
-)
-```
-
-然后我们将这个agent封装到一个`ManagedAgent`中，使其可以被其管理的agent调用。
-
-```py
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
     name="search",
     description="Runs web searches for you. Give it your query as an argument.",
 )
 ```
 
-最后，我们创建一个manager agent，在初始化时将我们的managed agent传递给它的`managed_agents`参数。因为这个agent负责计划和思考，所以高级推理将是有益的，因此`CodeAgent`将是最佳选择。此外，我们想要问一个涉及当前年份的问题，并进行额外的数据计算：因此让我们添加`additional_authorized_imports=["time", "numpy", "pandas"]`，以防agent需要这些包。
+请注意，我们为这个代理赋予了 name（名称）和 description（描述）属性，这些是必需属性，以便让管理代理能够调用此代理。
+
+然后，我们创建一个管理代理，在初始化时，将受管代理作为 managed_agents 参数传递给它。
+
+由于这个代理的任务是进行规划和思考，高级推理能力会很有帮助，因此 CodeAgent（代码代理）将是最佳选择。
+
+此外，我们要提出一个涉及当前年份并需要进行额外数据计算的问题：所以让我们添加 additional_authorized_imports=["time", "numpy", "pandas"]，以防代理需要用到这些包。
 
 ```py
 manager_agent = CodeAgent(
     tools=[],
     model=model,
-    managed_agents=[managed_web_agent],
+    managed_agents=[web_agent],
     additional_authorized_imports=["time", "numpy", "pandas"],
 )
 ```
