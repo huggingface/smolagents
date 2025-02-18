@@ -1231,14 +1231,12 @@ def evaluate_ast(
     elif isinstance(expression, ast.FormattedValue):
         # Formatted value (part of f-string) -> evaluate the content and format it
         value = evaluate_ast(expression.value, *common_params)
-        # Get the format spec if it exists
-        format_spec = (
-            evaluate_ast(expression.format_spec, *common_params) if expression.format_spec is not None else None
-        )
-        # Apply formatting if format_spec exists
-        if format_spec is not None:
-            return format(value, format_spec)
-        return value
+        # Early return if no format spec
+        if not expression.format_spec:
+            return value
+        # Apply format specification
+        format_spec = evaluate_ast(expression.format_spec, *common_params)
+        return format(value, format_spec)
     elif isinstance(expression, ast.If):
         # If -> execute the right branch
         return evaluate_if(expression, *common_params)
