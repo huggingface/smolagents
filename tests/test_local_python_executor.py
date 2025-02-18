@@ -85,12 +85,12 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": 3})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": 4})
 
         # Should not work without the tool
         with pytest.raises(InterpreterError) as e:
             evaluate_python_code(code, {}, state=state)
-        assert "tried to execute add_two" in str(e.value)
+        assert "The name `add_two` is not defined" in str(e.value)
 
     def test_evaluate_constant(self):
         code = "x = 3"
@@ -104,7 +104,7 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         self.assertDictEqual(result, {"x": 3, "y": 5})
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 7})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 8})
 
     def test_evaluate_expression(self):
         code = "x = 3\ny = 5"
@@ -141,7 +141,7 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         self.assertListEqual(result, [3, 5])
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 5})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 6})
 
     def test_evaluate_name(self):
         code = "y = x"
@@ -155,13 +155,13 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 9})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 10})
 
         code = "test_dict = {'x': x, 'y': add_two(x)}\ntest_dict['y']"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 11})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 12})
 
         code = "vendor = {'revenue': 31000, 'rent': 50312}; vendor['ratio'] = round(vendor['revenue'] / vendor['rent'], 2)"
         state = {}
@@ -185,7 +185,7 @@ for result in search_results:
         state = {}
         result, _ = evaluate_python_code(code, {"range": range}, state=state)
         assert result == 2
-        self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": 11})
+        self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": 12})
 
     def test_evaluate_binop(self):
         code = "y + x"
@@ -1108,7 +1108,7 @@ def test_evaluate_augassign_custom(operator, expected_result):
                 del x
                 x
             """),
-            "The variable `x` is not defined",
+            "The name `x` is not defined",
         ),
         (
             dedent("""\
@@ -1397,3 +1397,22 @@ def test_check_module_authorized(module: str, authorized_imports: list[str], exp
         "multiprocessing",
     )
     assert check_module_authorized(module, authorized_imports, dangerous_patterns) == expected
+
+
+def test__name__():
+    code = dedent("""\
+        def foo(): return 0
+        foo.__name__
+        """)
+    result, _ = evaluate_python_code(code, {}, {})
+    assert result == "foo"
+
+def test_function_returning_function():
+    code = dedent("""\
+        def f(): 
+            return lambda x: x + 1
+        f()(1)
+        """)
+    result, _ = evaluate_python_code(code, {}, {})
+    assert result == 2
+

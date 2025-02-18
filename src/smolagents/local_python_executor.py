@@ -57,7 +57,7 @@ MAX_WHILE_ITERATIONS = 1000000
 
 def custom_print(*args):
     return None
-
+custom_print.__name__ = "print"
 
 BASE_PYTHON_TOOLS = {
     "print": custom_print,
@@ -314,6 +314,7 @@ def create_function(
 
         return result
 
+    new_func.__name__ = func_def.name
     return new_func
 
 
@@ -562,43 +563,9 @@ def evaluate_call(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> Any:
-    if not (
-        isinstance(call.func, ast.Attribute) or isinstance(call.func, ast.Name) or isinstance(call.func, ast.Subscript)
-    ):
-        raise InterpreterError(f"This is not a correct function: {call.func}).")
-    if isinstance(call.func, ast.Attribute):
-        obj = evaluate_ast(call.func.value, state, static_tools, custom_tools, authorized_imports)
-        func_name = call.func.attr
-        if not hasattr(obj, func_name):
-            raise InterpreterError(f"Object {obj} has no attribute {func_name}")
-        func = getattr(obj, func_name)
+    func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
+    func_name = func.__name__
 
-    elif isinstance(call.func, ast.Name):
-        func_name = call.func.id
-        if func_name in state:
-            func = state[func_name]
-        elif func_name in static_tools:
-            func = static_tools[func_name]
-        elif func_name in custom_tools:
-            func = custom_tools[func_name]
-        elif func_name in ERRORS:
-            func = ERRORS[func_name]
-        else:
-            raise InterpreterError(
-                f"It is not permitted to evaluate other functions than the provided tools or functions defined/imported in previous code (tried to execute {call.func.id})."
-            )
-
-    elif isinstance(call.func, ast.Subscript):
-        value = evaluate_ast(call.func.value, state, static_tools, custom_tools, authorized_imports)
-        index = evaluate_ast(call.func.slice, state, static_tools, custom_tools, authorized_imports)
-        if isinstance(value, (list, tuple)):
-            func = value[index]
-        else:
-            raise InterpreterError(f"Cannot subscript object of type {type(value).__name__}")
-
-        if not callable(func):
-            raise InterpreterError(f"This is not a correct function: {call.func}).")
-        func_name = None
     args = []
     for arg in call.args:
         if isinstance(arg, ast.Starred):
@@ -704,7 +671,7 @@ def evaluate_name(
     close_matches = difflib.get_close_matches(name.id, list(state.keys()))
     if len(close_matches) > 0:
         return state[close_matches[0]]
-    raise InterpreterError(f"The variable `{name.id}` is not defined.")
+    raise InterpreterError(f"The name `{name.id}` is not defined.")
 
 
 def evaluate_condition(
