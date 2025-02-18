@@ -1235,10 +1235,7 @@ def evaluate_ast(
         format_spec = None
         if expression.format_spec:
             format_spec = (
-                "".join(
-                    str(evaluate_ast(v, *common_params))
-                    for v in expression.format_spec.values
-                )
+                "".join(str(evaluate_ast(v, *common_params)) for v in expression.format_spec.values)
                 if isinstance(expression.format_spec, ast.JoinedStr)
                 else expression.format_spec.value
             )
