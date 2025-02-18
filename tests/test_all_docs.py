@@ -94,7 +94,7 @@ class TestDocs:
 
         load_dotenv()
 
-        cls.md_files = list(cls.docs_dir.rglob("*.md"))
+        cls.md_files = list(cls.docs_dir.rglob("*.mdx"))
         if not cls.md_files:
             raise ValueError(f"No markdown files found in {cls.docs_dir}")
 
