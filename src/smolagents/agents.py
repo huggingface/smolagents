@@ -388,7 +388,7 @@ class MultiStepAgent:
             if tool_name in self.tools:
                 tool = self.tools[tool_name]
                 error_msg = (
-                    f"Error whene executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
+                    f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
                     f"As a reminder, this tool's description is the following: '{tool.description}'.\nIt takes inputs: {tool.inputs} and returns output type {tool.output_type}"
                 )
                 raise AgentExecutionError(error_msg, self.logger)
@@ -876,6 +876,10 @@ You have been provided with these additional arguments, that you can access usin
         }
         if hasattr(self, "authorized_imports"):
             agent_dict["authorized_imports"] = self.authorized_imports
+        if hasattr(self, "use_e2b_executor"):
+            agent_dict["use_e2b_executor"] = self.use_e2b_executor
+        if hasattr(self, "max_print_outputs_length"):
+            agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
 
     @classmethod
@@ -922,10 +926,8 @@ You have been provided with these additional arguments, that you can access usin
             for key in [
                 "cache_dir",
                 "force_download",
-                "resume_download",
                 "proxies",
                 "revision",
-                "subfolder",
                 "local_files_only",
             ]
             if key in kwargs
@@ -936,7 +938,12 @@ You have been provided with these additional arguments, that you can access usin
 
     @classmethod
     def from_folder(cls, folder: Union[str, Path], **kwargs):
-        """Loads an agent from a local folder"""
+        """Loads an agent from a local folder.
+
+        Args:
+            folder (`str` or `Path`): The folder where the agent is saved.
+            **kwargs: Additional keyword arguments that will be passed to the agent's init.
+        """
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
 
@@ -967,6 +974,8 @@ You have been provided with these additional arguments, that you can access usin
         )
         if cls.__name__ == "CodeAgent":
             args["additional_authorized_imports"] = agent_dict["authorized_imports"]
+            args["use_e2b_executor"] = agent_dict["use_e2b_executor"]
+            args["max_print_outputs_length"] = agent_dict["max_print_outputs_length"]
         args.update(kwargs)
         return cls(**args)
 

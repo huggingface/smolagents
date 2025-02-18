@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mimetypes
 import os
 import re
 import shutil
@@ -199,30 +198,20 @@ class GradioUI:
             yield messages
         yield messages
 
-    def upload_file(
-        self,
-        file,
-        file_uploads_log,
-        allowed_file_types=[
-            "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "text/plain",
-        ],
-    ):
+    def upload_file(self, file, file_uploads_log, allowed_file_types=None):
         """
         Handle file uploads, default allowed types are .pdf, .docx, and .txt
         """
         import gradio as gr
 
         if file is None:
-            return gr.Textbox("No file uploaded", visible=True), file_uploads_log
+            return gr.Textbox(value="No file uploaded", visible=True), file_uploads_log
 
-        try:
-            mime_type, _ = mimetypes.guess_type(file.name)
-        except Exception as e:
-            return gr.Textbox(f"Error: {e}", visible=True), file_uploads_log
+        if allowed_file_types is None:
+            allowed_file_types = [".pdf", ".docx", ".txt"]
 
-        if mime_type not in allowed_file_types:
+        file_ext = os.path.splitext(file.name)[1].lower()
+        if file_ext not in allowed_file_types:
             return gr.Textbox("File type disallowed", visible=True), file_uploads_log
 
         # Sanitize file name
@@ -230,16 +219,6 @@ class GradioUI:
         sanitized_name = re.sub(
             r"[^\w\-.]", "_", original_name
         )  # Replace any non-alphanumeric, non-dash, or non-dot characters with underscores
-
-        type_to_ext = {}
-        for ext, t in mimetypes.types_map.items():
-            if t not in type_to_ext:
-                type_to_ext[t] = ext
-
-        # Ensure the extension correlates to the mime type
-        sanitized_name = sanitized_name.split(".")[:-1]
-        sanitized_name.append("" + type_to_ext[mime_type])
-        sanitized_name = "".join(sanitized_name)
 
         # Save the uploaded file to the specified folder
         file_path = os.path.join(self.file_upload_folder, os.path.basename(sanitized_name))

@@ -843,30 +843,16 @@ class LiteLLMModel(Model):
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
-        try:
-            import litellm
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
-            )
-
         super().__init__(**kwargs)
         self.model_id = model_id
-        # IMPORTANT - Set this to TRUE to add the function to the prompt for Non OpenAI LLMs
-        litellm.add_function_to_prompt = True
         self.api_base = api_base
         self.api_key = api_key
         self.custom_role_conversions = custom_role_conversions
-
-    @cached_property
-    def _flatten_messages_as_text(self):
-        import litellm
-
-        model_info: dict = litellm.get_model_info(self.model_id)
-        if model_info["litellm_provider"] == "ollama":
-            return model_info["key"] != "llava"
-
-        return False
+        self.flatten_messages_as_text = (
+            kwargs.get("flatten_messages_as_text")
+            if "flatten_messages_as_text" in kwargs
+            else self.model_id.startswith(("ollama", "groq", "cerebras"))
+        )
 
     def __call__(
         self,
@@ -876,7 +862,12 @@ class LiteLLMModel(Model):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
-        import litellm
+        try:
+            import litellm
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
+            )
 
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
@@ -887,7 +878,7 @@ class LiteLLMModel(Model):
             api_base=self.api_base,
             api_key=self.api_key,
             convert_images_to_image_urls=True,
-            flatten_messages_as_text=self._flatten_messages_as_text,
+            flatten_messages_as_text=self.flatten_messages_as_text,
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )

@@ -406,7 +406,6 @@ class Tool:
             repo_type="space",
             cache_dir=kwargs.get("cache_dir"),
             force_download=kwargs.get("force_download"),
-            resume_download=kwargs.get("resume_download"),
             proxies=kwargs.get("proxies"),
             revision=kwargs.get("revision"),
             subfolder=kwargs.get("subfolder"),

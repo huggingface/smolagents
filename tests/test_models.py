@@ -23,7 +23,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from transformers.testing_utils import get_tests_dir
 
-from smolagents import AzureOpenAIServerModel, ChatMessage, HfApiModel, MLXModel, TransformersModel, models, tool
+from smolagents import AzureOpenAIServerModel, ChatMessage, HfApiModel, LiteLLMModel, MLXModel, TransformersModel, models, tool
 from smolagents.models import MessageRole, get_clean_message_list, parse_json_if_needed
 
 
@@ -49,18 +49,6 @@ class ModelTests(unittest.TestCase):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
         data = json.loads(message.model_dump_json())
         assert data["content"] == [{"type": "text", "text": "Hello!"}]
-
-    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
-    def test_get_hfapi_message_no_tool(self):
-        model = HfApiModel(max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
-        model(messages, stop_sequences=["great"])
-
-    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
-    def test_get_hfapi_message_no_tool_external_provider(self):
-        model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
-        model(messages, stop_sequences=["great"])
 
     @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
     def test_get_mlx_message_no_tool(self):
@@ -156,6 +144,43 @@ class TestHfApiModel:
         assert model.client.chat_completion.call_args.kwargs["messages"][0]["role"] == "system", (
             "role conversion should be applied"
         )
+
+    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
+    def test_get_hfapi_message_no_tool(self):
+        model = HfApiModel(max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model(messages, stop_sequences=["great"])
+
+    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
+    def test_get_hfapi_message_no_tool_external_provider(self):
+        model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model(messages, stop_sequences=["great"])
+
+
+class TestLiteLLMModel:
+    @pytest.mark.parametrize(
+        "model_id, error_flag",
+        [
+            ("groq/llama-3.3-70b", "Missing API Key"),
+            ("cerebras/llama-3.3-70b", "The api_key client option must be set"),
+            ("mistral/mistral-tiny", "The api_key client option must be set"),
+        ],
+    )
+    def test_call_different_providers_without_key(self, model_id, error_flag):
+        model = LiteLLMModel(model_id=model_id)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Test message"}]}]
+        with pytest.raises(Exception) as e:
+            # This should raise 401 error because of missing API key, not fail for any "bad format" reason
+            model(messages)
+        assert error_flag in str(e)
+
+    def test_passing_flatten_messages(self):
+        model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
+        assert not model.flatten_messages_as_text
+
+        model = LiteLLMModel(model_id="fal/llama-3.3-70b", flatten_messages_as_text=True)
+        assert model.flatten_messages_as_text
 
 
 def test_get_clean_message_list_basic():

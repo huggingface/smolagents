@@ -67,6 +67,13 @@ agent.run("How many seconds would it take for a leopard at full speed to run thr
 
 https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884
 
+You can even share your agent to hub:
+```py
+agent.push_to_hub("m-ric/my_agent")
+
+# agent.from_hub("m-ric/my_agent") to load an agent from Hub
+```
+
 Our library is LLM-agnostic: you could switch the example above to any inference provider.
 
 <details>
@@ -219,34 +226,7 @@ This comparison shows that open-source models can now take on the best closed mo
 
 ## Contribute
 
-To contribute, follow our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
-
-At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
-It's often even better to open a PR with your proposed fixes/changes!
-
-To install dev dependencies, run:
-```
-pip install -e ".[dev]"
-```
-
-When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
-To check code quality of the source code:
-```
-make quality
-```
-
-If the checks fail, you can run the formatter with:
-```
-make style
-```
-
-And commit the changes.
-
-To run tests locally, run this command:
-```bash
-make test
-```
-</details>
+Everyone is welcome to contribute, get started with our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
 
 ## Cite smolagents
 
