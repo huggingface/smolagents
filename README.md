@@ -226,34 +226,7 @@ This comparison shows that open-source models can now take on the best closed mo
 
 ## Contribute
 
-To contribute, follow our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
-
-At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
-It's often even better to open a PR with your proposed fixes/changes!
-
-To install dev dependencies, run:
-```
-pip install -e ".[dev]"
-```
-
-When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
-To check code quality of the source code:
-```
-make quality
-```
-
-If the checks fail, you can run the formatter with:
-```
-make style
-```
-
-And commit the changes.
-
-To run tests locally, run this command:
-```bash
-make test
-```
-</details>
+Everyone is welcome to contribute, get started with our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
 
 ## Cite smolagents
 

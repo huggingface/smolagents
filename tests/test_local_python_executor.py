@@ -122,6 +122,22 @@ class PythonInterpreterTester(unittest.TestCase):
         assert result == "This is x: 3."
         self.assertDictEqualNoPrint(state, {"x": 3, "text": "This is x: 3.", "_operations_count": 6})
 
+    def test_evaluate_f_string_with_format(self):
+        code = "text = f'This is x: {x:.2f}.'"
+        state = {"x": 3.336}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == "This is x: 3.34."
+        self.assertDictEqualNoPrint(state, {"x": 3.336, "text": "This is x: 3.34.", "_operations_count": 8})
+
+    def test_evaluate_f_string_with_complex_format(self):
+        code = "text = f'This is x: {x:>{width}.{precision}f}.'"
+        state = {"x": 3.336, "width": 10, "precision": 2}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == "This is x:       3.34."
+        self.assertDictEqualNoPrint(
+            state, {"x": 3.336, "width": 10, "precision": 2, "text": "This is x:       3.34.", "_operations_count": 14}
+        )
+
     def test_evaluate_if(self):
         code = "if x <= 3:\n    y = 2\nelse:\n    y = 5"
         state = {"x": 3}
@@ -1302,7 +1318,7 @@ def test_get_safe_module_handle_lazy_imports():
             return super().__dir__() + ["lazy_attribute"]
 
     fake_module = FakeModule("fake_module")
-    safe_module = get_safe_module(fake_module, dangerous_patterns=[], authorized_imports=set())
+    safe_module = get_safe_module(fake_module, authorized_imports=set())
     assert not hasattr(safe_module, "lazy_attribute")
     assert getattr(safe_module, "non_lazy_attribute") == "ok"
 
@@ -1377,23 +1393,4 @@ class TestPrintContainer:
     ],
 )
 def test_check_module_authorized(module: str, authorized_imports: list[str], expected: bool):
-    dangerous_patterns = (
-        "_os",
-        "os",
-        "subprocess",
-        "_subprocess",
-        "pty",
-        "system",
-        "popen",
-        "spawn",
-        "shutil",
-        "sys",
-        "pathlib",
-        "io",
-        "socket",
-        "compile",
-        "eval",
-        "exec",
-        "multiprocessing",
-    )
-    assert check_module_authorized(module, authorized_imports, dangerous_patterns) == expected
+    assert check_module_authorized(module, authorized_imports) == expected
