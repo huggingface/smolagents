@@ -93,6 +93,11 @@ jobs:
           uv run pytest ./tests/test_tools.py
         if: ${{ success() || failure() }}
 
+      - name: Tool validation tests
+        run: |
+          uv run pytest ./tests/test_tool_validation.py
+        if: ${{ success() || failure() }}
+
       - name: Types tests
         run: |
           uv run pytest ./tests/test_types.py
