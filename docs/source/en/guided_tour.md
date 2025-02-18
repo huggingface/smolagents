@@ -351,20 +351,14 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 
 
 ### Tools from methods
-If your tool requires some form of persistent state or initialization, such as handling authentication tokens, API clients, or other shared resources, you can define it within a class.
+Sometimes, you need to preserve state or perform an initialization step, such as handling tokens, setting up API clients, or sharing resources among tools. In these cases, you can encapsulate a tool within a class method.
 
-You can still use the @tool decorator, but now as a method inside a class. Let's modify our previous example to handle authentication using a Hugging Face token:
+You still use the @tool decorator, but you apply it directly to a method. Let's modify our previous example to handle authentication using a HuggingFace token:
 ```python
 from smolagents import tool
 
 class DownloadTools:
     def __init__(self, hf_token: str):
-        """
-        Initializes the tool with an authentication token.
-
-        Args:
-            hf_token: Your Hugging Face API token.
-        """
         self.hf_token = hf_token
       
     @tool
@@ -392,8 +386,8 @@ agent = CodeAgent(tools=[dl_tools.model_download_tool], model=HfApiModel())
 ```
 
 > [!TIP]
-> You can define multiple tools in a single class by decorating multiple methods with @tool.
-> Additionally, you can combine both function-based and class-based tools within the same agent—choose the approach that best fits your needs!
+> You can create multiple tools in a single class by decorating more methods with @tool.
+> You can also mix class-based and function-based tools in the same agent. Go with whichever approach suits your needs best!
  
 
 ## Multi-agents
