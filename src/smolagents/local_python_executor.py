@@ -1232,13 +1232,9 @@ def evaluate_ast(
         # Formatted value (part of f-string) -> evaluate the content and format it
         value = evaluate_ast(expression.value, *common_params)
         # Get the format spec if it exists
-        format_spec = None
-        if expression.format_spec:
-            format_spec = (
-                "".join(str(evaluate_ast(v, *common_params)) for v in expression.format_spec.values)
-                if isinstance(expression.format_spec, ast.JoinedStr)
-                else expression.format_spec.value
-            )
+        format_spec = (
+            evaluate_ast(expression.format_spec, *common_params) if expression.format_spec is not None else None
+        )
         # Apply formatting if format_spec exists
         if format_spec is not None:
             return format(value, format_spec)

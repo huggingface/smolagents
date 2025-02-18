@@ -127,7 +127,7 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3.336}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == "This is x: 3.34."
-        self.assertDictEqualNoPrint(state, {"x": 3.336, "text": "This is x: 3.34.", "_operations_count": 7})
+        self.assertDictEqualNoPrint(state, {"x": 3.336, "text": "This is x: 3.34.", "_operations_count": 8})
 
     def test_evaluate_f_string_with_complex_format(self):
         code = "text = f'This is x: {x:>{width}.{precision}f}.'"
@@ -135,7 +135,7 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == "This is x:       3.34."
         self.assertDictEqualNoPrint(
-            state, {"x": 3.336, "width": 10, "precision": 2, "text": "This is x:       3.34.", "_operations_count": 13}
+            state, {"x": 3.336, "width": 10, "precision": 2, "text": "This is x:       3.34.", "_operations_count": 14}
         )
 
     def test_evaluate_if(self):
