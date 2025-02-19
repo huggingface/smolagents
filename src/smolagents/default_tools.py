@@ -18,7 +18,6 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from .agent_types import AgentAudio
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
     BASE_PYTHON_TOOLS,
@@ -280,6 +279,8 @@ class SpeechToTextTool(PipelineTool):
         return super().__new__(cls, *args, **kwargs)
 
     def encode(self, audio):
+        from .agent_types import AgentAudio
+
         audio = AgentAudio(audio).to_raw()
         return self.pre_processor(audio, return_tensors="pt")
 
