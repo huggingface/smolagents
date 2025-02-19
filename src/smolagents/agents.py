@@ -1260,6 +1260,11 @@ class CodeAgent(MultiStepAgent):
             )
             memory_step.model_output_message = chat_message
             model_output = chat_message.content
+
+            # https://github.com/huggingface/smolagents/issues/430 quck fix for "reasoning" part removal
+            cleaned_model_output = re.sub(r"""<think>.*?</think>""", "", model_output, flags=re.DOTALL)
+            model_output = cleaned_model_output
+
             memory_step.model_output = model_output
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
