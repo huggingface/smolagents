@@ -5,6 +5,9 @@ from smolagents.tool_validation import validate_tool_attributes
 from smolagents.tools import Tool
 
 
+UNDEFINED_VARIABLE = "undefined_variable"
+
+
 @pytest.mark.parametrize("tool_class", [DuckDuckGoSearchTool, GoogleSearchTool, SpeechToTextTool, VisitWebpageTool])
 def test_validate_tool_attributes_with_default_tools(tool_class):
     assert validate_tool_attributes(tool_class) is None, f"failed for {tool_class.name} tool"
@@ -30,20 +33,6 @@ def test_validate_tool_attributes_valid():
     assert validate_tool_attributes(ValidTool) is None
 
 
-class InvalidToolRequiredParams(Tool):
-    name = "invalid_tool"
-    description = "Tool with required params"
-    inputs = {"input": {"type": "string", "description": "input"}}
-    output_type = "string"
-
-    def __init__(self, required_param):  # No default value
-        super().__init__()
-        self.param = required_param
-
-    def forward(self, input: str) -> str:
-        return input
-
-
 class InvalidToolComplexAttrs(Tool):
     name = "invalid_tool"
     description = "Tool with complex class attributes"
@@ -58,7 +47,32 @@ class InvalidToolComplexAttrs(Tool):
         return input
 
 
-undefined_variable = "undefined_variable"
+class InvalidToolRequiredParams(Tool):
+    name = "invalid_tool"
+    description = "Tool with required params"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, required_param, kwarg1=1):  # No default value
+        super().__init__()
+        self.param = required_param
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class InvalidToolNonLiteralDefaultParam(Tool):
+    name = "invalid_tool"
+    description = "Tool with non-literal default parameter value"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, default_param=UNDEFINED_VARIABLE):  # UNDEFINED_VARIABLE as default is non-literal
+        super().__init__()
+        self.default_param = default_param
+
+    def forward(self, input: str) -> str:
+        return input
 
 
 class InvalidToolUndefinedNames(Tool):
@@ -68,21 +82,7 @@ class InvalidToolUndefinedNames(Tool):
     output_type = "string"
 
     def forward(self, input: str) -> str:
-        return undefined_variable  # Undefined name
-
-
-class InvalidToolNonLiteralDefaultParam(Tool):
-    name = "invalid_tool"
-    description = "Tool with non-literal default parameter value"
-    inputs = {"input": {"type": "string", "description": "input"}}
-    output_type = "string"
-
-    def __init__(self, default_param=undefined_variable):  # undefined_variable as default is non-literal
-        super().__init__()
-        self.default_param = default_param
-
-    def forward(self, input: str) -> str:
-        return input
+        return UNDEFINED_VARIABLE  # Undefined name
 
 
 @pytest.mark.parametrize(
@@ -94,7 +94,7 @@ class InvalidToolNonLiteralDefaultParam(Tool):
             InvalidToolNonLiteralDefaultParam,
             "Parameters in __init__ must have literal default values, found non-literal defaults",
         ),
-        (InvalidToolUndefinedNames, "Name 'undefined_variable' is undefined"),
+        (InvalidToolUndefinedNames, "Name 'UNDEFINED_VARIABLE' is undefined"),
     ],
 )
 def test_validate_tool_attributes_exceptions(tool_class, expected_error):
