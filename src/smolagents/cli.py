@@ -101,7 +101,17 @@ def main():
     available_tools = []
     for tool_name in args.tools:
         if "/" in tool_name:
-            available_tools.append(Tool.from_space(tool_name))
+            try:
+                space_id, name, description = tool_name.split(":", 2)
+                available_tools.append(
+                    Tool.from_space(
+                        space_id=space_id,
+                        name=name,
+                        description=description,
+                    )
+                )
+            except ValueError:
+                raise ValueError(f"Invalid tool format: {tool_name}. Expected format 'space_id:name:description'")
         else:
             if tool_name in TOOL_MAPPING:
                 available_tools.append(TOOL_MAPPING[tool_name]())
