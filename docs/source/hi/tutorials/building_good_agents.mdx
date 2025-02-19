@@ -246,7 +246,7 @@ Now Begin! If you solve the task correctly, you will receive a reward of $1,000,
 ```py
 from smolagents.prompts import CODE_SYSTEM_PROMPT
 
-modified_system_prompt = CODE_SYSTEM_PROMPT + "\nHere you go!" # Change the system prompt here
+modified_system_prompt = CODE_SYSTEM_PROMPT["system_prompt"] + "\nHere you go!" # Change the system prompt here
 
 agent = CodeAgent(
     tools=[], 
