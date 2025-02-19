@@ -99,22 +99,22 @@ You can then navigate to `http://0.0.0.0:6006/projects/` to inspect your run!
 
 You can see that the CodeAgent called its managed ToolCallingAgent (by the way, the managed agent could be have been a CodeAgent as well) to ask it to run the web search for the U.S. 2024 growth rate. Then the managed agent returned its report and the manager agent acted upon it to calculate the economy doubling time! Sweet, isn't it?
 
-## Setting up telemetry with Langfuse
+## Setting up telemetry with 🪢 Langfuse
 
-This part shows how to monitor and debug your Hugging Face **smolagents** with **Langfuse** using the `SmolagentsInstrumentor`.
+This part shows how to monitor and debug your Hugging Face **smolagents** with **Langfuse**.
 
 > **What is Langfuse?** [Langfuse](https://langfuse.com) is an open-source platform for LLM engineering. It provides tracing and monitoring capabilities for AI agents, helping developers debug, analyze, and optimize their products. Langfuse integrates with various tools and frameworks via native integrations, OpenTelemetry, and SDKs.
 
 ### Step 1: Install Dependencies
 
 ```python
-%pip install smolagents
-%pip install opentelemetry-sdk opentelemetry-exporter-otlp openinference-instrumentation-smolagents
+%pip install 'smolagents[telemetry]' arize-phoenix-otel
+%pip install openinference-instrumentation-smolagents
 ```
 
 ### Step 2: Set Up Environment Variables
 
-Set your Langfuse API keys and configure the OpenTelemetry endpoint to send traces to Langfuse. Get your Langfuse API keys by signing up for [Langfuse Cloud](https://cloud.langfuse.com) or [self-hosting Langfuse](https://langfuse.com/self-hosting).
+Set your Langfuse API keys for the basic auth header. You can get your Langfuse API keys by signing up for [Langfuse Cloud](https://cloud.langfuse.com) or [self-hosting Langfuse](https://langfuse.com/self-hosting).
 
 Also, add your [Hugging Face token](https://huggingface.co/settings/tokens) (`HF_TOKEN`) as an environment variable.
 
@@ -122,13 +122,9 @@ Also, add your [Hugging Face token](https://huggingface.co/settings/tokens) (`HF
 import os
 import base64
 
-LANGFUSE_PUBLIC_KEY="pk-lf-..."
-LANGFUSE_SECRET_KEY="sk-lf-..."
-LANGFUSE_AUTH=base64.b64encode(f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()).decode()
-
-os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://cloud.langfuse.com/api/public/otel" # EU data region
-# os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://us.cloud.langfuse.com/api/public/otel" # US data region
-os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {LANGFUSE_AUTH}"
+LANGFUSE_PUBLIC_KEY = "pk-lf-..."
+LANGFUSE_SECRET_KEY = "sk-lf-..."
+LANGFUSE_AUTH = base64.b64encode(f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()).decode()
 
 # your Hugging Face token
 os.environ["HF_TOKEN"] = "hf_..."
@@ -136,20 +132,18 @@ os.environ["HF_TOKEN"] = "hf_..."
 
 ### Step 3: Initialize the `SmolagentsInstrumentor`
 
-Initialize the `SmolagentsInstrumentor` before your application code. Configure `tracer_provider` and add a span processor to export traces to Langfuse. `OTLPSpanExporter()` uses the endpoint and headers from the environment variables.
-
+To send traces to Langfuse, we are using the Arize Phoenix OpenTelenetry instrumentation. To do this, we first need to initialize the Arize Phoenix module [`register()`](https://docs.arize.com/phoenix/tracing/how-to-tracing/setup-tracing-python) by passing in the protocol, endpoint, and headers. Then we use the `SmolagentsInstrumentor` module to instrument your agent.
 
 ```python
-from opentelemetry.sdk.trace import TracerProvider
-
+from phoenix.otel import register
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-trace_provider = TracerProvider()
-trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
+register(protocol="http/protobuf", 
+         endpoint = "https://cloud.langfuse.com/api/public/otel/v1/traces", 
+         headers = {"Authorization": f"Basic {LANGFUSE_AUTH}"}
+         )
 
-SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
+SmolagentsInstrumentor().instrument()
 ```
 
 ### Step 4: Run your smolagent
