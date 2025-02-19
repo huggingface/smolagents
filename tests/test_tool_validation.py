@@ -88,10 +88,13 @@ class InvalidToolNonLiteralDefaultParam(Tool):
 @pytest.mark.parametrize(
     "tool_class, expected_error",
     [
-        (InvalidToolRequiredParams, "required arguments in __init__"),
-        (InvalidToolComplexAttrs, "Complex attributes should be defined in __init"),
+        (InvalidToolComplexAttrs, "Complex attributes should be defined in __init__, not as class attributes"),
+        (InvalidToolRequiredParams, "Parameters in __init__ must have default values, found required parameters"),
+        (
+            InvalidToolNonLiteralDefaultParam,
+            "Parameters in __init__ must have literal default values, found non-literal defaults",
+        ),
         (InvalidToolUndefinedNames, "Name 'undefined_variable' is undefined"),
-        (InvalidToolNonLiteralDefaultParam, "Tool validation failed"),  # TODO: Improve error message
     ],
 )
 def test_validate_tool_attributes_exceptions(tool_class, expected_error):
