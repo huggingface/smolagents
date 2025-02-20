@@ -1001,14 +1001,14 @@ def get_safe_module(raw_module, authorized_imports, visited=None):
             and not check_module_authorized(pattern, authorized_imports)
             for pattern in DANGEROUS_PATTERNS
         ):
-            logger.info(f"Skipping dangerous attribute {raw_module.__name__}.{attr_name}")
+            logger.debug(f"Skipping dangerous attribute {raw_module.__name__}.{attr_name}")
             continue
 
         try:
             attr_value = getattr(raw_module, attr_name)
         except ImportError as e:
             # lazy / dynamic loading module -> INFO log and skip
-            logger.info(
+            logger.debug(
                 f"Skipping import error while copying {raw_module.__name__}.{attr_name}: {type(e).__name__} - {e}"
             )
             continue
