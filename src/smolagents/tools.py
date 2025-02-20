@@ -633,7 +633,7 @@ def launch_gradio_demo(tool: Tool):
     `inputs` and `output_type`.
 
     Args:
-        tool (`type`): The tool for which to launch the demo.
+        tool (`Tool`): The tool for which to launch the demo.
     """
     try:
         import gradio as gr
