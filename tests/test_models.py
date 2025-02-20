@@ -74,7 +74,7 @@ class ModelTests(unittest.TestCase):
         model = TransformersModel(
             model_id="HuggingFaceTB/SmolLM2-135M-Instruct",
             max_new_tokens=5,
-            device_map="auto",
+            device_map="cpu",
             do_sample=False,
         )
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
@@ -88,7 +88,7 @@ class ModelTests(unittest.TestCase):
         model = TransformersModel(
             model_id="llava-hf/llava-interleave-qwen-0.5b-hf",
             max_new_tokens=5,
-            device_map="auto",
+            device_map="cpu",
             do_sample=False,
         )
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}, {"type": "image", "image": img}]}]
@@ -132,7 +132,7 @@ class TestHfApiModel:
 
     @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
     def test_get_hfapi_message_no_tool(self):
-        model = HfApiModel(max_tokens=10)
+        model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
