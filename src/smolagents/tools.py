@@ -667,7 +667,6 @@ def launch_gradio_demo(tool: Tool):
         inputs=gradio_inputs,
         outputs=gradio_output,
         title=tool.name,
-        article=tool.description,
         description=tool.description,
         api_name=tool.name,
     ).launch()
