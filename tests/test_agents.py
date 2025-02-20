@@ -16,6 +16,7 @@ import os
 import tempfile
 import unittest
 import uuid
+from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -41,7 +42,7 @@ from smolagents.models import (
     MessageRole,
     TransformersModel,
 )
-from smolagents.tools import tool
+from smolagents.tools import Tool, tool
 from smolagents.utils import BASE_BUILTIN_MODULES
 
 
@@ -559,6 +560,23 @@ nested_answer()
         assert "Error raised in check" in str(agent.write_memory_to_messages())
 
 
+class MockTool(Tool):
+    def __init__(self, name):
+        self.name = name
+        self.description = "Mock tool description"
+        self.inputs = {}
+        self.output_type = "string"
+
+    def forward(self):
+        return "Mock tool output"
+
+
+class MockAgent:
+    def __init__(self, name, tools):
+        self.name = name
+        self.tools = {t.name: t for t in tools}
+
+
 class TestMultiStepAgent:
     def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
@@ -759,6 +777,44 @@ class TestMultiStepAgent:
                 assert len(message["content"]) == len(expected_message["content"])
                 for content, expected_content in zip(message["content"], expected_message["content"]):
                     assert content == expected_content
+
+    @pytest.mark.parametrize(
+        "tools, managed_agents, expectation",
+        [
+            # Valid case: no duplicates
+            (
+                [MockTool("tool1"), MockTool("tool2")],
+                [MockAgent("agent1", [MockTool("tool3")])],
+                does_not_raise(),
+            ),
+            # Invalid case: duplicate tool names
+            ([MockTool("tool1"), MockTool("tool1")], [], pytest.raises(ValueError)),
+            # Invalid case: tool name same as managed agent name
+            ([MockTool("tool1")], [MockAgent("tool1", [MockTool("final_answer")])], pytest.raises(ValueError)),
+            # Invalid case: tool name same as managed agent's tool name
+            ([MockTool("tool1")], [MockAgent("agent1", [MockTool("tool1")])], pytest.raises(ValueError)),
+            # Invalid case: duplicate managed agent name and managed agent tool name
+            ([], [MockAgent("tool1", [MockTool("tool1")])], pytest.raises(ValueError)),
+            # Invalid case: duplicate tool names across managed agents
+            (
+                [MockTool("tool1")],
+                [
+                    MockAgent("agent1", [MockTool("tool2"), MockTool("final_answer")]),
+                    MockAgent("agent2", [MockTool("tool2"), MockTool("final_answer")]),
+                ],
+                pytest.raises(ValueError),
+            ),
+        ],
+    )
+    def test_validate_tools_and_managed_agents(self, tools, managed_agents, expectation):
+        # Mock MultiStepAgent class
+        class MockMultiStepAgent(MultiStepAgent):
+            def __init__(self):
+                pass
+
+        agent = MockMultiStepAgent()
+        with expectation:
+            agent._validate_tools_and_managed_agents(tools, managed_agents)
 
 
 class TestCodeAgent:
