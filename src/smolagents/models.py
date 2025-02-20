@@ -24,6 +24,7 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
+import httpx
 from huggingface_hub import InferenceClient
 from huggingface_hub.utils import is_torch_available
 from PIL import Image
@@ -913,6 +914,8 @@ class OpenAIServerModel(Model):
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
+        http_client (`httpx.Client`, *optional*):
+            A HTTPx client to use for the API requests.
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
@@ -925,6 +928,7 @@ class OpenAIServerModel(Model):
         organization: Optional[str] | None = None,
         project: Optional[str] | None = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
+        http_client: httpx.Client | None = None,
         **kwargs,
     ):
         try:
@@ -941,6 +945,7 @@ class OpenAIServerModel(Model):
             api_key=api_key,
             organization=organization,
             project=project,
+            http_client=http_client,
         )
         self.custom_role_conversions = custom_role_conversions
 
