@@ -65,14 +65,26 @@ def parse_arguments(description):
         default=1,
         help="The verbosity level, as an int in [0, 1, 2].",
     )
+    parser.add_argument(
+        "--base-url",
+        type=str,
+        default="https://api.fireworks.ai/inference/v1",
+        help="The base URL for the OpenAI server model",
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=os.getenv("FIREWORKS_API_KEY"),
+        help="The API key for the OpenAI server model",
+    )
     return parser.parse_args()
 
 
-def load_model(model_type: str, model_id: str) -> Model:
+def load_model(model_type: str, model_id: str, api_base: str, api_key: str) -> Model:
     if model_type == "OpenAIServerModel":
         return OpenAIServerModel(
-            api_key=os.getenv("FIREWORKS_API_KEY"),
-            api_base="https://api.fireworks.ai/inference/v1",
+            api_key=api_key,
+            api_base=api_base,
             model_id=model_id,
         )
     elif model_type == "LiteLLMModel":
@@ -96,7 +108,7 @@ def main():
 
     args = parse_arguments(description="Run a CodeAgent with all specified parameters")
 
-    model = load_model(args.model_type, args.model_id)
+    model = load_model(args.model_type, args.model_id, args.base_url, args.api_key)
 
     available_tools = []
     for tool_name in args.tools:
