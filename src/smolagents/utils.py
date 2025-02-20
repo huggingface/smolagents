@@ -101,6 +101,12 @@ class AgentGenerationError(AgentError):
     pass
 
 
+class APILoadingError(AgentError):
+    """Exception raised for errors in parsing in the agent"""
+
+    pass
+
+
 def make_json_serializable(obj: Any) -> Any:
     """Recursive function to make objects JSON serializable"""
     if obj is None:

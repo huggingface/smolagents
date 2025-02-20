@@ -17,10 +17,14 @@
 import argparse
 import os
 
+import requests
 from dotenv import load_dotenv
 
 from smolagents import CodeAgent, HfApiModel, LiteLLMModel, Model, OpenAIServerModel, Tool, TransformersModel
 from smolagents.default_tools import TOOL_MAPPING
+from smolagents.memory import AgentLogger
+from smolagents.monitoring import LogLevel
+from smolagents.utils import APILoadingError
 
 
 leopard_prompt = "How many seconds would it take for a leopard at full speed to run through Pont des Arts?"
@@ -68,6 +72,30 @@ def parse_arguments(description):
     return parser.parse_args()
 
 
+def get_openai_api_key():
+    logger = AgentLogger(level=LogLevel.INFO)
+
+    # Check OPENAI_API_KEY exits in .bashrc or .zshrc.
+    open_api_key = os.getenv("OPENAI_API_KEY")
+
+    if open_api_key is None:
+        raise APILoadingError("There is no environment variable 'OPENAI_API_KEY' in .bashrc or .zshrc.", logger)
+
+    # Check requests status
+    response = requests.get("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {open_api_key}"})
+
+    if response.status_code == 200:
+        pass
+    elif response.status_code == 401:
+        APILoadingError("Invalid API Key.", logger)
+    elif response.status_code == 429:
+        APILoadingError("Rate limit exceeded or free tier quota used up.", logger)
+    else:
+        APILoadingError("Other error: {response.status_code}, {response.text}", logger)
+
+    return open_api_key
+
+
 def load_model(model_type: str, model_id: str) -> Model:
     if model_type == "OpenAIServerModel":
         return OpenAIServerModel(
@@ -78,7 +106,7 @@ def load_model(model_type: str, model_id: str) -> Model:
     elif model_type == "LiteLLMModel":
         return LiteLLMModel(
             model_id=model_id,
-            api_key=os.getenv("OPENAI_API_KEY"),
+            api_key=get_openai_api_key(),,
         )
     elif model_type == "TransformersModel":
         return TransformersModel(model_id=model_id, device_map="auto", flatten_messages_as_text=False)
