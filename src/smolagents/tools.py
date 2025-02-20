@@ -1009,15 +1009,15 @@ class PipelineTool(Tool):
         """
         return self.post_processor(outputs)
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
         import torch
         from accelerate.utils import send_to_device
-
-        args, kwargs = handle_agent_input_types(*args, **kwargs)
 
         if not self.is_initialized:
             self.setup()
 
+        if sanitize_inputs_outputs:
+            args, kwargs = handle_agent_input_types(*args, **kwargs)
         encoded_inputs = self.encode(*args, **kwargs)
 
         tensor_inputs = {k: v for k, v in encoded_inputs.items() if isinstance(v, torch.Tensor)}
@@ -1027,8 +1027,9 @@ class PipelineTool(Tool):
         outputs = self.forward({**encoded_inputs, **non_tensor_inputs})
         outputs = send_to_device(outputs, "cpu")
         decoded_outputs = self.decode(outputs)
-
-        return handle_agent_output_types(decoded_outputs, self.output_type)
+        if sanitize_inputs_outputs:
+            decoded_outputs = handle_agent_output_types(decoded_outputs, self.output_type)
+        return decoded_outputs
 
 
 __all__ = [
