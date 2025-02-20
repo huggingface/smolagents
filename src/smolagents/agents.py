@@ -59,7 +59,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .tools import Tool
+from .tools import Tool, ToolCache
 from .utils import (
     AgentError,
     AgentExecutionError,
@@ -1158,16 +1158,23 @@ class ToolCallingAgent(MultiStepAgent):
 class ToolCallCacheMixin:
     """Mixin class that adds caching capabilities to tool calls."""
 
-    def __init__(self, cache_size: int = 128, cached_tools: Optional[List[str]] = None, *args, **kwargs):
+    def __init__(
+            self,
+            cache_size: int = 128,
+            cached_tools: Optional[List[str]] = None,
+            shared_cache: Optional[ToolCache] = None,
+            *args,
+            **kwargs
+    ):
         """
         Initialize the caching mixin.
 
         Args:
-            cache_size: Maximum number of entries to keep in cache
+            cache_size: Maximum number of entries to keep in internal cache (only used when shared_cache is None)
             cached_tools: List of tool names to cache. If None, all tools are cached.
+            shared_cache: Optional shared ToolCache instance. If None, creates an internal cache.
         """
-        self.tool_cache: Dict[str, Any] = {}
-        self.cache_size = cache_size
+        self.cache = shared_cache if shared_cache is not None else ToolCache(max_size=cache_size)
         self.cached_tools = set(cached_tools) if cached_tools is not None else None
         super().__init__(*args, **kwargs)
 
@@ -1176,34 +1183,20 @@ class ToolCallCacheMixin:
         sorted_args = json.dumps(tool_arguments, sort_keys=True)
         return f"{tool_name}:{sorted_args}"
 
-    def _get_from_cache(self, tool_name: str, tool_arguments: Dict) -> Tuple[bool, Any]:
-        """Try to get a result from cache. Returns (hit, result)."""
-        cache_key = self._get_cache_key(tool_name, tool_arguments)
-        if cache_key in self.tool_cache:
-            return True, self.tool_cache[cache_key]
-        return False, None
-
-    def _add_to_cache(self, tool_name: str, tool_arguments: Dict, result: Any):
-        """Add a result to the cache."""
-        if len(self.tool_cache) >= self.cache_size:
-            # Remove oldest entry if cache is full (FIFO)
-            self.tool_cache.pop(next(iter(self.tool_cache)))
-        cache_key = self._get_cache_key(tool_name, tool_arguments)
-        self.tool_cache[cache_key] = result
-
     def execute_tool_call(self, tool_name: str, tool_arguments: Dict) -> Any:
         """Override of execute_tool_call that implements caching."""
         # Skip caching if tool is not in cached_tools (when specified)
         if self.cached_tools is not None and tool_name not in self.cached_tools:
             return super().execute_tool_call(tool_name, tool_arguments)
 
-        cache_hit, cached_result = self._get_from_cache(tool_name, tool_arguments)
+        cache_key = self._get_cache_key(tool_name, tool_arguments)
+        cache_hit, cached_result = self.cache.get(cache_key)
         if cache_hit:
             self.logger.log(f"Retrieved result from cache for tool '{tool_name}'", level=LogLevel.INFO)
             return cached_result
 
         result = super().execute_tool_call(tool_name, tool_arguments)
-        self._add_to_cache(tool_name, tool_arguments, result)
+        self.cache.set(cache_key, result)
         return result
 
 
@@ -1223,6 +1216,15 @@ class CachedToolCallingAgent(ToolCallCacheMixin, ToolCallingAgent):
         agent = CachedToolCallingAgent(
             tools=tools,
             model=model,
+            cached_tools=['search', 'fetch_data']  # only cache these tools
+        )
+
+        # Use external tool cache
+        cache = ToolCache()
+        agent = CachedToolCallingAgent(
+            tools=tools,
+            model=model,
+            shared_cache=cache,
             cached_tools=['search', 'fetch_data']  # only cache these tools
         )
     """
