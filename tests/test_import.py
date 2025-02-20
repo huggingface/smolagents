@@ -6,7 +6,6 @@ def test_import_smolagents_without_extras():
     result = subprocess.run(
         ["uv", "run", "--isolated", "--no-editable", "-"], input="import smolagents", text=True, capture_output=True
     )
-
     # Check if the import was successful
     assert result.returncode == 0, (
         "Import failed with error: "
