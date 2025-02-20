@@ -1183,6 +1183,7 @@ class CodeAgent(MultiStepAgent):
         planning_interval: Optional[int] = None,
         use_e2b_executor: bool = False,
         max_print_outputs_length: Optional[int] = None,
+        authorized_local_functions: Optional[Dict[str, Callable]] = None,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
@@ -1219,6 +1220,9 @@ class CodeAgent(MultiStepAgent):
                 self.logger,
             )
         else:
+            if authorized_local_functions:
+                all_tools = {**all_tools, **authorized_local_functions}
+
             self.python_executor = LocalPythonInterpreter(
                 self.additional_authorized_imports,
                 all_tools,
