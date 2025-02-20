@@ -383,10 +383,10 @@ You have been provided with these additional arguments, that you can access usin
         return final_answer
 
     def planning_step(self, task, is_first_step: bool, step: int) -> None:
-        facts_message, plan_message = (
+        input_messages, facts_message, plan_message = (
             self._generate_initial_plan(task) if is_first_step else self._generate_updated_plan(task, step)
         )
-        self._record_planning_step(facts_message, plan_message, is_first_step)
+        self._record_planning_step(input_messages, facts_message, plan_message, is_first_step)
 
     def _generate_initial_plan(self, task: str) -> Tuple[ChatMessage, ChatMessage]:
         input_messages = [
@@ -422,7 +422,7 @@ You have been provided with these additional arguments, that you can access usin
             ],
         }
         plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
-        return facts_message, plan_message
+        return input_messages, facts_message, plan_message
 
     def _generate_updated_plan(self, task: str, step: int) -> Tuple[ChatMessage, ChatMessage]:
         # Do not take the system prompt message from the memory
@@ -436,7 +436,8 @@ You have been provided with these additional arguments, that you can access usin
             "role": MessageRole.USER,
             "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_post_messages"]}],
         }
-        facts_message = self.model([facts_update_pre] + memory_messages + [facts_update_post])
+        input_messages = [facts_update_pre] + memory_messages + [facts_update_post]
+        facts_message = self.model(input_messages)
 
         update_plan_pre = {
             "role": MessageRole.SYSTEM,
@@ -470,10 +471,10 @@ You have been provided with these additional arguments, that you can access usin
         plan_message = self.model(
             [update_plan_pre] + memory_messages + [update_plan_post], stop_sequences=["<end_plan>"]
         )
-        return facts_message, plan_message
+        return input_messages, facts_message, plan_message
 
     def _record_planning_step(
-        self, facts_message: ChatMessage, plan_message: ChatMessage, is_first_step: bool
+        self, input_messages: list, facts_message: ChatMessage, plan_message: ChatMessage, is_first_step: bool
     ) -> None:
         if is_first_step:
             facts = textwrap.dedent(f"""Here are the facts that I know so far:\n```\n{facts_message.content}\n```""")
@@ -491,7 +492,7 @@ You have been provided with these additional arguments, that you can access usin
             log_message = "Updated plan"
         self.memory.steps.append(
             PlanningStep(
-                model_input_messages=self.input_messages,
+                model_input_messages=input_messages,
                 facts=facts,
                 plan=plan,
                 model_output_message_plan=plan_message,
