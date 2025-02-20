@@ -13,17 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import types
 import unittest
 from textwrap import dedent
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     InterpreterError,
     PrintContainer,
+    check_module_authorized,
+    evaluate_condition,
+    evaluate_delete,
     evaluate_python_code,
     fix_final_answer_code,
     get_safe_module,
@@ -116,6 +121,22 @@ class PythonInterpreterTester(unittest.TestCase):
         # evaluate returns the value of the last assignment.
         assert result == "This is x: 3."
         self.assertDictEqualNoPrint(state, {"x": 3, "text": "This is x: 3.", "_operations_count": 6})
+
+    def test_evaluate_f_string_with_format(self):
+        code = "text = f'This is x: {x:.2f}.'"
+        state = {"x": 3.336}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == "This is x: 3.34."
+        self.assertDictEqualNoPrint(state, {"x": 3.336, "text": "This is x: 3.34.", "_operations_count": 8})
+
+    def test_evaluate_f_string_with_complex_format(self):
+        code = "text = f'This is x: {x:>{width}.{precision}f}.'"
+        state = {"x": 3.336, "width": 10, "precision": 2}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == "This is x:       3.34."
+        self.assertDictEqualNoPrint(
+            state, {"x": 3.336, "width": 10, "precision": 2, "text": "This is x:       3.34.", "_operations_count": 14}
+        )
 
     def test_evaluate_if(self):
         code = "if x <= 3:\n    y = 2\nelse:\n    y = 5"
@@ -926,7 +947,7 @@ shift_intervals
         code = "import random;random._os.system('echo bad command passed')"
         with pytest.raises(InterpreterError) as e:
             evaluate_python_code(code)
-        assert "AttributeError:module 'random' has no attribute '_os'" in str(e)
+        assert "AttributeError: module 'random' has no attribute '_os'" in str(e)
 
         code = "import doctest;doctest.inspect.os.system('echo bad command passed')"
         with pytest.raises(InterpreterError):
@@ -972,6 +993,10 @@ texec(tcompile("1 + 1", "no filename", "exec"))
     def test_can_import_os_if_explicitly_authorized(self):
         dangerous_code = "import os; os.listdir('./')"
         evaluate_python_code(dangerous_code, authorized_imports=["os"])
+
+    def test_can_import_os_if_all_imports_authorized(self):
+        dangerous_code = "import os; os.listdir('./')"
+        evaluate_python_code(dangerous_code, authorized_imports=["*"])
 
 
 @pytest.mark.parametrize(
@@ -1090,6 +1115,194 @@ def test_evaluate_augassign_custom(operator, expected_result):
     assert result == expected_result
 
 
+@pytest.mark.parametrize(
+    "code, expected_error_message",
+    [
+        (
+            dedent("""\
+                x = 5
+                del x
+                x
+            """),
+            "The variable `x` is not defined",
+        ),
+        (
+            dedent("""\
+                x = [1, 2, 3]
+                del x[2]
+                x[2]
+            """),
+            "Index 2 out of bounds for list of length 2",
+        ),
+        (
+            dedent("""\
+                x = {"key": "value"}
+                del x["key"]
+                x["key"]
+            """),
+            "Could not index {} with 'key'",
+        ),
+        (
+            dedent("""\
+                del x
+            """),
+            "Cannot delete name 'x': name is not defined",
+        ),
+    ],
+)
+def test_evaluate_python_code_with_evaluate_delete(code, expected_error_message):
+    state = {}
+    with pytest.raises(InterpreterError) as exception_info:
+        evaluate_python_code(code, {}, state=state)
+    assert expected_error_message in str(exception_info.value)
+
+
+@pytest.mark.parametrize(
+    "code, state, expectation",
+    [
+        ("del x", {"x": 1}, {}),
+        ("del x[1]", {"x": [1, 2, 3]}, {"x": [1, 3]}),
+        ("del x['key']", {"x": {"key": "value"}}, {"x": {}}),
+        ("del x", {}, InterpreterError("Cannot delete name 'x': name is not defined")),
+    ],
+)
+def test_evaluate_delete(code, state, expectation):
+    delete_node = ast.parse(code).body[0]
+    if isinstance(expectation, Exception):
+        with pytest.raises(type(expectation)) as exception_info:
+            evaluate_delete(delete_node, state, {}, {}, [])
+        assert str(expectation) in str(exception_info.value)
+    else:
+        evaluate_delete(delete_node, state, {}, {}, [])
+        _ = state.pop("_operations_count", None)
+        assert state == expectation
+
+
+@pytest.mark.parametrize(
+    "condition, state, expected_result",
+    [
+        ("a == b", {"a": 1, "b": 1}, True),
+        ("a == b", {"a": 1, "b": 2}, False),
+        ("a != b", {"a": 1, "b": 1}, False),
+        ("a != b", {"a": 1, "b": 2}, True),
+        ("a < b", {"a": 1, "b": 1}, False),
+        ("a < b", {"a": 1, "b": 2}, True),
+        ("a < b", {"a": 2, "b": 1}, False),
+        ("a <= b", {"a": 1, "b": 1}, True),
+        ("a <= b", {"a": 1, "b": 2}, True),
+        ("a <= b", {"a": 2, "b": 1}, False),
+        ("a > b", {"a": 1, "b": 1}, False),
+        ("a > b", {"a": 1, "b": 2}, False),
+        ("a > b", {"a": 2, "b": 1}, True),
+        ("a >= b", {"a": 1, "b": 1}, True),
+        ("a >= b", {"a": 1, "b": 2}, False),
+        ("a >= b", {"a": 2, "b": 1}, True),
+        ("a is b", {"a": 1, "b": 1}, True),
+        ("a is b", {"a": 1, "b": 2}, False),
+        ("a is not b", {"a": 1, "b": 1}, False),
+        ("a is not b", {"a": 1, "b": 2}, True),
+        ("a in b", {"a": 1, "b": [1, 2, 3]}, True),
+        ("a in b", {"a": 4, "b": [1, 2, 3]}, False),
+        ("a not in b", {"a": 1, "b": [1, 2, 3]}, False),
+        ("a not in b", {"a": 4, "b": [1, 2, 3]}, True),
+        # Chained conditions:
+        ("a == b == c", {"a": 1, "b": 1, "c": 1}, True),
+        ("a == b == c", {"a": 1, "b": 2, "c": 1}, False),
+        ("a == b < c", {"a": 2, "b": 2, "c": 2}, False),
+        ("a == b < c", {"a": 0, "b": 0, "c": 1}, True),
+    ],
+)
+def test_evaluate_condition(condition, state, expected_result):
+    condition_ast = ast.parse(condition, mode="eval").body
+    result = evaluate_condition(condition_ast, state, {}, {}, [])
+    assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "condition, state, expected_result",
+    [
+        ("a == b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, True, False])),
+        ("a != b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, False, True])),
+        ("a < b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, False, False])),
+        ("a <= b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, True, False])),
+        ("a > b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, False, True])),
+        ("a >= b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, True, True])),
+        (
+            "a == b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [1, 2], "y": [3, 5]})},
+            pd.DataFrame({"x": [True, True], "y": [True, False]}),
+        ),
+        (
+            "a != b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [1, 2], "y": [3, 5]})},
+            pd.DataFrame({"x": [False, False], "y": [False, True]}),
+        ),
+        (
+            "a < b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+            pd.DataFrame({"x": [True, False], "y": [False, False]}),
+        ),
+        (
+            "a <= b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+            pd.DataFrame({"x": [True, True], "y": [False, False]}),
+        ),
+        (
+            "a > b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+            pd.DataFrame({"x": [False, False], "y": [True, True]}),
+        ),
+        (
+            "a >= b",
+            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+            pd.DataFrame({"x": [False, True], "y": [True, True]}),
+        ),
+    ],
+)
+def test_evaluate_condition_with_pandas(condition, state, expected_result):
+    condition_ast = ast.parse(condition, mode="eval").body
+    result = evaluate_condition(condition_ast, state, {}, {}, [])
+    if isinstance(result, pd.Series):
+        pd.testing.assert_series_equal(result, expected_result)
+    else:
+        pd.testing.assert_frame_equal(result, expected_result)
+
+
+@pytest.mark.parametrize(
+    "condition, state, expected_exception",
+    [
+        # Chained conditions:
+        (
+            "a == b == c",
+            {
+                "a": pd.Series([1, 2, 3]),
+                "b": pd.Series([2, 2, 2]),
+                "c": pd.Series([3, 3, 3]),
+            },
+            ValueError(
+                "The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+            ),
+        ),
+        (
+            "a == b == c",
+            {
+                "a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+                "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]}),
+                "c": pd.DataFrame({"x": [3, 3], "y": [3, 3]}),
+            },
+            ValueError(
+                "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+            ),
+        ),
+    ],
+)
+def test_evaluate_condition_with_pandas_exceptions(condition, state, expected_exception):
+    condition_ast = ast.parse(condition, mode="eval").body
+    with pytest.raises(type(expected_exception)) as exception_info:
+        _ = evaluate_condition(condition_ast, state, {}, {}, [])
+    assert str(expected_exception) in str(exception_info.value)
+
+
 def test_get_safe_module_handle_lazy_imports():
     class FakeModule(types.ModuleType):
         def __init__(self, name):
@@ -1105,9 +1318,34 @@ def test_get_safe_module_handle_lazy_imports():
             return super().__dir__() + ["lazy_attribute"]
 
     fake_module = FakeModule("fake_module")
-    safe_module = get_safe_module(fake_module, dangerous_patterns=[], authorized_imports=set())
+    safe_module = get_safe_module(fake_module, authorized_imports=set())
     assert not hasattr(safe_module, "lazy_attribute")
     assert getattr(safe_module, "non_lazy_attribute") == "ok"
+
+
+def test_non_standard_comparisons():
+    code = dedent("""\
+        class NonStdEqualsResult:
+            def __init__(self, left:object, right:object):
+                self._left = left
+                self._right = right
+            def __str__(self) -> str:
+                return f'{self._left} == {self._right}'
+
+        class NonStdComparisonClass:
+            def __init__(self, value: str ):
+                self._value = value
+            def __str__(self):
+                return self._value
+            def __eq__(self, other):
+                return NonStdEqualsResult(self, other)
+        a = NonStdComparisonClass("a")
+        b = NonStdComparisonClass("b")
+        result = a == b
+        """)
+    result, _ = evaluate_python_code(code, state={})
+    assert not isinstance(result, bool)
+    assert str(result) == "a == b"
 
 
 class TestPrintContainer:
@@ -1139,3 +1377,20 @@ class TestPrintContainer:
         pc = PrintContainer()
         pc.append("Hello")
         assert len(pc) == 5
+
+
+@pytest.mark.parametrize(
+    "module,authorized_imports,expected",
+    [
+        ("os", ["*"], True),
+        ("AnyModule", ["*"], True),
+        ("os", ["os"], True),
+        ("AnyModule", ["AnyModule"], True),
+        ("Module.os", ["Module"], False),
+        ("Module.os", ["Module", "os"], True),
+        ("os.path", ["os"], True),
+        ("os", ["os.path"], False),
+    ],
+)
+def test_check_module_authorized(module: str, authorized_imports: list[str], expected: bool):
+    assert check_module_authorized(module, authorized_imports) == expected

@@ -85,7 +85,7 @@ BASE_PYTHON_TOOLS = {
     "atan2": math.atan2,
     "degrees": math.degrees,
     "radians": math.radians,
-    "pow": math.pow,
+    "pow": pow,
     "sqrt": math.sqrt,
     "len": len,
     "sum": sum,
@@ -113,6 +113,26 @@ BASE_PYTHON_TOOLS = {
     "type": type,
     "complex": complex,
 }
+
+DANGEROUS_PATTERNS = (
+    "_os",
+    "os",
+    "subprocess",
+    "_subprocess",
+    "pty",
+    "system",
+    "popen",
+    "spawn",
+    "shutil",
+    "sys",
+    "pathlib",
+    "io",
+    "socket",
+    "compile",
+    "eval",
+    "exec",
+    "multiprocessing",
+)
 
 
 class PrintContainer:
@@ -713,47 +733,40 @@ def evaluate_condition(
     static_tools: Dict[str, Callable],
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
-) -> bool:
-    left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
-    comparators = [
-        evaluate_ast(c, state, static_tools, custom_tools, authorized_imports) for c in condition.comparators
-    ]
-    ops = [type(op) for op in condition.ops]
-
+) -> bool | object:
     result = True
-    current_left = left
-
-    for op, comparator in zip(ops, comparators):
+    left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
+    for i, (op, comparator) in enumerate(zip(condition.ops, condition.comparators)):
+        op = type(op)
+        right = evaluate_ast(comparator, state, static_tools, custom_tools, authorized_imports)
         if op == ast.Eq:
-            current_result = current_left == comparator
+            current_result = left == right
         elif op == ast.NotEq:
-            current_result = current_left != comparator
+            current_result = left != right
         elif op == ast.Lt:
-            current_result = current_left < comparator
+            current_result = left < right
         elif op == ast.LtE:
-            current_result = current_left <= comparator
+            current_result = left <= right
         elif op == ast.Gt:
-            current_result = current_left > comparator
+            current_result = left > right
         elif op == ast.GtE:
-            current_result = current_left >= comparator
+            current_result = left >= right
         elif op == ast.Is:
-            current_result = current_left is comparator
+            current_result = left is right
         elif op == ast.IsNot:
-            current_result = current_left is not comparator
+            current_result = left is not right
         elif op == ast.In:
-            current_result = current_left in comparator
+            current_result = left in right
         elif op == ast.NotIn:
-            current_result = current_left not in comparator
+            current_result = left not in right
         else:
-            raise InterpreterError(f"Operator not supported: {op}")
+            raise InterpreterError(f"Unsupported comparison operator: {op}")
 
-        result = result & current_result
-        current_left = comparator
-
-        if isinstance(result, bool) and not result:
-            break
-
-    return result if isinstance(result, (bool, pd.Series)) else result.all()
+        if current_result is False:
+            return False
+        result = current_result if i == 0 else (result and current_result)
+        left = right
+    return result
 
 
 def evaluate_if(
@@ -961,7 +974,7 @@ def evaluate_with(
             context.__exit__(None, None, None)
 
 
-def get_safe_module(raw_module, dangerous_patterns, authorized_imports, visited=None):
+def get_safe_module(raw_module, authorized_imports, visited=None):
     """Creates a safe copy of a module or returns the original if it's a function"""
     # If it's a function or non-module object, return it directly
     if not isinstance(raw_module, ModuleType):
@@ -984,8 +997,9 @@ def get_safe_module(raw_module, dangerous_patterns, authorized_imports, visited=
     for attr_name in dir(raw_module):
         # Skip dangerous patterns at any level
         if any(
-            pattern in raw_module.__name__.split(".") + [attr_name] and pattern not in authorized_imports
-            for pattern in dangerous_patterns
+            pattern in raw_module.__name__.split(".") + [attr_name]
+            and not check_module_authorized(pattern, authorized_imports)
+            for pattern in DANGEROUS_PATTERNS
         ):
             logger.info(f"Skipping dangerous attribute {raw_module.__name__}.{attr_name}")
             continue
@@ -1000,58 +1014,40 @@ def get_safe_module(raw_module, dangerous_patterns, authorized_imports, visited=
             continue
         # Recursively process nested modules, passing visited set
         if isinstance(attr_value, ModuleType):
-            attr_value = get_safe_module(attr_value, dangerous_patterns, authorized_imports, visited=visited)
+            attr_value = get_safe_module(attr_value, authorized_imports, visited=visited)
 
         setattr(safe_module, attr_name, attr_value)
 
     return safe_module
 
 
+def check_module_authorized(module_name, authorized_imports):
+    if "*" in authorized_imports:
+        return True
+    else:
+        module_path = module_name.split(".")
+        if any([module in DANGEROUS_PATTERNS and module not in authorized_imports for module in module_path]):
+            return False
+        # ["A", "B", "C"] -> ["A", "A.B", "A.B.C"]
+        module_subpaths = [".".join(module_path[:i]) for i in range(1, len(module_path) + 1)]
+        return any(subpath in authorized_imports for subpath in module_subpaths)
+
+
 def import_modules(expression, state, authorized_imports):
-    dangerous_patterns = (
-        "_os",
-        "os",
-        "subprocess",
-        "_subprocess",
-        "pty",
-        "system",
-        "popen",
-        "spawn",
-        "shutil",
-        "sys",
-        "pathlib",
-        "io",
-        "socket",
-        "compile",
-        "eval",
-        "exec",
-        "multiprocessing",
-    )
-
-    def check_module_authorized(module_name):
-        if "*" in authorized_imports:
-            return True
-        else:
-            module_path = module_name.split(".")
-            if any([module in dangerous_patterns and module not in authorized_imports for module in module_path]):
-                return False
-            module_subpaths = [".".join(module_path[:i]) for i in range(1, len(module_path) + 1)]
-            return any(subpath in authorized_imports for subpath in module_subpaths)
-
     if isinstance(expression, ast.Import):
         for alias in expression.names:
-            if check_module_authorized(alias.name):
+            if check_module_authorized(alias.name, authorized_imports):
                 raw_module = import_module(alias.name)
-                state[alias.asname or alias.name] = get_safe_module(raw_module, dangerous_patterns, authorized_imports)
+                state[alias.asname or alias.name] = get_safe_module(raw_module, authorized_imports)
             else:
                 raise InterpreterError(
                     f"Import of {alias.name} is not allowed. Authorized imports are: {str(authorized_imports)}"
                 )
         return None
     elif isinstance(expression, ast.ImportFrom):
-        if check_module_authorized(expression.module):
+        if check_module_authorized(expression.module, authorized_imports):
             raw_module = __import__(expression.module, fromlist=[alias.name for alias in expression.names])
-            module = get_safe_module(raw_module, dangerous_patterns, authorized_imports)
+            module = get_safe_module(raw_module, authorized_imports)
             if expression.names[0].name == "*":  # Handle "from module import *"
                 if hasattr(module, "__all__"):  # If module has __all__, import only those names
                     for name in module.__all__:
@@ -1178,131 +1174,124 @@ def evaluate_ast(
             The list of modules that can be imported by the code. By default, only a few safe modules are allowed.
             If it contains "*", it will authorize any import. Use this at your own risk!
     """
-    if state["_operations_count"] >= MAX_OPERATIONS:
+    if state.setdefault("_operations_count", 0) >= MAX_OPERATIONS:
         raise InterpreterError(
             f"Reached the max number of operations of {MAX_OPERATIONS}. Maybe there is an infinite loop somewhere in the code, or you're just asking too many calculations."
         )
     state["_operations_count"] += 1
+    common_params = (state, static_tools, custom_tools, authorized_imports)
     if isinstance(expression, ast.Assign):
         # Assignment -> we evaluate the assignment which should update the state
         # We return the variable assigned as it may be used to determine the final result.
-        return evaluate_assign(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_assign(expression, *common_params)
     elif isinstance(expression, ast.AugAssign):
-        return evaluate_augassign(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_augassign(expression, *common_params)
     elif isinstance(expression, ast.Call):
         # Function call -> we return the value of the function call
-        return evaluate_call(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_call(expression, *common_params)
     elif isinstance(expression, ast.Constant):
         # Constant -> just return the value
         return expression.value
     elif isinstance(expression, ast.Tuple):
-        return tuple(
-            evaluate_ast(elt, state, static_tools, custom_tools, authorized_imports) for elt in expression.elts
-        )
+        return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
     elif isinstance(expression, (ast.ListComp, ast.GeneratorExp)):
-        return evaluate_listcomp(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_listcomp(expression, *common_params)
     elif isinstance(expression, ast.UnaryOp):
-        return evaluate_unaryop(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_unaryop(expression, *common_params)
     elif isinstance(expression, ast.Starred):
-        return evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_ast(expression.value, *common_params)
     elif isinstance(expression, ast.BoolOp):
         # Boolean operation -> evaluate the operation
-        return evaluate_boolop(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_boolop(expression, *common_params)
     elif isinstance(expression, ast.Break):
         raise BreakException()
     elif isinstance(expression, ast.Continue):
         raise ContinueException()
     elif isinstance(expression, ast.BinOp):
         # Binary operation -> execute operation
-        return evaluate_binop(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_binop(expression, *common_params)
     elif isinstance(expression, ast.Compare):
         # Comparison -> evaluate the comparison
-        return evaluate_condition(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_condition(expression, *common_params)
     elif isinstance(expression, ast.Lambda):
-        return evaluate_lambda(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_lambda(expression, *common_params)
     elif isinstance(expression, ast.FunctionDef):
-        return evaluate_function_def(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_function_def(expression, *common_params)
     elif isinstance(expression, ast.Dict):
         # Dict -> evaluate all keys and values
-        keys = [evaluate_ast(k, state, static_tools, custom_tools, authorized_imports) for k in expression.keys]
-        values = [evaluate_ast(v, state, static_tools, custom_tools, authorized_imports) for v in expression.values]
+        keys = (evaluate_ast(k, *common_params) for k in expression.keys)
+        values = (evaluate_ast(v, *common_params) for v in expression.values)
         return dict(zip(keys, values))
     elif isinstance(expression, ast.Expr):
         # Expression -> evaluate the content
-        return evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_ast(expression.value, *common_params)
     elif isinstance(expression, ast.For):
         # For loop -> execute the loop
-        return evaluate_for(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_for(expression, *common_params)
     elif isinstance(expression, ast.FormattedValue):
-        # Formatted value (part of f-string) -> evaluate the content and return
-        return evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+        # Formatted value (part of f-string) -> evaluate the content and format it
+        value = evaluate_ast(expression.value, *common_params)
+        # Early return if no format spec
+        if not expression.format_spec:
+            return value
+        # Apply format specification
+        format_spec = evaluate_ast(expression.format_spec, *common_params)
+        return format(value, format_spec)
     elif isinstance(expression, ast.If):
         # If -> execute the right branch
-        return evaluate_if(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_if(expression, *common_params)
     elif hasattr(ast, "Index") and isinstance(expression, ast.Index):
-        return evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_ast(expression.value, *common_params)
     elif isinstance(expression, ast.JoinedStr):
-        return "".join(
-            [str(evaluate_ast(v, state, static_tools, custom_tools, authorized_imports)) for v in expression.values]
-        )
+        return "".join([str(evaluate_ast(v, *common_params)) for v in expression.values])
     elif isinstance(expression, ast.List):
         # List -> evaluate all elements
-        return [evaluate_ast(elt, state, static_tools, custom_tools, authorized_imports) for elt in expression.elts]
+        return [evaluate_ast(elt, *common_params) for elt in expression.elts]
     elif isinstance(expression, ast.Name):
         # Name -> pick up the value in the state
-        return evaluate_name(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_name(expression, *common_params)
     elif isinstance(expression, ast.Subscript):
         # Subscript -> return the value of the indexing
-        return evaluate_subscript(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_subscript(expression, *common_params)
     elif isinstance(expression, ast.IfExp):
-        test_val = evaluate_ast(expression.test, state, static_tools, custom_tools, authorized_imports)
+        test_val = evaluate_ast(expression.test, *common_params)
         if test_val:
-            return evaluate_ast(expression.body, state, static_tools, custom_tools, authorized_imports)
+            return evaluate_ast(expression.body, *common_params)
         else:
-            return evaluate_ast(expression.orelse, state, static_tools, custom_tools, authorized_imports)
+            return evaluate_ast(expression.orelse, *common_params)
     elif isinstance(expression, ast.Attribute):
-        value = evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+        value = evaluate_ast(expression.value, *common_params)
         return getattr(value, expression.attr)
     elif isinstance(expression, ast.Slice):
         return slice(
-            evaluate_ast(expression.lower, state, static_tools, custom_tools, authorized_imports)
-            if expression.lower is not None
-            else None,
-            evaluate_ast(expression.upper, state, static_tools, custom_tools, authorized_imports)
-            if expression.upper is not None
-            else None,
-            evaluate_ast(expression.step, state, static_tools, custom_tools, authorized_imports)
-            if expression.step is not None
-            else None,
+            evaluate_ast(expression.lower, *common_params) if expression.lower is not None else None,
+            evaluate_ast(expression.upper, *common_params) if expression.upper is not None else None,
+            evaluate_ast(expression.step, *common_params) if expression.step is not None else None,
         )
     elif isinstance(expression, ast.DictComp):
-        return evaluate_dictcomp(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_dictcomp(expression, *common_params)
     elif isinstance(expression, ast.While):
-        return evaluate_while(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_while(expression, *common_params)
     elif isinstance(expression, (ast.Import, ast.ImportFrom)):
         return import_modules(expression, state, authorized_imports)
     elif isinstance(expression, ast.ClassDef):
-        return evaluate_class_def(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_class_def(expression, *common_params)
     elif isinstance(expression, ast.Try):
-        return evaluate_try(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_try(expression, *common_params)
     elif isinstance(expression, ast.Raise):
-        return evaluate_raise(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_raise(expression, *common_params)
     elif isinstance(expression, ast.Assert):
-        return evaluate_assert(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_assert(expression, *common_params)
     elif isinstance(expression, ast.With):
-        return evaluate_with(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_with(expression, *common_params)
     elif isinstance(expression, ast.Set):
-        return {evaluate_ast(elt, state, static_tools, custom_tools, authorized_imports) for elt in expression.elts}
+        return set((evaluate_ast(elt, *common_params) for elt in expression.elts))
     elif isinstance(expression, ast.Return):
-        raise ReturnException(
-            evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
-            if expression.value
-            else None
-        )
+        raise ReturnException(evaluate_ast(expression.value, *common_params) if expression.value else None)
     elif isinstance(expression, ast.Pass):
         return None
     elif isinstance(expression, ast.Delete):
-        return evaluate_delete(expression, state, static_tools, custom_tools, authorized_imports)
+        return evaluate_delete(expression, *common_params)
     else:
         # For now we refuse anything else. Let's add things as we need them.
         raise InterpreterError(f"{expression.__class__.__name__} is not supported.")
@@ -1357,7 +1346,6 @@ def evaluate_python_code(
     custom_tools = custom_tools if custom_tools is not None else {}
     result = None
     state["_print_outputs"] = PrintContainer()
-    state["_operations_count"] = 0
 
     def final_answer(value):
         raise FinalAnswerException(value)
@@ -1379,12 +1367,11 @@ def evaluate_python_code(
         is_final_answer = True
         return e.value, is_final_answer
     except Exception as e:
-        exception_type = type(e).__name__
         state["_print_outputs"].value = truncate_content(
             str(state["_print_outputs"]), max_length=max_print_outputs_length
         )
         raise InterpreterError(
-            f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {exception_type}:{str(e)}"
+            f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
         )
 
 

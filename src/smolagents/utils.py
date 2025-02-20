@@ -20,6 +20,7 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import os
 import re
 import textwrap
 import types
@@ -298,10 +299,12 @@ def instance_to_source(instance, base_cls=None):
 
     for name, value in class_attrs.items():
         if isinstance(value, str):
+            # multiline value
             if "\n" in value:
-                class_lines.append(f'    {name} = """{value}"""')
+                escaped_value = value.replace('"""', r"\"\"\"")  # Escape triple quotes
+                class_lines.append(f'    {name} = """{escaped_value}"""')
             else:
-                class_lines.append(f'    {name} = "{value}"')
+                class_lines.append(f"    {name} = {json.dumps(value)}")
         else:
             class_lines.append(f"    {name} = {repr(value)}")
 
@@ -414,3 +417,10 @@ def encode_image_base64(image):
 
 def make_image_url(base64_image):
     return f"data:image/png;base64,{base64_image}"
+
+
+def make_init_file(folder: str):
+    os.makedirs(folder, exist_ok=True)
+    # Create __init__
+    with open(os.path.join(folder, "__init__.py"), "w"):
+        pass
