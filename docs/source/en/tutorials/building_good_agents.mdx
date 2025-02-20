@@ -243,15 +243,7 @@ So while you can overwrite this system prompt template by passing your custom pr
 Then you can change the system prompt as follows:
 
 ```py
-from smolagents.prompts import CODE_SYSTEM_PROMPT
-
-modified_system_prompt = CODE_SYSTEM_PROMPT + "\nHere you go!" # Change the system prompt here
-
-agent = CodeAgent(
-    tools=[], 
-    model=HfApiModel(), 
-    system_prompt=modified_system_prompt
-)
+agent.prompt_templates["system_prompt"] = agent.prompt_templates["system_prompt"] + "\nHere you go!"
 ```
 
 This also works with the [`ToolCallingAgent`].
