@@ -381,17 +381,6 @@ Here are the rules you should always follow to solve your task:
 Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
 """
 
-OUTLINES_SYSTEM_PROMPT = """
-You are an agent that has access to tools {{tool_names}} to help the user solve their task.
-You should always end the executrion with a `final_answer` tool call.
-All tasks and tools used should be followed by a `final_answer` tool call.
-Below are the descriptions on the tools you have access to:
-{{tool_descriptions}}
-
-
-{{managed_agents_descriptions}}
-"""
-
 
 SYSTEM_PROMPT_FACTS = """Below I will present you a task.
 

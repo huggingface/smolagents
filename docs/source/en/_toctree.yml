@@ -14,6 +14,8 @@
     title: 🛠️ Tools - in-depth guide
   - local: tutorials/secure_code_execution
     title: 🛡️ Secure your code execution with E2B
+  - local: tutorials/memory
+    title: 📚 Manage your agent's memory
 - title: Conceptual guides
   sections:
   - local: conceptual_guides/intro_agents

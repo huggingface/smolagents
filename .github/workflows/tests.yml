@@ -73,9 +73,14 @@ jobs:
           uv run pytest ./tests/test_monitoring.py
         if: ${{ success() || failure() }}
 
-      - name: Python interpreter tests
+      - name: Local Python executor tests
         run: |
-          uv run pytest ./tests/test_python_interpreter.py
+          uv run pytest ./tests/test_local_python_executor.py
+        if: ${{ success() || failure() }}
+
+      - name: E2B executor tests
+        run: |
+          uv run pytest ./tests/test_e2b_executor.py
         if: ${{ success() || failure() }}
 
       - name: Search tests
@@ -88,6 +93,11 @@ jobs:
           uv run pytest ./tests/test_tools.py
         if: ${{ success() || failure() }}
 
+      - name: Tool validation tests
+        run: |
+          uv run pytest ./tests/test_tool_validation.py
+        if: ${{ success() || failure() }}
+
       - name: Types tests
         run: |
           uv run pytest ./tests/test_types.py
@@ -96,6 +106,11 @@ jobs:
       - name: Utils tests
         run: |
           uv run pytest ./tests/test_utils.py
+        if: ${{ success() || failure() }}
+
+      - name: Gradio UI tests
+        run: |
+          uv run pytest ./tests/test_gradio_ui.py
         if: ${{ success() || failure() }}
 
       - name: Function type hints utils tests

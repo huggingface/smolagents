@@ -109,17 +109,17 @@ def test_get_source_standard_function():
 def test_get_source_ipython_errors_empty_cells(ipython_shell):
     test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
     ipython_shell.user_ns["In"] = [""]
-    exec(test_code)
+    ipython_shell.run_cell(test_code, store_history=True)
     with pytest.raises(ValueError, match="No code cells found in IPython session"):
-        get_source(locals()["TestClass"])
+        get_source(ipython_shell.user_ns["TestClass"])
 
 
 def test_get_source_ipython_errors_definition_not_found(ipython_shell):
     test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
     ipython_shell.user_ns["In"] = ["", "print('No class definition here')"]
-    exec(test_code)
+    ipython_shell.run_cell(test_code, store_history=True)
     with pytest.raises(ValueError, match="Could not find source code for TestClass in IPython history"):
-        get_source(locals()["TestClass"])
+        get_source(ipython_shell.user_ns["TestClass"])
 
 
 def test_get_source_ipython_errors_type_error():
@@ -146,11 +146,12 @@ def test_e2e_class_tool_save():
 
     test_tool = TestTool()
     with tempfile.TemporaryDirectory() as tmp_dir:
-        test_tool.save(tmp_dir)
+        test_tool.save(tmp_dir, make_gradio_app=True)
         assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
         assert (
             pathlib.Path(tmp_dir, "tool.py").read_text()
-            == """from smolagents.tools import Tool
+            == """from typing import Any, Optional
+from smolagents.tools import Tool
 import IPython
 
 class TestTool(Tool):
@@ -173,7 +174,6 @@ class TestTool(Tool):
         assert (
             pathlib.Path(tmp_dir, "app.py").read_text()
             == """from smolagents import launch_gradio_demo
-from typing import Optional
 from tool import TestTool
 
 tool = TestTool()
@@ -201,13 +201,14 @@ def test_e2e_ipython_class_tool_save():
                 import IPython  # noqa: F401
 
                 return task
-        TestTool().save("{tmp_dir}")
+        TestTool().save("{tmp_dir}", make_gradio_app=True)
     """)
         assert shell.run_cell(code_blob, store_history=True).success
         assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
         assert (
             pathlib.Path(tmp_dir, "tool.py").read_text()
-            == """from smolagents.tools import Tool
+            == """from typing import Any, Optional
+from smolagents.tools import Tool
 import IPython
 
 class TestTool(Tool):
@@ -230,7 +231,6 @@ class TestTool(Tool):
         assert (
             pathlib.Path(tmp_dir, "app.py").read_text()
             == """from smolagents import launch_gradio_demo
-from typing import Optional
 from tool import TestTool
 
 tool = TestTool()
@@ -254,12 +254,12 @@ def test_e2e_function_tool_save():
         return task
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        test_tool.save(tmp_dir)
+        test_tool.save(tmp_dir, make_gradio_app=True)
         assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
         assert (
             pathlib.Path(tmp_dir, "tool.py").read_text()
             == """from smolagents import Tool
-from typing import Optional
+from typing import Any, Optional
 
 class SimpleTool(Tool):
     name = "test_tool"
@@ -283,7 +283,6 @@ class SimpleTool(Tool):
         assert (
             pathlib.Path(tmp_dir, "app.py").read_text()
             == """from smolagents import launch_gradio_demo
-from typing import Optional
 from tool import SimpleTool
 
 tool = SimpleTool()
@@ -311,14 +310,14 @@ def test_e2e_ipython_function_tool_save():
 
             return task
 
-        test_tool.save("{tmp_dir}")
+        test_tool.save("{tmp_dir}", make_gradio_app=True)
         """)
         assert shell.run_cell(code_blob, store_history=True).success
         assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
         assert (
             pathlib.Path(tmp_dir, "tool.py").read_text()
             == """from smolagents import Tool
-from typing import Optional
+from typing import Any, Optional
 
 class SimpleTool(Tool):
     name = "test_tool"
@@ -342,7 +341,6 @@ class SimpleTool(Tool):
         assert (
             pathlib.Path(tmp_dir, "app.py").read_text()
             == """from smolagents import launch_gradio_demo
-from typing import Optional
 from tool import SimpleTool
 
 tool = SimpleTool()

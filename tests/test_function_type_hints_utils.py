@@ -13,13 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
-from smolagents._function_type_hints_utils import get_json_schema
+import pytest
+
+from smolagents._function_type_hints_utils import get_imports, get_json_schema
 
 
-class AgentTextTests(unittest.TestCase):
-    def test_return_none(self):
+class TestJsonSchema(unittest.TestCase):
+    def test_get_json_schema(self):
         def fn(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
             """
             Test function
@@ -52,3 +54,65 @@ class AgentTextTests(unittest.TestCase):
             schema["function"]["parameters"]["properties"]["y"], expected_schema["parameters"]["properties"]["y"]
         )
         self.assertEqual(schema["function"], expected_schema)
+
+
+class TestGetCode:
+    @pytest.mark.parametrize(
+        "code, expected",
+        [
+            (
+                """
+        import numpy
+        import pandas
+        """,
+                ["numpy", "pandas"],
+            ),
+            # From imports
+            (
+                """
+        from torch import nn
+        from transformers import AutoModel
+        """,
+                ["torch", "transformers"],
+            ),
+            # Mixed case with nested imports
+            (
+                """
+        import numpy as np
+        from torch.nn import Linear
+        import os.path
+        """,
+                ["numpy", "torch", "os"],
+            ),
+            # Try/except block (should be filtered)
+            (
+                """
+        try:
+            import torch
+        except ImportError:
+            pass
+        import numpy
+        """,
+                ["numpy"],
+            ),
+            # Flash attention block (should be filtered)
+            (
+                """
+        if is_flash_attn_2_available():
+            from flash_attn import flash_attn_func
+        import transformers
+        """,
+                ["transformers"],
+            ),
+            # Relative imports (should be excluded)
+            (
+                """
+        from .utils import helper
+        from ..models import transformer
+        """,
+                [],
+            ),
+        ],
+    )
+    def test_get_imports(self, code: str, expected: List[str]):
+        assert sorted(get_imports(code)) == sorted(expected)

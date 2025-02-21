@@ -38,16 +38,19 @@ except ModuleNotFoundError:
 
 class E2BExecutor:
     def __init__(self, additional_imports: List[str], tools: List[Tool], logger):
+        self.logger = logger
         try:
             from e2b_code_interpreter import Sandbox
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 """Please install 'e2b' extra to use E2BExecutor: `pip install "smolagents[e2b]"`"""
             )
+        self.logger = logger
+        self.logger.log("Initializing E2B executor, hold on...")
 
         self.custom_tools = {}
         self.final_answer = False
-        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$")
+        self.final_answer_pattern = re.compile(r"final_answer\((.*?)\)")
         self.sbx = Sandbox()  # "qywp2ctmu2q7jzprcf4j")
         # TODO: validate installing agents package or not
         # print("Installing agents package on remote executor...")
@@ -56,7 +59,6 @@ class E2BExecutor:
         #     timeout=300
         # )
         # print("Installation of agents package finished.")
-        self.logger = logger
         additional_imports = additional_imports + ["smolagents"]
         if len(additional_imports) > 0:
             execution = self.sbx.commands.run("pip install " + " ".join(additional_imports))
@@ -90,7 +92,7 @@ class E2BExecutor:
         self.logger.log(tool_definition_execution.logs)
 
     def run_code_raise_errors(self, code: str):
-        if self.final_answer_pattern.match(code):
+        if self.final_answer_pattern.search(code) is not None:
             self.final_answer = True
         execution = self.sbx.run_code(
             code,
@@ -152,7 +154,9 @@ locals().update({key: value for key, value in pickle_dict.items()})
                     ]:
                         if getattr(result, attribute_name) is not None:
                             return getattr(result, attribute_name), execution_logs, self.final_answer
-            raise ValueError("No main result returned by executor!")
+            if self.final_answer:
+                raise ValueError("No main result returned by executor!")
+            return None, execution_logs, False
 
 
 __all__ = ["E2BExecutor"]
