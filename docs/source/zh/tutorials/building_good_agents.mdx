@@ -242,15 +242,7 @@ Now Begin! If you solve the task correctly, you will receive a reward of $1,000,
 然后你可以根据如下，更改系统提示：
 
 ```py
-from smolagents.prompts import CODE_SYSTEM_PROMPT
-
-modified_system_prompt = CODE_SYSTEM_PROMPT + "\nHere you go!" # 在此更改系统提示
-
-agent = CodeAgent(
-    tools=[], 
-    model=HfApiModel(), 
-    system_prompt=modified_system_prompt
-)
+agent.prompt_templates["system_prompt"] = agent.prompt_templates["system_prompt"] + "\nHere you go!"
 ```
 
 这也适用于 [`ToolCallingAgent`]。

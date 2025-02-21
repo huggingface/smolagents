@@ -633,7 +633,7 @@ def launch_gradio_demo(tool: Tool):
     `inputs` and `output_type`.
 
     Args:
-        tool (`type`): The tool for which to launch the demo.
+        tool (`Tool`): The tool for which to launch the demo.
     """
     try:
         import gradio as gr
@@ -667,14 +667,13 @@ def launch_gradio_demo(tool: Tool):
         inputs=gradio_inputs,
         outputs=gradio_output,
         title=tool.name,
-        article=tool.description,
         description=tool.description,
         api_name=tool.name,
     ).launch()
 
 
 def load_tool(
-    task_or_repo_id,
+    repo_id,
     model_repo_id: Optional[str] = None,
     token: Optional[str] = None,
     trust_remote_code: bool = False,
@@ -692,16 +691,8 @@ def load_tool(
     </Tip>
 
     Args:
-        task_or_repo_id (`str`):
-            The task for which to load the tool or a repo ID of a tool on the Hub. Tasks implemented in Transformers
-            are:
-
-            - `"document_question_answering"`
-            - `"image_question_answering"`
-            - `"speech_to_text"`
-            - `"text_to_speech"`
-            - `"translation"`
-
+        repo_id (`str`):
+            Repo ID of a tool on the Hub.
         model_repo_id (`str`, *optional*):
             Use this argument to use a different model than the default one for the tool you selected.
         token (`str`, *optional*):
@@ -715,7 +706,7 @@ def load_tool(
             will be passed along to its init.
     """
     return Tool.from_hub(
-        task_or_repo_id,
+        repo_id,
         model_repo_id=model_repo_id,
         token=token,
         trust_remote_code=trust_remote_code,

@@ -65,26 +65,38 @@ def parse_arguments(description):
         default=1,
         help="The verbosity level, as an int in [0, 1, 2].",
     )
+    group = parser.add_argument_group("api options", "Options for API-based model types")
+    group.add_argument(
+        "--api-base",
+        type=str,
+        help="The base URL for the model",
+    )
+    group.add_argument(
+        "--api-key",
+        type=str,
+        help="The API key for the model",
+    )
     return parser.parse_args()
 
 
-def load_model(model_type: str, model_id: str) -> Model:
+def load_model(model_type: str, model_id: str, api_base: str | None, api_key: str | None) -> Model:
     if model_type == "OpenAIServerModel":
         return OpenAIServerModel(
-            api_key=os.getenv("FIREWORKS_API_KEY"),
-            api_base="https://api.fireworks.ai/inference/v1",
+            api_key=api_key or os.getenv("FIREWORKS_API_KEY"),
+            api_base=api_base or "https://api.fireworks.ai/inference/v1",
             model_id=model_id,
         )
     elif model_type == "LiteLLMModel":
         return LiteLLMModel(
             model_id=model_id,
-            api_key=os.getenv("OPENAI_API_KEY"),
+            api_key=api_key or os.getenv("OPENAI_API_KEY"),
+            api_base=api_base,
         )
     elif model_type == "TransformersModel":
         return TransformersModel(model_id=model_id, device_map="auto", flatten_messages_as_text=False)
     elif model_type == "HfApiModel":
         return HfApiModel(
-            token=os.getenv("HF_API_KEY"),
+            token=api_key or os.getenv("HF_API_KEY"),
             model_id=model_id,
         )
     else:
@@ -96,7 +108,7 @@ def main():
 
     args = parse_arguments(description="Run a CodeAgent with all specified parameters")
 
-    model = load_model(args.model_type, args.model_id)
+    model = load_model(args.model_type, args.model_id, args.api_base, args.api_key)
 
     available_tools = []
     for tool_name in args.tools:
