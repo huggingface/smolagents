@@ -68,14 +68,12 @@ def parse_arguments(description):
     parser.add_argument(
         "--base-url",
         type=str,
-        default="https://api.fireworks.ai/inference/v1",
-        help="The base URL for the OpenAI server model",
+        help="The base URL for the model",
     )
     parser.add_argument(
         "--api-key",
         type=str,
-        default=os.getenv("FIREWORKS_API_KEY"),
-        help="The API key for the OpenAI server model",
+        help="The API key for the model",
     )
     return parser.parse_args()
 
@@ -83,20 +81,17 @@ def parse_arguments(description):
 def load_model(model_type: str, model_id: str, api_base: str, api_key: str) -> Model:
     if model_type == "OpenAIServerModel":
         return OpenAIServerModel(
-            api_key=api_key,
-            api_base=api_base,
+            api_key=api_key or os.getenv("FIREWORKS_API_KEY"),
+            api_base=api_base or "https://api.fireworks.ai/inference/v1",
             model_id=model_id,
         )
     elif model_type == "LiteLLMModel":
-        return LiteLLMModel(
-            model_id=model_id,
-            api_key=os.getenv("OPENAI_API_KEY"),
-        )
+        return LiteLLMModel(model_id=model_id, api_key=api_key or os.getenv("OPENAI_API_KEY"), api_base=api_base)
     elif model_type == "TransformersModel":
         return TransformersModel(model_id=model_id, device_map="auto", flatten_messages_as_text=False)
     elif model_type == "HfApiModel":
         return HfApiModel(
-            token=os.getenv("HF_API_KEY"),
+            token=api_key or os.getenv("HF_API_KEY"),
             model_id=model_id,
         )
     else:
