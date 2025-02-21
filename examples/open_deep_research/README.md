@@ -20,3 +20,9 @@ Then you're good to go! Run the run.py script, as in:
 ```bash
 python run.py --model-id "o1" "Your question here!"
 ```
+
+Note that for running the `run.py` and `run_gaia.py` you need to set the following variables properly:
+```bash
+export SERPAPI_API_KEY="YOUR_API_KEY"
+export HF_TOKEN="YOUR_API_KEY" # for downloading GAIA benchmark
+```
