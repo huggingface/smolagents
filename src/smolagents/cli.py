@@ -78,7 +78,7 @@ def parse_arguments(description):
     return parser.parse_args()
 
 
-def load_model(model_type: str, model_id: str, api_base: str, api_key: str) -> Model:
+def load_model(model_type: str, model_id: str, api_base: str | None, api_key: str | None) -> Model:
     if model_type == "OpenAIServerModel":
         return OpenAIServerModel(
             api_key=api_key or os.getenv("FIREWORKS_API_KEY"),
@@ -86,7 +86,11 @@ def load_model(model_type: str, model_id: str, api_base: str, api_key: str) -> M
             model_id=model_id,
         )
     elif model_type == "LiteLLMModel":
-        return LiteLLMModel(model_id=model_id, api_key=api_key or os.getenv("OPENAI_API_KEY"), api_base=api_base)
+        return LiteLLMModel(
+            model_id=model_id,
+            api_key=api_key or os.getenv("OPENAI_API_KEY"),
+            api_base=api_base,
+        )
     elif model_type == "TransformersModel":
         return TransformersModel(model_id=model_id, device_map="auto", flatten_messages_as_text=False)
     elif model_type == "HfApiModel":
