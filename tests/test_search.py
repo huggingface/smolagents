@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import unittest
+
+import pytest
 
 from smolagents import DuckDuckGoSearchTool
 
@@ -25,6 +28,7 @@ class DuckDuckGoSearchToolTester(unittest.TestCase, ToolTesterMixin):
         self.tool = DuckDuckGoSearchTool()
         self.tool.setup()
 
+    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
     def test_exact_match_arg(self):
         result = self.tool("Agents")
         assert isinstance(result, str)

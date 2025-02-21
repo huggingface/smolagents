@@ -228,7 +228,7 @@ args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOT
 args_split_re = re.compile(
     r"""
 (?:^|\n)  # Match the start of the args block, or a newline
-\s*(\w+):\s*  # Capture the argument name and strip spacing
+\s*(\w+)\s*(?:\([^)]*\))?:\s*  # Capture the argument name (ignore the type) and strip spacing
 (.*?)\s*  # Capture the argument description, which can span multiple lines, and strip trailing spacing
 (?=\n\s*\w+:|\Z)  # Stop when you hit the next argument or the end of the block
 """,
