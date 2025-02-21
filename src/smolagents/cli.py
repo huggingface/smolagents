@@ -66,7 +66,7 @@ def parse_arguments(description):
         help="The verbosity level, as an int in [0, 1, 2].",
     )
     parser.add_argument(
-        "--base-url",
+        "--api-base",
         type=str,
         help="The base URL for the model",
     )
@@ -107,7 +107,7 @@ def main():
 
     args = parse_arguments(description="Run a CodeAgent with all specified parameters")
 
-    model = load_model(args.model_type, args.model_id, args.base_url, args.api_key)
+    model = load_model(args.model_type, args.model_id, args.api_base, args.api_key)
 
     available_tools = []
     for tool_name in args.tools:
