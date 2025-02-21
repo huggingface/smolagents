@@ -34,6 +34,11 @@ jobs:
       # Run all tests separately for individual feedback
       # Use 'if success() || failure()' so that all tests are run even if one failed
       # See https://stackoverflow.com/a/62112985
+      - name: Import tests
+        run: |
+          uv run pytest ./tests/test_import.py
+        if: ${{ success() || failure() }}
+
       - name: Agent tests
         run: |
           uv run pytest ./tests/test_agents.py
@@ -58,14 +63,24 @@ jobs:
           uv run pytest ./tests/test_models.py
         if: ${{ success() || failure() }}
 
+      - name: Memory tests
+        run: |
+          uv run pytest ./tests/test_memory.py
+        if: ${{ success() || failure() }}
+
       - name: Monitoring tests
         run: |
           uv run pytest ./tests/test_monitoring.py
         if: ${{ success() || failure() }}
 
-      - name: Python interpreter tests
+      - name: Local Python executor tests
         run: |
-          uv run pytest ./tests/test_python_interpreter.py
+          uv run pytest ./tests/test_local_python_executor.py
+        if: ${{ success() || failure() }}
+
+      - name: E2B executor tests
+        run: |
+          uv run pytest ./tests/test_e2b_executor.py
         if: ${{ success() || failure() }}
 
       - name: Search tests
@@ -78,6 +93,11 @@ jobs:
           uv run pytest ./tests/test_tools.py
         if: ${{ success() || failure() }}
 
+      - name: Tool validation tests
+        run: |
+          uv run pytest ./tests/test_tool_validation.py
+        if: ${{ success() || failure() }}
+
       - name: Types tests
         run: |
           uv run pytest ./tests/test_types.py
@@ -86,6 +106,11 @@ jobs:
       - name: Utils tests
         run: |
           uv run pytest ./tests/test_utils.py
+        if: ${{ success() || failure() }}
+
+      - name: Gradio UI tests
+        run: |
+          uv run pytest ./tests/test_gradio_ui.py
         if: ${{ success() || failure() }}
 
       - name: Function type hints utils tests

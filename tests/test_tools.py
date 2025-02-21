@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import tempfile
 import unittest
 from pathlib import Path
 from textwrap import dedent
@@ -25,8 +27,8 @@ import torch
 from transformers import is_torch_available, is_vision_available
 from transformers.testing_utils import get_tests_dir
 
+from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
-from smolagents.types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
 
 
 if is_torch_available():
@@ -214,8 +216,9 @@ class ToolTests(unittest.TestCase):
 
                 return str(datetime.now())
 
-    def test_saving_tool_allows_no_arg_in_init(self):
-        # Test one cannot save tool with additional args in init
+    def test_tool_to_dict_allows_no_arg_in_init(self):
+        """Test that a tool cannot be saved with required args in init"""
+
         class FailTool(Tool):
             name = "specific"
             description = "test description"
@@ -224,15 +227,31 @@ class ToolTests(unittest.TestCase):
 
             def __init__(self, url):
                 super().__init__(self)
-                self.url = "none"
+                self.url = url
 
             def forward(self, string_input: str) -> str:
                 return self.url + string_input
 
         fail_tool = FailTool("dummy_url")
         with pytest.raises(Exception) as e:
-            fail_tool.save("output")
-        assert "__init__" in str(e)
+            fail_tool.to_dict()
+        assert "Parameters in __init__ must have default values, found required parameters" in str(e)
+
+        class PassTool(Tool):
+            name = "specific"
+            description = "test description"
+            inputs = {"string_input": {"type": "string", "description": "input description"}}
+            output_type = "string"
+
+            def __init__(self, url: Optional[str] = "none"):
+                super().__init__(self)
+                self.url = url
+
+            def forward(self, string_input: str) -> str:
+                return self.url + string_input
+
+        fail_tool = PassTool()
+        fail_tool.to_dict()
 
     def test_saving_tool_allows_no_imports_from_outside_methods(self):
         # Test that using imports from outside functions fails
@@ -399,7 +418,10 @@ class ToolTests(unittest.TestCase):
             """
             return
 
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            get_weather.save(tmp_dir)
         assert get_weather.inputs["location"]["type"] == "any"
+        assert get_weather.output_type == "null"
 
     def test_tool_supports_array(self):
         @tool
@@ -415,6 +437,46 @@ class ToolTests(unittest.TestCase):
 
         assert get_weather.inputs["locations"]["type"] == "array"
         assert get_weather.inputs["months"]["type"] == "array"
+
+    def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self):
+        @tool
+        def get_weather(location: Any) -> None:
+            """
+            Get weather in the next days at given location.
+            And works pretty well.
+
+            Args:
+                location: The location to get the weather for.
+            """
+            return
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            get_weather.save(tmp_dir)
+            with open(os.path.join(tmp_dir, "tool.py"), "r", encoding="utf-8") as f:
+                source_code = f.read()
+                compile(source_code, f.name, "exec")
+
+    def test_saving_tool_produces_valid_python_code_with_complex_name(self):
+        # Test one cannot save tool with additional args in init
+        class FailTool(Tool):
+            name = 'spe"\rcific'
+            description = """test \n\r
+            description"""
+            inputs = {"string_input": {"type": "string", "description": "input description"}}
+            output_type = "string"
+
+            def __init__(self):
+                super().__init__(self)
+
+            def forward(self, string_input):
+                return "foo"
+
+        fail_tool = FailTool()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fail_tool.save(tmp_dir)
+            with open(os.path.join(tmp_dir, "tool.py"), "r", encoding="utf-8") as f:
+                source_code = f.read()
+                compile(source_code, f.name, "exec")
 
 
 @pytest.fixture

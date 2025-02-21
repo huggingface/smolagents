@@ -24,7 +24,6 @@ TODO: move them to `huggingface_hub` to avoid code duplication.
 
 import inspect
 import json
-import os
 import re
 import types
 from copy import copy
@@ -46,34 +45,31 @@ from huggingface_hub.utils import is_torch_available
 from .utils import _is_pillow_available
 
 
-def get_imports(filename: Union[str, os.PathLike]) -> List[str]:
+def get_imports(code: str) -> List[str]:
     """
-    Extracts all the libraries (not relative imports this time) that are imported in a file.
+    Extracts all the libraries (not relative imports) that are imported in a code.
 
     Args:
-        filename (`str` or `os.PathLike`): The module file to inspect.
+        code (`str`): Code text to inspect.
 
     Returns:
-        `List[str]`: The list of all packages required to use the input module.
+        `list[str]`: List of all packages required to use the input code.
     """
-    with open(filename, "r", encoding="utf-8") as f:
-        content = f.read()
-
     # filter out try/except block so in custom code we can have try/except imports
-    content = re.sub(r"\s*try\s*:.*?except.*?:", "", content, flags=re.DOTALL)
+    code = re.sub(r"\s*try\s*:.*?except.*?:", "", code, flags=re.DOTALL)
 
     # filter out imports under is_flash_attn_2_available block for avoid import issues in cpu only environment
-    content = re.sub(
+    code = re.sub(
         r"if is_flash_attn[a-zA-Z0-9_]+available\(\):\s*(from flash_attn\s*.*\s*)+",
         "",
-        content,
+        code,
         flags=re.MULTILINE,
     )
 
-    # Imports of the form `import xxx`
-    imports = re.findall(r"^\s*import\s+(\S+)\s*$", content, flags=re.MULTILINE)
+    # Imports of the form `import xxx` or `import xxx as yyy`
+    imports = re.findall(r"^\s*import\s+(\S+?)(?:\s+as\s+\S+)?\s*$", code, flags=re.MULTILINE)
     # Imports of the form `from xxx import yyy`
-    imports += re.findall(r"^\s*from\s+(\S+)\s+import", content, flags=re.MULTILINE)
+    imports += re.findall(r"^\s*from\s+(\S+)\s+import", code, flags=re.MULTILINE)
     # Only keep the top-level module
     imports = [imp.split(".")[0] for imp in imports if not imp.startswith(".")]
     return list(set(imports))
@@ -232,7 +228,7 @@ args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOT
 args_split_re = re.compile(
     r"""
 (?:^|\n)  # Match the start of the args block, or a newline
-\s*(\w+):\s*  # Capture the argument name and strip spacing
+\s*(\w+)\s*(?:\([^)]*\))?:\s*  # Capture the argument name (ignore the type) and strip spacing
 (.*?)\s*  # Capture the argument description, which can span multiple lines, and strip trailing spacing
 (?=\n\s*\w+:|\Z)  # Stop when you hit the next argument or the end of the block
 """,

@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import ast
-import importlib
 import inspect
 import json
 import logging
@@ -23,8 +22,9 @@ import os
 import sys
 import tempfile
 import textwrap
+import types
 from contextlib import contextmanager
-from functools import lru_cache, wraps
+from functools import wraps
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -36,7 +36,6 @@ from huggingface_hub import (
     upload_folder,
 )
 from huggingface_hub.utils import is_torch_available
-from packaging import version
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
@@ -44,8 +43,8 @@ from ._function_type_hints_utils import (
     get_imports,
     get_json_schema,
 )
+from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .types import handle_agent_input_types, handle_agent_output_types
 from .utils import _is_package_available, _is_pillow_available, get_source, instance_to_source
 
 
@@ -200,24 +199,9 @@ class Tool:
         """
         self.is_initialized = True
 
-    def save(self, output_dir):
-        """
-        Saves the relevant code files for your tool so it can be pushed to the Hub. This will copy the code of your
-        tool in `output_dir` as well as autogenerate:
-
-        - a `tool.py` file containing the logic for your tool.
-        - an `app.py` file providing an UI for your tool when it is exported to a Space with `tool.push_to_hub()`
-        - a `requirements.txt` containing the names of the module used by your tool (as detected when inspecting its
-          code)
-
-        Args:
-            output_dir (`str`): The folder in which you want to save your tool.
-        """
-        os.makedirs(output_dir, exist_ok=True)
+    def to_dict(self) -> dict:
+        """Returns a dictionary representing the tool"""
         class_name = self.__class__.__name__
-        tool_file = os.path.join(output_dir, "tool.py")
-
-        # Save tool file
         if type(self).__name__ == "SimpleTool":
             # Check that imports are self-contained
             source_code = get_source(self.forward).replace("@tool", "")
@@ -233,11 +217,11 @@ class Tool:
             tool_code = textwrap.dedent(
                 f"""
             from smolagents import Tool
-            from typing import Optional
+            from typing import Any, Optional
 
             class {class_name}(Tool):
                 name = "{self.name}"
-                description = "{self.description}"
+                description = {json.dumps(textwrap.dedent(self.description).strip())}
                 inputs = {json.dumps(self.inputs, separators=(",", ":"))}
                 output_type = "{self.output_type}"
             """
@@ -273,33 +257,59 @@ class Tool:
 
             validate_tool_attributes(self.__class__)
 
-            tool_code = instance_to_source(self, base_cls=Tool)
+            tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
+
+        requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
+
+        return {"name": self.name, "code": tool_code, "requirements": requirements}
+
+    def save(self, output_dir: str, tool_file_name: str = "tool", make_gradio_app: bool = True):
+        """
+        Saves the relevant code files for your tool so it can be pushed to the Hub. This will copy the code of your
+        tool in `output_dir` as well as autogenerate:
+
+        - a `{tool_file_name}.py` file containing the logic for your tool.
+        If you pass `make_gradio_app=True`, this will also write:
+        - an `app.py` file providing a UI for your tool when it is exported to a Space with `tool.push_to_hub()`
+        - a `requirements.txt` containing the names of the modules used by your tool (as detected when inspecting its
+          code)
+
+        Args:
+            output_dir (`str`): The folder in which you want to save your tool.
+            tool_file_name (`str`, *optional*): The file name in which you want to save your tool.
+            make_gradio_app (`bool`, *optional*, defaults to True): Whether to also export a `requirements.txt` file and Gradio UI.
+        """
+        os.makedirs(output_dir, exist_ok=True)
+        class_name = self.__class__.__name__
+        tool_file = os.path.join(output_dir, f"{tool_file_name}.py")
+
+        tool_dict = self.to_dict()
+        tool_code = tool_dict["code"]
 
         with open(tool_file, "w", encoding="utf-8") as f:
             f.write(tool_code.replace(":true,", ":True,").replace(":true}", ":True}"))
 
-        # Save app file
-        app_file = os.path.join(output_dir, "app.py")
-        with open(app_file, "w", encoding="utf-8") as f:
-            f.write(
-                textwrap.dedent(
-                    f"""
-            from smolagents import launch_gradio_demo
-            from typing import Optional
-            from tool import {class_name}
+        if make_gradio_app:
+            # Save app file
+            app_file = os.path.join(output_dir, "app.py")
+            with open(app_file, "w", encoding="utf-8") as f:
+                f.write(
+                    textwrap.dedent(
+                        f"""
+                from smolagents import launch_gradio_demo
+                from {tool_file_name} import {class_name}
 
-            tool = {class_name}()
+                tool = {class_name}()
 
-            launch_gradio_demo(tool)
-            """
-                ).lstrip()
-            )
+                launch_gradio_demo(tool)
+                """
+                    ).lstrip()
+                )
 
-        # Save requirements file
-        imports = {el for el in get_imports(tool_file) if el not in sys.stdlib_module_names} | {"smolagents"}
-        requirements_file = os.path.join(output_dir, "requirements.txt")
-        with open(requirements_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(imports) + "\n")
+            # Save requirements file
+            requirements_file = os.path.join(output_dir, "requirements.txt")
+            with open(requirements_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(tool_dict["requirements"]) + "\n")
 
     def push_to_hub(
         self,
@@ -311,14 +321,6 @@ class Tool:
     ) -> str:
         """
         Upload the tool to the Hub.
-
-        For this method to work properly, your tool must have been defined in a separate module (not `__main__`).
-        For instance:
-        ```
-        from my_tool_module import MyTool
-        my_tool = MyTool()
-        my_tool.push_to_hub("my-username/my-space")
-        ```
 
         Parameters:
             repo_id (`str`):
@@ -343,13 +345,11 @@ class Tool:
             space_sdk="gradio",
         )
         repo_id = repo_url.repo_id
-        metadata_update(repo_id, {"tags": ["tool"]}, repo_type="space")
+        metadata_update(repo_id, {"tags": ["smolagents", "tool"]}, repo_type="space", token=token)
 
         with tempfile.TemporaryDirectory() as work_dir:
             # Save all files.
             self.save(work_dir)
-            with open(work_dir + "/tool.py", "r") as f:
-                print("\n".join(f.readlines()))
             logger.info(f"Uploading the following files to {repo_id}: {','.join(os.listdir(work_dir))}")
             return upload_folder(
                 repo_id=repo_id,
@@ -395,7 +395,7 @@ class Tool:
         """
         if not trust_remote_code:
             raise ValueError(
-                "Loading a tool from Hub requires to trust remote code. Make sure you've inspected the repo and pass `trust_remote_code=True` to load the tool."
+                "Loading a tool from Hub requires to acknowledge you trust its code: to do so, pass `trust_remote_code=True`."
             )
 
         # Get the tool's tool.py file.
@@ -406,7 +406,6 @@ class Tool:
             repo_type="space",
             cache_dir=kwargs.get("cache_dir"),
             force_download=kwargs.get("force_download"),
-            resume_download=kwargs.get("resume_download"),
             proxies=kwargs.get("proxies"),
             revision=kwargs.get("revision"),
             subfolder=kwargs.get("subfolder"),
@@ -414,30 +413,26 @@ class Tool:
         )
 
         tool_code = Path(tool_file).read_text()
+        return Tool.from_code(tool_code, **kwargs)
 
-        # Find the Tool subclass in the namespace
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Save the code to a file
-            module_path = os.path.join(temp_dir, "tool.py")
-            with open(module_path, "w") as f:
-                f.write(tool_code)
+    @classmethod
+    def from_code(cls, tool_code: str, **kwargs):
+        module = types.ModuleType("dynamic_tool")
 
-            print("TOOL CODE:\n", tool_code)
+        exec(tool_code, module.__dict__)
 
-            # Load module from file path
-            spec = importlib.util.spec_from_file_location("tool", module_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+        # Find the Tool subclass
+        tool_class = next(
+            (
+                obj
+                for _, obj in inspect.getmembers(module, inspect.isclass)
+                if issubclass(obj, Tool) and obj is not Tool
+            ),
+            None,
+        )
 
-            # Find and instantiate the Tool class
-            for item_name in dir(module):
-                item = getattr(module, item_name)
-                if isinstance(item, type) and issubclass(item, Tool) and item != Tool:
-                    tool_class = item
-                    break
-
-            if tool_class is None:
-                raise ValueError("No Tool subclass found in the code.")
+        if tool_class is None:
+            raise ValueError("No Tool subclass found in the code.")
 
         if not isinstance(tool_class.inputs, dict):
             tool_class.inputs = ast.literal_eval(tool_class.inputs)
@@ -632,50 +627,13 @@ class Tool:
         return LangChainToolWrapper(langchain_tool)
 
 
-DEFAULT_TOOL_DESCRIPTION_TEMPLATE = """
-- {{ tool.name }}: {{ tool.description }}
-    Takes inputs: {{tool.inputs}}
-    Returns an output of type: {{tool.output_type}}
-"""
-
-
-def get_tool_description_with_args(tool: Tool, description_template: Optional[str] = None) -> str:
-    if description_template is None:
-        description_template = DEFAULT_TOOL_DESCRIPTION_TEMPLATE
-    compiled_template = compile_jinja_template(description_template)
-    tool_description = compiled_template.render(
-        tool=tool,
-    )
-    return tool_description
-
-
-@lru_cache
-def compile_jinja_template(template):
-    try:
-        import jinja2
-        from jinja2.exceptions import TemplateError
-        from jinja2.sandbox import ImmutableSandboxedEnvironment
-    except ImportError:
-        raise ImportError("template requires jinja2 to be installed.")
-
-    if version.parse(jinja2.__version__) < version.parse("3.1.0"):
-        raise ImportError(f"template requires jinja2>=3.1.0 to be installed. Your version is {jinja2.__version__}.")
-
-    def raise_exception(message):
-        raise TemplateError(message)
-
-    jinja_env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
-    jinja_env.globals["raise_exception"] = raise_exception
-    return jinja_env.from_string(template)
-
-
 def launch_gradio_demo(tool: Tool):
     """
     Launches a gradio demo for a tool. The corresponding tool class needs to properly implement the class attributes
     `inputs` and `output_type`.
 
     Args:
-        tool (`type`): The tool for which to launch the demo.
+        tool (`Tool`): The tool for which to launch the demo.
     """
     try:
         import gradio as gr
@@ -709,14 +667,13 @@ def launch_gradio_demo(tool: Tool):
         inputs=gradio_inputs,
         outputs=gradio_output,
         title=tool.name,
-        article=tool.description,
         description=tool.description,
         api_name=tool.name,
     ).launch()
 
 
 def load_tool(
-    task_or_repo_id,
+    repo_id,
     model_repo_id: Optional[str] = None,
     token: Optional[str] = None,
     trust_remote_code: bool = False,
@@ -734,16 +691,8 @@ def load_tool(
     </Tip>
 
     Args:
-        task_or_repo_id (`str`):
-            The task for which to load the tool or a repo ID of a tool on the Hub. Tasks implemented in Transformers
-            are:
-
-            - `"document_question_answering"`
-            - `"image_question_answering"`
-            - `"speech_to_text"`
-            - `"text_to_speech"`
-            - `"translation"`
-
+        repo_id (`str`):
+            Repo ID of a tool on the Hub.
         model_repo_id (`str`, *optional*):
             Use this argument to use a different model than the default one for the tool you selected.
         token (`str`, *optional*):
@@ -757,7 +706,7 @@ def load_tool(
             will be passed along to its init.
     """
     return Tool.from_hub(
-        task_or_repo_id,
+        repo_id,
         model_repo_id=model_repo_id,
         token=token,
         trust_remote_code=trust_remote_code,

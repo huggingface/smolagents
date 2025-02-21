@@ -78,6 +78,7 @@ class DocCodeExtractor:
         return tmp_file
 
 
+@pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
 class TestDocs:
     """Test case for documentation code testing."""
 
@@ -93,7 +94,7 @@ class TestDocs:
 
         load_dotenv()
 
-        cls.md_files = list(cls.docs_dir.rglob("*.md"))
+        cls.md_files = list(cls.docs_dir.rglob("*.mdx"))
         if not cls.md_files:
             raise ValueError(f"No markdown files found in {cls.docs_dir}")
 

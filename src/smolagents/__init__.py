@@ -14,16 +14,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__version__ = "1.6.0.dev"
+__version__ = "1.10.0.dev0"
 
-from .agents import *
+from .agent_types import *  # noqa: I001
+from .agents import *  # Above noqa avoids a circular dependency due to cli.py
 from .default_tools import *
 from .e2b_executor import *
 from .gradio_ui import *
 from .local_python_executor import *
+from .memory import *
 from .models import *
 from .monitoring import *
-from .prompts import *
 from .tools import *
-from .types import *
 from .utils import *
+from .cli import *

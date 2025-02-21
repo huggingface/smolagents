@@ -20,15 +20,17 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import os
 import re
 import textwrap
 import types
-from enum import IntEnum
 from functools import lru_cache
 from io import BytesIO
-from typing import Dict, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 
-from rich.console import Console
+
+if TYPE_CHECKING:
+    from smolagents.memory import AgentLogger
 
 
 __all__ = ["AgentError"]
@@ -48,8 +50,6 @@ def _is_pillow_available():
     return importlib.util.find_spec("PIL") is not None
 
 
-console = Console()
-
 BASE_BUILTIN_MODULES = [
     "collections",
     "datetime",
@@ -65,29 +65,16 @@ BASE_BUILTIN_MODULES = [
 ]
 
 
-class LogLevel(IntEnum):
-    ERROR = 0  # Only errors
-    INFO = 1  # Normal output (default)
-    DEBUG = 2  # Detailed output
-
-
-class AgentLogger:
-    def __init__(self, level: LogLevel = LogLevel.INFO):
-        self.level = level
-        self.console = Console()
-
-    def log(self, *args, level: LogLevel = LogLevel.INFO, **kwargs):
-        if level <= self.level:
-            self.console.print(*args, **kwargs)
-
-
 class AgentError(Exception):
     """Base class for other agent-related exceptions"""
 
-    def __init__(self, message, logger: AgentLogger):
+    def __init__(self, message, logger: "AgentLogger"):
         super().__init__(message)
         self.message = message
-        logger.log(f"[bold red]{message}[/bold red]", level=LogLevel.ERROR)
+        logger.log(f"[bold red]{message}[/bold red]", level="ERROR")
+
+    def dict(self) -> Dict[str, str]:
+        return {"type": self.__class__.__name__, "message": str(self.message)}
 
 
 class AgentParsingError(AgentError):
@@ -112,6 +99,32 @@ class AgentGenerationError(AgentError):
     """Exception raised for errors in generation in the agent"""
 
     pass
+
+
+def make_json_serializable(obj: Any) -> Any:
+    """Recursive function to make objects JSON serializable"""
+    if obj is None:
+        return None
+    elif isinstance(obj, (str, int, float, bool)):
+        # Try to parse string as JSON if it looks like a JSON object/array
+        if isinstance(obj, str):
+            try:
+                if (obj.startswith("{") and obj.endswith("}")) or (obj.startswith("[") and obj.endswith("]")):
+                    parsed = json.loads(obj)
+                    return make_json_serializable(parsed)
+            except json.JSONDecodeError:
+                pass
+        return obj
+    elif isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {str(k): make_json_serializable(v) for k, v in obj.items()}
+    elif hasattr(obj, "__dict__"):
+        # For custom objects, convert their __dict__ to a serializable format
+        return {"_type": obj.__class__.__name__, **{k: make_json_serializable(v) for k, v in obj.__dict__.items()}}
+    else:
+        # For any other type, convert to string
+        return str(obj)
 
 
 def parse_json_blob(json_blob: str) -> Dict[str, str]:
@@ -150,7 +163,10 @@ def parse_code_blobs(code_blob: str) -> str:
         if "final" in code_blob and "answer" in code_blob:
             raise ValueError(
                 f"""
-The code blob is invalid, because the regex pattern {pattern} was not found in {code_blob=}. It seems like you're trying to return the final answer, you can do it as follows:
+Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
+Here is your code snippet:
+{code_blob}
+It seems like you're trying to return the final answer, you can do it as follows:
 Code:
 ```py
 final_answer("YOUR FINAL ANSWER HERE")
@@ -158,7 +174,10 @@ final_answer("YOUR FINAL ANSWER HERE")
             )
         raise ValueError(
             f"""
-The code blob is invalid, because the regex pattern {pattern} was not found in {code_blob=}. Make sure to include code with the correct pattern, for instance:
+Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
+Here is your code snippet:
+{code_blob}
+Make sure to include code with the correct pattern, for instance:
 Thoughts: Your thoughts
 Code:
 ```py
@@ -280,10 +299,12 @@ def instance_to_source(instance, base_cls=None):
 
     for name, value in class_attrs.items():
         if isinstance(value, str):
+            # multiline value
             if "\n" in value:
-                class_lines.append(f'    {name} = """{value}"""')
+                escaped_value = value.replace('"""', r"\"\"\"")  # Escape triple quotes
+                class_lines.append(f'    {name} = """{escaped_value}"""')
             else:
-                class_lines.append(f'    {name} = "{value}"')
+                class_lines.append(f"    {name} = {json.dumps(value)}")
         else:
             class_lines.append(f"    {name} = {repr(value)}")
 
@@ -396,3 +417,10 @@ def encode_image_base64(image):
 
 def make_image_url(base64_image):
     return f"data:image/png;base64,{base64_image}"
+
+
+def make_init_file(folder: str):
+    os.makedirs(folder, exist_ok=True)
+    # Create __init__
+    with open(os.path.join(folder, "__init__.py"), "w"):
+        pass

@@ -1,6 +1,6 @@
 import ast
 import builtins
-import inspect
+from itertools import zip_longest
 from typing import Set
 
 from .utils import BASE_BUILTIN_MODULES, get_source
@@ -25,6 +25,7 @@ class MethodChecker(ast.NodeVisitor):
         self.class_attributes = class_attributes
         self.errors = []
         self.check_imports = check_imports
+        self.typing_names = {"Any"}
 
     def visit_arguments(self, node):
         """Collect function arguments"""
@@ -82,6 +83,31 @@ class MethodChecker(ast.NodeVisitor):
                     self.assigned_names.add(elt.id)
         self.generic_visit(node)
 
+    def _handle_comprehension_generators(self, generators):
+        """Helper method to handle generators in all types of comprehensions"""
+        for generator in generators:
+            if isinstance(generator.target, ast.Name):
+                self.assigned_names.add(generator.target.id)
+            elif isinstance(generator.target, ast.Tuple):
+                for elt in generator.target.elts:
+                    if isinstance(elt, ast.Name):
+                        self.assigned_names.add(elt.id)
+
+    def visit_ListComp(self, node):
+        """Track variables in list comprehensions"""
+        self._handle_comprehension_generators(node.generators)
+        self.generic_visit(node)
+
+    def visit_DictComp(self, node):
+        """Track variables in dictionary comprehensions"""
+        self._handle_comprehension_generators(node.generators)
+        self.generic_visit(node)
+
+    def visit_SetComp(self, node):
+        """Track variables in set comprehensions"""
+        self._handle_comprehension_generators(node.generators)
+        self.generic_visit(node)
+
     def visit_Attribute(self, node):
         if not (isinstance(node.value, ast.Name) and node.value.id == "self"):
             self.generic_visit(node)
@@ -97,6 +123,7 @@ class MethodChecker(ast.NodeVisitor):
                 or node.id in self.imports
                 or node.id in self.from_imports
                 or node.id in self.assigned_names
+                or node.id in self.typing_names
             ):
                 self.errors.append(f"Name '{node.id}' is undefined.")
 
@@ -119,7 +146,8 @@ class MethodChecker(ast.NodeVisitor):
 def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     """
     Validates that a Tool class follows the proper patterns:
-    0. __init__ takes no argument (args chosen at init are not traceable so we cannot rebuild the source code for them, make them class attributes!).
+    0. Any argument of __init__ should have a default.
+    Args chosen at init are not traceable, so we cannot rebuild the source code for them, thus any important arg should be defined as a class attribute.
     1. About the class:
         - Class attributes should only be strings or dicts
         - Class attributes cannot be complex attributes
@@ -129,34 +157,19 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
 
     Raises all errors encountered, if no error returns None.
     """
-    errors = []
-
-    source = get_source(cls)
-
-    tree = ast.parse(source)
-
-    if not isinstance(tree.body[0], ast.ClassDef):
-        raise ValueError("Source code must define a class")
-
-    # Check that __init__ method takes no arguments
-    if not cls.__init__.__qualname__ == "Tool.__init__":
-        sig = inspect.signature(cls.__init__)
-        non_self_params = list([arg_name for arg_name in sig.parameters.keys() if arg_name != "self"])
-        if len(non_self_params) > 0:
-            errors.append(
-                f"This tool has additional args specified in __init__(self): {non_self_params}. Make sure it does not, all values should be hardcoded!"
-            )
-
-    class_node = tree.body[0]
 
     class ClassLevelChecker(ast.NodeVisitor):
         def __init__(self):
             self.imported_names = set()
             self.complex_attributes = set()
             self.class_attributes = set()
+            self.non_defaults = set()
+            self.non_literal_defaults = set()
             self.in_method = False
 
         def visit_FunctionDef(self, node):
+            if node.name == "__init__":
+                self._check_init_function_parameters(node)
             old_context = self.in_method
             self.in_method = True
             self.generic_visit(node)
@@ -179,13 +192,38 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
                     if isinstance(target, ast.Name):
                         self.complex_attributes.add(target.id)
 
+        def _check_init_function_parameters(self, node):
+            # Check defaults in parameters
+            for arg, default in reversed(list(zip_longest(reversed(node.args.args), reversed(node.args.defaults)))):
+                if default is None:
+                    if arg.arg != "self":
+                        self.non_defaults.add(arg.arg)
+                elif not isinstance(default, (ast.Str, ast.Num, ast.Constant, ast.Dict, ast.List, ast.Set)):
+                    self.non_literal_defaults.add(arg.arg)
+
     class_level_checker = ClassLevelChecker()
+    source = get_source(cls)
+    tree = ast.parse(source)
+    class_node = tree.body[0]
+    if not isinstance(class_node, ast.ClassDef):
+        raise ValueError("Source code must define a class")
     class_level_checker.visit(class_node)
 
+    errors = []
     if class_level_checker.complex_attributes:
         errors.append(
             f"Complex attributes should be defined in __init__, not as class attributes: "
             f"{', '.join(class_level_checker.complex_attributes)}"
+        )
+    if class_level_checker.non_defaults:
+        errors.append(
+            f"Parameters in __init__ must have default values, found required parameters: "
+            f"{', '.join(class_level_checker.non_defaults)}"
+        )
+    if class_level_checker.non_literal_defaults:
+        errors.append(
+            f"Parameters in __init__ must have literal default values, found non-literal defaults: "
+            f"{', '.join(class_level_checker.non_literal_defaults)}"
         )
 
     # Run checks on all methods
@@ -196,5 +234,5 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
             errors += [f"- {node.name}: {error}" for error in method_checker.errors]
 
     if errors:
-        raise ValueError("Tool validation failed:\n" + "\n".join(errors))
+        raise ValueError(f"Tool validation failed for {cls.__name__}:\n" + "\n".join(errors))
     return
