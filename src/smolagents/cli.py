@@ -19,7 +19,7 @@ import os
 
 from dotenv import load_dotenv
 
-from smolagents import CodeAgent, HfApiModel, LiteLLMModel, Model, OpenAIServerModel, Tool, TransformersModel
+from smolagents import CodeAgent, HfApiModel, LiteLLMModel, Model, OpenAIServerModel, Tool, TransformersModel, PortkeyModel
 from smolagents.default_tools import TOOL_MAPPING
 
 
@@ -69,7 +69,13 @@ def parse_arguments(description):
 
 
 def load_model(model_type: str, model_id: str) -> Model:
-    if model_type == "OpenAIServerModel":
+    if model_type == "PortkeyModel":
+        return PortkeyModel(
+            model_id=model_id,
+            api_key=os.getenv("PORTKEY_API_KEY"),
+            virtual_key=os.getenv("PORTKEY_VIRTUAL_KEY")
+        )
+    elif model_type == "OpenAIServerModel":
         return OpenAIServerModel(
             api_key=os.getenv("FIREWORKS_API_KEY"),
             api_base="https://api.fireworks.ai/inference/v1",

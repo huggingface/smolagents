@@ -80,6 +80,7 @@ dev = [
   "smolagents[quality,test]",
   "sqlalchemy", # for ./examples
 ]
+portkey = ["portkey-ai>=1.0.0"]
 
 [tool.pytest.ini_options]
 # Add the specified `OPTS` to the set of command line arguments as if they had been specified by the user.
