@@ -65,12 +65,13 @@ def parse_arguments(description):
         default=1,
         help="The verbosity level, as an int in [0, 1, 2].",
     )
-    parser.add_argument(
+    group = parser.add_argument_group("api options", "Options for API-based model types")
+    group.add_argument(
         "--api-base",
         type=str,
         help="The base URL for the model",
     )
-    parser.add_argument(
+    group.add_argument(
         "--api-key",
         type=str,
         help="The API key for the model",
