@@ -16,7 +16,7 @@
 import os
 import re
 import shutil
-from typing import Optional
+from typing import Callable, Optional
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText, handle_agent_output_types
 from smolagents.agents import ActionStep, MultiStepAgent
@@ -177,7 +177,7 @@ def stream_to_gradio(
 class GradioUI:
     """A one-line interface to launch your agent in Gradio"""
 
-    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None):
+    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None, process_function: Callable | None = None):
         if not _is_package_available("gradio"):
             raise ModuleNotFoundError(
                 "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
@@ -187,6 +187,7 @@ class GradioUI:
         if self.file_upload_folder is not None:
             if not os.path.exists(file_upload_folder):
                 os.mkdir(file_upload_folder)
+        self.process_function = process_function
 
     def interact_with_agent(self, prompt, messages):
         import gradio as gr
@@ -198,17 +199,18 @@ class GradioUI:
             yield messages
         yield messages
 
-    def upload_file(self, file, file_uploads_log, allowed_file_types=None):
+    async def upload_file(self, file, file_uploads_log, allowed_file_types=None):
         """
-        Handle file uploads, default allowed types are .pdf, .docx, and .txt
+        Handle file uploads, default allowed types are .pdf, .docx, .txt, and .md
         """
         import gradio as gr
+        import asyncio
 
         if file is None:
             return gr.Textbox(value="No file uploaded", visible=True), file_uploads_log
 
         if allowed_file_types is None:
-            allowed_file_types = [".pdf", ".docx", ".txt"]
+            allowed_file_types = [".pdf", ".docx", ".txt", ".md"]
 
         file_ext = os.path.splitext(file.name)[1].lower()
         if file_ext not in allowed_file_types:
@@ -223,6 +225,18 @@ class GradioUI:
         # Save the uploaded file to the specified folder
         file_path = os.path.join(self.file_upload_folder, os.path.basename(sanitized_name))
         shutil.copy(file.name, file_path)
+
+        # User can optionally provide a function process the file once uploaded
+        if self.process_function is not None:
+            async def run_process():
+                if asyncio.iscoroutinefunction(self.process_function):
+                    await self.process_function(file_path)
+                else:
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(None, self.process_function, file_path)
+
+            # Fire-and-forget: schedule the task and continue without awaiting its completion.
+            asyncio.create_task(run_process())
 
         return gr.Textbox(f"File uploaded: {file_path}", visible=True), file_uploads_log + [file_path]
 
