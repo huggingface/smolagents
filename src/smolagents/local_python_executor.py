@@ -975,20 +975,32 @@ def get_safe_module(raw_module, dangerous_patterns, authorized_imports, visited=
 
     # Copy all attributes by reference, recursively checking modules
     for attr_name in dir(raw_module):
-        # Skip dangerous patterns at any level
-        if any(
-            pattern in raw_module.__name__.split(".") + [attr_name]
-            and not check_module_authorized(pattern, authorized_imports, dangerous_patterns)
-            for pattern in dangerous_patterns
-        ):
-            logger.debug(f"Skipping dangerous attribute {raw_module.__name__}.{attr_name}")
-            continue
+        attr_value = getattr(raw_module, attr_name)
+        if isinstance(attr_value, ModuleType):
+            if hasattr(attr_value, '__file__'):
+                if attr_value.__file__.endswith(".py"):
+                # read the file with module
+                    try:
+                        with open(attr_value.__file__, "r") as f: # error here with unicode
+                            attr_file_content = f.read()
+                        # parse the file
+                        attr_file_tree = ast.parse(attr_file_content)
+                        for node in attr_file_tree.body:
+                            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                                for alias in node.names:
+                                    if alias.name in dangerous_patterns:
+                                        logger.info(f"Skipping dangerous attribute {raw_module.__name__}.{attr_name}")
+                                        continue
+                    except Exception as e:
+                        logger.info(
+                            f"Not possible to load module {attr_value.__file__} to inspect dangerous_patterns imports"
+                        )
 
         try:
             attr_value = getattr(raw_module, attr_name)
         except ImportError as e:
             # lazy / dynamic loading module -> INFO log and skip
-            logger.debug(
+            logger.info(
                 f"Skipping import error while copying {raw_module.__name__}.{attr_name}: {type(e).__name__} - {e}"
             )
             continue
