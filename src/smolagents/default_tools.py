@@ -84,7 +84,7 @@ class FinalAnswerTool(Tool):
     inputs = {"answer": {"type": "any", "description": "The final answer to the problem"}}
     output_type = "any"
 
-    def forward(self, answer: Any) -> Any:
+    def forward(self, answer):
         return answer
 
 

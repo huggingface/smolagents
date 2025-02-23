@@ -121,6 +121,14 @@ ENV/
 env.bak/
 venv.bak/
 
+# direnv / devenv
+.envrc
+.direnv
+.devenv
+devenv.yaml
+devenv.nix
+devenv.lock
+.devenv.flake.nix
 
 # mkdocs documentation
 /site
