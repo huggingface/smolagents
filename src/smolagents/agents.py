@@ -1132,6 +1132,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         use_e2b_executor (`bool`, default `False`): Whether to use the E2B executor for remote code execution.
+        template (`str`, *optional*): Template to use for the E2B executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         **kwargs: Additional keyword arguments.
 
@@ -1146,13 +1147,16 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports: Optional[List[str]] = None,
         planning_interval: Optional[int] = None,
         use_e2b_executor: bool = False,
+        template: Optional[str] = None,
         max_print_outputs_length: Optional[int] = None,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
+        self.template = template
         self.use_e2b_executor = use_e2b_executor
         self.max_print_outputs_length = max_print_outputs_length
+
         prompt_templates = prompt_templates or yaml.safe_load(
             importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
         )
@@ -1181,6 +1185,7 @@ class CodeAgent(MultiStepAgent):
                 self.additional_authorized_imports,
                 list(all_tools.values()),
                 self.logger,
+                template,
             )
         else:
             self.python_executor = LocalPythonInterpreter(
