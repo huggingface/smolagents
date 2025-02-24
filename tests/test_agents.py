@@ -416,6 +416,16 @@ class AgentTests(unittest.TestCase):
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
 
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=fake_code_model_no_return,  # use this callable because it never ends
+            max_steps=5,
+        )
+        answer = agent.run("What is 2 multiplied by 3.6452?", max_steps=3)
+        assert len(agent.memory.steps) == 5  # Task step + 3 action steps + Final answer
+        assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
+        assert isinstance(answer, str)
+
     def test_tool_descriptions_get_baked_in_system_prompt(self):
         tool = PythonInterpreterTool()
         tool.name = "fake_tool_name"
@@ -779,6 +789,16 @@ class TestCodeAgent:
                 "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
             )
         assert result == expected_summary
+
+    def test_errors_logging(self):
+        def fake_code_model(messages, stop_sequences=None, grammar=None) -> str:
+            return ChatMessage(role="assistant", content="Code:\n```py\nsecret=3;['1', '2'][secret]\n```")
+
+        agent = CodeAgent(tools=[], model=fake_code_model, verbosity_level=1)
+
+        with agent.logger.console.capture() as capture:
+            agent.run("Test request")
+        assert "secret\\\\" in repr(capture.get())
 
 
 class MultiAgentsTests(unittest.TestCase):

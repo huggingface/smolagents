@@ -24,12 +24,12 @@ rendered properly in your Markdown viewer.
 
 [Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the LLM write its actions (the tool calls) in code is much better than the current standard format for tool calling, which is across the industry different shades of "writing actions as a JSON of tools names and arguments to use".
 
-Why is code better? Well, because we crafted our code languages specifically to be great at expressing actions performed by a computer. If JSON snippets was a better way, this package would have been written in JSON snippets and the devil would be laughing at us.
+Why is code better? Well, because we crafted our code languages specifically to be great at expressing actions performed by a computer. If JSON snippets were a better way, this package would have been written in JSON snippets and the devil would be laughing at us.
 
 Code is just a better way to express actions on a computer. It has better:
 - **Composability:** could you nest JSON actions within each other, or define a set of JSON actions to re-use later, the same way you could just define a python function?
 - **Object management:** how do you store the output of an action like `generate_image` in JSON?
-- **Generality:** code is built to express simply anything you can do have a computer do.
+- **Generality:** code is built to express simply anything you can have a computer do.
 - **Representation in LLM training corpus:** why not leverage this benediction of the sky that plenty of quality actions have already been included in LLM training corpus?
 
 This is illustrated on the figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030).
@@ -38,45 +38,257 @@ This is illustrated on the figure below, taken from [Executable Code Actions Eli
 
 This is why we put emphasis on proposing code agents, in this case python agents, which meant putting higher effort on building secure python interpreters.
 
-### Local python interpreter
+### Local code execution??
 
 By default, the `CodeAgent` runs LLM-generated code in your environment.
-This execution is not done by the vanilla Python interpreter: we've re-built a more secure `LocalPythonInterpreter` from the ground up.
-This interpreter is designed for security by:
- - Restricting the imports to a list explicitly passed by the user
- - Capping the number of operations to prevent infinite loops and resource bloating.
- - Will not perform any operation that's not pre-defined.
 
-We've used this on many use cases, without ever observing any damage to the environment. 
+This is inherently risky, LLM-generated code could be harmful to your environment.
+One could argue that on the [spectrum of agency](../conceptual_guides/intro_agents), code agents give much higher agency to the LLM on your system than other less agentic setups: this goes hand-in-hand with higher risk.
 
-However this solution is not watertight: one could imagine occasions where LLMs fine-tuned for malignant actions could still hurt your environment. For instance if you've allowed an innocuous package like `Pillow` to process images, the LLM could generate thousands of saves of images to bloat your hard drive.
-It's certainly not likely if you've chosen the LLM engine yourself, but it could happen.
+So you need to be mindful of security.
 
-So if you want to be extra cautious, you can use the remote code execution option described below.
+To add a first layer of security, code execution in `smolagents` is not performed by the vanilla Python interpreter.
+We have re-built a more secure `LocalPythonInterpreter` from the ground up.
 
-### E2B code executor
+To be precise, this interpreter works by loading the Abstract Syntax Tree (AST) from your Code and executes it operation by operation, making sure to always follow certain rules:
+- By default, imports are disallowed unless they have been explicitly added to an authorization list by the user.
+   - Even so, because some innocuous packages like `re` can give access to potentially harmful packages as in `re.subprocess`, subpackages that match a list of dangerous patterns are not imported.
+ - The total count of elementary operations processed is capped to prevent infinite loops and resource bloating.
+ - Any operation that has not been explicitly defined in our custom interpreter will raise an error.
 
-For maximum security, you can use our integration with E2B to run code in a sandboxed environment. This is a remote execution service that runs your code in an isolated container, making it impossible for the code to affect your local environment.
+As a result, this interpreter is safer. We have used it on a diversity of use cases, without ever observing any damage to the environment.
 
-For this, you will need to setup your E2B account and set your `E2B_API_KEY` in your environment variables. Head to [E2B's quickstart documentation](https://e2b.dev/docs/quickstart) for more information.
+However, this solution is certainly not watertight, as no local python sandbox can really be: one could imagine occasions where LLMs fine-tuned for malignant actions could still hurt your environment.
 
-Then you can install it with `pip install "smolagents[e2b]"`.
+For instance, if you have allowed an innocuous package like `Pillow` to process images, the LLM could generate thousands of image saves to bloat your hard drive.
+Other examples of attacks can be found [here](https://gynvael.coldwind.pl/n/python_sandbox_escape).
 
-Now you're set!
+Running these targeted malicious code snippet require a supply chain attack, meaning the LLM you use has been intoxicated.
 
-To set the code executor to E2B, simply pass the flag `use_e2b_executor=True` when initializing your `CodeAgent`.
-Note that you should add all the tool's dependencies in `additional_authorized_imports`, so that the executor installs them.
+The likelihood of this happening is low when using well-known LLMs from trusted inference providers, but it is still non-zero.
 
-```py
-from smolagents import CodeAgent, VisitWebpageTool, HfApiModel
-agent = CodeAgent(
-    tools = [VisitWebpageTool()],
-    model=HfApiModel(),
-    additional_authorized_imports=["requests", "markdownify"],
-    use_e2b_executor=True
-)
+> [!WARNING]
+> The only way to run LLM-generated code securely is to isolate the execution from your local environment.
 
-agent.run("What was Abraham Lincoln's preferred pet?")
+So if you want to exercise caution, you should use a remote execution sandbox.
+
+Here are examples of how to do it.
+
+## Sandbox setup for secure code execution
+
+When working with AI agents that execute code, security is paramount. This guide describes how to set up and use secure sandboxes for your agent applications using either E2B cloud sandboxes or local Docker containers.
+
+### E2B setup
+
+#### Installation
+
+1. Create an E2B account at [e2b.dev](https://e2b.dev)
+2. Install the required packages:
+```bash
+pip install 'smolagents[e2b]'
 ```
 
-E2B code execution is not compatible with multi-agents at the moment - because having an agent call in a code blob that should be executed remotely is a mess. But we're working on adding it!
+#### Running your agent in E2B
+
+Here's a complete example of running an agent in an E2B sandbox:
+
+```python
+from e2b_code_interpreter import Sandbox
+import os
+
+# Create the sandbox
+sandbox = Sandbox()
+
+# Install required packages
+sandbox.commands.run("pip install smolagents")
+
+def run_code_raise_errors(sandbox, code: str, verbose: bool = False) -> str:
+    execution = sandbox.run_code(
+        code,
+        envs={'HF_TOKEN': os.getenv('HF_TOKEN')}
+    )
+    if execution.error:
+        execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
+        logs = execution_logs
+        logs += execution.error.traceback
+        raise ValueError(logs)
+    return "\n".join([str(log) for log in execution.logs.stdout])
+
+# Define your agent application
+agent_code = """
+import os
+from smolagents import CodeAgent, HfApiModel
+
+# Initialize the agent
+agent = CodeAgent(
+    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
+    tools=[]
+)
+
+# Run the agent
+response = agent.run("What's the 20th Fibonacci number?")
+print(response)
+"""
+
+# Run the agent code in the sandbox
+execution_logs = run_code_raise_errors(sandbox, agent_code)
+print(execution_logs)
+```
+
+### Docker setup
+
+#### Installation
+
+1. [Install Docker on your system](https://docs.docker.com/get-started/get-docker/)
+2. Install the Python Docker package:
+```bash
+pip install docker
+```
+
+#### Setting up the docker sandbox
+
+Create a Dockerfile for your agent environment:
+
+```dockerfile
+FROM python:3.10-bullseye
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        python3-dev && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir smolagents && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Run with limited privileges
+USER nobody
+
+# Default command
+CMD ["python", "-c", "print('Container ready')"]
+```
+
+Create a sandbox manager to run code:
+
+```python
+import docker
+import os
+from typing import Optional
+
+class DockerSandbox:
+    def __init__(self):
+        self.client = docker.from_env()
+        self.container = None
+
+    def create_container(self):
+        try:
+            image, build_logs = self.client.images.build(
+                path=".",
+                tag="agent-sandbox",
+                rm=True,
+                forcerm=True,
+                buildargs={},
+                # decode=True
+            )
+        except docker.errors.BuildError as e:
+            print("Build error logs:")
+            for log in e.build_log:
+                if 'stream' in log:
+                    print(log['stream'].strip())
+            raise
+
+        # Create container with security constraints and proper logging
+        self.container = self.client.containers.run(
+            "agent-sandbox",
+            command="tail -f /dev/null",  # Keep container running
+            detach=True,
+            tty=True,
+            mem_limit="512m",
+            cpu_quota=50000,
+            pids_limit=100,
+            security_opt=["no-new-privileges"],
+            cap_drop=["ALL"],
+            environment={
+                "HF_TOKEN": os.getenv("HF_TOKEN")
+            },
+        )
+
+    def run_code(self, code: str) -> Optional[str]:
+        if not self.container:
+            self.create_container()
+
+        # Execute code in container
+        exec_result = self.container.exec_run(
+            cmd=["python", "-c", code],
+            user="nobody"
+        )
+
+        # Collect all output
+        return exec_result.output.decode() if exec_result.output else None
+
+
+    def cleanup(self):
+        if self.container:
+            try:
+                self.container.stop()
+            except docker.errors.NotFound:
+                # Container already removed, this is expected
+                pass
+            except Exception as e:
+                print(f"Error during cleanup: {e}")
+            finally:
+                self.container = None  # Clear the reference
+
+# Example usage:
+sandbox = DockerSandbox()
+
+try:
+    # Define your agent code
+    agent_code = """
+import os
+from smolagents import CodeAgent, HfApiModel
+
+# Initialize the agent
+agent = CodeAgent(
+    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
+    tools=[]
+)
+
+# Run the agent
+response = agent.run("What's the 20th Fibonacci number?")
+print(response)
+"""
+
+    # Run the code in the sandbox
+    output = sandbox.run_code(agent_code)
+    print(output)
+
+finally:
+    sandbox.cleanup()
+```
+
+### Best practices for sandboxes
+
+These key practices apply to both E2B and Docker sandboxes:
+
+- Resource management
+  - Set memory and CPU limits
+  - Implement execution timeouts
+  - Monitor resource usage
+- Security
+  - Run with minimal privileges
+  - Disable unnecessary network access
+  - Use environment variables for secrets
+- Environment
+  - Keep dependencies minimal
+  - Use fixed package versions
+  - If you use base images, update them regularly
+
+- Cleanup
+  - Always ensure proper cleanup of resources, especially for Docker containers, to avoid having dangling containers eating up resources.
+
+✨ By following these practices and implementing proper cleanup procedures, you can ensure your agent runs safely and efficiently in a sandboxed environment.

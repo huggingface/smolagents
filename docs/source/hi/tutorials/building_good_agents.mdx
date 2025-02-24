@@ -244,15 +244,7 @@ Now Begin! If you solve the task correctly, you will receive a reward of $1,000,
 फिर आप सिस्टम प्रॉम्प्ट को निम्नानुसार बदल सकते हैं:
 
 ```py
-from smolagents.prompts import CODE_SYSTEM_PROMPT
-
-modified_system_prompt = CODE_SYSTEM_PROMPT + "\nHere you go!" # Change the system prompt here
-
-agent = CodeAgent(
-    tools=[], 
-    model=HfApiModel(), 
-    system_prompt=modified_system_prompt
-)
+agent.prompt_templates["system_prompt"] = agent.prompt_templates["system_prompt"] + "\nHere you go!"
 ```
 
 This also works with the [`ToolCallingAgent`].

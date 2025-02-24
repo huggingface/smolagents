@@ -65,13 +65,26 @@ BASE_BUILTIN_MODULES = [
 ]
 
 
+def escape_code_brackets(text: str) -> str:
+    """Escapes square brackets in code segments while preserving Rich styling tags."""
+
+    def replace_bracketed_content(match):
+        content = match.group(1)
+        cleaned = re.sub(
+            r"bold|red|green|blue|yellow|magenta|cyan|white|black|italic|dim|\s|#[0-9a-fA-F]{6}", "", content
+        )
+        return f"\\[{content}\\]" if cleaned.strip() else f"[{content}]"
+
+    return re.sub(r"\[([^\]]*)\]", replace_bracketed_content, text)
+
+
 class AgentError(Exception):
     """Base class for other agent-related exceptions"""
 
     def __init__(self, message, logger: "AgentLogger"):
         super().__init__(message)
         self.message = message
-        logger.log(f"[bold red]{message}[/bold red]", level="ERROR")
+        logger.log(f"[bold red]{escape_code_brackets(message)}[/bold red]", level="ERROR")
 
     def dict(self) -> Dict[str, str]:
         return {"type": self.__class__.__name__, "message": str(self.message)}

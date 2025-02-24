@@ -1,6 +1,6 @@
 import ast
 import builtins
-import inspect
+from itertools import zip_longest
 from typing import Set
 
 from .utils import BASE_BUILTIN_MODULES, get_source
@@ -157,41 +157,19 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
 
     Raises all errors encountered, if no error returns None.
     """
-    errors = []
-
-    source = get_source(cls)
-
-    tree = ast.parse(source)
-
-    if not isinstance(tree.body[0], ast.ClassDef):
-        raise ValueError("Source code must define a class")
-
-    # Check that __init__ method only has arguments with defaults
-    if not cls.__init__.__qualname__ == "Tool.__init__":
-        sig = inspect.signature(cls.__init__)
-        non_default_params = [
-            arg_name
-            for arg_name, param in sig.parameters.items()
-            if arg_name != "self"
-            and param.default == inspect.Parameter.empty
-            and param.kind != inspect.Parameter.VAR_KEYWORD  # Excludes **kwargs
-        ]
-        if non_default_params:
-            errors.append(
-                f"This tool has required arguments in __init__: {non_default_params}. "
-                "All parameters of __init__ must have default values!"
-            )
-
-    class_node = tree.body[0]
 
     class ClassLevelChecker(ast.NodeVisitor):
         def __init__(self):
             self.imported_names = set()
             self.complex_attributes = set()
             self.class_attributes = set()
+            self.non_defaults = set()
+            self.non_literal_defaults = set()
             self.in_method = False
 
         def visit_FunctionDef(self, node):
+            if node.name == "__init__":
+                self._check_init_function_parameters(node)
             old_context = self.in_method
             self.in_method = True
             self.generic_visit(node)
@@ -214,13 +192,38 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
                     if isinstance(target, ast.Name):
                         self.complex_attributes.add(target.id)
 
+        def _check_init_function_parameters(self, node):
+            # Check defaults in parameters
+            for arg, default in reversed(list(zip_longest(reversed(node.args.args), reversed(node.args.defaults)))):
+                if default is None:
+                    if arg.arg != "self":
+                        self.non_defaults.add(arg.arg)
+                elif not isinstance(default, (ast.Str, ast.Num, ast.Constant, ast.Dict, ast.List, ast.Set)):
+                    self.non_literal_defaults.add(arg.arg)
+
     class_level_checker = ClassLevelChecker()
+    source = get_source(cls)
+    tree = ast.parse(source)
+    class_node = tree.body[0]
+    if not isinstance(class_node, ast.ClassDef):
+        raise ValueError("Source code must define a class")
     class_level_checker.visit(class_node)
 
+    errors = []
     if class_level_checker.complex_attributes:
         errors.append(
             f"Complex attributes should be defined in __init__, not as class attributes: "
             f"{', '.join(class_level_checker.complex_attributes)}"
+        )
+    if class_level_checker.non_defaults:
+        errors.append(
+            f"Parameters in __init__ must have default values, found required parameters: "
+            f"{', '.join(class_level_checker.non_defaults)}"
+        )
+    if class_level_checker.non_literal_defaults:
+        errors.append(
+            f"Parameters in __init__ must have literal default values, found non-literal defaults: "
+            f"{', '.join(class_level_checker.non_literal_defaults)}"
         )
 
     # Run checks on all methods

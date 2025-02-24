@@ -24,7 +24,7 @@ import re
 from collections.abc import Mapping
 from importlib import import_module
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -868,6 +868,41 @@ def evaluate_listcomp(
     return inner_evaluate(listcomp.generators, 0, state)
 
 
+def evaluate_setcomp(
+    setcomp: ast.SetComp,
+    state: Dict[str, Any],
+    static_tools: Dict[str, Callable],
+    custom_tools: Dict[str, Callable],
+    authorized_imports: List[str],
+) -> Set[Any]:
+    result = set()
+    for gen in setcomp.generators:
+        iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+        for value in iter_value:
+            new_state = state.copy()
+            set_value(
+                gen.target,
+                value,
+                new_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            if all(
+                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                for if_clause in gen.ifs
+            ):
+                element = evaluate_ast(
+                    setcomp.elt,
+                    new_state,
+                    static_tools,
+                    custom_tools,
+                    authorized_imports,
+                )
+                result.add(element)
+    return result
+
+
 def evaluate_try(
     try_node: ast.Try,
     state: Dict[str, Any],
@@ -1196,6 +1231,10 @@ def evaluate_ast(
         return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
     elif isinstance(expression, (ast.ListComp, ast.GeneratorExp)):
         return evaluate_listcomp(expression, *common_params)
+    elif isinstance(expression, ast.DictComp):
+        return evaluate_dictcomp(expression, *common_params)
+    elif isinstance(expression, ast.SetComp):
+        return evaluate_setcomp(expression, *common_params)
     elif isinstance(expression, ast.UnaryOp):
         return evaluate_unaryop(expression, *common_params)
     elif isinstance(expression, ast.Starred):
@@ -1268,8 +1307,6 @@ def evaluate_ast(
             evaluate_ast(expression.upper, *common_params) if expression.upper is not None else None,
             evaluate_ast(expression.step, *common_params) if expression.step is not None else None,
         )
-    elif isinstance(expression, ast.DictComp):
-        return evaluate_dictcomp(expression, *common_params)
     elif isinstance(expression, ast.While):
         return evaluate_while(expression, *common_params)
     elif isinstance(expression, (ast.Import, ast.ImportFrom)):

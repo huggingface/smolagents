@@ -11,7 +11,6 @@ from scripts.text_web_browser import (
     FindNextTool,
     PageDownTool,
     PageUpTool,
-    SearchInformationTool,
     SimpleTextBrowser,
     VisitTool,
 )
@@ -19,6 +18,7 @@ from scripts.visual_qa import visualizer
 
 from smolagents import (
     CodeAgent,
+    GoogleSearchTool,
     # HfApiModel,
     LiteLLMModel,
     ToolCallingAgent,
@@ -98,7 +98,7 @@ def main():
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
 
     WEB_TOOLS = [
-        SearchInformationTool(browser),
+        GoogleSearchTool(provider="serper"),
         VisitTool(browser),
         PageUpTool(browser),
         PageDownTool(browser),
