@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import abc
 import json
 import logging
 import os
@@ -33,6 +34,8 @@ from .utils import _is_package_available, encode_image_base64, make_image_url
 
 
 if TYPE_CHECKING:
+    import mlx.core as mx
+    import mlx_lm
     from transformers import StoppingCriteriaList
 
 logger = logging.getLogger(__name__)
@@ -464,6 +467,18 @@ class HfApiModel(Model):
         return message
 
 
+class BaseMLXLogitsProcessor(abc.ABC):
+    """Enables the model to produce structured output through grammar or regex."""
+
+    @abc.abstractmethod
+    def __init__(self, grammar: str, tokenizer: "mlx_lm.tokenizer_utils.TokenizerWrapper"):
+        pass
+
+    @abc.abstractmethod
+    def __call__(self, input_ids: "mx.array", logits: "mx.array") -> "mx.array":
+        pass
+
+
 class MLXModel(Model):
     """A class to interact with models loaded using MLX on Apple silicon.
 
@@ -479,6 +494,8 @@ class MLXModel(Model):
             The key, which can usually be found in the model's chat template, for retrieving tool arguments.
         trust_remote_code (bool):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
+        logits_processor (BaseMLXLogitsProcessor *optional*):
+            Struture model output based on a grammar argument to the model's call method.
         kwargs (dict, *optional*):
             Any additional keyword arguments that you want to use in model.generate(), for instance `max_tokens`.
 
@@ -508,6 +525,7 @@ class MLXModel(Model):
         tool_name_key: str = "name",
         tool_arguments_key: str = "arguments",
         trust_remote_code: bool = False,
+        logits_processor: Optional[BaseMLXLogitsProcessor] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -522,6 +540,7 @@ class MLXModel(Model):
         self.stream_generate = mlx_lm.stream_generate
         self.tool_name_key = tool_name_key
         self.tool_arguments_key = tool_arguments_key
+        self.logits_processor = logits_processor
 
     def _to_message(self, text, tools_to_call_from):
         if tools_to_call_from:
@@ -560,10 +579,16 @@ class MLXModel(Model):
             tools_to_call_from=tools_to_call_from,
             **kwargs,
         )
+        # completion_kwargs post-process steps needed for mlx-lm
         messages = completion_kwargs.pop("messages")
         prepared_stop_sequences = completion_kwargs.pop("stop", [])
         tools = completion_kwargs.pop("tools", None)
         completion_kwargs.pop("tool_choice", None)
+        grammar = completion_kwargs.pop("grammar", None)
+        if grammar:
+            if self.logits_processor is None:
+                raise ValueError("Please initialize the model with a logits processor to use grammar.")
+            completion_kwargs["logits_processors"] = [self.logits_processor(grammar=grammar, tokenizer=self.tokenizer)]
 
         prompt_ids = self.tokenizer.apply_chat_template(
             messages,
@@ -1020,6 +1045,7 @@ __all__ = [
     "get_clean_message_list",
     "Model",
     "MLXModel",
+    "BaseMLXLogitsProcessor",
     "TransformersModel",
     "HfApiModel",
     "LiteLLMModel",
