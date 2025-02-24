@@ -93,7 +93,6 @@ def main():
         max_completion_tokens=8192,
         reasoning_effort="high",
     )
-    document_inspection_tool = TextInspectorTool(model, text_limit)
 
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
 
@@ -129,7 +128,7 @@ def main():
 
     manager_agent = CodeAgent(
         model=model,
-        tools=[visualizer, document_inspection_tool],
+        tools=[visualizer],
         max_steps=12,
         verbosity_level=2,
         additional_authorized_imports=AUTHORIZED_IMPORTS,
