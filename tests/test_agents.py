@@ -27,6 +27,7 @@ from smolagents.agents import (
     AgentMaxStepsError,
     CodeAgent,
     MultiStepAgent,
+    OutlinesAgent,
     ToolCall,
     ToolCallingAgent,
     populate_template,
@@ -41,7 +42,7 @@ from smolagents.models import (
     MessageRole,
     TransformersModel,
 )
-from smolagents.tools import tool
+from smolagents.tools import Tool, tool
 from smolagents.utils import BASE_BUILTIN_MODULES
 
 
@@ -967,6 +968,90 @@ final_answer("Final report.")
 
         # Test that visualization works
         manager_code_agent.visualize()
+
+
+
+
+class TestMultiStepAgent:
+    def test_planning_step_first_step(self):
+        fake_model = MagicMock()
+        agent = MultiStepAgent(
+            tools=[],
+            model=fake_model,
+        )
+        task = "Test task"
+        agent.planning_step(task, is_first_step=True, step=0)
+        assert len(agent.memory.steps) == 1
+        planning_step = agent.memory.steps[0]
+        assert isinstance(planning_step, PlanningStep)
+        messages = planning_step.model_input_messages
+        assert isinstance(messages, list)
+        assert len(messages) == 2
+        for message in messages:
+            assert isinstance(message, dict)
+            assert "role" in message
+            assert "content" in message
+            assert isinstance(message["role"], MessageRole)
+            assert isinstance(message["content"], list)
+            assert len(message["content"]) == 1
+            for content in message["content"]:
+                assert isinstance(content, dict)
+                assert "type" in content
+                assert "text" in content
+        # Test calls to model
+        assert len(fake_model.call_args_list) == 2
+        for call_args in fake_model.call_args_list:
+            assert len(call_args.args) == 1
+            messages = call_args.args[0]
+            assert isinstance(messages, list)
+            assert len(messages) == 2
+            for message in messages:
+                assert isinstance(message, dict)
+                assert "role" in message
+                assert "content" in message
+                assert isinstance(message["role"], MessageRole)
+                assert isinstance(message["content"], list)
+                assert len(message["content"]) == 1
+                for content in message["content"]:
+                    assert isinstance(content, dict)
+                    assert "type" in content
+                    assert "text" in content
+
+
+# Demo tool
+class RetrieveCharacter(Tool):
+    name = "retrieve_character"
+    description = """
+    This is a tool that retrieves a character from a database."""
+    inputs = {
+        "name": {
+            "type": "string",
+            "name": "name",
+            "description": "the name of the character to retrieve",
+        },
+        "age": {
+            "type": "integer",
+            "name": "age",
+            "description": "the age of the character to retrieve",
+        },
+    }
+    output_type = "string"
+
+    def forward(self, name: str, age: int):
+        # TODO: Implement the actual retrieval of the character
+        return f"The ID of the character named {name} is `113`"
+
+
+class TestOutlinesAgent:
+    def test_outlines_agent(self):
+        from smolagents.models import OutlinesModel
+
+        model_name = "meta-llama/Llama-3.2-3B-Instruct"
+        outlines_model = OutlinesModel(model_name)
+        agent = OutlinesAgent(tools=[RetrieveCharacter()], model=outlines_model, max_steps=2)
+        agent.run("Find the id of the character Romeo")
+        # verify that 113 is printed
+        assert "113" in str(agent.write_memory_to_messages())
 
 
 @pytest.fixture

@@ -36,7 +36,32 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from .agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
+from smolagents.agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
+from smolagents.memory import (
+    ActionStep,
+    AgentMemory,
+    PlanningStep,
+    SystemPromptStep,
+    TaskStep,
+    ToolCall,
+)
+from smolagents.monitoring import (
+    YELLOW_HEX,
+    AgentLogger,
+    LogLevel,
+)
+from smolagents.utils import (
+    AgentError,
+    AgentExecutionError,
+    AgentGenerationError,
+    AgentMaxStepsError,
+    AgentParsingError,
+    parse_code_blobs,
+    parse_json_tool_call,
+    truncate_content,
+)
+
+from .agent_types import AgentType
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .e2b_executor import E2BExecutor
 from .local_python_executor import (
@@ -1276,6 +1301,203 @@ class CodeAgent(MultiStepAgent):
                     "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
                     level=LogLevel.INFO,
                 )
+            raise AgentExecutionError(error_msg, self.logger)
+
+        truncated_output = truncate_content(str(output))
+        observation += "Last output from code snippet:\n" + truncated_output
+        memory_step.observations = observation
+
+        execution_outputs_console += [
+            Text(
+                f"{('Out - Final answer' if is_final_answer else 'Out')}: {truncated_output}",
+                style=(f"bold {YELLOW_HEX}" if is_final_answer else ""),
+            ),
+        ]
+        self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
+        memory_step.action_output = output
+        return output if is_final_answer else None
+
+
+class OutlinesAgent(MultiStepAgent):
+    """
+    In this agent, the tool calls will be formulated by the LLM in code format, then parsed and executed.
+
+    Args:
+        tools (`list[Tool]`): [`Tool`]s that the agent can use.
+        model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
+        system_prompt (`str`, *optional*): System prompt that will be used to generate the agent's actions.
+        grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
+        additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
+        planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
+        use_e2b_executor (`bool`, default `False`): Whether to use the E2B executor for remote code execution.
+        max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
+        **kwargs: Additional keyword arguments.
+
+    """
+
+    def __init__(
+        self,
+        tools: List[Tool],
+        model: Callable[[List[Dict[str, str]]], ChatMessage],
+        prompt_templates: Optional[PromptTemplates] = None,
+        grammar: Optional[Dict[str, str]] = None,
+        additional_authorized_imports: Optional[List[str]] = None,
+        planning_interval: Optional[int] = None,
+        use_e2b_executor: bool = False,
+        max_print_outputs_length: Optional[int] = None,
+        **kwargs,
+    ):
+        prompt_templates = prompt_templates or yaml.safe_load(
+            importlib.resources.files("smolagents.prompts").joinpath("outlines_agent.yaml").read_text()
+        )
+
+        self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
+        self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
+        super().__init__(
+            tools=tools,
+            model=model,
+            prompt_templates=prompt_templates,
+            grammar=grammar,
+            planning_interval=planning_interval,
+            **kwargs,
+        )
+        self.model = model
+        if "*" in self.additional_authorized_imports:
+            self.logger.log(
+                "Caution: you set an authorization for all imports, meaning your agent can decide to import any package it deems necessary. This might raise issues if the package is not installed in your environment.",
+                0,
+            )
+
+        if use_e2b_executor and len(self.managed_agents) > 0:
+            raise Exception(
+                f"You passed both {use_e2b_executor=} and some managed agents. Managed agents is not yet supported with remote code execution."
+            )
+
+        all_tools = {**self.tools, **self.managed_agents}
+        if use_e2b_executor:
+            self.python_executor = E2BExecutor(
+                self.additional_authorized_imports,
+                list(all_tools.values()),
+                self.logger,
+            )
+        else:
+            self.python_executor = LocalPythonInterpreter(
+                self.additional_authorized_imports,
+                all_tools,
+                max_print_outputs_length=max_print_outputs_length,
+            )
+
+    def initialize_system_prompt(self):
+        self.system_prompt = super().initialize_system_prompt()
+        try:
+            self.system_prompt = self.system_prompt.replace(
+                "{{authorized_imports}}",
+                (
+                    "You can import from any package you want."
+                    if "*" in self.authorized_imports
+                    else str(self.authorized_imports)
+                ),
+            )
+        except Exception:
+            pass
+        return self.system_prompt
+
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
+        """
+        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
+        Returns None if the step is not final.
+        """
+        memory_messages = self.write_memory_to_messages()
+
+        self.input_messages = memory_messages.copy()
+
+        # Add new step in logs
+        memory_step.model_input_messages = memory_messages.copy()
+        try:
+            # SELECT TOOL TO USE
+            tool_selection_schema = {
+                "title": "Tool selection",
+                "description": "Chose the best tool to use given the current context.",
+                "type": "object",
+                "properties": {
+                    "tool_name": {
+                        "type": "string",
+                        "enum": [self.tools[tool].name for tool in self.tools],
+                        "description": "Chose the best tool to use given the current context.",
+                    }
+                },
+                "required": ["tool_name"],
+            }
+            sel_res = self.model(self.input_messages, json_schema=tool_selection_schema)
+            selected_tool_name = sel_res["tool_name"]
+
+            if selected_tool_name == "final_answer":
+                content = "Chose to use the tool `final_answer` no inputs"
+            else:
+                selected_tool_inputs = self.tools[selected_tool_name].inputs
+                tool_inputs_schema = {
+                    "title": "Tool inputs",
+                    "description": "You are to provide the appropriate inputs for this tool",
+                    "type": "object",
+                    "properties": selected_tool_inputs,
+                    "required": [
+                        key for key in selected_tool_inputs
+                    ],  # TODO: This is an assumption, not sure how it should be handled
+                }
+                tool_res = self.model(self.input_messages, json_schema=tool_inputs_schema)
+                tool_inputs_json = tool_res
+                content = f"Chose to use the tool `{selected_tool_name}` with the inputs `{tool_inputs_json}`"
+
+                memory_step.tool_calls = [
+                    ToolCall(
+                        name="python_interpreter",
+                        arguments=tool_inputs_json,
+                        id=f"call_{len(self.memory.steps)}",
+                    )
+                ]
+
+            chat_message = ChatMessage(role="assistant", content=content)
+
+            self.logger.log_markdown(
+                content=content,
+                title="Output message of the LLM:",
+                level=LogLevel.DEBUG,
+            )
+
+            memory_step.model_output_message = chat_message
+            model_output = chat_message.content
+            memory_step.model_output = model_output
+        except Exception as e:
+            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
+
+        self.logger.log(
+            model_output,
+            level=LogLevel.INFO,
+        )
+
+        is_final_answer = True if selected_tool_name == "final_answer" else False
+        observation = ""
+        try:
+            if selected_tool_name == "final_answer":
+                final_answer_schema = {
+                    "title": "Final answer",
+                    "description": "You are to provide the final answer to the user's request.",
+                    "type": "object",
+                    "properties": {
+                        "final_answer": {
+                            "type": "string",
+                            "description": "The final answer to the user's request.",
+                        }
+                    },
+                    "required": ["final_answer"],
+                }
+                final_answer_res = self.model(self.input_messages, json_schema=final_answer_schema)
+                output = final_answer_res["final_answer"]
+            else:
+                output = self.tools[selected_tool_name].forward(**tool_inputs_json)
+            execution_outputs_console = []
+        except Exception as e:
+            error_msg = str(e)
             raise AgentExecutionError(error_msg, self.logger)
 
         truncated_output = truncate_content(str(output))

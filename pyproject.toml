@@ -32,6 +32,9 @@ audio = [
   "soundfile",
   "smolagents[torch]",
 ]
+outlines = [
+  "outlines",
+]
 e2b = [
   "e2b-code-interpreter>=1.0.3",
   "python-dotenv>=1.0.1",
@@ -62,6 +65,7 @@ transformers = [
   "accelerate",
   "transformers>=4.0.0,<4.49.0",
   "smolagents[torch]",
+  "sentencepiece",
 ]
 all = [
   "smolagents[audio,e2b,gradio,litellm,mcp,openai,telemetry,transformers]",
