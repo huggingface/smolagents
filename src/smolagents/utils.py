@@ -24,6 +24,7 @@ import os
 import re
 import textwrap
 import types
+import keyword
 from functools import lru_cache
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
@@ -424,3 +425,9 @@ def make_init_file(folder: str):
     # Create __init__
     with open(os.path.join(folder, "__init__.py"), "w"):
         pass
+
+
+def is_valid_var(name: str) -> bool:
+    if not isinstance(name, str):
+        return False
+    return name.isidentifier() and not keyword.iskeyword(name)

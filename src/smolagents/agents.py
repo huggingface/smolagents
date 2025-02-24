@@ -67,6 +67,7 @@ from .utils import (
     parse_code_blobs,
     parse_json_tool_call,
     truncate_content,
+    is_valid_var
 )
 
 
@@ -236,8 +237,18 @@ class MultiStepAgent:
     def _setup_managed_agents(self, managed_agents):
         self.managed_agents = {}
         if managed_agents:
-            assert all(agent.name and agent.description for agent in managed_agents), (
-                "All managed agents need both a name and a description!"
+            assert all(
+                agent.name
+                and agent.description
+                and is_valid_var(agent.name)
+                for agent in managed_agents
+            ), (
+                "All managed agents require: \n"
+                "1. Non-empty name\n"
+                "2. Non-empty description\n"
+                "3. Name should be valid python variable name (got invalid names: {})".format(
+                    [agent.name for agent in managed_agents if not is_valid_var(agent.name)]
+                )
             )
             self.managed_agents = {agent.name: agent for agent in managed_agents}
 
