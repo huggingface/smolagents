@@ -531,7 +531,7 @@ class MLXModel(Model):
         trust_remote_code (bool):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
         logits_processor (BaseMLXLogitsProcessor *optional*):
-            Strutures model output based on a grammar argument to the model's call method.
+            Structures model output based on a grammar argument to the model's call method.
         kwargs (dict, *optional*):
             Any additional keyword arguments that you want to use in model.generate(), for instance `max_tokens`.
 
