@@ -468,7 +468,43 @@ class HfApiModel(Model):
 
 
 class BaseMLXLogitsProcessor(abc.ABC):
-    """Enables the model to produce structured output through grammar or regex."""
+    """Enables the model to produce structured output through grammar or regex.
+
+    This base class is meant to provide a structure for using logits processor libraries with MLXModels.
+
+    Example:
+    ```python
+    import outlines
+    from smolagents import CodeAgent, BaseMLXLogitsProcessor, MLXModel
+
+
+    class RegexLogitsProcessor(BaseMLXLogitsProcessor):
+        def __init__(self, grammar, tokenizer):
+            self._outlines_processor = outlines.processors.RegexLogitsProcessor(
+                regex_string=grammar,
+                tokenizer=outlines.models.TransformerTokenizer(tokenizer)
+            )
+
+        def __call__(self, input_ids, logits):
+            processed_logits = self._outlines_processor(
+                input_ids,
+                logits.reshape(-1)
+            )
+            return processed_logits.reshape(1, -1)
+
+    model = MLXModel(
+        model_id="mlx-community/Qwen2.5-Coder-32B-Instruct-4bit",
+        max_tokens=5000,
+        logits_processor=RegexLogitsProcessor
+    )
+
+    CodeAgent(
+        model=model,
+        grammar=r'Thought: ([^\\.\n]+?\\.){1,3}\nCode:\n```(?:py|python)?\n[^`]+?```<end_code>',
+        tools=[],
+    )
+    ```
+    """
 
     @abc.abstractmethod
     def __init__(self, grammar: str, tokenizer: "mlx_lm.tokenizer_utils.TokenizerWrapper"):
@@ -495,7 +531,7 @@ class MLXModel(Model):
         trust_remote_code (bool):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
         logits_processor (BaseMLXLogitsProcessor *optional*):
-            Struture model output based on a grammar argument to the model's call method.
+            Strutures model output based on a grammar argument to the model's call method.
         kwargs (dict, *optional*):
             Any additional keyword arguments that you want to use in model.generate(), for instance `max_tokens`.
 
