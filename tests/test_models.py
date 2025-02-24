@@ -20,10 +20,20 @@ from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
+import outlines
 import pytest
 from transformers.testing_utils import get_tests_dir
 
-from smolagents import ChatMessage, HfApiModel, LiteLLMModel, MLXModel, TransformersModel, models, tool
+from smolagents import (
+    BaseMLXLogitsProcessor,
+    ChatMessage,
+    HfApiModel,
+    LiteLLMModel,
+    MLXModel,
+    TransformersModel,
+    models,
+    tool,
+)
 from smolagents.models import MessageRole, get_clean_message_list, parse_json_if_needed
 
 
@@ -69,6 +79,25 @@ class ModelTests(unittest.TestCase):
         assert model(messages, stop_sequences=[]).content == f"I'm ready to help you{stop_sequence}'"
         # check stop_sequence capture when output has trailing chars
         assert model(messages, stop_sequences=[stop_sequence]).content == "I'm ready to help you"
+
+    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    def test_mlx_message_with_logit_processor(self):
+        class RegexLogitsProcessor(BaseMLXLogitsProcessor):
+            def __init__(self, grammar, tokenizer):
+                self._outlines_processor = outlines.processors.RegexLogitsProcessor(
+                    regex_string=grammar, tokenizer=outlines.models.TransformerTokenizer(tokenizer)
+                )
+
+            def __call__(self, input_ids, logits):
+                processed_logits = self._outlines_processor(input_ids, logits.reshape(-1))
+                return processed_logits.reshape(1, -1)
+
+        model = MLXModel(
+            model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=100, logits_processor=RegexLogitsProcessor
+        )
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        grammar = r"Hi! The logits processor made me say this!"
+        assert model(messages, grammar=grammar).content == grammar
 
     def test_transformers_message_no_tool(self):
         model = TransformersModel(
