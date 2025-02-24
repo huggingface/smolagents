@@ -182,7 +182,7 @@ class MultiStepAgent:
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
-        name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
+        name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called, must be identical to the name of the agent instance.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
         provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
         final_answer_checks (`list`, *optional*): List of Callables to run before returning a final answer for checking validity.
