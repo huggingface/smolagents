@@ -32,6 +32,10 @@ audio = [
   "soundfile",
   "smolagents[torch]",
 ]
+docker = [
+  "docker",
+  "python-dotenv>=1.0.1",
+]
 e2b = [
   "e2b-code-interpreter>=1.0.3",
   "python-dotenv>=1.0.1",
