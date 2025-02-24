@@ -271,9 +271,24 @@ finally:
     sandbox.cleanup()
 ```
 
+### Podman setup
+
+Podman is a deamon-less and root-less open source alternative to Docker
+
+#### Installation
+
+1. [Install Podman on your system](https://podman.io/docs/installation)
+2. Install the Python Podman package:
+```bash
+pip install podman
+```
+#### Run the example
+
+The [Podman example directory](https://github.com/huggingface/smolagents/tree/main/examples/podman) contains all the file needed and a README to run them
+
 ### Best practices for sandboxes
 
-These key practices apply to both E2B and Docker sandboxes:
+These key practices apply to all sandboxes:
 
 - Resource management
   - Set memory and CPU limits
