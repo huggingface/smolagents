@@ -50,7 +50,7 @@ To get started, follow the steps below:
     
     - **SerpAPI Key**: Open Deep Research uses SerpAPI for web browsing functionality. 
         ```bash
-        export SERPAPI_API_KEY="your_serpapi_key_here"
+        export SERPER_API_KEY="your_serpapi_key_here"
         ```
 
 5. **Run the script**:
