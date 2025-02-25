@@ -76,7 +76,7 @@ Here are examples of how to do it.
 
 ## Sandbox setup for secure code execution
 
-When working with AI agents that execute code, security is paramount. This guide describes how to set up and use secure sandboxes for your agent applications using either E2B cloud sandboxes or local Docker containers.
+When working with AI agents that execute code, security is paramount. This guide describes how to set up and use secure sandboxes for your agent applications using different sandboxes on local or cloud containers.
 
 ### E2B setup
 
@@ -102,7 +102,7 @@ sandbox = Sandbox()
 # Install required packages
 sandbox.commands.run("pip install smolagents")
 
-def run_code_raise_errors(sandbox, code: str, verbose: bool = False) -> str:
+def run_code_raise_errors(sandbox, code: str, verbose: bool = False) -> Dockerstr:
     execution = sandbox.run_code(
         code,
         envs={'HF_TOKEN': os.getenv('HF_TOKEN')}
@@ -285,6 +285,27 @@ pip install podman
 #### Run the example
 
 The [Podman example directory](https://github.com/huggingface/smolagents/tree/main/examples/podman) contains all the file needed and a README to run them
+
+### Kubernetes sandbox
+
+This example demontrate how to set up and use a secure sandbox to run your smolagent in a kubernetes cluster. For the purpose of this example we are using a local cluster installation running minikube
+
+#### minikube setup
+
+1. [Install minikube on your system](https://minikube.sigs.k8s.io/docs/start/?arch=%2Flinux%2Fx86-64%2Fstable%2Fbinary+download)
+2. start minikube and wait it's up and running: `minikube start --memory=10000 --cpus 4`
+
+
+#### Install required python package
+
+Install the Python kubernetes package:
+```bash
+pip install kubernetes
+```
+#### Run the example
+
+The [Kubernetes example directory](https://github.com/huggingface/smolagents/tree/main/examples/kubernetes) contains all the file needed and a README to create the image, push it to you minikube and run the example in a kubernetes sandbox
+
 
 ### Best practices for sandboxes
 
