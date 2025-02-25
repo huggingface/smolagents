@@ -22,11 +22,12 @@ import os
 import sys
 import tempfile
 import textwrap
+import time
 import types
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union, Tuple, Any
 
 from huggingface_hub import (
     create_repo,
@@ -1031,6 +1032,62 @@ class PipelineTool(Tool):
             decoded_outputs = handle_agent_output_types(decoded_outputs, self.output_type)
         return decoded_outputs
 
+class ToolCache:
+    """Thread-safe cache for tool calls that can be used internally by an agent or shared between multiple agents."""
+
+    def __init__(self, max_size: int = 128):
+        """
+        Initialize the tool cache.
+
+        Args:
+            max_size (int): Maximum number of entries to keep in cache
+        """
+        self._cache = {}
+        self._access_times = {}
+        self.max_size = max_size
+
+    def get(self, key: str) -> Tuple[bool, Any]:
+        """
+        Get a result from cache. Returns (hit, result).
+        Dict access is atomic in Python due to the GIL.
+        """
+        try:
+            value = self._cache.get(key)
+            if value is not None:
+                self._access_times[key] = time.monotonic()
+                return True, value
+            return False, None
+        except Exception:
+            # Handle any potential race conditions gracefully
+            return False, None
+
+    def set(self, key: str, value: Any):
+        """
+        Add a result to the cache.
+        """
+        try:
+            current_time = time.monotonic()
+            self._cache[key] = value
+            self._access_times[key] = current_time
+            if len(self._cache) > self.max_size:
+                sorted_items = sorted(self._access_times.items(), key=lambda x: x[1])
+                while len(self._cache) > self.max_size and sorted_items:
+                    oldest_key = sorted_items.pop(0)[0]
+                    self._cache.pop(oldest_key, None)
+                    self._access_times.pop(oldest_key, None)
+        except Exception:
+            # Handle any potential race conditions gracefully
+            pass
+
+    def clear(self):
+        """Clear all entries from the cache."""
+        self._cache.clear()
+        self._access_times.clear()
+
+    def __len__(self):
+        """Get the current number of cache entries."""
+        return len(self._cache)
+
 
 __all__ = [
     "AUTHORIZED_TYPES",
@@ -1039,4 +1096,5 @@ __all__ = [
     "load_tool",
     "launch_gradio_demo",
     "ToolCollection",
+    "ToolCache"
 ]

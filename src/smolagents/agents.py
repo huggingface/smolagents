@@ -14,6 +14,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+__all__ = ["AgentMemory", "CodeAgent", "MultiStepAgent", "ToolCallingAgent", "CachedToolCallingAgent"]
+
 import importlib
 import inspect
 import json
@@ -56,7 +59,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .tools import Tool
+from .tools import Tool, ToolCache
 from .utils import (
     AgentError,
     AgentExecutionError,
@@ -1120,6 +1123,82 @@ class ToolCallingAgent(MultiStepAgent):
             )
             memory_step.observations = updated_information
             return None
+
+
+class ToolCallCacheMixin:
+    """Mixin class that adds caching capabilities to tool calls."""
+
+    def __init__(
+            self,
+            cache_size: int = 128,
+            cached_tools: Optional[List[str]] = None,
+            shared_cache: Optional[ToolCache] = None,
+            *args,
+            **kwargs
+    ):
+        """
+        Initialize the caching mixin.
+
+        Args:
+            cache_size: Maximum number of entries to keep in internal cache (only used when shared_cache is None)
+            cached_tools: List of tool names to cache. If None, all tools are cached.
+            shared_cache: Optional shared ToolCache instance. If None, creates an internal cache.
+        """
+        self.cache = shared_cache if shared_cache is not None else ToolCache(max_size=cache_size)
+        self.cached_tools = set(cached_tools) if cached_tools is not None else None
+        super().__init__(*args, **kwargs)
+
+    def _get_cache_key(self, tool_name: str, tool_arguments: Dict) -> str:
+        """Create a unique cache key from tool name and arguments."""
+        sorted_args = json.dumps(tool_arguments, sort_keys=True)
+        return f"{tool_name}:{sorted_args}"
+
+    def execute_tool_call(self, tool_name: str, tool_arguments: Dict) -> Any:
+        """Override of execute_tool_call that implements caching."""
+        # Skip caching if tool is not in cached_tools (when specified)
+        if self.cached_tools is not None and tool_name not in self.cached_tools:
+            return super().execute_tool_call(tool_name, tool_arguments)
+
+        cache_key = self._get_cache_key(tool_name, tool_arguments)
+        cache_hit, cached_result = self.cache.get(cache_key)
+        if cache_hit:
+            self.logger.log(f"Retrieved result from cache for tool '{tool_name}'", level=LogLevel.INFO)
+            return cached_result
+
+        result = super().execute_tool_call(tool_name, tool_arguments)
+        self.cache.set(cache_key, result)
+        return result
+
+
+class CachedToolCallingAgent(ToolCallCacheMixin, ToolCallingAgent):
+    """
+    A version of ToolCallingAgent that includes caching functionality.
+
+    Usage:
+        # Cache all tools
+        agent = CachedToolCallingAgent(
+            tools=tools,
+            model=model,
+            cache_size=128  # optional, defaults to 128
+        )
+
+        # Cache only specific tools
+        agent = CachedToolCallingAgent(
+            tools=tools,
+            model=model,
+            cached_tools=['search', 'fetch_data']  # only cache these tools
+        )
+
+        # Use external tool cache
+        cache = ToolCache()
+        agent = CachedToolCallingAgent(
+            tools=tools,
+            model=model,
+            shared_cache=cache,
+            cached_tools=['search', 'fetch_data']  # only cache these tools
+        )
+    """
+    pass
 
 
 class CodeAgent(MultiStepAgent):
