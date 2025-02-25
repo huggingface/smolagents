@@ -312,6 +312,11 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == [0, 1, 2]
 
+    def test_setcomp(self):
+        code = "batman_times = {entry['time'] for entry in [{'time': 10}, {'time': 19}, {'time': 20}]}"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {10, 19, 20}
+
     def test_break_continue(self):
         code = "for i in range(10):\n    if i == 5:\n        break\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})

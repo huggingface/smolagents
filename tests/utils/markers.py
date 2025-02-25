@@ -12,21 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Markers for tests ."""
 
-import unittest
+import os
 
-from smolagents import DuckDuckGoSearchTool
-
-from .test_tools import ToolTesterMixin
-from .utils.markers import require_run_all
+import pytest
 
 
-class DuckDuckGoSearchToolTester(unittest.TestCase, ToolTesterMixin):
-    def setUp(self):
-        self.tool = DuckDuckGoSearchTool()
-        self.tool.setup()
-
-    @require_run_all
-    def test_exact_match_arg(self):
-        result = self.tool("Agents")
-        assert isinstance(result, str)
+require_run_all = pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="requires RUN_ALL environment variable")

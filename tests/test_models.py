@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -37,6 +36,8 @@ from smolagents.models import (
     parse_tool_args_if_needed,
 )
 from smolagents.tools import tool
+
+from .utils.markers import require_run_all
 
 
 class ModelTests(unittest.TestCase):
@@ -140,13 +141,13 @@ class TestHfApiModel:
             "role conversion should be applied"
         )
 
-    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
+    @require_run_all
     def test_get_hfapi_message_no_tool(self):
         model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
-    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
+    @require_run_all
     def test_get_hfapi_message_no_tool_external_provider(self):
         model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]

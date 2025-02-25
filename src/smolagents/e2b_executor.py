@@ -19,7 +19,7 @@ import pickle
 import re
 import textwrap
 from io import BytesIO
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from PIL import Image
 
@@ -37,7 +37,7 @@ except ModuleNotFoundError:
 
 
 class E2BExecutor:
-    def __init__(self, additional_imports: List[str], tools: List[Tool], logger):
+    def __init__(self, additional_imports: List[str], logger):
         self.logger = logger
         try:
             from e2b_code_interpreter import Sandbox
@@ -67,8 +67,25 @@ class E2BExecutor:
             else:
                 logger.log(f"Installation of {additional_imports} succeeded!", 0)
 
+    def run_code_raise_errors(self, code: str):
+        if self.final_answer_pattern.search(code) is not None:
+            self.final_answer = True
+        execution = self.sbx.run_code(
+            code,
+        )
+        if execution.error:
+            execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
+            logs = execution_logs
+            logs += "Executing code yielded an error:"
+            logs += execution.error.name
+            logs += execution.error.value
+            logs += execution.error.traceback
+            raise ValueError(logs)
+        return execution
+
+    def update_tools(self, tools: Dict[str, Tool]):
         tool_codes = []
-        for tool in tools:
+        for tool in tools.values():
             validate_tool_attributes(tool.__class__, check_imports=False)
             tool_code = instance_to_source(tool, base_cls=Tool)
             tool_code = tool_code.replace("from smolagents.tools import Tool", "")
@@ -88,26 +105,10 @@ class E2BExecutor:
         )
         tool_definition_code += "\n\n".join(tool_codes)
 
-        tool_definition_execution = self.run_code_raise_errors(tool_definition_code)
-        self.logger.log(tool_definition_execution.logs)
+        execution = self.run_code_raise_errors(tool_definition_code)
+        self.logger.log(execution.logs)
 
-    def run_code_raise_errors(self, code: str):
-        if self.final_answer_pattern.search(code) is not None:
-            self.final_answer = True
-        execution = self.sbx.run_code(
-            code,
-        )
-        if execution.error:
-            execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
-            logs = execution_logs
-            logs += "Executing code yielded an error:"
-            logs += execution.error.name
-            logs += execution.error.value
-            logs += execution.error.traceback
-            raise ValueError(logs)
-        return execution
-
-    def __call__(self, code_action: str, additional_args: dict) -> Tuple[Any, Any]:
+    def __call__(self, code_action: str, additional_args: Dict[str, Any]) -> Tuple[Any, Any]:
         if len(additional_args) > 0:
             # Pickle additional_args to server
             import tempfile
@@ -129,6 +130,7 @@ locals().update({key: value for key, value in pickle_dict.items()})
             self.logger.log(execution_logs, 1)
 
         execution = self.run_code_raise_errors(code_action)
+        self.logger.log(execution.logs)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
         if not execution.results:
             return None, execution_logs, self.final_answer
