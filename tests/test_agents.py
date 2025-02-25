@@ -815,7 +815,7 @@ class TestCodeAgent:
         assert "secret\\\\" in repr(capture.get())
 
     def test_change_tools_after_init(self):
-        from smolagents import Tool, tool
+        from smolagents import tool
 
         @tool
         def fake_tool_1() -> str:
@@ -832,22 +832,11 @@ class TestCodeAgent:
 
         agent = CodeAgent(tools=[fake_tool_1], model=fake_code_model)
 
-        class ModifiedFinalAnswerTool(Tool):
-            name = "final_answer"
-            description = "Provides a final answer to the given problem."
-            inputs = {"answer": {"type": "any", "description": "The final function that solves the problem"}}
-            output_type = "string"
-
-            def forward(self, answer) -> str:
-                return answer + "FLAG"
-
-        agent.tools["final_answer"] = ModifiedFinalAnswerTool()
+        agent.tools["final_answer"] = CustomFinalAnswerTool()
         agent.tools["fake_tool_1"] = fake_tool_2
 
         answer = agent.run("Fake task.")
-        assert answer == "2FLAG"
-
-        agent = CodeAgent(tools=[], model=fake_code_model)
+        assert answer == "2CUSTOM"
 
 
 class MultiAgentsTests(unittest.TestCase):
