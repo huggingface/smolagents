@@ -63,10 +63,3 @@ To get started, follow the steps below:
 
     Replace `"Your question here!"` with the question you'd like the agent to answer. The agent will use the Hugging Face and OpenAI models to process and respond to your query.
 
----
-
-## Notes
-
-- Only **reasoning models** like `o1` are supported at this time. If you attempt to use a non-reasoning model, you may need to modify the script.
-
----
