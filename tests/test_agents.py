@@ -31,7 +31,7 @@ from smolagents.agents import (
     ToolCallingAgent,
     populate_template,
 )
-from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import PlanningStep
 from smolagents.models import (
     ChatMessage,
@@ -569,6 +569,11 @@ nested_answer()
         assert "Error raised in check" in str(agent.write_memory_to_messages())
 
 
+class CustomFinalAnswerTool(FinalAnswerTool):
+    def forward(self, answer) -> str:
+        return answer + "CUSTOM"
+
+
 class TestMultiStepAgent:
     def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
@@ -582,6 +587,15 @@ class TestMultiStepAgent:
         assert "managed_agent" in agent.prompt_templates
         assert agent.prompt_templates["managed_agent"]["task"] == "Task for {{name}}: {{task}}"
         assert agent.prompt_templates["managed_agent"]["report"] == "Report for {{name}}: {{final_answer}}"
+
+    @pytest.mark.parametrize(
+        "tools, expected_final_answer_tool",
+        [([], FinalAnswerTool), ([CustomFinalAnswerTool()], CustomFinalAnswerTool)],
+    )
+    def test_instantiation_with_final_answer_tool(self, tools, expected_final_answer_tool):
+        agent = MultiStepAgent(tools=tools, model=MagicMock())
+        assert "final_answer" in agent.tools
+        assert isinstance(agent.tools["final_answer"], expected_final_answer_tool)
 
     def test_step_number(self):
         fake_model = MagicMock()
