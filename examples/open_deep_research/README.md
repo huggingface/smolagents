@@ -67,7 +67,6 @@ To get started, follow the steps below:
 
 ## Notes
 
-- Currently, this implementation only supports **OpenAI** models.
 - Only **reasoning models** like `o1` are supported at this time. If you attempt to use a non-reasoning model, you may need to modify the script.
 
 ---
