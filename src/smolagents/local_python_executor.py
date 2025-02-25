@@ -1042,7 +1042,7 @@ def get_safe_module(raw_module, authorized_imports, visited=None):
 
         try:
             attr_value = getattr(raw_module, attr_name)
-        except ImportError as e:
+        except (ImportError, AttributeError) as e:
             # lazy / dynamic loading module -> INFO log and skip
             logger.info(
                 f"Skipping import error while copying {raw_module.__name__}.{attr_name}: {type(e).__name__} - {e}"
