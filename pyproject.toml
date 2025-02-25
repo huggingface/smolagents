@@ -68,7 +68,7 @@ transformers = [
   "smolagents[torch]",
 ]
 all = [
-  "smolagents[audio,e2b,gradio,litellm,mcp,openai,telemetry,transformers]",
+  "smolagents[audio,e2b,gradio,litellm,mcp,openai,outlines,telemetry,transformers]",
 ]
 quality = [
   "ruff>=0.9.0",
