@@ -1042,7 +1042,7 @@ def get_safe_module(raw_module, authorized_imports, visited=None):
 
         try:
             attr_value = getattr(raw_module, attr_name)
-        except ImportError as e:
+        except (ImportError, AttributeError) as e:
             # lazy / dynamic loading module -> INFO log and skip
             logger.info(
                 f"Skipping import error while copying {raw_module.__name__}.{attr_name}: {type(e).__name__} - {e}"
@@ -1416,7 +1416,11 @@ def evaluate_python_code(
         )
 
 
-class LocalPythonInterpreter:
+class PythonExecutor:
+    pass
+
+
+class LocalPythonExecutor(PythonExecutor):
     def __init__(
         self,
         additional_authorized_imports: List[str],
@@ -1432,8 +1436,7 @@ class LocalPythonInterpreter:
         # TODO: assert self.authorized imports are all installed locally
         self.static_tools = None
 
-    def __call__(self, code_action: str, additional_variables: Dict[str, Any]) -> Tuple[Any, str, bool]:
-        self.state.update(additional_variables)
+    def __call__(self, code_action: str) -> Tuple[Any, str, bool]:
         output, is_final_answer = evaluate_python_code(
             code_action,
             static_tools=self.static_tools,
@@ -1445,8 +1448,11 @@ class LocalPythonInterpreter:
         logs = str(self.state["_print_outputs"])
         return output, logs, is_final_answer
 
-    def update_tools(self, tools: Dict[str, Tool]):
+    def send_variables(self, variables: dict):
+        self.state.update(variables)
+
+    def send_tools(self, tools: Dict[str, Tool]):
         self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy()}
 
 
-__all__ = ["evaluate_python_code", "LocalPythonInterpreter"]
+__all__ = ["evaluate_python_code", "LocalPythonExecutor"]

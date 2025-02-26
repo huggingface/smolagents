@@ -48,7 +48,7 @@ One could argue that on the [spectrum of agency](../conceptual_guides/intro_agen
 So you need to be mindful of security.
 
 To add a first layer of security, code execution in `smolagents` is not performed by the vanilla Python interpreter.
-We have re-built a more secure `LocalPythonInterpreter` from the ground up.
+We have re-built a more secure `LocalPythonExecutor` from the ground up.
 
 To be precise, this interpreter works by loading the Abstract Syntax Tree (AST) from your Code and executes it operation by operation, making sure to always follow certain rules:
 - By default, imports are disallowed unless they have been explicitly added to an authorization list by the user.
@@ -90,11 +90,11 @@ pip install 'smolagents[e2b]'
 
 #### Running your agent in E2B: mono agents
 
-We provide a simple way to use an E2B Sandbox: simply add `use_e2b_executor=True` to the agent initialization, like:
+We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` to the agent initialization, like:
 ```py
 from smolagents import HfApiModel, CodeAgent
 
-agent = CodeAgent(model=HfApiModel(), tools=[], use_e2b_executor=True)
+agent = CodeAgent(model=HfApiModel(), tools=[], executor_type="e2b")
 
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
@@ -163,9 +163,9 @@ print(execution_logs)
 #### Installation
 
 1. [Install Docker on your system](https://docs.docker.com/get-started/get-docker/)
-2. Install the Python Docker package:
+2. Install the required packages:
 ```bash
-pip install docker
+pip install 'smolagents[docker]'
 ```
 
 #### Setting up the docker sandbox

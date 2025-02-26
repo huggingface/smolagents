@@ -1003,6 +1003,16 @@ texec(tcompile("1 + 1", "no filename", "exec"))
         dangerous_code = "import os; os.listdir('./')"
         evaluate_python_code(dangerous_code, authorized_imports=["*"])
 
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
+    def test_can_import_scipy_if_explicitly_authorized(self):
+        code = "import scipy"
+        evaluate_python_code(code, authorized_imports=["scipy"])
+
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
+    def test_can_import_sklearn_if_explicitly_authorized(self):
+        code = "import sklearn"
+        evaluate_python_code(code, authorized_imports=["sklearn"])
+
 
 @pytest.mark.parametrize(
     "code, expected_result",

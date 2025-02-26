@@ -83,20 +83,17 @@ BROWSER_CONFIG = {
 os.makedirs(f"./{BROWSER_CONFIG['downloads_folder']}", exist_ok=True)
 
 
-def main():
-    args = parse_args()
+def create_agent(model_id="o1"):
     text_limit = 100000
 
     model = LiteLLMModel(
-        args.model_id,
+        model_id,
         custom_role_conversions=custom_role_conversions,
         max_completion_tokens=8192,
         reasoning_effort="high",
     )
-    document_inspection_tool = TextInspectorTool(model, text_limit)
 
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
-
     WEB_TOOLS = [
         GoogleSearchTool(provider="serper"),
         VisitTool(browser),
@@ -107,7 +104,6 @@ def main():
         ArchiveSearchTool(browser),
         TextInspectorTool(model, text_limit),
     ]
-
     text_webbrowser_agent = ToolCallingAgent(
         model=model,
         tools=WEB_TOOLS,
@@ -129,7 +125,7 @@ def main():
 
     manager_agent = CodeAgent(
         model=model,
-        tools=[visualizer, document_inspection_tool],
+        tools=[visualizer, TextInspectorTool(model, text_limit)],
         max_steps=12,
         verbosity_level=2,
         additional_authorized_imports=AUTHORIZED_IMPORTS,
@@ -137,7 +133,15 @@ def main():
         managed_agents=[text_webbrowser_agent],
     )
 
-    answer = manager_agent.run(args.question)
+    return manager_agent
+
+
+def main():
+    args = parse_args()
+
+    agent = create_agent(model_id=args.model_id)
+
+    answer = agent.run(args.question)
 
     print(f"Got this answer: {answer}")
 
