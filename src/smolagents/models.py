@@ -22,7 +22,7 @@ import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Callable
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from huggingface_hub import InferenceClient
 from huggingface_hub.utils import is_torch_available
@@ -380,15 +380,19 @@ class Model(Callable[[List[Dict[str, str]]], ChatMessage]):
 
 
 class GracefulModel(Model):
-
     def __init__(self, **kwargs):
-        self.__failover_model = kwargs.get('failover_model')
+        self.__failover_model = kwargs.get("failover_model")
         self.__max_retries = kwargs.get("max_retries", 3)
         super().__init__(**kwargs)
 
-    def __call__(self, messages: List[Dict[str, str]], stop_sequences: Optional[List[str]] = None,
-                 grammar: Optional[str] = None, tools_to_call_from: Optional[List[Tool]] = None,
-                 **kwargs) -> ChatMessage:
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
         """
         Same as Model, it performs the call to the LLM model.
         If the first model fails for any reason, it will check if a Fail-over model has been passed otherwise raise an exception.
@@ -402,12 +406,11 @@ class GracefulModel(Model):
         except Exception as e:
             if self.__failover_model and retry_count < max_retries:
                 logger.error(
-                    f"Model {self.__class__.__name__} raised exception {e}. Retrying with {self.__failover_model.__class__.__name__}.")
+                    f"Model {self.__class__.__name__} raised exception {e}. Retrying with {self.__failover_model.__class__.__name__}."
+                )
                 kwargs["retry_count"] = retry_count + 1
                 kwargs["max_retries"] = max_retries
-                return self.__failover_model(messages, stop_sequences,
-                                             grammar, tools_to_call_from,
-                                             **kwargs)
+                return self.__failover_model(messages, stop_sequences, grammar, tools_to_call_from, **kwargs)
             raise e
 
 
