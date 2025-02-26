@@ -20,3 +20,7 @@ Then you're good to go! Run the run.py script, as in:
 ```bash
 python run.py --model-id "o1" "Your question here!"
 ```
+
+<b>Note</b>: It needs the usage tier 5, which can be accessed to call the model 'o1'.
+
+You can check it at the bottom of [OpenAI platform](https://platform.openai.com/settings/organization/limits).
