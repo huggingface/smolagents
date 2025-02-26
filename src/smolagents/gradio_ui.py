@@ -88,7 +88,7 @@ def pull_messages_from_step(
                     log_content = re.sub(r"^Execution logs:\s*", "", log_content)
                     yield gr.ChatMessage(
                         role="assistant",
-                        content=f"{log_content}",
+                        content=f"```bash\n{log_content}\n",
                         metadata={"title": "📝 Execution Logs", "parent_id": parent_id, "status": "done"},
                     )
 
@@ -184,11 +184,12 @@ class GradioUI:
             )
         self.agent = agent
         self.file_upload_folder = file_upload_folder
+        self.name = getattr(agent, "name", None)
+        self.description = getattr(agent, "description", None)
         if self.file_upload_folder is not None:
             if not os.path.exists(file_upload_folder):
                 os.mkdir(file_upload_folder)
-self.name = getattr(agent, "name", None)
-self.description = getattr(agent, "description", None)
+
     def interact_with_agent(self, prompt, messages, session_state):
         import gradio as gr
 
@@ -260,13 +261,15 @@ self.description = getattr(agent, "description", None)
             session_state = gr.State({})
             stored_messages = gr.State([])
             file_uploads_log = gr.State([])
-            
+
             with gr.Sidebar():
-                gr.Markdown("""# {self.name or "Agent interface"}"
-                
-                This web ui allows you to interact with an AI agent that can use tools and execute steps to complete tasks.
-                """ + {"\n\nAgent description:\n{self.description}" if self.description else "")
-                
+                gr.Markdown(
+                    """# {self.name or "Agent interface"}"
+
+                    This web ui allows you to interact with an AI agent that can use tools and execute steps to complete tasks."""
+                    + f"\n\nAgent description:\n{self.description}" if self.description else ""
+                )
+
                 with gr.Group():
                     gr.Markdown("**Your request**", container=True)
                     text_input = gr.Textbox(
@@ -276,7 +279,7 @@ self.description = getattr(agent, "description", None)
                         placeholder="Enter your prompt here and press Shift+Enter or press the button"
                     )
                     submit_btn = gr.Button("Submit", variant="primary")
-                
+
                 # If an upload folder is provided, enable the upload feature
                 if self.file_upload_folder is not None:
                     upload_file = gr.File(label="Upload a file")
@@ -286,14 +289,14 @@ self.description = getattr(agent, "description", None)
                         [upload_file, file_uploads_log],
                         [upload_status, file_uploads_log],
                     )
-                    
+
                 gr.HTML("<br><br><h4><center>Powered by:</center></h4>")
                 with gr.Row():
                     gr.HTML("""<div style="display: flex; align-items: center; gap: 8px; font-family: system-ui, -apple-system, sans-serif;">
             <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png" style="width: 32px; height: 32px; object-fit: contain;" alt="logo">
             <a target="_blank" href="https://github.com/huggingface/smolagents"><b>huggingface/smolagents</b></a>
             </div>""")
-            
+
             # Main chat interface
             chatbot = gr.Chatbot(
                 label="Agent",
@@ -305,7 +308,7 @@ self.description = getattr(agent, "description", None)
                 resizeable=True,
                 scale=1,
             )
-        
+
             # Set up event handlers
             text_input.submit(
                 self.log_user_message,
@@ -320,7 +323,7 @@ self.description = getattr(agent, "description", None)
                 None,
                 [text_input, submit_btn]
             )
-            
+
             submit_btn.click(
                 self.log_user_message,
                 [text_input, file_uploads_log],
