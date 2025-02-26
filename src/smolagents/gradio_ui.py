@@ -264,7 +264,7 @@ class GradioUI:
                 gr.Markdown("""# smolagents framework
                 
                 This web ui allows you to interact with an AI agent that can use tools and execute steps to complete tasks.
-                """)
+                """ + {"\n\nAgent description:\n{self.description}" if self.description else "")
                 
                 with gr.Group():
                     gr.Markdown("**Your request**", container=True)
