@@ -1,6 +1,6 @@
-from smolagents.gradio_ui import GradioUI
+from run import create_agent
 
-from .run import create_agent
+from smolagents.gradio_ui import GradioUI
 
 
 agent = create_agent()
