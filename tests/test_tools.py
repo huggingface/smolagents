@@ -235,7 +235,7 @@ class ToolTests(unittest.TestCase):
         fail_tool = FailTool("dummy_url")
         with pytest.raises(Exception) as e:
             fail_tool.to_dict()
-        assert "All parameters of __init__ must have default values!" in str(e)
+        assert "Parameters in __init__ must have default values, found required parameters" in str(e)
 
         class PassTool(Tool):
             name = "specific"

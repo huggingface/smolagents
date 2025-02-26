@@ -1,7 +1,5 @@
-#!/usr/bin/env python
 # coding=utf-8
-
-# Copyright 2024 The HuggingFace Inc. team. All rights reserved.
+# Copyright 2024 HuggingFace Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__version__ = "1.10.0.dev0"
+"""Markers for tests ."""
 
-from .agent_types import *  # noqa: I001
-from .agents import *  # Above noqa avoids a circular dependency due to cli.py
-from .default_tools import *
-from .gradio_ui import *
-from .local_python_executor import *
-from .memory import *
-from .models import *
-from .monitoring import *
-from .remote_executors import *
-from .tools import *
-from .utils import *
-from .cli import *
-from .memory_store import *  # Import all exports from memory_store
+import os
+
+import pytest
+
+
+require_run_all = pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="requires RUN_ALL environment variable")

@@ -78,9 +78,9 @@ jobs:
           uv run pytest ./tests/test_local_python_executor.py
         if: ${{ success() || failure() }}
 
-      - name: E2B executor tests
+      - name: Remote executor tests
         run: |
-          uv run pytest ./tests/test_e2b_executor.py
+          uv run pytest ./tests/test_remote_executors.py
         if: ${{ success() || failure() }}
 
       - name: Search tests

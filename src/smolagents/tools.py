@@ -45,7 +45,7 @@ from ._function_type_hints_utils import (
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import _is_package_available, _is_pillow_available, get_source, instance_to_source
+from .utils import BASE_BUILTIN_MODULES, _is_package_available, _is_pillow_available, get_source, instance_to_source
 
 
 logger = logging.getLogger(__name__)
@@ -150,7 +150,7 @@ class Tool:
 
             if not set(signature.parameters.keys()) == set(self.inputs.keys()):
                 raise Exception(
-                    "Tool's 'forward' method should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
+                    f"In tool '{self.name}', 'forward' method should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
                 )
 
             json_schema = _convert_type_hints_to_json_schema(self.forward, error_on_missing_type_hints=False)[
@@ -633,7 +633,7 @@ def launch_gradio_demo(tool: Tool):
     `inputs` and `output_type`.
 
     Args:
-        tool (`type`): The tool for which to launch the demo.
+        tool (`Tool`): The tool for which to launch the demo.
     """
     try:
         import gradio as gr
@@ -667,14 +667,13 @@ def launch_gradio_demo(tool: Tool):
         inputs=gradio_inputs,
         outputs=gradio_output,
         title=tool.name,
-        article=tool.description,
         description=tool.description,
         api_name=tool.name,
     ).launch()
 
 
 def load_tool(
-    task_or_repo_id,
+    repo_id,
     model_repo_id: Optional[str] = None,
     token: Optional[str] = None,
     trust_remote_code: bool = False,
@@ -692,16 +691,8 @@ def load_tool(
     </Tip>
 
     Args:
-        task_or_repo_id (`str`):
-            The task for which to load the tool or a repo ID of a tool on the Hub. Tasks implemented in Transformers
-            are:
-
-            - `"document_question_answering"`
-            - `"image_question_answering"`
-            - `"speech_to_text"`
-            - `"text_to_speech"`
-            - `"translation"`
-
+        repo_id (`str`):
+            Repo ID of a tool on the Hub.
         model_repo_id (`str`, *optional*):
             Use this argument to use a different model than the default one for the tool you selected.
         token (`str`, *optional*):
@@ -715,7 +706,7 @@ def load_tool(
             will be passed along to its init.
     """
     return Tool.from_hub(
-        task_or_repo_id,
+        repo_id,
         model_repo_id=model_repo_id,
         token=token,
         trust_remote_code=trust_remote_code,
@@ -1018,15 +1009,15 @@ class PipelineTool(Tool):
         """
         return self.post_processor(outputs)
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
         import torch
         from accelerate.utils import send_to_device
-
-        args, kwargs = handle_agent_input_types(*args, **kwargs)
 
         if not self.is_initialized:
             self.setup()
 
+        if sanitize_inputs_outputs:
+            args, kwargs = handle_agent_input_types(*args, **kwargs)
         encoded_inputs = self.encode(*args, **kwargs)
 
         tensor_inputs = {k: v for k, v in encoded_inputs.items() if isinstance(v, torch.Tensor)}
@@ -1036,8 +1027,35 @@ class PipelineTool(Tool):
         outputs = self.forward({**encoded_inputs, **non_tensor_inputs})
         outputs = send_to_device(outputs, "cpu")
         decoded_outputs = self.decode(outputs)
+        if sanitize_inputs_outputs:
+            decoded_outputs = handle_agent_output_types(decoded_outputs, self.output_type)
+        return decoded_outputs
 
-        return handle_agent_output_types(decoded_outputs, self.output_type)
+
+def get_tools_definition_code(tools: Dict[str, Tool]) -> str:
+    tool_codes = []
+    for tool in tools.values():
+        validate_tool_attributes(tool.__class__, check_imports=False)
+        tool_code = instance_to_source(tool, base_cls=Tool)
+        tool_code = tool_code.replace("from smolagents.tools import Tool", "")
+        tool_code += f"\n\n{tool.name} = {tool.__class__.__name__}()\n"
+        tool_codes.append(tool_code)
+
+    tool_definition_code = "\n".join([f"import {module}" for module in BASE_BUILTIN_MODULES])
+    tool_definition_code += textwrap.dedent(
+        """
+    from typing import Any
+
+    class Tool:
+        def __call__(self, *args, **kwargs):
+            return self.forward(*args, **kwargs)
+
+        def forward(self, *args, **kwargs):
+            pass # to be implemented in child class
+    """
+    )
+    tool_definition_code += "\n\n".join(tool_codes)
+    return tool_definition_code
 
 
 __all__ = [

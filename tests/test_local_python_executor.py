@@ -312,6 +312,11 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == [0, 1, 2]
 
+    def test_setcomp(self):
+        code = "batman_times = {entry['time'] for entry in [{'time': 10}, {'time': 19}, {'time': 20}]}"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {10, 19, 20}
+
     def test_break_continue(self):
         code = "for i in range(10):\n    if i == 5:\n        break\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
@@ -997,6 +1002,16 @@ texec(tcompile("1 + 1", "no filename", "exec"))
     def test_can_import_os_if_all_imports_authorized(self):
         dangerous_code = "import os; os.listdir('./')"
         evaluate_python_code(dangerous_code, authorized_imports=["*"])
+
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
+    def test_can_import_scipy_if_explicitly_authorized(self):
+        code = "import scipy"
+        evaluate_python_code(code, authorized_imports=["scipy"])
+
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
+    def test_can_import_sklearn_if_explicitly_authorized(self):
+        code = "import sklearn"
+        evaluate_python_code(code, authorized_imports=["sklearn"])
 
 
 @pytest.mark.parametrize(

@@ -18,6 +18,7 @@ import unittest
 from smolagents import DuckDuckGoSearchTool
 
 from .test_tools import ToolTesterMixin
+from .utils.markers import require_run_all
 
 
 class DuckDuckGoSearchToolTester(unittest.TestCase, ToolTesterMixin):
@@ -25,6 +26,7 @@ class DuckDuckGoSearchToolTester(unittest.TestCase, ToolTesterMixin):
         self.tool = DuckDuckGoSearchTool()
         self.tool.setup()
 
+    @require_run_all
     def test_exact_match_arg(self):
         result = self.tool("Agents")
         assert isinstance(result, str)

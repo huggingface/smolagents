@@ -124,7 +124,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 एक्जीक्यूशन किसी भी कोड पर रुक जाएगा जो एक अवैध ऑपरेशन करने का प्रयास करता है या यदि एजेंट द्वारा जनरेट किए गए कोड में एक रेगुलर पायथन एरर है।
 
-आप [E2B कोड एक्जीक्यूटर](https://e2b.dev/docs#what-is-e2-b) का उपयोग लोकल पायथन इंटरप्रेटर के बजाय कर सकते हैं, पहले [`E2B_API_KEY` एनवायरनमेंट वेरिएबल सेट करके](https://e2b.dev/dashboard?tab=keys) और फिर एजेंट इनिशियलाइजेशन पर `use_e2b_executor=True` पास करके।
+आप [E2B कोड एक्जीक्यूटर](https://e2b.dev/docs#what-is-e2-b) या Docker का उपयोग लोकल पायथन इंटरप्रेटर के बजाय कर सकते हैं। E2B के लिए, पहले [`E2B_API_KEY` एनवायरनमेंट वेरिएबल सेट करें](https://e2b.dev/dashboard?tab=keys) और फिर एजेंट इनिशियलाइजेशन पर `executor_type="e2b"` पास करें। Docker के लिए, इनिशियलाइजेशन के दौरान `executor_type="docker"` पास करें।
 
 > [!TIP]
 > कोड एक्जीक्यूशन के बारे में और जानें [इस ट्यूटोरियल में](tutorials/secure_code_execution)।
