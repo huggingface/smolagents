@@ -806,27 +806,23 @@ class TestMultiStepAgent:
         "tools, managed_agents, expectation",
         [
             # Valid case: no duplicates
-            (
-                [MockTool("tool1"), MockTool("tool2")],
-                [MockAgent("agent1", [MockTool("tool3")])],
-                does_not_raise(),
-            ),
+            ([MockTool("tool1"), MockTool("tool2")], [MockAgent("agent1", [MockTool("tool3")])], does_not_raise()),
             # Invalid case: duplicate tool names
             ([MockTool("tool1"), MockTool("tool1")], [], pytest.raises(ValueError)),
             # Invalid case: tool name same as managed agent name
             ([MockTool("tool1")], [MockAgent("tool1", [MockTool("final_answer")])], pytest.raises(ValueError)),
-            # Invalid case: tool name same as managed agent's tool name
-            ([MockTool("tool1")], [MockAgent("agent1", [MockTool("tool1")])], pytest.raises(ValueError)),
+            # Valid case: tool name same as managed agent's tool name
+            ([MockTool("tool1")], [MockAgent("agent1", [MockTool("tool1")])], does_not_raise()),
             # Invalid case: duplicate managed agent name and managed agent tool name
             ([], [MockAgent("tool1", [MockTool("tool1")])], pytest.raises(ValueError)),
-            # Invalid case: duplicate tool names across managed agents
+            # Valid case: duplicate tool names across managed agents
             (
                 [MockTool("tool1")],
                 [
                     MockAgent("agent1", [MockTool("tool2"), MockTool("final_answer")]),
                     MockAgent("agent2", [MockTool("tool2"), MockTool("final_answer")]),
                 ],
-                pytest.raises(ValueError),
+                does_not_raise(),
             ),
         ],
     )
