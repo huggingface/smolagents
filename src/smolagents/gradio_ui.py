@@ -260,80 +260,79 @@ class GradioUI:
             stored_messages = gr.State([])
             file_uploads_log = gr.State([])
             
-            with gr.Blocks(fill_height=True) as sidebar_demo:
-                with gr.Sidebar():
-                    gr.Markdown("""# smolagents framework
-                    
-                    This web ui allows you to interact with an AI agent that can use tools and execute steps to complete tasks.
-                    """)
-                    
-                    with gr.Group():
-                        gr.Markdown("**Your request**", container=True)
-                        text_input = gr.Textbox(
-                            lines=3, 
-                            label="Chat Message", 
-                            container=False, 
-                            placeholder="Enter your prompt here and press Shift+Enter or press the button"
-                        )
-                        submit_btn = gr.Button("Submit", variant="primary")
-                    
-                    # If an upload folder is provided, enable the upload feature
-                    if self.file_upload_folder is not None:
-                        upload_file = gr.File(label="Upload a file")
-                        upload_status = gr.Textbox(label="Upload Status", interactive=False, visible=False)
-                        upload_file.change(
-                            self.upload_file,
-                            [upload_file, file_uploads_log],
-                            [upload_status, file_uploads_log],
-                        )
-                        
-                    gr.HTML("<br><br><h4><center>Powered by:</center></h4>")
-                    with gr.Row():
-                        gr.HTML("""<div style="display: flex; align-items: center; gap: 8px; font-family: system-ui, -apple-system, sans-serif;">
-                <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png" style="width: 32px; height: 32px; object-fit: contain;" alt="logo">
-                <a target="_blank" href="https://github.com/huggingface/smolagents"><b>huggingface/smolagents</b></a>
-                </div>""")
+            with gr.Sidebar():
+                gr.Markdown("""# smolagents framework
                 
-                # Main chat interface
-                chatbot = gr.Chatbot(
-                    label="Agent",
-                    type="messages",
-                    avatar_images=(
-                        None,
-                        "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png",
-                    ),
-                    resizeable=True,
-                    scale=1,
-                )
+                This web ui allows you to interact with an AI agent that can use tools and execute steps to complete tasks.
+                """)
+                
+                with gr.Group():
+                    gr.Markdown("**Your request**", container=True)
+                    text_input = gr.Textbox(
+                        lines=3, 
+                        label="Chat Message", 
+                        container=False, 
+                        placeholder="Enter your prompt here and press Shift+Enter or press the button"
+                    )
+                    submit_btn = gr.Button("Submit", variant="primary")
+                
+                # If an upload folder is provided, enable the upload feature
+                if self.file_upload_folder is not None:
+                    upload_file = gr.File(label="Upload a file")
+                    upload_status = gr.Textbox(label="Upload Status", interactive=False, visible=False)
+                    upload_file.change(
+                        self.upload_file,
+                        [upload_file, file_uploads_log],
+                        [upload_status, file_uploads_log],
+                    )
+                    
+                gr.HTML("<br><br><h4><center>Powered by:</center></h4>")
+                with gr.Row():
+                    gr.HTML("""<div style="display: flex; align-items: center; gap: 8px; font-family: system-ui, -apple-system, sans-serif;">
+            <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png" style="width: 32px; height: 32px; object-fit: contain;" alt="logo">
+            <a target="_blank" href="https://github.com/huggingface/smolagents"><b>huggingface/smolagents</b></a>
+            </div>""")
             
-                # Set up event handlers
-                text_input.submit(
-                    self.log_user_message,
-                    [text_input, file_uploads_log],
-                    [stored_messages, text_input, submit_btn],
-                ).then(
-                    self.interact_with_agent,
-                    [stored_messages, chatbot, session_state],
-                    [chatbot]
-                ).then(
-                    lambda: (gr.Textbox(interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"), gr.Button(interactive=True)),
+            # Main chat interface
+            chatbot = gr.Chatbot(
+                label="Agent",
+                type="messages",
+                avatar_images=(
                     None,
-                    [text_input, submit_btn]
-                )
-                
-                submit_btn.click(
-                    self.log_user_message,
-                    [text_input, file_uploads_log],
-                    [stored_messages, text_input, submit_btn],
-                ).then(
-                    self.interact_with_agent,
-                    [stored_messages, chatbot, session_state],
-                    [chatbot]
-                ).then(
-                    lambda: (gr.Textbox(interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"), gr.Button(interactive=True)),
-                    None,
-                    [text_input, submit_btn]
-                )
+                    "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png",
+                ),
+                resizeable=True,
+                scale=1,
+            )
+        
+            # Set up event handlers
+            text_input.submit(
+                self.log_user_message,
+                [text_input, file_uploads_log],
+                [stored_messages, text_input, submit_btn],
+            ).then(
+                self.interact_with_agent,
+                [stored_messages, chatbot, session_state],
+                [chatbot]
+            ).then(
+                lambda: (gr.Textbox(interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"), gr.Button(interactive=True)),
+                None,
+                [text_input, submit_btn]
+            )
+            
+            submit_btn.click(
+                self.log_user_message,
+                [text_input, file_uploads_log],
+                [stored_messages, text_input, submit_btn],
+            ).then(
+                self.interact_with_agent,
+                [stored_messages, chatbot, session_state],
+                [chatbot]
+            ).then(
+                lambda: (gr.Textbox(interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"), gr.Button(interactive=True)),
+                None,
+                [text_input, submit_btn]
+            )
 
         demo.launch(debug=True, share=share, **kwargs)
 
