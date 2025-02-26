@@ -63,6 +63,13 @@ def parse_args():
         "question", type=str, help="for example: 'How many studio albums did Mercedes Sosa release before 2007?'"
     )
     parser.add_argument("--model-id", type=str, default="o1")
+    parser.add_argument(
+        "--reasoning-effort",
+        type=str,
+        choices=["low", "medium", "high"],
+        default=None,
+        help="Specify the reasoning effort: low, medium, or high.",
+    )
     return parser.parse_args()
 
 
@@ -83,14 +90,14 @@ BROWSER_CONFIG = {
 os.makedirs(f"./{BROWSER_CONFIG['downloads_folder']}", exist_ok=True)
 
 
-def create_agent(model_id="o1"):
+def create_agent(model_id="o1", reasoning_effort=None):
     text_limit = 100000
 
     model = LiteLLMModel(
         model_id,
         custom_role_conversions=custom_role_conversions,
         max_completion_tokens=8192,
-        reasoning_effort="high",
+        reasoning_effort=reasoning_effort,
     )
 
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
@@ -139,7 +146,7 @@ def create_agent(model_id="o1"):
 def main():
     args = parse_args()
 
-    agent = create_agent(model_id=args.model_id)
+    agent = create_agent(model_id=args.model_id, reasoning_effort=args.reasoning_effort)
 
     answer = agent.run(args.question)
 
