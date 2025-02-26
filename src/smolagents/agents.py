@@ -267,7 +267,7 @@ class MultiStepAgent:
                     raise ValueError(
                         "Each managed_agent and its tools should have a unique name! You passed these duplicate names: "
                         f"{[name for name in agent_and_tools_names if agent_and_tools_names.count(name) > 1]}"
-                    )        
+                    )
         if len(tool_and_managed_agent_names) != len(set(tool_and_managed_agent_names)):
             raise ValueError(
                 "Each tool or managed_agent should have a unique name! You passed these duplicate names: "
