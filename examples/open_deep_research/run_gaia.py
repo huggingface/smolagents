@@ -87,7 +87,7 @@ USE_OPEN_MODELS = False
 
 SET = "validation"
 
-custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
+custom_role_conversions = {"system": "developer", "tool-call": "assistant", "tool-response": "user"}
 
 ### LOAD EVALUATION DATASET
 
@@ -177,13 +177,7 @@ def append_answer(entry: dict, jsonl_file: str) -> None:
     print("Answer exported to file:", jsonl_file.resolve())
 
 
-def answer_single_question(example, model_id, answers_file, visual_inspection_tool):
-    model = LiteLLMModel(
-        model_id,
-        custom_role_conversions=custom_role_conversions,
-        max_completion_tokens=8192,
-        reasoning_effort="high",
-    )
+def answer_single_question(example, model, answers_file, visual_inspection_tool):
     # model = HfApiModel("Qwen/Qwen2.5-72B-Instruct", provider="together")
     #     "https://lnxyuvj02bpe6mam.us-east-1.aws.endpoints.huggingface.cloud",
     #     custom_role_conversions=custom_role_conversions,
@@ -259,6 +253,7 @@ Here is the task:
         "true_answer": example["true_answer"],
     }
     append_answer(annotated_example, answers_file)
+    return annotated_example
 
 
 def get_examples_to_answer(answers_file, eval_ds) -> List[dict]:
@@ -280,16 +275,21 @@ def main():
     answers_file = f"output/{SET}/{args.run_name}.jsonl"
     tasks_to_run = get_examples_to_answer(answers_file, eval_ds)
 
+    model = LiteLLMModel(
+        args.model_id,
+        custom_role_conversions=custom_role_conversions,
+        max_completion_tokens=8192,
+        reasoning_effort="high",
+    )
+
     with ThreadPoolExecutor(max_workers=args.concurrency) as exe:
         futures = [
-            exe.submit(answer_single_question, example, args.model_id, answers_file, visualizer)
+            exe.submit(answer_single_question, example, model, answers_file, visualizer)
             for example in tasks_to_run
         ]
         for f in tqdm(as_completed(futures), total=len(tasks_to_run), desc="Processing tasks"):
             f.result()
 
-    # for example in tasks_to_run:
-    #     answer_single_question(example, args.model_id, answers_file, visualizer)
     print("All tasks processed.")
 
 

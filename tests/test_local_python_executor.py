@@ -352,6 +352,11 @@ shift_minutes = {worker: ('a', 'b') for worker, (start, end) in shifts.items()}
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {"A": ("a", "b"), "B": ("a", "b")}
 
+    def test_setcomp(self):
+        code = "batman_times = {entry['time'] for entry in [{'time': 10}, {'time': 19}, {'time': 20}]}"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {10, 19, 20}
+
     def test_tuple_assignment(self):
         code = "a, b = 0, 1\nb"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})

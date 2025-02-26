@@ -1146,6 +1146,39 @@ def evaluate_dictcomp(
                 result[key] = val
     return result
 
+def evaluate_setcomp(
+    setcomp: ast.SetComp,
+    state: Dict[str, Any],
+    static_tools: Dict[str, Callable],
+    custom_tools: Dict[str, Callable],
+    authorized_imports: List[str],
+) -> Set[Any]:
+    result = set()
+    for gen in setcomp.generators:
+        iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+        for value in iter_value:
+            new_state = state.copy()
+            set_value(
+                gen.target,
+                value,
+                new_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            if all(
+                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                for if_clause in gen.ifs
+            ):
+                element = evaluate_ast(
+                    setcomp.elt,
+                    new_state,
+                    static_tools,
+                    custom_tools,
+                    authorized_imports,
+                )
+                result.add(element)
+    return result
 
 def evaluate_delete(
     delete_node: ast.Delete,
