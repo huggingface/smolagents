@@ -267,16 +267,18 @@ class GradioUI:
                     """# {self.name or "Agent interface"}"
 
                     This web ui allows you to interact with an AI agent that can use tools and execute steps to complete tasks."""
-                    + f"\n\nAgent description:\n{self.description}" if self.description else ""
+                    + f"\n\nAgent description:\n{self.description}"
+                    if self.description
+                    else ""
                 )
 
                 with gr.Group():
                     gr.Markdown("**Your request**", container=True)
                     text_input = gr.Textbox(
-                        lines=3, 
-                        label="Chat Message", 
-                        container=False, 
-                        placeholder="Enter your prompt here and press Shift+Enter or press the button"
+                        lines=3,
+                        label="Chat Message",
+                        container=False,
+                        placeholder="Enter your prompt here and press Shift+Enter or press the button",
                     )
                     submit_btn = gr.Button("Submit", variant="primary")
 
@@ -314,28 +316,30 @@ class GradioUI:
                 self.log_user_message,
                 [text_input, file_uploads_log],
                 [stored_messages, text_input, submit_btn],
-            ).then(
-                self.interact_with_agent,
-                [stored_messages, chatbot, session_state],
-                [chatbot]
-            ).then(
-                lambda: (gr.Textbox(interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"), gr.Button(interactive=True)),
+            ).then(self.interact_with_agent, [stored_messages, chatbot, session_state], [chatbot]).then(
+                lambda: (
+                    gr.Textbox(
+                        interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"
+                    ),
+                    gr.Button(interactive=True),
+                ),
                 None,
-                [text_input, submit_btn]
+                [text_input, submit_btn],
             )
 
             submit_btn.click(
                 self.log_user_message,
                 [text_input, file_uploads_log],
                 [stored_messages, text_input, submit_btn],
-            ).then(
-                self.interact_with_agent,
-                [stored_messages, chatbot, session_state],
-                [chatbot]
-            ).then(
-                lambda: (gr.Textbox(interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"), gr.Button(interactive=True)),
+            ).then(self.interact_with_agent, [stored_messages, chatbot, session_state], [chatbot]).then(
+                lambda: (
+                    gr.Textbox(
+                        interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"
+                    ),
+                    gr.Button(interactive=True),
+                ),
                 None,
-                [text_input, submit_btn]
+                [text_input, submit_btn],
             )
 
         demo.launch(debug=True, share=share, **kwargs)
