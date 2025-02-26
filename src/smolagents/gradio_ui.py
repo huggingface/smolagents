@@ -262,7 +262,7 @@ self.description = getattr(agent, "description", None)
             file_uploads_log = gr.State([])
             
             with gr.Sidebar():
-                gr.Markdown("""# smolagents framework
+                gr.Markdown("""# {self.name or "Agent interface"}"
                 
                 This web ui allows you to interact with an AI agent that can use tools and execute steps to complete tasks.
                 """ + {"\n\nAgent description:\n{self.description}" if self.description else "")
