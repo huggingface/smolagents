@@ -41,7 +41,7 @@ rendered properly in your Markdown viewer.
 ### 本地 Python 解释器
 
 默认情况下，`CodeAgent` 会在你的环境中运行 LLM 生成的代码。
-这个执行不是由普通的 Python 解释器完成的：我们从零开始重新构建了一个更安全的 `LocalPythonInterpreter`。
+这个执行不是由普通的 Python 解释器完成的：我们从零开始重新构建了一个更安全的 `LocalPythonExecutor`。
 这个解释器通过以下方式设计以确保安全：
   - 将导入限制为用户显式传递的列表
   - 限制操作次数以防止无限循环和资源膨胀
@@ -64,7 +64,7 @@ rendered properly in your Markdown viewer.
 
 现在你已经准备好了！
 
-要将代码执行器设置为 E2B，只需在初始化 `CodeAgent` 时传递标志 `use_e2b_executor=True`。
+要将代码执行器设置为 E2B，只需在初始化 `CodeAgent` 时传递标志 `executor_type="e2b"`。
 请注意，你应该将所有工具的依赖项添加到 `additional_authorized_imports` 中，以便执行器安装它们。
 
 ```py
@@ -73,7 +73,7 @@ agent = CodeAgent(
     tools = [VisitWebpageTool()],
     model=HfApiModel(),
     additional_authorized_imports=["requests", "markdownify"],
-    use_e2b_executor=True
+    executor_type="e2b"
 )
 
 agent.run("What was Abraham Lincoln's preferred pet?")

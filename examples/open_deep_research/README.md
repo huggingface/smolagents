@@ -31,7 +31,7 @@ To get started, follow the steps below:
 3. **Install the development version of `smolagents`**:
 
     ```bash
-    pip install smolagents[dev]
+    pip install -e ../../.[dev]
     ```
 
 4. **Set up environment variables**:
@@ -48,9 +48,9 @@ To get started, follow the steps below:
         export OPENAI_API_KEY="your_openai_api_key_here"
         ```
     
-    - **SerpAPI Key**: Open Deep Research uses SerpAPI for web browsing functionality. 
+    - **SerperAPI Key**: Open Deep Research uses Serper for web browsing functionality. 
         ```bash
-        export SERPER_API_KEY="your_serpapi_key_here"
+        export SERPER_API_KEY="your_serperapi_key_here"
         ```
 
 5. **Run the script**:
@@ -61,5 +61,4 @@ To get started, follow the steps below:
     python run.py --model-id "o1" "Your question here!"
     ```
 
-    Replace `"Your question here!"` with the question you'd like the agent to answer. The agent will use the Hugging Face and OpenAI models to process and respond to your query.
-
+    Replace `"Your question here!"` with the question you'd like the agent to answer.

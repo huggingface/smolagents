@@ -38,12 +38,7 @@ from rich.text import Text
 
 from .agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
-from .e2b_executor import E2BExecutor
-from .local_python_executor import (
-    BASE_BUILTIN_MODULES,
-    LocalPythonInterpreter,
-    fix_final_answer_code,
-)
+from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, TaskStep, ToolCall
 from .models import (
     ChatMessage,
@@ -56,6 +51,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
+from .remote_executors import DockerExecutor, E2BExecutor
 from .tools import Tool
 from .utils import (
     AgentError,
@@ -174,7 +170,7 @@ class MultiStepAgent:
         tools (`list[Tool]`): [`Tool`]s that the agent can use.
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
-        max_steps (`int`, default `6`): Maximum number of steps the agent can take to solve the task.
+        max_steps (`int`, default `20`): Maximum number of steps the agent can take to solve the task.
         tool_parser (`Callable`, *optional*): Function used to parse the tool calls from the LLM output.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
@@ -193,7 +189,7 @@ class MultiStepAgent:
         tools: List[Tool],
         model: Callable[[List[Dict[str, str]]], ChatMessage],
         prompt_templates: Optional[PromptTemplates] = None,
-        max_steps: int = 6,
+        max_steps: int = 20,
         tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
@@ -252,16 +248,14 @@ class MultiStepAgent:
                     if name != "python_interpreter" or self.__class__.__name__ == "ToolCallingAgent"
                 }
             )
-        self.tools["final_answer"] = FinalAnswerTool()
+        self.tools.setdefault("final_answer", FinalAnswerTool())
 
     def _validate_tools_and_managed_agents(self, tools, managed_agents):
         tool_and_managed_agent_names = [tool.name for tool in tools]
         if managed_agents is not None:
-            for agent in managed_agents:
-                tool_and_managed_agent_names.append(agent.name)
-                for tool in agent.tools.values():
-                    if tool.name != "final_answer":
-                        tool_and_managed_agent_names.append(tool.name)
+            tool_and_managed_agent_names += [agent.name for agent in managed_agents]
+        if self.name:
+            tool_and_managed_agent_names.append(self.name)
         if len(tool_and_managed_agent_names) != len(set(tool_and_managed_agent_names)):
             raise ValueError(
                 "Each tool or managed_agent should have a unique name! You passed these duplicate names: "
@@ -275,6 +269,7 @@ class MultiStepAgent:
         reset: bool = True,
         images: Optional[List[str]] = None,
         additional_args: Optional[Dict] = None,
+        max_steps: Optional[int] = None,
     ):
         """
         Run the agent for the given task.
@@ -284,7 +279,8 @@ class MultiStepAgent:
             stream (`bool`): Whether to run in a streaming way.
             reset (`bool`): Whether to reset the conversation or keep it going from previous run.
             images (`list[str]`, *optional*): Paths to image(s).
-            additional_args (`dict`): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
+            additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
+            max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
 
         Example:
         ```py
@@ -293,7 +289,7 @@ class MultiStepAgent:
         agent.run("What is the result of 2 power 3.7384?")
         ```
         """
-
+        max_steps = max_steps or self.max_steps
         self.task = task
         if additional_args is not None:
             self.state.update(additional_args)
@@ -313,19 +309,24 @@ You have been provided with these additional arguments, that you can access usin
             level=LogLevel.INFO,
             title=self.name if hasattr(self, "name") else None,
         )
-
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+
+        if getattr(self, "python_executor", None):
+            self.python_executor.send_variables(variables=self.state)
+            self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
         if stream:
             # The steps are returned as they are executed through a generator to iterate on.
-            return self._run(task=self.task, images=images)
-        # Outputs are returned only at the end as a string. We only look at the last step
-        return deque(self._run(task=self.task, images=images), maxlen=1)[0]
+            return self._run(task=self.task, max_steps=max_steps, images=images)
+        # Outputs are returned only at the end. We only look at the last step.
+        return deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0]
 
-    def _run(self, task: str, images: List[str] | None = None) -> Generator[ActionStep | AgentType, None, None]:
+    def _run(
+        self, task: str, max_steps: int, images: List[str] | None = None
+    ) -> Generator[ActionStep | AgentType, None, None]:
         final_answer = None
         self.step_number = 1
-        while final_answer is None and self.step_number <= self.max_steps:
+        while final_answer is None and self.step_number <= max_steps:
             step_start_time = time.time()
             memory_step = self._create_memory_step(step_start_time, images)
             try:
@@ -337,7 +338,7 @@ You have been provided with these additional arguments, that you can access usin
                 yield memory_step
                 self.step_number += 1
 
-        if final_answer is None and self.step_number == self.max_steps + 1:
+        if final_answer is None and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task, images, step_start_time)
             yield memory_step
         yield handle_agent_output_types(final_answer)
@@ -661,7 +662,6 @@ You have been provided with these additional arguments, that you can access usin
 
     def __call__(self, task: str, **kwargs):
         """Adds additional prompting for the managed agent, runs it, and wraps the output.
-
         This method is called only by a managed agent.
         """
         full_task = populate_template(
@@ -836,8 +836,9 @@ You have been provided with these additional arguments, that you can access usin
         }
         if hasattr(self, "authorized_imports"):
             agent_dict["authorized_imports"] = self.authorized_imports
-        if hasattr(self, "use_e2b_executor"):
-            agent_dict["use_e2b_executor"] = self.use_e2b_executor
+        if hasattr(self, "executor_type"):
+            agent_dict["executor_type"] = self.executor_type
+            agent_dict["executor_kwargs"] = self.executor_kwargs
         if hasattr(self, "max_print_outputs_length"):
             agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
@@ -934,7 +935,8 @@ You have been provided with these additional arguments, that you can access usin
         )
         if cls.__name__ == "CodeAgent":
             args["additional_authorized_imports"] = agent_dict["authorized_imports"]
-            args["use_e2b_executor"] = agent_dict["use_e2b_executor"]
+            args["executor_type"] = agent_dict["executor_type"]
+            args["executor_kwargs"] = agent_dict["executor_kwargs"]
             args["max_print_outputs_length"] = agent_dict["max_print_outputs_length"]
         args.update(kwargs)
         return cls(**args)
@@ -1127,7 +1129,8 @@ class CodeAgent(MultiStepAgent):
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
-        use_e2b_executor (`bool`, default `False`): Whether to use the E2B executor for remote code execution.
+        executor_type (`str`, default `"local"`): Which executor type to use between `"local"`, `"e2b"`, or `"docker"`.
+        executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         **kwargs: Additional keyword arguments.
 
@@ -1141,13 +1144,13 @@ class CodeAgent(MultiStepAgent):
         grammar: Optional[Dict[str, str]] = None,
         additional_authorized_imports: Optional[List[str]] = None,
         planning_interval: Optional[int] = None,
-        use_e2b_executor: bool = False,
+        executor_type: str = "local",
+        executor_kwargs: Optional[Dict[str, Any]] = None,
         max_print_outputs_length: Optional[int] = None,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        self.use_e2b_executor = use_e2b_executor
         self.max_print_outputs_length = max_print_outputs_length
         prompt_templates = prompt_templates or yaml.safe_load(
             importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
@@ -1165,25 +1168,26 @@ class CodeAgent(MultiStepAgent):
                 "Caution: you set an authorization for all imports, meaning your agent can decide to import any package it deems necessary. This might raise issues if the package is not installed in your environment.",
                 0,
             )
+        self.executor_type = executor_type
+        self.executor_kwargs = executor_kwargs or {}
+        self.python_executor = self.create_python_executor(executor_type, self.executor_kwargs)
 
-        if use_e2b_executor and len(self.managed_agents) > 0:
-            raise Exception(
-                f"You passed both {use_e2b_executor=} and some managed agents. Managed agents is not yet supported with remote code execution."
-            )
-
-        all_tools = {**self.tools, **self.managed_agents}
-        if use_e2b_executor:
-            self.python_executor = E2BExecutor(
-                self.additional_authorized_imports,
-                list(all_tools.values()),
-                self.logger,
-            )
-        else:
-            self.python_executor = LocalPythonInterpreter(
-                self.additional_authorized_imports,
-                all_tools,
-                max_print_outputs_length=max_print_outputs_length,
-            )
+    def create_python_executor(self, executor_type: str, kwargs: Dict[str, Any]) -> PythonExecutor:
+        match executor_type:
+            case "e2b" | "docker":
+                if self.managed_agents:
+                    raise Exception("Managed agents are not yet supported with remote code execution.")
+                if executor_type == "e2b":
+                    return E2BExecutor(self.additional_authorized_imports, self.logger, **kwargs)
+                else:
+                    return DockerExecutor(self.additional_authorized_imports, self.logger, **kwargs)
+            case "local":
+                return LocalPythonExecutor(
+                    self.additional_authorized_imports,
+                    max_print_outputs_length=self.max_print_outputs_length,
+                )
+            case _:  # if applicable
+                raise ValueError(f"Unsupported executor type: {executor_type}")
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
@@ -1249,10 +1253,7 @@ class CodeAgent(MultiStepAgent):
         self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
         is_final_answer = False
         try:
-            output, execution_logs, is_final_answer = self.python_executor(
-                code_action,
-                self.state,
-            )
+            output, execution_logs, is_final_answer = self.python_executor(code_action)
             execution_outputs_console = []
             if len(execution_logs) > 0:
                 execution_outputs_console += [
