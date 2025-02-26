@@ -187,7 +187,8 @@ class GradioUI:
         if self.file_upload_folder is not None:
             if not os.path.exists(file_upload_folder):
                 os.mkdir(file_upload_folder)
-
+self.name = getattr(agent, "name", None)
+self.description = getattr(agent, "description", None)
     def interact_with_agent(self, prompt, messages, session_state):
         import gradio as gr
 
