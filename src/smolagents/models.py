@@ -22,15 +22,14 @@ import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Callable
 
+from PIL import Image
 from huggingface_hub import InferenceClient
 from huggingface_hub.utils import is_torch_available
-from PIL import Image
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url
-
 
 if TYPE_CHECKING:
     from transformers import StoppingCriteriaList
@@ -179,16 +178,16 @@ def get_tool_json_schema(tool: Tool) -> Dict:
 
 def remove_stop_sequences(content: str, stop_sequences: List[str]) -> str:
     for stop_seq in stop_sequences:
-        if content[-len(stop_seq) :] == stop_seq:
+        if content[-len(stop_seq):] == stop_seq:
             content = content[: -len(stop_seq)]
     return content
 
 
 def get_clean_message_list(
-    message_list: List[Dict[str, str]],
-    role_conversions: Dict[MessageRole, MessageRole] = {},
-    convert_images_to_image_urls: bool = False,
-    flatten_messages_as_text: bool = False,
+        message_list: List[Dict[str, str]],
+        role_conversions: Dict[MessageRole, MessageRole] = {},
+        convert_images_to_image_urls: bool = False,
+        flatten_messages_as_text: bool = False,
 ) -> List[Dict[str, str]]:
     """
     Subsequent messages with the same role will be concatenated to a single message.
@@ -239,22 +238,22 @@ def get_clean_message_list(
     return output_message_list
 
 
-class Model:
+class Model(Callable[[List[Dict[str, str]]], ChatMessage]):
     def __init__(self, **kwargs):
         self.last_input_token_count = None
         self.last_output_token_count = None
         self.kwargs = kwargs
 
     def _prepare_completion_kwargs(
-        self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
-        grammar: Optional[str] = None,
-        tools_to_call_from: Optional[List[Tool]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
-        convert_images_to_image_urls: bool = False,
-        flatten_messages_as_text: bool = False,
-        **kwargs,
+            self,
+            messages: List[Dict[str, str]],
+            stop_sequences: Optional[List[str]] = None,
+            grammar: Optional[str] = None,
+            tools_to_call_from: Optional[List[Tool]] = None,
+            custom_role_conversions: Optional[Dict[str, str]] = None,
+            convert_images_to_image_urls: bool = False,
+            flatten_messages_as_text: bool = False,
+            **kwargs,
     ) -> Dict:
         """
         Prepare parameters required for model invocation, handling parameter priorities.
@@ -305,12 +304,12 @@ class Model:
         }
 
     def __call__(
-        self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
-        grammar: Optional[str] = None,
-        tools_to_call_from: Optional[List[Tool]] = None,
-        **kwargs,
+            self,
+            messages: List[Dict[str, str]],
+            stop_sequences: Optional[List[str]] = None,
+            grammar: Optional[str] = None,
+            tools_to_call_from: Optional[List[Tool]] = None,
+            **kwargs,
     ) -> ChatMessage:
         """Process the input messages and return the model's response.
 
@@ -379,7 +378,30 @@ class Model:
         return model_instance
 
 
-class HfApiModel(Model):
+class GracefulModel(Model):
+
+    def __init__(self, failover_model: Optional = None, **kwargs):
+        self.__failover_model = failover_model
+        super().__init__(**kwargs)
+
+    def __call__(self, messages: List[Dict[str, str]], stop_sequences: Optional[List[str]] = None,
+                 grammar: Optional[str] = None, tools_to_call_from: Optional[List[Tool]] = None,
+                 **kwargs) -> ChatMessage:
+        """
+        Same as Model, it performs the call to the LLM model.
+        If the first model fails for any reason, it will check if a Fail-over model has been passed otherwise raise an exception.
+        '"""
+        try:
+            return self.__call__(messages, stop_sequences, grammar, tools_to_call_from, **kwargs)
+        except Exception as e:
+            if self.__failover_model:
+                logger.error(
+                    f"Model {self.__class__.__name__} raised exception {e}. Retrying with {self.__failover_model.__class__.__name__}.")
+                return self.__failover_model(messages, stop_sequences, grammar, tools_to_call_from, **kwargs)
+            raise e
+
+
+class HfApiModel(GracefulModel):
     """A class to interact with Hugging Face's Inference API for language model interaction.
 
     This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
@@ -421,13 +443,13 @@ class HfApiModel(Model):
     """
 
     def __init__(
-        self,
-        model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
-        provider: Optional[str] = None,
-        token: Optional[str] = None,
-        timeout: Optional[int] = 120,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
-        **kwargs,
+            self,
+            model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
+            provider: Optional[str] = None,
+            token: Optional[str] = None,
+            timeout: Optional[int] = 120,
+            custom_role_conversions: Optional[Dict[str, str]] = None,
+            **kwargs,
     ):
         super().__init__(**kwargs)
         self.model_id = model_id
@@ -438,12 +460,12 @@ class HfApiModel(Model):
         self.custom_role_conversions = custom_role_conversions
 
     def __call__(
-        self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
-        grammar: Optional[str] = None,
-        tools_to_call_from: Optional[List[Tool]] = None,
-        **kwargs,
+            self,
+            messages: List[Dict[str, str]],
+            stop_sequences: Optional[List[str]] = None,
+            grammar: Optional[str] = None,
+            tools_to_call_from: Optional[List[Tool]] = None,
+            **kwargs,
     ) -> ChatMessage:
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
@@ -464,7 +486,7 @@ class HfApiModel(Model):
         return message
 
 
-class MLXModel(Model):
+class MLXModel(GracefulModel):
     """A class to interact with models loaded using MLX on Apple silicon.
 
     > [!TIP]
@@ -503,12 +525,12 @@ class MLXModel(Model):
     """
 
     def __init__(
-        self,
-        model_id: str,
-        tool_name_key: str = "name",
-        tool_arguments_key: str = "arguments",
-        trust_remote_code: bool = False,
-        **kwargs,
+            self,
+            model_id: str,
+            tool_name_key: str = "name",
+            tool_arguments_key: str = "arguments",
+            trust_remote_code: bool = False,
+            **kwargs,
     ):
         super().__init__(**kwargs)
         if not _is_package_available("mlx_lm"):
@@ -545,12 +567,12 @@ class MLXModel(Model):
         return ChatMessage(role="assistant", content=text)
 
     def __call__(
-        self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
-        grammar: Optional[str] = None,
-        tools_to_call_from: Optional[List[Tool]] = None,
-        **kwargs,
+            self,
+            messages: List[Dict[str, str]],
+            stop_sequences: Optional[List[str]] = None,
+            grammar: Optional[str] = None,
+            tools_to_call_from: Optional[List[Tool]] = None,
+            **kwargs,
     ) -> ChatMessage:
         completion_kwargs = self._prepare_completion_kwargs(
             flatten_messages_as_text=True,  # mlx-lm doesn't support vision models
@@ -587,7 +609,7 @@ class MLXModel(Model):
         return self._to_message(text, tools_to_call_from)
 
 
-class TransformersModel(Model):
+class TransformersModel(GracefulModel):
     """A class that uses Hugging Face's Transformers library for language model interaction.
 
     This model allows you to load and use Hugging Face's models locally using the Transformers library. It supports features like stop sequences and grammar customization.
@@ -627,12 +649,12 @@ class TransformersModel(Model):
     """
 
     def __init__(
-        self,
-        model_id: Optional[str] = None,
-        device_map: Optional[str] = None,
-        torch_dtype: Optional[str] = None,
-        trust_remote_code: bool = False,
-        **kwargs,
+            self,
+            model_id: Optional[str] = None,
+            device_map: Optional[str] = None,
+            torch_dtype: Optional[str] = None,
+            trust_remote_code: bool = False,
+            **kwargs,
     ):
         super().__init__(**kwargs)
         if not is_torch_available() or not _is_package_available("transformers"):
@@ -706,13 +728,13 @@ class TransformersModel(Model):
         return StoppingCriteriaList([StopOnStrings(stop_sequences, tokenizer)])
 
     def __call__(
-        self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
-        grammar: Optional[str] = None,
-        tools_to_call_from: Optional[List[Tool]] = None,
-        images: Optional[List[Image.Image]] = None,
-        **kwargs,
+            self,
+            messages: List[Dict[str, str]],
+            stop_sequences: Optional[List[str]] = None,
+            grammar: Optional[str] = None,
+            tools_to_call_from: Optional[List[Tool]] = None,
+            images: Optional[List[Image.Image]] = None,
+            **kwargs,
     ) -> ChatMessage:
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
@@ -726,10 +748,10 @@ class TransformersModel(Model):
         stop_sequences = completion_kwargs.pop("stop", None)
 
         max_new_tokens = (
-            kwargs.get("max_new_tokens")
-            or kwargs.get("max_tokens")
-            or self.kwargs.get("max_new_tokens")
-            or self.kwargs.get("max_tokens")
+                kwargs.get("max_new_tokens")
+                or kwargs.get("max_tokens")
+                or self.kwargs.get("max_new_tokens")
+                or self.kwargs.get("max_tokens")
         )
 
         if max_new_tokens:
@@ -793,7 +815,7 @@ class TransformersModel(Model):
             try:
                 start_index = output.index("{")
                 end_index = output.rindex("}")
-                output = output[start_index : end_index + 1]
+                output = output[start_index: end_index + 1]
             except Exception as e:
                 raise Exception("No json blob found in output!") from e
 
@@ -817,7 +839,7 @@ class TransformersModel(Model):
             )
 
 
-class LiteLLMModel(Model):
+class LiteLLMModel(GracefulModel):
     """This model connects to [LiteLLM](https://www.litellm.ai/) as a gateway to hundreds of LLMs.
 
     Parameters:
@@ -835,12 +857,12 @@ class LiteLLMModel(Model):
     """
 
     def __init__(
-        self,
-        model_id: str = "anthropic/claude-3-5-sonnet-20240620",
-        api_base=None,
-        api_key=None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
-        **kwargs,
+            self,
+            model_id: str = "anthropic/claude-3-5-sonnet-20240620",
+            api_base=None,
+            api_key=None,
+            custom_role_conversions: Optional[Dict[str, str]] = None,
+            **kwargs,
     ):
         super().__init__(**kwargs)
         self.model_id = model_id
@@ -854,12 +876,12 @@ class LiteLLMModel(Model):
         )
 
     def __call__(
-        self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
-        grammar: Optional[str] = None,
-        tools_to_call_from: Optional[List[Tool]] = None,
-        **kwargs,
+            self,
+            messages: List[Dict[str, str]],
+            stop_sequences: Optional[List[str]] = None,
+            grammar: Optional[str] = None,
+            tools_to_call_from: Optional[List[Tool]] = None,
+            **kwargs,
     ) -> ChatMessage:
         try:
             import litellm
@@ -896,7 +918,7 @@ class LiteLLMModel(Model):
         return message
 
 
-class OpenAIServerModel(Model):
+class OpenAIServerModel(GracefulModel):
     """This model connects to an OpenAI-compatible API server.
 
     Parameters:
@@ -920,15 +942,15 @@ class OpenAIServerModel(Model):
     """
 
     def __init__(
-        self,
-        model_id: str,
-        api_base: Optional[str] = None,
-        api_key: Optional[str] = None,
-        organization: Optional[str] | None = None,
-        project: Optional[str] | None = None,
-        client_kwargs: Optional[Dict[str, Any]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
-        **kwargs,
+            self,
+            model_id: str,
+            api_base: Optional[str] = None,
+            api_key: Optional[str] = None,
+            organization: Optional[str] | None = None,
+            project: Optional[str] | None = None,
+            client_kwargs: Optional[Dict[str, Any]] = None,
+            custom_role_conversions: Optional[Dict[str, str]] = None,
+            **kwargs,
     ):
         try:
             import openai
@@ -949,12 +971,12 @@ class OpenAIServerModel(Model):
         self.custom_role_conversions = custom_role_conversions
 
     def __call__(
-        self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
-        grammar: Optional[str] = None,
-        tools_to_call_from: Optional[List[Tool]] = None,
-        **kwargs,
+            self,
+            messages: List[Dict[str, str]],
+            stop_sequences: Optional[List[str]] = None,
+            grammar: Optional[str] = None,
+            tools_to_call_from: Optional[List[Tool]] = None,
+            **kwargs,
     ) -> ChatMessage:
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
@@ -999,13 +1021,13 @@ class AzureOpenAIServerModel(OpenAIServerModel):
     """
 
     def __init__(
-        self,
-        model_id: str,
-        azure_endpoint: Optional[str] = None,
-        api_key: Optional[str] = None,
-        api_version: Optional[str] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
-        **kwargs,
+            self,
+            model_id: str,
+            azure_endpoint: Optional[str] = None,
+            api_key: Optional[str] = None,
+            api_version: Optional[str] = None,
+            custom_role_conversions: Optional[Dict[str, str]] = None,
+            **kwargs,
     ):
         # read the api key manually, to avoid super().__init__() trying to use the wrong api_key (OPENAI_API_KEY)
         if api_key is None:
@@ -1023,6 +1045,7 @@ __all__ = [
     "tool_role_conversions",
     "get_clean_message_list",
     "Model",
+    "GracefulModel",
     "MLXModel",
     "TransformersModel",
     "HfApiModel",
