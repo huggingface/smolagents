@@ -48,9 +48,9 @@ To get started, follow the steps below:
         export OPENAI_API_KEY="your_openai_api_key_here"
         ```
     
-    - **SerperAPI Key**: Open Deep Research uses Serper for web browsing functionality. 
+    - **SerperAPI Key**: Open Deep Research uses SerperAPI for web browsing functionality. 
         ```bash
-        export SERPER_API_KEY="your_serperapi_key_here"
+        export SERPER_API_KEY="your_serper_api_key_here"
         ```
 
 5. **Run the script**:
