@@ -257,11 +257,7 @@ class MultiStepAgent:
     def _validate_tools_and_managed_agents(self, tools, managed_agents):
         tool_and_managed_agent_names = [tool.name for tool in tools]
         if managed_agents is not None:
-            for agent in managed_agents:
-                tool_and_managed_agent_names.append(agent.name)
-                for tool in agent.tools.values():
-                    if tool.name != "final_answer":
-                        tool_and_managed_agent_names.append(tool.name)
+            tool_and_managed_agent_names += [agent.name for agent in managed_agents]
         if len(tool_and_managed_agent_names) != len(set(tool_and_managed_agent_names)):
             raise ValueError(
                 "Each tool or managed_agent should have a unique name! You passed these duplicate names: "
