@@ -89,7 +89,7 @@ def load_model(model_type: str, model_id: str, api_base: str | None, api_key: st
     elif model_type == "LiteLLMModel":
         return LiteLLMModel(
             model_id=model_id,
-            api_key=api_key or os.getenv("OPENAI_API_KEY"),
+            api_key=api_key,
             api_base=api_base,
         )
     elif model_type == "TransformersModel":

@@ -32,7 +32,7 @@ from smolagents.agents import (
     ToolCallingAgent,
     populate_template,
 )
-from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import PlanningStep
 from smolagents.models import (
     ChatMessage,
@@ -392,7 +392,7 @@ class AgentTests(unittest.TestCase):
         assert "ValueError" in str(agent.memory.steps)
 
     def test_code_agent_code_error_saves_previous_print_outputs(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error, verbosity_level=10)
         agent.run("What is 2 multiplied by 3.6452?")
         assert "Flag!" in str(agent.memory.steps[1].observations)
 
@@ -414,6 +414,16 @@ class AgentTests(unittest.TestCase):
         )
         answer = agent.run("What is 2 multiplied by 3.6452?")
         assert len(agent.memory.steps) == 7  # Task step + 5 action steps + Final answer
+        assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
+        assert isinstance(answer, str)
+
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=fake_code_model_no_return,  # use this callable because it never ends
+            max_steps=5,
+        )
+        answer = agent.run("What is 2 multiplied by 3.6452?", max_steps=3)
+        assert len(agent.memory.steps) == 5  # Task step + 3 action steps + Final answer
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
 
@@ -560,6 +570,11 @@ nested_answer()
         assert "Error raised in check" in str(agent.write_memory_to_messages())
 
 
+class CustomFinalAnswerTool(FinalAnswerTool):
+    def forward(self, answer) -> str:
+        return answer + "CUSTOM"
+
+
 class MockTool(Tool):
     def __init__(self, name):
         self.name = name
@@ -590,6 +605,15 @@ class TestMultiStepAgent:
         assert "managed_agent" in agent.prompt_templates
         assert agent.prompt_templates["managed_agent"]["task"] == "Task for {{name}}: {{task}}"
         assert agent.prompt_templates["managed_agent"]["report"] == "Report for {{name}}: {{final_answer}}"
+
+    @pytest.mark.parametrize(
+        "tools, expected_final_answer_tool",
+        [([], FinalAnswerTool), ([CustomFinalAnswerTool()], CustomFinalAnswerTool)],
+    )
+    def test_instantiation_with_final_answer_tool(self, tools, expected_final_answer_tool):
+        agent = MultiStepAgent(tools=tools, model=MagicMock())
+        assert "final_answer" in agent.tools
+        assert isinstance(agent.tools["final_answer"], expected_final_answer_tool)
 
     def test_step_number(self):
         fake_model = MagicMock()
@@ -835,6 +859,40 @@ class TestCodeAgent:
                 "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
             )
         assert result == expected_summary
+
+    def test_errors_logging(self):
+        def fake_code_model(messages, stop_sequences=None, grammar=None) -> str:
+            return ChatMessage(role="assistant", content="Code:\n```py\nsecret=3;['1', '2'][secret]\n```")
+
+        agent = CodeAgent(tools=[], model=fake_code_model, verbosity_level=1)
+
+        with agent.logger.console.capture() as capture:
+            agent.run("Test request")
+        assert "secret\\\\" in repr(capture.get())
+
+    def test_change_tools_after_init(self):
+        from smolagents import tool
+
+        @tool
+        def fake_tool_1() -> str:
+            """Fake tool"""
+            return "1"
+
+        @tool
+        def fake_tool_2() -> str:
+            """Fake tool"""
+            return "2"
+
+        def fake_code_model(messages, stop_sequences=None, grammar=None) -> str:
+            return ChatMessage(role="assistant", content="Code:\n```py\nfinal_answer(fake_tool_1())\n```")
+
+        agent = CodeAgent(tools=[fake_tool_1], model=fake_code_model)
+
+        agent.tools["final_answer"] = CustomFinalAnswerTool()
+        agent.tools["fake_tool_1"] = fake_tool_2
+
+        answer = agent.run("Fake task.")
+        assert answer == "2CUSTOM"
 
 
 class MultiAgentsTests(unittest.TestCase):
