@@ -264,12 +264,9 @@ class GradioUI:
 
             with gr.Sidebar():
                 gr.Markdown(
-                    """# {self.name or "Agent interface"}"
-
-                    This web ui allows you to interact with an AI agent that can use tools and execute steps to complete tasks."""
-                    + f"\n\nAgent description:\n{self.description}"
-                    if self.description
-                    else ""
+                    f"# {self.name.replace('_', ' ').capitalize() or 'Agent interface'}"
+                    "\n> This web ui allows you to interact with a `smolagents` agent that can use tools and execute steps to complete tasks."
+                    + (f"\n\n**Agent description:**\n{self.description}" if self.description else "")
                 )
 
                 with gr.Group():
