@@ -119,7 +119,7 @@ def pull_messages_from_step(
             step_footnote += step_duration
         step_footnote = f"""<span style="color: #bbbbc2; font-size: 12px;">{step_footnote}</span> """
         yield gr.ChatMessage(role="assistant", content=f"{step_footnote}")
-        yield gr.ChatMessage(role="assistant", content="-----", metadata={"status":"done"})
+        yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
 
 
 def stream_to_gradio(
@@ -192,17 +192,17 @@ class GradioUI:
         import gradio as gr
 
         # Get the agent type from the template agent
-        if 'agent' not in session_state:
-            session_state['agent'] = self.agent
-            
+        if "agent" not in session_state:
+            session_state["agent"] = self.agent
+
         try:
             messages.append(gr.ChatMessage(role="user", content=prompt))
             yield messages
-            
-            for msg in stream_to_gradio(session_state['agent'], task=prompt, reset_agent_memory=False):
+
+            for msg in stream_to_gradio(session_state["agent"], task=prompt, reset_agent_memory=False):
                 messages.append(msg)
                 yield messages
-                
+
             yield messages
         except Exception as e:
             print(f"Error in interaction: {str(e)}")
@@ -239,7 +239,7 @@ class GradioUI:
 
     def log_user_message(self, text_input, file_uploads_log):
         import gradio as gr
-        
+
         return (
             text_input
             + (
@@ -248,7 +248,7 @@ class GradioUI:
                 else ""
             ),
             "",
-            gr.Button(interactive=False)
+            gr.Button(interactive=False),
         )
 
     def launch(self, share: bool = True, **kwargs):
@@ -259,24 +259,24 @@ class GradioUI:
             session_state = gr.State({})
             stored_messages = gr.State([])
             file_uploads_log = gr.State([])
-            
-            with gr.Blocks(fill_height=True) as sidebar_demo:
+
+            with gr.Blocks(fill_height=True):
                 with gr.Sidebar():
                     gr.Markdown("""# smolagents framework
-                    
+
                     This web ui allows you to interact with an AI agent that can use tools and execute steps to complete tasks.
                     """)
-                    
+
                     with gr.Group():
                         gr.Markdown("**Your request**", container=True)
                         text_input = gr.Textbox(
-                            lines=3, 
-                            label="Chat Message", 
-                            container=False, 
-                            placeholder="Enter your prompt here and press Shift+Enter or press the button"
+                            lines=3,
+                            label="Chat Message",
+                            container=False,
+                            placeholder="Enter your prompt here and press Shift+Enter or press the button",
                         )
                         submit_btn = gr.Button("Submit", variant="primary")
-                    
+
                     # If an upload folder is provided, enable the upload feature
                     if self.file_upload_folder is not None:
                         upload_file = gr.File(label="Upload a file")
@@ -286,14 +286,14 @@ class GradioUI:
                             [upload_file, file_uploads_log],
                             [upload_status, file_uploads_log],
                         )
-                        
+
                     gr.HTML("<br><br><h4><center>Powered by:</center></h4>")
                     with gr.Row():
                         gr.HTML("""<div style="display: flex; align-items: center; gap: 8px; font-family: system-ui, -apple-system, sans-serif;">
                 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png" style="width: 32px; height: 32px; object-fit: contain;" alt="logo">
                 <a target="_blank" href="https://github.com/huggingface/smolagents"><b>huggingface/smolagents</b></a>
                 </div>""")
-                
+
                 # Main chat interface
                 chatbot = gr.Chatbot(
                     label="Agent",
@@ -305,34 +305,36 @@ class GradioUI:
                     resizeable=True,
                     scale=1,
                 )
-            
+
                 # Set up event handlers
                 text_input.submit(
                     self.log_user_message,
                     [text_input, file_uploads_log],
                     [stored_messages, text_input, submit_btn],
-                ).then(
-                    self.interact_with_agent,
-                    [stored_messages, chatbot, session_state],
-                    [chatbot]
-                ).then(
-                    lambda: (gr.Textbox(interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"), gr.Button(interactive=True)),
+                ).then(self.interact_with_agent, [stored_messages, chatbot, session_state], [chatbot]).then(
+                    lambda: (
+                        gr.Textbox(
+                            interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"
+                        ),
+                        gr.Button(interactive=True),
+                    ),
                     None,
-                    [text_input, submit_btn]
+                    [text_input, submit_btn],
                 )
-                
+
                 submit_btn.click(
                     self.log_user_message,
                     [text_input, file_uploads_log],
                     [stored_messages, text_input, submit_btn],
-                ).then(
-                    self.interact_with_agent,
-                    [stored_messages, chatbot, session_state],
-                    [chatbot]
-                ).then(
-                    lambda: (gr.Textbox(interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"), gr.Button(interactive=True)),
+                ).then(self.interact_with_agent, [stored_messages, chatbot, session_state], [chatbot]).then(
+                    lambda: (
+                        gr.Textbox(
+                            interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"
+                        ),
+                        gr.Button(interactive=True),
+                    ),
                     None,
-                    [text_input, submit_btn]
+                    [text_input, submit_btn],
                 )
 
         demo.launch(debug=True, share=share, **kwargs)
