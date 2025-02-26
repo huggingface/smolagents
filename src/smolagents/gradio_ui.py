@@ -119,7 +119,7 @@ def pull_messages_from_step(
             step_footnote += step_duration
         step_footnote = f"""<span style="color: #bbbbc2; font-size: 12px;">{step_footnote}</span> """
         yield gr.ChatMessage(role="assistant", content=f"{step_footnote}")
-        yield gr.ChatMessage(role="assistant", content="-----", metadata={"status":"done"})
+        yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
 
 
 def stream_to_gradio(
@@ -192,17 +192,17 @@ class GradioUI:
         import gradio as gr
 
         # Get the agent type from the template agent
-        if 'agent' not in session_state:
-            session_state['agent'] = self.agent
-            
+        if "agent" not in session_state:
+            session_state["agent"] = self.agent
+
         try:
             messages.append(gr.ChatMessage(role="user", content=prompt))
             yield messages
-            
-            for msg in stream_to_gradio(session_state['agent'], task=prompt, reset_agent_memory=False):
+
+            for msg in stream_to_gradio(session_state["agent"], task=prompt, reset_agent_memory=False):
                 messages.append(msg)
                 yield messages
-                
+
             yield messages
         except Exception as e:
             print(f"Error in interaction: {str(e)}")
@@ -239,7 +239,7 @@ class GradioUI:
 
     def log_user_message(self, text_input, file_uploads_log):
         import gradio as gr
-        
+
         return (
             text_input
             + (
@@ -248,7 +248,7 @@ class GradioUI:
                 else ""
             ),
             "",
-            gr.Button(interactive=False)
+            gr.Button(interactive=False),
         )
 
     def launch(self, share: bool = True, **kwargs):
