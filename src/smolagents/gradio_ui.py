@@ -254,6 +254,9 @@ class GradioUI:
         )
 
     def launch(self, share: bool = True, **kwargs):
+        self.create_app().launch(debug=True, share=share, **kwargs)
+
+    def create_app(self):
         import gradio as gr
 
         with gr.Blocks(theme="ocean", fill_height=True) as demo:
@@ -339,7 +342,7 @@ class GradioUI:
                 [text_input, submit_btn],
             )
 
-        demo.launch(debug=True, share=share, **kwargs)
+        return demo
 
 
 __all__ = ["stream_to_gradio", "GradioUI"]
