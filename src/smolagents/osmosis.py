@@ -12,16 +12,18 @@ load_dotenv()
 class OsmosisAPI:
     """Client for interacting with the Osmosis Agent Improvement API"""
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, tenant_id: Optional[str] = None):
         """Initialize the Osmosis API client
         
         Args:
             api_key: Optional API key. If not provided, will look for OSMOSIS_API_KEY env var
+            tenant_id: Optional tenant ID. If not provided, will look for OSMOSIS_TENANT_ID env var
         """
         self.api_key = api_key or os.getenv('OSMOSIS_API_KEY')
         if not self.api_key:
             raise ValueError("API key must be provided or set as OSMOSIS_API_KEY environment variable")
             
+        self.tenant_id = tenant_id or os.getenv('OSMOSIS_TENANT_ID', self.api_key)
         self.base_url = "https://osmosis.gulp.dev"
         self.headers = {
             "Content-Type": "application/json",
@@ -41,7 +43,7 @@ class OsmosisAPI:
             Dict containing enhanced response and metadata
         """
         payload = {
-            "tenant_id": self.api_key,
+            "tenant_id": self.tenant_id,
             "input_text": input_text + "\n\n" + context,
             "agent_type": agent_type
         }
@@ -73,23 +75,39 @@ class OsmosisAPI:
         Returns:
             Dict containing storage confirmation and metadata
         """
+        # Import make_json_serializable to ensure all data is JSON serializable
+        from .utils import make_json_serializable
+        
+        # Create payload with serializable data
         payload = {
-            "tenant_id": self.api_key,
+            "tenant_id": self.tenant_id,
             "query": query,
-            "turns": turns,
+            "turns": turns,  # Should already be serializable from caller
             "success": success,
             "agent_type": agent_type,
             "timestamp": datetime.utcnow().isoformat() + "Z",
-            "metadata": metadata or {}
+            "metadata": make_json_serializable(metadata or {})
         }
         
-        response = requests.post(
-            f"{self.base_url}/store_knowledge",
-            headers=self.headers,
-            json=payload
-        )
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = requests.post(
+                f"{self.base_url}/store_knowledge",
+                headers=self.headers,
+                json=payload
+            )
+            response.raise_for_status()
+            return response.json()
+        except json.JSONDecodeError as e:
+            print(f"JSON serialization error in store_knowledge: {e}")
+            # Try again with string conversion as fallback
+            payload["turns"] = [make_json_serializable(turn) for turn in turns]
+            response = requests.post(
+                f"{self.base_url}/store_knowledge",
+                headers=self.headers,
+                json=payload
+            )
+            response.raise_for_status()
+            return response.json()
 
     def delete_by_intent(self, intent: str, 
                         similarity_threshold: float = 0.5) -> Dict[str, Any]:
@@ -103,7 +121,7 @@ class OsmosisAPI:
             Dict containing deletion results
         """
         params = {
-            "tenant_id": self.api_key,
+            "tenant_id": self.tenant_id,
             "intent": intent,
             "similarity_threshold": similarity_threshold
         }
@@ -172,6 +190,7 @@ class OsmosisAPI:
 class OsmosisConfig:
     enabled: bool = False
     api_key: Optional[str] = None
+    tenant_id: Optional[str] = None
     base_url: Optional[str] = None
     store_knowledge: bool = True
     enhance_tasks: bool = True
@@ -186,7 +205,8 @@ class OsmosisSupport:
         if self.config.enabled:
             try:
                 self._osmosis_api = OsmosisAPI(
-                    api_key=self.config.api_key
+                    api_key=self.config.api_key,
+                    tenant_id=self.config.tenant_id
                 )
             except ImportError:
                 print("Osmosis package not found. Install with: pip install osmosis-api")
@@ -198,9 +218,13 @@ class OsmosisSupport:
             return
             
         if self._osmosis_api:
+            # Ensure all data is JSON serializable
+            from .utils import make_json_serializable
+            serializable_turns = make_json_serializable(turns)
+            
             self._osmosis_api.store_knowledge(
                 query=query,
-                turns=turns,
+                turns=serializable_turns,
                 success=success,
                 agent_type=agent_type or self.config.agent_type
             )

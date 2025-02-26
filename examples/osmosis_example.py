@@ -11,13 +11,14 @@ model = PortkeyModel(
     # API key can be set via PORTKEY_API_KEY env var
     # Virtual key can be set via PORTKEY_VIRTUAL_KEY_ANTHROPIC env var
 )
-
+  
 def getCodeBase():
     return ""
 
 # Configure Osmosis
 osmosis_config = OsmosisConfig(
     enabled=True,
+    tenant_id="tenant_id",  
     store_knowledge=True,
     enhance_tasks=True,
     context=str(getCodeBase()),

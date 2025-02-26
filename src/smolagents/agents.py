@@ -67,6 +67,7 @@ from .utils import (
     parse_code_blobs,
     parse_json_tool_call,
     truncate_content,
+    make_json_serializable,
 )
 from .osmosis import OsmosisConfig, OsmosisSupport
 
@@ -1046,13 +1047,16 @@ You have been provided with these additional arguments, that you can access usin
         # Convert memory steps to Osmosis turns format
         turns = self._get_turns_from_memory()
         
+        # Make final_result JSON serializable
+        serializable_result = make_json_serializable(final_result)
+        
         # Add final result turn
         turns.append({
             "turn": len(turns) + 1,
             "inputs": "Final result",
             "decision": "Return final answer",
             "memory": "Task completed",
-            "result": str(final_result)
+            "result": serializable_result
         })
         
         # Store knowledge in Osmosis
