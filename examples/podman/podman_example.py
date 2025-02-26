@@ -33,7 +33,7 @@ class PodmanSandbox:
                 break
             except Exception as e:
                 connection_error = e
-                continueprint()
+                continue
 
         
                 
