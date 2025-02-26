@@ -258,6 +258,8 @@ class MultiStepAgent:
         tool_and_managed_agent_names = [tool.name for tool in tools]
         if managed_agents is not None:
             tool_and_managed_agent_names += [agent.name for agent in managed_agents]
+        if self.name:
+            tool_and_managed_agent_names.append(self.name)
         if len(tool_and_managed_agent_names) != len(set(tool_and_managed_agent_names)):
             raise ValueError(
                 "Each tool or managed_agent should have a unique name! You passed these duplicate names: "
