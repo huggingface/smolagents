@@ -7,8 +7,8 @@ load_dotenv()
 
 # For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-20240620' and also change 'os.environ.get("ANTHROPIC_API_KEY")'
 model = LiteLLMModel(
-    model_id="groq/llama-3.3-70b-versatile",
-    api_key=os.environ.get("GROQ_API_KEY"),
+    model_id="openai/gpt-4o",
+    api_key=os.environ.get("OPENAI_API_KEY"),
 )
   
 def getCodeBase():
@@ -16,9 +16,8 @@ def getCodeBase():
 
 # Configure Osmosis
 osmosis_config = OsmosisConfig(
+    api_key=os.environ.get("OSMOSIS_API_KEY"),  # You would need to set this env var
     tenant_id="tenant_id",  
-    store_knowledge=True,
-    enhance_tasks=True,
     context=str(getCodeBase()),
     agent_type="test"
 )

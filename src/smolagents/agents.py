@@ -65,7 +65,7 @@ from .utils import (
     truncate_content,
     make_json_serializable,
 )
-from .osmosis import OsmosisConfig, OsmosisSupport
+from .osmosis import OsmosisConfig, OsmosisAPI
 
 
 logger = getLogger(__name__)
@@ -219,7 +219,7 @@ class MultiStepAgent:
         self.description = description
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks
-        self.osmosis = OsmosisSupport(osmosis_config) if osmosis_config is not None else None
+        self.osmosis = OsmosisAPI(config=osmosis_config) if osmosis_config is not None else None
 
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)

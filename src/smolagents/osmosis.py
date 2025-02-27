@@ -10,42 +10,59 @@ from .utils import make_json_serializable
 # Load environment variables
 load_dotenv()
 
+@dataclass
+class OsmosisConfig:
+    api_key: Optional[str] = None
+    tenant_id: Optional[str] = None
+    base_url: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+    agent_type: Optional[str] = "code_writing"
+
 class OsmosisAPI:
     """Client for interacting with the Osmosis Agent Improvement API"""
     
-    def __init__(self, api_key: Optional[str] = None, tenant_id: Optional[str] = None):
+    def __init__(self, config: Optional[OsmosisConfig] = None, api_key: Optional[str] = None, tenant_id: Optional[str] = None):
         """Initialize the Osmosis API client
         
         Args:
-            api_key: Optional API key. If not provided, will look for OSMOSIS_API_KEY env var
-            tenant_id: Optional tenant ID. If not provided, will look for OSMOSIS_TENANT_ID env var
+            config: Optional OsmosisConfig object containing API settings.
+            api_key: Optional API key. If not provided, will look for OSMOSIS_API_KEY env var.
+                     This is ignored if config is provided.
+            tenant_id: Optional tenant ID. If not provided, will look for OSMOSIS_TENANT_ID env var.
+                       This is ignored if config is provided.
         """
-        self.api_key = api_key or os.getenv('OSMOSIS_API_KEY')
+        if config is not None:
+            self.config = config
+        else:
+            self.config = OsmosisConfig(api_key=api_key, tenant_id=tenant_id)
+            
+        self.api_key = self.config.api_key or os.getenv('OSMOSIS_API_KEY')
         if not self.api_key:
             raise ValueError("API key must be provided or set as OSMOSIS_API_KEY environment variable")
             
-        self.tenant_id = tenant_id or os.getenv('OSMOSIS_TENANT_ID', self.api_key)
-        self.base_url = "https://osmosis.gulp.dev"
+        self.tenant_id = self.config.tenant_id or os.getenv('OSMOSIS_TENANT_ID', self.api_key)
+        self.base_url = self.config.base_url or "https://osmosis.gulp.dev"
         self.headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key
         }
 
-    def enhance_task(self, input_text: str, context: Optional[Dict[str, str]] = "", 
-                    agent_type: Optional[str] = None) -> Dict[str, Any]:
+    def enhance_task(self, task: str, agent_type: Optional[str] = None) -> Dict[str, Any]:
         """Enhance a task with relevant knowledge
         
         Args:
-            input_text: The agent's input/query
-            context: Optional context about agent's current state
-            agent_type: Optional type of agent making request
+            task: The task to enhance
+            agent_type: Optional type of agent making request. Defaults to config.agent_type if not provided.
             
         Returns:
             Dict containing enhanced response and metadata
         """
+        context = self.config.context or ""
+        agent_type = agent_type or self.config.agent_type
+        
         payload = {
             "tenant_id": self.tenant_id,
-            "input_text": input_text + "\n\n" + context,
+            "input_text": task + "\n\n" + str(context),
             "agent_type": agent_type
         }
         
@@ -57,6 +74,7 @@ class OsmosisAPI:
         response.raise_for_status()
         
         result = response.json()
+        
         # Return the entire response if 'response' key doesn't exist
         return result.get('response', result)
 
@@ -70,18 +88,21 @@ class OsmosisAPI:
             query: Original user query/instruction
             turns: Sequence of agent interaction turns
             success: Whether agent completed task successfully
-            agent_type: Type of agent
+            agent_type: Type of agent. Defaults to config.agent_type if not provided.
             metadata: Additional metadata about interaction
             
         Returns:
             Dict containing storage confirmation and metadata
         """
+        # Ensure all data is JSON serializable
+        serializable_turns = make_json_serializable(turns)
+        agent_type = agent_type or self.config.agent_type
         
         # Create payload with serializable data
         payload = {
             "tenant_id": self.tenant_id,
             "query": query,
-            "turns": turns,  # Should already be serializable from caller
+            "turns": serializable_turns,
             "success": success,
             "agent_type": agent_type,
             "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -139,8 +160,7 @@ class OsmosisAPI:
             # Test enhance_task
             print("\nTesting enhance_task...")
             enhance_response = self.enhance_task(
-                input_text="Find and purchase a red Nike running shoe in size 10",
-                context={"user_type": "customer", "category": "shoes"},
+                task="Find and purchase a red Nike running shoe in size 10",
                 agent_type="shopping_assistant"
             )
             print("Enhance task response:", enhance_response)
@@ -184,70 +204,7 @@ class OsmosisAPI:
             print(f"Error during API testing: {str(e)}")
             return False
 
-
-@dataclass
-class OsmosisConfig:
-    api_key: Optional[str] = None
-    tenant_id: Optional[str] = None
-    base_url: Optional[str] = None
-    store_knowledge: bool = True
-    enhance_tasks: bool = True
-    context: Optional[Dict[str, Any]] = None
-    agent_type: Optional[str] = "code_writing"
-
-class OsmosisSupport:
-    def __init__(self, config: OsmosisConfig):
-        self.config = config
-        self._osmosis_api = None
-        
-        try:
-            self._osmosis_api = OsmosisAPI(
-                api_key=self.config.api_key,
-                tenant_id=self.config.tenant_id
-            )
-        except (ImportError, ValueError) as e:
-            print(f"Failed to initialize Osmosis API: {str(e)}")
-            self._osmosis_api = None
-
-    def store_knowledge(self, query: str, turns: List[Dict], success: bool, agent_type: Optional[str] = None) -> None:
-        """Store agent interactions and knowledge in Osmosis"""
-            
-        # Ensure all data is JSON serializable
-        serializable_turns = make_json_serializable(turns)
-        
-        self._osmosis_api.store_knowledge(
-            query=query,
-            turns=serializable_turns,
-            success=success,
-            agent_type=agent_type or self.config.agent_type
-        )
-
-    def enhance_task(self, task: str, agent_type: Optional[str] = None) -> Optional[str]:
-        """Enhance task with relevant knowledge from Osmosis
-        
-        Args:
-            task: The task to enhance
-            agent_type: Optional agent type to override config agent_type
-            
-        Returns:
-            Enhanced task string if successful, None otherwise
-        """
-        
-        result = self._osmosis_api.enhance_task(
-            input_text=task,
-            context=self.config.context,
-            agent_type=agent_type or self.config.agent_type
-        )
-        
-        return result
-
-    def delete_by_intent(self, intent: str) -> None:
-        """Delete knowledge by intent"""
-            
-        self._osmosis_api.delete_by_intent(intent)
-
 __all__ = [
     "OsmosisConfig",
-    "OsmosisAPI",
-    "OsmosisSupport"
+    "OsmosisAPI"
 ]
