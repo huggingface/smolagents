@@ -79,7 +79,7 @@ def parse_arguments(description):
     return parser.parse_args()
 
 
-  def load_model(model_type: str, model_id: str, api_base: str | None, api_key: str | None) -> Model:
+def load_model(model_type: str, model_id: str, api_base: str | None, api_key: str | None) -> Model:
     if model_type == "PortkeyModel":
         return PortkeyModel(
             model_id=model_id,
