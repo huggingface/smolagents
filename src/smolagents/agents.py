@@ -67,9 +67,7 @@ from .utils import (
     parse_code_blobs,
     parse_json_tool_call,
     truncate_content,
-    make_json_serializable,
 )
-from .osmosis import OsmosisConfig, OsmosisSupport
 
 
 logger = getLogger(__name__)
@@ -188,7 +186,6 @@ class MultiStepAgent:
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
         provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
         final_answer_checks (`list`, *optional*): List of Callables to run before returning a final answer for checking validity.
-        osmosis_config (`Optional[OsmosisConfig]`, *optional*): Configuration for Osmosis support.
     """
 
     def __init__(
@@ -208,7 +205,6 @@ class MultiStepAgent:
         description: Optional[str] = None,
         provide_run_summary: bool = False,
         final_answer_checks: Optional[List[Callable]] = None,
-        osmosis_config: Optional[OsmosisConfig] = None,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -223,7 +219,6 @@ class MultiStepAgent:
         self.description = description
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks
-        self.osmosis = OsmosisSupport(osmosis_config or OsmosisConfig())
 
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)
@@ -321,25 +316,11 @@ You have been provided with these additional arguments, that you can access usin
 
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
 
-        # Try to enhance task with Osmosis knowledge
-        enhanced_task = self.osmosis.enhance_task(
-            task=self.task
-        )
-        
-        if enhanced_task:
-            self.task = enhanced_task
-            
         if stream:
             # The steps are returned as they are executed through a generator to iterate on.
             return self._run(task=self.task, images=images)
-        
-        # Run agent and get final result
-        final_result = deque(self._run(task=self.task, images=images), maxlen=1)[0]
-        
-        # Store knowledge in Osmosis
-        self._store_knowledge(task, final_result)
-        
-        return final_result
+        # Outputs are returned only at the end as a string. We only look at the last step
+        return deque(self._run(task=self.task, images=images), maxlen=1)[0]
 
     def _run(self, task: str, images: List[str] | None = None) -> Generator[ActionStep | AgentType, None, None]:
         final_answer = None
@@ -1011,61 +992,6 @@ You have been provided with these additional arguments, that you can access usin
                 create_pr=create_pr,
                 repo_type="space",
             )
-
-    def _get_turns_from_memory(self) -> List[Dict]:
-        """Convert agent memory steps to Osmosis turns format"""
-        turns = []
-        for step in self.memory.steps:
-            if isinstance(step, TaskStep):
-                turns.append({
-                    "turn": len(turns) + 1,
-                    "inputs": step.task,
-                    "decision": "Task definition",
-                    "memory": "Defined task",
-                    "result": None
-                })
-            elif isinstance(step, ActionStep):
-                turns.append({
-                    "turn": len(turns) + 1,
-                    "inputs": str(step.model_input_messages),
-                    "decision": str(step.tool_calls) if step.tool_calls else step.model_output,
-                    "memory": f"Step {step.step_number} execution",
-                    "result": step.action_output
-                })
-        return turns
-
-    def _store_knowledge(self, task: str, final_result: Any) -> None:
-        """Store agent interactions and knowledge in Osmosis
-        
-        Args:
-            task: The original task/query
-            final_result: The final result/answer from the agent
-        """
-        if not self.osmosis.config.enabled or not self.osmosis.config.store_knowledge:
-            return
-            
-        # Convert memory steps to Osmosis turns format
-        turns = self._get_turns_from_memory()
-        
-        # Make final_result JSON serializable
-        serializable_result = make_json_serializable(final_result)
-        
-        # Add final result turn
-        turns.append({
-            "turn": len(turns) + 1,
-            "inputs": "Final result",
-            "decision": "Return final answer",
-            "memory": "Task completed",
-            "result": serializable_result
-        })
-        
-        # Store knowledge in Osmosis
-        self.osmosis.store_knowledge(
-            query=task,
-            turns=turns,
-            success=True,  # We assume success since we got a final result
-            agent_type=self.osmosis.config.agent_type
-        )
 
 
 class ToolCallingAgent(MultiStepAgent):
