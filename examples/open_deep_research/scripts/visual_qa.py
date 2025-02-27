@@ -10,17 +10,16 @@ import requests
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
 from PIL import Image
-from transformers import AutoProcessor
 
 from smolagents import Tool, tool
 
 
 load_dotenv(override=True)
 
-idefics_processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b-chatty")
-
 
 def process_images_and_text(image_path, query, client):
+    from transformers import AutoProcessor
+
     messages = [
         {
             "role": "user",
@@ -30,7 +29,7 @@ def process_images_and_text(image_path, query, client):
             ],
         },
     ]
-
+    idefics_processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b-chatty")
     prompt_with_template = idefics_processor.apply_chat_template(messages, add_generation_prompt=True)
 
     # load images from local directory
