@@ -824,6 +824,32 @@ class ToolCollection:
             yield cls(tools)
 
 
+class AsyncTool(Tool):
+    async def forward(self, *args, **kwargs):
+        return NotImplementedError("Write this method in your subclass of `Tool`.")
+
+    async def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
+        if not self.is_initialized:
+            self.setup()
+
+        # Handle the arguments might be passed as a single dictionary
+        if len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], dict):
+            potential_kwargs = args[0]
+
+            # If the dictionary keys match our input parameters, convert it to kwargs
+            if all(key in self.inputs for key in potential_kwargs):
+                args = ()
+                kwargs = potential_kwargs
+
+        if sanitize_inputs_outputs:
+            args, kwargs = handle_agent_input_types(*args, **kwargs)
+        outputs = await self.forward(*args, **kwargs)
+        if sanitize_inputs_outputs:
+            outputs = handle_agent_output_types(outputs, self.output_type)
+        return outputs
+
+
+
 def tool(tool_function: Callable) -> Tool:
     """
     Converts a function into an instance of a Tool subclass.
@@ -1058,9 +1084,44 @@ def get_tools_definition_code(tools: Dict[str, Tool]) -> str:
     return tool_definition_code
 
 
+class AsyncPipelineTool(PipelineTool):
+    async def forward(self, inputs):
+        """
+        Sends the inputs through the `model`.
+        """
+        import torch
+
+        with torch.no_grad():
+            return await self.model(**inputs)
+
+    async def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
+        import torch
+        from accelerate.utils import send_to_device
+
+        if not self.is_initialized:
+            self.setup()
+
+        if sanitize_inputs_outputs:
+            args, kwargs = handle_agent_input_types(*args, **kwargs)
+        encoded_inputs = self.encode(*args, **kwargs)
+
+        tensor_inputs = {k: v for k, v in encoded_inputs.items() if isinstance(v, torch.Tensor)}
+        non_tensor_inputs = {k: v for k, v in encoded_inputs.items() if not isinstance(v, torch.Tensor)}
+
+        encoded_inputs = send_to_device(tensor_inputs, self.device)
+        outputs = await self.forward({**encoded_inputs, **non_tensor_inputs})
+        outputs = send_to_device(outputs, "cpu")
+        decoded_outputs = self.decode(outputs)
+        if sanitize_inputs_outputs:
+            decoded_outputs = handle_agent_output_types(decoded_outputs, self.output_type)
+        return decoded_outputs
+
+
+
 __all__ = [
     "AUTHORIZED_TYPES",
     "Tool",
+    "AsyncTool",
     "tool",
     "load_tool",
     "launch_gradio_demo",
