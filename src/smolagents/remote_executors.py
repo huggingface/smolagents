@@ -44,7 +44,7 @@ class RemotePythonExecutor(PythonExecutor):
         self.additional_imports = additional_imports
         self.logger = logger
         self.logger.log("Initializing executor, hold on...")
-        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$")
+        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$", re.M)
         self.installed_packages = []
 
     def run_code_raise_errors(self, code: str, return_final_answer: bool = False) -> Tuple[Any, str]:
@@ -79,7 +79,7 @@ locals().update(vars_dict)
 
     def __call__(self, code_action: str) -> Tuple[Any, str, bool]:
         """Check if code is a final answer and run it accordingly"""
-        is_final_answer = bool(self.final_answer_pattern.match(code_action))
+        is_final_answer = bool(self.final_answer_pattern.search(code_action))
         output = self.run_code_raise_errors(code_action, return_final_answer=is_final_answer)
         return output[0], output[1], is_final_answer
 
@@ -245,7 +245,7 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
         """
         try:
             if return_final_answer:
-                match = self.final_answer_pattern.match(code_action)
+                match = self.final_answer_pattern.search(code_action)
                 if match:
                     result_expr = match.group(1)
                     wrapped_code = f"""
