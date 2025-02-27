@@ -28,6 +28,9 @@ from functools import lru_cache
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 
+from beartype import beartype
+from PIL.Image import Image
+
 
 if TYPE_CHECKING:
     from smolagents.memory import AgentLogger
@@ -65,6 +68,7 @@ BASE_BUILTIN_MODULES = [
 ]
 
 
+@beartype
 def escape_code_brackets(text: str) -> str:
     """Escapes square brackets in code segments while preserving Rich styling tags."""
 
@@ -140,6 +144,7 @@ def make_json_serializable(obj: Any) -> Any:
         return str(obj)
 
 
+@beartype
 def parse_json_blob(json_blob: str) -> Dict[str, str]:
     try:
         first_accolade_index = json_blob.find("{")
@@ -162,6 +167,7 @@ def parse_json_blob(json_blob: str) -> Dict[str, str]:
         raise ValueError(f"Error in parsing the JSON blob: {e}")
 
 
+@beartype
 def parse_code_blobs(code_blob: str) -> str:
     """Parses the LLM's output to get any code blob inside. Will return the code directly if it's code."""
     pattern = r"```(?:py|python)?\n(.*?)\n```"
@@ -227,6 +233,7 @@ def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
 
 
+@beartype
 def truncate_content(content: str, max_length: int = MAX_LENGTH_TRUNCATE_CONTENT) -> str:
     if len(content) <= max_length:
         return content
@@ -422,16 +429,19 @@ def get_source(obj) -> str:
         raise e from inspect_error
 
 
-def encode_image_base64(image):
+@beartype
+def encode_image_base64(image: Image):
     buffered = BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
-def make_image_url(base64_image):
+@beartype
+def make_image_url(base64_image: str):
     return f"data:image/png;base64,{base64_image}"
 
 
+@beartype
 def make_init_file(folder: str):
     os.makedirs(folder, exist_ok=True)
     # Create __init__

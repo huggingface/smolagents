@@ -79,6 +79,9 @@ class LogLevel(IntEnum):
     INFO = 1  # Normal output (default)
     DEBUG = 2  # Detailed output
 
+    def __str__(self):
+        return f"LogLevel.{self.name}"
+
 
 YELLOW_HEX = "#d4b702"
 

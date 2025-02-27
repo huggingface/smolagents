@@ -124,7 +124,7 @@ agent = CodeAgent(
     additional_authorized_imports=["helium"],
     step_callbacks=[save_screenshot],
     max_steps=20,
-    verbosity_level=2,
+    verbosity_level=LogLevel.INFO,
 )
 
 # Import helium for the agent
@@ -207,7 +207,9 @@ print(agent_output)
 ```
 
 The system is particularly effective for tasks like:
+
 - Data extraction from websites
 - Web research automation
 - UI testing and verification
 - Content monitoring
+

@@ -12,6 +12,7 @@ from selenium.webdriver.common.keys import Keys
 from smolagents import CodeAgent, DuckDuckGoSearchTool, tool
 from smolagents.agents import ActionStep
 from smolagents.cli import load_model
+from smolagents.monitoring import LogLevel
 
 
 github_request = """
@@ -119,7 +120,7 @@ def initialize_agent(model):
         additional_authorized_imports=["helium"],
         step_callbacks=[save_screenshot],
         max_steps=20,
-        verbosity_level=2,
+        verbosity_level=LogLevel.DEBUG,
     )
 
 

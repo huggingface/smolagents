@@ -21,6 +21,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from PIL.Image import Image
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.agent_types import AgentImage, AgentText
@@ -42,6 +43,7 @@ from smolagents.models import (
     MessageRole,
     TransformersModel,
 )
+from smolagents.monitoring import LogLevel
 from smolagents.tools import Tool, tool
 from smolagents.utils import BASE_BUILTIN_MODULES
 
@@ -392,7 +394,7 @@ class AgentTests(unittest.TestCase):
         assert "ValueError" in str(agent.memory.steps)
 
     def test_code_agent_code_error_saves_previous_print_outputs(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error, verbosity_level=10)
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error, verbosity_level=LogLevel.DEBUG)
         agent.run("What is 2 multiplied by 3.6452?")
         assert "Flag!" in str(agent.memory.steps[1].observations)
 
@@ -494,7 +496,7 @@ class AgentTests(unittest.TestCase):
 
     def test_code_agent_missing_import_triggers_advice_in_error_log(self):
         # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
-        agent = CodeAgent(tools=[], model=fake_code_model_import, verbosity_level=1)
+        agent = CodeAgent(tools=[], model=fake_code_model_import, verbosity_level=LogLevel.INFO)
 
         with agent.logger.console.capture() as capture:
             agent.run("Count to 3")
@@ -503,7 +505,10 @@ class AgentTests(unittest.TestCase):
 
     def test_replay_shows_logs(self):
         agent = CodeAgent(
-            tools=[], model=fake_code_model_import, verbosity_level=0, additional_authorized_imports=["numpy"]
+            tools=[],
+            model=fake_code_model_import,
+            verbosity_level=LogLevel.DEBUG,
+            additional_authorized_imports=["numpy"],
         )
         agent.run("Count to 3")
 
@@ -620,6 +625,7 @@ class TestMultiStepAgent:
         fake_model = MagicMock()
         fake_model.last_input_token_count = 10
         fake_model.last_output_token_count = 20
+        fake_model.return_value = ChatMessage("agent")
         max_steps = 2
         agent = MultiStepAgent(tools=[], model=fake_model, max_steps=max_steps)
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
@@ -661,6 +667,7 @@ class TestMultiStepAgent:
     )
     def test_planning_step(self, step, expected_messages_list):
         fake_model = MagicMock()
+        fake_model.return_value = ChatMessage("agent")
         agent = CodeAgent(
             tools=[],
             model=fake_model,
@@ -751,7 +758,7 @@ class TestMultiStepAgent:
                 ],
             ),
             (
-                ["image1.png"],
+                [Image()],
                 [
                     [
                         {
@@ -872,7 +879,7 @@ class TestCodeAgent:
         def fake_code_model(messages, stop_sequences=None, grammar=None) -> str:
             return ChatMessage(role="assistant", content="Code:\n```py\nsecret=3;['1', '2'][secret]\n```")
 
-        agent = CodeAgent(tools=[], model=fake_code_model, verbosity_level=1)
+        agent = CodeAgent(tools=[], model=fake_code_model, verbosity_level=LogLevel.INFO)
 
         with agent.logger.console.capture() as capture:
             agent.run("Test request")
