@@ -16,7 +16,6 @@ def getCodeBase():
 
 # Configure Osmosis
 osmosis_config = OsmosisConfig(
-    enabled=True,
     tenant_id="tenant_id",  
     store_knowledge=True,
     enhance_tasks=True,
@@ -33,3 +32,10 @@ agent = CodeAgent(
 
 # Run agent - Osmosis integration happens automatically
 result = agent.run("Write a function to calculate fibonacci numbers")
+
+# To run without Osmosis, simply don't provide the osmosis_config
+agent_without_osmosis = CodeAgent(
+    tools=[],
+    model=model,
+    # No osmosis_config means no Osmosis functionality
+)

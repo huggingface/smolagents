@@ -184,7 +184,7 @@ class MultiStepAgent:
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
         provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
         final_answer_checks (`list`, *optional*): List of Callables to run before returning a final answer for checking validity.
-        osmosis_config (`Optional[OsmosisConfig]`, *optional*): Configuration for Osmosis support.
+        osmosis_config (`Optional[OsmosisConfig]`, *optional*): Configuration for Osmosis support. If None, Osmosis functionality is disabled entirely.
     """
 
     def __init__(
@@ -219,7 +219,7 @@ class MultiStepAgent:
         self.description = description
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks
-        self.osmosis = OsmosisSupport(osmosis_config or OsmosisConfig())
+        self.osmosis = OsmosisSupport(osmosis_config) if osmosis_config is not None else None
 
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)
@@ -317,12 +317,13 @@ You have been provided with these additional arguments, that you can access usin
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
 
         # Try to enhance task with Osmosis knowledge
-        enhanced_task = self.osmosis.enhance_task(
-            task=self.task
-        )
-        
-        if enhanced_task:
-            self.task = enhanced_task
+        if self.osmosis is not None:
+            enhanced_task = self.osmosis.enhance_task(
+                task=self.task
+            )
+            
+            if enhanced_task:
+                self.task = enhanced_task
             
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
@@ -335,8 +336,9 @@ You have been provided with these additional arguments, that you can access usin
         # Run agent and get final result
         final_result = deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0]
         
-        # Store knowledge in Osmosis
-        self._store_knowledge(task, final_result)
+        # Store knowledge in Osmosis if enabled
+        if self.osmosis is not None:
+            self._store_knowledge(task, final_result)
         
         return final_result
 
@@ -1043,7 +1045,7 @@ You have been provided with these additional arguments, that you can access usin
             task: The original task/query
             final_result: The final result/answer from the agent
         """
-        if not self.osmosis.config.enabled or not self.osmosis.config.store_knowledge:
+        if self.osmosis is None:
             return
             
         # Convert memory steps to Osmosis turns format

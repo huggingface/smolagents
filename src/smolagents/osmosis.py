@@ -6,6 +6,7 @@ import json
 import requests
 from datetime import datetime
 from dotenv import load_dotenv
+from .utils import make_json_serializable
 # Load environment variables
 load_dotenv()
 
@@ -75,8 +76,6 @@ class OsmosisAPI:
         Returns:
             Dict containing storage confirmation and metadata
         """
-        # Import make_json_serializable to ensure all data is JSON serializable
-        from .utils import make_json_serializable
         
         # Create payload with serializable data
         payload = {
@@ -188,7 +187,6 @@ class OsmosisAPI:
 
 @dataclass
 class OsmosisConfig:
-    enabled: bool = False
     api_key: Optional[str] = None
     tenant_id: Optional[str] = None
     base_url: Optional[str] = None
@@ -202,32 +200,27 @@ class OsmosisSupport:
         self.config = config
         self._osmosis_api = None
         
-        if self.config.enabled:
-            try:
-                self._osmosis_api = OsmosisAPI(
-                    api_key=self.config.api_key,
-                    tenant_id=self.config.tenant_id
-                )
-            except ImportError:
-                print("Osmosis package not found. Install with: pip install osmosis-api")
-                self.config.enabled = False
+        try:
+            self._osmosis_api = OsmosisAPI(
+                api_key=self.config.api_key,
+                tenant_id=self.config.tenant_id
+            )
+        except (ImportError, ValueError) as e:
+            print(f"Failed to initialize Osmosis API: {str(e)}")
+            self._osmosis_api = None
 
     def store_knowledge(self, query: str, turns: List[Dict], success: bool, agent_type: Optional[str] = None) -> None:
         """Store agent interactions and knowledge in Osmosis"""
-        if not self.config.enabled or not self.config.store_knowledge:
-            return
             
-        if self._osmosis_api:
-            # Ensure all data is JSON serializable
-            from .utils import make_json_serializable
-            serializable_turns = make_json_serializable(turns)
-            
-            self._osmosis_api.store_knowledge(
-                query=query,
-                turns=serializable_turns,
-                success=success,
-                agent_type=agent_type or self.config.agent_type
-            )
+        # Ensure all data is JSON serializable
+        serializable_turns = make_json_serializable(turns)
+        
+        self._osmosis_api.store_knowledge(
+            query=query,
+            turns=serializable_turns,
+            success=success,
+            agent_type=agent_type or self.config.agent_type
+        )
 
     def enhance_task(self, task: str, agent_type: Optional[str] = None) -> Optional[str]:
         """Enhance task with relevant knowledge from Osmosis
@@ -239,25 +232,19 @@ class OsmosisSupport:
         Returns:
             Enhanced task string if successful, None otherwise
         """
-        if not self.config.enabled or not self.config.enhance_tasks:
-            return None
-            
-        if self._osmosis_api:
-            result = self._osmosis_api.enhance_task(
-                input_text=task,
-                context=self.config.context,
-                agent_type=agent_type or self.config.agent_type
-            )
-            return result
-        return None
+        
+        result = self._osmosis_api.enhance_task(
+            input_text=task,
+            context=self.config.context,
+            agent_type=agent_type or self.config.agent_type
+        )
+        
+        return result
 
     def delete_by_intent(self, intent: str) -> None:
         """Delete knowledge by intent"""
-        if not self.config.enabled:
-            return
             
-        if self._osmosis_api:
-            self._osmosis_api.delete_by_intent(intent)
+        self._osmosis_api.delete_by_intent(intent)
 
 __all__ = [
     "OsmosisConfig",
