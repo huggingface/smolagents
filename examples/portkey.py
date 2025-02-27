@@ -7,10 +7,10 @@ load_dotenv()
 model = PortkeyModel(
     model_id="gpt-4o",
     # API key can be set via PORTKEY_API_KEY env var
-    # Virtual key can be set via PORTKEY_VIRTUAL_KEY_OPENAI env var
+    # Virtual key can be set via PORTKEY_VIRTUAL_KEY_OPENAI env var or with other providers
 )
   
-# Create agent with Osmosis support
+# Create agent 
 agent = CodeAgent(
     tools=[],
     model=model,
