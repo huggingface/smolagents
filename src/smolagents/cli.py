@@ -80,13 +80,7 @@ def parse_arguments(description):
 
 
 def load_model(model_type: str, model_id: str, api_base: str | None, api_key: str | None) -> Model:
-    if model_type == "PortkeyModel":
-        return PortkeyModel(
-            model_id=model_id,
-            api_key=os.getenv("PORTKEY_API_KEY"),
-            virtual_key=os.getenv("PORTKEY_VIRTUAL_KEY")
-        )
-    elif model_type == "OpenAIServerModel":
+    if model_type == "OpenAIServerModel":
         return OpenAIServerModel(
             api_key=api_key or os.getenv("FIREWORKS_API_KEY"),
             api_base=api_base or "https://api.fireworks.ai/inference/v1",
@@ -104,6 +98,12 @@ def load_model(model_type: str, model_id: str, api_base: str | None, api_key: st
         return HfApiModel(
             token=api_key or os.getenv("HF_API_KEY"),
             model_id=model_id,
+        )
+    elif model_type == "PortkeyModel":
+        return PortkeyModel(
+            model_id=model_id,
+            api_key=os.getenv("PORTKEY_API_KEY"),
+            virtual_key=os.getenv("PORTKEY_VIRTUAL_KEY")
         )
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
