@@ -8,6 +8,8 @@ This agent achieves 55% pass@1 on GAIA validation set, vs 67% for Deep Research.
 
 ## Setup
 
+### Installation
+
 To install it, first run
 ```bash
 pip install -r requirements.txt
@@ -17,6 +19,8 @@ And install smolagents dev version
 ```bash
 pip install -e ../../.[dev]
 ```
+
+### Environment variables
 
 The agent uses the `GoogleSearchTool` for web search, which requires an environment variable with the corresponding API key, based on the selected provider:
 - `SERPAPI_API_KEY` for SerpApi: [Sign up here to get a key](https://serpapi.com/users/sign_up)
