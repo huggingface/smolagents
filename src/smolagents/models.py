@@ -22,7 +22,7 @@ import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Awaitable
 
 from huggingface_hub import InferenceClient
 from huggingface_hub.utils import is_torch_available
@@ -978,6 +978,90 @@ class OpenAIServerModel(Model):
             return parse_tool_args_if_needed(message)
         return message
 
+class AsyncOpenAIServerModel(Model):
+    """This model connects to an OpenAI-compatible API server.
+
+        Parameters:
+            model_id (`str`):
+                The model identifier to use on the server (e.g. "gpt-3.5-turbo").
+            api_base (`str`, *optional*):
+                The base URL of the OpenAI-compatible API server.
+            api_key (`str`, *optional*):
+                The API key to use for authentication.
+            organization (`str`, *optional*):
+                The organization to use for the API request.
+            project (`str`, *optional*):
+                The project to use for the API request.
+            client_kwargs (`dict[str, Any]`, *optional*):
+                Additional keyword arguments to pass to the OpenAI client (like organization, project, max_retries etc.).
+            custom_role_conversions (`dict[str, str]`, *optional*):
+                Custom role conversion mapping to convert message roles in others.
+                Useful for specific models that do not support specific message roles like "system".
+            **kwargs:
+                Additional keyword arguments to pass to the OpenAI API.
+        """
+
+    def __init__(
+            self,
+            model_id: str,
+            api_base: Optional[str] = None,
+            api_key: Optional[str] = None,
+            organization: Optional[str] | None = None,
+            project: Optional[str] | None = None,
+            client_kwargs: Optional[Dict[str, Any]] = None,
+            custom_role_conversions: Optional[Dict[str, str]] = None,
+            **kwargs,
+    ):
+        try:
+            import openai
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from None
+
+        super().__init__(**kwargs)
+        self.model_id = model_id
+        self.client = openai.AsyncOpenAI(
+            base_url=api_base,
+            api_key=api_key,
+            organization=organization,
+            project=project,
+            **(client_kwargs or {}),
+        )
+        self.custom_role_conversions = custom_role_conversions
+
+    async def __call__(
+            self,
+            messages: List[Dict[str, str]],
+            stop_sequences: Optional[List[str]] = None,
+            grammar: Optional[str] = None,
+            tools_to_call_from: Optional[List[Tool]] = None,
+            **kwargs,
+    ) -> Awaitable[ChatMessage]:
+
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+        response = self.client.chat.completions.create(**completion_kwargs)
+        self.last_input_token_count = response.usage.prompt_tokens
+        self.last_output_token_count = response.usage.completion_tokens
+
+        message = ChatMessage.from_dict(
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
+        )
+        message.raw = response
+        if tools_to_call_from is not None:
+            return parse_tool_args_if_needed(message)
+        return message
+
+
 
 class AzureOpenAIServerModel(OpenAIServerModel):
     """This model connects to an Azure OpenAI deployment.
@@ -1017,6 +1101,44 @@ class AzureOpenAIServerModel(OpenAIServerModel):
 
         self.client = openai.AzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
 
+class AsyncAzureOpenAIServerModel(AsyncOpenAIServerModel):
+    """This model connects to an Azure OpenAI deployment.
+
+    Parameters:
+        model_id (`str`):
+            The model deployment name to use when connecting (e.g. "gpt-4o-mini").
+        azure_endpoint (`str`, *optional*):
+            The Azure endpoint, including the resource, e.g. `https://example-resource.azure.openai.com/`. If not provided, it will be inferred from the `AZURE_OPENAI_ENDPOINT` environment variable.
+        api_key (`str`, *optional*):
+            The API key to use for authentication. If not provided, it will be inferred from the `AZURE_OPENAI_API_KEY` environment variable.
+        api_version (`str`, *optional*):
+            The API version to use. If not provided, it will be inferred from the `OPENAI_API_VERSION` environment variable.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
+        **kwargs:
+            Additional keyword arguments to pass to the Azure OpenAI API.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        azure_endpoint: Optional[str] = None,
+        api_key: Optional[str] = None,
+        api_version: Optional[str] = None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ):
+        # read the api key manually, to avoid super().__init__() trying to use the wrong api_key (OPENAI_API_KEY)
+        if api_key is None:
+            api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+
+        super().__init__(model_id=model_id, api_key=api_key, custom_role_conversions=custom_role_conversions, **kwargs)
+        # if we've reached this point, it means the openai package is available (checked in baseclass) so go ahead and import it
+        import openai
+
+        self.client = openai.AsyncAzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
+
 
 __all__ = [
     "MessageRole",
@@ -1028,6 +1150,8 @@ __all__ = [
     "HfApiModel",
     "LiteLLMModel",
     "OpenAIServerModel",
+    "AsyncOpenAIServerModel",
     "AzureOpenAIServerModel",
+    "AsyncAzureOpenAIServerModel",
     "ChatMessage",
 ]
