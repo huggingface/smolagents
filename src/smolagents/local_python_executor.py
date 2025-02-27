@@ -24,11 +24,12 @@ import re
 from collections.abc import Mapping
 from importlib import import_module
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
 
+from .tools import Tool
 from .utils import BASE_BUILTIN_MODULES, truncate_content
 
 
@@ -868,6 +869,41 @@ def evaluate_listcomp(
     return inner_evaluate(listcomp.generators, 0, state)
 
 
+def evaluate_setcomp(
+    setcomp: ast.SetComp,
+    state: Dict[str, Any],
+    static_tools: Dict[str, Callable],
+    custom_tools: Dict[str, Callable],
+    authorized_imports: List[str],
+) -> Set[Any]:
+    result = set()
+    for gen in setcomp.generators:
+        iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+        for value in iter_value:
+            new_state = state.copy()
+            set_value(
+                gen.target,
+                value,
+                new_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            if all(
+                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                for if_clause in gen.ifs
+            ):
+                element = evaluate_ast(
+                    setcomp.elt,
+                    new_state,
+                    static_tools,
+                    custom_tools,
+                    authorized_imports,
+                )
+                result.add(element)
+    return result
+
+
 def evaluate_try(
     try_node: ast.Try,
     state: Dict[str, Any],
@@ -1006,7 +1042,7 @@ def get_safe_module(raw_module, authorized_imports, visited=None):
 
         try:
             attr_value = getattr(raw_module, attr_name)
-        except ImportError as e:
+        except (ImportError, AttributeError) as e:
             # lazy / dynamic loading module -> INFO log and skip
             logger.info(
                 f"Skipping import error while copying {raw_module.__name__}.{attr_name}: {type(e).__name__} - {e}"
@@ -1196,6 +1232,10 @@ def evaluate_ast(
         return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
     elif isinstance(expression, (ast.ListComp, ast.GeneratorExp)):
         return evaluate_listcomp(expression, *common_params)
+    elif isinstance(expression, ast.DictComp):
+        return evaluate_dictcomp(expression, *common_params)
+    elif isinstance(expression, ast.SetComp):
+        return evaluate_setcomp(expression, *common_params)
     elif isinstance(expression, ast.UnaryOp):
         return evaluate_unaryop(expression, *common_params)
     elif isinstance(expression, ast.Starred):
@@ -1268,8 +1308,6 @@ def evaluate_ast(
             evaluate_ast(expression.upper, *common_params) if expression.upper is not None else None,
             evaluate_ast(expression.step, *common_params) if expression.step is not None else None,
         )
-    elif isinstance(expression, ast.DictComp):
-        return evaluate_dictcomp(expression, *common_params)
     elif isinstance(expression, ast.While):
         return evaluate_while(expression, *common_params)
     elif isinstance(expression, (ast.Import, ast.ImportFrom)):
@@ -1347,10 +1385,13 @@ def evaluate_python_code(
     result = None
     state["_print_outputs"] = PrintContainer()
 
-    def final_answer(value):
-        raise FinalAnswerException(value)
+    if "final_answer" in static_tools:
+        previous_final_answer = static_tools["final_answer"]
 
-    static_tools["final_answer"] = final_answer
+        def final_answer(value):
+            raise FinalAnswerException(previous_final_answer(value))
+
+        static_tools["final_answer"] = final_answer
 
     try:
         for node in expression.body:
@@ -1375,11 +1416,14 @@ def evaluate_python_code(
         )
 
 
-class LocalPythonInterpreter:
+class PythonExecutor:
+    pass
+
+
+class LocalPythonExecutor(PythonExecutor):
     def __init__(
         self,
         additional_authorized_imports: List[str],
-        tools: Dict,
         max_print_outputs_length: Optional[int] = None,
     ):
         self.custom_tools = {}
@@ -1389,15 +1433,10 @@ class LocalPythonInterpreter:
             self.max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT
         self.additional_authorized_imports = additional_authorized_imports
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        # Add base trusted tools to list
-        self.static_tools = {
-            **tools,
-            **BASE_PYTHON_TOOLS.copy(),
-        }
         # TODO: assert self.authorized imports are all installed locally
+        self.static_tools = None
 
-    def __call__(self, code_action: str, additional_variables: Dict) -> Tuple[Any, str, bool]:
-        self.state.update(additional_variables)
+    def __call__(self, code_action: str) -> Tuple[Any, str, bool]:
         output, is_final_answer = evaluate_python_code(
             code_action,
             static_tools=self.static_tools,
@@ -1409,5 +1448,11 @@ class LocalPythonInterpreter:
         logs = str(self.state["_print_outputs"])
         return output, logs, is_final_answer
 
+    def send_variables(self, variables: dict):
+        self.state.update(variables)
 
-__all__ = ["evaluate_python_code", "LocalPythonInterpreter"]
+    def send_tools(self, tools: Dict[str, Tool]):
+        self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy()}
+
+
+__all__ = ["evaluate_python_code", "LocalPythonExecutor"]

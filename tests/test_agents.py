@@ -16,6 +16,7 @@ import os
 import tempfile
 import unittest
 import uuid
+from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -31,7 +32,7 @@ from smolagents.agents import (
     ToolCallingAgent,
     populate_template,
 )
-from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import PlanningStep
 from smolagents.models import (
     ChatMessage,
@@ -41,7 +42,7 @@ from smolagents.models import (
     MessageRole,
     TransformersModel,
 )
-from smolagents.tools import tool
+from smolagents.tools import Tool, tool
 from smolagents.utils import BASE_BUILTIN_MODULES
 
 
@@ -391,7 +392,7 @@ class AgentTests(unittest.TestCase):
         assert "ValueError" in str(agent.memory.steps)
 
     def test_code_agent_code_error_saves_previous_print_outputs(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error, verbosity_level=10)
         agent.run("What is 2 multiplied by 3.6452?")
         assert "Flag!" in str(agent.memory.steps[1].observations)
 
@@ -413,6 +414,16 @@ class AgentTests(unittest.TestCase):
         )
         answer = agent.run("What is 2 multiplied by 3.6452?")
         assert len(agent.memory.steps) == 7  # Task step + 5 action steps + Final answer
+        assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
+        assert isinstance(answer, str)
+
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=fake_code_model_no_return,  # use this callable because it never ends
+            max_steps=5,
+        )
+        answer = agent.run("What is 2 multiplied by 3.6452?", max_steps=3)
+        assert len(agent.memory.steps) == 5  # Task step + 3 action steps + Final answer
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
 
@@ -559,6 +570,29 @@ nested_answer()
         assert "Error raised in check" in str(agent.write_memory_to_messages())
 
 
+class CustomFinalAnswerTool(FinalAnswerTool):
+    def forward(self, answer) -> str:
+        return answer + "CUSTOM"
+
+
+class MockTool(Tool):
+    def __init__(self, name):
+        self.name = name
+        self.description = "Mock tool description"
+        self.inputs = {}
+        self.output_type = "string"
+
+    def forward(self):
+        return "Mock tool output"
+
+
+class MockAgent:
+    def __init__(self, name, tools, description="Mock agent description"):
+        self.name = name
+        self.tools = {t.name: t for t in tools}
+        self.description = description
+
+
 class TestMultiStepAgent:
     def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
@@ -572,6 +606,15 @@ class TestMultiStepAgent:
         assert "managed_agent" in agent.prompt_templates
         assert agent.prompt_templates["managed_agent"]["task"] == "Task for {{name}}: {{task}}"
         assert agent.prompt_templates["managed_agent"]["report"] == "Report for {{name}}: {{final_answer}}"
+
+    @pytest.mark.parametrize(
+        "tools, expected_final_answer_tool",
+        [([], FinalAnswerTool), ([CustomFinalAnswerTool()], CustomFinalAnswerTool)],
+    )
+    def test_instantiation_with_final_answer_tool(self, tools, expected_final_answer_tool):
+        agent = MultiStepAgent(tools=tools, model=MagicMock())
+        assert "final_answer" in agent.tools
+        assert isinstance(agent.tools["final_answer"], expected_final_answer_tool)
 
     def test_step_number(self):
         fake_model = MagicMock()
@@ -760,6 +803,51 @@ class TestMultiStepAgent:
                 for content, expected_content in zip(message["content"], expected_message["content"]):
                     assert content == expected_content
 
+    @pytest.mark.parametrize(
+        "tools, managed_agents, name, expectation",
+        [
+            # Valid case: no duplicates
+            (
+                [MockTool("tool1"), MockTool("tool2")],
+                [MockAgent("agent1", [MockTool("tool3")])],
+                "test_agent",
+                does_not_raise(),
+            ),
+            # Invalid case: duplicate tool names
+            ([MockTool("tool1"), MockTool("tool1")], [], "test_agent", pytest.raises(ValueError)),
+            # Invalid case: tool name same as managed agent name
+            (
+                [MockTool("tool1")],
+                [MockAgent("tool1", [MockTool("final_answer")])],
+                "test_agent",
+                pytest.raises(ValueError),
+            ),
+            # Valid case: tool name same as managed agent's tool name
+            ([MockTool("tool1")], [MockAgent("agent1", [MockTool("tool1")])], "test_agent", does_not_raise()),
+            # Invalid case: duplicate managed agent name and managed agent tool name
+            ([MockTool("tool1")], [], "tool1", pytest.raises(ValueError)),
+            # Valid case: duplicate tool names across managed agents
+            (
+                [MockTool("tool1")],
+                [
+                    MockAgent("agent1", [MockTool("tool2"), MockTool("final_answer")]),
+                    MockAgent("agent2", [MockTool("tool2"), MockTool("final_answer")]),
+                ],
+                "test_agent",
+                does_not_raise(),
+            ),
+        ],
+    )
+    def test_validate_tools_and_managed_agents(self, tools, managed_agents, name, expectation):
+        fake_model = MagicMock()
+        with expectation:
+            MultiStepAgent(
+                tools=tools,
+                model=fake_model,
+                name=name,
+                managed_agents=managed_agents,
+            )
+
 
 class TestCodeAgent:
     @pytest.mark.parametrize("provide_run_summary", [False, True])
@@ -780,6 +868,40 @@ class TestCodeAgent:
             )
         assert result == expected_summary
 
+    def test_errors_logging(self):
+        def fake_code_model(messages, stop_sequences=None, grammar=None) -> str:
+            return ChatMessage(role="assistant", content="Code:\n```py\nsecret=3;['1', '2'][secret]\n```")
+
+        agent = CodeAgent(tools=[], model=fake_code_model, verbosity_level=1)
+
+        with agent.logger.console.capture() as capture:
+            agent.run("Test request")
+        assert "secret\\\\" in repr(capture.get())
+
+    def test_change_tools_after_init(self):
+        from smolagents import tool
+
+        @tool
+        def fake_tool_1() -> str:
+            """Fake tool"""
+            return "1"
+
+        @tool
+        def fake_tool_2() -> str:
+            """Fake tool"""
+            return "2"
+
+        def fake_code_model(messages, stop_sequences=None, grammar=None) -> str:
+            return ChatMessage(role="assistant", content="Code:\n```py\nfinal_answer(fake_tool_1())\n```")
+
+        agent = CodeAgent(tools=[fake_tool_1], model=fake_code_model)
+
+        agent.tools["final_answer"] = CustomFinalAnswerTool()
+        agent.tools["fake_tool_1"] = fake_tool_2
+
+        answer = agent.run("Fake task.")
+        assert answer == "2CUSTOM"
+
 
 class MultiAgentsTests(unittest.TestCase):
     def test_multiagents_save(self):
@@ -799,6 +921,8 @@ class MultiAgentsTests(unittest.TestCase):
             additional_authorized_imports=["pandas", "datetime"],
             managed_agents=[web_agent, code_agent],
             max_print_outputs_length=1000,
+            executor_type="local",
+            executor_kwargs={"max_workers": 2},
         )
         agent.save("agent_export")
 
@@ -836,7 +960,8 @@ class MultiAgentsTests(unittest.TestCase):
         assert agent2.planning_interval == 5  # Check that kwargs are used
         assert set(agent2.authorized_imports) == set(["pandas", "datetime"] + BASE_BUILTIN_MODULES)
         assert agent2.max_print_outputs_length == 1000
-        assert agent2.use_e2b_executor is False
+        assert agent2.executor_type == "local"
+        assert agent2.executor_kwargs == {"max_workers": 2}
         assert (
             agent2.managed_agents["web_agent"].tools["web_search"].max_results == 10
         )  # For now tool init parameters are forgotten
@@ -966,7 +1091,9 @@ final_answer("Final report.")
         assert report == "Final report."
 
         # Test that visualization works
-        manager_code_agent.visualize()
+        with manager_toolcalling_agent.logger.console.capture() as capture:
+            manager_toolcalling_agent.visualize()
+        assert "├──" in capture.get()
 
 
 @pytest.fixture

@@ -910,6 +910,8 @@ class OpenAIServerModel(Model):
             The organization to use for the API request.
         project (`str`, *optional*):
             The project to use for the API request.
+        client_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to the OpenAI client (like organization, project, max_retries etc.).
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
@@ -924,6 +926,7 @@ class OpenAIServerModel(Model):
         api_key: Optional[str] = None,
         organization: Optional[str] | None = None,
         project: Optional[str] | None = None,
+        client_kwargs: Optional[Dict[str, Any]] = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
@@ -941,6 +944,7 @@ class OpenAIServerModel(Model):
             api_key=api_key,
             organization=organization,
             project=project,
+            **(client_kwargs or {}),
         )
         self.custom_role_conversions = custom_role_conversions
 

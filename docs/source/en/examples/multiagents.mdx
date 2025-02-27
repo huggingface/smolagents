@@ -39,13 +39,13 @@ Let's set up this system.
 
 Run the line below to install the required dependencies:
 
-```
-!pip install markdownify duckduckgo-search smolagents --upgrade -q
+```py
+! pip install markdownify duckduckgo-search smolagents --upgrade -q
 ```
 
 Let's login in order to call the HF Inference API:
 
-```
+```py
 from huggingface_hub import login
 
 login()
@@ -134,8 +134,8 @@ web_agent = ToolCallingAgent(
     tools=[DuckDuckGoSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
-    name="search",
-    description="Runs web searches for you. Give it your query as an argument.",
+    name="web_search_agent",
+    description="Runs web searches for you.",
 )
 ```
 

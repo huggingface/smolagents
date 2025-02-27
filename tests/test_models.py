@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -23,8 +22,22 @@ from unittest.mock import MagicMock, patch
 import pytest
 from transformers.testing_utils import get_tests_dir
 
-from smolagents import ChatMessage, HfApiModel, LiteLLMModel, MLXModel, TransformersModel, models, tool
-from smolagents.models import MessageRole, get_clean_message_list, parse_json_if_needed
+from smolagents.models import (
+    ChatMessage,
+    HfApiModel,
+    LiteLLMModel,
+    MessageRole,
+    MLXModel,
+    OpenAIServerModel,
+    TransformersModel,
+    get_clean_message_list,
+    get_tool_json_schema,
+    parse_json_if_needed,
+    parse_tool_args_if_needed,
+)
+from smolagents.tools import tool
+
+from .utils.markers import require_run_all
 
 
 class ModelTests(unittest.TestCase):
@@ -41,9 +54,7 @@ class ModelTests(unittest.TestCase):
             """
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
-        assert (
-            "nullable" in models.get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
-        )
+        assert "nullable" in get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
@@ -97,7 +108,7 @@ class ModelTests(unittest.TestCase):
 
     def test_parse_tool_args_if_needed(self):
         original_message = ChatMessage(role="user", content=[{"type": "text", "text": "Hello!"}])
-        parsed_message = models.parse_tool_args_if_needed(original_message)
+        parsed_message = parse_tool_args_if_needed(original_message)
         assert parsed_message == original_message
 
     def test_parse_json_if_needed(self):
@@ -130,13 +141,13 @@ class TestHfApiModel:
             "role conversion should be applied"
         )
 
-    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
+    @require_run_all
     def test_get_hfapi_message_no_tool(self):
         model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
-    @pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
+    @require_run_all
     def test_get_hfapi_message_no_tool_external_provider(self):
         model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
@@ -166,6 +177,29 @@ class TestLiteLLMModel:
 
         model = LiteLLMModel(model_id="fal/llama-3.3-70b", flatten_messages_as_text=True)
         assert model.flatten_messages_as_text
+
+
+class TestOpenAIServerModel:
+    def test_client_kwargs_passed_correctly(self):
+        model_id = "gpt-3.5-turbo"
+        api_base = "https://api.openai.com/v1"
+        api_key = "test_api_key"
+        organization = "test_org"
+        project = "test_project"
+        client_kwargs = {"max_retries": 5}
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            _ = OpenAIServerModel(
+                model_id=model_id,
+                api_base=api_base,
+                api_key=api_key,
+                organization=organization,
+                project=project,
+                client_kwargs=client_kwargs,
+            )
+            MockOpenAI.assert_called_once_with(
+                base_url=api_base, api_key=api_key, organization=organization, project=project, max_retries=5
+            )
 
 
 def test_get_clean_message_list_basic():
