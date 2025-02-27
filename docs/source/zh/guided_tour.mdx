@@ -134,7 +134,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 如果生成的代码尝试执行非法操作或出现常规 Python 错误，执行将停止。
 
-您也可以使用 [E2B 代码执行器](https://e2b.dev/docs#what-is-e2-b) 而不是本地 Python 解释器，首先 [设置 `E2B_API_KEY` 环境变量](https://e2b.dev/dashboard?tab=keys)，然后在初始化 agent 时传递 `use_e2b_executor=True`。
+您也可以使用 [E2B 代码执行器](https://e2b.dev/docs#what-is-e2-b) 或 Docker 而不是本地 Python 解释器。对于 E2B，首先 [设置 `E2B_API_KEY` 环境变量](https://e2b.dev/dashboard?tab=keys)，然后在初始化 agent 时传递 `executor_type="e2b"`。对于 Docker，在初始化时传递 `executor_type="docker"`。
 
 > [!TIP]
 > 在 [该教程中](tutorials/secure_code_execution) 了解更多关于代码执行的内容。

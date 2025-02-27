@@ -26,6 +26,8 @@ from typing import List
 import pytest
 from dotenv import load_dotenv
 
+from .utils.markers import require_run_all
+
 
 class SubprocessCallException(Exception):
     pass
@@ -78,7 +80,7 @@ class DocCodeExtractor:
         return tmp_file
 
 
-@pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
+@require_run_all
 class TestDocs:
     """Test case for documentation code testing."""
 
