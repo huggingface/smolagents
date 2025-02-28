@@ -24,7 +24,7 @@ from typing import Dict, Optional
 from huggingface_hub import hf_hub_download, list_spaces
 from pypdf import PdfReader
 from pdf2image import convert_from_path
-
+from PIL import Image
 
 from transformers.utils import is_offline_mode, is_torch_available
 
@@ -379,7 +379,6 @@ class OCRTool(PipelineTool):
 
         for i, page_num in enumerate(page_nums):
             base_text = reader.pages[page_num - 1].extract_text() or ""
-
             prompt = (
                 f"Below is an image of page {page_num} of a document, along with extracted text. "
                 "Just return the cleaned text without hallucinations.\n"
@@ -397,14 +396,26 @@ class OCRTool(PipelineTool):
             ]
 
             text = self.pre_processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            all_texts.append(text)
+            texts = self.pre_processor(
+                            text=[text],
+                            images=[Image.open(BytesIO(base64.b64decode(images_base64[i])))],
+                            padding=True,
+                            return_tensors="pt",
+                        ) 
+            all_texts.append(texts)
 
-        self.inputs = all_texts
-        return self.inputs
+        return all_texts
 
-    def forward(self, temperature=0.8, max_new_tokens=100, num_return_sequences=1, do_sample=True):
+    def forward(self, inputs):
         self.outputs = []
-        for text in self.inputs: # we infer repeatedly not to push for context window
+        temperature = 0.8
+        max_new_tokens = 100
+        num_return_sequences = 1
+        do_sample = True
+
+        print("self.inputs", inputs)
+        for text in inputs: # we infer repeatedly not to push for context window
+            print("text", text)
             self.outputs.append(self.model.generate(
                 **text,
                 temperature=temperature,
