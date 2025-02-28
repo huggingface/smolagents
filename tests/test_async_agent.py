@@ -18,7 +18,7 @@ async def main(args: argparse.Namespace):
         add_base_tools=True
     )
 
-    question = "Which capital city is the largest by population?"
+    question = "롯데이노베이트 2024년 영업이익 알려줘"
 
     response = await agent.run(question)
 
