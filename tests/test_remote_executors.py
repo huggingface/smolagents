@@ -56,6 +56,12 @@ class TestDockerExecutor:
         result, logs, final_answer = self.executor(code_action)
         assert result == "This is the final answer", "Result should be 'This is the final answer'"
 
+    def test_execute_multiline_output(self):
+        """Test execution that returns a string"""
+        code_action = 'result = "This is the final answer"\nfinal_answer(result)'
+        result, logs, final_answer = self.executor(code_action)
+        assert result == "This is the final answer", "Result should be 'This is the final answer'"
+
     def test_execute_image_output(self):
         """Test execution that returns a base64 image"""
         code_action = dedent("""
