@@ -21,6 +21,7 @@ import re
 import time
 from io import BytesIO
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Dict, List, Tuple
 
 import requests
@@ -249,14 +250,11 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
                 if match:
                     pre_final_answer_code = self.final_answer_pattern.sub("", code_action)
                     result_expr = match.group(1)
-                    wrapped_code = (
-                        pre_final_answer_code
-                        + f"""
-    import pickle, base64
-    _result = {result_expr}
-    print("RESULT_PICKLE:" + base64.b64encode(pickle.dumps(_result)).decode())
-    """
-                    )
+                    wrapped_code = pre_final_answer_code + dedent(f"""
+                        import pickle, base64
+                        _result = {result_expr}
+                        print("RESULT_PICKLE:" + base64.b64encode(pickle.dumps(_result)).decode())
+                        """)
             else:
                 wrapped_code = code_action
 
