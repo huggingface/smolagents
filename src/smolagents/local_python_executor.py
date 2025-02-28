@@ -610,7 +610,7 @@ def evaluate_call(
             )
 
     elif isinstance(call.func, ast.Subscript):
-        func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
+        func = evaluate_subscript(call.func, state, static_tools, custom_tools, authorized_imports)
         if not callable(func):
             raise InterpreterError(f"This is not a correct function: {call.func}).")
         func_name = None
