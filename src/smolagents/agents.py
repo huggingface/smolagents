@@ -36,7 +36,6 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from src.smolagents import MessageRole, ChatMessage, ActionStep, AgentAudio, AgentImage, AgentText
 from .agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
