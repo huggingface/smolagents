@@ -76,7 +76,7 @@ The custom tool subclasses [`Tool`] to inherit useful methods. The child class a
 
 And that's all it needs to be used in an agent!
 
-There's another way to build a tool. In the [guided_tour](../guided_tour), we implemented a tool using the `@tool` decorator. The [`tool`] decorator is the recommended way to define simple tools, but sometimes you need more than this: using several methods in a class for more clarity, or using additional class attributes.
+There's another way to build a tool. In the [guided_tour](../guided_tour), we implemented a tool using the `@tool` decorator on a function The [`tool`] decorator is the recommended way to define simple tools, but sometimes you need more than this: using several methods in a class for more clarity, or using additional class attributes.
 
 In this case, you can build your tool by subclassing [`Tool`] as described above.
 

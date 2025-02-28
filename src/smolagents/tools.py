@@ -38,6 +38,7 @@ from huggingface_hub import (
 from huggingface_hub.utils import is_torch_available
 
 from ._function_type_hints_utils import (
+    ToolCreationException,
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
     get_imports,
@@ -250,9 +251,11 @@ class Tool:
                 "SpaceToolWrapper",
                 "LangChainToolWrapper",
                 "GradioToolWrapper",
+                "MethodToolWrapper",
             ]:
                 raise ValueError(
-                    "Cannot save objects created with from_space, from_langchain or from_gradio, as this would create errors."
+                    "Cannot save objects created with from_space, from_langchain, from_gradio, "
+                    "or class methods decorated with @tool as this would create errors."
                 )
 
             validate_tool_attributes(self.__class__)
@@ -829,9 +832,28 @@ def tool(tool_function: Callable) -> Tool:
     Converts a function into an instance of a Tool subclass.
 
     Args:
-        tool_function: Your function. Should have type hints for each input and a type hint for the output.
+        tool_function: Your function or class method. Should have type hints for each input and a type hint for the output.
         Should also have a docstring description including an 'Args:' part where each argument is described.
     """
+    original_signature = inspect.signature(tool_function)
+    params = list(original_signature.parameters.values())
+
+    is_method = (  # inspect.ismethod won't work here because the decorator is applied before the method is bound
+        params
+        and params[0].name in ("self", "cls")
+        and hasattr(tool_function, "__qualname__")
+        and "." in tool_function.__qualname__
+    )
+
+    if is_method:
+        return _tool_from_method(tool_function, original_signature)
+    elif inspect.isfunction(tool_function):
+        return _tool_from_function(tool_function, original_signature)
+    else:
+        raise ToolCreationException("Tool decorator can only be used on functions or methods.")
+
+
+def _tool_from_function(tool_function: Callable, original_signature: inspect.Signature) -> Tool:
     tool_json_schema = get_json_schema(tool_function)["function"]
     if "return" not in tool_json_schema:
         raise TypeHintParsingException("Tool return type not found: make sure your function has a return type hint!")
@@ -859,13 +881,40 @@ def tool(tool_function: Callable) -> Tool:
         output_type=tool_json_schema["return"]["type"],
         function=tool_function,
     )
-    original_signature = inspect.signature(tool_function)
     new_parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)] + list(
         original_signature.parameters.values()
     )
     new_signature = original_signature.replace(parameters=new_parameters)
     simple_tool.forward.__signature__ = new_signature
     return simple_tool
+
+
+def _tool_from_method(tool_function: Callable, original_signature: inspect.Signature) -> Tool:
+    tool_json_schema = get_json_schema(tool_function, skip_self_cls=True)["function"]
+    if "return" not in tool_json_schema:
+        raise TypeHintParsingException("Tool return type not found: make sure your method has a return type hint!")
+
+    class MethodToolWrapper(Tool):
+        def __init__(self):
+            self.name = tool_json_schema["name"]
+            self.description = tool_json_schema["description"]
+            self.inputs = tool_json_schema["parameters"]["properties"]
+            self.output_type = tool_json_schema["return"]["type"]
+            self.is_initialized = True
+            # Temp forward function; will be replaced with a bound instance in __get__. (this is for sig validation)
+            self.forward = lambda: 0
+            new_parameters = [v for v in original_signature.parameters.values() if v.name not in ["self", "cls"]]
+            modified_sig = original_signature.replace(parameters=new_parameters)
+            self.forward.__signature__ = modified_sig
+
+        # When the decorator is first used, it's on an unbound class method.
+        # So we have to use a descriptor here to bind the instance to the forward method when accessed.
+        def __get__(self, instance, owner):
+            func = getattr(tool_function, "__func__", tool_function)
+            self.forward = lambda *args, **kwargs: func(instance, *args, **kwargs)
+            return self
+
+    return MethodToolWrapper()
 
 
 class PipelineTool(Tool):
