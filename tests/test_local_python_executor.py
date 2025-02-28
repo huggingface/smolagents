@@ -1416,8 +1416,8 @@ class TestLocalPythonExecutor:
     @pytest.mark.parametrize(
         "code",
         [
-            "d = {'func': lambda x: x + 10,}; func = d['func']; func(1)",
-            "d = {'func': lambda x: x + 10,}; d['func'](1)",
+            "d = {'func': lambda x: x + 10}; func = d['func']; func(1)",
+            "d = {'func': lambda x: x + 10}; d['func'](1)",
         ],
     )
     def test_call_from_dict(self, code):
