@@ -623,19 +623,20 @@ You have been provided with these additional arguments, that you can access usin
             raise AgentExecutionError(error_msg, self.logger)
 
         try:
+            _tool_module = available_tools[tool_name]
             if isinstance(arguments, str):
                 if tool_name in self.managed_agents:
-                    observation = available_tools[tool_name].__call__(arguments)
+                    observation = _tool_module.__call__(arguments)
                 else:
-                    observation = available_tools[tool_name].__call__(arguments, sanitize_inputs_outputs=True)
+                    observation = _tool_module.__call__(arguments, sanitize_inputs_outputs=True)
             elif isinstance(arguments, dict):
                 for key, value in arguments.items():
                     if isinstance(value, str) and value in self.state:
                         arguments[key] = self.state[value]
                 if tool_name in self.managed_agents:
-                    observation = available_tools[tool_name].__call__(**arguments)
+                    observation = _tool_module.__call__(**arguments)
                 else:
-                    observation = available_tools[tool_name].__call__(**arguments, sanitize_inputs_outputs=True)
+                    observation = _tool_module.__call__(**arguments, sanitize_inputs_outputs=True)
             else:
                 error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
                 raise AgentExecutionError(error_msg, self.logger)
@@ -1253,6 +1254,61 @@ class AsyncMultiStepAgent(MultiStepAgent):
         result_steps = [step async for step in self._run(task=self.task, max_steps=max_steps, images=images)]
         return result_steps[-1]
 
+
+    async def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
+        """
+        Execute tool with the provided input and returns the result.
+        This method replaces arguments with the actual values from the state if they refer to state variables.
+
+        Args:
+            tool_name (`str`): Name of the Tool to execute (should be one from self.tools).
+            arguments (Dict[str, str]): Arguments passed to the Tool.
+        """
+        available_tools = {**self.tools, **self.managed_agents}
+        if tool_name not in available_tools:
+            error_msg = f"Unknown tool {tool_name}, should be instead one of {list(available_tools.keys())}."
+            raise AgentExecutionError(error_msg, self.logger)
+
+        try:
+            _tool_module = available_tools[tool_name]
+
+            args, kwargs = [], {}
+            if isinstance(arguments, str):
+                args.append(arguments)
+
+            elif isinstance(arguments, dict):
+                for key, value in arguments.items():
+                    if isinstance(value, str) and value in self.state:
+                        kwargs[key] = self.state[value]
+            else:
+                error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
+                raise AgentExecutionError(error_msg, self.logger)
+
+            if tool_name not in self.managed_agents:
+                kwargs["sanitize_inputs_outputs"] = True
+
+            observation = await _tool_module.__call__(*args, **kwargs) \
+                if inspect.iscoroutinefunction(_tool_module.__call__) \
+                else _tool_module.__call__(*args, **kwargs)
+
+            return observation
+
+        except Exception as e:
+            if tool_name in self.tools:
+                tool = self.tools[tool_name]
+                error_msg = (
+                    f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
+                    f"As a reminder, this tool's description is the following: '{tool.description}'.\nIt takes inputs: {tool.inputs} and returns output type {tool.output_type}"
+                )
+                raise AgentExecutionError(error_msg, self.logger)
+            elif tool_name in self.managed_agents:
+                error_msg = (
+                    f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
+                    f"As a reminder, this team member's description is the following:\n{available_tools[tool_name]}"
+                )
+                raise AgentExecutionError(error_msg, self.logger)
+
+
 class ToolCallingAgent(MultiStepAgent):
     """
     This agent uses JSON-like tool calls, using method `model.get_tool_call` to leverage the LLM engine's tool calling capabilities.
@@ -1476,7 +1532,7 @@ class AsyncToolCallingAgent(AsyncMultiStepAgent):
         else:
             if tool_arguments is None:
                 tool_arguments = {}
-            observation = self.execute_tool_call(tool_name, tool_arguments)
+            observation = await self.execute_tool_call(tool_name, tool_arguments)
             observation_type = type(observation)
             if observation_type in [AgentImage, AgentAudio]:
                 if observation_type == AgentImage:
