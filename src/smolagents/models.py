@@ -1049,7 +1049,7 @@ class AsyncOpenAIServerModel(Model):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-        response = self.client.chat.completions.create(**completion_kwargs)
+        response = await self.client.chat.completions.create(**completion_kwargs)
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
 
