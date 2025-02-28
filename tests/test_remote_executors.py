@@ -56,7 +56,6 @@ class TestDockerExecutor:
         result, logs, final_answer = self.executor(code_action)
         assert result == "This is the final answer", "Result should be 'This is the final answer'"
 
-    @pytest.mark.xfail(reason="NameError: name 'image' is not defined")
     def test_execute_image_output(self):
         """Test execution that returns a base64 image"""
         code_action = dedent("""
