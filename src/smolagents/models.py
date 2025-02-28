@@ -22,7 +22,7 @@ import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from huggingface_hub import InferenceClient
 from huggingface_hub.utils import is_torch_available
@@ -239,7 +239,7 @@ def get_clean_message_list(
     return output_message_list
 
 
-class Model:
+class Model(Callable[[List[Dict[str, str]]], ChatMessage]):
     def __init__(self, **kwargs):
         self.last_input_token_count = None
         self.last_output_token_count = None
@@ -379,7 +379,42 @@ class Model:
         return model_instance
 
 
-class HfApiModel(Model):
+class GracefulModel(Model):
+    def __init__(self, **kwargs):
+        self.__failover_model = kwargs.get("failover_model")
+        self.__max_retries = kwargs.get("max_retries", 3)
+        super().__init__(**kwargs)
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """
+        Same as Model, it performs the call to the LLM model.
+        If the first model fails for any reason, it will check if a Fail-over model has been passed otherwise raise an exception.
+        '"""
+        # If max_retries exists, it means that this model is a failover, otherwise is the main one, and we take the instance's param
+        max_retries = kwargs.get("max_retries", self.__max_retries)
+        # If retry_count exists, it means that this model is a failover, otherwise we start from 0.
+        retry_count = kwargs.get("retry_count", 0)
+        try:
+            return self.__call__(messages, stop_sequences, grammar, tools_to_call_from, **kwargs)
+        except Exception as e:
+            if self.__failover_model and retry_count < max_retries:
+                logger.error(
+                    f"Model {self.__class__.__name__} raised exception {e}. Retrying with {self.__failover_model.__class__.__name__}."
+                )
+                kwargs["retry_count"] = retry_count + 1
+                kwargs["max_retries"] = max_retries
+                return self.__failover_model(messages, stop_sequences, grammar, tools_to_call_from, **kwargs)
+            raise e
+
+
+class HfApiModel(GracefulModel):
     """A class to interact with Hugging Face's Inference API for language model interaction.
 
     This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
@@ -464,7 +499,7 @@ class HfApiModel(Model):
         return message
 
 
-class MLXModel(Model):
+class MLXModel(GracefulModel):
     """A class to interact with models loaded using MLX on Apple silicon.
 
     > [!TIP]
@@ -587,7 +622,7 @@ class MLXModel(Model):
         return self._to_message(text, tools_to_call_from)
 
 
-class TransformersModel(Model):
+class TransformersModel(GracefulModel):
     """A class that uses Hugging Face's Transformers library for language model interaction.
 
     This model allows you to load and use Hugging Face's models locally using the Transformers library. It supports features like stop sequences and grammar customization.
@@ -817,7 +852,7 @@ class TransformersModel(Model):
             )
 
 
-class LiteLLMModel(Model):
+class LiteLLMModel(GracefulModel):
     """This model connects to [LiteLLM](https://www.litellm.ai/) as a gateway to hundreds of LLMs.
 
     Parameters:
@@ -896,7 +931,7 @@ class LiteLLMModel(Model):
         return message
 
 
-class OpenAIServerModel(Model):
+class OpenAIServerModel(GracefulModel):
     """This model connects to an OpenAI-compatible API server.
 
     Parameters:
@@ -1023,6 +1058,7 @@ __all__ = [
     "tool_role_conversions",
     "get_clean_message_list",
     "Model",
+    "GracefulModel",
     "MLXModel",
     "TransformersModel",
     "HfApiModel",
