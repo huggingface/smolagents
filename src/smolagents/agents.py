@@ -25,6 +25,8 @@ import time
 from collections import deque
 from logging import getLogger
 from pathlib import Path
+import inspect
+
 from typing import Any, Callable, Dict, Generator, List, Optional, Set, Tuple, TypedDict, Union, Awaitable, TypeVar, \
     Coroutine, AsyncGenerator
 import jinja2
@@ -367,9 +369,15 @@ You have been provided with these additional arguments, that you can access usin
         self.memory.steps.append(memory_step)
         for callback in self.step_callbacks:
             if len(inspect.signature(callback).parameters) == 1:
-                await callback(memory_step)
+                if inspect.isasyncgenfunction(callback):
+                    await callback(memory_step)
+                else:
+                    callback(memory_step)
             else:
-                await callback(memory_step, agent=self)
+                if inspect.isasyncgenfunction(callback):
+                    await callback(memory_step, agent=self)
+                else:
+                    callback(memory_step, agent=self)
 
 
     def _handle_max_steps_reached(self, task: str, images: List[str], step_start_time: float) -> Any:
@@ -1002,11 +1010,6 @@ class AsyncMultiStepAgent(MultiStepAgent):
     While the objective is not reached, the agent will perform a cycle of action (given by the LLM) and observation (obtained from the environment).
 
     """
-    def __init__(self, model, *args, **kwargs):
-        assert inspect.iscoroutinefunction(model), "Model should be a coroutine function."
-
-        super().__init__(*args, **kwargs)
-
     async def _run(
         self, task: str, max_steps: int, images: List[str] | None = None
     ) -> AsyncGenerator[ActionStep | Any, None]:
