@@ -14,14 +14,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import base64
+from io import BytesIO
 import json
 import re
 from dataclasses import dataclass
+import fitz
 from typing import Dict, Optional
-
 from huggingface_hub import hf_hub_download, list_spaces
+from pypdf import PdfReader
+from pdf2image import convert_from_path
 
-from transformers import AutoModel, AutoTokenizer
+
 from transformers.utils import is_offline_mode, is_torch_available
 
 from .local_python_executor import (
@@ -30,24 +34,24 @@ from .local_python_executor import (
     evaluate_python_code,
 )
 from .tools import TOOL_CONFIG_FILE, PipelineTool, Tool
-from .types import AgentAudio, AgentImage
+from .types import AgentAudio
 
 if is_torch_available():
     from transformers.models.whisper import (
         WhisperForConditionalGeneration,
         WhisperProcessor,
     )
-    from transformers.models.got_ocr2 import (
-        GotOcr2Processor,
-        GotOcr2ForConditionalGeneration,
+    from transformers.models.qwen2_vl import (
+        Qwen2VLProcessor,
+        Qwen2VLForConditionalGeneration,
     )
 else:
     WhisperForConditionalGeneration = object
     WhisperProcessor = object
-    GotOcr2Processor = object
-    GotOcr2ForConditionalGeneration = object
+    Qwen2VLProcessor = object
+    Qwen2VLForConditionalGeneration = object
 
-
+ 
 @dataclass
 class PreTool:
     name: str
@@ -339,35 +343,84 @@ class OCRTool(PipelineTool):
     name = "ocr"
     description = "A tool that parses a document into markdown text. It can be used to parse PDF, image, or any other document. It returns the text of the document."
     inputs = {
-        "image": {"type": "image", "description": "The path to file to be parsed."},
-        "multi_page": {"type": "boolean", "description": "Whether the document is a multi-page document."},
-        "format": {"type": "boolean", "description": "Whether the document has different structure, e.g. charts, tables, etc."},
-    }
+        "local_pdf_path": {"type": "string", "description": "The path to pdf to be parsed."},
+        }
     output_type = "string"
-    default_checkpoint = "stepfun-ai/GOT-OCR-2.0-hf"
-    pre_processor_class = GotOcr2Processor
-    model_class = GotOcr2ForConditionalGeneration
+    default_checkpoint = "allenai/olmOCR-7B-0225-preview"
+    pre_processor_class = Qwen2VLProcessor
+    model_class = Qwen2VLForConditionalGeneration
 
-    def encode(self, image, multi_page, format):
-        self.inputs = self.pre_processor(image, return_tensors="pt", multi_page=multi_page, format=format).to(self.device)
+    def get_pdf_media_box_width_height(self, local_pdf_path: str, page_num: int):
+            doc = fitz.open(local_pdf_path)
+            page = doc[page_num - 1]
+            rect = page.rect
+            return rect.width, rect.height 
+
+    def render_pdf_to_base64png(self, local_pdf_path: str, page_nums, target_longest_image_dim: int = 2048):
+        images_base64 = []
+        for page_num in page_nums:
+            width, height = self.get_pdf_media_box_width_height(local_pdf_path, page_num)
+            dpi = target_longest_image_dim * 72 / max(width, height)
+
+            images = convert_from_path(local_pdf_path, dpi=dpi, first_page=page_num, last_page=page_num)
+            image_io = BytesIO()
+            images[0].save(image_io, format="PNG")
+            images_base64.append(base64.b64encode(image_io.getvalue()).decode("utf-8"))
+
+        return images_base64
+
+    def encode(self, local_pdf_path: str):
+        reader = PdfReader(local_pdf_path)
+        num_pages = len(reader.pages)
+        page_nums = list(range(1, num_pages + 1))
+
+        images_base64 = self.render_pdf_to_base64png(local_pdf_path, page_nums)
+        all_texts = []
+
+        for i, page_num in enumerate(page_nums):
+            base_text = reader.pages[page_num - 1].extract_text() or ""
+
+            prompt = (
+                f"Below is an image of page {page_num} of a document, along with extracted text. "
+                "Just return the cleaned text without hallucinations.\n"
+                f"RAW_TEXT_START\n{base_text}\nRAW_TEXT_END"
+            )
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{images_base64[i]}"}},
+                    ],
+                }
+            ]
+
+            text = self.pre_processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            all_texts.append(text)
+
+        self.inputs = all_texts
         return self.inputs
 
-    def forward(self, image):
-        outputs = self.model.generate(
-            **self.inputs,
-            do_sample=False,
-            tokenizer=self.pre_processor.tokenizer,
-            stop_strings="<|im_end|>",
-            max_new_tokens=4096
-        )
-        return outputs
+    def forward(self, temperature=0.8, max_new_tokens=100, num_return_sequences=1, do_sample=True):
+        self.outputs = []
+        for text in self.inputs: # we infer repeatedly not to push for context window
+            self.outputs.append(self.model.generate(
+                **text,
+                temperature=temperature,
+                max_new_tokens=max_new_tokens,
+                num_return_sequences=num_return_sequences,
+                do_sample=do_sample,
+            ))
+        return self.outputs
 
     def decode(self, outputs):
-        decoded_output = self.pre_processor.decode(
-            outputs[0, self.inputs["input_ids"].shape[1]:], skip_special_tokens=True
-        )
-        print("decoded_output", decoded_output)
-        return decoded_output
+        text_output = []
+        for output in self.outputs:
+            text_output.append(self.pre_processor.tokenizer.batch_decode(
+                output, skip_special_tokens=True
+            ))
+        return "\n\n".join(text_output)
 
 
 TOOL_MAPPING = {
