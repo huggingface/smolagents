@@ -25,6 +25,7 @@ import pytest
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     InterpreterError,
+    LocalPythonExecutor,
     PrintContainer,
     check_module_authorized,
     evaluate_condition,
@@ -1409,3 +1410,17 @@ class TestPrintContainer:
 )
 def test_check_module_authorized(module: str, authorized_imports: list[str], expected: bool):
     assert check_module_authorized(module, authorized_imports) == expected
+
+
+class TestLocalPythonExecutor:
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "d = {'func': lambda x: x + 10}; func = d['func']; func(1)",
+            "d = {'func': lambda x: x + 10}; d['func'](1)",
+        ],
+    )
+    def test_call_from_dict(self, code):
+        executor = LocalPythonExecutor([])
+        result, _, _ = executor(code)
+        assert result == 11

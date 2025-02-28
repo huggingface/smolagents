@@ -178,12 +178,14 @@ def append_answer(entry: dict, jsonl_file: str) -> None:
 
 
 def answer_single_question(example, model_id, answers_file, visual_inspection_tool):
-    model = LiteLLMModel(
-        model_id,
-        custom_role_conversions=custom_role_conversions,
-        max_completion_tokens=8192,
-        reasoning_effort="high",
-    )
+    model_params = {
+        "model_id": model_id,
+        "custom_role_conversions": custom_role_conversions,
+        "max_completion_tokens": 8192,
+    }
+    if model_id == "o1":
+        model_params["reasoning_effort"] = "high"
+    model = LiteLLMModel(**model_params)
     # model = HfApiModel("Qwen/Qwen2.5-72B-Instruct", provider="together")
     #     "https://lnxyuvj02bpe6mam.us-east-1.aws.endpoints.huggingface.cloud",
     #     custom_role_conversions=custom_role_conversions,

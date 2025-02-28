@@ -610,13 +610,7 @@ def evaluate_call(
             )
 
     elif isinstance(call.func, ast.Subscript):
-        value = evaluate_ast(call.func.value, state, static_tools, custom_tools, authorized_imports)
-        index = evaluate_ast(call.func.slice, state, static_tools, custom_tools, authorized_imports)
-        if isinstance(value, (list, tuple)):
-            func = value[index]
-        else:
-            raise InterpreterError(f"Cannot subscript object of type {type(value).__name__}")
-
+        func = evaluate_subscript(call.func, state, static_tools, custom_tools, authorized_imports)
         if not callable(func):
             raise InterpreterError(f"This is not a correct function: {call.func}).")
         func_name = None

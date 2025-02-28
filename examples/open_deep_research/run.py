@@ -84,15 +84,16 @@ os.makedirs(f"./{BROWSER_CONFIG['downloads_folder']}", exist_ok=True)
 
 
 def create_agent(model_id="o1"):
+    model_params = {
+        "model_id": model_id,
+        "custom_role_conversions": custom_role_conversions,
+        "max_completion_tokens": 8192,
+    }
+    if model_id == "o1":
+        model_params["reasoning_effort"] = "high"
+    model = LiteLLMModel(**model_params)
+
     text_limit = 100000
-
-    model = LiteLLMModel(
-        model_id,
-        custom_role_conversions=custom_role_conversions,
-        max_completion_tokens=8192,
-        reasoning_effort="high",
-    )
-
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
     WEB_TOOLS = [
         GoogleSearchTool(provider="serper"),
