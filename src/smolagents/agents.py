@@ -1036,7 +1036,7 @@ class AsyncMultiStepAgent(MultiStepAgent):
         if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
             await self.planning_step(task, is_first_step=(self.step_number == 1), step=self.step_number)
         self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
-        final_answer = self.step(memory_step)
+        final_answer = await self.step(memory_step)
         if final_answer is not None and self.final_answer_checks:
             self._validate_final_answer(final_answer)
         return final_answer
