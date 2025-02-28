@@ -19,10 +19,11 @@ import json
 import pickle
 import re
 import time
+import uuid
 from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 import requests
 from PIL import Image
@@ -146,203 +147,10 @@ class E2BExecutor(RemotePythonExecutor):
             return None, execution_logs
 
 
-class DockerExecutor(RemotePythonExecutor):
+class ContainerAbstractExecutor(RemotePythonExecutor):
     """
-    Executes Python code using Jupyter Kernel Gateway in a Docker container.
-    """
-
-    def __init__(
-        self,
-        additional_imports: List[str],
-        logger: AgentLogger,
-        host: str = "127.0.0.1",
-        port: int = 8888,
-    ):
-        """
-        Initialize the Docker-based Jupyter Kernel Gateway executor.
-        """
-        super().__init__(additional_imports, logger)
-        try:
-            import docker
-            from websocket import create_connection
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                "Please install 'docker' extra to use DockerExecutor: `pip install 'smolagents[docker]'`"
-            )
-        self.host = host
-        self.port = port
-
-        # Initialize Docker
-        try:
-            self.client = docker.from_env()
-        except docker.errors.DockerException as e:
-            raise RuntimeError("Could not connect to Docker daemon: make sure Docker is running.") from e
-
-        # Build and start container
-        try:
-            self.logger.log("Building Docker image...")
-            dockerfile_path = Path(__file__).parent / "Dockerfile"
-            if not dockerfile_path.exists():
-                with open(dockerfile_path, "w") as f:
-                    f.write("""FROM python:3.12-slim
-
-RUN pip install jupyter_kernel_gateway requests numpy pandas
-RUN pip install jupyter_client notebook
-
-EXPOSE 8888
-CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
-""")
-            _, build_logs = self.client.images.build(
-                path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag="jupyter-kernel"
-            )
-            self.logger.log(build_logs, LogLevel.DEBUG)
-
-            self.logger.log(f"Starting container on {host}:{port}...")
-            self.container = self.client.containers.run(
-                "jupyter-kernel", ports={"8888/tcp": (host, port)}, detach=True
-            )
-
-            retries = 0
-            while self.container.status != "running" and retries < 5:
-                self.logger.log(f"Container status: {self.container.status}, waiting...")
-                time.sleep(1)
-                self.container.reload()
-                retries += 1
-
-            self.base_url = f"http://{host}:{port}"
-
-            # Create new kernel via HTTP
-            r = requests.post(f"{self.base_url}/api/kernels")
-            if r.status_code != 201:
-                error_details = {
-                    "status_code": r.status_code,
-                    "headers": dict(r.headers),
-                    "url": r.url,
-                    "body": r.text,
-                    "request_method": r.request.method,
-                    "request_headers": dict(r.request.headers),
-                    "request_body": r.request.body,
-                }
-                self.logger.log_error(f"Failed to create kernel. Details: {json.dumps(error_details, indent=2)}")
-                raise RuntimeError(f"Failed to create kernel: Status {r.status_code}\nResponse: {r.text}") from None
-
-            self.kernel_id = r.json()["id"]
-
-            ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
-            self.ws = create_connection(ws_url)
-
-            self.installed_packages = self.install_packages(additional_imports)
-            self.logger.log(f"Container {self.container.short_id} is running with kernel {self.kernel_id}")
-
-        except Exception as e:
-            self.cleanup()
-            raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
-
-    def run_code_raise_errors(self, code_action: str, return_final_answer: bool = False) -> Tuple[Any, str]:
-        """
-        Execute code and return result based on whether it's a final answer.
-        """
-        try:
-            if return_final_answer:
-                match = self.final_answer_pattern.search(code_action)
-                if match:
-                    pre_final_answer_code = self.final_answer_pattern.sub("", code_action)
-                    result_expr = match.group(1)
-                    wrapped_code = pre_final_answer_code + dedent(f"""
-                        import pickle, base64
-                        _result = {result_expr}
-                        print("RESULT_PICKLE:" + base64.b64encode(pickle.dumps(_result)).decode())
-                        """)
-            else:
-                wrapped_code = code_action
-
-            # Send execute request
-            msg_id = self._send_execute_request(wrapped_code)
-
-            # Collect output and results
-            outputs = []
-            result = None
-            waiting_for_idle = False
-
-            while True:
-                msg = json.loads(self.ws.recv())
-                msg_type = msg.get("msg_type", "")
-                parent_msg_id = msg.get("parent_header", {}).get("msg_id")
-
-                # Only process messages related to our execute request
-                if parent_msg_id != msg_id:
-                    continue
-
-                if msg_type == "stream":
-                    text = msg["content"]["text"]
-                    if return_final_answer and text.startswith("RESULT_PICKLE:"):
-                        pickle_data = text[len("RESULT_PICKLE:") :].strip()
-                        result = pickle.loads(base64.b64decode(pickle_data))
-                        waiting_for_idle = True
-                    else:
-                        outputs.append(text)
-                elif msg_type == "error":
-                    traceback = msg["content"].get("traceback", [])
-                    raise RuntimeError("\n".join(traceback)) from None
-                elif msg_type == "status" and msg["content"]["execution_state"] == "idle":
-                    if not return_final_answer or waiting_for_idle:
-                        break
-
-            return result, "".join(outputs)
-
-        except Exception as e:
-            self.logger.log_error(f"Code execution failed: {e}")
-            raise
-
-    def _send_execute_request(self, code: str) -> str:
-        """Send code execution request to kernel."""
-        import uuid
-
-        # Generate a unique message ID
-        msg_id = str(uuid.uuid4())
-
-        # Create execute request
-        execute_request = {
-            "header": {
-                "msg_id": msg_id,
-                "username": "anonymous",
-                "session": str(uuid.uuid4()),
-                "msg_type": "execute_request",
-                "version": "5.0",
-            },
-            "parent_header": {},
-            "metadata": {},
-            "content": {
-                "code": code,
-                "silent": False,
-                "store_history": True,
-                "user_expressions": {},
-                "allow_stdin": False,
-            },
-        }
-
-        self.ws.send(json.dumps(execute_request))
-        return msg_id
-
-    def cleanup(self):
-        """Clean up resources."""
-        try:
-            if hasattr(self, "container"):
-                self.logger.log(f"Stopping and removing container {self.container.short_id}...")
-                self.container.stop()
-                self.container.remove()
-                self.logger.log("Container cleanup completed")
-        except Exception as e:
-            self.logger.log_error(f"Error during cleanup: {e}")
-
-    def delete(self):
-        """Ensure cleanup on deletion."""
-        self.cleanup()
-
-
-class PodmanExecutor(RemotePythonExecutor):
-    """
-    Executes Python code using Jupyter Kernel Gateway in a Podman container.
+    Abstract base class for container-based executors (Docker/Podman).
+    Implements common functionality for container management and code execution.
     """
 
     def __init__(
@@ -353,56 +161,43 @@ class PodmanExecutor(RemotePythonExecutor):
         port: int = 8888,
     ):
         """
-        Initialize the Podman-based Jupyter Kernel Gateway executor.
+        Initialize the container-based Jupyter Kernel Gateway executor.
         """
         super().__init__(additional_imports, logger)
         try:
-            import os
-
-            import podman
-            import podman.errors
             from websocket import create_connection
+            self.websocket_module = create_connection
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
-                "Please install 'podman' extra to use PodmanExecutor: `pip install 'smolagents[docker]'`"
+                "Please install the required dependencies: `pip install 'smolagents[docker]'`"
             )
+        
         self.host = host
         self.port = port
-
-        # Try different socket URLs
-        socket_urls = [
-            "unix:///run/podman/podman.sock",  # Default
-            "unix:///run/user/{}/podman/podman.sock".format(os.getuid()),  # Rootless
-            "http://localhost:8080",  # TCP if configured
-        ]
-
         self.client = None
         self.container = None
-        connection_error = None
+        self.kernel_id = None
+        self.ws = None
+        self.base_url = f"http://{host}:{port}"
 
-        for url in socket_urls:
-            try:
-                self.client = podman.PodmanClient(base_url=url)
-                # Test connection
-                self.client.ping()
-                self.logger.log(f"Successfully connected to Podman at {url}")
-                break
-            except Exception as e:
-                connection_error = e
-                continue
+    def _initialize_container(self):
+        """To be implemented by subclasses to initialize container client."""
+        raise NotImplementedError("Subclasses must implement _initialize_container method")
 
-        if self.client is None:
-            raise RuntimeError(
-                f"Failed to connect to Podman. Tried URLs: {socket_urls}. Last error: {connection_error}"
-            )
+    def _build_image(self):
+        """To be implemented by subclasses to build container image."""
+        raise NotImplementedError("Subclasses must implement _build_image method")
 
-        # Build and start container
-        try:
-            self.logger.log("Building Docker image...")
-            dockerfile_path = Path(__file__).parent / "Dockerfile"
-            if not dockerfile_path.exists():
-                with open(dockerfile_path, "w") as f:
-                    f.write("""FROM python:3.12-slim
+    def _start_container(self):
+        """To be implemented by subclasses to start container."""
+        raise NotImplementedError("Subclasses must implement _start_container method")
+
+    def _setup_dockerfile(self):
+        """Create Dockerfile if it doesn't exist."""
+        dockerfile_path = Path(__file__).parent / "Dockerfile"
+        if not dockerfile_path.exists():
+            with open(dockerfile_path, "w") as f:
+                f.write("""FROM python:3.12-slim
 
 RUN pip install jupyter_kernel_gateway requests numpy pandas
 RUN pip install jupyter_client notebook
@@ -410,57 +205,7 @@ RUN pip install jupyter_client notebook
 EXPOSE 8888
 CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
 """)
-            if self.client.images.exists("jupyter-kernel"):
-                self.logger.log("Image already exists, skipping creation")
-            else:
-                _, build_logs = self.client.images.build(
-                    path=str(dockerfile_path.parent),
-                    dockerfile=str(dockerfile_path),
-                    tag="jupyter-kernel",
-                    rm=True,
-                    pull=True,
-                    forcerm=True,
-                    buildargs={},
-                )
-
-                self.logger.log(build_logs, LogLevel.DEBUG)
-
-            self.logger.log(f"Starting container on {host}:{port}...")
-            self.container = self.client.containers.run(
-                "jupyter-kernel", ports={"8888/tcp": (host, port)}, detach=True, cap_drop=["ALL"]
-            )
-            self.logger.log(f"Container started with ID: {self.container.short_id}")
-
-            # Wait for container to be in running state
-            retries = 0
-            while retries < 5:
-                self.container.reload()
-                if self.container.status == "running":
-                    break
-                self.logger.log(f"Container status: {self.container.status}, waiting...")
-                time.sleep(1)
-                retries += 1
-
-            if self.container.status != "running":
-                raise RuntimeError(f"Container failed to start. Status: {self.container.status}")
-
-            # Now wait for the Jupyter service to be ready
-            self.wait_for_service()
-
-            self.base_url = f"http://{host}:{port}"
-
-            # Create new kernel via HTTP with retry mechanism
-            self.create_kernel()
-
-            ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
-            self.ws = create_connection(ws_url)
-
-            self.installed_packages = self.install_packages(additional_imports)
-            self.logger.log(f"Container {self.container.short_id} is running with kernel {self.kernel_id}")
-
-        except Exception as e:
-            self.cleanup()
-            raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
+        return dockerfile_path
 
     def wait_for_service(self, max_retries=15, initial_delay=2.0):
         """Wait for the Jupyter Kernel Gateway service to be ready."""
@@ -470,7 +215,7 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
         for attempt in range(max_retries):
             try:
                 # Try to access the API endpoint to check if service is running
-                response = requests.get(f"http://{self.host}:{self.port}/api/kernelspecs", timeout=5)
+                response = requests.get(f"{self.base_url}/api/kernelspecs", timeout=5)
                 if response.status_code == 200:
                     self.logger.log(f"Service is ready after {attempt + 1} attempts")
                     return True
@@ -504,7 +249,7 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
 
         for attempt in range(max_retries):
             try:
-                r = requests.post(f"http://{self.host}:{self.port}/api/kernels", timeout=10)
+                r = requests.post(f"{self.base_url}/api/kernels", timeout=10)
                 if r.status_code == 201:
                     self.kernel_id = r.json()["id"]
                     self.logger.log(f"Kernel created successfully with ID: {self.kernel_id}")
@@ -527,6 +272,34 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
             time.sleep(time_to_sleep)
 
         raise RuntimeError(f"Failed to create kernel after {max_retries} attempts")
+
+    def _send_execute_request(self, code: str) -> str:
+        """Send code execution request to kernel."""
+        # Generate a unique message ID
+        msg_id = str(uuid.uuid4())
+
+        # Create execute request
+        execute_request = {
+            "header": {
+                "msg_id": msg_id,
+                "username": "anonymous",
+                "session": str(uuid.uuid4()),
+                "msg_type": "execute_request",
+                "version": "5.0",
+            },
+            "parent_header": {},
+            "metadata": {},
+            "content": {
+                "code": code,
+                "silent": False,
+                "store_history": True,
+                "user_expressions": {},
+                "allow_stdin": False,
+            },
+        }
+
+        self.ws.send(json.dumps(execute_request))
+        return msg_id
 
     def run_code_raise_errors(self, code_action: str, return_final_answer: bool = False) -> Tuple[Any, str]:
         """
@@ -583,41 +356,35 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
         except Exception as e:
             self.logger.log_error(f"Code execution failed: {e}")
             raise
-
-    def _send_execute_request(self, code: str) -> str:
-        """Send code execution request to kernel."""
-        import uuid
-
-        # Generate a unique message ID
-        msg_id = str(uuid.uuid4())
-
-        # Create execute request
-        execute_request = {
-            "header": {
-                "msg_id": msg_id,
-                "username": "anonymous",
-                "session": str(uuid.uuid4()),
-                "msg_type": "execute_request",
-                "version": "5.0",
-            },
-            "parent_header": {},
-            "metadata": {},
-            "content": {
-                "code": code,
-                "silent": False,
-                "store_history": True,
-                "user_expressions": {},
-                "allow_stdin": False,
-            },
-        }
-
-        self.ws.send(json.dumps(execute_request))
-        return msg_id
+            
+    def setup(self):
+        """Initialize and start the container environment."""
+        try:
+            self._initialize_container()
+            dockerfile_path = self._setup_dockerfile()
+            self._build_image(dockerfile_path)
+            self._start_container()
+            
+            # Wait for services and setup connection
+            self.wait_for_service()
+            self.create_kernel()
+            
+            # Initialize WebSocket connection
+            ws_url = f"ws://{self.host}:{self.port}/api/kernels/{self.kernel_id}/channels"
+            self.ws = self.websocket_module(ws_url)
+            
+            # Install packages
+            self.installed_packages = self.install_packages(self.additional_imports)
+            self.logger.log(f"Container {self.container.short_id} is running with kernel {self.kernel_id}")
+            
+        except Exception as e:
+            self.cleanup()
+            raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
     def cleanup(self):
         """Clean up resources."""
         try:
-            if hasattr(self, "container"):
+            if hasattr(self, "container") and self.container:
                 self.logger.log(f"Stopping and removing container {self.container.short_id}...")
                 self.container.stop()
                 self.container.remove()
@@ -630,4 +397,169 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
         self.cleanup()
 
 
-__all__ = ["E2BExecutor", "DockerExecutor", "PodmanExecutor"]
+class DockerExecutor(ContainerAbstractExecutor):
+    """
+    Executes Python code using Jupyter Kernel Gateway in a Docker container.
+    """
+
+    def __init__(
+        self,
+        additional_imports: List[str],
+        logger: AgentLogger,
+        host: str = "127.0.0.1",
+        port: int = 8888,
+    ):
+        """
+        Initialize the Docker-based Jupyter Kernel Gateway executor.
+        """
+        super().__init__(additional_imports, logger, host, port)
+        self.setup()
+
+    def _initialize_container(self):
+        """Initialize Docker client."""
+        try:
+            import docker
+            self.client = docker.from_env()
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'docker' extra to use DockerExecutor: `pip install 'smolagents[docker]'`"
+            )
+        except Exception as e:
+            raise RuntimeError("Could not connect to Docker daemon: make sure Docker is running.") from e
+
+    def _build_image(self, dockerfile_path):
+        """Build Docker image."""
+        self.logger.log("Building Docker image...")
+        try:
+            _, build_logs = self.client.images.build(
+                path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag="jupyter-kernel"
+            )
+            self.logger.log(build_logs, LogLevel.DEBUG)
+        except Exception as e:
+            raise RuntimeError(f"Failed to build Docker image: {e}") from e
+
+    def _start_container(self):
+        """Start Docker container."""
+        self.logger.log(f"Starting container on {self.host}:{self.port}...")
+        try:
+            self.container = self.client.containers.run(
+                "jupyter-kernel", ports={"8888/tcp": (self.host, self.port)}, detach=True
+            )
+            
+            retries = 0
+            while retries < 5:
+                self.container.reload()
+                if self.container.status == "running":
+                    break
+                self.logger.log(f"Container status: {self.container.status}, waiting...")
+                time.sleep(1)
+                retries += 1
+                
+            if self.container.status != "running":
+                raise RuntimeError(f"Container failed to start. Status: {self.container.status}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to start Docker container: {e}") from e
+
+
+class PodmanExecutor(ContainerAbstractExecutor):
+    """
+    Executes Python code using Jupyter Kernel Gateway in a Podman container.
+    """
+
+    def __init__(
+        self,
+        additional_imports: List[str],
+        logger: AgentLogger,
+        host: str = "127.0.0.1",
+        port: int = 8888,
+    ):
+        """
+        Initialize the Podman-based Jupyter Kernel Gateway executor.
+        """
+        super().__init__(additional_imports, logger, host, port)
+        self.setup()
+
+    def _initialize_container(self):
+        """Initialize Podman client with multiple socket URL attempts."""
+        try:
+            import os
+            import podman
+            import podman.errors
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'podman' extra to use PodmanExecutor: `pip install 'smolagents[docker]'`"
+            )
+
+        # Try different socket URLs
+        socket_urls = [
+            "unix:///run/podman/podman.sock",  # Default
+            "unix:///run/user/{}/podman/podman.sock".format(os.getuid()),  # Rootless
+            "http://localhost:8080",  # TCP if configured
+        ]
+
+        connection_error = None
+        for url in socket_urls:
+            try:
+                self.client = podman.PodmanClient(base_url=url)
+                # Test connection
+                self.client.ping()
+                self.logger.log(f"Successfully connected to Podman at {url}")
+                return
+            except Exception as e:
+                connection_error = e
+                continue
+
+        if self.client is None:
+            raise RuntimeError(
+                f"Failed to connect to Podman. Tried URLs: {socket_urls}. Last error: {connection_error}"
+            )
+
+    def _build_image(self, dockerfile_path):
+        """Build Podman image if it doesn't exist."""
+        self.logger.log("Building Podman image...")
+        try:
+            if self.client.images.exists("jupyter-kernel"):
+                self.logger.log("Image already exists, skipping creation")
+            else:
+                _, build_logs = self.client.images.build(
+                    path=str(dockerfile_path.parent),
+                    dockerfile=str(dockerfile_path),
+                    tag="jupyter-kernel",
+                    rm=True,
+                    pull=True,
+                    forcerm=True,
+                    buildargs={},
+                )
+                self.logger.log(build_logs, LogLevel.DEBUG)
+        except Exception as e:
+            raise RuntimeError(f"Failed to build Podman image: {e}") from e
+
+    def _start_container(self):
+        """Start Podman container."""
+        self.logger.log(f"Starting container on {self.host}:{self.port}...")
+        try:
+            self.container = self.client.containers.run(
+                "jupyter-kernel", 
+                ports={"8888/tcp": (self.host, self.port)}, 
+                detach=True, 
+                cap_drop=["ALL"]
+            )
+            self.logger.log(f"Container started with ID: {self.container.short_id}")
+            
+            # Wait for container to be in running state
+            retries = 0
+            while retries < 5:
+                self.container.reload()
+                if self.container.status == "running":
+                    break
+                self.logger.log(f"Container status: {self.container.status}, waiting...")
+                time.sleep(1)
+                retries += 1
+                
+            if self.container.status != "running":
+                raise RuntimeError(f"Container failed to start. Status: {self.container.status}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to start Podman container: {e}") from e
+
+
+__all__ = ["E2BExecutor", "DockerExecutor", "PodmanExecutor", "ContainerAbstractExecutor"]
