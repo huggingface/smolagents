@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
+import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -225,36 +226,82 @@ class VisitWebpageTool(Tool):
     output_type = "string"
 
     def forward(self, url: str) -> str:
-        try:
-            import requests
-            from markdownify import markdownify
-            from requests.exceptions import RequestException
 
-            from smolagents.utils import truncate_content
+        use_upgraded_version = False
+        try:
+            import playwright
+            use_upgraded_version = True
         except ImportError as e:
-            raise ImportError(
-                "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
-            ) from e
-        try:
-            # Send a GET request to the URL with a 20-second timeout
-            response = requests.get(url, timeout=20)
-            response.raise_for_status()  # Raise an exception for bad status codes
+            warnings.warn("Loading basic version of the tool. You can install package `playwright` to get an upgraded version of this tool: for instance run `pip install playwright` and then `plawright install`", UserWarning)
 
+        if use_upgraded_version: # Use the upgraded version of the tool
+            try:
+                from playwright.sync_api import sync_playwright, TimeoutError
+                from markdownify import markdownify
+
+                from smolagents.utils import truncate_content
+            except ImportError as e:
+                raise ImportError(
+                    "You must install packages `playwright` and `markdownify` to run this upgraded version of this tool: for instance run `pip install markdownify playwright` and then `plawright install`."
+                )
+            try:
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(headless=True)
+
+                    browser_context = browser.new_context(
+                        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0")
+                    context_page = browser_context.new_page()
+
+                    # Set the timeout to 5 seconds
+                    context_page.set_default_timeout(5000)
+
+                    # Visit the URL
+                    context_page.goto(url)
+
+                    # Wait for the page to load, maximum 5 seconds
+                    context_page.wait_for_load_state("networkidle")
+
+                    content = context_page.content()
+
+                    browser.close()
+            except TimeoutError as e:
+                return "The request timed out. Please try again later or check the URL."
+            except Exception as e:
+                return f"An unexpected error occurred: {str(e)}"
+        else: # Use the basic version of the tool
+            try:
+                import requests
+                from markdownify import markdownify
+                from requests.exceptions import RequestException
+
+                from smolagents.utils import truncate_content
+            except ImportError as e:
+                raise ImportError(
+                    "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
+                ) from e
+            try:
+                # Send a GET request to the URL with a 20-second timeout
+                response = requests.get(url, timeout=20)
+                response.raise_for_status()  # Raise an exception for bad status codes
+
+                content = response.text
+
+            except requests.exceptions.Timeout:
+                return "The request timed out. Please try again later or check the URL."
+            except RequestException as e:
+                return f"Error fetching the webpage: {str(e)}"
+            except Exception as e:
+                return f"An unexpected error occurred: {str(e)}"
+
+        if content:
             # Convert the HTML content to Markdown
-            markdown_content = markdownify(response.text).strip()
+            markdown_content = markdownify(content).strip()
 
-            # Remove multiple line breaks
             markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
 
             return truncate_content(markdown_content, 10000)
-
-        except requests.exceptions.Timeout:
-            return "The request timed out. Please try again later or check the URL."
-        except RequestException as e:
-            return f"Error fetching the webpage: {str(e)}"
-        except Exception as e:
-            return f"An unexpected error occurred: {str(e)}"
-
+        else:
+            return "No content found at the given URL."
 
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
