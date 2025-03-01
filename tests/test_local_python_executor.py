@@ -1418,6 +1418,17 @@ class TestLocalPythonExecutor:
         result, _, _ = executor(code)
         assert result == 11
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "a = b = 1; a",
+            "a = b = 1; b",
+        ],
+    )
+    def test_chained_assignment_does_not_produce_error(self, code):
+        executor = LocalPythonExecutor(additional_authorized_imports=[])
+        result, _, _ = executor(code)
+        assert result == 1
 
 class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
