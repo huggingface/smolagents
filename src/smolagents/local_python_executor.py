@@ -564,7 +564,14 @@ def evaluate_assign(
             if len(assign.targets) != len(result):
                 raise InterpreterError(f"Assign failed: expected {len(assign.targets)} values but got {len(result)}.")
 
-            for tgt, val in zip(assign.targets, result):
+            expanded_values = []
+            for tgt in assign.targets:
+                if isinstance(tgt, ast.Starred):
+                    expanded_values.extend(result)
+                else:
+                    expanded_values.append(result)
+
+            for tgt, val in zip(assign.targets, expanded_values):
                 set_value(tgt, val, state, static_tools, custom_tools, authorized_imports)
 
     return result
@@ -609,16 +616,29 @@ def evaluate_call(
     authorized_imports: List[str],
 ) -> Any:
     if not (
-        isinstance(call.func, ast.Attribute) or isinstance(call.func, ast.Name) or isinstance(call.func, ast.Subscript)
+        callable(call.func)
+        or isinstance(call.func, ast.Call)
+        or isinstance(call.func, ast.Lambda)
+        or isinstance(call.func, ast.Attribute)
+        or isinstance(call.func, ast.Name)
+        or isinstance(call.func, ast.Subscript)
     ):
         raise InterpreterError(f"This is not a correct function: {call.func}).")
-    if isinstance(call.func, ast.Attribute):
+
+    func, func_name = None, None
+
+    if callable(call.func):
+        func = call.func
+    elif isinstance(call.func, ast.Call):
+        func = evaluate_call(call.func, state, static_tools, custom_tools, authorized_imports)
+    elif isinstance(call.func, ast.Lambda):
+        func = evaluate_lambda(call.func, state, static_tools, custom_tools, authorized_imports)
+    elif isinstance(call.func, ast.Attribute):
         obj = evaluate_ast(call.func.value, state, static_tools, custom_tools, authorized_imports)
         func_name = call.func.attr
         if not hasattr(obj, func_name):
             raise InterpreterError(f"Object {obj} has no attribute {func_name}")
         func = getattr(obj, func_name)
-
     elif isinstance(call.func, ast.Name):
         func_name = call.func.id
         if func_name in state:
@@ -639,6 +659,10 @@ def evaluate_call(
         if not callable(func):
             raise InterpreterError(f"This is not a correct function: {call.func}).")
         func_name = None
+
+    if not callable(func):
+        raise InterpreterError(f"Expected a callable function, but got {func}")
+
     args = []
     for arg in call.args:
         if isinstance(arg, ast.Starred):
@@ -667,20 +691,15 @@ def evaluate_call(
             return super(cls, instance)
         else:
             raise InterpreterError("super() takes at most 2 arguments")
-    else:
-        if func_name == "print":
-            state["_print_outputs"] += " ".join(map(str, args)) + "\n"
-            return None
-        else:  # Assume it's a callable object
-            if (
-                (inspect.getmodule(func) == builtins)
-                and inspect.isbuiltin(func)
-                and (func not in static_tools.values())
-            ):
-                raise InterpreterError(
-                    f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
-                )
-            return func(*args, **kwargs)
+    elif func_name == "print":
+        state["_print_outputs"] += " ".join(map(str, args)) + "\n"
+        return None
+    else:  # Assume it's a callable object
+        if (inspect.getmodule(func) == builtins) and inspect.isbuiltin(func) and (func not in static_tools.values()):
+            raise InterpreterError(
+                f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
+            )
+        return func(*args, **kwargs)
 
 
 def evaluate_subscript(

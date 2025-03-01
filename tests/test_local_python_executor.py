@@ -1423,6 +1423,13 @@ class TestLocalPythonExecutor:
         [
             "a = b = 1; a",
             "a = b = 1; b",
+            "a = b = (lambda: 1)(); b",
+            "a = b = (lambda: 1)(); lambda x: 10; b",
+            "a = b = (lambda x: lambda y: x + y)(0)(1); b",
+            dedent("""
+            def foo():
+                return 1;
+            a = b = foo(); b"""),
         ],
     )
     def test_chained_assignment_does_not_produce_error(self, code):
