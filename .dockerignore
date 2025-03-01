@@ -1,0 +1,7 @@
+**.md
+.gitignore
+Dockerfile
+Dockerfile.e2b
+LICENSE
+Makefile
+taskfile.yaml

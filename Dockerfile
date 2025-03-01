@@ -1,29 +1,47 @@
-# Base Python image
-FROM python:3.12-slim
+# Utiliser une image de base plus légère
+FROM python:3.12-slim as builder
 
-# Set working directory
+# Définir les variables d'environnement pour optimiser Python
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Définir le répertoire de travail
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
+# Installer les dépendances système nécessaires
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     zlib1g-dev \
     libjpeg-dev \
-    libpng-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libpng-dev
 
-# Copy package files
-COPY . /app/
+# Copier uniquement les fichiers nécessaires pour l'installation des dépendances
+# COPY requirements.txt .
+# COPY setup.py .
+# COPY server.py .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Installer les dépendances Python dans un environnement virtuel
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install uv
+RUN uv pip install -r requirements.txt
 
-# Install the package
-RUN pip install -e .
+# Étape finale avec une image plus légère
+FROM python:3.12-slim
 
-COPY server.py /app/server.py
+ENV PATH="/opt/venv/bin:$PATH"
+WORKDIR /app
 
-# Expose the port your server will run on
+# Copier l'environnement virtuel de l'étape précédente
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /app/server.py .
+
+# Exposer le port
 EXPOSE 65432
 
-CMD ["python", "/app/server.py"]
+# Utiliser un utilisateur non-root pour plus de sécurité
+RUN useradd -m appuser
+USER appuser
+
+CMD ["python", "server.py"]
