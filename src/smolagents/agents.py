@@ -168,6 +168,33 @@ class MultiStepAgent:
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
 
+    def _prepare_for_run(self, task: str, reset: bool = True, images: List[str] = None, additional_args: Optional[Dict] = None):
+        self.task = task
+        if additional_args is not None:
+            self.state.update(additional_args)
+            self.task += f"""
+        You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
+        {str(additional_args)}."""
+
+        self.system_prompt = self.initialize_system_prompt()
+        self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
+        if reset:
+            self.memory.reset()
+            self.monitor.reset()
+
+        self.logger.log_task(
+            content=self.task.strip(),
+            subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
+            level=LogLevel.INFO,
+            title=self.name if hasattr(self, "name") else None,
+        )
+        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+
+        if hasattr(self, "python_executor"):
+            self.python_executor.send_variables(variables=self.state)
+            self.python_executor.send_tools({**self.tools, **self.managed_agents})
+
+
     def run(
         self,
         task: str,
@@ -196,30 +223,7 @@ class MultiStepAgent:
         ```
         """
         max_steps = max_steps or self.max_steps
-        self.task = task
-        if additional_args is not None:
-            self.state.update(additional_args)
-            self.task += f"""
-You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
-{str(additional_args)}."""
-
-        self.system_prompt = self.initialize_system_prompt()
-        self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
-        if reset:
-            self.memory.reset()
-            self.monitor.reset()
-
-        self.logger.log_task(
-            content=self.task.strip(),
-            subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
-            level=LogLevel.INFO,
-            title=self.name if hasattr(self, "name") else None,
-        )
-        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
-
-        if hasattr(self, "python_executor"):
-            self.python_executor.send_variables(variables=self.state)
-            self.python_executor.send_tools({**self.tools, **self.managed_agents})
+        self._prepare_for_run(task=task, reset=reset, images=images, additional_args=additional_args)
 
         if stream:
             # The steps are returned as they are executed through a generator to iterate on.
@@ -255,8 +259,12 @@ You have been provided with these additional arguments, that you can access usin
 
     def _execute_step(self, task: str, memory_step: ActionStep) -> Union[None, Any]:
         if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
-            self.planning_step(task, is_first_step=(self.step_number == 1), step=self.step_number)
+            is_first_step = self.step_number == 1
+            input_messages, facts_message, plan_message = self._generate_plan(task, self.step_number, is_first_step)
+            self._record_planning_step(input_messages, facts_message, plan_message, is_first_step)
+
         self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
+
         final_answer = self.step(memory_step)
         if final_answer is not None and self.final_answer_checks:
             self._validate_final_answer(final_answer)
@@ -288,12 +296,6 @@ You have been provided with these additional arguments, that you can access usin
         self._finalize_step(final_memory_step, step_start_time)
         return final_answer
 
-    def planning_step(self, task, is_first_step: bool, step: int) -> None:
-        input_messages, facts_message, plan_message = (
-            self._generate_initial_plan(task) if is_first_step else self._generate_updated_plan(task, step)
-        )
-        self._record_planning_step(input_messages, facts_message, plan_message, is_first_step)
-
     def _prepare_text_message(self, template: str, role: str, variables):
         return [{
             "role": role,
@@ -306,62 +308,58 @@ You have been provided with these additional arguments, that you can access usin
         }]
 
 
-    def _generate_initial_plan(self, task: str) -> Tuple[List[Dict[str, Any]],ChatMessage, ChatMessage]:
-
-        input_messages = self._prepare_text_message(
-            self.prompt_templates["planning"]["initial_facts"], MessageRole.USER, {"task": task}
-        )
-        facts_message = self.model(input_messages)
-
-        message_prompt_plan = self._prepare_text_message(
-            self.prompt_templates["planning"]["initial_plan"],
-            MessageRole.USER,
-            {"task": task, "tools": self.tools, "managed_agents": self.managed_agents, "answer_facts": facts_message.content}
-        )
-
-        plan_message = self.model(message_prompt_plan, stop_sequences=["<end_plan>"])
-        return input_messages, facts_message, plan_message
-
-    def _get_input_for_updated_fact_message(self, memory_messages) -> List[Dict[str, Any]]:
-        facts_update_pre = self._prepare_text_message(
-            self.prompt_templates["planning"]["update_facts_pre_messages"], MessageRole.SYSTEM, {}
-        )
-        facts_update_post = self._prepare_text_message(
-            self.prompt_templates["planning"]["update_facts_post_messages"], MessageRole.USER, {}
-        )
-
-        return facts_update_pre + memory_messages + facts_update_post
-
-    def _get_input_for_update_plan(self, facts_message_content:str, task, step, memory_messages) -> List[Dict[str, Any]]:
-        update_plan_pre = self._prepare_text_message(
-            self.prompt_templates["planning"]["update_plan_pre_messages"], MessageRole.SYSTEM, {"task": task}
-        )
-
-        update_plan_post = self._prepare_text_message(
-            self.prompt_templates["planning"]["update_plan_post_messages"],
-            MessageRole.USER,
-            {
-                "task": task,
-                "tools": self.tools,
-                "managed_agents": self.managed_agents,
-                "facts_update": facts_message_content,
-                "remaining_steps": (self.max_steps - step)
-            }
-        )
-
-        return update_plan_pre + memory_messages + update_plan_post
-
-    def _generate_updated_plan(self, task: str, step: int) -> Tuple[List[Dict[str, Any]],ChatMessage, ChatMessage]:
+    def _generate_plan(self, task: str, step: int = -1, is_initial:bool=False) -> Tuple[List[Dict[str, Any]],ChatMessage, ChatMessage]:
+        """
+        Generate a plan for the given task.
+        """
         memory_messages = self.write_memory_to_messages()[1:]
+        input_messages = []
+        if not is_initial:
+            input_messages = self._prepare_text_message(
+                self.prompt_templates["planning"]["update_facts_pre_messages"], MessageRole.USER, {}
+            )
+            input_messages += memory_messages
 
-        input_messages = self._get_input_for_updated_fact_message(memory_messages)
+
+        if is_initial:
+            input_messages = self._prepare_text_message(
+                self.prompt_templates["planning"]["initial_facts"], MessageRole.USER, {"task": task}
+            ) + input_messages
+        else:
+            input_messages = self._prepare_text_message(
+                self.prompt_templates["planning"]["update_facts_post_messages"], MessageRole.SYSTEM, {}
+            ) + input_messages
 
         facts_message = self.model(input_messages)
 
-        input_messages = self._get_input_for_update_plan(facts_message.content, task, step, memory_messages )
-        plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+        if is_initial:
+            input_messages = self._prepare_text_message(
+                self.prompt_templates["planning"]["initial_plan"],
+                MessageRole.USER,
+                {"task": task, "tools": self.tools, "managed_agents": self.managed_agents, "answer_facts": facts_message.content}
+            )
 
+        else:
+            input_messages = self._prepare_text_message(
+                self.prompt_templates["planning"]["update_plan_pre_messages"], MessageRole.SYSTEM, {"task": task}
+            )
+
+            input_messages += memory_messages
+            input_messages += self._prepare_text_message(
+                self.prompt_templates["planning"]["update_plan_post_messages"],
+                MessageRole.USER,
+                {
+                    "task": task,
+                    "tools": self.tools,
+                    "managed_agents": self.managed_agents,
+                    "facts_update": facts_message.content,
+                    "remaining_steps": (self.max_steps - step)
+                }
+            )
+
+        plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
         return input_messages, facts_message, plan_message
+
 
     def _record_planning_step(
         self, input_messages: list, facts_message: ChatMessage, plan_message: ChatMessage, is_first_step: bool
@@ -377,7 +375,8 @@ You have been provided with these additional arguments, that you can access usin
                 f"""Here is the updated list of the facts that I know:\n```\n{facts_message.content}\n```"""
             )
             plan = textwrap.dedent(
-                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere is my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
+                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\n
+                Here is my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
             )
             log_message = "Updated plan"
         self.memory.steps.append(
