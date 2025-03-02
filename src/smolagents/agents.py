@@ -369,10 +369,10 @@ You have been provided with these additional arguments, that you can access usin
         memory_step.duration = memory_step.end_time - step_start_time
         self.memory.steps.append(memory_step)
         for callback in self.step_callbacks:
-            # For compatibility with old callbacks that don't take the agent as an argument
-            callback(memory_step) if len(inspect.signature(callback).parameters) == 1 else callback(
-                memory_step, agent=self
-            )
+            if len(inspect.signature(callback).parameters) > 1:
+                callback(memory_step, agent=self)
+            else:
+                callback(memory_step)
 
     def _handle_max_steps_reached(self, task: str, images: List[str], step_start_time: float) -> Any:
         final_answer = self.provide_final_answer(task, images)
@@ -832,7 +832,7 @@ You have been provided with these additional arguments, that you can access usin
         }
         if hasattr(self, "authorized_imports"):
             agent_dict["authorized_imports"] = self.authorized_imports
-        if hasattr(self, "executor_type"):
+        if hasattr(self, "executor_type") and hasattr(self, "executor_kwargs"):
             agent_dict["executor_type"] = self.executor_type
             agent_dict["executor_kwargs"] = self.executor_kwargs
         if hasattr(self, "max_print_outputs_length"):
