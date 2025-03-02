@@ -187,7 +187,7 @@ class MultiStepAgent:
     def __init__(
         self,
         tools: List[Tool],
-        model: Callable[[List[Dict[str, str]]], ChatMessage],
+        model: Callable[..., ChatMessage],
         prompt_templates: Optional[PromptTemplates] = None,
         max_steps: int = 20,
         tool_parser: Optional[Callable] = None,
@@ -220,7 +220,7 @@ class MultiStepAgent:
         self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
-        self.system_prompt = self.initialize_system_prompt()
+        self.system_prompt:str = self.initialize_system_prompt()
         self.input_messages = None
         self.task = None
         self.memory = AgentMemory(self.system_prompt)
@@ -239,7 +239,7 @@ class MultiStepAgent:
 
     def _setup_tools(self, tools, add_base_tools):
         assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
-        self.tools = {tool.name: tool for tool in tools}
+        self.tools:Dict[str, Tool] = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(
                 {
@@ -311,7 +311,7 @@ You have been provided with these additional arguments, that you can access usin
         )
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
 
-        if getattr(self, "python_executor", None):
+        if hasattr(self, "python_executor"):
             self.python_executor.send_variables(variables=self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
@@ -325,7 +325,9 @@ You have been provided with these additional arguments, that you can access usin
         self, task: str, max_steps: int, images: List[str] | None = None
     ) -> Generator[ActionStep | AgentType, None, None]:
         final_answer = None
+        memory_step = None
         self.step_number = 1
+        step_start_time = time.time()
         while final_answer is None and self.step_number <= max_steps:
             step_start_time = time.time()
             memory_step = self._create_memory_step(step_start_time, images)
@@ -393,7 +395,7 @@ You have been provided with these additional arguments, that you can access usin
         )
         self._record_planning_step(input_messages, facts_message, plan_message, is_first_step)
 
-    def _generate_initial_plan(self, task: str) -> Tuple[ChatMessage, ChatMessage]:
+    def _generate_initial_plan(self, task: str) -> Tuple[List[Dict[str, Any]],ChatMessage, ChatMessage]:
         input_messages = [
             {
                 "role": MessageRole.USER,
@@ -429,7 +431,7 @@ You have been provided with these additional arguments, that you can access usin
         plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
         return input_messages, facts_message, plan_message
 
-    def _generate_updated_plan(self, task: str, step: int) -> Tuple[ChatMessage, ChatMessage]:
+    def _generate_updated_plan(self, task: str, step: int) -> Tuple[List[Dict[str, Any]],ChatMessage, ChatMessage]:
         # Do not take the system prompt message from the memory
         # summary_mode=False: Do not take previous plan steps to avoid influencing the new plan
         memory_messages = self.write_memory_to_messages()[1:]
@@ -513,7 +515,7 @@ You have been provided with these additional arguments, that you can access usin
         )
         return [self.memory.system_prompt] + self.memory.steps
 
-    def initialize_system_prompt(self):
+    def initialize_system_prompt(self) -> str:
         """To be implemented in child classes"""
         pass
 
