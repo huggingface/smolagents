@@ -1151,10 +1151,15 @@ class AsyncMultiStepAgent(MultiStepAgent):
         self.memory.steps.append(memory_step)
         for callback in self.step_callbacks:
             if len(inspect.signature(callback).parameters) == 1:
-                await callback(memory_step)
+                if inspect.iscoroutinefunction(callback):
+                    await callback(memory_step)
+                else:
+                    callback(memory_step)
             else:
-                await callback(memory_step, agent=self)
-
+                if inspect.iscoroutinefunction(callback):
+                    await callback(memory_step, agent=self)
+                else:
+                    callback(memory_step, agent=self)
 
     async def provide_final_answer(self, task: str, images: Optional[list[str]]) -> str:
         """
