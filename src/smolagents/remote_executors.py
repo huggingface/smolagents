@@ -91,7 +91,7 @@ locals().update(vars_dict)
 
 
 class E2BExecutor(RemotePythonExecutor):
-    def __init__(self, additional_imports: List[str], logger):
+    def __init__(self, additional_imports: List[str], logger, *args, **kwargs):
         super().__init__(additional_imports, logger)
         try:
             from e2b_code_interpreter import Sandbox
