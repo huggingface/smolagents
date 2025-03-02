@@ -363,21 +363,15 @@ You have been provided with these additional arguments, that you can access usin
             except Exception as e:
                 raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
 
-    async def _finalize_step(self, memory_step: ActionStep, step_start_time: float):
+    def _finalize_step(self, memory_step: ActionStep, step_start_time: float):
         memory_step.end_time = time.time()
         memory_step.duration = memory_step.end_time - step_start_time
         self.memory.steps.append(memory_step)
         for callback in self.step_callbacks:
             if len(inspect.signature(callback).parameters) == 1:
-                if inspect.isasyncgenfunction(callback):
-                    await callback(memory_step)
-                else:
-                    callback(memory_step)
+                callback(memory_step)
             else:
-                if inspect.isasyncgenfunction(callback):
-                    await callback(memory_step, agent=self)
-                else:
-                    callback(memory_step, agent=self)
+                callback(memory_step, agent=self)
 
 
     def _handle_max_steps_reached(self, task: str, images: List[str], step_start_time: float) -> Any:
@@ -1041,7 +1035,7 @@ class AsyncMultiStepAgent(MultiStepAgent):
             self._validate_final_answer(final_answer)
         return final_answer
 
-    async def _handle_max_steps_reached(self, task: str, images: List[str], step_start_time: float) -> Any:
+    async def _handle_max_steps_reached(self, task: str, images: List[str], step_start_time: float, *args, **kwargs) -> Any:
         final_answer = await self.provide_final_answer(task, images)
         final_memory_step = ActionStep(
             step_number=self.step_number, error=AgentMaxStepsError("Reached max steps.", self.logger)
@@ -1150,6 +1144,17 @@ class AsyncMultiStepAgent(MultiStepAgent):
             [update_plan_pre] + memory_messages + [update_plan_post], stop_sequences=["<end_plan>"]
         )
         return input_messages, facts_message, plan_message
+
+    async def _finalize_step(self, memory_step: ActionStep, step_start_time: float):
+        memory_step.end_time = time.time()
+        memory_step.duration = memory_step.end_time - step_start_time
+        self.memory.steps.append(memory_step)
+        for callback in self.step_callbacks:
+            if len(inspect.signature(callback).parameters) == 1:
+                await callback(memory_step)
+            else:
+                await callback(memory_step, agent=self)
+
 
     async def provide_final_answer(self, task: str, images: Optional[list[str]]) -> str:
         """
