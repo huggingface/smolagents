@@ -1150,6 +1150,8 @@ class AsyncMultiStepAgent(MultiStepAgent):
         memory_step.duration = memory_step.end_time - step_start_time
         self.memory.steps.append(memory_step)
         for callback in self.step_callbacks:
+            if callback is None:
+                continue
             if len(inspect.signature(callback).parameters) == 1:
                 if inspect.iscoroutinefunction(callback):
                     await callback(memory_step)
