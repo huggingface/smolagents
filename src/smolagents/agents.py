@@ -16,6 +16,7 @@
 # limitations under the License.
 import importlib
 import inspect
+import asyncio
 import json
 import os
 import re
@@ -1150,18 +1151,13 @@ class AsyncMultiStepAgent(MultiStepAgent):
         memory_step.duration = memory_step.end_time - step_start_time
         self.memory.steps.append(memory_step)
         for callback in self.step_callbacks:
-            if callback is None:
-                continue
             if len(inspect.signature(callback).parameters) == 1:
-                if inspect.iscoroutinefunction(callback):
-                    await callback(memory_step)
-                else:
-                    callback(memory_step)
+                result = callback(memory_step)
             else:
-                if inspect.iscoroutinefunction(callback):
-                    await callback(memory_step, agent=self)
-                else:
-                    callback(memory_step, agent=self)
+                result = callback(memory_step, agent=self)
+
+            if asyncio.iscoroutine(result):
+                await result
 
     async def provide_final_answer(self, task: str, images: Optional[list[str]]) -> str:
         """
