@@ -380,13 +380,7 @@ You have been provided with these additional arguments, that you can access usin
             step_number=self.step_number, error=AgentMaxStepsError("Reached max steps.", self.logger)
         )
         final_memory_step.action_output = final_answer
-        final_memory_step.end_time = time.time()
-        final_memory_step.duration = final_memory_step.end_time - step_start_time
-        self.memory.steps.append(final_memory_step)
-        for callback in self.step_callbacks:
-            callback(final_memory_step) if len(inspect.signature(callback).parameters) == 1 else callback(
-                final_memory_step, agent=self
-            )
+        self._finalize_step(final_memory_step, step_start_time)
         return final_answer
 
     def planning_step(self, task, is_first_step: bool, step: int) -> None:
