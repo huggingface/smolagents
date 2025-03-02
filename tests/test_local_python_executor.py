@@ -1423,6 +1423,9 @@ class TestLocalPythonExecutor:
         [
             "a = b = 1; a",
             "a = b = 1; b",
+            "a, b = c, d = 1, 1; a",
+            "a, b = c, d = 1, 1; b",
+            "a, b = c, d = 1, 1; c",
             "a = b = (lambda: 1)(); b",
             "a = b = (lambda: 1)(); lambda x: 10; b",
             "a = b = (lambda x: lambda y: x + y)(0)(1); b",
@@ -1430,12 +1433,19 @@ class TestLocalPythonExecutor:
             def foo():
                 return 1;
             a = b = foo(); b"""),
+            dedent("""
+            def foo(*args, **kwargs):
+                return sum(args)
+            a = b = foo(1,-1,1); b"""),
+            "a, b = 1, 2; a, b = b, a; b",
         ],
     )
     def test_chained_assignment_does_not_produce_error(self, code):
         executor = LocalPythonExecutor(additional_authorized_imports=[])
+        executor.send_tools()
         result, _, _ = executor(code)
         assert result == 1
+
 
 class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(

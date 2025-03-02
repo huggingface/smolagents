@@ -653,7 +653,6 @@ def evaluate_call(
             raise InterpreterError(
                 f"It is not permitted to evaluate other functions than the provided tools or functions defined/imported in previous code (tried to execute {call.func.id})."
             )
-
     elif isinstance(call.func, ast.Subscript):
         func = evaluate_subscript(call.func, state, static_tools, custom_tools, authorized_imports)
         if not callable(func):
@@ -1490,8 +1489,11 @@ class LocalPythonExecutor(PythonExecutor):
     def send_variables(self, variables: dict):
         self.state.update(variables)
 
-    def send_tools(self, tools: Dict[str, Tool]):
-        self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy()}
+    def send_tools(self, tools: Dict[str, Tool] | None = None):
+        if tools is None:
+            self.static_tools = BASE_PYTHON_TOOLS.copy()
+        else:
+            self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy()}
 
 
 __all__ = ["evaluate_python_code", "LocalPythonExecutor"]
