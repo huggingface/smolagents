@@ -324,8 +324,7 @@ You have been provided with these additional arguments, that you can access usin
     def _run(
         self, task: str, max_steps: int, images: List[str] | None = None
     ) -> Generator[ActionStep | AgentType, None, None]:
-        final_answer = None
-        memory_step = None
+        memory_step, final_answer = None, None
         self.step_number = 1
         step_start_time = time.time()
         while final_answer is None and self.step_number <= max_steps:
@@ -389,89 +388,73 @@ You have been provided with these additional arguments, that you can access usin
         )
         self._record_planning_step(input_messages, facts_message, plan_message, is_first_step)
 
-    def _generate_initial_plan(self, task: str) -> Tuple[List[Dict[str, Any]],ChatMessage, ChatMessage]:
-        input_messages = [
-            {
-                "role": MessageRole.USER,
-                "content": [
-                    {
-                        "type": "text",
-                        "text": populate_template(
-                            self.prompt_templates["planning"]["initial_facts"], variables={"task": task}
-                        ),
-                    }
-                ],
-            },
-        ]
-        facts_message = self.model(input_messages)
-
-        message_prompt_plan = {
-            "role": MessageRole.USER,
+    def _prepare_text_message(self, template: str, role: str, variables):
+        return [{
+            "role": role,
             "content": [
                 {
                     "type": "text",
-                    "text": populate_template(
-                        self.prompt_templates["planning"]["initial_plan"],
-                        variables={
-                            "task": task,
-                            "tools": self.tools,
-                            "managed_agents": self.managed_agents,
-                            "answer_facts": facts_message.content,
-                        },
-                    ),
+                    "text": populate_template(template, variables=variables) if variables else template,
                 }
             ],
-        }
-        plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
+        }]
+
+
+    def _generate_initial_plan(self, task: str) -> Tuple[List[Dict[str, Any]],ChatMessage, ChatMessage]:
+
+        input_messages = self._prepare_text_message(
+            self.prompt_templates["planning"]["initial_facts"], MessageRole.USER, {"task": task}
+        )
+        facts_message = self.model(input_messages)
+
+        message_prompt_plan = self._prepare_text_message(
+            self.prompt_templates["planning"]["initial_plan"],
+            MessageRole.USER,
+            {"task": task, "tools": self.tools, "managed_agents": self.managed_agents, "answer_facts": facts_message.content}
+        )
+
+        plan_message = self.model(message_prompt_plan, stop_sequences=["<end_plan>"])
         return input_messages, facts_message, plan_message
 
+    def _get_input_for_updated_fact_message(self, memory_messages) -> List[Dict[str, Any]]:
+        facts_update_pre = self._prepare_text_message(
+            self.prompt_templates["planning"]["update_facts_pre_messages"], MessageRole.SYSTEM, {}
+        )
+        facts_update_post = self._prepare_text_message(
+            self.prompt_templates["planning"]["update_facts_post_messages"], MessageRole.USER, {}
+        )
+
+        return facts_update_pre + memory_messages + facts_update_post
+
+    def _get_input_for_update_plan(self, facts_message_content:str, task, step, memory_messages) -> List[Dict[str, Any]]:
+        update_plan_pre = self._prepare_text_message(
+            self.prompt_templates["planning"]["update_plan_pre_messages"], MessageRole.SYSTEM, {"task": task}
+        )
+
+        update_plan_post = self._prepare_text_message(
+            self.prompt_templates["planning"]["update_plan_post_messages"],
+            MessageRole.USER,
+            {
+                "task": task,
+                "tools": self.tools,
+                "managed_agents": self.managed_agents,
+                "facts_update": facts_message_content,
+                "remaining_steps": (self.max_steps - step)
+            }
+        )
+
+        return update_plan_pre + memory_messages + update_plan_post
+
     def _generate_updated_plan(self, task: str, step: int) -> Tuple[List[Dict[str, Any]],ChatMessage, ChatMessage]:
-        # Do not take the system prompt message from the memory
-        # summary_mode=False: Do not take previous plan steps to avoid influencing the new plan
         memory_messages = self.write_memory_to_messages()[1:]
-        facts_update_pre = {
-            "role": MessageRole.SYSTEM,
-            "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_pre_messages"]}],
-        }
-        facts_update_post = {
-            "role": MessageRole.USER,
-            "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_post_messages"]}],
-        }
-        input_messages = [facts_update_pre] + memory_messages + [facts_update_post]
+
+        input_messages = self._get_input_for_updated_fact_message(memory_messages)
+
         facts_message = self.model(input_messages)
 
-        update_plan_pre = {
-            "role": MessageRole.SYSTEM,
-            "content": [
-                {
-                    "type": "text",
-                    "text": populate_template(
-                        self.prompt_templates["planning"]["update_plan_pre_messages"], variables={"task": task}
-                    ),
-                }
-            ],
-        }
-        update_plan_post = {
-            "role": MessageRole.USER,
-            "content": [
-                {
-                    "type": "text",
-                    "text": populate_template(
-                        self.prompt_templates["planning"]["update_plan_post_messages"],
-                        variables={
-                            "task": task,
-                            "tools": self.tools,
-                            "managed_agents": self.managed_agents,
-                            "facts_update": facts_message.content,
-                            "remaining_steps": (self.max_steps - step),
-                        },
-                    ),
-                }
-            ],
-        }
-        plan_message = self.model(
-            [update_plan_pre] + memory_messages + [update_plan_post], stop_sequences=["<end_plan>"]
-        )
+        input_messages = self._get_input_for_update_plan(facts_message.content, task, step, memory_messages )
+        plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+
         return input_messages, facts_message, plan_message
 
     def _record_planning_step(
@@ -552,6 +535,21 @@ You have been provided with these additional arguments, that you can access usin
             )
         return rationale.strip(), action.strip()
 
+    def _get_inputs_for_final_answer(self, task: str, images: Optional[list[str]]) -> List[Dict[str, Any]]:
+        messages = self._prepare_text_message(
+            self.prompt_templates["final_answer"]["pre_messages"], MessageRole.SYSTEM, {}
+        )
+
+        if images:
+            messages[0]["content"].append({"type": "image"})
+
+        messages += self.write_memory_to_messages()[1:]
+        messages += self._prepare_text_message(
+            self.prompt_templates["final_answer"]["post_messages"], MessageRole.USER, {"task": task}
+        )
+
+        return messages
+
     def provide_final_answer(self, task: str, images: Optional[list[str]]) -> str:
         """
         Provide the final answer to the task, based on the logs of the agent's interactions.
@@ -563,35 +561,11 @@ You have been provided with these additional arguments, that you can access usin
         Returns:
             `str`: Final answer to the task.
         """
-        messages = [
-            {
-                "role": MessageRole.SYSTEM,
-                "content": [
-                    {
-                        "type": "text",
-                        "text": self.prompt_templates["final_answer"]["pre_messages"],
-                    }
-                ],
-            }
-        ]
-        if images:
-            messages[0]["content"].append({"type": "image"})
-        messages += self.write_memory_to_messages()[1:]
-        messages += [
-            {
-                "role": MessageRole.USER,
-                "content": [
-                    {
-                        "type": "text",
-                        "text": populate_template(
-                            self.prompt_templates["final_answer"]["post_messages"], variables={"task": task}
-                        ),
-                    }
-                ],
-            }
-        ]
+
+        input_messages = self._get_inputs_for_final_answer(task, images)
+
         try:
-            chat_message: ChatMessage = self.model(messages)
+            chat_message: ChatMessage = self.model(input_messages)
             return chat_message.content
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
@@ -1030,52 +1004,33 @@ class ToolCallingAgent(MultiStepAgent):
         )
         return system_prompt
 
-    def step(self, memory_step: ActionStep) -> Union[None, Any]:
+    def _process_model_output(self, model_message: ChatMessage, memory_step: ActionStep) -> Union[None, Any]:
         """
-        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
-        Returns None if the step is not final.
+        Process the model output, calling the tool if needed.
         """
-        memory_messages = self.write_memory_to_messages()
+        memory_step.model_output_message = model_message
 
-        self.input_messages = memory_messages
-
-        # Add new step in logs
-        memory_step.model_input_messages = memory_messages.copy()
-
-        try:
-            model_message: ChatMessage = self.model(
-                memory_messages,
-                tools_to_call_from=list(self.tools.values()),
-                stop_sequences=["Observation:"],
-            )
-            memory_step.model_output_message = model_message
-            if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
-                raise Exception("Model did not call any tools. Call `final_answer` tool to return a final answer.")
-            tool_call = model_message.tool_calls[0]
-            tool_name, tool_call_id = tool_call.function.name, tool_call.id
-            tool_arguments = tool_call.function.arguments
-
-        except Exception as e:
-            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
+        if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
+            raise Exception("Model did not call any tools. Call `final_answer` tool to return a final answer.")
+        tool_call = model_message.tool_calls[0]
+        tool_name = tool_call.function.name
+        tool_call_id = tool_call.id
+        tool_arguments = tool_call.function.arguments
 
         memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 
-        # Execute
         self.logger.log(
             Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
             level=LogLevel.INFO,
         )
+
         if tool_name == "final_answer":
             if isinstance(tool_arguments, dict):
-                if "answer" in tool_arguments:
-                    answer = tool_arguments["answer"]
-                else:
-                    answer = tool_arguments
+                answer = tool_arguments.get("answer", tool_arguments)
             else:
                 answer = tool_arguments
-            if (
-                isinstance(answer, str) and answer in self.state.keys()
-            ):  # if the answer is a state variable, return the value
+
+            if isinstance(answer, str) and answer in self.state:
                 final_answer = self.state[answer]
                 self.logger.log(
                     f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'.",
@@ -1087,7 +1042,6 @@ class ToolCallingAgent(MultiStepAgent):
                     Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
                     level=LogLevel.INFO,
                 )
-
             memory_step.action_output = final_answer
             return final_answer
         else:
@@ -1100,18 +1054,38 @@ class ToolCallingAgent(MultiStepAgent):
                     observation_name = "image.png"
                 elif observation_type == AgentAudio:
                     observation_name = "audio.mp3"
-                # TODO: observation naming could allow for different names of same type
-
                 self.state[observation_name] = observation
                 updated_information = f"Stored '{observation_name}' in memory."
             else:
                 updated_information = str(observation).strip()
             self.logger.log(
-                f"Observations: {updated_information.replace('[', '|')}",  # escape potential rich-tag-like components
+                f"Observations: {updated_information.replace('[', '|')}",
                 level=LogLevel.INFO,
             )
             memory_step.observations = updated_information
             return None
+
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
+        """
+        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
+        Returns None if the step is not final.
+
+        """
+        memory_messages = self.write_memory_to_messages()
+        self.input_messages = memory_messages
+
+        memory_step.model_input_messages = memory_messages.copy()
+
+        try:
+            model_message: ChatMessage = self.model(
+                memory_messages,
+                tools_to_call_from=list(self.tools.values()),
+                stop_sequences=["Observation:"],
+            )
+        except Exception as e:
+            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
+
+        return self._process_model_output(model_message, memory_step)
 
 
 class CodeAgent(MultiStepAgent):
@@ -1200,37 +1174,15 @@ class CodeAgent(MultiStepAgent):
         )
         return system_prompt
 
-    def step(self, memory_step: ActionStep) -> Union[None, Any]:
+    def _process_model_output_for_code(self, model_output: str, memory_step: ActionStep) -> str:
         """
-        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
-        Returns None if the step is not final.
+        The function processes the model output to extract the code to execute.
         """
-        memory_messages = self.write_memory_to_messages()
-
-        self.input_messages = memory_messages.copy()
-
-        # Add new step in logs
-        memory_step.model_input_messages = memory_messages.copy()
-        try:
-            additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
-            chat_message: ChatMessage = self.model(
-                self.input_messages,
-                stop_sequences=["<end_code>", "Observation:"],
-                **additional_args,
-            )
-            memory_step.model_output_message = chat_message
-            model_output = chat_message.content
-            memory_step.model_output = model_output
-        except Exception as e:
-            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
-
         self.logger.log_markdown(
             content=model_output,
             title="Output message of the LLM:",
             level=LogLevel.DEBUG,
         )
-
-        # Parse
         try:
             code_action = fix_final_answer_code(parse_code_blobs(model_output))
         except Exception as e:
@@ -1244,27 +1196,33 @@ class CodeAgent(MultiStepAgent):
                 id=f"call_{len(self.memory.steps)}",
             )
         ]
+        return code_action
 
-        # Execute
+    def _execute_code_action(self, code_action: str, memory_step: ActionStep) -> Tuple[Any, bool]:
+        """
+        Executes the parsed code and returns the output.
+        """
         self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
         is_final_answer = False
+        execution_outputs_console = []
         try:
             output, execution_logs, is_final_answer = self.python_executor(code_action)
-            execution_outputs_console = []
             if len(execution_logs) > 0:
-                execution_outputs_console += [
+                execution_outputs_console.extend([
                     Text("Execution logs:", style="bold"),
                     Text(execution_logs),
-                ]
-            observation = "Execution logs:\n" + execution_logs
+                ])
+                observation = "Execution logs:\n" + execution_logs
+            else:
+                observation = ""
         except Exception as e:
             if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
                 execution_logs = str(self.python_executor.state["_print_outputs"])
                 if len(execution_logs) > 0:
-                    execution_outputs_console = [
+                    execution_outputs_console.extend([
                         Text("Execution logs:", style="bold"),
                         Text(execution_logs),
-                    ]
+                    ])
                     memory_step.observations = "Execution logs:\n" + execution_logs
                     self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
             error_msg = str(e)
@@ -1279,12 +1237,38 @@ class CodeAgent(MultiStepAgent):
         observation += "Last output from code snippet:\n" + truncated_output
         memory_step.observations = observation
 
-        execution_outputs_console += [
+        execution_outputs_console.append(
             Text(
                 f"{('Out - Final answer' if is_final_answer else 'Out')}: {truncated_output}",
                 style=(f"bold {YELLOW_HEX}" if is_final_answer else ""),
-            ),
-        ]
+            )
+        )
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
         memory_step.action_output = output
+        return output, is_final_answer
+
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
+        """
+        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
+        Returns None if the step is not final.
+        """
+        memory_messages = self.write_memory_to_messages()
+        self.input_messages = memory_messages.copy()
+        memory_step.model_input_messages = memory_messages.copy()
+
+        try:
+            additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
+            chat_message: ChatMessage = self.model(
+                self.input_messages,
+                stop_sequences=["<end_code>", "Observation:"],
+                **additional_args,
+            )
+            memory_step.model_output_message = chat_message
+            model_output = chat_message.content
+            memory_step.model_output = model_output
+        except Exception as e:
+            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
+
+        code_action = self._process_model_output_for_code(model_output, memory_step)
+        output, is_final_answer = self._execute_code_action(code_action, memory_step)
         return output if is_final_answer else None
