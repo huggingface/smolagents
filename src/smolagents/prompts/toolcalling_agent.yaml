@@ -46,7 +46,7 @@ system_prompt: |-
   Action:
   {
     "name": "final_answer",
-    "arguments": "image.png"
+    "arguments": {"answer": "image.png"}
   }
 
   ---
@@ -62,7 +62,7 @@ system_prompt: |-
   Action:
   {
     "name": "final_answer",
-    "arguments": "1302.678"
+    "arguments": {"answer": "1302.678"}
   }
 
   ---
@@ -86,7 +86,7 @@ system_prompt: |-
   Action:
   {
     "name": "final_answer",
-    "arguments": "Shanghai"
+    "arguments": {"answer": "Shanghai"}
   }
 
   Above example were using notional tools that might not exist for you. You only have access to these tools:
