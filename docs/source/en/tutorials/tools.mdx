@@ -236,8 +236,8 @@ from smolagents import ToolCollection, CodeAgent
 from mcp import StdioServerParameters
 
 server_parameters = StdioServerParameters(
-    command="uv",
-    args=["--quiet", "pubmedmcp@0.1.3"],
+    command="uvx",
+    args=["pubmedmcp@latest"],
     env={"UV_PYTHON": "3.12", **os.environ},
 )
 
