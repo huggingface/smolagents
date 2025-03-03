@@ -135,6 +135,18 @@ DANGEROUS_PATTERNS = (
     "multiprocessing",
 )
 
+DANGEROUS_MODULES = [
+    "os",
+    "subprocess",
+    "pty",
+    "shutil",
+    "sys",
+    "pathlib",
+    "io",
+    "socket",
+    "multiprocessing",
+]
+
 
 class PrintContainer:
     def __init__(self):
@@ -210,6 +222,36 @@ def fix_final_answer_code(code: str) -> str:
     variable_regex = r"(?<!\.)(?<!\w)(\bfinal_answer\b)(?!\s*\()"
     code = re.sub(variable_regex, "final_answer_variable", code)
     return code
+
+
+def safer_eval(func: Callable):
+    """
+    Decorator to make the evaluation of a function safer by checking its return value.
+
+    Args:
+        func: Function to make safer.
+
+    Returns:
+        Callable: Safer function with return value check.
+    """
+
+    @wraps(func)
+    def _check_return(
+        expression,
+        state,
+        static_tools,
+        custom_tools,
+        authorized_imports=BASE_BUILTIN_MODULES,
+    ):
+        result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
+        if isinstance(result, ModuleType):
+            if "*" not in authorized_imports:
+                for module in DANGEROUS_MODULES:
+                    if module not in authorized_imports and result is import_module(module):
+                        raise InterpreterError(f"Forbidden return value: {module}")
+        return result
+
+    return _check_return
 
 
 def evaluate_unaryop(
