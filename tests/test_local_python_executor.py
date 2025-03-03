@@ -16,6 +16,7 @@
 import ast
 import types
 import unittest
+from contextlib import nullcontext as does_not_raise
 from textwrap import dedent
 
 import numpy as np
@@ -1419,9 +1420,13 @@ class TestLocalPythonExecutor:
 
 
 class TestLocalPythonExecutorSecurity:
-    def test_vulnerability(self):
-        executor = LocalPythonExecutor([])
-        with pytest.raises(InterpreterError):
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expectation",
+        [([], pytest.raises(InterpreterError)), (["os"], does_not_raise())],
+    )
+    def test_vulnerability_import(self, additional_authorized_imports, expectation):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with expectation:
             executor("import os")
 
     def test_vulnerability_builtins(self):
