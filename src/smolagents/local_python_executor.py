@@ -1370,6 +1370,8 @@ def evaluate_python_code(
     """
     try:
         expression = ast.parse(code)
+        if (max_print_outputs_length is None):
+            max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT
     except SyntaxError as e:
         raise InterpreterError(
             f"Code parsing failed on line {e.lineno} due to: {type(e).__name__}\n"
@@ -1396,21 +1398,15 @@ def evaluate_python_code(
     try:
         for node in expression.body:
             result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
-        # Use DEFAULT_MAX_LEN_OUTPUT if max_print_outputs_length is None
-        max_length = max_print_outputs_length if max_print_outputs_length is not None else DEFAULT_MAX_LEN_OUTPUT
-        state["_print_outputs"].value = truncate_content(str(state["_print_outputs"]), max_length=max_length)
+        state["_print_outputs"].value = truncate_content(str(state["_print_outputs"]), max_length=max_print_outputs_length)
         is_final_answer = False
         return result, is_final_answer
     except FinalAnswerException as e:
-        # Use DEFAULT_MAX_LEN_OUTPUT if max_print_outputs_length is None
-        max_length = max_print_outputs_length if max_print_outputs_length is not None else DEFAULT_MAX_LEN_OUTPUT
-        state["_print_outputs"].value = truncate_content(str(state["_print_outputs"]), max_length=max_length)
+        state["_print_outputs"].value = truncate_content(str(state["_print_outputs"]), max_length=max_print_outputs_length)
         is_final_answer = True
         return e.value, is_final_answer
     except Exception as e:
-        # Use DEFAULT_MAX_LEN_OUTPUT if max_print_outputs_length is None
-        max_length = max_print_outputs_length if max_print_outputs_length is not None else DEFAULT_MAX_LEN_OUTPUT
-        state["_print_outputs"].value = truncate_content(str(state["_print_outputs"]), max_length=max_length)
+        state["_print_outputs"].value = truncate_content(str(state["_print_outputs"]), max_length=max_print_outputs_length)
         raise InterpreterError(
             f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
         )

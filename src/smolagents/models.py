@@ -298,9 +298,14 @@ class Model:
 
         return completion_kwargs
 
-    def get_token_counts(self) -> Dict[str, int]:
+    def get_token_counts(self) -> Dict[str, int | None]:
+        """
+        Return the token counts for the completion request. This includes both input and output tokens.
+        returns:
+            Dict[str, int | None]: A dictionary containing the token counts for input and output tokens. None for tokens not available, meaning the model hasn't made any calls.
+        """
         return {
-            "input_token_count": int(self.last_input_token_count or 0),
+            "input_token_count": int(self.last_input_token_count),
             "output_token_count": int(self.last_output_token_count or 0),
         }
 

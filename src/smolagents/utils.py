@@ -146,8 +146,7 @@ def parse_json_blob(json_blob: str) -> Dict[str, str]:
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
         json_blob = json_blob[first_accolade_index : last_accolade_index + 1].replace('\\"', "'")
         json_data = json.loads(json_blob, strict=False)
-        # Ensure we return dict[str, str] as specified in the return type
-        return {str(k): str(v) for k, v in json_data.items()}
+        return json_data
     except json.JSONDecodeError as e:
         place = e.pos
         if json_blob[place - 1 : place + 2] == "},\n":
