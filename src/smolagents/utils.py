@@ -28,10 +28,8 @@ from functools import lru_cache
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 
-
 if TYPE_CHECKING:
     from smolagents.memory import AgentLogger
-
 
 __all__ = ["AgentError"]
 
@@ -144,19 +142,19 @@ def parse_json_blob(json_blob: str) -> Dict[str, str]:
     try:
         first_accolade_index = json_blob.find("{")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_blob = json_blob[first_accolade_index : last_accolade_index + 1].replace('\\"', "'")
+        json_blob = json_blob[first_accolade_index: last_accolade_index + 1].replace('\\"', "'")
         json_data = json.loads(json_blob, strict=False)
         return json_data
     except json.JSONDecodeError as e:
         place = e.pos
-        if json_blob[place - 1 : place + 2] == "},\n":
+        if json_blob[place - 1: place + 2] == "},\n":
             raise ValueError(
                 "JSON is invalid: you probably tried to provide multiple tool calls in one action. PROVIDE ONLY ONE TOOL CALL."
             )
         raise ValueError(
             f"The JSON blob you used is invalid due to the following error: {e}.\n"
             f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"
-            f"'{json_blob[place - 4 : place + 5]}'."
+            f"'{json_blob[place - 4: place + 5]}'."
         )
     except Exception as e:
         raise ValueError(f"Error in parsing the JSON blob: {e}")
@@ -232,9 +230,9 @@ def truncate_content(content: str, max_length: int = MAX_LENGTH_TRUNCATE_CONTENT
         return content
     else:
         return (
-            content[: max_length // 2]
-            + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
-            + content[-max_length // 2 :]
+                content[: max_length // 2]
+                + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
+                + content[-max_length // 2:]
         )
 
 
@@ -306,8 +304,8 @@ def instance_to_source(instance, base_cls=None):
         name: value
         for name, value in cls.__dict__.items()
         if not name.startswith("__")
-        and not callable(value)
-        and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
+           and not callable(value)
+           and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
     }
 
     for name, value in class_attrs.items():
@@ -329,8 +327,9 @@ def instance_to_source(instance, base_cls=None):
         name: func
         for name, func in cls.__dict__.items()
         if callable(func)
-        and not (
-            base_cls and hasattr(base_cls, name) and getattr(base_cls, name).__code__.co_code == func.__code__.co_code
+           and not (
+                base_cls and hasattr(base_cls, name) and getattr(base_cls,
+                                                                 name).__code__.co_code == func.__code__.co_code
         )
     }
 
@@ -412,7 +411,7 @@ def get_source(obj) -> str:
         tree = ast.parse(all_cells)
         for node in ast.walk(tree):
             if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name == obj.__name__:
-                return textwrap.dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
+                return textwrap.dedent("\n".join(all_cells.split("\n")[node.lineno - 1: node.end_lineno])).strip()
         raise ValueError(f"Could not find source code for {obj.__name__} in IPython history")
     except ImportError:
         # IPython is not available, let's just raise the original inspect error

@@ -24,7 +24,7 @@ import time
 from collections import deque
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, List, Optional, Set, Tuple, TypedDict, Union
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union, AsyncGenerator
 
 import jinja2
 import yaml
@@ -42,6 +42,7 @@ from .models import (
     ChatMessage,
     MessageRole,
     Model,
+    AsyncModel
 )
 from .monitoring import (
     YELLOW_HEX,
@@ -50,6 +51,7 @@ from .monitoring import (
     Monitor,
 )
 from .remote_executors import DockerExecutor, E2BExecutor
+from .templates import EMPTY_PROMPT_TEMPLATES, APP_TEMPLATE, PromptTemplates, populate_template
 from .tools import Tool
 from .utils import (
     AgentError,
@@ -62,9 +64,20 @@ from .utils import (
     parse_json_tool_call,
     truncate_content,
 )
-from .templates import EMPTY_PROMPT_TEMPLATES, APP_TEMPLATE, PromptTemplates, populate_template
 
 logger = getLogger(__name__)
+
+
+def _prepare_text_message(template: str, role: str, variables):
+    return [{
+        "role": role,
+        "content": [
+            {
+                "type": "text",
+                "text": populate_template(template, variables=variables) if variables else template,
+            }
+        ],
+    }]
 
 
 class MultiStepAgent:
@@ -91,22 +104,22 @@ class MultiStepAgent:
     """
 
     def __init__(
-        self,
-        tools: List[Tool],
-        model: Model,
-        prompt_templates: Optional[PromptTemplates] = None,
-        max_steps: int = 20,
-        tool_parser: Optional[Callable] = None,
-        add_base_tools: bool = False,
-        verbosity_level: LogLevel = LogLevel.INFO,
-        grammar: Optional[Dict[str, str]] = None,
-        managed_agents: Optional[List] = None,
-        step_callbacks: Optional[List[Callable]] = None,
-        planning_interval: Optional[int] = None,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        provide_run_summary: bool = False,
-        final_answer_checks: Optional[List[Callable]] = None,
+            self,
+            tools: List[Tool],
+            model: Union[Model, AsyncModel],
+            prompt_templates: Optional[PromptTemplates] = None,
+            max_steps: int = 20,
+            tool_parser: Optional[Callable] = None,
+            add_base_tools: bool = False,
+            verbosity_level: LogLevel = LogLevel.INFO,
+            grammar: Optional[Dict[str, str]] = None,
+            managed_agents: Optional[List] = None,
+            step_callbacks: Optional[List[Callable]] = None,
+            planning_interval: Optional[int] = None,
+            name: Optional[str] = None,
+            description: Optional[str] = None,
+            provide_run_summary: bool = False,
+            final_answer_checks: Optional[List[Callable]] = None,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -126,7 +139,7 @@ class MultiStepAgent:
         self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
-        self.system_prompt:str = self.initialize_system_prompt()
+        self.system_prompt: str = self.initialize_system_prompt()
         self.input_messages = None
         self.task = None
         self.memory = AgentMemory(self.system_prompt)
@@ -145,7 +158,7 @@ class MultiStepAgent:
 
     def _setup_tools(self, tools, add_base_tools):
         assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
-        self.tools:Dict[str, Tool] = {tool.name: tool for tool in tools}
+        self.tools: Dict[str, Tool] = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(
                 {
@@ -168,7 +181,8 @@ class MultiStepAgent:
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
 
-    def _prepare_for_run(self, task: str, reset: bool = True, images: List[str] = None, additional_args: Optional[Dict] = None):
+    def _prepare_for_run(self, task: str, reset: bool = True, images: List[str] = None,
+                         additional_args: Optional[Dict] = None):
         self.task = task
         if additional_args is not None:
             self.state.update(additional_args)
@@ -194,15 +208,14 @@ class MultiStepAgent:
             self.python_executor.send_variables(variables=self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
-
     def run(
-        self,
-        task: str,
-        stream: bool = False,
-        reset: bool = True,
-        images: Optional[List[str]] = None,
-        additional_args: Optional[Dict] = None,
-        max_steps: Optional[int] = None,
+            self,
+            task: str,
+            stream: bool = False,
+            reset: bool = True,
+            images: Optional[List[str]] = None,
+            additional_args: Optional[Dict] = None,
+            max_steps: Optional[int] = None,
     ):
         """
         Run the agent for the given task.
@@ -232,7 +245,7 @@ class MultiStepAgent:
         return deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0]
 
     def _run(
-        self, task: str, max_steps: int, images: List[str] | None = None
+            self, task: str, max_steps: int, images: List[str] | None = None
     ) -> Generator[ActionStep | AgentType, None, None]:
         memory_step, final_answer = None, None
         self.step_number = 1
@@ -296,73 +309,74 @@ class MultiStepAgent:
         self._finalize_step(final_memory_step, step_start_time)
         return final_answer
 
-    def _prepare_text_message(self, template: str, role: str, variables):
-        return [{
-            "role": role,
-            "content": [
-                {
-                    "type": "text",
-                    "text": populate_template(template, variables=variables) if variables else template,
-                }
-            ],
-        }]
-
-
-    def _generate_plan(self, task: str, step: int = -1, is_initial:bool=False) -> Tuple[List[Dict[str, Any]],ChatMessage, ChatMessage]:
-        """
-        Generate a plan for the given task.
-        """
-        memory_messages = self.write_memory_to_messages()[1:]
+    def _prepare_facts_for_plan(self, memory_messages: List[Dict[str, Any]], is_initial: bool = True) -> List[
+        Dict[str, Any]]:
         input_messages = []
         if not is_initial:
-            input_messages = self._prepare_text_message(
+            input_messages = _prepare_text_message(
                 self.prompt_templates["planning"]["update_facts_pre_messages"], MessageRole.USER, {}
             )
             input_messages += memory_messages
 
-
         if is_initial:
-            input_messages = self._prepare_text_message(
+            input_messages = _prepare_text_message(
                 self.prompt_templates["planning"]["initial_facts"], MessageRole.USER, {"task": task}
             ) + input_messages
         else:
-            input_messages = self._prepare_text_message(
+            input_messages = _prepare_text_message(
                 self.prompt_templates["planning"]["update_facts_post_messages"], MessageRole.SYSTEM, {}
             ) + input_messages
 
-        facts_message = self.model(input_messages)
+        return input_messages
 
+    def _prepare_plan(self, task: str, memory_messages: List[Dict[str, Any]], fact_message: str, step: int = -1,
+                      is_initial: bool = False) -> List[Dict[str, Any]]:
         if is_initial:
-            input_messages = self._prepare_text_message(
+            input_messages = _prepare_text_message(
                 self.prompt_templates["planning"]["initial_plan"],
                 MessageRole.USER,
-                {"task": task, "tools": self.tools, "managed_agents": self.managed_agents, "answer_facts": facts_message.content}
+                {"task": task, "tools": self.tools, "managed_agents": self.managed_agents,
+                 "answer_facts": facts_message.content}
             )
 
         else:
-            input_messages = self._prepare_text_message(
+            input_messages = _prepare_text_message(
                 self.prompt_templates["planning"]["update_plan_pre_messages"], MessageRole.SYSTEM, {"task": task}
             )
 
             input_messages += memory_messages
-            input_messages += self._prepare_text_message(
+            input_messages += _prepare_text_message(
                 self.prompt_templates["planning"]["update_plan_post_messages"],
                 MessageRole.USER,
                 {
                     "task": task,
                     "tools": self.tools,
                     "managed_agents": self.managed_agents,
-                    "facts_update": facts_message.content,
+                    "facts_update": fact_message,
                     "remaining_steps": (self.max_steps - step)
                 }
             )
 
-        plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+        return input_messages
+
+    def _generate_plan(self, task: str, step: int = -1, is_initial: bool = False) -> Tuple[
+        List[Dict[str, Any]], ChatMessage, ChatMessage]:
+        """
+        Generate a plan for the given task.
+        """
+        memory_messages = self.write_memory_to_messages()[1:]
+        input_messages = self._prepare_facts_for_plan(memory_messages, is_initial)
+
+        facts_message = self.model(input_messages)
+
+        plan_input_messages = self._prepare_plan(task, memory_messages, facts_message.content, step, is_initial)
+
+        plan_message = self.model(plan_input_messages, stop_sequences=["<end_plan>"])
+
         return input_messages, facts_message, plan_message
 
-
     def _record_planning_step(
-        self, input_messages: list, facts_message: ChatMessage, plan_message: ChatMessage, is_first_step: bool
+            self, input_messages: list, facts_message: ChatMessage, plan_message: ChatMessage, is_first_step: bool
     ) -> None:
         if is_first_step:
             facts = textwrap.dedent(f"""Here are the facts that I know so far:\n```\n{facts_message.content}\n```""")
@@ -379,6 +393,7 @@ class MultiStepAgent:
                 Here is my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
             )
             log_message = "Updated plan"
+
         self.memory.steps.append(
             PlanningStep(
                 model_input_messages=input_messages,
@@ -402,8 +417,8 @@ class MultiStepAgent:
         pass
 
     def write_memory_to_messages(
-        self,
-        summary_mode: Optional[bool] = False,
+            self,
+            summary_mode: Optional[bool] = False,
     ) -> List[Dict[str, str]]:
         """
         Reads past llm_outputs, actions, and observations or errors from the memory into a series of messages
@@ -441,7 +456,7 @@ class MultiStepAgent:
         return rationale.strip(), action.strip()
 
     def _get_inputs_for_final_answer(self, task: str, images: Optional[list[str]]) -> List[Dict[str, Any]]:
-        messages = self._prepare_text_message(
+        messages = _prepare_text_message(
             self.prompt_templates["final_answer"]["pre_messages"], MessageRole.SYSTEM, {}
         )
 
@@ -449,7 +464,7 @@ class MultiStepAgent:
             messages[0]["content"].append({"type": "image"})
 
         messages += self.write_memory_to_messages()[1:]
-        messages += self._prepare_text_message(
+        messages += _prepare_text_message(
             self.prompt_templates["final_answer"]["post_messages"], MessageRole.USER, {"task": task}
         )
 
@@ -683,11 +698,11 @@ class MultiStepAgent:
 
     @classmethod
     def from_hub(
-        cls,
-        repo_id: str,
-        token: Optional[str] = None,
-        trust_remote_code: bool = False,
-        **kwargs,
+            cls,
+            repo_id: str,
+            token: Optional[str] = None,
+            trust_remote_code: bool = False,
+            **kwargs,
     ):
         """
         Loads an agent defined on the Hub.
@@ -780,12 +795,12 @@ class MultiStepAgent:
         return cls(**args)
 
     def push_to_hub(
-        self,
-        repo_id: str,
-        commit_message: str = "Upload agent",
-        private: Optional[bool] = None,
-        token: Optional[Union[bool, str]] = None,
-        create_pr: bool = False,
+            self,
+            repo_id: str,
+            commit_message: str = "Upload agent",
+            private: Optional[bool] = None,
+            token: Optional[Union[bool, str]] = None,
+            create_pr: bool = False,
     ) -> str:
         """
         Upload the agent to the Hub.
@@ -834,6 +849,168 @@ class MultiStepAgent:
             )
 
 
+class AsyncMultiAgent(MultiStepAgent):
+    async def run(
+            self,
+            task: str,
+            stream: bool = False,
+            reset: bool = True,
+            images: Optional[List[str]] = None,
+            additional_args: Optional[Dict] = None,
+            max_steps: Optional[int] = None,
+    ):
+        """
+        Run the agent for the given task.
+
+        Args:
+            task (`str`): Task to perform.
+            stream (`bool`): Whether to run in a streaming way.
+            reset (`bool`): Whether to reset the conversation or keep it going from previous run.
+            images (`list[str]`, *optional*): Paths to image(s).
+            additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
+            max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+
+        Example:
+        ```py
+        from smolagents import CodeAgent
+        agent = CodeAgent(tools=[])
+        agent.run("What is the result of 2 power 3.7384?")
+        ```
+        """
+        max_steps = max_steps or self.max_steps
+        self._prepare_for_run(task=task, reset=reset, images=images, additional_args=additional_args)
+
+        if stream:
+            # The steps are returned as they are executed through a generator to iterate on.
+            return self._run(task=self.task, max_steps=max_steps, images=images)
+        # Outputs are returned only at the end. We only look at the last step.
+        final_step = None
+        async for step in self._run(task=self.task, max_steps=max_steps, images=images):
+            final_step = step
+        return final_step
+
+    async def _run(
+            self, task: str, max_steps: int, images: List[str] | None = None
+    ) -> AsyncGenerator[ActionStep | AgentType, None, None]:
+        memory_step, final_answer = None, None
+        self.step_number = 1
+        step_start_time = time.time()
+        while final_answer is None and self.step_number <= max_steps:
+            step_start_time = time.time()
+            memory_step = self._create_memory_step(step_start_time, images)
+            try:
+                final_answer = await self._execute_step(task, memory_step)
+            except AgentError as e:
+                memory_step.error = e
+            finally:
+                await self._finalize_step(memory_step, step_start_time)
+                yield memory_step
+                self.step_number += 1
+
+        if final_answer is None and self.step_number == max_steps + 1:
+            final_answer = await self._handle_max_steps_reached(task, images, step_start_time)
+            yield memory_step
+        yield handle_agent_output_types(final_answer)
+
+    async def _execute_step(self, task: str, memory_step: ActionStep) -> Union[None, Any]:
+        if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
+            is_first_step = self.step_number == 1
+            input_messages, facts_message, plan_message = await self._generate_plan(task, self.step_number,
+                                                                                    is_first_step)
+            self._record_planning_step(input_messages, facts_message, plan_message, is_first_step)
+
+        self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
+
+        final_answer = await self.step(memory_step)
+        if final_answer is not None and self.final_answer_checks:
+            self._validate_final_answer(final_answer)
+        return final_answer
+
+    async def _finalize_step(self, memory_step: ActionStep, step_start_time: float):
+        memory_step.end_time = time.time()
+        memory_step.duration = memory_step.end_time - step_start_time
+        self.memory.steps.append(memory_step)
+        for callback in self.step_callbacks:
+            is_async_callback = inspect.iscoroutinefunction(callback)
+            if len(inspect.signature(callback).parameters) > 1:
+                await callback(memory_step, agent=self) \
+                    if is_async_callback \
+                    else callback(memory_step, agent=self)
+            else:
+                await callback(memory_step) \
+                    if is_async_callback \
+                    else callback(memory_step)
+
+    async def _handle_max_steps_reached(self, task: str, images: List[str], step_start_time: float) -> Any:
+        final_answer = self.provide_final_answer(task, images)
+        final_memory_step = ActionStep(
+            step_number=self.step_number, error=AgentMaxStepsError("Reached max steps.", self.logger)
+        )
+        final_memory_step.action_output = final_answer
+        await self._finalize_step(final_memory_step, step_start_time)
+        return final_answer
+
+    async def _generate_plan(self, task: str, step: int = -1, is_initial: bool = False) -> Tuple[
+        List[Dict[str, Any]], ChatMessage, ChatMessage]:
+        """
+        Generate a plan for the given task.
+        """
+        memory_messages = self.write_memory_to_messages()[1:]
+        input_messages = self._prepare_facts_for_plan(memory_messages, is_initial)
+
+        facts_message = await self.model(input_messages)
+
+        plan_input_messages = self._prepare_plan(task, memory_messages, facts_message.content, step, is_initial)
+
+        plan_message = await self.model(plan_input_messages, stop_sequences=["<end_plan>"])
+
+        return input_messages, facts_message, plan_message
+
+    async def provide_final_answer(self, task: str, images: Optional[list[str]]) -> str:
+        """
+        Provide the final answer to the task, based on the logs of the agent's interactions.
+
+        Args:
+            task (`str`): Task to perform.
+            images (`list[str]`, *optional*): Paths to image(s).
+
+        Returns:
+            `str`: Final answer to the task.
+        """
+
+        input_messages = self._get_inputs_for_final_answer(task, images)
+
+        try:
+            chat_message: ChatMessage = await self.model(input_messages)
+            return chat_message.content
+        except Exception as e:
+            return f"Error in generating final LLM output:\n{e}"
+
+    async def step(self, memory_step: ActionStep) -> Union[None, Any]:
+        """To be implemented in children classes. Should return either None if the step is not final."""
+        pass
+
+    async def __call__(self, task: str, **kwargs):
+        """Adds additional prompting for the managed agent, runs it, and wraps the output.
+        This method is called only by a managed agent.
+        """
+        full_task = populate_template(
+            self.prompt_templates["managed_agent"]["task"],
+            variables=dict(name=self.name, task=task),
+        )
+        report = await self.run(full_task, **kwargs)
+        answer = populate_template(
+            self.prompt_templates["managed_agent"]["report"], variables=dict(name=self.name, final_answer=report)
+        )
+        if self.provide_run_summary:
+            answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
+            for message in self.write_memory_to_messages(summary_mode=True):
+                content = message["content"]
+                answer += "\n" + truncate_content(str(content)) + "\n---"
+            answer += "\n</summary_of_work>"
+        return answer
+
+
 class ToolCallingAgent(MultiStepAgent):
     """
     This agent uses JSON-like tool calls, using method `model.get_tool_call` to leverage the LLM engine's tool calling capabilities.
@@ -847,16 +1024,17 @@ class ToolCallingAgent(MultiStepAgent):
     """
 
     def __init__(
-        self,
-        tools: List[Tool],
-        model: Model,
-        prompt_templates: Optional[PromptTemplates] = None,
-        planning_interval: Optional[int] = None,
-        **kwargs,
+            self,
+            tools: List[Tool],
+            model: Model,
+            prompt_templates: Optional[PromptTemplates] = None,
+            planning_interval: Optional[int] = None,
+            **kwargs,
     ):
         prompt_templates = prompt_templates or yaml.safe_load(
             importlib.resources.files("smolagents.prompts").joinpath("toolcalling_agent.yaml").read_text()
         )
+
         super().__init__(
             tools=tools,
             model=model,
@@ -956,6 +1134,30 @@ class ToolCallingAgent(MultiStepAgent):
         return self._process_model_output(model_message, memory_step)
 
 
+class AsyncToolCallingAgent(ToolCallingAgent, AsyncMultiAgent):
+    async def step(self, memory_step: ActionStep) -> Union[None, Any]:
+        """
+        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
+        Returns None if the step is not final.
+
+        """
+        memory_messages = self.write_memory_to_messages()
+        self.input_messages = memory_messages
+
+        memory_step.model_input_messages = memory_messages.copy()
+
+        try:
+            model_message: ChatMessage = await self.model(
+                memory_messages,
+                tools_to_call_from=list(self.tools.values()),
+                stop_sequences=["Observation:"],
+            )
+        except Exception as e:
+            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
+
+        return self._process_model_output(model_message, memory_step)
+
+
 class CodeAgent(MultiStepAgent):
     """
     In this agent, the tool calls will be formulated by the LLM in code format, then parsed and executed.
@@ -975,17 +1177,17 @@ class CodeAgent(MultiStepAgent):
     """
 
     def __init__(
-        self,
-        tools: List[Tool],
-        model: Model,
-        prompt_templates: Optional[PromptTemplates] = None,
-        grammar: Optional[Dict[str, str]] = None,
-        additional_authorized_imports: Optional[List[str]] = None,
-        planning_interval: Optional[int] = None,
-        executor_type: str = "local",
-        executor_kwargs: Optional[Dict[str, Any]] = None,
-        max_print_outputs_length: Optional[int] = None,
-        **kwargs,
+            self,
+            tools: List[Tool],
+            model: Model,
+            prompt_templates: Optional[PromptTemplates] = None,
+            grammar: Optional[Dict[str, str]] = None,
+            additional_authorized_imports: Optional[List[str]] = None,
+            planning_interval: Optional[int] = None,
+            executor_type: str = "local",
+            executor_kwargs: Optional[Dict[str, Any]] = None,
+            max_print_outputs_length: Optional[int] = None,
+            **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
@@ -1127,6 +1329,34 @@ class CodeAgent(MultiStepAgent):
         try:
             additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
             chat_message: ChatMessage = self.model(
+                self.input_messages,
+                stop_sequences=["<end_code>", "Observation:"],
+                **additional_args,
+            )
+            memory_step.model_output_message = chat_message
+            model_output = chat_message.content
+            memory_step.model_output = model_output
+        except Exception as e:
+            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
+
+        code_action = self._process_model_output_for_code(model_output, memory_step)
+        output, is_final_answer = self._execute_code_action(code_action, memory_step)
+        return output if is_final_answer else None
+
+
+class AsyncCodeAgent(CodeAgent, AsyncMultiAgent):
+    async def step(self, memory_step: ActionStep) -> Union[None, Any]:
+        """
+        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
+        Returns None if the step is not final.
+        """
+        memory_messages = self.write_memory_to_messages()
+        self.input_messages = memory_messages.copy()
+        memory_step.model_input_messages = memory_messages.copy()
+
+        try:
+            additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
+            chat_message: ChatMessage = await self.model(
                 self.input_messages,
                 stop_sequences=["<end_code>", "Observation:"],
                 **additional_args,
