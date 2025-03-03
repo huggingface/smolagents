@@ -24,7 +24,6 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from huggingface_hub import InferenceClient
 from huggingface_hub.utils import is_torch_available
 from PIL import Image
 
@@ -429,6 +428,8 @@ class HfApiModel(Model):
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
+        from huggingface_hub import InferenceClient
+
         super().__init__(**kwargs)
         self.model_id = model_id
         self.provider = provider
