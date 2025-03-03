@@ -89,7 +89,7 @@ class ActionStep(MemoryStep):
         if self.tool_calls is not None:
             messages.append(
                 Message(
-                    role=MessageRole.ASSISTANT,
+                    role=MessageRole.TOOL_CALL,
                     content=[
                         {
                             "type": "text",

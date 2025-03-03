@@ -245,6 +245,10 @@ def safer_eval(func: Callable):
         authorized_imports=BASE_BUILTIN_MODULES,
     ):
         result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
+        if (isinstance(result, ModuleType) and result is builtins) or (
+            isinstance(result, dict) and result == vars(builtins)
+        ):
+            raise InterpreterError("Forbidden return value: builtins")
         if isinstance(result, ModuleType):
             if "*" not in authorized_imports:
                 for module in DANGEROUS_MODULES:
@@ -1220,6 +1224,7 @@ def evaluate_delete(
             raise InterpreterError(f"Deletion of {type(target).__name__} targets is not supported")
 
 
+@safer_eval
 def evaluate_ast(
     expression: ast.AST,
     state: Dict[str, Any],

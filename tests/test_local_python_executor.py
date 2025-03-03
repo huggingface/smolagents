@@ -981,20 +981,12 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
             evaluate_python_code(dangerous_code, static_tools=BASE_PYTHON_TOOLS)
 
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
-        dangerous_code = """
-compile = callable.__self__.compile
-eval = callable.__self__.eval
-exec = callable.__self__.exec
-
-eval("1 + 1")
-exec(compile("1 + 1", "no filename", "exec"))
-
-teval("1 + 1")
-texec(tcompile("1 + 1", "no filename", "exec"))
-        """
-
+        dangerous_code = dedent("""
+            eval("1 + 1")
+            exec(compile("1 + 1", "no filename", "exec"))
+        """)
         evaluate_python_code(
-            dangerous_code, static_tools={"tcompile": compile, "teval": eval, "texec": exec} | BASE_PYTHON_TOOLS
+            dangerous_code, static_tools={"compile": compile, "eval": eval, "exec": exec} | BASE_PYTHON_TOOLS
         )
 
     def test_can_import_os_if_explicitly_authorized(self):
@@ -1415,6 +1407,50 @@ def test_check_module_authorized(module: str, authorized_imports: list[str], exp
 
 class TestLocalPythonExecutor:
     @pytest.mark.parametrize(
+        "code",
+        [
+            "d = {'func': lambda x: x + 10}; func = d['func']; func(1)",
+            "d = {'func': lambda x: x + 10}; d['func'](1)",
+        ],
+    )
+    def test_call_from_dict(self, code):
+        executor = LocalPythonExecutor([])
+        result, _, _ = executor(code)
+        assert result == 11
+
+
+class TestLocalPythonExecutorSecurity:
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expectation",
+        [([], pytest.raises(InterpreterError)), (["os"], does_not_raise())],
+    )
+    def test_vulnerability_import(self, additional_authorized_imports, expectation):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with expectation:
+            executor("import os")
+
+    def test_vulnerability_builtins(self):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError):
+            executor("import builtins")
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expectation",
+        [([], pytest.raises(InterpreterError)), (["sys"], does_not_raise())],
+    )
+    def test_vulnerability_via_sys(self, additional_authorized_imports, expectation):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with expectation:
+            executor(
+                dedent(
+                    """
+                    import sys
+                    sys.modules["os"].system(":")
+                    """
+                )
+            )
+
+    @pytest.mark.parametrize(
         "additional_authorized_imports, expectation",
         [([], pytest.raises(InterpreterError)), (["os"], does_not_raise())],
     )
@@ -1426,6 +1462,57 @@ class TestLocalPythonExecutor:
                     """
                     import importlib
                     importlib.import_module("os").system(":")
+                    """
+                )
+            )
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            dedent(
+                """
+                try:
+                    1 / 0
+                except Exception as e:
+                    builtins = e.__traceback__.tb_frame.f_back.f_globals["__builtins__"]
+                    builtins_import = builtins["__import__"]
+                    os_module = builtins_import("os")
+                    os_module.system(":")
+                """
+            ),
+            dedent(
+                """
+                try:
+                    1 / 0
+                except Exception as e:
+                    builtins = e.__traceback__.tb_frame.f_back.f_globals["__builtins__"]
+                    builtins_import = builtins["__import__"]
+                    builtins_import.__module__ = None
+                    os_module = builtins_import("os")
+                    os_module.system(":")
+                """
+            ),
+        ],
+    )
+    def test_vulnerability_builtins_via_traceback(self, code):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError):
+            executor(code)
+
+    def test_vulnerability_builtins_via_class_catch_warnings(self):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError):
+            executor(
+                dedent(
+                    """
+                    classes = {}.__class__.__base__.__subclasses__()
+                    for cls in classes:
+                        if cls.__name__ == "catch_warnings":
+                            builtins = cls()._module.__builtins__
+                            builtins_import = builtins["__import__"]
+                            break
+                    os_module = builtins_import('os')
+                    os_module.system(":")
                     """
                 )
             )
