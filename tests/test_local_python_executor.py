@@ -1434,14 +1434,18 @@ class TestLocalPythonExecutorSecurity:
         with pytest.raises(InterpreterError):
             executor("import builtins")
 
-    def test_vulnerability_builtins_via_sys(self):
-        executor = LocalPythonExecutor([])
-        with pytest.raises(InterpreterError):
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expectation",
+        [([], pytest.raises(InterpreterError)), (["sys"], does_not_raise())],
+    )
+    def test_vulnerability_via_sys(self, additional_authorized_imports, expectation):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with expectation:
             executor(
                 dedent(
                     """
                     import sys
-                    sys.modules["os"].system("echo EXPLOITED")
+                    sys.modules["os"].system(":")
                     """
                 )
             )
@@ -1457,7 +1461,7 @@ class TestLocalPythonExecutorSecurity:
                     builtins = e.__traceback__.tb_frame.f_back.f_globals["__builtins__"]
                     builtins_import = builtins["__import__"]
                     os_module = builtins_import("os")
-                    os_module.system("echo EXPLOITED")
+                    os_module.system(":")
                 """
             ),
             dedent(
@@ -1469,7 +1473,7 @@ class TestLocalPythonExecutorSecurity:
                     builtins_import = builtins["__import__"]
                     builtins_import.__module__ = None
                     os_module = builtins_import("os")
-                    os_module.system("echo EXPLOITED")
+                    os_module.system(":")
                 """
             ),
         ],
@@ -1490,9 +1494,9 @@ class TestLocalPythonExecutorSecurity:
                         if cls.__name__ == "catch_warnings":
                             builtins = cls()._module.__builtins__
                             builtins_import = builtins["__import__"]
-                            os_module = builtins_import('os')
-                            os_module.system("echo EXPLOITED")
                             break
+                    os_module = builtins_import('os')
+                    os_module.system(":")
                     """
                 )
             )
