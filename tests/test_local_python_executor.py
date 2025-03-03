@@ -1424,3 +1424,78 @@ class TestLocalPythonExecutor:
         executor = LocalPythonExecutor([])
         result, _, _ = executor(code)
         assert result == 11
+
+
+class TestLocalPythonExecutorSecurity:
+    def test_vulnerability(self):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError):
+            executor("import os")
+
+    def test_vulnerability_builtins(self):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError):
+            executor("import builtins")
+
+    def test_vulnerability_builtins_via_sys(self):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError):
+            executor(
+                dedent(
+                    """
+                    import sys
+                    sys.modules["os"].system("echo EXPLOITED")
+                    """
+                )
+            )
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            dedent(
+                """
+                try:
+                    1 / 0
+                except Exception as e:
+                    builtins = e.__traceback__.tb_frame.f_back.f_globals["__builtins__"]
+                    builtins_import = builtins["__import__"]
+                    os_module = builtins_import("os")
+                    os_module.system("echo EXPLOITED")
+                """
+            ),
+            dedent(
+                """
+                try:
+                    1 / 0
+                except Exception as e:
+                    builtins = e.__traceback__.tb_frame.f_back.f_globals["__builtins__"]
+                    builtins_import = builtins["__import__"]
+                    builtins_import.__module__ = None
+                    os_module = builtins_import("os")
+                    os_module.system("echo EXPLOITED")
+                """
+            ),
+        ],
+    )
+    def test_vulnerability_builtins_via_traceback(self, code):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError):
+            executor(code)
+
+    def test_vulnerability_builtins_via_class_catch_warnings(self):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError):
+            executor(
+                dedent(
+                    """
+                    classes = {}.__class__.__base__.__subclasses__()
+                    for cls in classes:
+                        if cls.__name__ == "catch_warnings":
+                            builtins = cls()._module.__builtins__
+                            builtins_import = builtins["__import__"]
+                            os_module = builtins_import('os')
+                            os_module.system("echo EXPLOITED")
+                            break
+                    """
+                )
+            )
