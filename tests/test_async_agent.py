@@ -18,7 +18,7 @@ async def main(args: argparse.Namespace):
         add_base_tools=True
     )
 
-    question = "롯데이노베이트 2024년 영업이익 알려줘"
+    question = "Let me know about the gdp of G20 countries in 2024."
 
     response = await agent.run(question)
 
