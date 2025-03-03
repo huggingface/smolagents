@@ -74,6 +74,8 @@ quality = [
   "ruff>=0.9.0",
   "mypy>=1.9.0",
   "types-requests",
+  "types-PyYAML",
+  "types-docker"
 ]
 test = [
   "ipython>=8.31.0", # for interactive environment tests
@@ -131,7 +133,20 @@ module = [
     "huggingface_hub.*",
     "pandas.*",
     "duckduckgo_search.*",
-    "markdownify.*"
+    "markdownify.*",
+    "IPython.*",
+    "soundfile.*",
+    "gradio_client.*",
+    "gradio.*",
+    "mcpadapt.*",
+    "accelerate.*",
+    "mlx_lm.*",
+    "litellm.*",
+    "openai.*",
+    "e2b_code_interpreter.*",
+    "websocket.*",
+    "helium.*",
+    "selenium.*"
 ]
 ignore_missing_imports = true
 
