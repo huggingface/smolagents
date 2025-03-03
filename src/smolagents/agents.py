@@ -891,7 +891,7 @@ class AsyncMultiAgent(MultiStepAgent):
 
     async def _run(
             self, task: str, max_steps: int, images: List[str] | None = None
-    ) -> AsyncGenerator[ActionStep | AgentType, None, None]:
+    ) -> AsyncGenerator[ActionStep | AgentType, None]:
         memory_step, final_answer = None, None
         self.step_number = 1
         step_start_time = time.time()
