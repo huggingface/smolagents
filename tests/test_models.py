@@ -108,7 +108,7 @@ class ModelTests(unittest.TestCase):
         assert output == "Hello! How can"
 
     def test_vllm_message_no_tool(self):
-        model = VLLMModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", sampling_kwargs={"max_tokens": 1})
+        model = VLLMModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens =1)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         output = model(messages).content
         assert output == "Hello"

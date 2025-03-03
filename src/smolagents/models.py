@@ -600,16 +600,14 @@ class VLLMModel(Model):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
         init_kwargs (dict, *optional):
             Keyword arguments that are passed to vllm.LLM object initialization.
-        sampling_kwargs (dict, *optional):
-            Keyword arguments that are passed to vllm.SamplingParams object initialization.
         kwargs (dict, *optional*):
-            Any additional keyword arguments that you want to use in model.generate().
+            Any additional keyword arguments that you want to use in vllm.SamplingParams().
 
     Example:
     ```python
     >>> engine = VLLMModel(
     ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
-    ...     sampling_kwargs={"max_tokens":10000},
+    ...     max_tokens=10000,
     ... )
     >>> messages = [
     ...     {
@@ -628,7 +626,6 @@ class VLLMModel(Model):
     def __init__(
         self,
         model_id: str,
-        sampling_kwargs: dict = None,
         init_kwargs: dict = None,
         trust_remote_code: bool = False,
         **kwargs,
@@ -643,24 +640,19 @@ class VLLMModel(Model):
             raise ModuleNotFoundError(
                 "Please install 'vllm' extra to use 'VLLMModel': `pip install 'smolagents[vllm]'`"
             )
-        from vllm import LLM, SamplingParams
+        from vllm import LLM
 
         if not init_kwargs:
             init_kwargs = {}
         init_kwargs.update({"trust_remote_code": trust_remote_code})
-        if not sampling_kwargs:
-            sampling_kwargs = {}
         default_max_tokens = 5000
-        max_new_tokens = sampling_kwargs.get("max_new_tokens") or sampling_kwargs.get("max_tokens")
-        if not max_new_tokens:
-            kwargs["max_new_tokens"] = default_max_tokens
+        if not kwargs.get("max_tokens") and not kwargs.get("max_new_tokens"):
+            kwargs["max_tokens"] = default_max_tokens
             logger.warning(
-                f"`max_new_tokens` not provided, using this default value for `max_new_tokens`: {default_max_tokens}"
+                f"`max_tokens` not provided, using this default value for `max_tokens`: {default_max_tokens}"
             )
         self.kwargs = kwargs
-        self.sampling_params = SamplingParams(**sampling_kwargs)
         self.model = LLM(model=model_id, **init_kwargs)
-        self._is_vlm = False
 
     def __call__(
         self,
@@ -669,16 +661,20 @@ class VLLMModel(Model):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
-        max_new_tokens = (
-            kwargs.get("max_new_tokens")
-            or kwargs.get("max_tokens")
-            or self.kwargs.get("max_new_tokens")
-            or self.kwargs.get("max_tokens")
+        from vllm import SamplingParams
+
+        sampling_params = SamplingParams(stop=stop_sequences, **self.kwargs)
+        completion_kwargs = self._prepare_completion_kwargs(
+            flatten_messages_as_text=True,  # vllm doesn't have stable support of vision models
+            messages=messages,
+            sampling_params=sampling_params,
+            use_tqdm=False,
         )
-        completion_kwargs = {}
-        if max_new_tokens:
-            completion_kwargs["max_new_tokens"] = max_new_tokens
-        out = self.model.chat(messages, sampling_params=self.sampling_params, use_tqdm=False)
+        # Remove sampling parameters
+        for arg in self.kwargs:
+            completion_kwargs.pop(arg)
+        # Generate result
+        out = self.model.chat(**completion_kwargs)
         output = out[-1].outputs[-1].text
         if stop_sequences is not None:
             output = remove_stop_sequences(output, stop_sequences)
