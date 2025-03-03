@@ -191,25 +191,24 @@ def fix_final_answer_code(code: str) -> str:
     This function fixes this behaviour by replacing variable assignments to final_answer with final_answer_variable,
     while preserving function calls to final_answer().
     """
-    # First, find if there's a direct assignment to final_answer
-    # Use word boundary and negative lookbehind to ensure it's not an object attribute
-    assignment_pattern = r"(?<!\.)(?<!\w)\bfinal_answer\s*="
-    if "final_answer(" not in code or not re.search(assignment_pattern, code):
-        # If final_answer tool is not called in this blob, then doing the replacement is hazardous because it could false the model's memory for next steps.
-        # Let's not modify the code and leave the subsequent assignment error happen.
+    # Quick check before using regex for better performance
+    if "final_answer" not in code:
+        return code
+        
+    # Compile regex patterns once for better performance
+    assignment_pattern = re.compile(r"(?<!\.)(?<!\w)\bfinal_answer(\s*=)")
+    
+    # Early return if no problematic patterns found
+    if "final_answer(" not in code or not assignment_pattern.search(code):
         return code
 
-    # Pattern for replacing variable assignments
-    # Looks for 'final_answer' followed by '=' with optional whitespace
-    # Negative lookbehind ensures we don't match object attributes
-    assignment_regex = r"(?<!\.)(?<!\w)(\bfinal_answer)(\s*=)"
-    code = re.sub(assignment_regex, r"final_answer_variable\2", code)
-
-    # Pattern for replacing variable usage but not function calls
-    # Negative lookahead (?!\s*\() ensures we don't match function calls
-    # Negative lookbehind (?<!\.|\w) ensures we don't match object methods or other variables
-    variable_regex = r"(?<!\.)(?<!\w)(\bfinal_answer\b)(?!\s*\()"
-    code = re.sub(variable_regex, "final_answer_variable", code)
+    # Replace variable assignments
+    code = assignment_pattern.sub(r"final_answer_variable\1", code)
+    
+    # Replace variable usage but not function calls
+    variable_pattern = re.compile(r"(?<!\.)(?<!\w)(\bfinal_answer\b)(?!\s*\()")
+    code = variable_pattern.sub("final_answer_variable", code)
+    
     return code
 
 
