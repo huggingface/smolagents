@@ -16,6 +16,7 @@
 import ast
 import types
 import unittest
+from contextlib import nullcontext as does_not_raise
 from textwrap import dedent
 
 import numpy as np
@@ -1414,13 +1415,37 @@ def test_check_module_authorized(module: str, authorized_imports: list[str], exp
 
 class TestLocalPythonExecutor:
     @pytest.mark.parametrize(
-        "code",
-        [
-            "d = {'func': lambda x: x + 10}; func = d['func']; func(1)",
-            "d = {'func': lambda x: x + 10}; d['func'](1)",
-        ],
+        "additional_authorized_imports, expectation",
+        [([], pytest.raises(InterpreterError)), (["os"], does_not_raise())],
     )
-    def test_call_from_dict(self, code):
-        executor = LocalPythonExecutor([])
-        result, _, _ = executor(code)
-        assert result == 11
+    def test_vulnerability_via_importlib(self, additional_authorized_imports, expectation):
+        executor = LocalPythonExecutor(["importlib"] + additional_authorized_imports)
+        with expectation:
+            executor(
+                dedent(
+                    """
+                    import importlib
+                    importlib.import_module("os").system(":")
+                    """
+                )
+            )
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expectation",
+        [([], pytest.raises(InterpreterError)), (["os"], does_not_raise())],
+    )
+    def test_vulnerability_load_module_via_builtin_importer(self, additional_authorized_imports, expectation):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with expectation:
+            executor(
+                dedent(
+                    """
+                    classes = {}.__class__.__base__.__subclasses__()
+                    for cls in classes:
+                        if cls.__name__ == "BuiltinImporter":
+                            break
+                    os_module = cls().load_module("os")
+                    os_module.system(":")
+                    """
+                )
+            )
