@@ -1452,10 +1452,10 @@ class TestLocalPythonExecutorSecurity:
 
     @pytest.mark.parametrize(
         "additional_authorized_imports, expectation",
-        [([], pytest.raises(InterpreterError)), (["os"], does_not_raise())],
+        [(["importlib"], pytest.raises(InterpreterError)), (["importlib", "os"], does_not_raise())],
     )
     def test_vulnerability_via_importlib(self, additional_authorized_imports, expectation):
-        executor = LocalPythonExecutor(["importlib"] + additional_authorized_imports)
+        executor = LocalPythonExecutor(additional_authorized_imports)
         with expectation:
             executor(
                 dedent(
