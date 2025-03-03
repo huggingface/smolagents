@@ -30,6 +30,7 @@ from smolagents.models import (
     MLXModel,
     OpenAIServerModel,
     TransformersModel,
+    VLLMModel,
     get_clean_message_list,
     get_tool_json_schema,
     parse_json_if_needed,
@@ -105,6 +106,12 @@ class ModelTests(unittest.TestCase):
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}, {"type": "image", "image": img}]}]
         output = model(messages, stop_sequences=["great"]).content
         assert output == "Hello! How can"
+
+    def test_vllm_message_no_tool(self):
+        model = VLLMModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", sampling_kwargs={"max_tokens": 1})
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        output = model(messages).content
+        assert output == "Hello"
 
     def test_parse_tool_args_if_needed(self):
         original_message = ChatMessage(role="user", content=[{"type": "text", "text": "Hello!"}])
