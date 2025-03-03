@@ -36,6 +36,7 @@ docker = [
   "docker>=7.1.0",
   "websocket-client",
 ]
+
 e2b = [
   "e2b-code-interpreter>=1.0.3",
   "python-dotenv>=1.0.1",
@@ -56,6 +57,10 @@ mlx-lm = [
 openai = [
   "openai>=1.58.1"
 ]
+podman = [
+  "podman>=5.4.0",
+  "websocket-client",
+]
 telemetry = [
   "arize-phoenix",
   "opentelemetry-sdk", 
@@ -68,7 +73,7 @@ transformers = [
   "smolagents[torch]",
 ]
 all = [
-  "smolagents[audio,docker,e2b,gradio,litellm,mcp,openai,telemetry,transformers]",
+  "smolagents[audio,docker,e2b,gradio,litellm,mcp,openai,podman,telemetry,transformers]",
 ]
 quality = [
   "ruff>=0.9.0",

@@ -51,7 +51,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor
+from .remote_executors import DockerExecutor, E2BExecutor, PodmanExecutor
 from .tools import Tool
 from .utils import (
     AgentError,
@@ -1129,7 +1129,7 @@ class CodeAgent(MultiStepAgent):
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
-        executor_type (`str`, default `"local"`): Which executor type to use between `"local"`, `"e2b"`, or `"docker"`.
+        executor_type (`str`, default `"local"`): Which executor type to use between `"local"`, `"e2b"`, `"docker"`, or `"podman"`.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         **kwargs: Additional keyword arguments.
@@ -1174,13 +1174,15 @@ class CodeAgent(MultiStepAgent):
 
     def create_python_executor(self, executor_type: str, kwargs: Dict[str, Any]) -> PythonExecutor:
         match executor_type:
-            case "e2b" | "docker":
+            case "e2b" | "docker" | "podman":
                 if self.managed_agents:
                     raise Exception("Managed agents are not yet supported with remote code execution.")
                 if executor_type == "e2b":
                     return E2BExecutor(self.additional_authorized_imports, self.logger, **kwargs)
-                else:
+                if executor_type == "docker":
                     return DockerExecutor(self.additional_authorized_imports, self.logger, **kwargs)
+                if executor_type == "podman":
+                    return PodmanExecutor(self.additional_authorized_imports, self.logger, **kwargs)
             case "local":
                 return LocalPythonExecutor(
                     self.additional_authorized_imports,
