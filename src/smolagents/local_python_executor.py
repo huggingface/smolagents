@@ -1346,7 +1346,7 @@ def evaluate_python_code(
     custom_tools: Optional[Dict[str, Callable]] = None,
     state: Optional[Dict[str, Any]] = None,
     authorized_imports: List[str] = BASE_BUILTIN_MODULES,
-    max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
+    max_print_outputs_length: Optional[int] = DEFAULT_MAX_LEN_OUTPUT,
 ):
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
@@ -1396,21 +1396,21 @@ def evaluate_python_code(
     try:
         for node in expression.body:
             result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
-        state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=max_print_outputs_length
-        )
+        # Use DEFAULT_MAX_LEN_OUTPUT if max_print_outputs_length is None
+        max_length = max_print_outputs_length if max_print_outputs_length is not None else DEFAULT_MAX_LEN_OUTPUT
+        state["_print_outputs"].value = truncate_content(str(state["_print_outputs"]), max_length=max_length)
         is_final_answer = False
         return result, is_final_answer
     except FinalAnswerException as e:
-        state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=max_print_outputs_length
-        )
+        # Use DEFAULT_MAX_LEN_OUTPUT if max_print_outputs_length is None
+        max_length = max_print_outputs_length if max_print_outputs_length is not None else DEFAULT_MAX_LEN_OUTPUT
+        state["_print_outputs"].value = truncate_content(str(state["_print_outputs"]), max_length=max_length)
         is_final_answer = True
         return e.value, is_final_answer
     except Exception as e:
-        state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=max_print_outputs_length
-        )
+        # Use DEFAULT_MAX_LEN_OUTPUT if max_print_outputs_length is None
+        max_length = max_print_outputs_length if max_print_outputs_length is not None else DEFAULT_MAX_LEN_OUTPUT
+        state["_print_outputs"].value = truncate_content(str(state["_print_outputs"]), max_length=max_length)
         raise InterpreterError(
             f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
         )
@@ -1426,8 +1426,8 @@ class LocalPythonExecutor(PythonExecutor):
         additional_authorized_imports: List[str],
         max_print_outputs_length: Optional[int] = None,
     ):
-        self.custom_tools = {}
-        self.state = {}
+        self.custom_tools: dict[str, Callable[..., Any]] = {}
+        self.state: dict[str, Any] = {}
         self.max_print_outputs_length = max_print_outputs_length
         if max_print_outputs_length is None:
             self.max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT

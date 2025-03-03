@@ -200,7 +200,7 @@ def get_clean_message_list(
         convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
         flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
     """
-    output_message_list = []
+    output_message_list: list[dict[str, Any]] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
     for message in message_list:
         role = message["role"]
@@ -300,8 +300,8 @@ class Model:
 
     def get_token_counts(self) -> Dict[str, int]:
         return {
-            "input_token_count": self.last_input_token_count,
-            "output_token_count": self.last_output_token_count,
+            "input_token_count": int(self.last_input_token_count or 0),
+            "output_token_count": int(self.last_output_token_count or 0),
         }
 
     def __call__(
@@ -329,7 +329,7 @@ class Model:
         Returns:
             `ChatMessage`: A chat message object containing the model's response.
         """
-        pass  # To be implemented in child classes!
+        raise NotImplementedError("This method must be implemented in child classes.")
 
     def to_dict(self) -> Dict:
         """

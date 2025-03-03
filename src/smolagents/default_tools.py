@@ -66,7 +66,7 @@ class PythonInterpreterTool(Tool):
         super().__init__(*args, **kwargs)
 
     def forward(self, code: str) -> str:
-        state = {}
+        state: dict[str, Any] = {}
         output = str(
             self.python_evaluator(
                 code,

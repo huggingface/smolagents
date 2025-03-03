@@ -210,7 +210,7 @@ class MultiStepAgent:
         self.tool_parser = tool_parser or parse_json_tool_call
         self.grammar = grammar
         self.planning_interval = planning_interval
-        self.state = {}
+        self.state: dict[str, Any] = {}
         self.name = name
         self.description = description
         self.provide_run_summary = provide_run_summary
