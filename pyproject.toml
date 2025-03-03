@@ -21,6 +21,7 @@ dependencies = [
   "markdownify>=0.14.1",
   "duckduckgo-search>=6.3.7",
   "python-magic>=0.4.27,<0.5.0",
+  "python-dotenv",
 ]
 
 [project.optional-dependencies]
