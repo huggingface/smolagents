@@ -22,6 +22,7 @@ import logging
 import math
 import re
 from collections.abc import Mapping
+from functools import wraps
 from importlib import import_module
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -210,6 +211,29 @@ def fix_final_answer_code(code: str) -> str:
     variable_regex = r"(?<!\.)(?<!\w)(\bfinal_answer\b)(?!\s*\()"
     code = re.sub(variable_regex, "final_answer_variable", code)
     return code
+
+
+def safer_eval(func: Callable):
+    """
+    Decorator to make the evaluation of a function safer by checking its return value.
+
+    Args:
+        func: Function to make safer.
+
+    Returns:
+        Callable: Safer function with return value check.
+    """
+
+    @wraps(func)
+    def _check_return(*args, **kwargs):
+        result = func(*args, **kwargs)
+        if (isinstance(result, ModuleType) and result is builtins) or (
+            isinstance(result, dict) and result == vars(builtins)
+        ):
+            raise InterpreterError("Forbidden return value: builtins")
+        return result
+
+    return _check_return
 
 
 def evaluate_unaryop(
@@ -1177,6 +1201,7 @@ def evaluate_delete(
             raise InterpreterError(f"Deletion of {type(target).__name__} targets is not supported")
 
 
+@safer_eval
 def evaluate_ast(
     expression: ast.AST,
     state: Dict[str, Any],
