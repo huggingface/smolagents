@@ -24,6 +24,7 @@ import tempfile
 import textwrap
 import types
 from contextlib import contextmanager
+from enum import Enum
 from functools import wraps
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
@@ -63,18 +64,24 @@ def validate_after_init(cls):
     return cls
 
 
-AUTHORIZED_TYPES = [
-    "string",
-    "boolean",
-    "integer",
-    "number",
-    "image",
-    "audio",
-    "array",
-    "object",
-    "any",
-    "null",
-]
+class AuthorizedType(Enum):
+    string = "string"
+    boolean = "boolean"
+    integer = "integer"
+    number = "number"
+    image = "image"
+    audio = "audio"
+    array = "array"
+    object = "object"
+    any = "any"
+    null = "null"
+
+    @classmethod
+    def all(cls) -> List[str]:
+        return [member.value for member in cls]
+
+
+AUTHORIZED_TYPES = AuthorizedType.all()
 
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
 
