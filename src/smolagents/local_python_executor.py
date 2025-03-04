@@ -138,15 +138,15 @@ DANGEROUS_PATTERNS = (
 
 DANGEROUS_MODULES = [
     "builtins",
+    "io",
+    "multiprocessing",
     "os",
-    "subprocess",
+    "pathlib",
     "pty",
     "shutil",
-    "sys",
-    "pathlib",
-    "io",
     "socket",
-    "multiprocessing",
+    "subprocess",
+    "sys",
 ]
 
 
