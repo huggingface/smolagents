@@ -20,6 +20,7 @@ rendered properly in your Markdown viewer.
 Retrieval-Augmented-Generation (RAG) is “using an LLM to answer a user query, but basing the answer on information retrieved from a knowledge base”. It has many advantages over using a vanilla or fine-tuned LLM: to name a few, it allows to ground the answer on true facts and reduce confabulations, it allows to provide the LLM with domain-specific knowledge, and it allows fine-grained control of access to information from the knowledge base.
 
 But vanilla RAG has limitations, most importantly these two:
+
 - It performs only one retrieval step: if the results are bad, the generation in turn will be bad.
 - Semantic similarity is computed with the user query as a reference, which might be suboptimal: for instance, the user query will often be a question and the document containing the true answer will be in affirmative voice, so its similarity score will be downgraded compared to other source documents in the interrogative form, leading to a risk of missing the relevant information.
 
@@ -28,17 +29,21 @@ We can alleviate these problems by making a RAG agent: very simply, an agent arm
 This agent will: ✅ Formulate the query itself and ✅ Critique to re-retrieve if needed.
 
 So it should naively recover some advanced RAG techniques!
+
 - Instead of directly using the user query as the reference in semantic search, the agent formulates itself a reference sentence that can be closer to the targeted documents, as in [HyDE](https://huggingface.co/papers/2212.10496).
 The agent can use the generated snippets and re-retrieve if needed, as in [Self-Query](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/).
 
 Let's build this system. 🛠️
 
 Run the line below to install required dependencies:
+
 ```bash
 !pip install smolagents pandas langchain langchain-community sentence-transformers datasets python-dotenv rank_bm25 --upgrade -q
 ```
+
 To call the HF Inference API, you will need a valid token as your environment variable `HF_TOKEN`.
 We use python-dotenv to load it.
+
 ```py
 from dotenv import load_dotenv
 load_dotenv()
@@ -117,12 +122,14 @@ class RetrieverTool(Tool):
 
 retriever_tool = RetrieverTool(docs_processed)
 ```
+
 We have used BM25, a classic retrieval method, because it's lightning fast to setup.
 To improve retrieval accuracy, you could use replace BM25 with semantic search using vector representations for documents: thus you can head to the [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard) to select a good embedding model.
 
 Now it’s straightforward to create an agent that leverages this `retriever_tool`!
 
 The agent will need these arguments upon initialization:
+
 - `tools`: a list of tools that the agent will be able to call.
 - `model`: the LLM that powers the agent.
 Our `model` must be a callable that takes as input a list of messages and returns text. It also needs to accept a stop_sequences argument that indicates when to stop its generation. For convenience, we directly use the HfEngine class provided in the package to get a LLM engine that calls Hugging Face's Inference API.
@@ -133,9 +140,10 @@ Our `model` must be a callable that takes as input a list of messages and return
 from smolagents import HfApiModel, CodeAgent
 
 agent = CodeAgent(
-    tools=[retriever_tool], model=HfApiModel(), max_steps=4, verbosity_level=2
+    tools=[retriever_tool], model=HfApiModel(), max_steps=4, verbosity_level=LogLevel.DEBUG,
 )
 ```
+
 Upon initializing the CodeAgent, it has been automatically given a default system prompt that tells the LLM engine to process step-by-step and generate tool calls as code snippets, but you could replace this prompt template with your own as needed.
 
 Then when its `.run()` method is launched, the agent takes care of calling the LLM engine, and executing the tool calls, all in a loop that ends only when tool `final_answer` is called with the final answer as its argument.
@@ -146,6 +154,3 @@ agent_output = agent.run("For a transformers model training, which is slower, th
 print("Final output:")
 print(agent_output)
 ```
-
-
-

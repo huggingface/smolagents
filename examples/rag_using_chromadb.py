@@ -13,6 +13,7 @@ from transformers import AutoTokenizer
 # from langchain_openai import OpenAIEmbeddings
 from smolagents import LiteLLMModel, Tool
 from smolagents.agents import CodeAgent
+from smolagents.monitoring import LogLevel
 
 
 # from smolagents.agents import ToolCallingAgent
@@ -120,7 +121,7 @@ agent = CodeAgent(
     tools=[retriever_tool],
     model=model,
     max_steps=4,
-    verbosity_level=2,
+    verbosity_level=LogLevel.DEBUG,
 )
 
 agent_output = agent.run("How can I push a model to the Hub?")
