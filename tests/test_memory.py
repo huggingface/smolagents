@@ -70,7 +70,7 @@ def test_action_step_to_messages():
         assert "type" in content
         assert "text" in content
     message = messages[1]
-    assert message["role"] == MessageRole.ASSISTANT
+    assert message["role"] == MessageRole.TOOL_CALL
 
     assert len(message["content"]) == 1
     text_content = message["content"][0]
