@@ -980,6 +980,11 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         with pytest.raises(InterpreterError):
             evaluate_python_code(dangerous_code, static_tools=BASE_PYTHON_TOOLS)
 
+    def test_final_answer_accepts_kwarg_answer(self):
+        code = "final_answer(answer=2)"
+        result, _ = evaluate_python_code(code, {"final_answer": (lambda x: 2 * x)}, state={})
+        assert result == 4
+
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
             eval("1 + 1")

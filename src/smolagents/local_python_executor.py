@@ -1437,12 +1437,13 @@ def evaluate_python_code(
     custom_tools = custom_tools if custom_tools is not None else {}
     result = None
     state["_print_outputs"] = PrintContainer()
+    state["_operations_count"] = 0
 
     if "final_answer" in static_tools:
         previous_final_answer = static_tools["final_answer"]
 
-        def final_answer(value):
-            raise FinalAnswerException(previous_final_answer(value))
+        def final_answer(answer):  # Using 'answer' as the argument like in the original function
+            raise FinalAnswerException(previous_final_answer(answer))
 
         static_tools["final_answer"] = final_answer
 
