@@ -1486,6 +1486,45 @@ class TestLocalPythonExecutorSecurity:
                 )
             )
 
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, additional_tools, expected_error",
+        [
+            ([], [], InterpreterError("Import of sys is not allowed")),
+            (["sys"], [], InterpreterError("Forbidden return value: builtins")),
+            (
+                ["sys", "builtins"],
+                [],
+                InterpreterError(
+                    "Invoking a builtin function that has not been explicitly added as a tool is not allowed"
+                ),
+            ),
+            (["sys", "builtins"], ["__import__"], InterpreterError("Forbidden return value: os")),
+            (["sys", "builtins", "os"], ["__import__"], None),
+        ],
+    )
+    def test_vulnerability_builtins_via_sys(self, additional_authorized_imports, additional_tools, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        if additional_tools:
+            from builtins import __import__
+
+            executor.send_tools({"__import__": __import__})
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor(
+                dedent(
+                    """
+                    import sys
+                    builtins = sys._getframe().f_builtins
+                    builtins_import = builtins["__import__"]
+                    os_module = builtins_import("os")
+                    os_module.system(":")
+                    """
+                )
+            )
+
     @pytest.mark.parametrize("patch_builtin_import_module", [False, True])  # builtins_import.__module__ = None
     @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
