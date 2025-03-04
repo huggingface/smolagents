@@ -116,26 +116,6 @@ BASE_PYTHON_TOOLS = {
     "complex": complex,
 }
 
-DANGEROUS_PATTERNS = (
-    "_os",
-    "os",
-    "subprocess",
-    "_subprocess",
-    "pty",
-    "system",
-    "popen",
-    "spawn",
-    "shutil",
-    "sys",
-    "pathlib",
-    "io",
-    "socket",
-    "compile",
-    "eval",
-    "exec",
-    "multiprocessing",
-)
-
 DANGEROUS_MODULES = [
     "builtins",
     "io",
@@ -1083,15 +1063,6 @@ def get_safe_module(raw_module, authorized_imports, visited=None):
 
     # Copy all attributes by reference, recursively checking modules
     for attr_name in dir(raw_module):
-        # Skip dangerous patterns at any level
-        if any(
-            pattern in raw_module.__name__.split(".") + [attr_name]
-            and not check_module_authorized(pattern, authorized_imports)
-            for pattern in DANGEROUS_PATTERNS
-        ):
-            logger.info(f"Skipping dangerous attribute {raw_module.__name__}.{attr_name}")
-            continue
-
         try:
             attr_value = getattr(raw_module, attr_name)
         except (ImportError, AttributeError) as e:
@@ -1114,8 +1085,6 @@ def check_module_authorized(module_name, authorized_imports):
         return True
     else:
         module_path = module_name.split(".")
-        if any([module in DANGEROUS_PATTERNS and module not in authorized_imports for module in module_path]):
-            return False
         # ["A", "B", "C"] -> ["A", "A.B", "A.B.C"]
         module_subpaths = [".".join(module_path[:i]) for i in range(1, len(module_path) + 1)]
         return any(subpath in authorized_imports for subpath in module_subpaths)
