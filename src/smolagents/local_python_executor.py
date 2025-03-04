@@ -137,6 +137,7 @@ DANGEROUS_PATTERNS = (
 )
 
 DANGEROUS_MODULES = [
+    "builtins",
     "os",
     "subprocess",
     "pty",
@@ -245,14 +246,14 @@ def safer_eval(func: Callable):
         authorized_imports=BASE_BUILTIN_MODULES,
     ):
         result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
-        if (isinstance(result, ModuleType) and result is builtins) or (
-            isinstance(result, dict) and result == vars(builtins)
-        ):
-            raise InterpreterError("Forbidden return value: builtins")
-        if isinstance(result, ModuleType):
-            if "*" not in authorized_imports:
+        if "*" not in authorized_imports:
+            if isinstance(result, ModuleType):
                 for module in DANGEROUS_MODULES:
                     if module not in authorized_imports and result is import_module(module):
+                        raise InterpreterError(f"Forbidden return value: {module}")
+            elif isinstance(result, dict):
+                for module in DANGEROUS_MODULES:
+                    if module not in authorized_imports and result == vars(import_module(module)):
                         raise InterpreterError(f"Forbidden return value: {module}")
         return result
 
