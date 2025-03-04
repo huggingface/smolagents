@@ -1441,7 +1441,7 @@ class TestLocalPythonExecutorSecurity:
 
     @pytest.mark.parametrize(
         "additional_authorized_imports, expectation",
-        [([], pytest.raises(InterpreterError)), (["sys"], does_not_raise())],
+        [([], pytest.raises(InterpreterError)), (["os", "sys"], does_not_raise())],
     )
     def test_vulnerability_via_sys(self, additional_authorized_imports, expectation):
         executor = LocalPythonExecutor(additional_authorized_imports)
@@ -1451,6 +1451,22 @@ class TestLocalPythonExecutorSecurity:
                     """
                     import sys
                     sys.modules["os"].system(":")
+                    """
+                )
+            )
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expectation",
+        [(["importlib"], pytest.raises(InterpreterError)), (["importlib", "os"], does_not_raise())],
+    )
+    def test_vulnerability_via_importlib(self, additional_authorized_imports, expectation):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with expectation:
+            executor(
+                dedent(
+                    """
+                    import importlib
+                    importlib.import_module("os").system(":")
                     """
                 )
             )
@@ -1501,6 +1517,26 @@ class TestLocalPythonExecutorSecurity:
                             builtins_import = builtins["__import__"]
                             break
                     os_module = builtins_import('os')
+                    os_module.system(":")
+                    """
+                )
+            )
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expectation",
+        [([], pytest.raises(InterpreterError)), (["os"], does_not_raise())],
+    )
+    def test_vulnerability_load_module_via_builtin_importer(self, additional_authorized_imports, expectation):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with expectation:
+            executor(
+                dedent(
+                    """
+                    classes = {}.__class__.__base__.__subclasses__()
+                    for cls in classes:
+                        if cls.__name__ == "BuiltinImporter":
+                            break
+                    os_module = cls().load_module("os")
                     os_module.system(":")
                     """
                 )

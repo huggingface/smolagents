@@ -70,7 +70,7 @@ def test_action_step_to_messages():
         assert "type" in content
         assert "text" in content
     message = messages[1]
-    assert message["role"] == MessageRole.ASSISTANT
+    assert message["role"] == MessageRole.TOOL_CALL
 
     assert len(message["content"]) == 1
     text_content = message["content"][0]
@@ -87,6 +87,28 @@ def test_action_step_to_messages():
     assert isinstance(image_content, dict)
     assert "type" in image_content
     assert "image" in image_content
+
+
+def test_action_step_to_messages_no_tool_calls_with_observations():
+    action_step = ActionStep(
+        model_input_messages=None,
+        tool_calls=None,
+        start_time=None,
+        end_time=None,
+        step_number=None,
+        error=None,
+        duration=None,
+        model_output_message=None,
+        model_output=None,
+        observations="This is an observation.",
+        observations_images=None,
+        action_output=None,
+    )
+    messages = action_step.to_messages()
+    assert len(messages) == 1
+    observation_message = messages[0]
+    assert observation_message["role"] == MessageRole.TOOL_RESPONSE
+    assert "Observation:\nThis is an observation." in observation_message["content"][0]["text"]
 
 
 def test_planning_step_to_messages():
