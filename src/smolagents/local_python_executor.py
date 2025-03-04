@@ -198,8 +198,8 @@ def fix_final_answer_code(code: str) -> str:
     # Compile regex patterns once for better performance
     assignment_pattern = re.compile(r"(?<!\.)(?<!\w)\bfinal_answer(\s*=)")
     
-    # Early return if no problematic patterns found
-    if "final_answer(" not in code or not assignment_pattern.search(code):
+    # Check for problematic patterns separately to avoid short-circuit evaluation issues - return early if no problematic patterns found
+    if not assignment_pattern.search(code):
         return code
 
     # Replace variable assignments
@@ -207,9 +207,8 @@ def fix_final_answer_code(code: str) -> str:
     
     # Replace variable usage but not function calls
     variable_pattern = re.compile(r"(?<!\.)(?<!\w)(\bfinal_answer\b)(?!\s*\()")
-    code = variable_pattern.sub("final_answer_variable", code)
     
-    return code
+    return variable_pattern.sub("final_answer_variable", code)
 
 
 def safer_eval(func: Callable):
