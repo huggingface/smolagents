@@ -1487,6 +1487,43 @@ class TestLocalPythonExecutorSecurity:
             )
 
     @pytest.mark.parametrize(
+        "code, additional_authorized_imports, expected_error",
+        [
+            # os submodule
+            ("import queue; queue.threading._os.system(':')", [], InterpreterError("Forbidden return value: os")),
+            ("import random; random._os.system(':')", [], InterpreterError("Forbidden return value: os")),
+            ("import random; random.__dict__['_os'].system(':')", [], InterpreterError("Forbidden return value: os")),
+            (
+                "import doctest; doctest.inspect.os.system(':')",
+                ["doctest"],
+                InterpreterError("Forbidden return value: os"),
+            ),
+            # subprocess submodule
+            (
+                "import asyncio; asyncio.base_events.events.subprocess",
+                ["asyncio"],
+                InterpreterError("Forbidden return value: subprocess"),
+            ),
+            # sys submodule
+            (
+                "import queue; queue.threading._sys.modules['os'].system(':')",
+                [],
+                InterpreterError("Forbidden return value: sys"),
+            ),
+            # Allowed
+            ("import pandas; pandas.io", ["pandas"], None),
+        ],
+    )
+    def test_vulnerability_via_submodules(self, code, additional_authorized_imports, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor(code)
+
+    @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
         [
             ([], [], InterpreterError("Import of sys is not allowed")),
