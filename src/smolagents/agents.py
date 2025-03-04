@@ -61,7 +61,6 @@ from .utils import (
     AgentParsingError,
     make_init_file,
     parse_code_blobs,
-    parse_json_tool_call,
     truncate_content,
 )
 
@@ -190,7 +189,6 @@ class MultiStepAgent:
         model: Callable[[List[Dict[str, str]]], ChatMessage],
         prompt_templates: Optional[PromptTemplates] = None,
         max_steps: int = 20,
-        tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
         grammar: Optional[Dict[str, str]] = None,
@@ -207,7 +205,6 @@ class MultiStepAgent:
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         self.max_steps = max_steps
         self.step_number = 0
-        self.tool_parser = tool_parser or parse_json_tool_call
         self.grammar = grammar
         self.planning_interval = planning_interval
         self.state = {}
