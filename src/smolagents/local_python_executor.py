@@ -249,11 +249,21 @@ def safer_eval(func: Callable):
         if "*" not in authorized_imports:
             if isinstance(result, ModuleType):
                 for module in DANGEROUS_MODULES:
-                    if module not in authorized_imports and result is import_module(module):
+                    if (
+                        module not in authorized_imports
+                        and result.__name__ == module
+                        # builtins has no __file__ attribute
+                        and getattr(result, "__file__", "") == getattr(import_module(module), "__file__", "")
+                    ):
                         raise InterpreterError(f"Forbidden return value: {module}")
-            elif isinstance(result, dict):
+            elif isinstance(result, dict) and result.get("__name__"):
                 for module in DANGEROUS_MODULES:
-                    if module not in authorized_imports and result == vars(import_module(module)):
+                    if (
+                        module not in authorized_imports
+                        and result["__name__"] == module
+                        # builtins has no __file__ attribute
+                        and result.get("__file__", "") == getattr(import_module(module), "__file__", "")
+                    ):
                         raise InterpreterError(f"Forbidden return value: {module}")
         return result
 
