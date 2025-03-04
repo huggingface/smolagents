@@ -53,6 +53,9 @@ mcp = [
 mlx-lm = [
   "mlx-lm"
 ]
+vllm = [
+  "vllm"
+]
 openai = [
   "openai>=1.58.1"
 ]
@@ -68,7 +71,7 @@ transformers = [
   "smolagents[torch]",
 ]
 all = [
-  "smolagents[audio,docker,e2b,gradio,litellm,mcp,openai,telemetry,transformers]",
+  "smolagents[audio,docker,e2b,gradio,litellm,mcp,openai,telemetry,transformers,vllm]",
 ]
 quality = [
   "ruff>=0.9.0",
