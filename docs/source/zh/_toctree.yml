@@ -3,7 +3,7 @@
   - local: index
     title: 🤗 Agents
   - local: guided_tour
-    title: 导览
+    title: 🗺 导览
 - title: Tutorials
   sections:
   - local: tutorials/building_good_agents
@@ -21,14 +21,14 @@
 - title: Examples
   sections:
   - local: examples/text_to_sql
-    title: Self-correcting Text-to-SQL
+    title: 🗃 自修正的 Text-to-SQL
   - local: examples/rag
-    title: Master you knowledge base with agentic RAG
+    title: 🧠 用 Agent 化的 RAG 掌握你的知识库
   - local: examples/multiagents
-    title: Orchestrate a multi-agent system
+    title: 👥 协调多 Agent 系统
 - title: Reference
   sections:
   - local: reference/agents
-    title: Agent-related objects
+    title: 🤖 Agent 相关对象
   - local: reference/tools
-    title: Tool-related objects
+    title: 🛠️ 工具相关对象
