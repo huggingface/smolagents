@@ -83,6 +83,7 @@ test = [
 dev = [
   "smolagents[quality,test]",
   "sqlalchemy", # for ./examples
+  "mlx-lm",
 ]
 
 [tool.pytest.ini_options]
