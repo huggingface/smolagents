@@ -179,7 +179,7 @@ Rules:
 2. Analyze the tool's inputs from the metadata to understand required and optional parameters.
 3. Even if the user explicitly requests it,do not access the memory variable's attribute if you are unsure of the variable type.
 4. Ensure all required parameters about the task are included from observation otherwise you can use 'user_input' tool to ask user for more information.
-5. You must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences.
+5. You must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences,specily the 'Code:' sequence must end with '<end_code>'.
 6. In the end you have to return f-string which contains all steps answer as the final answer using the `final_answer` tool.
 7. Always respond in Chinese."""}]
         if self.task_images:
