@@ -27,13 +27,13 @@ import types
 from functools import lru_cache
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
-
+from abc import ABC, abstractmethod
 
 if TYPE_CHECKING:
     from smolagents.memory import AgentLogger
 
 
-__all__ = ["AgentError"]
+__all__ = ["AgentError","UserInputError","StringBuffer","Display"]
 
 
 @lru_cache
@@ -53,6 +53,7 @@ def _is_pillow_available():
 BASE_BUILTIN_MODULES = [
     "collections",
     "datetime",
+    "calendar",
     "itertools",
     "math",
     "queue",
@@ -64,6 +65,235 @@ BASE_BUILTIN_MODULES = [
     "unicodedata",
 ]
 
+class Display(ABC):
+    @abstractmethod
+    def display(self):
+        pass
+
+class StringBuffer(str):
+    def __init__(self, value=""):
+        if isinstance(value, list):
+            self._buffer = []
+            for v in value:
+                if isinstance(v, StringBuffer):
+                    self._buffer.extend(v._buffer)
+                else:
+                    self._buffer.append(v)
+        elif value is not None:
+            self._buffer = [value]
+        else:
+            self._buffer = []
+
+    @property
+    def buffer(self):
+        return self._buffer
+
+    def append(self, string):
+        """追加字符串到缓冲区"""
+        if not isinstance(string, str):
+            raise ValueError("Only strings can be appended.")
+        self._buffer.append(string)
+
+    def clear(self):
+        """清空缓冲区"""
+        self._buffer.clear()
+
+    def to_string(self):
+        """返回拼接后的完整字符串"""
+        return ''.join([str(v) for v in self._buffer])
+
+    def __iadd__(self, other):
+        """支持 += 操作"""
+        if isinstance(other, str):
+            self.append(other)
+        elif isinstance(other, StringBuffer):
+            self._buffer.extend(other._buffer)
+        else:
+            raise TypeError(f"Unsupported operand type(s) for +=: 'StringBuffer' and '{type(other).__name__}'")
+        return self
+
+    def __add__(self, other):
+        """支持 + 操作"""
+        new_buffer = StringBuffer()
+        new_buffer._buffer.extend(self._buffer)
+        if isinstance(other, str):
+            new_buffer.append(other)
+        elif isinstance(other, StringBuffer):
+            new_buffer._buffer.extend(other._buffer)
+        else:
+            raise TypeError(f"Unsupported operand type(s) for +: 'StringBuffer' and '{type(other).__name__}'")
+        return new_buffer
+
+    def __radd__(self, other):
+        """支持反向 + 操作"""
+        if isinstance(other, str):
+            new_buffer = StringBuffer(other)
+            new_buffer._buffer.extend(self._buffer)
+            return new_buffer
+        else:
+            raise TypeError(f"Unsupported operand type(s) for +: '{type(other).__name__}' and 'StringBuffer'")
+
+    def format(self, *args, **kwargs):
+        """支持 format 操作"""
+        formatted_str = self.to_string().format(*args, **kwargs)
+        return StringBuffer(formatted_str)
+
+    def __len__(self):
+        """返回当前缓冲区中字符串的总长度"""
+        return len(self.to_string())
+
+    def __getitem__(self, index):
+        return self.to_string()[index]
+
+    def __str__(self):
+        """转换为字符串表示"""
+        return self.to_string()
+
+    def __repr__(self):
+        """调试信息"""
+        return f"StringBuffer({self._buffer})"
+
+    # 实现 str 类的其他方法
+    def capitalize(self):
+        return self.to_string().capitalize()
+
+    def casefold(self):
+        return self.to_string().casefold()
+
+    def center(self, width, fillchar=' '):
+        return self.to_string().center(width, fillchar)
+
+    def count(self, sub, start=0, end=None):
+        return self.to_string().count(sub, start, end)
+
+    def encode(self, encoding='utf-8', errors='strict'):
+        return self.to_string().encode(encoding, errors)
+
+    def endswith(self, suffix, start=0, end=None):
+        return self.to_string().endswith(suffix, start, end)
+
+    def expandtabs(self, tabsize=8):
+        return self.to_string().expandtabs(tabsize)
+
+    def find(self, sub, start=0, end=None):
+        return self.to_string().find(sub, start, end)
+
+    def index(self, sub, start=0, end=None):
+        return self.to_string().index(sub, start, end)
+
+    def isalnum(self):
+        return self.to_string().isalnum()
+
+    def isalpha(self):
+        return self.to_string().isalpha()
+
+    def isascii(self):
+        return self.to_string().isascii()
+
+    def isdecimal(self):
+        return self.to_string().isdecimal()
+
+    def isdigit(self):
+        return self.to_string().isdigit()
+
+    def isidentifier(self):
+        return self.to_string().isidentifier()
+
+    def islower(self):
+        return self.to_string().islower()
+
+    def isnumeric(self):
+        return self.to_string().isnumeric()
+
+    def isprintable(self):
+        return self.to_string().isprintable()
+
+    def isspace(self):
+        return self.to_string().isspace()
+
+    def istitle(self):
+        return self.to_string().istitle()
+
+    def isupper(self):
+        return self.to_string().isupper()
+
+    def join(self, iterable):
+        return self.to_string().join(iterable)
+
+    def ljust(self, width, fillchar=' '):
+        return self.to_string().ljust(width, fillchar)
+
+    def lower(self):
+        return self.to_string().lower()
+
+    def lstrip(self, chars=None):
+        return self.to_string().lstrip(chars)
+
+    def partition(self, sep):
+        return self.to_string().partition(sep)
+
+    def removeprefix(self, prefix):
+        return self.to_string().removeprefix(prefix)
+
+    def removesuffix(self, suffix):
+        return self.to_string().removesuffix(suffix)
+
+    def replace(self, old, new, count=-1):
+        return self.to_string().replace(old, new, count)
+
+    def rfind(self, sub, start=0, end=None):
+        return self.to_string().rfind(sub, start, end)
+
+    def rindex(self, sub, start=0, end=None):
+        return self.to_string().rindex(sub, start, end)
+
+    def rjust(self, width, fillchar=' '):
+        return self.to_string().rjust(width, fillchar)
+
+    def rpartition(self, sep):
+        return self.to_string().rpartition(sep)
+
+    def rsplit(self, sep=None, maxsplit=-1):
+        return self.to_string().rsplit(sep, maxsplit)
+
+    def rstrip(self, chars=None):
+        return self.to_string().rstrip(chars)
+
+    def split(self, sep=None, maxsplit=-1):
+        return self.to_string().split(sep, maxsplit)
+
+    def splitlines(self, keepends=False):
+        return self.to_string().splitlines(keepends)
+
+    def startswith(self, prefix, start=0, end=None):
+        return self.to_string().startswith(prefix, start, end)
+
+    def strip(self, chars=None):
+        return self.to_string().strip(chars)
+
+    def swapcase(self):
+        return self.to_string().swapcase()
+
+    def title(self):
+        return self.to_string().title()
+
+    def translate(self, table):
+        return self.to_string().translate(table)
+
+    def upper(self):
+        return self.to_string().upper()
+
+    def zfill(self, width):
+        return self.to_string().zfill(width)
+
+class UserInputError(BaseException):
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return "input"
+    def __str__(self):
+        return "input"
 
 def escape_code_brackets(text: str) -> str:
     """Escapes square brackets in code segments while preserving Rich styling tags."""

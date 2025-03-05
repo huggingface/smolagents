@@ -1,11 +1,10 @@
 from dataclasses import asdict, dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Dict, List, TypedDict, Union
-
+from smolagents.agent_types import AgentInput
 from smolagents.models import ChatMessage, MessageRole
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.utils import AgentError, make_json_serializable
-
 
 if TYPE_CHECKING:
     from smolagents.models import ChatMessage
@@ -60,6 +59,7 @@ class ActionStep(MemoryStep):
     observations: str | None = None
     observations_images: List[str] | None = None
     action_output: Any = None
+    task_id: str = None
 
     def dict(self):
         # We overwrite the method to parse the tool_calls and action_output manually
@@ -81,36 +81,36 @@ class ActionStep(MemoryStep):
         messages = []
         if self.model_input_messages is not None and show_model_input_messages:
             messages.append(Message(role=MessageRole.SYSTEM, content=self.model_input_messages))
-        if self.model_output is not None and not summary_mode:
+        if self.model_output is not None and not summary_mode and not isinstance(self.action_output,AgentInput):
             messages.append(
                 Message(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.model_output.strip()}])
             )
 
         if self.tool_calls is not None:
-            messages.append(
-                Message(
-                    role=MessageRole.TOOL_CALL,
-                    content=[
-                        {
-                            "type": "text",
-                            "text": "Calling tools:\n" + str([tc.dict() for tc in self.tool_calls]),
-                        }
-                    ],
-                )
-            )
+            pass
+            # messages.append(
+            #     Message(
+            #         role=MessageRole.ASSISTANT,
+            #         content=[
+            #             {
+            #                 "type": "text",
+            #                 "text": "Calling tools:\n" + str([tc.dict() for tc in self.tool_calls]),
+            #             }
+            #         ],
+            #     )
+            # )
 
-        if self.observations is not None:
-            messages.append(
-                Message(
-                    role=MessageRole.TOOL_RESPONSE,
-                    content=[
-                        {
-                            "type": "text",
-                            "text": f"Call id: {self.tool_calls[0].id}\nObservation:\n{self.observations}",
-                        }
-                    ],
-                )
+        messages.append(
+            Message(
+                role=MessageRole.TOOL_RESPONSE,
+                content=[
+                    {
+                        "type": "text",
+                        "text": f"Observation:\n{self.observations}",
+                    }
+                ],
             )
+        )
         if self.error is not None:
             error_message = (
                 "Error:\n"
@@ -147,6 +147,7 @@ class PlanningStep(MemoryStep):
     facts: str
     model_output_message_plan: ChatMessage
     plan: str
+    task_id: str = None
 
     def to_messages(self, summary_mode: bool, **kwargs) -> List[Message]:
         messages = []
@@ -169,9 +170,18 @@ class PlanningStep(MemoryStep):
 class TaskStep(MemoryStep):
     task: str
     task_images: List[str] | None = None
+    task_id: str = None
 
     def to_messages(self, summary_mode: bool = False, **kwargs) -> List[Message]:
-        content = [{"type": "text", "text": f"New task:\n{self.task}"}]
+        content = [{"type": "text", "text": f"""Task:{self.task}
+Rules:
+1. Carefully review all observation information: the task, image path,execution logs, context, tool.
+2. Analyze the tool's inputs from the metadata to understand required and optional parameters.
+3. Even if the user explicitly requests it,do not access the memory variable's attribute if you are unsure of the variable type.
+4. Ensure all required parameters about the task are included from observation otherwise you can use 'user_input' tool to ask user for more information.
+5. You must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences.
+6. In the end you have to return f-string which contains all steps answer as the final answer using the `final_answer` tool.
+7. Always respond in Chinese."""}]
         if self.task_images:
             for image in self.task_images:
                 content.append({"type": "image", "image": image})
@@ -190,12 +200,12 @@ class SystemPromptStep(MemoryStep):
 
 
 class AgentMemory:
-    def __init__(self, system_prompt: str):
+    def __init__(self, system_prompt: str,memory_size:int=100):
         self.system_prompt = SystemPromptStep(system_prompt=system_prompt)
-        self.steps: List[Union[TaskStep, ActionStep, PlanningStep]] = []
+        self.steps: List[Union[TaskStep, ActionStep, PlanningStep]] = FIFOList(maxsize=memory_size)
 
     def reset(self):
-        self.steps = []
+        self.steps.clear()
 
     def get_succinct_steps(self) -> list[dict]:
         return [
@@ -229,6 +239,54 @@ class AgentMemory:
                 if detailed:
                     logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
                 logger.log_markdown(title="Agent output:", content=step.facts + "\n" + step.plan, level=LogLevel.ERROR)
+
+
+class FIFOList:
+    def __init__(self, maxsize):
+        if not isinstance(maxsize, int):
+            raise TypeError("maxsize must be an integer")
+        if maxsize <= 0:
+            raise ValueError("maxsize must be positive")
+
+        self._maxsize = maxsize
+        self._list = []
+
+    def __len__(self):
+        return len(self._list)
+
+    def __getitem__(self, index):
+        return self._list[index]
+
+    def __setitem__(self, index, value):
+        self._list[index] = value
+
+    def __iter__(self):
+        return iter(self._list)
+
+    def __str__(self):
+        return str(self._list)
+
+    def __repr__(self):
+        return f"FIFOList(maxsize={self._maxsize}, items={self._list})"
+
+    def append(self, item):
+        if len(self._list) >= self._maxsize:
+            task_id = getattr(self._list.pop(0), "task_id")
+            while task_id is not None:
+                if task_id == getattr(self._list[0], "task_id"):
+                    self._list.pop(0)
+                else:
+                    task_id = None
+
+        self._list.append(item)
+        return len(self._list)
+
+    def extend(self, items):
+        for item in items:
+            self.append(item)
+
+    def clear(self):
+        self._list.clear()
 
 
 __all__ = ["AgentMemory"]

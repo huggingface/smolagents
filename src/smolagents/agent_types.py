@@ -25,7 +25,7 @@ from huggingface_hub.utils import is_torch_available
 from PIL import Image
 from PIL.Image import Image as ImageType
 
-from .utils import _is_package_available
+from .utils import StringBuffer, _is_package_available
 
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,25 @@ class AgentText(AgentType, str):
     Text type returned by the agent. Behaves as a string.
     """
 
+    def to_raw(self):
+        return self._value
+
+    def to_string(self):
+        return str(self._value)
+
+class AgentInput(AgentType):
+    def __init__(self, value, agent):
+        self._value = value
+        self.agent = agent
+    def to_raw(self):
+        return self._value
+    def to_string(self):
+        return str(self._value)
+    def clear(self):
+        self.agent = None
+        self._value = None
+
+class AgentRaw(AgentType):
     def to_raw(self):
         return self._value
 
@@ -259,6 +278,8 @@ def handle_agent_output_types(output, output_type=None):
         return decoded_outputs
 
     # If the class does not have defined output, then we map according to the type
+    if isinstance(output,StringBuffer):
+        return AgentRaw(output)
     if isinstance(output, str):
         return AgentText(output)
     if isinstance(output, ImageType):
@@ -271,4 +292,4 @@ def handle_agent_output_types(output, output_type=None):
     return output
 
 
-__all__ = ["AgentType", "AgentImage", "AgentText", "AgentAudio"]
+__all__ = ["AgentType", "AgentImage", "AgentText", "AgentInput", "AgentAudio","AgentRaw"]

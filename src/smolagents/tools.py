@@ -72,6 +72,7 @@ AUTHORIZED_TYPES = [
     "audio",
     "array",
     "object",
+    "date",
     "any",
     "null",
 ]

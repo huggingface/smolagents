@@ -22,6 +22,7 @@ import re
 import tempfile
 import textwrap
 import time
+import uuid
 from collections import deque
 from logging import getLogger
 from pathlib import Path
@@ -36,7 +37,7 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from .agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
+from .agent_types import AgentAudio, AgentImage, AgentType, AgentInput, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, TaskStep, ToolCall
@@ -54,6 +55,7 @@ from .monitoring import (
 from .remote_executors import DockerExecutor, E2BExecutor
 from .tools import Tool
 from .utils import (
+    UserInputError,
     AgentError,
     AgentExecutionError,
     AgentGenerationError,
@@ -223,6 +225,7 @@ class MultiStepAgent:
         self.system_prompt = self.initialize_system_prompt()
         self.input_messages = None
         self.task = None
+        self.task_id = None
         self.memory = AgentMemory(self.system_prompt)
         self.logger = AgentLogger(level=verbosity_level)
         self.monitor = Monitor(self.model, self.logger)
@@ -291,6 +294,7 @@ class MultiStepAgent:
         """
         max_steps = max_steps or self.max_steps
         self.task = task
+        self.task_id = str(uuid.uuid4())
         if additional_args is not None:
             self.state.update(additional_args)
             self.task += f"""
@@ -309,7 +313,7 @@ You have been provided with these additional arguments, that you can access usin
             level=LogLevel.INFO,
             title=self.name if hasattr(self, "name") else None,
         )
-        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+        self.memory.steps.append(TaskStep(task=self.task, task_images=images, task_id=self.task_id))
 
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
@@ -344,7 +348,7 @@ You have been provided with these additional arguments, that you can access usin
         yield handle_agent_output_types(final_answer)
 
     def _create_memory_step(self, step_start_time: float, images: List[str] | None) -> ActionStep:
-        return ActionStep(step_number=self.step_number, start_time=step_start_time, observations_images=images)
+        return ActionStep(task_id=self.task_id, step_number=self.step_number, start_time=step_start_time, observations_images=images)
 
     def _execute_step(self, task: str, memory_step: ActionStep) -> Union[None, Any]:
         if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
@@ -375,7 +379,7 @@ You have been provided with these additional arguments, that you can access usin
     def _handle_max_steps_reached(self, task: str, images: List[str], step_start_time: float) -> Any:
         final_answer = self.provide_final_answer(task, images)
         final_memory_step = ActionStep(
-            step_number=self.step_number, error=AgentMaxStepsError("Reached max steps.", self.logger)
+           task_id=self.task_id, step_number=self.step_number, error=AgentMaxStepsError("Reached max steps.", self.logger)
         )
         final_memory_step.action_output = final_answer
         final_memory_step.end_time = time.time()
@@ -497,6 +501,7 @@ You have been provided with these additional arguments, that you can access usin
             log_message = "Updated plan"
         self.memory.steps.append(
             PlanningStep(
+                task_id=self.task_id,
                 model_input_messages=input_messages,
                 facts=facts,
                 plan=plan,
@@ -636,7 +641,7 @@ You have been provided with these additional arguments, that you can access usin
             if tool_name in self.tools:
                 tool = self.tools[tool_name]
                 error_msg = (
-                    f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
+                    f"Error whene executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
                     f"As a reminder, this tool's description is the following: '{tool.description}'.\nIt takes inputs: {tool.inputs} and returns output type {tool.output_type}"
                 )
                 raise AgentExecutionError(error_msg, self.logger)
@@ -1153,7 +1158,7 @@ class CodeAgent(MultiStepAgent):
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         self.max_print_outputs_length = max_print_outputs_length
         prompt_templates = prompt_templates or yaml.safe_load(
-            importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
+            importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text(encoding='utf-8')
         )
         super().__init__(
             tools=tools,
@@ -1278,9 +1283,16 @@ class CodeAgent(MultiStepAgent):
                     level=LogLevel.INFO,
                 )
             raise AgentExecutionError(error_msg, self.logger)
+        except UserInputError as e:
+            output = AgentInput(e.value,self)
+            memory_step.action_output = output
+            memory_step.tool_calls = None
+            memory_step.observations = ""
+            return output
 
         truncated_output = truncate_content(str(output))
-        observation += "Last output from code snippet:\n" + truncated_output
+        if is_final_answer:
+            observation += "You have provided the final answer, so the task is complete." #"Last output from code snippet:\n" + truncated_output
         memory_step.observations = observation
 
         execution_outputs_console += [

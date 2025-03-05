@@ -26,10 +26,11 @@ from functools import wraps
 from importlib import import_module
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
-
+import cachetools
 import numpy as np
 import pandas as pd
 
+from .utils import BASE_BUILTIN_MODULES, truncate_content, StringBuffer, Display
 from .tools import Tool
 from .utils import BASE_BUILTIN_MODULES, truncate_content
 
@@ -53,13 +54,25 @@ ERRORS = {
 }
 
 DEFAULT_MAX_LEN_OUTPUT = 50000
-MAX_OPERATIONS = 10000000
-MAX_WHILE_ITERATIONS = 1000000
+MAX_OPERATIONS = 1000
+MAX_WHILE_ITERATIONS = 1000
 
 
-def custom_print(*args):
-    return None
+def custom_print(args,exprs):
+    arr = []
+    if len(args) == len(exprs):
+        for i in range(len(args)):
+            if isinstance(args[i],Display):
+                arr.append(args[i].display(exprs[i]))
+            else:
+                arr.append(str(args[i]))
+    else:
+        for item in args:
+            arr.append(str(item))
+    return " ".join(arr) + "\n"
 
+def custom_str(args):
+    return StringBuffer(args)
 
 BASE_PYTHON_TOOLS = {
     "print": custom_print,
@@ -68,7 +81,7 @@ BASE_PYTHON_TOOLS = {
     "float": float,
     "int": int,
     "bool": bool,
-    "str": str,
+    "str": custom_str,
     "set": set,
     "list": list,
     "dict": dict,
@@ -668,7 +681,7 @@ def evaluate_call(
             raise InterpreterError("super() takes at most 2 arguments")
     else:
         if func_name == "print":
-            state["_print_outputs"] += " ".join(map(str, args)) + "\n"
+            state["_print_outputs"] += static_tools["print"](args,call.args)
             return None
         else:  # Assume it's a callable object
             if (
@@ -1302,7 +1315,9 @@ def evaluate_ast(
     elif hasattr(ast, "Index") and isinstance(expression, ast.Index):
         return evaluate_ast(expression.value, *common_params)
     elif isinstance(expression, ast.JoinedStr):
-        return "".join([str(evaluate_ast(v, *common_params)) for v in expression.values])
+        return StringBuffer(
+            [evaluate_ast(v, state, static_tools, custom_tools, authorized_imports) for v in expression.values]
+        )
     elif isinstance(expression, ast.List):
         # List -> evaluate all elements
         return [evaluate_ast(elt, *common_params) for elt in expression.elts]
@@ -1446,7 +1461,7 @@ class LocalPythonExecutor(PythonExecutor):
         max_print_outputs_length: Optional[int] = None,
     ):
         self.custom_tools = {}
-        self.state = {}
+        self.state = FIFOCache(maxsize=100)
         self.max_print_outputs_length = max_print_outputs_length
         if max_print_outputs_length is None:
             self.max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT
@@ -1471,7 +1486,13 @@ class LocalPythonExecutor(PythonExecutor):
         self.state.update(variables)
 
     def send_tools(self, tools: Dict[str, Tool]):
-        self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy()}
+        self.static_tools = {**tools, **BASE_PYTHON_TOOLS}
 
+class FIFOCache(cachetools.FIFOCache):
+    def __init__(self, maxsize):
+        super().__init__(maxsize)
+        self.__items = getattr(self,"_Cache__data")
+    def copy(self):
+        return self.__items.copy()
 
-__all__ = ["evaluate_python_code", "LocalPythonExecutor"]
+__all__ = ["evaluate_ast","evaluate_python_code", "LocalPythonExecutor"]

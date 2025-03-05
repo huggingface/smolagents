@@ -150,3 +150,7 @@ archive/
 savedir/
 output/
 tool_output/
+
+# Ignore YAML files in the server directory
+src/smolagents/server/*.yaml
+src/smolagents/server/*.yml
