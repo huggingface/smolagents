@@ -8,10 +8,14 @@
   sections:
   - local: tutorials/building_good_agents
     title: ✨ 构建好用的 agents
+  - local: tutorials/inspect_runs
+    title: 📊 Inspect your agent runs using telemetry
   - local: tutorials/tools
     title: 🛠️ 工具 - 深度指南
   - local: tutorials/secure_code_execution
     title: 🛡️ 使用 E2B 保护你的代码执行
+  - local: tutorials/memory
+    title: 📚 Manage your agent's memory
 - title: Conceptual guides
   sections:
   - local: conceptual_guides/intro_agents
@@ -26,9 +30,13 @@
     title: Master you knowledge base with agentic RAG
   - local: examples/multiagents
     title: Orchestrate a multi-agent system
+  - local: examples/web_browser
+    title: Build a web browser agent using vision models
 - title: Reference
   sections:
   - local: reference/agents
     title: Agent-related objects
+  - local: reference/models
+    title: Model-related objects
   - local: reference/tools
     title: Tool-related objects
