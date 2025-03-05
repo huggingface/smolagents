@@ -83,10 +83,10 @@ def test_cli_main(capsys):
 
 
 def test_vision_web_browser_main():
-    with patch("smolagents.vision_web_browser.load_model") as mock_load_model:
-        mock_load_model.return_value = "mock_model"
-        with patch("smolagents.vision_web_browser.CodeAgent") as mock_code_agent:
-            with patch("smolagents.vision_web_browser.helium"):
+    with patch("smolagents.vision_web_browser.helium"):
+        with patch("smolagents.vision_web_browser.load_model") as mock_load_model:
+            mock_load_model.return_value = "mock_model"
+            with patch("smolagents.vision_web_browser.CodeAgent") as mock_code_agent:
                 from smolagents.vision_web_browser import helium_instructions, main
 
                 main("test_prompt", "HfApiModel", "test_model_id")
