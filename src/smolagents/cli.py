@@ -103,15 +103,21 @@ def load_model(model_type: str, model_id: str, api_base: str | None = None, api_
         raise ValueError(f"Unsupported model type: {model_type}")
 
 
-def main():
+def main(
+    prompt: str,
+    tools: list[str],
+    model_type: str,
+    model_id: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
+    imports: list[str] | None = None,
+) -> None:
     load_dotenv()
 
-    args = parse_arguments(description="Run a CodeAgent with all specified parameters")
-
-    model = load_model(args.model_type, args.model_id, args.api_base, args.api_key)
+    model = load_model(model_type, model_id, api_base=api_base, api_key=api_key)
 
     available_tools = []
-    for tool_name in args.tools:
+    for tool_name in tools:
         if "/" in tool_name:
             available_tools.append(Tool.from_space(tool_name))
         else:
@@ -120,11 +126,21 @@ def main():
             else:
                 raise ValueError(f"Tool {tool_name} is not recognized either as a default tool or a Space.")
 
-    print(f"Running agent with these tools: {args.tools}")
-    agent = CodeAgent(tools=available_tools, model=model, additional_authorized_imports=args.imports)
+    print(f"Running agent with these tools: {tools}")
+    agent = CodeAgent(tools=available_tools, model=model, additional_authorized_imports=imports)
 
-    agent.run(args.prompt)
+    agent.run(prompt)
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_arguments(description="Run a CodeAgent with all specified parameters")
+
+    main(
+        args.prompt,
+        args.tools,
+        args.model_type,
+        args.model_id,
+        api_base=args.api_base,
+        api_key=args.api_key,
+        imports=args.imports,
+    )

@@ -187,15 +187,12 @@ When you have modals or cookie banners on screen, you should get rid of them bef
 """
 
 
-def main():
+def main(prompt: str, model_type: str, model_id: str) -> None:
     # Load environment variables
     load_dotenv()
 
-    # Parse command line arguments
-    args = parse_arguments()
-
     # Initialize the model based on the provided arguments
-    model = load_model(args.model_type, args.model_id)
+    model = load_model(model_type, model_id)
 
     global driver
     driver = initialize_driver()
@@ -203,8 +200,11 @@ def main():
 
     # Run the agent with the provided prompt
     agent.python_executor("from helium import *")
-    agent.run(args.prompt + helium_instructions)
+    agent.run(prompt + helium_instructions)
 
 
 if __name__ == "__main__":
-    main()
+    # Parse command line arguments
+    args = parse_arguments()
+
+    main(args.prompt, args.model_type, args.model_id)
