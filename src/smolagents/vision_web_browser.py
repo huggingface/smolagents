@@ -202,7 +202,7 @@ def main():
     agent = initialize_agent(model)
 
     # Run the agent with the provided prompt
-    agent.python_executor("from helium import *", agent.state)
+    agent.python_executor("from helium import *")
     agent.run(args.prompt + helium_instructions)
 
 
