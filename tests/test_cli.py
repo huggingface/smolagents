@@ -3,11 +3,8 @@ from unittest.mock import patch
 import pytest
 
 from smolagents.cli import load_model
-from smolagents.cli import main as cli_main
 from smolagents.local_python_executor import LocalPythonExecutor
 from smolagents.models import HfApiModel, LiteLLMModel, OpenAIServerModel, TransformersModel
-from smolagents.vision_web_browser import helium_instructions
-from smolagents.vision_web_browser import main as vision_web_browser_main
 
 
 @pytest.fixture
@@ -60,9 +57,11 @@ def test_load_model_invalid_model_type():
 
 def test_cli_main(capsys):
     with patch("smolagents.cli.load_model") as mock_load_model:
+        mock_load_model.return_value = "mock_model"
         with patch("smolagents.cli.CodeAgent") as mock_code_agent:
-            mock_load_model.return_value = "mock_model"
-            cli_main("test_prompt", [], "HfApiModel", "test_model_id")
+            from smolagents.cli import main
+
+            main("test_prompt", [], "HfApiModel", "test_model_id")
     # load_model
     assert len(mock_load_model.call_args_list) == 1
     assert mock_load_model.call_args.args == ("HfApiModel", "test_model_id")
@@ -85,10 +84,12 @@ def test_cli_main(capsys):
 
 def test_vision_web_browser_main():
     with patch("smolagents.vision_web_browser.load_model") as mock_load_model:
+        mock_load_model.return_value = "mock_model"
         with patch("smolagents.vision_web_browser.CodeAgent") as mock_code_agent:
             with patch("smolagents.vision_web_browser.helium"):
-                mock_load_model.return_value = "mock_model"
-                vision_web_browser_main("test_prompt", "HfApiModel", "test_model_id")
+                from smolagents.vision_web_browser import helium_instructions, main
+
+                main("test_prompt", "HfApiModel", "test_model_id")
     # load_model
     assert len(mock_load_model.call_args_list) == 1
     assert mock_load_model.call_args.args == ("HfApiModel", "test_model_id")
