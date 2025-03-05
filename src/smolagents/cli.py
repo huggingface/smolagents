@@ -26,8 +26,8 @@ from smolagents.default_tools import TOOL_MAPPING
 leopard_prompt = "How many seconds would it take for a leopard at full speed to run through Pont des Arts?"
 
 
-def parse_arguments(description):
-    parser = argparse.ArgumentParser(description=description)
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Run a CodeAgent with all specified parameters")
     parser.add_argument(
         "prompt",
         type=str,
@@ -133,7 +133,7 @@ def main(
 
 
 if __name__ == "__main__":
-    args = parse_arguments(description="Run a CodeAgent with all specified parameters")
+    args = parse_arguments()
 
     main(
         args.prompt,
