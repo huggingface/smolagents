@@ -133,6 +133,58 @@ class ToolTests(unittest.TestCase):
         tool = HFModelDownloadsTool()
         assert list(tool.inputs.keys())[0] == "task"
 
+    def test_method_tool_init_decorator(self):
+        class ClassWithToolMethod:
+            d = 3
+
+            def __init__(self, c: int):
+                self.c = c
+
+            @tool
+            def sumfunc_instance_method(self, a: int, b: int) -> int:
+                """Sum function as instance method
+
+                Args:
+                    a: The first argument
+                    b: The second one
+                """
+                return a + b + self.c
+
+            @classmethod
+            @tool
+            def sumfunc_class_method(cls, a: int, b: int) -> int:
+                """Sum function as class method
+
+                Args:
+                    a: The first argument
+                    b: The second one
+                """
+                return a + b + cls.d
+
+            @staticmethod
+            @tool
+            def sumfunc_static_method(a: int, b: int) -> int:
+                """Sum function as static method
+
+                Args:
+                    a: The first argument
+                    b: The second one
+                """
+                return a + b + 3
+
+        initialized_tool = ClassWithToolMethod(c=3)
+        for method_type in ("instance", "class", "static"):
+            cmethod = getattr(initialized_tool, f"sumfunc_{method_type}_method")
+            assert cmethod.output_type == "integer"
+            assert cmethod.description == f"Sum function as {method_type} method"
+            assert cmethod.name == f"sumfunc_{method_type}_method"
+            assert cmethod.inputs["a"]["description"] == "The first argument"
+            assert cmethod.inputs["b"]["description"] == "The second one"
+            correct_answer = initialized_tool.sumfunc_class_method(a=7, b=19)
+            assert correct_answer == 29
+            assert cmethod.forward(a=7, b=19) == correct_answer
+            assert cmethod.forward(7, 19) == correct_answer
+
     def test_tool_init_decorator_raises_issues(self):
         with pytest.raises(Exception) as e:
 
@@ -161,6 +213,38 @@ class ToolTests(unittest.TestCase):
                 return b + a
 
             assert coolfunc.output_type == "number"
+        assert "docstring has no description for the argument" in str(e)
+
+    def test_method_tool_init_decorator_raises_issues(self):
+        with pytest.raises(Exception) as e:
+
+            class ToolMethod:
+                @tool
+                def cool_method(self, a: str, b: int):
+                    """Cool method
+
+                    Args:
+                        a: The first argument
+                        b: The second one
+                    """
+                    return a + b
+
+            assert ToolMethod().cool_method.output_type == "number"
+        assert "Tool return type not found" in str(e)
+
+        with pytest.raises(Exception) as e:
+
+            class ToolMethod:
+                @tool
+                def cool_method(self, a: str, b: int):
+                    """Cool function
+
+                    Args:
+                        a: The first argument
+                    """
+                    return a + b
+
+            assert ToolMethod().cool_method.output_type == "number"
         assert "docstring has no description for the argument" in str(e)
 
     def test_saving_tool_raises_error_imports_outside_function(self):
@@ -331,6 +415,33 @@ class ToolTests(unittest.TestCase):
         assert get_weather.inputs["celsius"]["nullable"]
         assert "nullable" not in get_weather.inputs["location"]
 
+    def test_method_tool_from_decorator_optional_args(self):
+        class ToolMethod:
+            def __init__(self, desc: str):
+                self.desc = desc
+
+            @tool
+            def get_weather(self, location: str, celsius: Optional[bool] = False) -> str:
+                """
+                Get weather in the next days at given location but only if it's Paris.
+
+                Args:
+                    location: the location
+                    celsius: the temperature type
+                """
+                if location != "Paris":
+                    raise Exception("no")
+                return f"The weather in {location} is {self.desc} with sunny skies and temperatures above 30°C"
+
+        mytool = ToolMethod(desc="lovely")
+        assert "nullable" in mytool.get_weather.inputs["celsius"]
+        assert mytool.get_weather.inputs["celsius"]["nullable"]
+        assert "nullable" not in mytool.get_weather.inputs["location"]
+        assert (
+            mytool.get_weather("Paris")
+            == "The weather in Paris is lovely with sunny skies and temperatures above 30°C"
+        )
+
     def test_tool_mismatching_nullable_args_raises_error(self):
         with pytest.raises(Exception) as e:
 
@@ -407,6 +518,21 @@ class ToolTests(unittest.TestCase):
 
         assert get_weather.inputs["celsius"]["nullable"]
 
+    def test_method_tool_default_parameters_is_nullable(self):
+        class ToolMethod:
+            @tool
+            def get_weather(self, location: str, celsius: bool = False) -> str:
+                """
+                Get weather in the next days at given location.
+
+                Args:
+                    location: The location to get the weather for.
+                    celsius: is the temperature given in celsius?
+                """
+                return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
+
+        assert ToolMethod().get_weather.inputs["celsius"]["nullable"]
+
     def test_tool_supports_any_none(self):
         @tool
         def get_weather(location: Any) -> None:
@@ -423,6 +549,24 @@ class ToolTests(unittest.TestCase):
         assert get_weather.inputs["location"]["type"] == "any"
         assert get_weather.output_type == "null"
 
+    def test_method_tool_errors_on_save(self):
+        class ToolMethod:
+            @tool
+            def get_weather(self, location: Any) -> None:
+                """
+                Get weather in the next days at given location.
+
+                Args:
+                    location: The location to get the weather for.
+                """
+                return
+
+        mytool = ToolMethod()
+        with pytest.raises(Exception) as e:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                mytool.get_weather.save(tmp_dir)
+        assert "Cannot save objects created with" in str(e)
+
     def test_tool_supports_array(self):
         @tool
         def get_weather(locations: List[str], months: Optional[Tuple[str, str]] = None) -> Dict[str, float]:
@@ -437,6 +581,23 @@ class ToolTests(unittest.TestCase):
 
         assert get_weather.inputs["locations"]["type"] == "array"
         assert get_weather.inputs["months"]["type"] == "array"
+
+    def test_method_tool_supports_array(self):
+        class ToolMethod:
+            @tool
+            def get_weather(self, locations: List[str], months: Optional[Tuple[str, str]] = None) -> Dict[str, float]:
+                """
+                Get weather in the next days at given locations.
+
+                Args:
+                    locations: The locations to get the weather for.
+                    months: The months to get the weather for
+                """
+                return
+
+        mytool = ToolMethod()
+        assert mytool.get_weather.inputs["locations"]["type"] == "array"
+        assert mytool.get_weather.inputs["months"]["type"] == "array"
 
     def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self):
         @tool
