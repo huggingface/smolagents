@@ -6,6 +6,8 @@ from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.retrievers import BM25Retriever
 
+from smolagents.monitoring import LogLevel
+
 
 knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
 knowledge_base = knowledge_base.filter(lambda row: row["source"].startswith("huggingface/transformers"))
@@ -60,7 +62,7 @@ agent = CodeAgent(
     tools=[retriever_tool],
     model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"),
     max_steps=4,
-    verbosity_level=2,
+    verbosity_level=LogLevel.DEBUG,
 )
 
 agent_output = agent.run("For a transformers model training, which is slower, the forward or the backward pass?")

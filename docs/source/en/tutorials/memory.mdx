@@ -29,15 +29,17 @@ You can instrument the agent's run to display it in a great UI that lets you zoo
 You can also use `agent.replay()`, as follows:
 
 After the agent has run:
+
 ```py
 from smolagents import HfApiModel, CodeAgent
 
-agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=0)
+agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=LogLevel.OFF)
 
 result = agent.run("What's the 20th Fibonacci number?")
 ```
 
 If you want to replay this last run, just use:
+
 ```py
 agent.replay()
 ```
@@ -146,3 +148,4 @@ while final_answer is None and step_number <= 10:
 
 print("The final answer is:", final_answer)
 ```
+

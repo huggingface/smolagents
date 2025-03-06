@@ -37,6 +37,7 @@ from smolagents import (
     Model,
     ToolCallingAgent,
 )
+from smolagents.monitoring import LogLevel
 
 
 AUTHORIZED_IMPORTS = [
@@ -141,7 +142,7 @@ def create_agent_hierarchy(model: Model):
         model=model,
         tools=WEB_TOOLS,
         max_steps=20,
-        verbosity_level=2,
+        verbosity_level=LogLevel.DEBUG,
         planning_interval=4,
         name="search_agent",
         description="""A team member that will search the internet to answer your question.
@@ -160,7 +161,7 @@ def create_agent_hierarchy(model: Model):
         model=model,
         tools=[visualizer, ti_tool],
         max_steps=12,
-        verbosity_level=2,
+        verbosity_level=LogLevel.DEBUG,
         additional_authorized_imports=AUTHORIZED_IMPORTS,
         planning_interval=4,
         managed_agents=[text_webbrowser_agent],
