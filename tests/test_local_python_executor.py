@@ -1432,6 +1432,63 @@ class TestLocalPythonExecutorSecurity:
 
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
+        [([], InterpreterError("Import of builtins is not allowed")), (["builtins"], None)],
+    )
+    def test_vulnerability_builtins_safe_functions(self, additional_authorized_imports, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor("import builtins; builtins.print(1)")
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, additional_tools, expected_error",
+        [
+            ([], [], InterpreterError("Import of builtins is not allowed")),
+            (["builtins"], [], InterpreterError("Forbidden return value: exec")),
+            (["builtins"], ["exec"], None),
+        ],
+    )
+    def test_vulnerability_builtins_dangerous_functions(
+        self, additional_authorized_imports, additional_tools, expected_error
+    ):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        if additional_tools:
+            from builtins import exec
+
+            executor.send_tools({"exec": exec})
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor("import builtins; builtins.exec")
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, additional_tools, expected_error",
+        [
+            ([], [], InterpreterError("Import of os is not allowed")),
+            (["os"], [], InterpreterError("Forbidden return value: popen")),
+            (["os"], ["popen"], None),
+        ],
+    )
+    def test_vulnerability_dangerous_functions(self, additional_authorized_imports, additional_tools, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        if additional_tools:
+            from os import popen
+
+            executor.send_tools({"popen": popen})
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor("import os; os.popen")
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expected_error",
         [([], InterpreterError("Import of sys is not allowed")), (["os", "sys"], None)],
     )
     def test_vulnerability_via_sys(self, additional_authorized_imports, expected_error):
