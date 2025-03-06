@@ -13,48 +13,49 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# Inspecting runs with OpenTelemetry
+# 使用 OpenTelemetry 检查运行记录
 
 [[open-in-colab]]
 
 > [!TIP]
-> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
+> 如果您是初次构建Agent，建议先阅读 [Agent 入门指南](../conceptual_guides/intro_agents) 和 [smolagents 导览](../guided_tour)。
 
-## Why log your agent runs?
+## 为什么需要记录Agent运行？
 
-Agent runs are complicated to debug.
+调试Agent运行过程具有挑战性。
 
-Validating that a run went properly is hard, since agent workflows are [unpredictable by design](../conceptual_guides/intro_agents) (if they were predictable, you'd just be using good old code). 
+验证运行是否正常进行很困难，因为Agent的工作流程本身具有 [设计上的不可预测性](../conceptual_guides/intro_agents)（如果可预测，直接使用传统代码即可）。
 
-And inspecting a run is hard as well: multi-step agents tend to quickly fill a console with logs, and most of the errors are just "LLM dumb" kind of errors, from which the LLM auto-corrects in the next step by writing better code or tool calls.
+检查运行记录同样困难：多步骤的Agent往往会快速在控制台生成大量日志，而大多数错误只是"LLM 低级错误"类型的问题，通常LLM会在后续步骤中通过生成更好的代码或工具调用来自我修正。
 
-So using instrumentation to record agent runs is necessary in production for later inspection and monitoring!
+因此，在生产环境中使用监控工具记录Agent运行过程，对于后续检查和分析至关重要！
 
-We've adopted the [OpenTelemetry](https://opentelemetry.io/) standard for instrumenting agent runs.
+我们采用 [OpenTelemetry](https://opentelemetry.io/) 标准来实现Agent运行监控。
 
-This means that you can just run some instrumentation code, then run your agents normally, and everything gets logged into your platform. Below are some examples of how to do this with different OpenTelemetry backends.
+这意味着您只需添加少量监控代码，即可在正常运行Agent时自动记录所有信息到监控平台。以下是在不同OpenTelemetry后端实现此功能的示例：
 
-Here's how it then looks like on the platform:
+在监控平台上的展示效果如下：
 
 <div class="flex justify-center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/inspect_run_phoenix.gif"/>
 </div>
 
 
-## Setting up telemetry with Arize AI Phoenix
-First install the required packages. Here we install [Phoenix by Arize AI](https://github.com/Arize-ai/phoenix) because that's a good solution to collect and inspect the logs, but there are other OpenTelemetry-compatible platforms that you could use for this collection & inspection part.
+## 使用 Arize AI Phoenix 配置遥测
+
+首先安装必要的软件包。这里我们选择安装 [Arize AI 的 Phoenix](https://github.com/Arize-ai/phoenix) 作为日志收集和检查方案，您也可以使用其他兼容 OpenTelemetry 的平台来完成收集与检查工作。
 
 ```shell
 pip install 'smolagents[telemetry]'
 ```
 
-Then run the collector in the background.
+接着在后台运行日志收集器：
 
 ```shell
 python -m phoenix.server.main serve
 ```
 
-Finally, set up `SmolagentsInstrumentor` to trace your agents and send the traces to Phoenix default endpoint.
+最后配置 `SmolagentsInstrumentor` 来追踪Agent活动，并将追踪数据发送至 Phoenix 默认端点：
 
 ```python
 from phoenix.otel import register
@@ -63,7 +64,8 @@ from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 register()
 SmolagentsInstrumentor().instrument()
 ```
-Then you can run your agents!
+
+完成上述配置后，即可正常运行您的Agent！
 
 ```py
 from smolagents import (
@@ -93,31 +95,31 @@ manager_agent.run(
 )
 ```
 Voilà!
-You can then navigate to `http://0.0.0.0:6006/projects/` to inspect your run!
+
+此时访问 `http://0.0.0.0:6006/projects/` 即可查看运行记录：
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/inspect_run_phoenix.png">
 
-You can see that the CodeAgent called its managed ToolCallingAgent (by the way, the managed agent could have been a CodeAgent as well) to ask it to run the web search for the U.S. 2024 growth rate. Then the managed agent returned its report and the manager agent acted upon it to calculate the economy doubling time! Sweet, isn't it?
+如图所示，CodeAgent 调用了其托管的 ToolCallingAgent（注：托管Agent也可以是另一个 CodeAgent）执行美国2024年经济增长率的网络搜索。托管Agent返回报告后，管理Agent根据结果计算出经济翻倍周期！是不是很智能？
 
-## Setting up telemetry with Langfuse
+## 使用 Langfuse 配置遥测
 
-This part shows how to monitor and debug your Hugging Face **smolagents** with **Langfuse** using the `SmolagentsInstrumentor`.
+本部分演示如何通过 `SmolagentsInstrumentor` 使用 **Langfuse** 监控和调试 Hugging Face **smolagents**。
 
-> **What is Langfuse?** [Langfuse](https://langfuse.com) is an open-source platform for LLM engineering. It provides tracing and monitoring capabilities for AI agents, helping developers debug, analyze, and optimize their products. Langfuse integrates with various tools and frameworks via native integrations, OpenTelemetry, and SDKs.
+> **Langfuse 是什么？** [Langfuse](https://langfuse.com) 是面向LLM工程的开源平台，提供AI Agent的追踪与监控功能，帮助开发者调试、分析和优化产品。该平台通过原生集成、OpenTelemetry 和 SDKs 与各类工具框架对接。
 
-### Step 1: Install Dependencies
+### 步骤 1: 安装依赖
 
 ```python
 %pip install smolagents
 %pip install opentelemetry-sdk opentelemetry-exporter-otlp openinference-instrumentation-smolagents
 ```
 
-### Step 2: Set Up Environment Variables
+### 步骤 2: 配置环境变量
 
-Set your Langfuse API keys and configure the OpenTelemetry endpoint to send traces to Langfuse. Get your Langfuse API keys by signing up for [Langfuse Cloud](https://cloud.langfuse.com) or [self-hosting Langfuse](https://langfuse.com/self-hosting).
+设置 Langfuse API 密钥，并配置 OpenTelemetry 端点将追踪数据发送至 Langfuse。通过注册 [Langfuse Cloud](https://cloud.langfuse.com) 或 [自托管 Langfuse](https://langfuse.com/self-hosting) 获取 API 密钥。
 
-Also, add your [Hugging Face token](https://huggingface.co/settings/tokens) (`HF_TOKEN`) as an environment variable.
-
+同时需添加 [Hugging Face 令牌](https://huggingface.co/settings/tokens) (`HF_TOKEN`) 作为环境变量：
 ```python
 import os
 import base64
@@ -134,9 +136,9 @@ os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {LANGFUSE_AUTH}
 os.environ["HF_TOKEN"] = "hf_..."
 ```
 
-### Step 3: Initialize the `SmolagentsInstrumentor`
+### 步骤 3: 初始化 `SmolagentsInstrumentor`
 
-Initialize the `SmolagentsInstrumentor` before your application code. Configure `tracer_provider` and add a span processor to export traces to Langfuse. `OTLPSpanExporter()` uses the endpoint and headers from the environment variables.
+在应用程序代码执行前初始化 `SmolagentsInstrumentor`。配置 `tracer_provider` 并添加 span processor 将追踪数据导出至 Langfuse。`OTLPSpanExporter()` 会自动使用环境变量中配置的端点和请求头。
 
 
 ```python
@@ -152,7 +154,7 @@ trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
 SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
 ```
 
-### Step 4: Run your smolagent
+### 步骤 4: 运行 smolagent
 
 ```python
 from smolagents import (
@@ -184,10 +186,10 @@ manager_agent.run(
 )
 ```
 
-### Step 5: View Traces in Langfuse
+### 步骤 5: 在 Langfuse 中查看追踪记录
 
-After running the agent, you can view the traces generated by your smolagents application in [Langfuse](https://cloud.langfuse.com). You should see detailed steps of the LLM interactions, which can help you debug and optimize your AI agent.
+运行Agent后，您可以在 [Langfuse](https://cloud.langfuse.com) 平台查看 smolagents 应用生成的追踪记录。这些记录会详细展示LLM的交互步骤，帮助您调试和优化AI代理。
 
-![smolagents example trace](https://langfuse.com/images/cookbook/integration-smolagents/smolagent_example_trace.png)
+![smolagents 追踪示例](https://langfuse.com/images/cookbook/integration-smolagents/smolagent_example_trace.png)
 
-_[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/ce5160f9bfd5a6cd63b07d2bfcec6f54?timestamp=2025-02-11T09%3A25%3A45.163Z&display=details)_
+_[Langfuse 公开示例追踪](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/ce5160f9bfd5a6cd63b07d2bfcec6f54?timestamp=2025-02-11T09%3A25%3A45.163Z&display=details)_
