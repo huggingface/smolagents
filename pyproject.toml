@@ -47,7 +47,7 @@ litellm = [
   "litellm>=1.60.2",
 ]
 mcp = [
-  "mcpadapt>=0.0.6",
+  "mcpadapt>=0.0.15",
   "mcp",
 ]
 mlx-lm = [
