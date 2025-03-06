@@ -640,13 +640,7 @@ def evaluate_call(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> Any:
-    if not (
-        isinstance(call.func, ast.Call)
-        or isinstance(call.func, ast.Lambda)
-        or isinstance(call.func, ast.Attribute)
-        or isinstance(call.func, ast.Name)
-        or isinstance(call.func, ast.Subscript)
-    ):
+    if not isinstance(call.func, (ast.Call, ast.Lambda, ast.Attribute, ast.Name, ast.Subscript)):
         raise InterpreterError(f"This is not a correct function: {call.func}).")
 
     func, func_name = None, None
