@@ -24,7 +24,7 @@ import re
 from collections.abc import Mapping
 from functools import wraps
 from importlib import import_module
-from types import ModuleType
+from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
@@ -115,6 +115,16 @@ BASE_PYTHON_TOOLS = {
     "type": type,
     "complex": complex,
 }
+
+DANGEROUS_FUNCTIONS = [
+    "builtins.compile",
+    "builtins.eval",
+    "builtins.exec",
+    "builtins.globalsbuiltins.locals",
+    "builtins.__import__",
+    "os.popen",
+    "os.system",
+]
 
 DANGEROUS_MODULES = [
     "builtins",
@@ -228,23 +238,32 @@ def safer_eval(func: Callable):
         result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
         if "*" not in authorized_imports:
             if isinstance(result, ModuleType):
-                for module in DANGEROUS_MODULES:
+                for module_name in DANGEROUS_MODULES:
                     if (
-                        module not in authorized_imports
-                        and result.__name__ == module
+                        module_name not in authorized_imports
+                        and result.__name__ == module_name
                         # builtins has no __file__ attribute
-                        and getattr(result, "__file__", "") == getattr(import_module(module), "__file__", "")
+                        and getattr(result, "__file__", "") == getattr(import_module(module_name), "__file__", "")
                     ):
-                        raise InterpreterError(f"Forbidden return value: {module}")
+                        raise InterpreterError(f"Forbidden return value: {module_name}")
             elif isinstance(result, dict) and result.get("__name__"):
-                for module in DANGEROUS_MODULES:
+                for module_name in DANGEROUS_MODULES:
                     if (
-                        module not in authorized_imports
-                        and result["__name__"] == module
+                        module_name not in authorized_imports
+                        and result["__name__"] == module_name
                         # builtins has no __file__ attribute
-                        and result.get("__file__", "") == getattr(import_module(module), "__file__", "")
+                        and result.get("__file__", "") == getattr(import_module(module_name), "__file__", "")
                     ):
-                        raise InterpreterError(f"Forbidden return value: {module}")
+                        raise InterpreterError(f"Forbidden return value: {module_name}")
+            elif isinstance(result, (FunctionType, BuiltinFunctionType)):
+                for qualified_function_name in DANGEROUS_FUNCTIONS:
+                    module_name, function_name = qualified_function_name.rsplit(".", 1)
+                    if (
+                        function_name not in static_tools
+                        and result.__name__ == function_name
+                        and result.__module__ == module_name
+                    ):
+                        raise InterpreterError(f"Forbidden return value: {function_name}")
         return result
 
     return _check_return
