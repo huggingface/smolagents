@@ -650,8 +650,7 @@ def evaluate_call(
     authorized_imports: List[str],
 ) -> Any:
     if not (
-        callable(call.func)
-        or isinstance(call.func, ast.Call)
+        isinstance(call.func, ast.Call)
         or isinstance(call.func, ast.Lambda)
         or isinstance(call.func, ast.Attribute)
         or isinstance(call.func, ast.Name)
@@ -661,9 +660,7 @@ def evaluate_call(
 
     func, func_name = None, None
 
-    if callable(call.func):
-        func = call.func
-    elif isinstance(call.func, ast.Call):
+    if isinstance(call.func, ast.Call):
         func = evaluate_call(call.func, state, static_tools, custom_tools, authorized_imports)
     elif isinstance(call.func, ast.Lambda):
         func = evaluate_lambda(call.func, state, static_tools, custom_tools, authorized_imports)
@@ -692,9 +689,6 @@ def evaluate_call(
         if not callable(func):
             raise InterpreterError(f"This is not a correct function: {call.func}).")
         func_name = None
-
-    if not callable(func):
-        raise InterpreterError(f"Expected a callable function, but got {func}")
 
     args = []
     for arg in call.args:
