@@ -1524,11 +1524,8 @@ class LocalPythonExecutor(PythonExecutor):
     def send_variables(self, variables: dict):
         self.state.update(variables)
 
-    def send_tools(self, tools: Dict[str, Tool] | None = None):
-        if tools is None:
-            self.static_tools = BASE_PYTHON_TOOLS.copy()
-        else:
-            self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy()}
+    def send_tools(self, tools: Dict[str, Tool]):
+        self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy()}
 
 
 __all__ = ["evaluate_python_code", "LocalPythonExecutor"]

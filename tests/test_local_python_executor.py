@@ -1445,9 +1445,9 @@ class TestLocalPythonExecutor:
             "a, b = 1, 2; a, b = b, a; b",
         ],
     )
-    def test_chained_assignment_does_not_produce_error(self, code):
-        executor = LocalPythonExecutor(additional_authorized_imports=[])
-        executor.send_tools()
+    def test_chained_assignments(self, code):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
         result, _, _ = executor(code)
         assert result == 1
 
