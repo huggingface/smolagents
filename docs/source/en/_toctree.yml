@@ -3,7 +3,7 @@
   - local: index
     title: 🤗 Agents
   - local: guided_tour
-    title: Guided tour
+    title: 🗺 Guided tour
 - title: Tutorials
   sections:
   - local: tutorials/building_good_agents
@@ -25,18 +25,18 @@
 - title: Examples
   sections:
   - local: examples/text_to_sql
-    title: Self-correcting Text-to-SQL
+    title: 🗃 Self-correcting Text-to-SQL
   - local: examples/rag
-    title: Master you knowledge base with agentic RAG
+    title: 🧠 Master your knowledge base with agentic RAG
   - local: examples/multiagents
-    title: Orchestrate a multi-agent system
+    title: 👥 Orchestrate a multi-agent system
   - local: examples/web_browser
-    title: Build a web browser agent using vision models
+    title: 📷 Build a web browser agent using vision models
 - title: Reference
   sections:
   - local: reference/agents
-    title: Agent-related objects
+    title: 🤖 Agent-related objects
   - local: reference/models
-    title: Model-related objects
+    title: 📈 Model-related objects
   - local: reference/tools
-    title: Tool-related objects
+    title: 🛠 Tool-related objects
