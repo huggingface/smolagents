@@ -1455,6 +1455,12 @@ class TestLocalPythonExecutor:
         result, _, _ = executor(code)
         assert result == 1
 
+    def test_evaluate_assign_error(self):
+        code = "a, b = 1, 2, 3; a"
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError, match=".*Cannot unpack tuple of wrong size"):
+            executor(code)
+
 
 class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
