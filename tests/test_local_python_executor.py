@@ -1447,7 +1447,7 @@ class TestLocalPythonExecutorSecurity:
         "additional_authorized_imports, additional_tools, expected_error",
         [
             ([], [], InterpreterError("Import of builtins is not allowed")),
-            (["builtins"], [], InterpreterError("Forbidden return value: exec")),
+            (["builtins"], [], InterpreterError("Forbidden access to function: exec")),
             (["builtins"], ["exec"], None),
         ],
     )
@@ -1470,7 +1470,7 @@ class TestLocalPythonExecutorSecurity:
         "additional_authorized_imports, additional_tools, expected_error",
         [
             ([], [], InterpreterError("Import of os is not allowed")),
-            (["os"], [], InterpreterError("Forbidden return value: popen")),
+            (["os"], [], InterpreterError("Forbidden access to function: popen")),
             (["os"], ["popen"], None),
         ],
     )
@@ -1509,7 +1509,7 @@ class TestLocalPythonExecutorSecurity:
 
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
-        [(["importlib"], InterpreterError("Forbidden return value: os")), (["importlib", "os"], None)],
+        [(["importlib"], InterpreterError("Forbidden access to module: os")), (["importlib", "os"], None)],
     )
     def test_vulnerability_via_importlib(self, additional_authorized_imports, expected_error):
         executor = LocalPythonExecutor(additional_authorized_imports)
@@ -1531,25 +1531,29 @@ class TestLocalPythonExecutorSecurity:
         "code, additional_authorized_imports, expected_error",
         [
             # os submodule
-            ("import queue; queue.threading._os.system(':')", [], InterpreterError("Forbidden return value: os")),
-            ("import random; random._os.system(':')", [], InterpreterError("Forbidden return value: os")),
-            ("import random; random.__dict__['_os'].system(':')", [], InterpreterError("Forbidden return value: os")),
+            ("import queue; queue.threading._os.system(':')", [], InterpreterError("Forbidden access to module: os")),
+            ("import random; random._os.system(':')", [], InterpreterError("Forbidden access to module: os")),
+            (
+                "import random; random.__dict__['_os'].system(':')",
+                [],
+                InterpreterError("Forbidden access to module: os"),
+            ),
             (
                 "import doctest; doctest.inspect.os.system(':')",
                 ["doctest"],
-                InterpreterError("Forbidden return value: os"),
+                InterpreterError("Forbidden access to module: os"),
             ),
             # subprocess submodule
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio"],
-                InterpreterError("Forbidden return value: subprocess"),
+                InterpreterError("Forbidden access to module: subprocess"),
             ),
             # sys submodule
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
                 [],
-                InterpreterError("Forbidden return value: sys"),
+                InterpreterError("Forbidden access to module: sys"),
             ),
             # Allowed
             ("import pandas; pandas.io", ["pandas"], None),
@@ -1568,15 +1572,13 @@ class TestLocalPythonExecutorSecurity:
         "additional_authorized_imports, additional_tools, expected_error",
         [
             ([], [], InterpreterError("Import of sys is not allowed")),
-            (["sys"], [], InterpreterError("Forbidden return value: builtins")),
+            (["sys"], [], InterpreterError("Forbidden access to module: builtins")),
             (
                 ["sys", "builtins"],
                 [],
-                InterpreterError(
-                    "Invoking a builtin function that has not been explicitly added as a tool is not allowed"
-                ),
+                InterpreterError("Forbidden access to function: __import__"),
             ),
-            (["sys", "builtins"], ["__import__"], InterpreterError("Forbidden return value: os")),
+            (["sys", "builtins"], ["__import__"], InterpreterError("Forbidden access to module: os")),
             (["sys", "builtins", "os"], ["__import__"], None),
         ],
     )
@@ -1606,7 +1608,10 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize("patch_builtin_import_module", [False, True])  # builtins_import.__module__ = None
     @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
-        [([], [], InterpreterError("Forbidden return value: builtins")), (["builtins", "os"], ["__import__"], None)],
+        [
+            ([], [], InterpreterError("Forbidden access to module: builtins")),
+            (["builtins", "os"], ["__import__"], None),
+        ],
     )
     def test_vulnerability_builtins_via_traceback(
         self, patch_builtin_import_module, additional_authorized_imports, additional_tools, expected_error, monkeypatch
@@ -1640,7 +1645,10 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize("patch_builtin_import_module", [False, True])  # builtins_import.__module__ = None
     @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
-        [([], [], InterpreterError("Forbidden return value: builtins")), (["builtins", "os"], ["__import__"], None)],
+        [
+            ([], [], InterpreterError("Forbidden access to module: builtins")),
+            (["builtins", "os"], ["__import__"], None),
+        ],
     )
     def test_vulnerability_builtins_via_class_catch_warnings(
         self, patch_builtin_import_module, additional_authorized_imports, additional_tools, expected_error, monkeypatch
@@ -1675,7 +1683,7 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
-        [([], InterpreterError("Forbidden return value: os")), (["os"], None)],
+        [([], InterpreterError("Forbidden access to module: os")), (["os"], None)],
     )
     def test_vulnerability_load_module_via_builtin_importer(self, additional_authorized_imports, expected_error):
         executor = LocalPythonExecutor(additional_authorized_imports)
