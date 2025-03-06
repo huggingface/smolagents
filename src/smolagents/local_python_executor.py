@@ -245,7 +245,7 @@ def safer_eval(func: Callable):
                         # builtins has no __file__ attribute
                         and getattr(result, "__file__", "") == getattr(import_module(module_name), "__file__", "")
                     ):
-                        raise InterpreterError(f"Forbidden return value: {module_name}")
+                        raise InterpreterError(f"Forbidden access to module: {module_name}")
             elif isinstance(result, dict) and result.get("__name__"):
                 for module_name in DANGEROUS_MODULES:
                     if (
@@ -254,7 +254,7 @@ def safer_eval(func: Callable):
                         # builtins has no __file__ attribute
                         and result.get("__file__", "") == getattr(import_module(module_name), "__file__", "")
                     ):
-                        raise InterpreterError(f"Forbidden return value: {module_name}")
+                        raise InterpreterError(f"Forbidden access to module: {module_name}")
             elif isinstance(result, (FunctionType, BuiltinFunctionType)):
                 for qualified_function_name in DANGEROUS_FUNCTIONS:
                     module_name, function_name = qualified_function_name.rsplit(".", 1)
@@ -263,7 +263,7 @@ def safer_eval(func: Callable):
                         and result.__name__ == function_name
                         and result.__module__ == module_name
                     ):
-                        raise InterpreterError(f"Forbidden return value: {function_name}")
+                        raise InterpreterError(f"Forbidden access to function: {function_name}")
         return result
 
     return _check_return
