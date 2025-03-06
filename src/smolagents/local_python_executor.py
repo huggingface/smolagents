@@ -590,24 +590,15 @@ def evaluate_assign(
         target = assign.targets[0]
         set_value(target, result, state, static_tools, custom_tools, authorized_imports)
     else:
-        if not isinstance(result, (list, tuple)):
-            for tgt in assign.targets:
-                set_value(tgt, result, state, static_tools, custom_tools, authorized_imports)
+        expanded_values = []
+        for tgt in assign.targets:
+            if isinstance(tgt, ast.Starred):
+                expanded_values.extend(result)
+            else:
+                expanded_values.append(result)
 
-        else:
-            if len(assign.targets) != len(result):
-                raise InterpreterError(f"Assign failed: expected {len(assign.targets)} values but got {len(result)}.")
-
-            expanded_values = []
-            for tgt in assign.targets:
-                if isinstance(tgt, ast.Starred):
-                    expanded_values.extend(result)
-                else:
-                    expanded_values.append(result)
-
-            for tgt, val in zip(assign.targets, expanded_values):
-                set_value(tgt, val, state, static_tools, custom_tools, authorized_imports)
-
+        for tgt, val in zip(assign.targets, expanded_values):
+            set_value(tgt, val, state, static_tools, custom_tools, authorized_imports)
     return result
 
 
