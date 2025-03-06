@@ -13,22 +13,21 @@ specific language governing permissions and limitations under the License.
 rendered properly in your Markdown viewer.
 
 -->
-# 📚 Manage your agent's memory
+# 📚 管理Agent的记忆
 
 [[open-in-colab]]
 
-In the end, an agent can be defined by simple components: it has tools, prompts.
-And most importantly, it has a memory of past steps, drawing a history of planning, execution, and errors.
+归根结底，Agent可以定义为由几个简单组件构成：它拥有工具、提示词。最重要的是，它具备对过往步骤的记忆，能够追溯完整的规划、执行和错误历史。
 
-### Replay your agent's memory
+### 回放Agent的记忆
 
-We propose several features to inspect a past agent run.
+我们提供了多项功能来审查Agent的过往运行记录。
 
-You can instrument the agent's run to display it in a great UI that lets you zoom in/out on specific steps, as highlighted in the [instrumentation guide](./inspect_runs).
+您可以通过插装（instrumentation）在可视化界面中查看Agent的运行过程，该界面支持对特定步骤进行缩放操作，具体方法参见[插装指南](./inspect_runs)。
 
-You can also use `agent.replay()`, as follows:
+您也可以使用`agent.replay()`方法实现回放：
 
-After the agent has run:
+当Agent完成运行后：
 ```py
 from smolagents import HfApiModel, CodeAgent
 
@@ -37,16 +36,16 @@ agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=0)
 result = agent.run("What's the 20th Fibonacci number?")
 ```
 
-If you want to replay this last run, just use:
+若要回放最近一次运行，只需使用：
 ```py
 agent.replay()
 ```
 
-### Dynamically change the agent's memory
+### 动态修改Agent的记忆
 
-Many advanced use cases require dynamic modification of the agent's memory.
+许多高级应用场景需要对Agent的记忆进行动态修改。
 
-You can access the agent's memory using:
+您可以通过以下方式访问Agent的记忆：
 
 ```py
 from smolagents import ActionStep
@@ -67,14 +66,14 @@ for step in agent.memory.steps:
             print(f"\nStep {step.step_number} got these observations:\n{step.observations}\n")
 ```
 
-Use `agent.memory.get_full_steps()` to get full steps as dictionaries.
+使用`agent.memory.get_full_steps()`可获取完整步骤字典数据。
 
-You can also use step callbacks to dynamically change the agent's memory.
+您还可以通过步骤回调（step callbacks）实现记忆的动态修改。
 
-Step callbacks can access the `agent` itself in their arguments, so they can access any memory step as highlighted above, and change it if needed. For instance, let's say you are observing screenshots of each step performed by a web browser agent. You want to log the newest screenshot, and remove the images from ancient steps to save on token costs.
+步骤回调函数可通过参数直接访问`agent`对象，因此能够访问所有记忆步骤并根据需要进行修改。例如，假设您正在监控网页浏览Agent每个步骤的屏幕截图，希望保留最新截图同时删除旧步骤的图片以节省token消耗。
 
-You culd run something like the following.
-_Note: this code is incomplete, some imports and object definitions have been removed for the sake of concision, visit [the original script](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py) to get the full working code._
+可参考以下代码示例：
+_注：此代码片段不完整，部分导入语句和对象定义已精简，完整代码请访问[原始脚本](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)_
 
 ```py
 import helium
@@ -94,7 +93,7 @@ def update_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
     memory_step.observations_images = [image.copy()]
 ```
 
-Then you should pass this function in the `step_callbacks` argument upon initialization of your agent:
+最后在初始化Agent时，将此函数传入`step_callbacks`参数：
 
 ```py
 CodeAgent(
@@ -107,12 +106,11 @@ CodeAgent(
 )
 ```
 
-Head to our [vision web browser code](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py) to see the full working example.
+请访问我们的 [vision web browser code](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py) 查看完整可运行示例。
 
-### Run agents one step at a time
+### 分步运行 Agents
 
-This can be useful in case you have tool calls that take days: you can just run your agents step by step.
-This will also let you update the memory on each step.
+当您需要处理耗时数天的工具调用时，这种方式特别有用：您可以逐步执行Agents。这还允许您在每一步更新记忆。
 
 ```py
 from smolagents import HfApiModel, CodeAgent, ActionStep, TaskStep
