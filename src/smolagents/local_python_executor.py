@@ -1457,7 +1457,8 @@ def evaluate_python_code(
 
 
 class PythonExecutor:
-    pass
+    def __call__(self, *args, **kwargs):
+        raise NotImplementedError
 
 
 class LocalPythonExecutor(PythonExecutor):
