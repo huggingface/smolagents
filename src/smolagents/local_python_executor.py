@@ -136,6 +136,19 @@ DANGEROUS_PATTERNS = (
     "multiprocessing",
 )
 
+DANGEROUS_MODULES = [
+    "builtins",
+    "io",
+    "multiprocessing",
+    "os",
+    "pathlib",
+    "pty",
+    "shutil",
+    "socket",
+    "subprocess",
+    "sys",
+]
+
 
 class PrintContainer:
     def __init__(self):
@@ -225,12 +238,33 @@ def safer_eval(func: Callable):
     """
 
     @wraps(func)
-    def _check_return(*args, **kwargs):
-        result = func(*args, **kwargs)
-        if (isinstance(result, ModuleType) and result is builtins) or (
-            isinstance(result, dict) and result == vars(builtins)
-        ):
-            raise InterpreterError("Forbidden return value: builtins")
+    def _check_return(
+        expression,
+        state,
+        static_tools,
+        custom_tools,
+        authorized_imports=BASE_BUILTIN_MODULES,
+    ):
+        result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
+        if "*" not in authorized_imports:
+            if isinstance(result, ModuleType):
+                for module in DANGEROUS_MODULES:
+                    if (
+                        module not in authorized_imports
+                        and result.__name__ == module
+                        # builtins has no __file__ attribute
+                        and getattr(result, "__file__", "") == getattr(import_module(module), "__file__", "")
+                    ):
+                        raise InterpreterError(f"Forbidden return value: {module}")
+            elif isinstance(result, dict) and result.get("__name__"):
+                for module in DANGEROUS_MODULES:
+                    if (
+                        module not in authorized_imports
+                        and result["__name__"] == module
+                        # builtins has no __file__ attribute
+                        and result.get("__file__", "") == getattr(import_module(module), "__file__", "")
+                    ):
+                        raise InterpreterError(f"Forbidden return value: {module}")
         return result
 
     return _check_return
@@ -1422,12 +1456,13 @@ def evaluate_python_code(
     custom_tools = custom_tools if custom_tools is not None else {}
     result = None
     state["_print_outputs"] = PrintContainer()
+    state["_operations_count"] = 0
 
     if "final_answer" in static_tools:
         previous_final_answer = static_tools["final_answer"]
 
-        def final_answer(value):
-            raise FinalAnswerException(previous_final_answer(value))
+        def final_answer(answer):  # Using 'answer' as the argument like in the original function
+            raise FinalAnswerException(previous_final_answer(answer))
 
         static_tools["final_answer"] = final_answer
 

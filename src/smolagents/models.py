@@ -24,7 +24,6 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from huggingface_hub import InferenceClient
 from huggingface_hub.utils import is_torch_available
 from PIL import Image
 
@@ -429,6 +428,8 @@ class HfApiModel(Model):
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
+        from huggingface_hub import InferenceClient
+
         super().__init__(**kwargs)
         self.model_id = model_id
         self.provider = provider
@@ -818,13 +819,13 @@ class TransformersModel(Model):
 
 
 class LiteLLMModel(Model):
-    """This model connects to [LiteLLM](https://www.litellm.ai/) as a gateway to hundreds of LLMs.
+    """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
 
     Parameters:
         model_id (`str`):
             The model identifier to use on the server (e.g. "gpt-3.5-turbo").
         api_base (`str`, *optional*):
-            The base URL of the OpenAI-compatible API server.
+            The base URL of the provider API to call the model.
         api_key (`str`, *optional*):
             The API key to use for authentication.
         custom_role_conversions (`dict[str, str]`, *optional*):
