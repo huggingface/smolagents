@@ -25,6 +25,7 @@ import pytest
 
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
+    DANGEROUS_FUNCTIONS,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -1529,6 +1530,13 @@ class TestLocalPythonExecutorSecurity:
             else does_not_raise()
         ):
             executor("import os; os.popen")
+
+    @pytest.mark.parametrize("dangerous_function", DANGEROUS_FUNCTIONS)
+    def test_vulnerability_for_all_dangerous_functions(self, dangerous_function):
+        dangerous_module_name, dangerous_function_name = dangerous_function.rsplit(".", 1)
+        executor = LocalPythonExecutor([dangerous_module_name])
+        with pytest.raises(InterpreterError, match=f".*Forbidden access to function: {dangerous_function_name}"):
+            executor(f"import {dangerous_module_name}; {dangerous_function}")
 
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
