@@ -384,8 +384,9 @@ class HfApiModel(Model):
     This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
 
     Parameters:
-        model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
+        model_id (`str`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+            For example, `"Qwen/Qwen2.5-Coder-32B-Instruct"`.
         provider (`str`, *optional*):
             Name of the provider to use for inference. Can be `"replicate"`, `"together"`, `"fal-ai"`, `"sambanova"` or `"hf-inference"`.
             defaults to hf-inference (HF Inference API).
@@ -421,7 +422,7 @@ class HfApiModel(Model):
 
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
+        model_id: str,
         provider: Optional[str] = None,
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
