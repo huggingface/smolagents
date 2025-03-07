@@ -597,8 +597,9 @@ class TransformersModel(Model):
     > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
 
     Parameters:
-        model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
+        model_id (`str`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+            For example, `"Qwen/Qwen2.5-Coder-32B-Instruct"`.
         device_map (`str`, *optional*):
             The device_map to initialize your model with.
         torch_dtype (`str`, *optional*):
@@ -629,7 +630,7 @@ class TransformersModel(Model):
 
     def __init__(
         self,
-        model_id: Optional[str] = None,
+        model_id: str,
         device_map: Optional[str] = None,
         torch_dtype: Optional[str] = None,
         trust_remote_code: bool = False,
@@ -643,10 +644,6 @@ class TransformersModel(Model):
         import torch
         from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
 
-        default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-        if model_id is None:
-            model_id = default_model_id
-            logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
         self.model_id = model_id
 
         default_max_tokens = 5000
@@ -678,12 +675,7 @@ class TransformersModel(Model):
             else:
                 raise e
         except Exception as e:
-            logger.warning(
-                f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {default_model_id=}."
-            )
-            self.model_id = default_model_id
-            self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
+            raise ValueError(f"Failed to load tokenizer and model for {model_id=}: {e}") from e
 
     def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
