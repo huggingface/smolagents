@@ -829,7 +829,7 @@ class LiteLLMModel(Model):
 
     def __init__(
         self,
-        model_id: str = "anthropic/claude-3-5-sonnet-20240620",
+        model_id: str,
         api_base=None,
         api_key=None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
