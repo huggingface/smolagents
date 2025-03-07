@@ -117,18 +117,6 @@ BASE_PYTHON_TOOLS = {
     "complex": complex,
 }
 
-DANGEROUS_FUNCTIONS = [
-    "builtins.compile",
-    "builtins.eval",
-    "builtins.exec",
-    "builtins.globals",
-    "builtins.locals",
-    "builtins.__import__",
-    "os.popen",
-    "os.system",
-    "posix.system",
-]
-
 DANGEROUS_MODULES = [
     "builtins",
     "io",
@@ -140,6 +128,18 @@ DANGEROUS_MODULES = [
     "socket",
     "subprocess",
     "sys",
+]
+
+DANGEROUS_FUNCTIONS = [
+    "builtins.compile",
+    "builtins.eval",
+    "builtins.exec",
+    "builtins.globals",
+    "builtins.locals",
+    "builtins.__import__",
+    "os.popen",
+    "os.system",
+    "posix.system",
 ]
 
 
