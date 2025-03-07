@@ -372,12 +372,14 @@ shift_minutes = {worker: ('a', 'b') for worker, (start, end) in shifts.items()}
                 evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
 
         # test lazy evaluation
-        code = """
-house_positions = [0, 7, 10, 15, 18, 22, 22]
-i, n, loc = 0, 7, 30
-while i < n and house_positions[i] <= loc:
-    i += 1
-"""
+        code = dedent(
+            """
+            house_positions = [0, 7, 10, 15, 18, 22, 22]
+            i, n, loc = 0, 7, 30
+            while i < n and house_positions[i] <= loc:
+                i += 1
+            """
+        )
         state = {}
         evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
 
