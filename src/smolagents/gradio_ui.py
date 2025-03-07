@@ -254,6 +254,9 @@ class GradioUI:
         )
 
     def launch(self, share: bool = True, **kwargs):
+        self.create_app().launch(debug=True, share=share, **kwargs)
+
+    def create_app(self):
         import gradio as gr
 
         with gr.Blocks(theme="ocean", fill_height=True) as demo:
@@ -264,7 +267,7 @@ class GradioUI:
 
             with gr.Sidebar():
                 gr.Markdown(
-                    f"# {self.name.replace('_', ' ').capitalize() or 'Agent interface'}"
+                    f"# {self.name.replace('_', ' ').capitalize() if self.name else 'Agent interface'}"
                     "\n> This web ui allows you to interact with a `smolagents` agent that can use tools and execute steps to complete tasks."
                     + (f"\n\n**Agent description:**\n{self.description}" if self.description else "")
                 )
@@ -339,7 +342,7 @@ class GradioUI:
                 [text_input, submit_btn],
             )
 
-        demo.launch(debug=True, share=share, **kwargs)
+        return demo
 
 
 __all__ = ["stream_to_gradio", "GradioUI"]
