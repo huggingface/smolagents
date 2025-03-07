@@ -1534,6 +1534,8 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize("dangerous_function", DANGEROUS_FUNCTIONS)
     def test_vulnerability_for_all_dangerous_functions(self, dangerous_function):
         dangerous_module_name, dangerous_function_name = dangerous_function.rsplit(".", 1)
+        # Skip test if module is not installed: posix module is not installed on Windows
+        pytest.importorskip(dangerous_module_name)
         executor = LocalPythonExecutor([dangerous_module_name])
         with pytest.raises(InterpreterError, match=f".*Forbidden access to function: {dangerous_function_name}"):
             executor(f"import {dangerous_module_name}; {dangerous_function}")
