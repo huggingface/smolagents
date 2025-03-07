@@ -748,12 +748,15 @@ def evaluate_subscript(
     elif index in value:
         return value[index]
     else:
-        error_message = f"Could not index {value} with '{index}'."
-        if isinstance(index, str) and isinstance(value, Mapping):
-            close_matches = difflib.get_close_matches(index, list(value.keys()))
-            if len(close_matches) > 0:
-                error_message += f" Maybe you meant one of these indexes instead: {str(close_matches)}"
-        raise InterpreterError(error_message)
+        try:
+            return value[index]
+        except (KeyError, IndexError, TypeError):
+            error_message = f"Could not index {value} with '{index}'."
+            if isinstance(index, str) and isinstance(value, Mapping):
+                close_matches = difflib.get_close_matches(index, list(value.keys()))
+                if len(close_matches) > 0:
+                    error_message += f" Maybe you meant one of these indexes instead: {str(close_matches)}"
+            raise InterpreterError(error_message)
 
 
 def evaluate_name(
