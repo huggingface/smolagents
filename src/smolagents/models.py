@@ -129,9 +129,8 @@ def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
 
 
 def parse_tool_args_if_needed(message: ChatMessage) -> ChatMessage:
-    if message.tool_calls is not None:
-        for tool_call in message.tool_calls:
-            tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+    for tool_call in message.tool_calls:
+        tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
     return message
 
 
@@ -590,36 +589,70 @@ class MLXModel(Model):
 class TransformersModel(Model):
     """A class that uses Hugging Face's Transformers library for language model interaction.
 
-    This model allows you to load and use Hugging Face's models locally using the Transformers library. It supports features like stop sequences and grammar customization.
+    This model allows you to load and use Hugging Face's models locally using the Transformers library. It supports features like
+    stop sequences, grammar customization, model quantization, and Flash Attention 2.
 
     > [!TIP]
     > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
+    > For quantization support, you'll also need `bitsandbytes`: `pip install bitsandbytes`
 
     Parameters:
         model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
         device_map (`str`, *optional*):
-            The device_map to initialize your model with.
+            The device_map to initialize your model with. Defaults to 'cuda' if available, else 'cpu'.
         torch_dtype (`str`, *optional*):
             The torch_dtype to initialize your model with.
         trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
-        kwargs (dict, *optional*):
-            Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
+        load_in_4bit (bool, default `False`):
+            Whether to load the model in 4-bit precision. Uses the bitsandbytes library for quantization.
+        load_in_8bit (bool, default `False`):
+            Whether to load the model in 8-bit precision. Uses the bitsandbytes library for quantization.
+        quantization_config (Dict[str, Any], *optional*):
+            Custom configuration for model quantization using BitsAndBytesConfig. If provided, overrides load_in_4bit and load_in_8bit.
+        model_config (Dict[str, Any], *optional*):
+            Configuration overrides for the model. These will be passed as config_overrides to from_pretrained.
+        attn_implementation (`str`, *optional*, defaults to `None`):
+            Attention implementation to use. Options: "eager" (default, the worst one), "sdpa" (better than eager and runs on old 
+            gpus too), or "flash_attention_2" (best, but requires at least Ampere gpus).
         **kwargs:
             Additional keyword arguments to pass to `model.generate()`, for instance `max_new_tokens` or `device`.
+
     Raises:
-        ValueError:
-            If the model name is not provided.
+        ModuleNotFoundError:
+            If required dependencies are not installed.
+        RuntimeError:
+            If model initialization fails.
 
     Example:
     ```python
-    >>> engine = TransformersModel(
-    ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
-    ...     device="cuda",
-    ...     max_new_tokens=5000,
-    ... )
-    >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
+    # Basic usage
+    engine = TransformersModel(
+        model_id="mistralai/Mistral-7B-Instruct-v0.2",
+        device_map="auto",
+        max_new_tokens=5000,
+    )
+
+    # With 4-bit quantization and Flash Attention 2
+    engine = TransformersModel(
+        model_id="mistralai/Mistral-7B-Instruct-v0.2",
+        load_in_4bit=True,
+        attn_implementation="flash_attention_2",        
+        device_map="auto",
+    )
+
+    # With custom quantization config
+    engine = TransformersModel(
+        model_id="mistralai/Mistral-7B-Instruct-v0.2",
+        quantization_config={
+            "load_in_4bit": True,
+            "bnb_4bit_compute_dtype": "float16",
+            "bnb_4bit_quant_type": "nf4"
+        },
+        device_map="auto",
+    )
+    ```
     >>> response = engine(messages, stop_sequences=["END"])
     >>> print(response)
     "Quantum mechanics is the branch of physics that studies..."
@@ -632,6 +665,11 @@ class TransformersModel(Model):
         device_map: Optional[str] = None,
         torch_dtype: Optional[str] = None,
         trust_remote_code: bool = False,
+        load_in_4bit: bool = False,
+        load_in_8bit: bool = False,
+        quantization_config: Optional[Dict[str, Any]] = None,
+        model_config: Optional[Dict[str, Any]] = None,
+        attn_implementation: str = "None",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -640,7 +678,7 @@ class TransformersModel(Model):
                 "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
             )
         import torch
-        from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
+        from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer, BitsAndBytesConfig
 
         default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         if model_id is None:
@@ -660,15 +698,57 @@ class TransformersModel(Model):
         if device_map is None:
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
+        
+        # Handle quantization configuration
+        if quantization_config:
+            quant_config = BitsAndBytesConfig(**quantization_config)
+        elif load_in_4bit:
+            quant_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+            )
+        elif load_in_8bit:
+            quant_config = BitsAndBytesConfig(load_in_8bit=True)
+        else:
+            quant_config = None
+
+        # Prepare model loading kwargs
+        model_kwargs = {
+            "device_map": device_map,
+            "torch_dtype": torch_dtype,
+            "trust_remote_code": trust_remote_code,
+        }
+        
+        if quant_config:
+            model_kwargs["quantization_config"] = quant_config
+        
+        if attn_implementation:
+            model_kwargs["attn_implementation"] = attn_implementation
+            
+        if model_config:
+            model_kwargs["config_overrides"] = model_config
+
         self._is_vlm = False
         try:
+            # Try loading the model with all configurations
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_id,
-                device_map=device_map,
-                torch_dtype=torch_dtype,
-                trust_remote_code=trust_remote_code,
+                **model_kwargs
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    model_id,
+                    trust_remote_code=trust_remote_code,
+                    padding_side="left"
+                )
+                if not self.tokenizer.pad_token:
+                    self.tokenizer.pad_token = self.tokenizer.eos_token
+            except Exception as e:
+                logger.warning(f"Failed to load tokenizer for {model_id}: {e}. Will try to load default tokenizer.")
+                self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
+                
         except ValueError as e:
             if "Unrecognized configuration class" in str(e):
                 self.model = AutoModelForImageTextToText.from_pretrained(model_id, device_map=device_map)
@@ -677,12 +757,8 @@ class TransformersModel(Model):
             else:
                 raise e
         except Exception as e:
-            logger.warning(
-                f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {default_model_id=}."
-            )
-            self.model_id = default_model_id
-            self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
+            logger.error(f"Failed to load model {model_id}: {str(e)}")
+            raise RuntimeError(f"Failed to initialize model: {str(e)}")
 
     def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
