@@ -24,6 +24,7 @@ import re
 from collections.abc import Mapping
 from functools import wraps
 from importlib import import_module
+from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
@@ -125,6 +126,7 @@ DANGEROUS_FUNCTIONS = [
     "builtins.__import__",
     "os.popen",
     "os.system",
+    "posix.system",
 ]
 
 DANGEROUS_MODULES = [
@@ -244,7 +246,8 @@ def safer_eval(func: Callable):
                         module_name not in authorized_imports
                         and result.__name__ == module_name
                         # builtins has no __file__ attribute
-                        and getattr(result, "__file__", "") == getattr(import_module(module_name), "__file__", "")
+                        and getattr(result, "__file__", "")
+                        == (getattr(import_module(module_name), "__file__", "") if find_spec(module_name) else "")
                     ):
                         raise InterpreterError(f"Forbidden access to module: {module_name}")
             elif isinstance(result, dict) and result.get("__name__"):
@@ -253,7 +256,8 @@ def safer_eval(func: Callable):
                         module_name not in authorized_imports
                         and result["__name__"] == module_name
                         # builtins has no __file__ attribute
-                        and result.get("__file__", "") == getattr(import_module(module_name), "__file__", "")
+                        and result.get("__file__", "")
+                        == (getattr(import_module(module_name), "__file__", "") if find_spec(module_name) else "")
                     ):
                         raise InterpreterError(f"Forbidden access to module: {module_name}")
             elif isinstance(result, (FunctionType, BuiltinFunctionType)):
