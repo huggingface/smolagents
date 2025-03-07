@@ -95,7 +95,7 @@ model = HfApiModel(
 from smolagents import LiteLLMModel
 
 model = LiteLLMModel(
-    "anthropic/claude-3-5-sonnet-latest",
+    model_id="anthropic/claude-3-5-sonnet-latest",
     temperature=0.2,
     api_key=os.environ["ANTHROPIC_API_KEY"]
 )

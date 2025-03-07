@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
     if args.model_type == "LiteLLMModel":
         model = LiteLLMModel(
-            args.model_id,
+            model_id=args.model_id,
             max_completion_tokens=8192,
         )
     else:
