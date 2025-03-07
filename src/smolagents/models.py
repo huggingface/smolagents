@@ -25,7 +25,6 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from huggingface_hub.utils import is_torch_available
-from PIL import Image
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url
@@ -712,7 +711,6 @@ class TransformersModel(Model):
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
-        images: Optional[List[Image.Image]] = None,
         **kwargs,
     ) -> ChatMessage:
         completion_kwargs = self._prepare_completion_kwargs(
@@ -737,7 +735,6 @@ class TransformersModel(Model):
             completion_kwargs["max_new_tokens"] = max_new_tokens
 
         if hasattr(self, "processor"):
-            images = [Image.open(image) for image in images] if images else None
             prompt_tensor = self.processor.apply_chat_template(
                 messages,
                 tools=[get_tool_json_schema(tool) for tool in tools_to_call_from] if tools_to_call_from else None,
@@ -745,7 +742,6 @@ class TransformersModel(Model):
                 tokenize=True,
                 return_dict=True,
                 add_generation_prompt=True if tools_to_call_from else False,
-                **({"images": images} if images else {}),
             )
         else:
             prompt_tensor = self.tokenizer.apply_chat_template(
