@@ -18,6 +18,7 @@ import types
 import unittest
 from contextlib import nullcontext as does_not_raise
 from textwrap import dedent
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -366,9 +367,9 @@ shift_minutes = {worker: ('a', 'b') for worker, (start, end) in shifts.items()}
 
         # test infinite loop
         code = "i = 0\nwhile i < 3:\n    i -= 1\ni"
-        with pytest.raises(InterpreterError) as e:
-            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
-        assert "iterations in While loop exceeded" in str(e)
+        with patch("smolagents.local_python_executor.MAX_WHILE_ITERATIONS", 100):
+            with pytest.raises(InterpreterError, match=".*Maximum number of 100 iterations in While loop exceeded"):
+                evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
 
         # test lazy evaluation
         code = """
