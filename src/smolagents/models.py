@@ -385,7 +385,8 @@ class HfApiModel(Model):
 
     Parameters:
         model_id (`str`):
-            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+            The Hugging Face model ID to be used for inference.
+            This can be a model identifier from the Hugging Face model hub or a URL to a deployed Inference Endpoint.
             For example, `"Qwen/Qwen2.5-Coder-32B-Instruct"`.
         provider (`str`, *optional*):
             Name of the provider to use for inference. Can be `"replicate"`, `"together"`, `"fal-ai"`, `"sambanova"` or `"hf-inference"`.
