@@ -233,7 +233,7 @@ if __name__ == "__main__":
             max_completion_tokens=8192,
         )
     else:
-        model = HfApiModel(args.model_id, provider="together", max_tokens=8192)
+        model = HfApiModel(model_id=args.model_id, provider="together", max_tokens=8192)
 
     answer_questions(
         eval_ds,

@@ -111,7 +111,7 @@ messages = [
   {"role": "user", "content": "No need to help, take it easy."},
 ]
 
-model = HfApiModel()
+model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
 print(model(messages))
 ```
 ```text
