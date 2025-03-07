@@ -1,15 +1,10 @@
 from dataclasses import asdict, dataclass
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Dict, List, TypedDict, Union
+from typing import Any, List, TypedDict, Union
 
 from smolagents.models import ChatMessage, MessageRole
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.utils import AgentError, make_json_serializable
-
-
-if TYPE_CHECKING:
-    from smolagents.models import ChatMessage
-    from smolagents.monitoring import AgentLogger
 
 
 logger = getLogger(__name__)
@@ -42,7 +37,7 @@ class MemoryStep:
     def dict(self):
         return asdict(self)
 
-    def to_messages(self, **kwargs) -> List[Dict[str, Any]]:
+    def to_messages(self, **kwargs) -> List[Message]:
         raise NotImplementedError
 
 
@@ -55,7 +50,7 @@ class ActionStep(MemoryStep):
     step_number: int | None = None
     error: AgentError | None = None
     duration: float | None = None
-    model_output_message: ChatMessage = None
+    model_output_message: ChatMessage | None = None
     model_output: str | None = None
     observations: str | None = None
     observations_images: List[str] | None = None
@@ -78,7 +73,7 @@ class ActionStep(MemoryStep):
         }
 
     def to_messages(self, summary_mode: bool = False, show_model_input_messages: bool = False) -> List[Message]:
-        messages = []
+        messages: List[Message] = []
         if self.model_input_messages is not None and show_model_input_messages:
             messages.append(Message(role=MessageRole.SYSTEM, content=self.model_input_messages))
         if self.model_output is not None and not summary_mode:
