@@ -96,8 +96,8 @@ def load_model(model_type: str, model_id: str, api_base: str | None = None, api_
         return TransformersModel(model_id=model_id, device_map="auto", flatten_messages_as_text=False)
     elif model_type == "HfApiModel":
         return HfApiModel(
-            token=api_key or os.getenv("HF_API_KEY"),
             model_id=model_id,
+            token=api_key or os.getenv("HF_API_KEY"),
         )
     else:
         raise ValueError(f"Unsupported model type: {model_type}")

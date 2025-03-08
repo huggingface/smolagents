@@ -71,7 +71,7 @@ rendered properly in your Markdown viewer.
 from smolagents import CodeAgent, VisitWebpageTool, HfApiModel
 agent = CodeAgent(
     tools = [VisitWebpageTool()],
-    model=HfApiModel(),
+    model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"),
     additional_authorized_imports=["requests", "markdownify"],
     executor_type="e2b"
 )

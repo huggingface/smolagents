@@ -176,7 +176,7 @@ The Python interpreter also doesn't allow imports by default outside of a safe l
 You can authorize additional imports by passing the authorized modules as a list of strings in argument `additional_authorized_imports` upon initialization of your [`CodeAgent`]:
 
 ```py
-model = HfApiModel()
+model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
@@ -314,7 +314,7 @@ All these attributes will be automatically baked into the agent's system prompt 
 Then you can directly initialize your agent:
 ```py
 from smolagents import CodeAgent, HfApiModel
-agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
+agent = CodeAgent(tools=[model_download_tool], model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"))
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
@@ -367,7 +367,7 @@ Here's an example of making an agent that managed a specific web search agent us
 ```py
 from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool
 
-model = HfApiModel()
+model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
 
 web_agent = CodeAgent(
     tools=[DuckDuckGoSearchTool()],
@@ -402,7 +402,7 @@ from smolagents import (
 # Import tool from Hub
 image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
-model = HfApiModel(model_id)
+model = HfApiModel(model_id=model_id)
 
 # Initialize the agent with the image generation tool
 agent = CodeAgent(tools=[image_generation_tool], model=model)

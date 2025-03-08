@@ -16,7 +16,7 @@ from smolagents import (
 
 
 # Then we run the agentic part!
-model = HfApiModel()
+model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
 
 search_agent = ToolCallingAgent(
     tools=[DuckDuckGoSearchTool(), VisitWebpageTool()],

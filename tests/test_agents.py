@@ -905,7 +905,7 @@ class TestCodeAgent:
 
 class MultiAgentsTests(unittest.TestCase):
     def test_multiagents_save(self):
-        model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=2096, temperature=0.5)
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=2096, temperature=0.5)
 
         web_agent = ToolCallingAgent(
             model=model,

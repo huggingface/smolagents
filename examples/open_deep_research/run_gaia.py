@@ -186,7 +186,7 @@ def answer_single_question(example, model_id, answers_file, visual_inspection_to
     if model_id == "o1":
         model_params["reasoning_effort"] = "high"
     model = LiteLLMModel(**model_params)
-    # model = HfApiModel("Qwen/Qwen2.5-72B-Instruct", provider="together")
+    # model = HfApiModel(model_id="Qwen/Qwen2.5-72B-Instruct", provider="together")
     #     "https://lnxyuvj02bpe6mam.us-east-1.aws.endpoints.huggingface.cloud",
     #     custom_role_conversions=custom_role_conversions,
     #     # provider="sambanova",

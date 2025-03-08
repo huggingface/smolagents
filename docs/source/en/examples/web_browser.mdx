@@ -115,7 +115,7 @@ from smolagents import HfApiModel
 
 # Initialize the model
 model_id = "meta-llama/Llama-3.3-70B-Instruct"  # You can change this to your preferred model
-model = HfApiModel(model_id)
+model = HfApiModel(model_id=model_id)
 
 # Create the agent
 agent = CodeAgent(

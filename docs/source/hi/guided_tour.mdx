@@ -114,7 +114,7 @@ agent.run(
 आप अपने [`CodeAgent`] के इनिशियलाइजेशन पर आर्ग्यूमेंट `additional_authorized_imports` में स्ट्रिंग्स की लिस्ट के रूप में अतिरिक्त मॉड्यूल्स को अधिकृत कर सकते हैं।
 
 ```py
-model = HfApiModel()
+model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
@@ -251,7 +251,7 @@ class ModelDownloadTool(Tool):
 आप सीधे अपने एजेंट को इनिशियलाइज़ कर सकते हैं:  
 ```py
 from smolagents import CodeAgent, HfApiModel
-agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
+agent = CodeAgent(tools=[model_download_tool], model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"))
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
@@ -303,7 +303,7 @@ Microsoft के फ्रेमवर्क [Autogen](https://huggingface.co/pa
 ```py
 from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ManagedAgent
 
-model = HfApiModel()
+model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
 
 web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 
@@ -339,7 +339,7 @@ from smolagents import (
 # Import tool from Hub
 image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
-model = HfApiModel(model_id)
+model = HfApiModel(model_id=model_id)
 
 # Initialize the agent with the image generation tool
 agent = CodeAgent(tools=[image_generation_tool], model=model)
