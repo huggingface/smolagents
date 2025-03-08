@@ -1369,6 +1369,18 @@ def test_evaluate_subscript(subscript, state, expected_result):
         assert (result == expected_result).all()
 
 
+def test_evaluate_subscript_with_custom_class():
+    class Custom:
+        def __getitem__(self, key):
+            return key * 10
+
+    state = {"obj": Custom()}
+    subscript = "obj[2]"
+    subscript_ast = ast.parse(subscript).body[0].value
+    result = evaluate_subscript(subscript_ast, state, {}, {}, [])
+    assert result == 20
+
+
 def test_get_safe_module_handle_lazy_imports():
     class FakeModule(types.ModuleType):
         def __init__(self, name):
