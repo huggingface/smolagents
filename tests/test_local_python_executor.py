@@ -1369,16 +1369,54 @@ def test_evaluate_subscript(subscript, state, expected_result):
         assert (result == expected_result).all()
 
 
-def test_evaluate_subscript_with_custom_class():
-    class Custom:
-        def __getitem__(self, key):
-            return key * 10
+@pytest.mark.parametrize(
+    "subscript, state, expected_error_message",
+    [
+        ("dct['a']", {"dct": {}}, "KeyError: 'a'"),
+        ("dct[0]", {"dct": {}}, "KeyError: 0"),
+        ("dct['c']", {"dct": {"a": 1, "b": 2}}, "KeyError: 'c'"),
+        ("dct[1, 2, 3]", {"dct": {(1, 2): 3}}, "KeyError: (1, 2, 3)"),
+        ("lst[0]", {"lst": []}, "IndexError: list index out of range"),
+        ("lst[3]", {"lst": [1, 2, 3]}, "IndexError: list index out of range"),
+        ("lst[-4]", {"lst": [1, 2, 3]}, "IndexError: list index out of range"),
+        ("value[0]", {"value": 1}, "TypeError: 'int' object is not subscriptable"),
+    ],
+)
+def test_evaluate_subscript_error(subscript, state, expected_error_message):
+    subscript_ast = ast.parse(subscript).body[0].value
+    with pytest.raises(InterpreterError, match="Could not index") as exception_info:
+        _ = evaluate_subscript(subscript_ast, state, {}, {}, [])
+    assert expected_error_message in str(exception_info.value)
+
+
+@pytest.mark.parametrize(
+    "subscriptable_class, expectation",
+    [
+        (True, 20),
+        (False, InterpreterError("TypeError: 'Custom' object is not subscriptable")),
+    ],
+)
+def test_evaluate_subscript_with_custom_class(subscriptable_class, expectation):
+    if subscriptable_class:
+
+        class Custom:
+            def __getitem__(self, key):
+                return key * 10
+    else:
+
+        class Custom:
+            pass
 
     state = {"obj": Custom()}
     subscript = "obj[2]"
     subscript_ast = ast.parse(subscript).body[0].value
-    result = evaluate_subscript(subscript_ast, state, {}, {}, [])
-    assert result == 20
+    if isinstance(expectation, Exception):
+        with pytest.raises(type(expectation), match="Could not index") as exception_info:
+            evaluate_subscript(subscript_ast, state, {}, {}, [])
+        assert "TypeError: 'Custom' object is not subscriptable" in str(exception_info.value)
+    else:
+        result = evaluate_subscript(subscript_ast, state, {}, {}, [])
+        assert result == expectation
 
 
 def test_get_safe_module_handle_lazy_imports():
