@@ -417,7 +417,7 @@ def evaluate_class_def(
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
-            class_dict[stmt.name] = evaluate_function_def(stmt, state, static_tools, custom_tools, authorized_imports)
+            class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.Assign):
             for target in stmt.targets:
                 if isinstance(target, ast.Name):
@@ -643,9 +643,9 @@ def evaluate_call(
     func, func_name = None, None
 
     if isinstance(call.func, ast.Call):
-        func = evaluate_call(call.func, state, static_tools, custom_tools, authorized_imports)
+        func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
     elif isinstance(call.func, ast.Lambda):
-        func = evaluate_lambda(call.func, state, static_tools, custom_tools, authorized_imports)
+        func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
     elif isinstance(call.func, ast.Attribute):
         obj = evaluate_ast(call.func.value, state, static_tools, custom_tools, authorized_imports)
         func_name = call.func.attr
@@ -667,7 +667,7 @@ def evaluate_call(
                 f"It is not permitted to evaluate other functions than the provided tools or functions defined/imported in previous code (tried to execute {call.func.id})."
             )
     elif isinstance(call.func, ast.Subscript):
-        func = evaluate_subscript(call.func, state, static_tools, custom_tools, authorized_imports)
+        func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
         if not callable(func):
             raise InterpreterError(f"This is not a correct function: {call.func}).")
         func_name = None
@@ -1082,7 +1082,7 @@ def check_module_authorized(module_name, authorized_imports):
         return any(subpath in authorized_imports for subpath in module_subpaths)
 
 
-def import_modules(expression, state, authorized_imports):
+def evaluate_import(expression, state, authorized_imports):
     if isinstance(expression, ast.Import):
         for alias in expression.names:
             if check_module_authorized(alias.name, authorized_imports):
@@ -1325,7 +1325,7 @@ def evaluate_ast(
     elif isinstance(expression, ast.While):
         return evaluate_while(expression, *common_params)
     elif isinstance(expression, (ast.Import, ast.ImportFrom)):
-        return import_modules(expression, state, authorized_imports)
+        return evaluate_import(expression, state, authorized_imports)
     elif isinstance(expression, ast.ClassDef):
         return evaluate_class_def(expression, *common_params)
     elif isinstance(expression, ast.Try):
