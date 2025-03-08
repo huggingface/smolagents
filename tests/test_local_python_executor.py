@@ -1131,7 +1131,7 @@ def test_evaluate_augassign_custom(operator, expected_result):
                 del x[2]
                 x[2]
             """),
-            "Index 2 out of bounds for list of length 2",
+            "IndexError: list index out of range",
         ),
         (
             dedent("""\
