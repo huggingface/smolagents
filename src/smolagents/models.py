@@ -17,7 +17,6 @@
 import json
 import logging
 import os
-import random
 import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass
@@ -27,7 +26,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from huggingface_hub.utils import is_torch_available
 
 from .tools import Tool
-from .utils import _is_package_available, encode_image_base64, make_image_url
+from .utils import _is_package_available, encode_image_base64, make_image_url, parse_json_blob
 
 
 if TYPE_CHECKING:
@@ -237,10 +236,29 @@ def get_clean_message_list(
     return output_message_list
 
 
+def get_tool_call_chat_message_from_text(text: str, tool_name_key: str, tool_arguments_key: str) -> ChatMessage:
+    tool_call_dictionary, text = parse_json_blob(text)
+    tool_name = tool_call_dictionary.get(tool_name_key, None)
+    tool_arguments = tool_call_dictionary.get(tool_arguments_key, None)
+    return ChatMessage(
+        role="assistant",
+        content=text,
+        tool_calls=[
+            ChatMessageToolCall(
+                id=uuid.uuid4(),
+                type="function",
+                function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
+            )
+        ],
+    )
+
+
 class Model:
-    def __init__(self, **kwargs):
+    def __init__(self, tool_name_key: str = "name", tool_arguments_key: str = "arguments", **kwargs):
         self.last_input_token_count = None
         self.last_output_token_count = None
+        self.tool_name_key = tool_name_key
+        self.tool_arguments_key = tool_arguments_key
         self.kwargs = kwargs
 
     def _prepare_completion_kwargs(
@@ -464,6 +482,108 @@ class HfApiModel(Model):
         return message
 
 
+class VLLMModel(Model):
+    """This engine initializes a model and tokenizer from the given `model_id`.
+
+    Parameters:
+        model_id (`str`, *optional*, defaults to `"HuggingFaceTB/SmolLM2-1.7B-Instruct"`):
+            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+    """
+
+    def __init__(self, model_id: Optional[str] = None, **kwargs):
+        if not _is_package_available("vllm"):
+            raise ModuleNotFoundError("Please install 'vllm' extra to use VLLMModel: `pip install 'smolagents[vllm]'`")
+
+        from vllm import LLM
+        from vllm.transformers_utils.tokenizer import get_tokenizer
+
+        super().__init__(**kwargs)
+
+        default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+        if model_id is None:
+            model_id = default_model_id
+            logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
+
+        self.model_id = model_id
+        self.model = LLM(model=model_id)
+        self.tokenizer = get_tokenizer(model_id)
+        self._is_vlm = False  # VLLMModel does not support vision models yet.
+
+    def cleanup(self):
+        import gc
+
+        import torch
+        from vllm.distributed.parallel_state import destroy_distributed_environment, destroy_model_parallel
+
+        destroy_model_parallel()
+        if self.model is not None:
+            # taken from https://github.com/vllm-project/vllm/issues/1908#issuecomment-2076870351
+            del self.model.llm_engine.model_executor.driver_worker
+        self.model = None
+        gc.collect()
+        destroy_distributed_environment()
+        torch.cuda.empty_cache()
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        from vllm import SamplingParams
+
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            flatten_messages_as_text=(not self._is_vlm),
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            **kwargs,
+        )
+        messages = completion_kwargs.pop("messages")
+        prepared_stop_sequences = completion_kwargs.pop("stop", [])
+        tools = completion_kwargs.pop("tools", None)
+        completion_kwargs.pop("tool_choice", None)
+
+        if tools_to_call_from is not None:
+            prompt = self.tokenizer.apply_chat_template(
+                messages,
+                tools=tools,
+                add_generation_prompt=True,
+                tokenize=False,
+            )
+        else:
+            prompt = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+            )
+
+        sampling_params = SamplingParams(
+            n=kwargs.get("n", 1),
+            temperature=kwargs.get("temperature", 0.0),
+            max_tokens=kwargs.get("max_tokens", 2048),
+            stop=prepared_stop_sequences,
+        )
+
+        out = self.model.generate(
+            prompt,
+            sampling_params=sampling_params,
+        )
+        output = out[0].outputs[0].text
+        self.last_input_token_count = len(out[0].prompt_token_ids)
+        self.last_output_token_count = len(out[0].outputs[0].token_ids)
+        if tools_to_call_from:
+            chat_message = get_tool_call_chat_message_from_text(output, self.tool_name_key, self.tool_arguments_key)
+            chat_message.raw = {"out": out, "completion_kwargs": completion_kwargs}
+            return chat_message
+        else:
+            return ChatMessage(
+                role="assistant", content=output, raw={"out": out, "completion_kwargs": completion_kwargs}
+            )
+
+
 class MLXModel(Model):
     """A class to interact with models loaded using MLX on Apple silicon.
 
@@ -522,27 +642,7 @@ class MLXModel(Model):
         self.stream_generate = mlx_lm.stream_generate
         self.tool_name_key = tool_name_key
         self.tool_arguments_key = tool_arguments_key
-
-    def _to_message(self, text, tools_to_call_from):
-        if tools_to_call_from:
-            # solution for extracting tool JSON without assuming a specific model output format
-            maybe_json = "{" + text.split("{", 1)[-1][::-1].split("}", 1)[-1][::-1] + "}"
-            parsed_text = json.loads(maybe_json)
-            tool_name = parsed_text.get(self.tool_name_key, None)
-            tool_arguments = parsed_text.get(self.tool_arguments_key, None)
-            if tool_name:
-                return ChatMessage(
-                    role="assistant",
-                    content="",
-                    tool_calls=[
-                        ChatMessageToolCall(
-                            id=uuid.uuid4(),
-                            type="function",
-                            function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
-                        )
-                    ],
-                )
-        return ChatMessage(role="assistant", content=text)
+        self.is_vlm = False  # mlx-lm doesn't support vision models
 
     def __call__(
         self,
@@ -553,7 +653,7 @@ class MLXModel(Model):
         **kwargs,
     ) -> ChatMessage:
         completion_kwargs = self._prepare_completion_kwargs(
-            flatten_messages_as_text=True,  # mlx-lm doesn't support vision models
+            flatten_messages_as_text=(not self._is_vlm),
             messages=messages,
             stop_sequences=stop_sequences,
             grammar=grammar,
@@ -582,9 +682,19 @@ class MLXModel(Model):
                 stop_sequence_start = text.rfind(stop_sequence)
                 if stop_sequence_start != -1:
                     text = text[:stop_sequence_start]
-                    return self._to_message(text, tools_to_call_from)
+                    found_stop_sequence = True
+                    break
+            if found_stop_sequence:
+                break
 
-        return self._to_message(text, tools_to_call_from)
+        if tools_to_call_from:
+            chat_message = get_tool_call_chat_message_from_text(text, self.tool_name_key, self.tool_arguments_key)
+            chat_message.raw = {"out": text, "completion_kwargs": completion_kwargs}
+            return chat_message
+        else:
+            return ChatMessage(
+                role="assistant", content=text, raw={"out": text, "completion_kwargs": completion_kwargs}
+            )
 
 
 class TransformersModel(Model):
@@ -778,38 +888,14 @@ class TransformersModel(Model):
         if stop_sequences is not None:
             output = remove_stop_sequences(output, stop_sequences)
 
-        if tools_to_call_from is None:
+        if tools_to_call_from:
+            chat_message = get_tool_call_chat_message_from_text(output, self.tool_name_key, self.tool_arguments_key)
+            chat_message.raw = {"out": out, "completion_kwargs": completion_kwargs}
+            return chat_message
+        else:
             return ChatMessage(
                 role="assistant",
                 content=output,
-                raw={"out": out, "completion_kwargs": completion_kwargs},
-            )
-        else:
-            if "Action:" in output:
-                output = output.split("Action:", 1)[1].strip()
-            try:
-                start_index = output.index("{")
-                end_index = output.rindex("}")
-                output = output[start_index : end_index + 1]
-            except Exception as e:
-                raise Exception("No json blob found in output!") from e
-
-            try:
-                parsed_output = json.loads(output)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Tool call '{output}' has an invalid JSON structure: {e}")
-            tool_name = parsed_output.get("name")
-            tool_arguments = parsed_output.get("arguments")
-            return ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=[
-                    ChatMessageToolCall(
-                        id="".join(random.choices("0123456789", k=5)),
-                        type="function",
-                        function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
-                    )
-                ],
                 raw={"out": out, "completion_kwargs": completion_kwargs},
             )
 
@@ -1025,6 +1111,7 @@ __all__ = [
     "HfApiModel",
     "LiteLLMModel",
     "OpenAIServerModel",
+    "VLLMModel",
     "AzureOpenAIServerModel",
     "ChatMessage",
 ]
