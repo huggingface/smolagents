@@ -116,15 +116,24 @@ BASE_PYTHON_TOOLS = {
 
 DANGEROUS_MODULES = [
     "builtins",
+    "code",
+    "codecs",
+    "distutils",
+    "glob",
     "io",
     "multiprocessing",
     "os",
     "pathlib",
+    "pickle",
+    "posix",
     "pty",
+    "shelve",
     "shutil",
     "socket",
+    "sqlite3",
     "subprocess",
     "sys",
+    "venv",
 ]
 
 DANGEROUS_FUNCTIONS = [
