@@ -1224,6 +1224,8 @@ class CodeAgent(MultiStepAgent):
             )
             memory_step.model_output_message = chat_message
             model_output = chat_message.content
+            if model_output.endswith("```"):
+                model_output += "<end_code>"
             memory_step.model_output = model_output
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
