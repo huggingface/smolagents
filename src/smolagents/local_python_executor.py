@@ -21,6 +21,7 @@ import inspect
 import logging
 import math
 import re
+from collections.abc import Mapping
 from functools import wraps
 from importlib import import_module
 from types import BuiltinFunctionType, FunctionType, ModuleType
@@ -722,7 +723,12 @@ def evaluate_subscript(
     try:
         return value[index]
     except (KeyError, IndexError, TypeError) as e:
-        raise InterpreterError(f"Could not index {value} with '{index}': {type(e).__name__}: {e}") from e
+        error_message = f"Could not index {value} with '{index}': {type(e).__name__}: {e}"
+        if isinstance(index, str) and isinstance(value, Mapping):
+            close_matches = difflib.get_close_matches(index, list(value.keys()))
+            if len(close_matches) > 0:
+                error_message += f". Maybe you meant one of these indexes instead: {str(close_matches)}"
+        raise InterpreterError(error_message) from e
 
 
 def evaluate_name(
