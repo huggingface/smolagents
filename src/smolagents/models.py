@@ -1014,7 +1014,6 @@ class AzureOpenAIServerModel(OpenAIServerModel):
 
         self.client = openai.AzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
 
-
 __all__ = [
     "MessageRole",
     "tool_role_conversions",
