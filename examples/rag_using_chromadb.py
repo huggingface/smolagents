@@ -1,10 +1,9 @@
+import argparse
 import os
 import os.path as osp
-import argparse
-
-from dotenv import load_dotenv
 
 import datasets
+from dotenv import load_dotenv
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
@@ -15,13 +14,15 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 # from langchain_openai import OpenAIEmbeddings
-from smolagents import LiteLLMModel, Tool, GradioUI
+from smolagents import GradioUI, LiteLLMModel, Tool
 from smolagents.agents import CodeAgent
+
+
 # from smolagents.agents import ToolCallingAgent
 
 
 def prepare_docs():
-    print('preparing docs ...(might take 5-20 min depending on your hardware\n')
+    print("preparing docs ...(might take 5-20 min depending on your hardware\n")
     knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
 
     source_docs = [
@@ -60,7 +61,7 @@ def prepare_docs():
             if new_doc.page_content not in unique_texts:
                 unique_texts[new_doc.page_content] = True
                 docs_processed.append(new_doc)
-    
+
     return docs_processed
 
 
@@ -96,12 +97,17 @@ Agentic RAG with ChromaDB
     parser = argparse.ArgumentParser(description=help_msg, formatter_class=argparse.RawTextHelpFormatter)
     # Essential Args
     # For anthropic: change args below to 'LiteLLM', 'anthropic/claude-3-5-sonnet-20240620' and "ANTHROPIC_API_KEY"
-    parser.add_argument('--model_src', type=str, default="LiteLLM", choices=["HfApi", "LiteLLM", "Transformers"])
-    parser.add_argument('--model', type=str, default="groq/qwen-2.5-coder-32b")
-    parser.add_argument('--LiteLLMModel_API_key_name', type=str, default="GROQ_API_KEY")
-    parser.add_argument('--emb_func', type=str, default="sentence-transformers/all-MiniLM-L6-v2", choices=["sentence-transformers/all-MiniLM-L6-v2"]) # feel free to add support for more embedding functions
-    parser.add_argument('--persist_dir', type=str, default="./chroma_db", help='Path to the persisted vector DB')
-    
+    parser.add_argument("--model_src", type=str, default="LiteLLM", choices=["HfApi", "LiteLLM", "Transformers"])
+    parser.add_argument("--model", type=str, default="groq/qwen-2.5-coder-32b")
+    parser.add_argument("--LiteLLMModel_API_key_name", type=str, default="GROQ_API_KEY")
+    parser.add_argument(
+        "--emb_func",
+        type=str,
+        default="sentence-transformers/all-MiniLM-L6-v2",
+        choices=["sentence-transformers/all-MiniLM-L6-v2"],
+    )  # feel free to add support for more embedding functions
+    parser.add_argument("--persist_dir", type=str, default="./chroma_db", help="Path to the persisted vector DB")
+
     args = parser.parse_args()
     return args
 
@@ -114,32 +120,30 @@ def main():
     # embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
     if osp.exists(args.persist_dir):
-        print('using persisted data')
-        vector_store = Chroma(embedding_function=embedding_function,
-                            persist_directory=args.persist_dir)
+        print("using persisted data")
+        vector_store = Chroma(embedding_function=embedding_function, persist_directory=args.persist_dir)
     else:
         docs_processed = prepare_docs()
-        vector_store = Chroma.from_documents(documents=docs_processed,
-                                            embedding=embedding_function,
-                                            persist_directory=args.persist_dir)
+        vector_store = Chroma.from_documents(
+            documents=docs_processed, embedding=embedding_function, persist_directory=args.persist_dir
+        )
 
     retriever_tool = RetrieverTool(vector_store)
 
-
     # Choose which LLM engine to use!
-    if args.model_src == 'HfApi':
+    if args.model_src == "HfApi":
         from smolagents import HfApiModel
-        # You can choose to not pass any model_id to HfApiModel to use a default free model
-        model = HfApiModel(model_id=args.model,
-                           token=os.environ.get('HF_API_KEY') )
 
-    elif args.model_src == 'Transformers':
+        # You can choose to not pass any model_id to HfApiModel to use a default free model
+        model = HfApiModel(model_id=args.model, token=os.environ.get("HF_API_KEY"))
+
+    elif args.model_src == "Transformers":
         from smolagents import TransformersModel
+
         model = TransformersModel(model_id=args.model)
 
-    elif args.model_src == 'LiteLLM':
-        model = LiteLLMModel(model_id=args.model,
-                             api_key=os.environ.get(args.LiteLLMModel_API_key_name) )
+    elif args.model_src == "LiteLLM":
+        model = LiteLLMModel(model_id=args.model, api_key=os.environ.get(args.LiteLLMModel_API_key_name))
     else:
         raise ValueError('Choose the models source from ["HfApi", "LiteLLM", "Transformers"]')
 
@@ -150,17 +154,12 @@ def main():
     #     verbose=True,
     # )
 
-    agent = CodeAgent(
-        tools=[retriever_tool],
-        model=model,
-        max_steps=4,
-        verbosity_level=2
-    )
+    agent = CodeAgent(tools=[retriever_tool], model=model, max_steps=4, verbosity_level=2)
 
     GradioUI(agent).launch()
     # try: How can I push a model to the Hub?
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     load_dotenv()
     main()
