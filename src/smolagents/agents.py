@@ -309,7 +309,14 @@ You have been provided with these additional arguments, that you can access usin
             level=LogLevel.INFO,
             title=self.name if hasattr(self, "name") else None,
         )
-        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+        task_step = TaskStep(task=self.task, task_images=images)
+        self.memory.steps.append(task_step)
+        
+        for callback in self.step_callbacks:
+            # For compatibility with old callbacks that don't take the agent as an argument
+            callback(task_step) if len(inspect.signature(callback).parameters) == 1 else callback(
+                task_step, agent=self
+            )
 
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
@@ -495,15 +502,22 @@ You have been provided with these additional arguments, that you can access usin
                 f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere is my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
             )
             log_message = "Updated plan"
-        self.memory.steps.append(
-            PlanningStep(
-                model_input_messages=input_messages,
-                facts=facts,
-                plan=plan,
-                model_output_message_plan=plan_message,
-                model_output_message_facts=facts_message,
-            )
+        
+        planning_step = PlanningStep(
+            model_input_messages=input_messages,
+            facts=facts,
+            plan=plan,
+            model_output_message_plan=plan_message,
+            model_output_message_facts=facts_message,
         )
+        self.memory.steps.append(planning_step)
+        
+        for callback in self.step_callbacks:
+            # For compatibility with old callbacks that don't take the agent as an argument
+            callback(planning_step) if len(inspect.signature(callback).parameters) == 1 else callback(
+                planning_step, agent=self
+            )
+            
         self.logger.log(Rule(f"[bold]{log_message}", style="orange"), Text(plan), level=LogLevel.INFO)
 
     @property

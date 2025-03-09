@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 logger = getLogger(__name__)
 
-
 class Message(TypedDict):
     role: MessageRole
     content: str | list[dict]
