@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from smolagents.memory import AgentLogger
 
 
-__all__ = ["AgentError"]
+__all__ = ["AgentError", "raise_agent_error"]
 
 
 @lru_cache
@@ -81,13 +81,32 @@ def escape_code_brackets(text: str) -> str:
 class AgentError(Exception):
     """Base class for other agent-related exceptions"""
 
-    def __init__(self, message, logger: "AgentLogger"):
+    def __init__(self, message):
         super().__init__(message)
         self.message = message
-        logger.log_error(message)
 
     def dict(self) -> Dict[str, str]:
         return {"type": self.__class__.__name__, "message": str(self.message)}
+
+
+def raise_agent_error(error: AgentError, logger: "AgentLogger" = None, from_exception: Exception = None):
+    """Utility function to raise an AgentError and log it.
+    
+    Args:
+        error: The AgentError instance to raise
+        logger: Optional AgentLogger instance to log the error with
+        from_exception: Optional original exception to chain with using 'from'
+        
+    Raises:
+        AgentError: The provided error
+    """
+    if logger is not None:
+        logger.log_error(error.message)
+    
+    if from_exception is not None:
+        raise error from from_exception
+    else:
+        raise error
 
 
 class AgentParsingError(AgentError):
@@ -221,7 +240,7 @@ def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
         else:
             return tool_call[tool_name_key], None
     error_msg = "No tool name key found in tool call!" + f" Tool call: {json_blob}"
-    raise AgentParsingError(error_msg)
+    raise_agent_error(AgentParsingError(error_msg))
 
 
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
