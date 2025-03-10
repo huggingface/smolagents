@@ -27,7 +27,6 @@ import pytest
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
-    DANGEROUS_MODULES,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -39,6 +38,21 @@ from smolagents.local_python_executor import (
     fix_final_answer_code,
     get_safe_module,
 )
+
+
+# Non-exhaustive list of dangerous modules that should not be imported
+DANGEROUS_MODULES = [
+    "builtins",
+    "io",
+    "multiprocessing",
+    "os",
+    "pathlib",
+    "pty",
+    "shutil",
+    "socket",
+    "subprocess",
+    "sys",
+]
 
 
 # Fake function we will use as tool
