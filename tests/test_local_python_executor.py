@@ -1742,7 +1742,16 @@ class TestLocalPythonExecutorSecurity:
         "code, additional_authorized_imports, expected_error",
         [
             # os submodule
-            ("import queue; queue.threading._os.system(':')", [], InterpreterError("Forbidden access to module: os")),
+            (
+                "import queue; queue.threading._os.system(':')",
+                [],
+                InterpreterError("Forbidden access to module: threading"),
+            ),
+            (
+                "import queue; queue.threading._os.system(':')",
+                ["threading"],
+                InterpreterError("Forbidden access to module: os"),
+            ),
             ("import random; random._os.system(':')", [], InterpreterError("Forbidden access to module: os")),
             (
                 "import random; random.__dict__['_os'].system(':')",
@@ -1752,22 +1761,42 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import doctest; doctest.inspect.os.system(':')",
                 ["doctest"],
+                InterpreterError("Forbidden access to module: inspect"),
+            ),
+            (
+                "import doctest; doctest.inspect.os.system(':')",
+                ["doctest", "inspect"],
                 InterpreterError("Forbidden access to module: os"),
             ),
             # subprocess submodule
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio"],
+                InterpreterError("Forbidden access to module: asyncio.base_events"),
+            ),
+            (
+                "import asyncio; asyncio.base_events.events.subprocess",
+                ["asyncio", "asyncio.base_events"],
+                InterpreterError("Forbidden access to module: asyncio.events"),
+            ),
+            (
+                "import asyncio; asyncio.base_events.events.subprocess",
+                ["asyncio", "asyncio.base_events", "asyncio.events"],
                 InterpreterError("Forbidden access to module: subprocess"),
             ),
             # sys submodule
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
                 [],
+                InterpreterError("Forbidden access to module: threading"),
+            ),
+            (
+                "import queue; queue.threading._sys.modules['os'].system(':')",
+                ["threading"],
                 InterpreterError("Forbidden access to module: sys"),
             ),
             # Allowed
-            ("import pandas; pandas.io", ["pandas"], None),
+            ("import pandas; pandas.io", ["pandas", "pandas.io"], None),
         ],
     )
     def test_vulnerability_via_submodules(self, code, additional_authorized_imports, expected_error):
