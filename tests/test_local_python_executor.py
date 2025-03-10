@@ -27,6 +27,7 @@ import pytest
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
+    DANGEROUS_MODULES,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -1663,7 +1664,11 @@ class TestLocalPythonExecutorSecurity:
 
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
-        [([], InterpreterError("Import of sys is not allowed")), (["os", "sys"], None)],
+        [
+            ([], InterpreterError("Import of sys is not allowed")),
+            (["sys"], InterpreterError("Forbidden access to module: os")),
+            (["sys", "os"], None),
+        ],
     )
     def test_vulnerability_via_sys(self, additional_authorized_imports, expected_error):
         executor = LocalPythonExecutor(additional_authorized_imports)
@@ -1680,6 +1685,24 @@ class TestLocalPythonExecutorSecurity:
                     """
                 )
             )
+
+    @pytest.mark.parametrize("dangerous_module", DANGEROUS_MODULES)
+    def test_vulnerability_via_sys_for_all_dangerous_modules(self, dangerous_module):
+        import sys
+
+        if dangerous_module not in sys.modules or dangerous_module == "sys":
+            pytest.skip("module not present in sys.modules")
+        executor = LocalPythonExecutor(["sys"])
+        with pytest.raises(InterpreterError) as exception_info:
+            executor(
+                dedent(
+                    f"""
+                    import sys
+                    sys.modules["{dangerous_module}"]
+                    """
+                )
+            )
+        assert f"Forbidden access to module: {dangerous_module}" in str(exception_info.value)
 
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
