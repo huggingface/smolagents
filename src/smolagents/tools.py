@@ -786,17 +786,21 @@ class ToolCollection:
     def from_mcp(cls, server_parameters) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
+        This method supports both SSE and Stdio MCP servers. Look at the `sever_parameters`
+        argument for more details on how to connect to an SSE or Stdio MCP server.
+
         Note: a separate thread will be spawned to run an asyncio event loop handling
         the MCP server.
 
         Args:
-            server_parameters (mcp.StdioServerParameters): The server parameters to use to
-            connect to the MCP server.
+            server_parameters (mcp.StdioServerParameters | dict):
+                The server parameters to use to connect to the MCP server. If a dict is
+                provided, it is assumed to be the parameters of `mcp.client.sse.sse_client`.
 
         Returns:
             ToolCollection: A tool collection instance.
 
-        Example:
+        Example with a Stdio MCP server:
         ```py
         >>> from smolagents import ToolCollection, CodeAgent
         >>> from mcp import StdioServerParameters
@@ -808,6 +812,13 @@ class ToolCollection:
         >>> )
 
         >>> with ToolCollection.from_mcp(server_parameters) as tool_collection:
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+        >>>     agent.run("Please find a remedy for hangover.")
+        ```
+
+        Example with an SSE MCP server:
+        ```py
+        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
