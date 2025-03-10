@@ -183,7 +183,7 @@ Python 解释器默认也不允许在安全列表之外导入，所以所有最�
 ```py
 from smolagents import CodeAgent
 
-model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = HfApiModel()
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
@@ -320,7 +320,7 @@ class ModelDownloadTool(Tool):
 然后您可以直接初始化您的 agent：
 ```py
 from smolagents import CodeAgent, HfApiModel
-agent = CodeAgent(tools=[model_download_tool], model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"))
+agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
@@ -372,7 +372,7 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 ```py
 from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ManagedAgent
 
-model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = HfApiModel()
 
 web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 

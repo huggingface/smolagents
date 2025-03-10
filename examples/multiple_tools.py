@@ -7,7 +7,7 @@ from smolagents import CodeAgent, HfApiModel, tool
 
 
 # Choose which LLM engine to use!
-model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = HfApiModel()
 # model = TransformersModel(model_id="meta-llama/Llama-3.2-2B-Instruct")
 
 # For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-20240620'

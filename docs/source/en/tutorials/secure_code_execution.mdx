@@ -94,7 +94,7 @@ We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` 
 ```py
 from smolagents import HfApiModel, CodeAgent
 
-agent = CodeAgent(model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"), tools=[], executor_type="e2b")
+agent = CodeAgent(model=HfApiModel(), tools=[], executor_type="e2b")
 
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
@@ -136,14 +136,14 @@ from smolagents import CodeAgent, HfApiModel
 
 # Initialize the agents
 agent = CodeAgent(
-    model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", token=os.getenv("HF_TOKEN"), provider="together"),
+    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
     tools=[],
     name="coder_agent",
     description="This agent takes care of your difficult algorithmic problems using code."
 )
 
 manager_agent = CodeAgent(
-    model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", token=os.getenv("HF_TOKEN"), provider="together"),
+    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
     tools=[],
     managed_agents=[agent],
 )
@@ -277,7 +277,7 @@ from smolagents import CodeAgent, HfApiModel
 
 # Initialize the agent
 agent = CodeAgent(
-    model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", token=os.getenv("HF_TOKEN"), provider="together"),
+    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
     tools=[]
 )
 

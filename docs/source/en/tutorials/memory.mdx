@@ -32,7 +32,7 @@ After the agent has run:
 ```py
 from smolagents import HfApiModel, CodeAgent
 
-agent = CodeAgent(tools=[], model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"), verbosity_level=0)
+agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=0)
 
 result = agent.run("What's the 20th Fibonacci number?")
 ```
@@ -117,7 +117,7 @@ This will also let you update the memory on each step.
 ```py
 from smolagents import HfApiModel, CodeAgent, ActionStep, TaskStep
 
-agent = CodeAgent(tools=[], model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"), verbosity_level=1)
+agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=1)
 print(agent.memory.system_prompt)
 
 task = "What is the 20th Fibonacci number?"

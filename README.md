@@ -59,7 +59,7 @@ Then define your agent, give it the tools it needs and run it!
 ```py
 from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel
 
-model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = HfApiModel()
 agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")

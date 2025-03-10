@@ -133,7 +133,7 @@ Our `model` must be a callable that takes as input a list of messages and return
 from smolagents import HfApiModel, CodeAgent
 
 agent = CodeAgent(
-    tools=[retriever_tool], model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"), max_steps=4, verbosity_level=2
+    tools=[retriever_tool], model=HfApiModel(), max_steps=4, verbosity_level=2
 )
 ```
 Upon initializing the CodeAgent, it has been automatically given a default system prompt that tells the LLM engine to process step-by-step and generate tool calls as code snippets, but you could replace this prompt template with your own as needed.
