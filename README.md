@@ -47,15 +47,18 @@ limitations under the License.
 Full documentation can be found [here](https://huggingface.co/docs/smolagents/index).
 
 > [!NOTE]
-> Check the our [launch blog post](https://huggingface.co/blog/smolagents) to learn more about `smolagents`!
+> Check our [launch blog post](https://huggingface.co/blog/smolagents) to learn more about `smolagents`!
 
 ## Quick demo
 
 First install the package.
+
 ```bash
 pip install smolagents
 ```
+
 Then define your agent, give it the tools it needs and run it!
+
 ```py
 from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel
 
@@ -65,9 +68,10 @@ agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
 ```
 
-https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884
+<https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884>
 
 You can even share your agent to hub:
+
 ```py
 agent.push_to_hub("m-ric/my_agent")
 
@@ -87,6 +91,7 @@ model = HfApiModel(
     provider="together",
 )
 ```
+
 </details>
 <details>
 <summary> <b>LiteLLM to access 100+ LLMs</b></summary>
@@ -100,6 +105,7 @@ model = LiteLLMModel(
     api_key=os.environ["ANTHROPIC_API_KEY"]
 )
 ```
+
 </details>
 <details>
 <summary> <b>OpenAI-compatible servers</b></summary>
@@ -114,6 +120,7 @@ model = OpenAIServerModel(
     api_key=os.environ["TOGETHER_API_KEY"], # Switch to the API key for the server you're targeting.
 )
 ```
+
 </details>
 <details>
 <summary> <b>Local `transformers` model</b></summary>
@@ -127,6 +134,7 @@ model = TransformersModel(
     device_map="auto"
 )
 ```
+
 </details>
 <details>
 <summary> <b>Azure models</b></summary>
@@ -142,6 +150,7 @@ model = AzureOpenAIServerModel(
     api_version=os.environ.get("OPENAI_API_VERSION")    
 )
 ```
+
 </details>
 
 ## CLI
@@ -157,6 +166,7 @@ smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --m
 Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
 
 For instance:
+
 ```bash
 webagent "go to xyz.com/men, get to sale section, click the first clothing item you see. Get the product details, and the price, return them. note that I'm shopping from France" --model-type "LiteLLMModel" --model-id "gpt-4o"
 ```
@@ -191,6 +201,7 @@ flowchart TB
 ```
 
 Actions are now Python code snippets. Hence, tool calls will be performed as Python function calls. For instance, here is how the agent can perform web search over several websites in one single action:
+
 ```py
 requests_to_search = ["gulf of mexico america", "greenland denmark", "tariffs"]
 for request in requests_to_search:
@@ -200,8 +211,9 @@ for request in requests_to_search:
 Writing actions as code snippets is demonstrated to work better than the current industry practice of letting the LLM output a dictionary of the tools it wants to call: [uses 30% fewer steps](https://huggingface.co/papers/2402.01030) (thus 30% fewer LLM calls) and [reaches higher performance on difficult benchmarks](https://huggingface.co/papers/2411.01747). Head to [our high-level intro to agents](https://huggingface.co/docs/smolagents/conceptual_guides/intro_agents) to learn more on that.
 
 Especially, since code execution can be a security concern (arbitrary code execution!), we provide options at runtime:
-  - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
-  - a sandboxed environment using [E2B](https://e2b.dev/) or Docker (removes the risk to your own system).
+
+- a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
+- a sandboxed environment using [E2B](https://e2b.dev/) or Docker (removes the risk to your own system).
 
 On top of this [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) class, we still support the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) that writes actions as JSON/text blobs. But we recommend always using `CodeAgent`.
 
@@ -216,7 +228,7 @@ By the way, why use a framework at all? Well, because a big part of this stuff i
 
 We've created [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) instances with some leading models, and compared them on [this benchmark](https://huggingface.co/datasets/m-ric/agents_medium_benchmark_2) that gathers questions from a few different benchmarks to propose a varied blend of challenges.
 
-[Find the benchmarking code here](https://github.com/huggingface/smolagents/blob/main/examples/benchmark.ipynb) for more detail on the agentic setup used, and see a comparison of using LLMs code agents compared to vanilla (spoilers: code agents works better).
+[Find the benchmarking code here](https://github.com/huggingface/smolagents/blob/main/examples/benchmark.ipynb) for more detail on the agentic setup used, and see a comparison of using LLMs code agents compared to vanilla (spoilers: code agents work better).
 
 <p align="center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/benchmark_code_agents.jpeg" alt="benchmark of different models on agentic workflows. Open model DeepSeek-R1 beats closed-source models." width=60% max-width=500px>
