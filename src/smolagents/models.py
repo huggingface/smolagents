@@ -840,13 +840,21 @@ class LiteLLMModel(Model):
 
     def __init__(
         self,
-        model_id: str,
+        model_id: Optional[str] = None,
         api_base=None,
         api_key=None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        if not model_id:
+            warnings.warn(
+                "The 'model_id' parameter will be required in version 2.0.0. "
+                "Please update your code to pass this parameter to avoid future errors. "
+                "For now, it defaults to 'anthropic/claude-3-5-sonnet-20240620'.",
+                FutureWarning,
+            )
+            model_id = "anthropic/claude-3-5-sonnet-20240620"
         self.model_id = model_id
         self.api_base = api_base
         self.api_key = api_key
