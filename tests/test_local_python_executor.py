@@ -1820,8 +1820,12 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
         [
-            ([], [], InterpreterError("Forbidden access to module: builtins")),
-            (["builtins", "os"], ["__import__"], None),
+            ([], [], InterpreterError("Forbidden access to module: smolagents.local_python_executor")),
+            (
+                ["builtins", "os"],
+                ["__import__"],
+                InterpreterError("Forbidden access to module: smolagents.local_python_executor"),
+            ),
         ],
     )
     def test_vulnerability_builtins_via_traceback(
