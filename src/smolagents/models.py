@@ -19,6 +19,7 @@ import logging
 import os
 import random
 import uuid
+import warnings
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -632,7 +633,7 @@ class TransformersModel(Model):
 
     def __init__(
         self,
-        model_id: str,
+        model_id: Optional[str] = None,
         device_map: Optional[str] = None,
         torch_dtype: Optional[str] = None,
         trust_remote_code: bool = False,
@@ -646,6 +647,14 @@ class TransformersModel(Model):
         import torch
         from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
 
+        if not model_id:
+            warnings.warn(
+                "The 'model_id' parameter will be required in version 2.0.0. "
+                "Please update your code to pass this parameter to avoid future errors. "
+                "For now, it defaults to 'HuggingFaceTB/SmolLM2-1.7B-Instruct'.",
+                FutureWarning,
+            )
+            model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         self.model_id = model_id
 
         default_max_tokens = 5000
