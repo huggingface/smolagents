@@ -1857,8 +1857,18 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
         [
-            ([], [], InterpreterError("Forbidden access to module: builtins")),
-            (["builtins", "os"], ["__import__"], None),
+            ([], [], InterpreterError("Forbidden access to module: warnings")),
+            (["warnings"], [], InterpreterError("Forbidden access to module: builtins")),
+            (
+                ["warnings", "builtins"],
+                [],
+                (
+                    InterpreterError("Forbidden access to function: __import__"),
+                    InterpreterError("Forbidden access to module: os"),
+                ),
+            ),
+            (["warnings", "builtins", "os"], [], (InterpreterError("Forbidden access to function: __import__"), None)),
+            (["warnings", "builtins", "os"], ["__import__"], None),
         ],
     )
     def test_vulnerability_builtins_via_class_catch_warnings(
@@ -1871,20 +1881,22 @@ class TestLocalPythonExecutorSecurity:
             from builtins import __import__
 
             executor.send_tools({"__import__": __import__})
-        with (
-            pytest.raises(type(expected_error), match=f".*{expected_error}")
-            if isinstance(expected_error, Exception)
-            else does_not_raise()
-        ):
+        if isinstance(expected_error, tuple):  # different error depending on patch status
+            expected_error = expected_error[patch_builtin_import_module]
+        if isinstance(expected_error, Exception):
+            expectation = pytest.raises(type(expected_error), match=f".*{expected_error}")
+        elif expected_error is None:
+            expectation = does_not_raise()
+        with expectation:
             executor(
                 dedent(
                     """
                     classes = {}.__class__.__base__.__subclasses__()
                     for cls in classes:
                         if cls.__name__ == "catch_warnings":
-                            builtins = cls()._module.__builtins__
-                            builtins_import = builtins["__import__"]
                             break
+                    builtins = cls()._module.__builtins__
+                    builtins_import = builtins["__import__"]
                     os_module = builtins_import('os')
                     os_module.system(":")
                     """
