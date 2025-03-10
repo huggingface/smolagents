@@ -682,7 +682,7 @@ class TransformersModel(Model):
             )
             self.model_id = default_model_id
             self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
+            self.model = AutoModelForCausalLM.from_pretrained(default_model_id, device_map=device_map, torch_dtype=torch_dtype)
 
     def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
