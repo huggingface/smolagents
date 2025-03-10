@@ -26,6 +26,7 @@ from PIL import Image
 from PIL.Image import Image as ImageType
 
 from .utils import _is_package_available
+from typing import Optional
 
 
 logger = logging.getLogger(__name__)
@@ -154,7 +155,7 @@ class AgentImage(AgentType, ImageType):
 
             return self._path
 
-    def save(self, output_bytes, format: str = None, **params):
+    def save(self, output_bytes, format: Optional[str] = None, **params):
         """
         Saves the image to a file.
         Args:

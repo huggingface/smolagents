@@ -29,8 +29,10 @@ from typing import Any, Callable, Dict, Generator, List, Optional, Set, Tuple, T
 
 import jinja2
 import yaml
+from beartype import beartype
 from huggingface_hub import create_repo, metadata_update, snapshot_download, upload_folder
 from jinja2 import StrictUndefined, Template
+from PIL.Image import Image
 from rich.console import Group
 from rich.panel import Panel
 from rich.rule import Rule
@@ -74,6 +76,7 @@ def get_variable_names(self, template: str) -> Set[str]:
     return {match.group(1).strip() for match in pattern.finditer(template)}
 
 
+@beartype
 def populate_template(template: str, variables: Dict[str, Any]) -> str:
     compiled_template = Template(template, undefined=StrictUndefined)
     try:
@@ -82,6 +85,7 @@ def populate_template(template: str, variables: Dict[str, Any]) -> str:
         raise Exception(f"Error during jinja template rendering: {type(e).__name__}: {e}")
 
 
+@beartype
 class PlanningPromptTemplate(TypedDict):
     """
     Prompt templates for the planning step.
@@ -103,6 +107,7 @@ class PlanningPromptTemplate(TypedDict):
     update_plan_post_messages: str
 
 
+@beartype
 class ManagedAgentPromptTemplate(TypedDict):
     """
     Prompt templates for the managed agent.
@@ -116,6 +121,7 @@ class ManagedAgentPromptTemplate(TypedDict):
     report: str
 
 
+@beartype
 class FinalAnswerPromptTemplate(TypedDict):
     """
     Prompt templates for the final answer.
@@ -129,6 +135,7 @@ class FinalAnswerPromptTemplate(TypedDict):
     post_messages: str
 
 
+@beartype
 class PromptTemplates(TypedDict):
     """
     Prompt templates for the agent.
@@ -161,6 +168,7 @@ EMPTY_PROMPT_TEMPLATES = PromptTemplates(
 )
 
 
+@beartype
 class MultiStepAgent:
     """
     Agent class that solves the given task step by step, using the ReAct framework:
@@ -267,7 +275,7 @@ class MultiStepAgent:
         task: str,
         stream: bool = False,
         reset: bool = True,
-        images: Optional[List[str]] = None,
+        images: Optional[List[Image]] = None,
         additional_args: Optional[Dict] = None,
         max_steps: Optional[int] = None,
     ):
@@ -322,7 +330,7 @@ You have been provided with these additional arguments, that you can access usin
         return deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0]
 
     def _run(
-        self, task: str, max_steps: int, images: List[str] | None = None
+        self, task: str, max_steps: int, images: List[Image] | None = None
     ) -> Generator[ActionStep | AgentType, None, None]:
         final_answer = None
         self.step_number = 1
@@ -343,7 +351,7 @@ You have been provided with these additional arguments, that you can access usin
             yield memory_step
         yield handle_agent_output_types(final_answer)
 
-    def _create_memory_step(self, step_start_time: float, images: List[str] | None) -> ActionStep:
+    def _create_memory_step(self, step_start_time: float, images: List[Image] | None) -> ActionStep:
         return ActionStep(step_number=self.step_number, start_time=step_start_time, observations_images=images)
 
     def _execute_step(self, task: str, memory_step: ActionStep) -> Union[None, Any]:
@@ -372,7 +380,7 @@ You have been provided with these additional arguments, that you can access usin
                 memory_step, agent=self
             )
 
-    def _handle_max_steps_reached(self, task: str, images: List[str], step_start_time: float) -> Any:
+    def _handle_max_steps_reached(self, task: str, images: list[Image] | None, step_start_time: float) -> Any:
         final_answer = self.provide_final_answer(task, images)
         final_memory_step = ActionStep(
             step_number=self.step_number, error=AgentMaxStepsError("Reached max steps.", self.logger)
@@ -393,7 +401,7 @@ You have been provided with these additional arguments, that you can access usin
         )
         self._record_planning_step(input_messages, facts_message, plan_message, is_first_step)
 
-    def _generate_initial_plan(self, task: str) -> Tuple[ChatMessage, ChatMessage]:
+    def _generate_initial_plan(self, task: str) -> Tuple[list[dict[str, Any]], ChatMessage, ChatMessage]:
         input_messages = [
             {
                 "role": MessageRole.USER,
@@ -429,7 +437,7 @@ You have been provided with these additional arguments, that you can access usin
         plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
         return input_messages, facts_message, plan_message
 
-    def _generate_updated_plan(self, task: str, step: int) -> Tuple[ChatMessage, ChatMessage]:
+    def _generate_updated_plan(self, task: str, step: int) -> Tuple[List[Dict[str, Any]], ChatMessage, ChatMessage]:
         # Do not take the system prompt message from the memory
         # summary_mode=False: Do not take previous plan steps to avoid influencing the new plan
         memory_messages = self.write_memory_to_messages()[1:]
@@ -556,7 +564,7 @@ You have been provided with these additional arguments, that you can access usin
             )
         return rationale.strip(), action.strip()
 
-    def provide_final_answer(self, task: str, images: Optional[list[str]]) -> str:
+    def provide_final_answer(self, task: str, images: list[Image] | None) -> str | None:
         """
         Provide the final answer to the task, based on the logs of the agent's interactions.
 
@@ -744,6 +752,7 @@ You have been provided with these additional arguments, that you can access usin
             import yaml
             import os
             from smolagents import GradioUI, {{ class_name }}, {{ agent_dict['model']['class'] }}
+            from smolagents.monitoring import LogLevel
 
             # Get current directory path
             CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -772,7 +781,7 @@ You have been provided with these additional arguments, that you can access usin
                 tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
                 managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
                 {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
-                {{ attribute_name }}={{ value|repr }},
+                {{ attribute_name }}={{ value }},
                 {% endfor %}prompt_templates=prompt_templates
             )
             if __name__ == "__main__":
@@ -827,7 +836,7 @@ You have been provided with these additional arguments, that you can access usin
             },
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
-            "verbosity_level": int(self.logger.level),
+            "verbosity_level": self.logger.level,
             "grammar": self.grammar,
             "planning_interval": self.planning_interval,
             "name": self.name,
@@ -931,7 +940,7 @@ You have been provided with these additional arguments, that you can access usin
             max_steps=agent_dict["max_steps"],
             planning_interval=agent_dict["planning_interval"],
             grammar=agent_dict["grammar"],
-            verbosity_level=agent_dict["verbosity_level"],
+            verbosity_level=LogLevel(agent_dict["verbosity_level"]),
         )
         if cls.__name__ == "CodeAgent":
             args["additional_authorized_imports"] = agent_dict["authorized_imports"]
@@ -996,6 +1005,7 @@ You have been provided with these additional arguments, that you can access usin
             )
 
 
+@beartype
 class ToolCallingAgent(MultiStepAgent):
     """
     This agent uses JSON-like tool calls, using method `model.get_tool_call` to leverage the LLM engine's tool calling capabilities.
@@ -1118,6 +1128,7 @@ class ToolCallingAgent(MultiStepAgent):
             return None
 
 
+@beartype
 class CodeAgent(MultiStepAgent):
     """
     In this agent, the tool calls will be formulated by the LLM in code format, then parsed and executed.
