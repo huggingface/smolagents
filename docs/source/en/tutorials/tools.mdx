@@ -245,3 +245,15 @@ with ToolCollection.from_mcp(server_parameters) as tool_collection:
     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
     agent.run("Please find a remedy for hangover.")
 ```
+
+`ToolCollection` also supports SSE MCP servers. To use it, simply specify any parameters to `mcp.client.sse.sse_client` as a dict instead of the `StdioServerParameters` instance.
+
+For example:
+
+```py
+from smolagents import ToolCollection, CodeAgent
+
+with ToolCollection.from_mcp(server_parameters) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
