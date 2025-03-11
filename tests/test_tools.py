@@ -99,6 +99,43 @@ class ToolTesterMixin:
 
 
 class ToolTests(unittest.TestCase):
+    def test_tool_force_types(self):
+        @tool(force_types=True)
+        def add_numbers(a: int, b: int) -> int:
+            """
+            Adds two numbers.
+
+            Args:
+                a: First number
+                b: Second number
+            """
+            return a + b
+
+        # Valid call should work
+        assert add_numbers(1, 2) == 3
+
+        # Invalid types should raise TypeError
+        with pytest.raises(TypeError) as e:
+            add_numbers("1", 2)
+        assert "expected type int" in str(e)
+        assert "got str" in str(e)
+        assert "Argument 'a'" in str(e)
+
+        # Now test with type checking disabled
+        @tool(force_types=False)
+        def add_numbers_no_check(a: int, b: int) -> int:
+            """
+            Adds two numbers.
+
+            Args:
+                a: First number
+                b: Second number
+            """
+            return a + b
+
+        result = add_numbers_no_check(1.2, 2)
+        assert result == 3.2
+
     def test_tool_init_with_decorator(self):
         @tool
         def coolfunc(a: str, b: int) -> float:
