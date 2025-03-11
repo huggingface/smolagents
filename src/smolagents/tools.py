@@ -840,8 +840,8 @@ def tool(tool_function: Callable) -> Tool:
 
     # Get the signature parameters
     sig = inspect.signature(tool_function)
-    params = ["self"] + list(sig.parameters.keys())
-    params_str = ", ".join(params)
+    # Add "self" as first parameter to signature
+    sig_str = "(self" + ("" if str(sig).startswith("()") else ", ") + str(sig)[1:]
 
     # Get the source code of tool_function
     tool_source = inspect.getsource(tool_function)
@@ -864,7 +864,7 @@ def tool(tool_function: Callable) -> Tool:
             def __init__(self):
                 self.is_initialized = True
 
-            def forward({params_str}):
+            def forward{sig_str}:
         ''')
         + tool_body
     )
