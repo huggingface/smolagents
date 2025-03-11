@@ -331,7 +331,11 @@ You have been provided with these additional arguments, that you can access usin
             memory_step = self._create_memory_step(step_start_time, images)
             try:
                 final_answer = self._execute_step(task, memory_step)
+            except AgentGenerationError as e:
+                # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
+                raise e
             except AgentError as e:
+                # Other AgentError types are caused by the Model, so we should log them and iterate.
                 memory_step.error = e
             finally:
                 self._finalize_step(memory_step, step_start_time)

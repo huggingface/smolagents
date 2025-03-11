@@ -43,7 +43,7 @@ from smolagents.models import (
     TransformersModel,
 )
 from smolagents.tools import Tool, tool
-from smolagents.utils import BASE_BUILTIN_MODULES
+from smolagents.utils import BASE_BUILTIN_MODULES, AgentGenerationError
 
 
 def get_new_path(suffix="") -> str:
@@ -568,6 +568,16 @@ nested_answer()
         agent = CodeAgent(model=fake_code_model, tools=[], final_answer_checks=[check_always_fails])
         agent.run("Dummy task.")
         assert "Error raised in check" in str(agent.write_memory_to_messages())
+
+    def test_generation_errors_are_raised(self):
+        def fake_model(messages, stop_sequences):
+            assert False, "Generation failed"
+
+        agent = CodeAgent(model=fake_model, tools=[])
+        with pytest.raises(AgentGenerationError) as e:
+            agent.run("Dummy task.")
+        assert len(agent.memory.steps) == 2
+        assert "Generation failed" in str(e)
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
