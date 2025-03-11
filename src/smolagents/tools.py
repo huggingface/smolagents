@@ -26,7 +26,7 @@ import types
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Union
 
 from huggingface_hub import (
     create_repo,
@@ -852,8 +852,57 @@ def tool(tool_function: Callable) -> Tool:
     # - Create the forward method code, including def line and indentation
     forward_method_code = f"def forward{sig_str}:\n{textwrap.indent(tool_body, '    ')}"
 
+    # Extract required imports from signature
+    required_imports = set()
+    for param in sig.parameters.values():
+        if hasattr(param.annotation, "__module__") and param.annotation.__module__ not in {"builtins"}:
+            # Handle typing imports
+            if param.annotation.__module__ == "typing":
+                # Get all typing types used in annotation
+                def get_typing_imports(annotation):
+                    imports = set()
+                    # Get the base type (List, Dict, etc.)
+                    base_type = getattr(annotation, "__origin__", None)
+                    if base_type is not None:
+                        # Get the correct capitalized name from the original annotation
+                        base_name = annotation.__class__.__name__
+                        if base_name.startswith("_"):
+                            # Handle _GenericAlias by getting actual type name
+                            base_name = annotation._name
+                        imports.add(base_name)
+                        # Recursively handle type arguments
+                        for arg in annotation.__args__:
+                            if hasattr(arg, "__module__") and arg.__module__ == "typing":
+                                imports.update(get_typing_imports(arg))
+                    # Handle Optional, Union etc.
+                    elif hasattr(annotation, "__name__"):
+                        imports.add(annotation.__name__)
+                    return imports
+
+                typing_imports = get_typing_imports(param.annotation)
+                for type_name in typing_imports:
+                    required_imports.add(f"from typing import {type_name}")
+            else:
+                # Regular module import
+                module_name = param.annotation.__module__
+                required_imports.add(f"import {module_name}")
+
+            # Also check return type annotation
+            if sig.return_annotation != inspect._empty:
+                if hasattr(sig.return_annotation, "__module__") and sig.return_annotation.__module__ == "typing":
+                    typing_imports = get_typing_imports(sig.return_annotation)
+                    for type_name in typing_imports:
+                        required_imports.add(f"from typing import {type_name}")
+
+    # Create imports block
+    imports_block = "\n".join(sorted(required_imports))
+    if imports_block:
+        imports_block += "\n\n"
+
     # Create the class code
-    class_code = textwrap.dedent(f'''
+    class_code = (
+        imports_block
+        + textwrap.dedent(f'''
         class SimpleTool(Tool):
             name: str = "{tool_json_schema["name"]}"
             description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
@@ -863,19 +912,12 @@ def tool(tool_function: Callable) -> Tool:
             def __init__(self):
                 self.is_initialized = True
 
-        ''') + textwrap.indent(forward_method_code, "    ")  # indent for class method
+        ''')
+        + textwrap.indent(forward_method_code, "    ")
+    )  # indent for class method
 
     # Execute the code in a new namespace
-    namespace = {
-        "Tool": Tool,
-        "tool_function": tool_function,
-        "Any": Any,
-        "Optional": Optional,
-        "Dict": Dict,
-        "List": List,
-        "Tuple": Tuple,
-        "Union": Union,
-    }
+    namespace = {"Tool": Tool, "tool_function": tool_function}
     exec(class_code, namespace)
     # Store the source code on both class and method for inspection
     SimpleTool = namespace["SimpleTool"]
