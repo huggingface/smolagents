@@ -887,12 +887,18 @@ def tool(tool_function: Callable) -> Tool:
                 module_name = param.annotation.__module__
                 required_imports.add(f"import {module_name}")
 
-            # Also check return type annotation
-            if sig.return_annotation != inspect._empty:
-                if hasattr(sig.return_annotation, "__module__") and sig.return_annotation.__module__ == "typing":
-                    typing_imports = get_typing_imports(sig.return_annotation)
-                    for type_name in typing_imports:
-                        required_imports.add(f"from typing import {type_name}")
+    # Also check return type annotation
+    if sig.return_annotation != inspect._empty:
+        if hasattr(sig.return_annotation, "__module__") and sig.return_annotation.__module__ not in {"builtins"}:
+            # Handle typing imports
+            if sig.return_annotation.__module__ == "typing":
+                typing_imports = get_typing_imports(sig.return_annotation)
+                for type_name in typing_imports:
+                    required_imports.add(f"from typing import {type_name}")
+            else:
+                # Regular module import
+                module_name = sig.return_annotation.__module__
+                required_imports.add(f"import {module_name}")
 
     # Create imports block
     imports_block = "\n".join(sorted(required_imports))
@@ -913,9 +919,8 @@ def tool(tool_function: Callable) -> Tool:
                 self.is_initialized = True
 
         ''')
-        + textwrap.indent(forward_method_code, "    ")
-    )  # indent for class method
-
+        + textwrap.indent(forward_method_code, "    ")  # indent for class method
+    )
     # Execute the code in a new namespace
     namespace = {"Tool": Tool, "tool_function": tool_function}
     exec(class_code, namespace)
