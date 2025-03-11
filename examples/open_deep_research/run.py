@@ -4,6 +4,8 @@ import threading
 
 from dotenv import load_dotenv
 from huggingface_hub import login
+
+from scripts.linkup_utils import LinkupSearchTool
 from scripts.text_inspector_tool import TextInspectorTool
 from scripts.text_web_browser import (
     ArchiveSearchTool,
@@ -18,7 +20,7 @@ from scripts.visual_qa import visualizer
 
 from smolagents import (
     CodeAgent,
-    GoogleSearchTool,
+    # GoogleSearchTool,
     # HfApiModel,
     LiteLLMModel,
     ToolCallingAgent,
@@ -96,7 +98,8 @@ def create_agent(model_id="o1"):
     text_limit = 100000
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
     WEB_TOOLS = [
-        GoogleSearchTool(provider="serper"),
+        # GoogleSearchTool(),
+        LinkupSearchTool(),
         VisitTool(browser),
         PageUpTool(browser),
         PageDownTool(browser),
@@ -113,7 +116,9 @@ def create_agent(model_id="o1"):
         planning_interval=4,
         name="search_agent",
         description="""A team member that will search the internet to answer your question.
-    Ask him for all your questions that require browsing the web.
+    Ask him for all your questions that require browsing the web. 
+    Note that this agent is using a powerful language model and it can do the search and analyse the results. 
+    You should ask question in a way to let the language model to perform the best, i.e. provide as much context as possible and ask in a clear way.
     Provide him as much context as possible, in particular if you need to search on a specific timeframe!
     And don't hesitate to provide him with a complex search task, like finding a difference between two webpages.
     Your request must be a real sentence, not a google search! Like "Find me this information (...)" rather than a few keywords.
