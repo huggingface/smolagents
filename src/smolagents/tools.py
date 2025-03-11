@@ -26,7 +26,7 @@ import types
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from huggingface_hub import (
     create_repo,
@@ -870,7 +870,7 @@ def tool(tool_function: Callable) -> Tool:
     )
 
     # Execute the code in a new namespace
-    namespace = {"Tool": Tool, "tool_function": tool_function}
+    namespace = {"Any": Any, "Optional": Optional, "Tool": Tool, "tool_function": tool_function}
     exec(class_code, namespace)
     # Store the source code on the class for inspection
     SimpleTool = namespace["SimpleTool"]
