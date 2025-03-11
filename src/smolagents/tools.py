@@ -903,9 +903,7 @@ def tool(tool_function: Callable) -> Tool:
     # Create imports block
     imports_block = "\n".join(sorted(required_imports))
     if imports_block:
-        imports_block += "\n"
-    imports_block += "from smolagents import Tool\n"
-    imports_block += "\n\n"
+        imports_block += "\n\n"
 
     # Create the class code
     class_code = (
@@ -923,9 +921,8 @@ def tool(tool_function: Callable) -> Tool:
         ''')
         + textwrap.indent(forward_method_code, "    ")  # indent for class method
     )
-    # import pdb;pdb.set_trace()
     # Execute the code in a new namespace
-    namespace = {"tool_function": tool_function}
+    namespace = {"Tool": Tool, "tool_function": tool_function}
     exec(class_code, namespace)
     # Store the source code on both class and method for inspection
     SimpleTool = namespace["SimpleTool"]
