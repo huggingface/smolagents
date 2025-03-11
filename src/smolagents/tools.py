@@ -857,8 +857,8 @@ def tool(tool_function: Callable) -> Tool:
         textwrap.dedent(f'''
         class SimpleTool(Tool):
             name: str = "{tool_json_schema["name"]}"
-            description: str = """{tool_json_schema["description"]}"""
-            inputs: dict[str, dict[str, str]] = {tool_json_schema["parameters"]["properties"]}
+            description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
+            inputs: dict[str, dict[str, str]] = {json.dumps(tool_json_schema["parameters"]["properties"], separators=(",", ":"))}
             output_type: str = "{tool_json_schema["return"]["type"]}"
 
             def __init__(self):
