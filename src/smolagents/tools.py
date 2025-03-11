@@ -26,7 +26,7 @@ import types
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from huggingface_hub import (
     create_repo,
@@ -866,7 +866,16 @@ def tool(tool_function: Callable) -> Tool:
         ''') + textwrap.indent(forward_method_code, "    ")  # indent for class method
 
     # Execute the code in a new namespace
-    namespace = {"Any": Any, "Optional": Optional, "Tool": Tool, "tool_function": tool_function}
+    namespace = {
+        "Tool": Tool,
+        "tool_function": tool_function,
+        "Any": Any,
+        "Optional": Optional,
+        "Dict": Dict,
+        "List": List,
+        "Tuple": Tuple,
+        "Union": Union,
+    }
     exec(class_code, namespace)
     # Store the source code on both class and method for inspection
     SimpleTool = namespace["SimpleTool"]
