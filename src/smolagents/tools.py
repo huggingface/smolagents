@@ -868,9 +868,10 @@ def tool(tool_function: Callable) -> Tool:
     # Execute the code in a new namespace
     namespace = {"Any": Any, "Optional": Optional, "Tool": Tool, "tool_function": tool_function}
     exec(class_code, namespace)
-    # Store the source code on the class for inspection
+    # Store the source code on both class and method for inspection
     SimpleTool = namespace["SimpleTool"]
     SimpleTool._source = class_code
+    SimpleTool.forward._source = forward_method_code
     return SimpleTool()
 
 
