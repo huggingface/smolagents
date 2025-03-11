@@ -63,9 +63,9 @@ telemetry = [
   "openinference-instrumentation-smolagents>=0.1.4"
 ]
 transformers = [
-  "accelerate",
-  "transformers>=4.0.0",
   "smolagents[torch]",
+  "accelerate",
+  "transformers>=4.0.0"
 ]
 vision = [
   "helium",
