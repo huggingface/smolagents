@@ -902,6 +902,170 @@ class LiteLLMModel(Model):
         if tools_to_call_from is not None:
             return parse_tool_args_if_needed(message)
         return message
+class AIStudio(Model):
+    """This class is a modification of the LiteLLMModel() class that works with the Google GenerativeAI API.
+
+    Parameters:
+        model_id (`str`):
+            The model identifier to use on the server (e.g. "gemini-1.5-pro").
+        api_base (`str`, *optional*):
+            The base URL of the API server.
+        api_key (`str`, *optional*):
+            The API key to use for authentication.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
+        **kwargs:
+            Additional keyword arguments to pass to the Google API.
+    """
+
+    def __init__(
+        self,
+        model_id: str = None,
+        api_base=None,
+        api_key= None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.model_id = model_id
+        self.api_base = api_base
+        self.api_key = api_key
+        self.custom_role_conversions = custom_role_conversions
+        self.flatten_messages_as_text = (
+            kwargs.get("flatten_messages_as_text")
+            if "flatten_messages_as_text" in kwargs
+            else self.model_id.startswith(("ollama", "groq", "cerebras"))
+        )
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        images: Optional[List[Image.Image]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        try:
+            import os
+            import google.generativeai as genai
+            from PIL import Image
+        except ModuleNotFoundError as e:
+            missing_module = str(e).split("'")[1]
+            raise ModuleNotFoundError(
+                f"Please install '{missing_module}' to use AI Studio: `pip install '{missing_module}'`"
+            )
+
+        all_images = []
+
+        if images:
+            all_images.extend(images)
+            print(f"Added {len(images)} explicitly passed images")
+
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            api_base=self.api_base,
+            api_key=self.api_key,
+            convert_images_to_image_urls=True,  
+            flatten_messages_as_text=self.flatten_messages_as_text,
+            custom_role_conversions=self.custom_role_conversions,
+            **kwargs,
+        )
+
+        generation_config = {
+            "temperature": kwargs.get("temperature", 0.7),
+            "top_p": kwargs.get("top_p", 0.95),
+            "top_k": kwargs.get("top_k", 64),
+            "max_output_tokens": kwargs.get("max_tokens", 65536),
+            "response_mime_type": "text/plain",
+        }
+
+        if self.api_key:
+            genai.configure(api_key=self.api_key)
+
+        model = genai.GenerativeModel(
+            model_name=self.model_id,
+            generation_config=generation_config,
+        )
+
+        chat_session = model.start_chat(history=[])
+
+        processed_messages = completion_kwargs.pop("messages")
+
+        output_string = ""
+        
+        for item in processed_messages:
+            
+            role_value = item.get('role', '')
+            content_list = item.get('content', [])
+
+            if isinstance(role_value, str):
+                role_name = role_value
+            else:
+                role_name = str(role_value).split('.')[-1].split(':')[0].strip("<> '")
+
+            for content_item in content_list:
+                if isinstance(content_item, dict) and 'text' in content_item:
+                    text_content = content_item.get('text', '')
+                    output_string += f"Role: {role_name}\nText: {text_content}\n\n"
+                    
+                elif isinstance(content_item, dict) and content_item.get('type') == 'image_url':
+                    import base64
+                    import io
+                    image_url = content_item.get('image_url', {}).get('url', '')
+                    if image_url.startswith('data:image'):
+                        image_path = image_url[22:]  # Remove prefix
+                        try:
+                            img_data = base64.b64decode(image_path)
+                            image_decoded = Image.open(io.BytesIO(img_data))                   
+                            all_images.append(image_decoded)
+                        except Exception as e:
+                            print(f"Failed to open base64 image: {e}")
+        formatted_content = []
+
+        if output_string.strip():
+            formatted_content.append(output_string)
+        for img in all_images:
+            formatted_content.append(img)
+        print(f"Sending message with {len(formatted_content)} parts ({len(all_images)} images)")
+        try:
+            response = chat_session.send_message(formatted_content)
+
+            new_dict = {
+                "role": "assistant",
+                "content": ""
+            }
+            
+            if hasattr(response, 'text'):
+                new_dict["content"] = response.text
+            elif hasattr(response, 'candidates') and response.candidates:
+                if hasattr(response.candidates[0], 'content'):
+                    if hasattr(response.candidates[0].content, 'parts') and response.candidates[0].content.parts:
+                        new_dict["content"] = response.candidates[0].content.parts[0].text
+                    elif hasattr(response.candidates[0].content, 'text'):
+                        new_dict["content"] = response.candidates[0].content.text
+
+            if hasattr(response, 'usage_metadata'):
+                self.last_input_token_count = getattr(response.usage_metadata, 'prompt_token_count', 0)
+                self.last_output_token_count = getattr(response.usage_metadata, 'candidates_token_count', 0)
+
+            message = ChatMessage.from_dict(new_dict)
+            message.raw = response
+
+            if tools_to_call_from is not None:
+                return parse_tool_args_if_needed(message)
+                
+            return message
+            
+        except Exception as e:
+            error_msg = f"Error sending message to Google Generative AI: {str(e)}"
+            print(error_msg)
+            return ChatMessage(role="assistant", content=error_msg)
 
 
 class OpenAIServerModel(Model):
@@ -1038,4 +1202,5 @@ __all__ = [
     "OpenAIServerModel",
     "AzureOpenAIServerModel",
     "ChatMessage",
+    "AIStudio",
 ]
