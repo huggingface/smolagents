@@ -324,7 +324,11 @@ class AgentTests(unittest.TestCase):
             Args:
                 prompt: The prompt
             """
-            return Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
+            from pathlib import Path
+
+            from PIL import Image
+
+            return Image.open(Path("tests/fixtures/000000039769.png"))
 
         agent = ToolCallingAgent(tools=[fake_image_generation_tool], model=FakeToolCallModelImage())
         output = agent.run("Make me an image.")
