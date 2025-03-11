@@ -826,46 +826,56 @@ class ToolCollection:
 
 def tool(tool_function: Callable) -> Tool:
     """
-    Converts a function into an instance of a Tool subclass.
+    Convert a function into an instance of a dynamically created Tool subclass.
 
     Args:
-        tool_function: Your function. Should have type hints for each input and a type hint for the output.
-        Should also have a docstring description including an 'Args:' part where each argument is described.
+        tool_function (`Callable`): Function to convert into a Tool subclass.
+            Should have type hints for each input and a type hint for the output.
+            Should also have a docstring including the description of the function
+            and an 'Args:' part where each argument is described.
     """
     tool_json_schema = get_json_schema(tool_function)["function"]
     if "return" not in tool_json_schema:
         raise TypeHintParsingException("Tool return type not found: make sure your function has a return type hint!")
 
-    class SimpleTool(Tool):
-        def __init__(
-            self,
-            name: str,
-            description: str,
-            inputs: Dict[str, Dict[str, str]],
-            output_type: str,
-            function: Callable,
-        ):
-            self.name = name
-            self.description = description
-            self.inputs = inputs
-            self.output_type = output_type
-            self.forward = function
-            self.is_initialized = True
+    # Get the signature parameters
+    sig = inspect.signature(tool_function)
+    params = ["self"] + list(sig.parameters.keys())
+    params_str = ", ".join(params)
 
-    simple_tool = SimpleTool(
-        name=tool_json_schema["name"],
-        description=tool_json_schema["description"],
-        inputs=tool_json_schema["parameters"]["properties"],
-        output_type=tool_json_schema["return"]["type"],
-        function=tool_function,
+    # Get the source code of tool_function
+    tool_source = inspect.getsource(tool_function)
+    # - Remove the tool decorator and function definition line
+    tool_body = "\n".join(tool_source.split("\n")[2:])
+    # - Dedent
+    tool_body = textwrap.dedent(tool_body)
+    # - Indent for class method
+    tool_body = textwrap.indent(tool_body, "        ")
+
+    # Create the class code
+    class_code = (
+        textwrap.dedent(f'''
+        class SimpleTool(Tool):
+            name: str = "{tool_json_schema["name"]}"
+            description: str = """{tool_json_schema["description"]}"""
+            inputs: dict[str, dict[str, str]] = {tool_json_schema["parameters"]["properties"]}
+            output_type: str = "{tool_json_schema["return"]["type"]}"
+
+            def __init__(self):
+                self.is_initialized = True
+
+            def forward({params_str}):
+        ''')
+        + tool_body
     )
-    original_signature = inspect.signature(tool_function)
-    new_parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)] + list(
-        original_signature.parameters.values()
-    )
-    new_signature = original_signature.replace(parameters=new_parameters)
-    simple_tool.forward.__signature__ = new_signature
-    return simple_tool
+
+    # Execute the code in a new namespace
+    namespace = {"Tool": Tool, "tool_function": tool_function}
+    exec(class_code, namespace)
+    # Store the source code on the class for inspection
+    SimpleTool = namespace["SimpleTool"]
+    SimpleTool._source = class_code
+    return SimpleTool()
 
 
 class PipelineTool(Tool):
