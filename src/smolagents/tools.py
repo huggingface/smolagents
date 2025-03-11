@@ -849,12 +849,11 @@ def tool(tool_function: Callable) -> Tool:
     tool_body = "\n".join(tool_source.split("\n")[2:])
     # - Dedent
     tool_body = textwrap.dedent(tool_body)
-    # - Indent for class method
-    tool_body = textwrap.indent(tool_body, "        ")
+    # - Create the forward method code, including def line and indentation
+    forward_method_code = f"def forward{sig_str}:\n{textwrap.indent(tool_body, '    ')}"
 
     # Create the class code
-    class_code = (
-        textwrap.dedent(f'''
+    class_code = textwrap.dedent(f'''
         class SimpleTool(Tool):
             name: str = "{tool_json_schema["name"]}"
             description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
@@ -864,10 +863,7 @@ def tool(tool_function: Callable) -> Tool:
             def __init__(self):
                 self.is_initialized = True
 
-            def forward{sig_str}:
-        ''')
-        + tool_body
-    )
+        ''') + textwrap.indent(forward_method_code, "    ")  # indent for class method
 
     # Execute the code in a new namespace
     namespace = {"Any": Any, "Optional": Optional, "Tool": Tool, "tool_function": tool_function}
