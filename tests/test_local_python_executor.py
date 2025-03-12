@@ -25,6 +25,7 @@ import pytest
 
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
+    MAX_OPERATIONS,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -54,14 +55,14 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 3
-        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": 2})
+        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": {"counter": 2}})
 
         code = "x = y"
         state = {"y": 5}
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 5, "y": 5, "_operations_count": 2})
+        self.assertDictEqualNoPrint(state, {"x": 5, "y": 5, "_operations_count": {"counter": 2}})
 
         code = "a=1;b=None"
         result, _ = evaluate_python_code(code, {}, state={})
@@ -87,7 +88,7 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": 3})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": {"counter": 3}})
 
         # Should not work without the tool
         with pytest.raises(InterpreterError) as e:
@@ -99,14 +100,16 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 3
-        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": 2})
+        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": {"counter": 2}})
 
     def test_evaluate_dict(self):
         code = "test_dict = {'x': x, 'y': add_two(x)}"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         self.assertDictEqual(result, {"x": 3, "y": 5})
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 7})
+        self.assertDictEqualNoPrint(
+            state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": {"counter": 7}}
+        )
 
     def test_evaluate_expression(self):
         code = "x = 3\ny = 5"
@@ -114,7 +117,7 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": 4})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": {"counter": 4}})
 
     def test_evaluate_f_string(self):
         code = "text = f'This is x: {x}.'"
@@ -122,14 +125,16 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == "This is x: 3."
-        self.assertDictEqualNoPrint(state, {"x": 3, "text": "This is x: 3.", "_operations_count": 6})
+        self.assertDictEqualNoPrint(state, {"x": 3, "text": "This is x: 3.", "_operations_count": {"counter": 6}})
 
     def test_evaluate_f_string_with_format(self):
         code = "text = f'This is x: {x:.2f}.'"
         state = {"x": 3.336}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == "This is x: 3.34."
-        self.assertDictEqualNoPrint(state, {"x": 3.336, "text": "This is x: 3.34.", "_operations_count": 8})
+        self.assertDictEqualNoPrint(
+            state, {"x": 3.336, "text": "This is x: 3.34.", "_operations_count": {"counter": 8}}
+        )
 
     def test_evaluate_f_string_with_complex_format(self):
         code = "text = f'This is x: {x:>{width}.{precision}f}.'"
@@ -137,7 +142,14 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == "This is x:       3.34."
         self.assertDictEqualNoPrint(
-            state, {"x": 3.336, "width": 10, "precision": 2, "text": "This is x:       3.34.", "_operations_count": 14}
+            state,
+            {
+                "x": 3.336,
+                "width": 10,
+                "precision": 2,
+                "text": "This is x:       3.34.",
+                "_operations_count": {"counter": 14},
+            },
         )
 
     def test_evaluate_if(self):
@@ -146,40 +158,42 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 2
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 2, "_operations_count": 6})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 2, "_operations_count": {"counter": 6}})
 
         state = {"x": 8}
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 8, "y": 5, "_operations_count": 6})
+        self.assertDictEqualNoPrint(state, {"x": 8, "y": 5, "_operations_count": {"counter": 6}})
 
     def test_evaluate_list(self):
         code = "test_list = [x, add_two(x)]"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         self.assertListEqual(result, [3, 5])
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 5})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": {"counter": 5}})
 
     def test_evaluate_name(self):
         code = "y = x"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 3
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 3, "_operations_count": 2})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 3, "_operations_count": {"counter": 2}})
 
     def test_evaluate_subscript(self):
         code = "test_list = [x, add_two(x)]\ntest_list[1]"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 9})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": {"counter": 9}})
 
         code = "test_dict = {'x': x, 'y': add_two(x)}\ntest_dict['y']"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 11})
+        self.assertDictEqualNoPrint(
+            state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": {"counter": 11}}
+        )
 
         code = "vendor = {'revenue': 31000, 'rent': 50312}; vendor['ratio'] = round(vendor['revenue'] / vendor['rent'], 2)"
         state = {}
@@ -203,14 +217,14 @@ for result in search_results:
         state = {}
         result, _ = evaluate_python_code(code, {"range": range}, state=state)
         assert result == 2
-        self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": 11})
+        self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
 
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 9
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 6, "_operations_count": 4})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 6, "_operations_count": {"counter": 4}})
 
     def test_recursive_function(self):
         code = """
@@ -222,6 +236,21 @@ def recur_fibo(n):
 recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == 8
+
+    def test_operations_limit(self):
+        # Check that operation counter is not reset in functions
+        code = f"""
+a = 0
+def foo(a, i):
+    for j in range(2_000):
+        a += i+j
+    return a
+for i in range({int(MAX_OPERATIONS / 1000)}):
+    a = foo(a, i)
+"""
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code(code, {"range": range}, state={})
+            assert "Reached the max number of operations" in e
 
     def test_evaluate_string_methods(self):
         code = "'hello'.replace('h', 'o').split('e')"
