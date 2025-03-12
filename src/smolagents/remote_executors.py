@@ -22,7 +22,7 @@ import time
 from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from PIL import Image
@@ -91,7 +91,7 @@ locals().update(vars_dict)
 
 
 class E2BExecutor(RemotePythonExecutor):
-    def __init__(self, additional_imports: List[str], logger):
+    def __init__(self, additional_imports: List[str], logger, api_key: Optional[str] = None):
         super().__init__(additional_imports, logger)
         try:
             from e2b_code_interpreter import Sandbox
@@ -99,7 +99,7 @@ class E2BExecutor(RemotePythonExecutor):
             raise ModuleNotFoundError(
                 """Please install 'e2b' extra to use E2BExecutor: `pip install 'smolagents[e2b]'`"""
             )
-        self.sandbox = Sandbox()
+        self.sandbox = Sandbox(api_key=api_key)
         self.installed_packages = self.install_packages(additional_imports)
         self.logger.log("E2B is running", level=LogLevel.INFO)
 
