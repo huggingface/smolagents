@@ -144,8 +144,12 @@ system_prompt: |-
   Above example were using notional tools that might not exist for you. On top of performing computations in the Python code snippets that you create, you only have access to these tools:
   {%- for tool in tools.values() %}
   - {{ tool.name }}: {{ tool.description }}
-      Takes inputs: {{tool.inputs}}
-      Returns an output of type: {{tool.output_type}}
+    {%- if tool.inputs %}
+    Takes inputs: {{ tool.inputs }}
+    {% else %}
+    Takes NO inputs.
+    {%- endif %}
+    Returns an output of type: {{ tool.output_type }}
   {%- endfor %}
 
   {%- if managed_agents and managed_agents.values() | list %}
@@ -201,7 +205,7 @@ planning:
     {{task}}
     ```
     Now begin!
-  initial_plan : |-
+  initial_plan: |-
     You are a world expert at making efficient plans to solve any task using a set of carefully crafted tools.
 
     Now for the given task, develop a step-by-step high-level plan taking into account the above inputs and list of facts.
@@ -218,7 +222,11 @@ planning:
     You can leverage these tools:
     {%- for tool in tools.values() %}
     - {{ tool.name }}: {{ tool.description }}
-        Takes inputs: {{tool.inputs}}
+        {%- if tool.inputs %}
+        Takes inputs: {{ tool.inputs }}
+        {% else %}
+        Takes NO inputs.
+        {%- endif %}
         Returns an output of type: {{tool.output_type}}
     {%- endfor %}
 
@@ -276,7 +284,11 @@ planning:
     You can leverage these tools:
     {%- for tool in tools.values() %}
     - {{ tool.name }}: {{ tool.description }}
-        Takes inputs: {{tool.inputs}}
+        {%- if tool.inputs %}
+        Takes inputs: {{ tool.inputs }}
+        {% else %}
+        Takes NO inputs.
+        {%- endif %}
         Returns an output of type: {{tool.output_type}}
     {%- endfor %}
 
@@ -304,24 +316,24 @@ planning:
     Now write your new plan below.
 managed_agent:
   task: |-
-      You're a helpful agent named '{{name}}'.
-      You have been submitted this task by your manager.
-      ---
-      Task:
-      {{task}}
-      ---
-      You're helping your manager solve a wider task: so make sure to not provide a one-line answer, but give as much information as possible to give them a clear understanding of the answer.
+    You're a helpful agent named '{{name}}'.
+    You have been submitted this task by your manager.
+    ---
+    Task:
+    {{task}}
+    ---
+    You're helping your manager solve a wider task: so make sure to not provide a one-line answer, but give as much information as possible to give them a clear understanding of the answer.
 
-      Your final_answer WILL HAVE to contain these parts:
-      ### 1. Task outcome (short version):
-      ### 2. Task outcome (extremely detailed version):
-      ### 3. Additional context (if relevant):
+    Your final_answer WILL HAVE to contain these parts:
+    ### 1. Task outcome (short version):
+    ### 2. Task outcome (extremely detailed version):
+    ### 3. Additional context (if relevant):
 
-      Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
-      And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
+    Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
+    And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
   report: |-
-      Here is the final answer from your managed agent '{{name}}':
-      {{final_answer}}
+    Here is the final answer from your managed agent '{{name}}':
+    {{final_answer}}
 final_answer:
   pre_messages: |-
     An agent tried to answer a user query but it got stuck and failed to do so. You are tasked with providing an answer instead. Here is the agent's memory:
