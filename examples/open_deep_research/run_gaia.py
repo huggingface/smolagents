@@ -10,7 +10,7 @@ from typing import List
 import datasets
 import pandas as pd
 from dotenv import load_dotenv
-from huggingface_hub import login
+from huggingface_hub import login, snapshot_download
 from scripts.reformulator import prepare_response
 from scripts.run_agents import (
     get_single_file_description,
@@ -91,17 +91,16 @@ custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
 
 ### LOAD EVALUATION DATASET
 
-eval_ds = datasets.load_dataset("gaia-benchmark/GAIA", "2023_all")[SET]
+if not os.path.exists("data/gaia"):
+    snapshot_download(
+        repo_id="gaia-benchmark/GAIA",
+        repo_type="dataset",
+        local_dir="data/gaia",
+        ignore_patterns=[".gitattributes", "README.md"],
+    )
+eval_ds = datasets.load_dataset("data/gaia/GAIA.py", "2023_all")[SET]
 eval_ds = eval_ds.rename_columns({"Question": "question", "Final answer": "true_answer", "Level": "task"})
 
-
-def preprocess_file_paths(row):
-    if len(row["file_name"]) > 0:
-        row["file_name"] = f"data/gaia/{SET}/" + row["file_name"]
-    return row
-
-
-eval_ds = eval_ds.map(preprocess_file_paths)
 eval_df = pd.DataFrame(eval_ds)
 print("Loaded evaluation dataset:")
 print(eval_df["task"].value_counts())
@@ -202,16 +201,16 @@ Run verification steps if that's needed, you must make sure you find the correct
 Here is the task:
 """ + example["question"]
 
-    if example["file_name"]:
-        if ".zip" in example["file_name"]:
+    if example["file_path"]:
+        if ".zip" in example["file_path"]:
             prompt_use_files = "\n\nTo solve the task above, you will have to use these attached files:\n"
             prompt_use_files += get_zip_description(
-                example["file_name"], example["question"], visual_inspection_tool, document_inspection_tool
+                example["file_path"], example["question"], visual_inspection_tool, document_inspection_tool
             )
         else:
             prompt_use_files = "\n\nTo solve the task above, you will have to use this attached file:"
             prompt_use_files += get_single_file_description(
-                example["file_name"], example["question"], visual_inspection_tool, document_inspection_tool
+                example["file_path"], example["question"], visual_inspection_tool, document_inspection_tool
             )
         augmented_question += prompt_use_files
 
