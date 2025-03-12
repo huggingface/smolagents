@@ -612,7 +612,7 @@ You have been provided with these additional arguments, that you can access usin
         """
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
-            error_msg = f"Unknown tool {tool_name}, should be instead one of {list(available_tools.keys())}."
+            error_msg = f"Unknown tool {tool_name}, should be instead one of: {', '.join(available_tools)}."
             raise AgentExecutionError(error_msg, self.logger)
 
         try:
@@ -638,13 +638,13 @@ You have been provided with these additional arguments, that you can access usin
                 tool = self.tools[tool_name]
                 error_msg = (
                     f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
-                    f"As a reminder, this tool's description is the following: '{tool.description}'.\nIt takes inputs: {tool.inputs} and returns output type {tool.output_type}"
+                    f"As a reminder, this tool's description is the following: '{tool.description}'.\nIt takes inputs: {json.dumps(tool.inputs)} and returns output type {tool.output_type}"
                 )
                 raise AgentExecutionError(error_msg, self.logger)
             elif tool_name in self.managed_agents:
                 error_msg = (
                     f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
-                    f"As a reminder, this team member's description is the following:\n{available_tools[tool_name]}"
+                    f"As a reminder, this team member's description is the following:\n{self.managed_agents[tool_name].description}\n"
                 )
                 raise AgentExecutionError(error_msg, self.logger)
 
