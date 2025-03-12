@@ -148,7 +148,7 @@ class Tool:
         ):
             signature = inspect.signature(self.forward)
 
-            if not set(signature.parameters.keys()) == set(self.inputs.keys()):
+            if not set(key for key in signature.parameters.keys() if key != "self") == set(self.inputs.keys()):
                 raise Exception(
                     f"In tool '{self.name}', 'forward' method should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
                 )
