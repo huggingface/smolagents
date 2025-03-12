@@ -848,7 +848,7 @@ def tool(tool_function: Callable) -> Tool:
     SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
     SimpleTool.output_type = tool_json_schema["return"]["type"]
     # Bind the tool function to the forward method
-    SimpleTool.forward = types.MethodType(tool_function, SimpleTool)
+    SimpleTool.forward = staticmethod(tool_function)
 
     # Get the signature parameters of the tool function
     sig = inspect.signature(tool_function)
@@ -857,7 +857,7 @@ def tool(tool_function: Callable) -> Tool:
         parameters=[inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)] + list(sig.parameters.values())
     )
     # - Set the signature of the forward method
-    SimpleTool.forward.__func__.__signature__ = new_sig
+    SimpleTool.forward.__signature__ = new_sig
 
     # Create and attach the source code of the dynamically created tool class and forward method
     # - Get the source code of tool_function
@@ -885,7 +885,7 @@ def tool(tool_function: Callable) -> Tool:
     )
     # - Store the source code on both class and method for inspection
     SimpleTool.__source = class_source
-    SimpleTool.forward.__func__.__source = forward_method_source
+    SimpleTool.forward.__source = forward_method_source
 
     simple_tool = SimpleTool()
     return simple_tool
