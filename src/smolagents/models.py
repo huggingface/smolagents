@@ -955,6 +955,12 @@ class OpenAIServerModel(Model):
             **(client_kwargs or {}),
         )
         self.custom_role_conversions = custom_role_conversions
+        self.flatten_messages_as_text = (
+            kwargs.get("flatten_messages_as_text")
+            if "flatten_messages_as_text" in kwargs
+            else self.model_id.startswith("deepseek")
+        )
+        self.kwargs.pop("flatten_messages_as_text", None)
 
     def __call__(
         self,
@@ -972,6 +978,7 @@ class OpenAIServerModel(Model):
             model=self.model_id,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
+            flatten_messages_as_text = self.flatten_messages_as_text,
             **kwargs,
         )
         response = self.client.chat.completions.create(**completion_kwargs)
