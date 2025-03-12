@@ -17,6 +17,7 @@ import os
 import pathlib
 import tempfile
 import uuid
+import copy
 from io import BytesIO
 
 import numpy as np
@@ -104,6 +105,16 @@ class AgentImage(AgentType, ImageType):
 
         if self._path is None and self._raw is None and self._tensor is None:
             raise TypeError(f"Unsupported type for {self.__class__.__name__}: {type(value)}")
+
+    def __deepcopy__(self, memo):
+        result = self.__class__.__new__(self.__class__)
+        memo[id(self)] = result
+        for key, value in self.__dict__.items():
+            if key == "_raw" and self._raw is not None:
+                setattr(result, '_raw', self._raw.copy())
+            else:
+                setattr(result, key, copy.deepcopy(value, memo))
+        return result
 
     def _ipython_display_(self, include=None, exclude=None):
         """
