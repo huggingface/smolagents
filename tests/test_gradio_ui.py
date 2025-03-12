@@ -123,3 +123,35 @@ class GradioUITester(unittest.TestCase):
 
             self.assertIn("File uploaded:", textbox.value)
             self.assertEqual(len(uploads_log), 1)
+
+    def test_title_formatting(self):
+        """Test GradioUI title formatting for various agent name cases"""
+        # Mock Gradio Interface to capture title argument
+        with patch("gradio.Interface") as mock_interface:
+            # Case 1: Valid name with underscores
+            self.mock_agent.name = "test_agent"
+            ui = GradioUI(agent=self.mock_agent, file_upload_folder=self.temp_dir)
+            mock_interface.assert_called()
+            call_args = mock_interface.call_args
+            self.assertEqual(call_args.kwargs["title"], "# Test Agent")
+
+            # Case 2: Empty name
+            self.mock_agent.name = ""
+            ui = GradioUI(agent=self.mock_agent, file_upload_folder=self.temp_dir)
+            mock_interface.assert_called()
+            call_args = mock_interface.call_args
+            self.assertEqual(call_args.kwargs["title"], "# Agent interface")
+
+            # Case 3: None name
+            self.mock_agent.name = None
+            ui = GradioUI(agent=self.mock_agent, file_upload_folder=self.temp_dir)
+            mock_interface.assert_called()
+            call_args = mock_interface.call_args
+            self.assertEqual(call_args.kwargs["title"], "# Agent interface")
+
+            # Ensure no AttributeError is raised
+            try:
+                GradioUI(agent=self.mock_agent, file_upload_folder=self.temp_dir)
+            except AttributeError:
+                self.fail("GradioUI instantiation raised AttributeError unexpectedly")
+
