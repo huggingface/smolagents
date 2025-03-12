@@ -1261,6 +1261,10 @@ class CodeAgent(MultiStepAgent):
                     Text(execution_logs),
                 ]
             observation = "Execution logs:\n" + execution_logs
+            if isinstance(output, AgentImage):
+                memory_step.observations_images = [output]
+                output = output.to_string()
+
         except Exception as e:
             if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
                 execution_logs = str(self.python_executor.state["_print_outputs"])
