@@ -293,6 +293,7 @@ def test_get_clean_message_list_flatten_messages_as_text():
         (LiteLLMModel, {"model_id": "cerebras"}, None, True),
         (MLXModel, {}, ("mlx_lm.load", {"return_value": (MagicMock(), MagicMock())}), True),
         (OpenAIServerModel, {}, ("openai.OpenAI", {}), False),
+        (OpenAIServerModel, {"flatten_messages_as_text": True}, ("openai.OpenAI", {}), True),
         (
             TransformersModel,
             {},
