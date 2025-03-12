@@ -838,77 +838,39 @@ def tool(tool_function: Callable) -> Tool:
     if "return" not in tool_json_schema:
         raise TypeHintParsingException("Tool return type not found: make sure your function has a return type hint!")
 
-    # Get the signature parameters
-    sig = inspect.signature(tool_function)
-    # Add "self" as first parameter to signature
-    sig_str = "(self" + ("" if str(sig).startswith("()") else ", ") + str(sig)[1:]
+    class SimpleTool(Tool):
+        def __init__(self):
+            self.is_initialized = True
 
-    # Get the source code of tool_function
+    # Set the class attributes
+    SimpleTool.name = tool_json_schema["name"]
+    SimpleTool.description = tool_json_schema["description"]
+    SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
+    SimpleTool.output_type = tool_json_schema["return"]["type"]
+    # Bind the tool function to the forward method
+    SimpleTool.forward = types.MethodType(tool_function, SimpleTool)
+
+    # Get the signature parameters of the tool function
+    sig = inspect.signature(tool_function)
+    # - Add "self" as first parameter to tool_function signature
+    new_sig = sig.replace(
+        parameters=[inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)] + list(sig.parameters.values())
+    )
+    # - Set the signature of the forward method
+    SimpleTool.forward.__func__.__signature__ = new_sig
+
+    # Create and attach the source code of the dynamically created tool class and forward method
+    # - Get the source code of tool_function
     tool_source = inspect.getsource(tool_function)
     # - Remove the tool decorator and function definition line
-    tool_body = "\n".join(tool_source.split("\n")[2:])
+    tool_source_body = "\n".join(tool_source.split("\n")[2:])
     # - Dedent
-    tool_body = textwrap.dedent(tool_body)
-    # - Create the forward method code, including def line and indentation
-    forward_method_code = f"def forward{sig_str}:\n{textwrap.indent(tool_body, '    ')}"
-
-    # Extract required imports from signature
-    required_imports = set()
-    for param in sig.parameters.values():
-        if hasattr(param.annotation, "__module__") and param.annotation.__module__ not in {"builtins"}:
-            # Handle typing imports
-            if param.annotation.__module__ == "typing":
-                # Get all typing types used in annotation
-                def get_typing_imports(annotation):
-                    imports = set()
-                    # Get the base type (List, Dict, etc.)
-                    base_type = getattr(annotation, "__origin__", None)
-                    if base_type is not None:
-                        # Get the correct capitalized name from the original annotation
-                        base_name = annotation.__class__.__name__
-                        if base_name.startswith("_"):
-                            # Handle _GenericAlias by getting actual type name
-                            base_name = annotation._name
-                        imports.add(base_name)
-                        # Recursively handle type arguments
-                        for arg in annotation.__args__:
-                            if hasattr(arg, "__module__") and arg.__module__ == "typing":
-                                imports.update(get_typing_imports(arg))
-                    # Handle Optional, Union etc.
-                    elif hasattr(annotation, "__name__"):
-                        imports.add(annotation.__name__)
-                    return imports
-
-                typing_imports = get_typing_imports(param.annotation)
-                for type_name in typing_imports:
-                    required_imports.add(f"from typing import {type_name}")
-            else:
-                # Regular module import
-                module_name = param.annotation.__module__
-                required_imports.add(f"import {module_name}")
-
-    # Also check return type annotation
-    if sig.return_annotation != inspect._empty:
-        if hasattr(sig.return_annotation, "__module__") and sig.return_annotation.__module__ not in {"builtins"}:
-            # Handle typing imports
-            if sig.return_annotation.__module__ == "typing":
-                typing_imports = get_typing_imports(sig.return_annotation)
-                for type_name in typing_imports:
-                    required_imports.add(f"from typing import {type_name}")
-            else:
-                # Regular module import
-                module_name = sig.return_annotation.__module__
-                required_imports.add(f"import {module_name}")
-
-    # Create imports block
-    imports_block = "\n".join(sorted(required_imports))
-    if imports_block:
-        imports_block += "\n\n"
-
-    # Create the class code
-    class_code = (
-        imports_block
-        + textwrap.dedent(f'''
+    tool_source_body = textwrap.dedent(tool_source_body)
+    # - Create the forward method source, including def line and indentation
+    forward_method_source = f"def forward{str(new_sig)}:\n{textwrap.indent(tool_source_body, '    ')}"
+    # - Create the class source
+    class_source = (
+        textwrap.dedent(f'''
         class SimpleTool(Tool):
             name: str = "{tool_json_schema["name"]}"
             description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
@@ -919,16 +881,14 @@ def tool(tool_function: Callable) -> Tool:
                 self.is_initialized = True
 
         ''')
-        + textwrap.indent(forward_method_code, "    ")  # indent for class method
+        + textwrap.indent(forward_method_source, "    ")  # indent for class method
     )
-    # Execute the code in a new namespace
-    namespace = {"Tool": Tool, "tool_function": tool_function}
-    exec(class_code, namespace)
-    # Store the source code on both class and method for inspection
-    SimpleTool = namespace["SimpleTool"]
-    SimpleTool._source = class_code
-    SimpleTool.forward._source = forward_method_code
-    return SimpleTool()
+    # - Store the source code on both class and method for inspection
+    SimpleTool.__source = class_source
+    SimpleTool.forward.__func__.__source = forward_method_source
+
+    simple_tool = SimpleTool()
+    return simple_tool
 
 
 class PipelineTool(Tool):
