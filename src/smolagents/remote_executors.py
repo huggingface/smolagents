@@ -115,7 +115,6 @@ class E2BExecutor(RemotePythonExecutor):
             logs += execution.error.value
             logs += execution.error.traceback
             raise ValueError(logs)
-        self.logger.log(execution.logs)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
         if not execution.results:
             return None, execution_logs
