@@ -17,13 +17,13 @@ class MethodChecker(ast.NodeVisitor):
     """
 
     def __init__(self, class_attributes: Set[str], check_imports: bool = True):
-        self.undefined_names = set()
-        self.imports = {}
-        self.from_imports = {}
-        self.assigned_names = set()
-        self.arg_names = set()
+        self.undefined_names: set[str] = set()
+        self.imports: dict[str, str] = {}
+        self.from_imports: dict[str, tuple[str, str]] = {}
+        self.assigned_names: set[str] = set()
+        self.arg_names: set[str] = set()
         self.class_attributes = class_attributes
-        self.errors = []
+        self.errors: list[str] = []
         self.check_imports = check_imports
         self.typing_names = {"Any"}
 

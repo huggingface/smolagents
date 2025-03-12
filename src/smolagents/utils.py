@@ -240,7 +240,12 @@ def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
         else:
             return tool_call[tool_name_key], None
     error_msg = "No tool name key found in tool call!" + f" Tool call: {json_blob}"
-    raise AgentParsingError(error_msg)
+    # Import needed for type resolution
+    from smolagents.monitoring import AgentLogger, LogLevel
+
+    # Create a dummy logger since we have to provide one but it's not in the current scope
+    dummy_logger = AgentLogger(level=LogLevel.INFO)
+    raise AgentParsingError(error_msg, logger=dummy_logger)
 
 
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
