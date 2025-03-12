@@ -89,7 +89,7 @@ class Tool:
       returns the text contained in the file'.
     - **name** (`str`) -- A performative name that will be used for your tool in the prompt to the agent. For instance
       `"text-classifier"` or `"image_generator"`.
-    - **inputs** (`Dict[str, Dict[str, Union[str, type]]]`) -- The dict of modalities expected for the inputs.
+    - **inputs** (`Dict[str, Dict[str, Union[str, type, bool]]]`) -- The dict of modalities expected for the inputs.
       It has one `type`key and a `description`key.
       This is used by `launch_gradio_demo` or to make a nice space from your tool, and also can be used in the generated
       description for your tool.

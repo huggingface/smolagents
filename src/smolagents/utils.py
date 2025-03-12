@@ -22,10 +22,10 @@ import inspect
 import json
 import os
 import re
-import textwrap
 import types
 from functools import lru_cache
 from io import BytesIO
+from textwrap import dedent
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 
 
@@ -162,42 +162,61 @@ def parse_json_blob(json_blob: str) -> Dict[str, str]:
         raise ValueError(f"Error in parsing the JSON blob: {e}")
 
 
-def parse_code_blobs(code_blob: str) -> str:
-    """Parses the LLM's output to get any code blob inside. Will return the code directly if it's code."""
-    pattern = r"```(?:py|python)?\n(.*?)\n```"
-    matches = re.findall(pattern, code_blob, re.DOTALL)
-    if len(matches) == 0:
-        try:  # Maybe the LLM outputted a code blob directly
-            ast.parse(code_blob)
-            return code_blob
-        except SyntaxError:
-            pass
+def parse_code_blobs(text: str) -> str:
+    """Extract code blocs from the LLM's output.
 
-        if "final" in code_blob and "answer" in code_blob:
-            raise ValueError(
-                f"""
-Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
-Here is your code snippet:
-{code_blob}
-It seems like you're trying to return the final answer, you can do it as follows:
-Code:
-```py
-final_answer("YOUR FINAL ANSWER HERE")
-```<end_code>""".strip()
-            )
+    If a valid code block is passed, it returns it directly.
+
+    Args:
+        text (`str`): LLM's output text to parse.
+
+    Returns:
+        `str`: Extracted code block.
+
+    Raises:
+        ValueError: If no valid code block is found in the text.
+    """
+    pattern = r"```(?:py|python)?\n(.*?)\n```"
+    matches = re.findall(pattern, text, re.DOTALL)
+    if matches:
+        return "\n\n".join(match.strip() for match in matches)
+    # Maybe the LLM outputted a code blob directly
+    try:
+        ast.parse(text)
+        return text
+    except SyntaxError:
+        pass
+
+    if "final" in text and "answer" in text:
         raise ValueError(
-            f"""
-Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
-Here is your code snippet:
-{code_blob}
-Make sure to include code with the correct pattern, for instance:
-Thoughts: Your thoughts
-Code:
-```py
-# Your python code here
-```<end_code>""".strip()
+            dedent(
+                f"""
+                Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
+                Here is your code snippet:
+                {text}
+                It seems like you're trying to return the final answer, you can do it as follows:
+                Code:
+                ```py
+                final_answer("YOUR FINAL ANSWER HERE")
+                ```<end_code>
+                """
+            ).strip()
         )
-    return "\n\n".join(match.strip() for match in matches)
+    raise ValueError(
+        dedent(
+            f"""
+            Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
+            Here is your code snippet:
+            {text}
+            Make sure to include code with the correct pattern, for instance:
+            Thoughts: Your thoughts
+            Code:
+            ```py
+            # Your python code here
+            ```<end_code>
+            """
+        ).strip()
+    )
 
 
 def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
@@ -395,7 +414,7 @@ def get_source(obj) -> str:
 
     inspect_error = None
     try:
-        return textwrap.dedent(inspect.getsource(obj)).strip()
+        return dedent(inspect.getsource(obj)).strip()
     except OSError as e:
         # let's keep track of the exception to raise it if all further methods fail
         inspect_error = e
@@ -412,7 +431,7 @@ def get_source(obj) -> str:
         tree = ast.parse(all_cells)
         for node in ast.walk(tree):
             if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name == obj.__name__:
-                return textwrap.dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
+                return dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
         raise ValueError(f"Could not find source code for {obj.__name__} in IPython history")
     except ImportError:
         # IPython is not available, let's just raise the original inspect error

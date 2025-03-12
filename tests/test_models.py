@@ -143,13 +143,13 @@ class TestHfApiModel:
 
     @require_run_all
     def test_get_hfapi_message_no_tool(self):
-        model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
     @require_run_all
     def test_get_hfapi_message_no_tool_external_provider(self):
-        model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 

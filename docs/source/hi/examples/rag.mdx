@@ -138,7 +138,7 @@ _नोट:_ Inference API विभिन्न मानदंडों के
 from smolagents import HfApiModel, CodeAgent
 
 agent = CodeAgent(
-    tools=[retriever_tool], model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbosity_level=2
+    tools=[retriever_tool], model=HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbosity_level=2
 )
 ```
 
