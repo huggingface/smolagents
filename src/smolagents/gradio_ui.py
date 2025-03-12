@@ -264,7 +264,7 @@ class GradioUI:
 
             with gr.Sidebar():
                 gr.Markdown(
-                    f"# {self.name.replace('_', ' ').capitalize() or 'Agent interface'}"
+                    f"# {(self.name or 'Agent interface').replace('_', ' ').capitalize()}"
                     "\n> This web ui allows you to interact with a `smolagents` agent that can use tools and execute steps to complete tasks."
                     + (f"\n\n**Agent description:**\n{self.description}" if self.description else "")
                 )
