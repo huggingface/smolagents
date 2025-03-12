@@ -15,6 +15,7 @@
 import json
 import sys
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
@@ -23,6 +24,7 @@ import pytest
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.models import (
+    AzureOpenAIServerModel,
     ChatMessage,
     HfApiModel,
     LiteLLMModel,
@@ -278,3 +280,53 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert len(result) == 1
     assert result[0]["role"] == "user"
     assert result[0]["content"] == "Hello!How are you?"
+
+
+@pytest.mark.parametrize(
+    "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
+    [
+        (AzureOpenAIServerModel, {}, ("openai.AzureOpenAI", {}), False),
+        (HfApiModel, {}, ("huggingface_hub.InferenceClient", {}), False),
+        (LiteLLMModel, {}, None, False),
+        (LiteLLMModel, {"model_id": "ollama"}, None, True),
+        (LiteLLMModel, {"model_id": "groq"}, None, True),
+        (LiteLLMModel, {"model_id": "cerebras"}, None, True),
+        (MLXModel, {}, ("mlx_lm.load", {"return_value": (MagicMock(), MagicMock())}), True),
+        (OpenAIServerModel, {}, ("openai.OpenAI", {}), False),
+        (
+            TransformersModel,
+            {},
+            [
+                ("transformers.AutoModelForCausalLM.from_pretrained", {}),
+                ("transformers.AutoTokenizer.from_pretrained", {}),
+            ],
+            True,
+        ),
+        (
+            TransformersModel,
+            {},
+            [
+                (
+                    "transformers.AutoModelForCausalLM.from_pretrained",
+                    {"side_effect": ValueError("Unrecognized configuration class")},
+                ),
+                ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
+                ("transformers.AutoProcessor.from_pretrained", {}),
+            ],
+            False,
+        ),
+    ],
+)
+def test_flatten_messages_as_text_for_all_models(
+    model_class, model_kwargs, patching, expected_flatten_messages_as_text
+):
+    with ExitStack() as stack:
+        if isinstance(patching, list):
+            for target, kwargs in patching:
+                stack.enter_context(patch(target, **kwargs))
+        elif patching:
+            target, kwargs = patching
+            stack.enter_context(patch(target, **kwargs))
+
+        model = model_class(**{"model_id": "test-model", **model_kwargs})
+    assert model.flatten_messages_as_text is expected_flatten_messages_as_text, f"{model_class.__name__} failed"
