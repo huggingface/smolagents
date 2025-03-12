@@ -922,6 +922,8 @@ class OpenAIServerModel(Model):
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
+        flatten_messages_as_text (`bool`, default `False`):
+            Whether to flatten messages as text.
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
@@ -935,6 +937,7 @@ class OpenAIServerModel(Model):
         project: Optional[str] | None = None,
         client_kwargs: Optional[Dict[str, Any]] = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
+        flatten_messages_as_text: bool = False,
         **kwargs,
     ):
         try:
@@ -944,7 +947,7 @@ class OpenAIServerModel(Model):
                 "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
             ) from None
 
-        super().__init__(**kwargs)
+        super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
         self.model_id = model_id
         self.client = openai.OpenAI(
             base_url=api_base,
