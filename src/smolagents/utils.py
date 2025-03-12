@@ -415,7 +415,7 @@ def get_source(obj) -> str:
     inspect_error = None
     try:
         # Handle dynamically created classes
-        source = obj._source if hasattr(obj, "_source") else inspect.getsource(obj)
+        source = obj.__source if hasattr(obj, "__source") else inspect.getsource(obj)
         return dedent(source).strip()
     except OSError as e:
         # let's keep track of the exception to raise it if all further methods fail
