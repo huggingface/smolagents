@@ -1053,14 +1053,23 @@ class ToolCallingAgent(MultiStepAgent):
                 stop_sequences=["Observation:"],
             )
             memory_step.model_output_message = model_message
-            if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
-                raise Exception("Model did not call any tools. Call `final_answer` tool to return a final answer.")
-            tool_call = model_message.tool_calls[0]
-            tool_name, tool_call_id = tool_call.function.name, tool_call.id
-            tool_arguments = tool_call.function.arguments
-
         except Exception as e:
             raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
+
+        self.logger.log_markdown(
+            content=str(model_message.raw),
+            title="Output message of the LLM:",
+            level=LogLevel.DEBUG,
+        )
+
+        if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
+            raise AgentParsingError(
+                "Model did not call any tools. Call `final_answer` tool to return a final answer.", self.logger
+            )
+
+        tool_call = model_message.tool_calls[0]
+        tool_name, tool_call_id = tool_call.function.name, tool_call.id
+        tool_arguments = tool_call.function.arguments
 
         memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 
