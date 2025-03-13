@@ -40,10 +40,6 @@ e2b = [
   "e2b-code-interpreter>=1.0.3",
   "python-dotenv>=1.0.1",
 ]
-vllm = [
-  "vllm",
-  "torch"
-]
 gradio = [
   "gradio>=5.13.2",
 ]
@@ -75,6 +71,10 @@ vision = [
   "helium",
   "selenium",
 ]
+#vllm = [
+#  "vllm",
+#  "torch"
+#]
 all = [
   "smolagents[audio,docker,e2b,gradio,litellm,mcp,openai,telemetry,transformers,vision]",
 ]

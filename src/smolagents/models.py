@@ -491,11 +491,12 @@ class HfApiModel(Model):
 
 
 class VLLMModel(Model):
-    """This engine initializes a model and tokenizer from the given `model_id`.
+    """Model to use [vLLM](https://docs.vllm.ai/) for fast LLM inference and serving.
 
     Parameters:
         model_id (`str`):
-            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+            The Hugging Face model ID to be used for inference.
+            This can be a path or model identifier from the Hugging Face model hub.
     """
 
     def __init__(self, model_id, **kwargs):
