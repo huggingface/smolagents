@@ -508,7 +508,7 @@ class TestToolCollection:
             assert "tool1" in tool_collection.tools
             assert "tool2" in tool_collection.tools
 
-    @require_run_all  # CI hangs after PR #970
+    @require_run_all
     def test_integration_from_mcp(self):
         # define the most simple mcp server with one tool that echoes the input text
         mcp_server_script = dedent("""\
