@@ -25,8 +25,8 @@ import re
 import types
 from functools import lru_cache
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Dict, Tuple
 from textwrap import dedent
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 
 if TYPE_CHECKING:
