@@ -239,7 +239,12 @@ def get_clean_message_list(
 
 def get_tool_call_chat_message_from_text(text: str, tool_name_key: str, tool_arguments_key: str) -> ChatMessage:
     tool_call_dictionary, text = parse_json_blob(text)
-    tool_name = tool_call_dictionary["tool_name_key"]
+    try:
+        tool_name = tool_call_dictionary[tool_name_key]
+    except Exception as e:
+        raise ValueError(
+            f"Key {tool_name_key=} not found in the generated tool call. Got keys: {list(tool_call_dictionary.keys())} instead"
+        ) from e
     tool_arguments = tool_call_dictionary.get(tool_arguments_key, None)
     return ChatMessage(
         role="assistant",

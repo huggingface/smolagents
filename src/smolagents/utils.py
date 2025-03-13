@@ -25,8 +25,8 @@ import re
 import types
 from functools import lru_cache
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Dict, Tuple
 from textwrap import dedent
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 
 if TYPE_CHECKING:
@@ -159,8 +159,6 @@ def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
             f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"
             f"'{json_blob[place - 4 : place + 5]}'."
         )
-    except Exception as e:
-        raise ValueError(f"Error in parsing the JSON blob: {e}")
 
 
 def parse_code_blobs(text: str) -> str:
