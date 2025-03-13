@@ -240,7 +240,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 trace_provider = TracerProvider()
-exporter = OTLPSpanExporter(endpoint=OPIK_URL, headers=headers))
+exporter = OTLPSpanExporter(endpoint=OPIK_URL, headers=headers)
 trace_provider.add_span_processor(SimpleSpanProcessor(exporter))
 
 SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
