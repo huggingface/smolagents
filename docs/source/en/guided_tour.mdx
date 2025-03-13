@@ -350,6 +350,47 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 > [!TIP]
 > Read more on tools in the [dedicated tutorial](./tutorials/tools#what-is-a-tool-and-how-to-build-one).
 
+
+### Tools from methods
+Sometimes, you need to preserve state or perform an initialization step, such as handling tokens, setting up API clients, or sharing resources among tools. In these cases, you can encapsulate a tool within a class method.
+
+You still use the @tool decorator, but you apply it directly to a method. Let's modify our previous example to handle authentication using a HuggingFace token:
+```python
+from smolagents import tool
+
+class DownloadTools:
+    def __init__(self, hf_token: str):
+        self.hf_token = hf_token
+      
+    @tool
+    def model_download_tool(self, task: str) -> str:
+        """
+        Returns the most downloaded model of a given task on the Hugging Face Hub.
+        Uses the authentication token from initialization.
+
+        Args:
+            task: The task for which to get the most downloaded model.
+        """
+        most_downloaded_model = next(iter(
+            list_models(
+                filter=task,
+                sort="downloads",
+                direction=-1,
+                token=self.hf_token  # Pass the token from init
+            )
+        ))
+        return most_downloaded_model.id
+
+# Usage:
+dl_tools = DownloadTools(hf_token="hf_xxxxxxxx")
+agent = CodeAgent(tools=[dl_tools.model_download_tool], model=HfApiModel())
+```
+
+> [!TIP]
+> You can create multiple tools in a single class by decorating more methods with @tool.
+> You can also mix class-based and function-based tools in the same agent. Go with whichever approach suits your needs best!
+ 
+
 ## Multi-agents
 
 Multi-agent systems have been introduced with Microsoft's framework [Autogen](https://huggingface.co/papers/2308.08155).
