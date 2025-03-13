@@ -167,3 +167,20 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 > You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
 
 [[autodoc]] MLXModel
+
+### VLLMModel
+
+Model to use [vLLM](https://docs.vllm.ai/) for fast LLM inference and serving.
+
+```python
+from smolagents import MLXModel
+
+model = VLLMModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
+
+print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
+```
+
+> [!TIP]
+> You must have `vllm` installed on your machine. Please run `pip install smolagents[vllm]` if it's not the case.
+
+[[autodoc]] VLLMModel
