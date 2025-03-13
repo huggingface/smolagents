@@ -26,9 +26,9 @@ import pytest
 
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
-    MAX_OPERATIONS,
     DANGEROUS_FUNCTIONS,
     DANGEROUS_MODULES,
+    MAX_OPERATIONS,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
