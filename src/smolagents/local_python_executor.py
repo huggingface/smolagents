@@ -344,6 +344,9 @@ def create_function(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> Callable:
+
+    source_code = ast.unparse(func_def)
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
         arg_names = [arg.arg for arg in func_def.args.args]
@@ -393,6 +396,11 @@ def create_function(
             return None
 
         return result
+
+    # Store original AST, source code, and name
+    new_func.__ast__ = func_def
+    new_func.__source__ = source_code
+    new_func.__name__ = func_def.name
 
     return new_func
 
