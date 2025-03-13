@@ -28,7 +28,6 @@ from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_MODULES,
-    MAX_OPERATIONS,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -241,20 +240,23 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == 8
 
-    def test_operations_limit(self):
+    def test_max_operations(self):
         # Check that operation counter is not reset in functions
-        code = f"""
-a = 0
-def foo(a, i):
-    for j in range(2_000):
-        a += i+j
-    return a
-for i in range({int(MAX_OPERATIONS / 1000)}):
-    a = foo(a, i)
-"""
-        with pytest.raises(InterpreterError) as e:
-            evaluate_python_code(code, {"range": range}, state={})
-            assert "Reached the max number of operations" in e
+        code = dedent(
+            """
+            def func(a):
+                for j in range(10):
+                    a += j
+                return a
+
+            for i in range(5):
+                func(i)
+            """
+        )
+        with patch("smolagents.local_python_executor.MAX_OPERATIONS", 100):
+            with pytest.raises(InterpreterError) as exception_info:
+                evaluate_python_code(code, {"range": range}, state={})
+        assert "Reached the max number of operations" in str(exception_info.value)
 
     def test_evaluate_string_methods(self):
         code = "'hello'.replace('h', 'o').split('e')"
