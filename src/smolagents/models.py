@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# coding=utf-8
-
 # Copyright 2024 The HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib.util
 import json
 import logging
 import os
@@ -938,23 +936,23 @@ class OpenAIServerModel(Model):
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
-        try:
-            import openai
-        except ModuleNotFoundError:
+        if importlib.util.find_spec("openai") is None:
             raise ModuleNotFoundError(
                 "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
-            ) from None
-
+            )
         super().__init__(**kwargs)
         self.model_id = model_id
-        self.client = openai.OpenAI(
-            base_url=api_base,
-            api_key=api_key,
-            organization=organization,
-            project=project,
-            **(client_kwargs or {}),
-        )
         self.custom_role_conversions = custom_role_conversions
+        self.client_kwargs = client_kwargs or {}
+        self.client_kwargs.update(
+            {"api_key": api_key, "base_url": api_base, "organization": organization, "project": project}
+        )
+        self.client = self.create_client()
+
+    def create_client(self):
+        import openai
+
+        self.client = openai.OpenAI(**self.client_kwargs)
 
     def __call__(
         self,
@@ -999,6 +997,8 @@ class AzureOpenAIServerModel(OpenAIServerModel):
             The API key to use for authentication. If not provided, it will be inferred from the `AZURE_OPENAI_API_KEY` environment variable.
         api_version (`str`, *optional*):
             The API version to use. If not provided, it will be inferred from the `OPENAI_API_VERSION` environment variable.
+        client_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to the AzureOpenAI client (like organization, project, max_retries etc.).
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
@@ -1012,18 +1012,33 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         azure_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
         api_version: Optional[str] = None,
+        client_kwargs: Optional[Dict[str, Any]] = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
-        # read the api key manually, to avoid super().__init__() trying to use the wrong api_key (OPENAI_API_KEY)
-        if api_key is None:
-            api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+        if importlib.util.find_spec("openai") is None:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
+            )
+        client_kwargs = client_kwargs or {}
+        client_kwargs.update(
+            {
+                "api_version": api_version,
+                "azure_endpoint": azure_endpoint,
+            }
+        )
+        super().__init__(
+            model_id=model_id,
+            api_key=api_key,
+            client_kwargs=client_kwargs,
+            custom_role_conversions=custom_role_conversions,
+            **kwargs,
+        )
 
-        super().__init__(model_id=model_id, api_key=api_key, custom_role_conversions=custom_role_conversions, **kwargs)
-        # if we've reached this point, it means the openai package is available (checked in baseclass) so go ahead and import it
+    def create_client(self):
         import openai
 
-        self.client = openai.AzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
+        self.client = openai.AzureOpenAI(**self.client_kwargs)
 
 
 __all__ = [
