@@ -344,7 +344,6 @@ def create_function(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> Callable:
-
     source_code = ast.unparse(func_def)
 
     def new_func(*args: Any, **kwargs: Any) -> Any:

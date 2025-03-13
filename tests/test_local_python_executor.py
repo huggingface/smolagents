@@ -1007,12 +1007,14 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         executor.send_tools({"final_answer": FinalAnswerTool()})
 
-        res, _, _ = executor(dedent("""
+        res, _, _ = executor(
+            dedent("""
         def target_function():
             return "Hello world"
 
         final_answer(target_function)
-        """))
+        """)
+        )
         assert res.__name__ == "target_function"
         assert "def target_function():" in res.__source__ and "Hello world" in res.__source__
 
