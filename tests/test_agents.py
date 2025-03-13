@@ -883,7 +883,7 @@ class TestCodeAgent:
         str_output = capture.get()
         assert "`additional_authorized_imports`" in str_output.replace("\n", "")
 
-    def test_code_errors_show_offending_line_and_error(self):
+    def test_errors_show_offending_line_and_error(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, AgentText)
@@ -891,7 +891,7 @@ class TestCodeAgent:
         assert "Code execution failed at line 'error_function()'" in str(agent.memory.steps[1].error)
         assert "ValueError" in str(agent.memory.steps)
 
-    def test_code_error_saves_previous_print_outputs(self):
+    def test_error_saves_previous_print_outputs(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error, verbosity_level=10)
         agent.run("What is 2 multiplied by 3.6452?")
         assert "Flag!" in str(agent.memory.steps[1].observations)
