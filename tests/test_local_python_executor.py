@@ -258,6 +258,20 @@ recur_fibo(6)"""
                 evaluate_python_code(code, {"range": range}, state={})
         assert "Reached the max number of operations" in str(exception_info.value)
 
+    def test_operations_count(self):
+        # Check that operation counter is not reset in functions
+        code = dedent(
+            """
+            def func():
+                return 0
+
+            func()
+            """
+        )
+        state = {}
+        evaluate_python_code(code, {"range": range}, state=state)
+        assert state["_operations_count"]["counter"] == 5
+
     def test_evaluate_string_methods(self):
         code = "'hello'.replace('h', 'o').split('e')"
         result, _ = evaluate_python_code(code, {}, state={})
