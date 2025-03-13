@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.10.0.dev0"
+version = "1.11.0.dev0"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" }, { name="Thomas Wolf"},
@@ -47,7 +47,7 @@ litellm = [
   "litellm>=1.60.2",
 ]
 mcp = [
-  "mcpadapt>=0.0.6",
+  "mcpadapt>=0.0.15",
   "mcp",
 ]
 mlx-lm = [
@@ -64,11 +64,15 @@ telemetry = [
 ]
 transformers = [
   "accelerate",
-  "transformers>=4.0.0,<4.49.0",
+  "transformers>=4.0.0",
   "smolagents[torch]",
 ]
+vision = [
+  "helium",
+  "selenium",
+]
 all = [
-  "smolagents[audio,docker,e2b,gradio,litellm,mcp,openai,telemetry,transformers]",
+  "smolagents[audio,docker,e2b,gradio,litellm,mcp,openai,telemetry,transformers,vision]",
 ]
 quality = [
   "ruff>=0.9.0",

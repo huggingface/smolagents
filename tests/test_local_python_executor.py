@@ -18,6 +18,7 @@ import types
 import unittest
 from contextlib import nullcontext as does_not_raise
 from textwrap import dedent
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -25,6 +26,8 @@ import pytest
 
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
+    DANGEROUS_FUNCTIONS,
+    DANGEROUS_MODULES,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -32,6 +35,7 @@ from smolagents.local_python_executor import (
     evaluate_condition,
     evaluate_delete,
     evaluate_python_code,
+    evaluate_subscript,
     fix_final_answer_code,
     get_safe_module,
 )
@@ -366,17 +370,19 @@ shift_minutes = {worker: ('a', 'b') for worker, (start, end) in shifts.items()}
 
         # test infinite loop
         code = "i = 0\nwhile i < 3:\n    i -= 1\ni"
-        with pytest.raises(InterpreterError) as e:
-            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
-        assert "iterations in While loop exceeded" in str(e)
+        with patch("smolagents.local_python_executor.MAX_WHILE_ITERATIONS", 100):
+            with pytest.raises(InterpreterError, match=".*Maximum number of 100 iterations in While loop exceeded"):
+                evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
 
         # test lazy evaluation
-        code = """
-house_positions = [0, 7, 10, 15, 18, 22, 22]
-i, n, loc = 0, 7, 30
-while i < n and house_positions[i] <= loc:
-    i += 1
-"""
+        code = dedent(
+            """
+            house_positions = [0, 7, 10, 15, 18, 22, 22]
+            i, n, loc = 0, 7, 30
+            while i < n and house_positions[i] <= loc:
+                i += 1
+            """
+        )
         state = {}
         evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
 
@@ -944,22 +950,6 @@ shift_intervals
     Got:      {result}
     """
 
-    def test_dangerous_subpackage_access_blocked(self):
-        # Direct imports with dangerous patterns should fail
-        code = "import random._os"
-        with pytest.raises(InterpreterError):
-            evaluate_python_code(code)
-
-        # Import of whitelisted modules should succeed but dangerous submodules should not exist
-        code = "import random;random._os.system('echo bad command passed')"
-        with pytest.raises(InterpreterError) as e:
-            evaluate_python_code(code)
-        assert "AttributeError: module 'random' has no attribute '_os'" in str(e)
-
-        code = "import doctest;doctest.inspect.os.system('echo bad command passed')"
-        with pytest.raises(InterpreterError):
-            evaluate_python_code(code, authorized_imports=["doctest"])
-
     def test_close_matches_subscript(self):
         code = 'capitals = {"Czech Republic": "Prague", "Monaco": "Monaco", "Bhutan": "Thimphu"};capitals["Butan"]'
         with pytest.raises(Exception) as e:
@@ -979,6 +969,11 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         with pytest.raises(InterpreterError):
             evaluate_python_code(dangerous_code, static_tools=BASE_PYTHON_TOOLS)
+
+    def test_final_answer_accepts_kwarg_answer(self):
+        code = "final_answer(answer=2)"
+        result, _ = evaluate_python_code(code, {"final_answer": (lambda x: 2 * x)}, state={})
+        assert result == 4
 
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
@@ -1141,7 +1136,7 @@ def test_evaluate_augassign_custom(operator, expected_result):
                 del x[2]
                 x[2]
             """),
-            "Index 2 out of bounds for list of length 2",
+            "IndexError: list index out of range",
         ),
         (
             dedent("""\
@@ -1312,6 +1307,123 @@ def test_evaluate_condition_with_pandas_exceptions(condition, state, expected_ex
     assert str(expected_exception) in str(exception_info.value)
 
 
+@pytest.mark.parametrize(
+    "subscript, state, expected_result",
+    [
+        ("dct[1]", {"dct": {1: 11, 2: 22}}, 11),
+        ("dct[2]", {"dct": {1: "a", 2: "b"}}, "b"),
+        ("dct['b']", {"dct": {"a": 1, "b": 2}}, 2),
+        ("dct['a']", {"dct": {"a": "aa", "b": "bb"}}, "aa"),
+        ("dct[1, 2]", {"dct": {(1, 2): 3}}, 3),  # tuple-index
+        ("dct['a']['b']", {"dct": {"a": {"b": 1}}}, 1),  # nested
+        ("lst[0]", {"lst": [1, 2, 3]}, 1),
+        ("lst[-1]", {"lst": [1, 2, 3]}, 3),
+        ("lst[1:3]", {"lst": [1, 2, 3, 4]}, [2, 3]),
+        ("lst[:]", {"lst": [1, 2, 3]}, [1, 2, 3]),
+        ("lst[::2]", {"lst": [1, 2, 3, 4]}, [1, 3]),
+        ("lst[::-1]", {"lst": [1, 2, 3]}, [3, 2, 1]),
+        ("tup[1]", {"tup": (1, 2, 3)}, 2),
+        ("tup[-1]", {"tup": (1, 2, 3)}, 3),
+        ("tup[1:3]", {"tup": (1, 2, 3, 4)}, (2, 3)),
+        ("tup[:]", {"tup": (1, 2, 3)}, (1, 2, 3)),
+        ("tup[::2]", {"tup": (1, 2, 3, 4)}, (1, 3)),
+        ("tup[::-1]", {"tup": (1, 2, 3)}, (3, 2, 1)),
+        ("st[1]", {"str": "abc"}, "b"),
+        ("st[-1]", {"str": "abc"}, "c"),
+        ("st[1:3]", {"str": "abcd"}, "bc"),
+        ("st[:]", {"str": "abc"}, "abc"),
+        ("st[::2]", {"str": "abcd"}, "ac"),
+        ("st[::-1]", {"str": "abc"}, "cba"),
+        ("arr[1]", {"arr": np.array([1, 2, 3])}, 2),
+        ("arr[1:3]", {"arr": np.array([1, 2, 3, 4])}, np.array([2, 3])),
+        ("arr[:]", {"arr": np.array([1, 2, 3])}, np.array([1, 2, 3])),
+        ("arr[::2]", {"arr": np.array([1, 2, 3, 4])}, np.array([1, 3])),
+        ("arr[::-1]", {"arr": np.array([1, 2, 3])}, np.array([3, 2, 1])),
+        ("arr[1, 2]", {"arr": np.array([[1, 2, 3], [4, 5, 6]])}, 6),
+        ("ser[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+        ("ser.loc[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+        ("ser.loc[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 3),
+        ("ser.iloc[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+        ("ser.iloc[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 2),
+        ("ser.at[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+        ("ser.at[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 3),
+        ("ser.iat[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+        ("ser.iat[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 2),
+        ("ser[1:3]", {"ser": pd.Series([1, 2, 3, 4])}, pd.Series([2, 3], index=[1, 2])),
+        ("ser[:]", {"ser": pd.Series([1, 2, 3])}, pd.Series([1, 2, 3])),
+        ("ser[::2]", {"ser": pd.Series([1, 2, 3, 4])}, pd.Series([1, 3], index=[0, 2])),
+        ("ser[::-1]", {"ser": pd.Series([1, 2, 3])}, pd.Series([3, 2, 1], index=[2, 1, 0])),
+        ("df['y'][1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+        ("df['y'][5]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 3),
+        ("df.loc[1, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+        ("df.loc[5, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 3),
+        ("df.iloc[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+        ("df.iloc[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 4),
+        ("df.at[1, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+        ("df.at[5, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 3),
+        ("df.iat[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+        ("df.iat[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 4),
+    ],
+)
+def test_evaluate_subscript(subscript, state, expected_result):
+    subscript_ast = ast.parse(subscript).body[0].value
+    result = evaluate_subscript(subscript_ast, state, {}, {}, [])
+    try:
+        assert result == expected_result
+    except ValueError:
+        assert (result == expected_result).all()
+
+
+@pytest.mark.parametrize(
+    "subscript, state, expected_error_message",
+    [
+        ("dct['a']", {"dct": {}}, "KeyError: 'a'"),
+        ("dct[0]", {"dct": {}}, "KeyError: 0"),
+        ("dct['c']", {"dct": {"a": 1, "b": 2}}, "KeyError: 'c'"),
+        ("dct[1, 2, 3]", {"dct": {(1, 2): 3}}, "KeyError: (1, 2, 3)"),
+        ("lst[0]", {"lst": []}, "IndexError: list index out of range"),
+        ("lst[3]", {"lst": [1, 2, 3]}, "IndexError: list index out of range"),
+        ("lst[-4]", {"lst": [1, 2, 3]}, "IndexError: list index out of range"),
+        ("value[0]", {"value": 1}, "TypeError: 'int' object is not subscriptable"),
+    ],
+)
+def test_evaluate_subscript_error(subscript, state, expected_error_message):
+    subscript_ast = ast.parse(subscript).body[0].value
+    with pytest.raises(InterpreterError, match="Could not index") as exception_info:
+        _ = evaluate_subscript(subscript_ast, state, {}, {}, [])
+    assert expected_error_message in str(exception_info.value)
+
+
+@pytest.mark.parametrize(
+    "subscriptable_class, expectation",
+    [
+        (True, 20),
+        (False, InterpreterError("TypeError: 'Custom' object is not subscriptable")),
+    ],
+)
+def test_evaluate_subscript_with_custom_class(subscriptable_class, expectation):
+    if subscriptable_class:
+
+        class Custom:
+            def __getitem__(self, key):
+                return key * 10
+    else:
+
+        class Custom:
+            pass
+
+    state = {"obj": Custom()}
+    subscript = "obj[2]"
+    subscript_ast = ast.parse(subscript).body[0].value
+    if isinstance(expectation, Exception):
+        with pytest.raises(type(expectation), match="Could not index") as exception_info:
+            evaluate_subscript(subscript_ast, state, {}, {}, [])
+        assert "TypeError: 'Custom' object is not subscriptable" in str(exception_info.value)
+    else:
+        result = evaluate_subscript(subscript_ast, state, {}, {}, [])
+        assert result == expectation
+
+
 def test_get_safe_module_handle_lazy_imports():
     class FakeModule(types.ModuleType):
         def __init__(self, name):
@@ -1395,7 +1507,7 @@ class TestPrintContainer:
         ("AnyModule", ["*"], True),
         ("os", ["os"], True),
         ("AnyModule", ["AnyModule"], True),
-        ("Module.os", ["Module"], False),
+        ("Module.os", ["Module"], True),
         ("Module.os", ["Module", "os"], True),
         ("os.path", ["os"], True),
         ("os", ["os.path"], False),
@@ -1418,29 +1530,153 @@ class TestLocalPythonExecutor:
         result, _, _ = executor(code)
         assert result == 11
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "a = b = 1; a",
+            "a = b = 1; b",
+            "a, b = c, d = 1, 1; a",
+            "a, b = c, d = 1, 1; b",
+            "a, b = c, d = 1, 1; c",
+            "a, b = c, d = {1, 2}; a",
+            "a, b = c, d = {1, 2}; c",
+            "a, b = c, d = {1: 10, 2: 20}; a",
+            "a, b = c, d = {1: 10, 2: 20}; c",
+            "a = b = (lambda: 1)(); b",
+            "a = b = (lambda: 1)(); lambda x: 10; b",
+            "a = b = (lambda x: lambda y: x + y)(0)(1); b",
+            dedent("""
+            def foo():
+                return 1;
+            a = b = foo(); b"""),
+            dedent("""
+            def foo(*args, **kwargs):
+                return sum(args)
+            a = b = foo(1,-1,1); b"""),
+            "a, b = 1, 2; a, b = b, a; b",
+        ],
+    )
+    def test_chained_assignments(self, code):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        result, _, _ = executor(code)
+        assert result == 1
+
+    def test_evaluate_assign_error(self):
+        code = "a, b = 1, 2, 3; a"
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError, match=".*Cannot unpack tuple of wrong size"):
+            executor(code)
+
 
 class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
-        "additional_authorized_imports, expectation",
-        [([], pytest.raises(InterpreterError)), (["os"], does_not_raise())],
+        "additional_authorized_imports, expected_error",
+        [([], InterpreterError("Import of os is not allowed")), (["os"], None)],
     )
-    def test_vulnerability_import(self, additional_authorized_imports, expectation):
+    def test_vulnerability_import(self, additional_authorized_imports, expected_error):
         executor = LocalPythonExecutor(additional_authorized_imports)
-        with expectation:
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
             executor("import os")
 
-    def test_vulnerability_builtins(self):
-        executor = LocalPythonExecutor([])
-        with pytest.raises(InterpreterError):
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expected_error",
+        [([], InterpreterError("Import of builtins is not allowed")), (["builtins"], None)],
+    )
+    def test_vulnerability_builtins(self, additional_authorized_imports, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
             executor("import builtins")
 
     @pytest.mark.parametrize(
-        "additional_authorized_imports, expectation",
-        [([], pytest.raises(InterpreterError)), (["sys"], does_not_raise())],
+        "additional_authorized_imports, expected_error",
+        [([], InterpreterError("Import of builtins is not allowed")), (["builtins"], None)],
     )
-    def test_vulnerability_via_sys(self, additional_authorized_imports, expectation):
+    def test_vulnerability_builtins_safe_functions(self, additional_authorized_imports, expected_error):
         executor = LocalPythonExecutor(additional_authorized_imports)
-        with expectation:
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor("import builtins; builtins.print(1)")
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, additional_tools, expected_error",
+        [
+            ([], [], InterpreterError("Import of builtins is not allowed")),
+            (["builtins"], [], InterpreterError("Forbidden access to function: exec")),
+            (["builtins"], ["exec"], None),
+        ],
+    )
+    def test_vulnerability_builtins_dangerous_functions(
+        self, additional_authorized_imports, additional_tools, expected_error
+    ):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        if additional_tools:
+            from builtins import exec
+
+            executor.send_tools({"exec": exec})
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor("import builtins; builtins.exec")
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, additional_tools, expected_error",
+        [
+            ([], [], InterpreterError("Import of os is not allowed")),
+            (["os"], [], InterpreterError("Forbidden access to function: popen")),
+            (["os"], ["popen"], None),
+        ],
+    )
+    def test_vulnerability_dangerous_functions(self, additional_authorized_imports, additional_tools, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        if additional_tools:
+            from os import popen
+
+            executor.send_tools({"popen": popen})
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor("import os; os.popen")
+
+    @pytest.mark.parametrize("dangerous_function", DANGEROUS_FUNCTIONS)
+    def test_vulnerability_for_all_dangerous_functions(self, dangerous_function):
+        dangerous_module_name, dangerous_function_name = dangerous_function.rsplit(".", 1)
+        # Skip test if module is not installed: posix module is not installed on Windows
+        pytest.importorskip(dangerous_module_name)
+        executor = LocalPythonExecutor([dangerous_module_name])
+        with pytest.raises(InterpreterError, match=f".*Forbidden access to function: {dangerous_function_name}"):
+            executor(f"import {dangerous_module_name}; {dangerous_function}")
+
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expected_error",
+        [
+            ([], InterpreterError("Import of sys is not allowed")),
+            (["sys"], InterpreterError("Forbidden access to module: os")),
+            (["sys", "os"], None),
+        ],
+    )
+    def test_vulnerability_via_sys(self, additional_authorized_imports, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
             executor(
                 dedent(
                     """
@@ -1450,42 +1686,182 @@ class TestLocalPythonExecutorSecurity:
                 )
             )
 
+    @pytest.mark.parametrize("dangerous_module", DANGEROUS_MODULES)
+    def test_vulnerability_via_sys_for_all_dangerous_modules(self, dangerous_module):
+        import sys
+
+        if dangerous_module not in sys.modules or dangerous_module == "sys":
+            pytest.skip("module not present in sys.modules")
+        executor = LocalPythonExecutor(["sys"])
+        with pytest.raises(InterpreterError) as exception_info:
+            executor(
+                dedent(
+                    f"""
+                    import sys
+                    sys.modules["{dangerous_module}"]
+                    """
+                )
+            )
+        assert f"Forbidden access to module: {dangerous_module}" in str(exception_info.value)
+
     @pytest.mark.parametrize(
-        "code",
+        "additional_authorized_imports, expected_error",
+        [(["importlib"], InterpreterError("Forbidden access to module: os")), (["importlib", "os"], None)],
+    )
+    def test_vulnerability_via_importlib(self, additional_authorized_imports, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor(
+                dedent(
+                    """
+                    import importlib
+                    importlib.import_module("os").system(":")
+                    """
+                )
+            )
+
+    @pytest.mark.parametrize(
+        "code, additional_authorized_imports, expected_error",
         [
-            dedent(
-                """
-                try:
-                    1 / 0
-                except Exception as e:
-                    builtins = e.__traceback__.tb_frame.f_back.f_globals["__builtins__"]
-                    builtins_import = builtins["__import__"]
-                    os_module = builtins_import("os")
-                    os_module.system(":")
-                """
+            # os submodule
+            ("import queue; queue.threading._os.system(':')", [], InterpreterError("Forbidden access to module: os")),
+            ("import random; random._os.system(':')", [], InterpreterError("Forbidden access to module: os")),
+            (
+                "import random; random.__dict__['_os'].system(':')",
+                [],
+                InterpreterError("Forbidden access to module: os"),
             ),
-            dedent(
-                """
-                try:
-                    1 / 0
-                except Exception as e:
-                    builtins = e.__traceback__.tb_frame.f_back.f_globals["__builtins__"]
-                    builtins_import = builtins["__import__"]
-                    builtins_import.__module__ = None
-                    os_module = builtins_import("os")
-                    os_module.system(":")
-                """
+            (
+                "import doctest; doctest.inspect.os.system(':')",
+                ["doctest"],
+                InterpreterError("Forbidden access to module: os"),
             ),
+            # subprocess submodule
+            (
+                "import asyncio; asyncio.base_events.events.subprocess",
+                ["asyncio"],
+                InterpreterError("Forbidden access to module: subprocess"),
+            ),
+            # sys submodule
+            (
+                "import queue; queue.threading._sys.modules['os'].system(':')",
+                [],
+                InterpreterError("Forbidden access to module: sys"),
+            ),
+            # Allowed
+            ("import pandas; pandas.io", ["pandas"], None),
         ],
     )
-    def test_vulnerability_builtins_via_traceback(self, code):
-        executor = LocalPythonExecutor([])
-        with pytest.raises(InterpreterError):
+    def test_vulnerability_via_submodules(self, code, additional_authorized_imports, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
             executor(code)
 
-    def test_vulnerability_builtins_via_class_catch_warnings(self):
-        executor = LocalPythonExecutor([])
-        with pytest.raises(InterpreterError):
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, additional_tools, expected_error",
+        [
+            ([], [], InterpreterError("Import of sys is not allowed")),
+            (["sys"], [], InterpreterError("Forbidden access to module: builtins")),
+            (
+                ["sys", "builtins"],
+                [],
+                InterpreterError("Forbidden access to function: __import__"),
+            ),
+            (["sys", "builtins"], ["__import__"], InterpreterError("Forbidden access to module: os")),
+            (["sys", "builtins", "os"], ["__import__"], None),
+        ],
+    )
+    def test_vulnerability_builtins_via_sys(self, additional_authorized_imports, additional_tools, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        if additional_tools:
+            from builtins import __import__
+
+            executor.send_tools({"__import__": __import__})
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor(
+                dedent(
+                    """
+                    import sys
+                    builtins = sys._getframe().f_builtins
+                    builtins_import = builtins["__import__"]
+                    os_module = builtins_import("os")
+                    os_module.system(":")
+                    """
+                )
+            )
+
+    @pytest.mark.parametrize("patch_builtin_import_module", [False, True])  # builtins_import.__module__ = None
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, additional_tools, expected_error",
+        [
+            ([], [], InterpreterError("Forbidden access to module: builtins")),
+            (["builtins", "os"], ["__import__"], None),
+        ],
+    )
+    def test_vulnerability_builtins_via_traceback(
+        self, patch_builtin_import_module, additional_authorized_imports, additional_tools, expected_error, monkeypatch
+    ):
+        if patch_builtin_import_module:
+            monkeypatch.setattr("builtins.__import__.__module__", None)  # inspect.getmodule(func) = None
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        if additional_tools:
+            from builtins import __import__
+
+            executor.send_tools({"__import__": __import__})
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor(
+                dedent(
+                    """
+                    try:
+                        1 / 0
+                    except Exception as e:
+                        builtins = e.__traceback__.tb_frame.f_back.f_globals["__builtins__"]
+                        builtins_import = builtins["__import__"]
+                        os_module = builtins_import("os")
+                        os_module.system(":")
+                    """
+                )
+            )
+
+    @pytest.mark.parametrize("patch_builtin_import_module", [False, True])  # builtins_import.__module__ = None
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, additional_tools, expected_error",
+        [
+            ([], [], InterpreterError("Forbidden access to module: builtins")),
+            (["builtins", "os"], ["__import__"], None),
+        ],
+    )
+    def test_vulnerability_builtins_via_class_catch_warnings(
+        self, patch_builtin_import_module, additional_authorized_imports, additional_tools, expected_error, monkeypatch
+    ):
+        if patch_builtin_import_module:
+            monkeypatch.setattr("builtins.__import__.__module__", None)  # inspect.getmodule(func) = None
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        if additional_tools:
+            from builtins import __import__
+
+            executor.send_tools({"__import__": __import__})
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
             executor(
                 dedent(
                     """
@@ -1496,6 +1872,31 @@ class TestLocalPythonExecutorSecurity:
                             builtins_import = builtins["__import__"]
                             break
                     os_module = builtins_import('os')
+                    os_module.system(":")
+                    """
+                )
+            )
+
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, expected_error",
+        [([], InterpreterError("Forbidden access to module: os")), (["os"], None)],
+    )
+    def test_vulnerability_load_module_via_builtin_importer(self, additional_authorized_imports, expected_error):
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        with (
+            pytest.raises(type(expected_error), match=f".*{expected_error}")
+            if isinstance(expected_error, Exception)
+            else does_not_raise()
+        ):
+            executor(
+                dedent(
+                    """
+                    classes = {}.__class__.__base__.__subclasses__()
+                    for cls in classes:
+                        if cls.__name__ == "BuiltinImporter":
+                            break
+                    os_module = cls().load_module("os")
                     os_module.system(":")
                     """
                 )

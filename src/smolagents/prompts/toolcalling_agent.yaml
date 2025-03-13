@@ -104,7 +104,6 @@ system_prompt: |-
   {%- for agent in managed_agents.values() %}
   - {{ agent.name }}: {{ agent.description }}
   {%- endfor %}
-  {%- else %}
   {%- endif %}
 
   Here are the rules you should always follow to solve your task:
@@ -174,7 +173,6 @@ planning:
     {%- for agent in managed_agents.values() %}
     - {{ agent.name }}: {{ agent.description }}
     {%- endfor %}
-    {%- else %}
     {%- endif %}
 
     List of facts that you know:
@@ -233,7 +231,6 @@ planning:
     {%- for agent in managed_agents.values() %}
     - {{ agent.name }}: {{ agent.description }}
     {%- endfor %}
-    {%- else %}
     {%- endif %}
 
     Here is the up to date list of facts that you know:

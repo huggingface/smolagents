@@ -184,7 +184,7 @@ class GradioUI:
             )
         self.agent = agent
         self.file_upload_folder = file_upload_folder
-        self.name = getattr(agent, "name", None)
+        self.name = getattr(agent, "name", "Agent interface")
         self.description = getattr(agent, "description", None)
         if self.file_upload_folder is not None:
             if not os.path.exists(file_upload_folder):
@@ -264,7 +264,7 @@ class GradioUI:
 
             with gr.Sidebar():
                 gr.Markdown(
-                    f"# {self.name.replace('_', ' ').capitalize() or 'Agent interface'}"
+                    f"# {self.name.replace('_', ' ').capitalize()}"
                     "\n> This web ui allows you to interact with a `smolagents` agent that can use tools and execute steps to complete tasks."
                     + (f"\n\n**Agent description:**\n{self.description}" if self.description else "")
                 )

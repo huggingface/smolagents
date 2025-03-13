@@ -19,14 +19,13 @@ import logging
 import os
 import random
 import uuid
+import warnings
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from huggingface_hub import InferenceClient
 from huggingface_hub.utils import is_torch_available
-from PIL import Image
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url
@@ -385,8 +384,10 @@ class HfApiModel(Model):
     This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
 
     Parameters:
-        model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
-            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        model_id (`str`, *optional*, default `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
+            The Hugging Face model ID to be used for inference.
+            This can be a model identifier from the Hugging Face model hub or a URL to a deployed Inference Endpoint.
+            Currently, it defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`, but this may change in the future.
         provider (`str`, *optional*):
             Name of the provider to use for inference. Can be `"replicate"`, `"together"`, `"fal-ai"`, `"sambanova"` or `"hf-inference"`.
             defaults to hf-inference (HF Inference API).
@@ -429,6 +430,8 @@ class HfApiModel(Model):
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
+        from huggingface_hub import InferenceClient
+
         super().__init__(**kwargs)
         self.model_id = model_id
         self.provider = provider
@@ -596,8 +599,9 @@ class TransformersModel(Model):
     > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
 
     Parameters:
-        model_id (`str`, *optional*, defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
+        model_id (`str`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+            For example, `"Qwen/Qwen2.5-Coder-32B-Instruct"`.
         device_map (`str`, *optional*):
             The device_map to initialize your model with.
         torch_dtype (`str`, *optional*):
@@ -642,10 +646,14 @@ class TransformersModel(Model):
         import torch
         from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
 
-        default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-        if model_id is None:
-            model_id = default_model_id
-            logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
+        if not model_id:
+            warnings.warn(
+                "The 'model_id' parameter will be required in version 2.0.0. "
+                "Please update your code to pass this parameter to avoid future errors. "
+                "For now, it defaults to 'HuggingFaceTB/SmolLM2-1.7B-Instruct'.",
+                FutureWarning,
+            )
+            model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         self.model_id = model_id
 
         default_max_tokens = 5000
@@ -677,12 +685,7 @@ class TransformersModel(Model):
             else:
                 raise e
         except Exception as e:
-            logger.warning(
-                f"Failed to load tokenizer and model for {model_id=}: {e}. Loading default tokenizer and model instead from {default_model_id=}."
-            )
-            self.model_id = default_model_id
-            self.tokenizer = AutoTokenizer.from_pretrained(default_model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(model_id, device_map=device_map, torch_dtype=torch_dtype)
+            raise ValueError(f"Failed to load tokenizer and model for {model_id=}: {e}") from e
 
     def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
@@ -711,7 +714,6 @@ class TransformersModel(Model):
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
-        images: Optional[List[Image.Image]] = None,
         **kwargs,
     ) -> ChatMessage:
         completion_kwargs = self._prepare_completion_kwargs(
@@ -736,14 +738,12 @@ class TransformersModel(Model):
             completion_kwargs["max_new_tokens"] = max_new_tokens
 
         if hasattr(self, "processor"):
-            images = [Image.open(image) for image in images] if images else None
             prompt_tensor = self.processor.apply_chat_template(
                 messages,
                 tools=[get_tool_json_schema(tool) for tool in tools_to_call_from] if tools_to_call_from else None,
                 return_tensors="pt",
                 tokenize=True,
                 return_dict=True,
-                images=images,
                 add_generation_prompt=True if tools_to_call_from else False,
             )
         else:
@@ -818,13 +818,13 @@ class TransformersModel(Model):
 
 
 class LiteLLMModel(Model):
-    """This model connects to [LiteLLM](https://www.litellm.ai/) as a gateway to hundreds of LLMs.
+    """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
 
     Parameters:
         model_id (`str`):
             The model identifier to use on the server (e.g. "gpt-3.5-turbo").
         api_base (`str`, *optional*):
-            The base URL of the OpenAI-compatible API server.
+            The base URL of the provider API to call the model.
         api_key (`str`, *optional*):
             The API key to use for authentication.
         custom_role_conversions (`dict[str, str]`, *optional*):
@@ -836,13 +836,21 @@ class LiteLLMModel(Model):
 
     def __init__(
         self,
-        model_id: str = "anthropic/claude-3-5-sonnet-20240620",
+        model_id: Optional[str] = None,
         api_base=None,
         api_key=None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        if not model_id:
+            warnings.warn(
+                "The 'model_id' parameter will be required in version 2.0.0. "
+                "Please update your code to pass this parameter to avoid future errors. "
+                "For now, it defaults to 'anthropic/claude-3-5-sonnet-20240620'.",
+                FutureWarning,
+            )
+            model_id = "anthropic/claude-3-5-sonnet-20240620"
         self.model_id = model_id
         self.api_base = api_base
         self.api_key = api_key

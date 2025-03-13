@@ -26,8 +26,8 @@ from smolagents.default_tools import TOOL_MAPPING
 leopard_prompt = "How many seconds would it take for a leopard at full speed to run through Pont des Arts?"
 
 
-def parse_arguments(description):
-    parser = argparse.ArgumentParser(description=description)
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Run a CodeAgent with all specified parameters")
     parser.add_argument(
         "prompt",
         type=str,
@@ -79,7 +79,7 @@ def parse_arguments(description):
     return parser.parse_args()
 
 
-def load_model(model_type: str, model_id: str, api_base: str | None, api_key: str | None) -> Model:
+def load_model(model_type: str, model_id: str, api_base: str | None = None, api_key: str | None = None) -> Model:
     if model_type == "OpenAIServerModel":
         return OpenAIServerModel(
             api_key=api_key or os.getenv("FIREWORKS_API_KEY"),
@@ -96,22 +96,28 @@ def load_model(model_type: str, model_id: str, api_base: str | None, api_key: st
         return TransformersModel(model_id=model_id, device_map="auto", flatten_messages_as_text=False)
     elif model_type == "HfApiModel":
         return HfApiModel(
-            token=api_key or os.getenv("HF_API_KEY"),
             model_id=model_id,
+            token=api_key or os.getenv("HF_API_KEY"),
         )
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
 
 
-def main():
+def main(
+    prompt: str,
+    tools: list[str],
+    model_type: str,
+    model_id: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
+    imports: list[str] | None = None,
+) -> None:
     load_dotenv()
 
-    args = parse_arguments(description="Run a CodeAgent with all specified parameters")
-
-    model = load_model(args.model_type, args.model_id, args.api_base, args.api_key)
+    model = load_model(model_type, model_id, api_base=api_base, api_key=api_key)
 
     available_tools = []
-    for tool_name in args.tools:
+    for tool_name in tools:
         if "/" in tool_name:
             available_tools.append(Tool.from_space(tool_name))
         else:
@@ -120,11 +126,21 @@ def main():
             else:
                 raise ValueError(f"Tool {tool_name} is not recognized either as a default tool or a Space.")
 
-    print(f"Running agent with these tools: {args.tools}")
-    agent = CodeAgent(tools=available_tools, model=model, additional_authorized_imports=args.imports)
+    print(f"Running agent with these tools: {tools}")
+    agent = CodeAgent(tools=available_tools, model=model, additional_authorized_imports=imports)
 
-    agent.run(args.prompt)
+    agent.run(prompt)
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_arguments()
+
+    main(
+        args.prompt,
+        args.tools,
+        args.model_type,
+        args.model_id,
+        api_base=args.api_base,
+        api_key=args.api_key,
+        imports=args.imports,
+    )
