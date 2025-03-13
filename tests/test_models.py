@@ -82,6 +82,7 @@ class ModelTests(unittest.TestCase):
         # check stop_sequence capture when output has trailing chars
         assert model(messages, stop_sequences=[stop_sequence]).content == "I'm ready to help you"
 
+    @require_run_all
     def test_transformers_message_no_tool(self):
         model = TransformersModel(
             model_id="HuggingFaceTB/SmolLM2-135M-Instruct",
