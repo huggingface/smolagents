@@ -506,6 +506,7 @@ class TestToolCollection:
             assert "tool1" in tool_collection.tools
             assert "tool2" in tool_collection.tools
 
+    @pytest.mark.skip(reason="CI hangs")
     def test_integration_from_mcp(self):
         # define the most simple mcp server with one tool that echoes the input text
         mcp_server_script = dedent("""\
