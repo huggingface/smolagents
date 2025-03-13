@@ -22,6 +22,7 @@ from smolagents import (
     ToolCallingAgent,
     stream_to_gradio,
 )
+from smolagents.utils import raise_agent_error
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -166,7 +167,8 @@ class MonitoringTester(unittest.TestCase):
         logger = AgentLogger(level=LogLevel.INFO)
 
         def dummy_model(prompt, **kwargs):
-            raise AgentError("Simulated agent error", logger)
+            error = AgentError("Simulated agent error")
+            raise_agent_error(error, logger)
 
         agent = CodeAgent(
             tools=[],

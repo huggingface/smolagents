@@ -62,6 +62,7 @@ from .utils import (
     make_init_file,
     parse_code_blobs,
     parse_json_tool_call,
+    raise_agent_error,
     truncate_content,
 )
 
@@ -360,7 +361,7 @@ You have been provided with these additional arguments, that you can access usin
             try:
                 assert check_function(final_answer, self.memory)
             except Exception as e:
-                raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
+                raise_agent_error(AgentError(f"Check {check_function.__name__} failed with error: {e}"), self.logger)
 
     def _finalize_step(self, memory_step: ActionStep, step_start_time: float):
         memory_step.end_time = time.time()
@@ -550,10 +551,8 @@ You have been provided with these additional arguments, that you can access usin
                 split[-1],
             )  # NOTE: using indexes starting from the end solves for when you have more than one split_token in the output
         except Exception:
-            raise AgentParsingError(
-                f"No '{split_token}' token provided in your output.\nYour output:\n{model_output}\n. Be sure to include an action, prefaced with '{split_token}'!",
-                self.logger,
-            )
+            error_msg = f"No '{split_token}' token provided in your output.\nYour output:\n{model_output}\n. Be sure to include an action, prefaced with '{split_token}'!"
+            raise_agent_error(AgentParsingError(error_msg), self.logger)
         return rationale.strip(), action.strip()
 
     def provide_final_answer(self, task: str, images: Optional[list[str]]) -> str:
@@ -612,7 +611,7 @@ You have been provided with these additional arguments, that you can access usin
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
             error_msg = f"Unknown tool {tool_name}, should be instead one of {list(available_tools.keys())}."
-            raise AgentExecutionError(error_msg, self.logger)
+            raise_agent_error(AgentExecutionError(error_msg), self.logger)
 
         try:
             if isinstance(arguments, str):
@@ -630,7 +629,7 @@ You have been provided with these additional arguments, that you can access usin
                     observation = available_tools[tool_name].__call__(**arguments, sanitize_inputs_outputs=True)
             else:
                 error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
-                raise AgentExecutionError(error_msg, self.logger)
+                raise_agent_error(AgentExecutionError(error_msg), self.logger)
             return observation
         except Exception as e:
             if tool_name in self.tools:
@@ -639,13 +638,13 @@ You have been provided with these additional arguments, that you can access usin
                     f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
                     f"As a reminder, this tool's description is the following: '{tool.description}'.\nIt takes inputs: {tool.inputs} and returns output type {tool.output_type}"
                 )
-                raise AgentExecutionError(error_msg, self.logger)
+                raise_agent_error(AgentExecutionError(error_msg), self.logger)
             elif tool_name in self.managed_agents:
                 error_msg = (
                     f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
                     f"As a reminder, this team member's description is the following:\n{available_tools[tool_name]}"
                 )
-                raise AgentExecutionError(error_msg, self.logger)
+                raise_agent_error(AgentExecutionError(error_msg), self.logger)
 
     def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
@@ -1060,7 +1059,8 @@ class ToolCallingAgent(MultiStepAgent):
             tool_arguments = tool_call.function.arguments
 
         except Exception as e:
-            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
+            error = AgentGenerationError(f"Error in generating tool call with model:\n{e}")
+            raise_agent_error(error, self.logger, from_exception=e)
 
         memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 
@@ -1226,7 +1226,8 @@ class CodeAgent(MultiStepAgent):
             model_output = chat_message.content
             memory_step.model_output = model_output
         except Exception as e:
-            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
+            error = AgentGenerationError(f"Error in generating model output:\n{e}")
+            raise_agent_error(error, self.logger, from_exception=e)
 
         self.logger.log_markdown(
             content=model_output,
@@ -1239,7 +1240,7 @@ class CodeAgent(MultiStepAgent):
             code_action = fix_final_answer_code(parse_code_blobs(model_output))
         except Exception as e:
             error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
-            raise AgentParsingError(error_msg, self.logger)
+            raise_agent_error(AgentParsingError(error_msg), self.logger)
 
         memory_step.tool_calls = [
             ToolCall(
@@ -1277,7 +1278,7 @@ class CodeAgent(MultiStepAgent):
                     "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
                     level=LogLevel.INFO,
                 )
-            raise AgentExecutionError(error_msg, self.logger)
+            raise_agent_error(AgentExecutionError(error_msg), self.logger)
 
         truncated_output = truncate_content(str(output))
         observation += "Last output from code snippet:\n" + truncated_output
