@@ -184,7 +184,7 @@ class GradioUI:
             )
         self.agent = agent
         self.file_upload_folder = file_upload_folder
-        self.name = getattr(agent, "name", "Agent interface")
+        self.name = getattr(agent, "name") or "Agent interface"
         self.description = getattr(agent, "description", None)
         if self.file_upload_folder is not None:
             if not os.path.exists(file_upload_folder):

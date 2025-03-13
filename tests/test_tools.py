@@ -30,6 +30,8 @@ from transformers.testing_utils import get_tests_dir
 from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
 
+from .utils.markers import require_run_all
+
 
 if is_torch_available():
     import torch
@@ -506,6 +508,7 @@ class TestToolCollection:
             assert "tool1" in tool_collection.tools
             assert "tool2" in tool_collection.tools
 
+    @require_run_all
     def test_integration_from_mcp(self):
         # define the most simple mcp server with one tool that echoes the input text
         mcp_server_script = dedent("""\
