@@ -27,6 +27,6 @@ jobs:
         run: uv pip install "smolagents[quality] @ ."
 
       # Equivalent of "make quality" but step by step
-      - run: uv run ruff check examples src tests utils # linter
-      - run: uv run ruff format --check examples src tests utils # formatter
-      - run: uv run python utils/check_tests_in_ci.py
+      - run: ruff check examples src tests utils # linter
+      - run: ruff format --check examples src tests utils # formatter
+      - run: python utils/check_tests_in_ci.py
