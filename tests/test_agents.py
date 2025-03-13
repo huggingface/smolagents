@@ -552,7 +552,7 @@ nested_answer()
             device_map="auto",
             do_sample=False,
         )
-        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1)
+        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1, verbosity_level=10)
         agent.run("What's the weather in Paris?")
         assert agent.memory.steps[0].task == "What's the weather in Paris?"
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"

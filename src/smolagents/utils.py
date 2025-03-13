@@ -26,7 +26,7 @@ import types
 from functools import lru_cache
 from io import BytesIO
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 
 if TYPE_CHECKING:
@@ -140,13 +140,14 @@ def make_json_serializable(obj: Any) -> Any:
         return str(obj)
 
 
-def parse_json_blob(json_blob: str) -> Dict[str, str]:
+def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
+    "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
     try:
         first_accolade_index = json_blob.find("{")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
         json_blob = json_blob[first_accolade_index : last_accolade_index + 1].replace('\\"', "'")
         json_data = json.loads(json_blob, strict=False)
-        return json_data
+        return json_data, json_blob[:first_accolade_index]
     except json.JSONDecodeError as e:
         place = e.pos
         if json_blob[place - 1 : place + 2] == "},\n":
@@ -158,8 +159,6 @@ def parse_json_blob(json_blob: str) -> Dict[str, str]:
             f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"
             f"'{json_blob[place - 4 : place + 5]}'."
         )
-    except Exception as e:
-        raise ValueError(f"Error in parsing the JSON blob: {e}")
 
 
 def parse_code_blobs(text: str) -> str:
@@ -217,30 +216,6 @@ def parse_code_blobs(text: str) -> str:
             """
         ).strip()
     )
-
-
-def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
-    json_blob = json_blob.replace("```json", "").replace("```", "")
-    tool_call = parse_json_blob(json_blob)
-    tool_name_key, tool_arguments_key = None, None
-    for possible_tool_name_key in ["action", "tool_name", "tool", "name", "function"]:
-        if possible_tool_name_key in tool_call:
-            tool_name_key = possible_tool_name_key
-    for possible_tool_arguments_key in [
-        "action_input",
-        "tool_arguments",
-        "tool_args",
-        "parameters",
-    ]:
-        if possible_tool_arguments_key in tool_call:
-            tool_arguments_key = possible_tool_arguments_key
-    if tool_name_key is not None:
-        if tool_arguments_key is not None:
-            return tool_call[tool_name_key], tool_call[tool_arguments_key]
-        else:
-            return tool_call[tool_name_key], None
-    error_msg = "No tool name key found in tool call!" + f" Tool call: {json_blob}"
-    raise AgentParsingError(error_msg)
 
 
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
