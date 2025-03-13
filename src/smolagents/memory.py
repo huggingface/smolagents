@@ -1,6 +1,7 @@
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Dict, List, TypedDict, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Protocol, TypedDict, Union
 
 from smolagents.models import ChatMessage, MessageRole
 from smolagents.monitoring import AgentLogger, LogLevel
@@ -38,16 +39,37 @@ class ToolCall:
 
 
 @dataclass
-class MemoryStep:
+class MemoryStep(ABC):
+    """
+    Abstract base class for memory steps.
+
+    A memory step represents a single step in an agent's execution.
+    Different types of steps (action, planning, task, system prompt) inherit from this class.
+    """
+
     def dict(self):
+        """Convert the memory step to a dictionary."""
         return asdict(self)
 
+    @abstractmethod
     def to_messages(self, **kwargs) -> List[Dict[str, Any]]:
+        """
+        Convert the memory step to a list of messages that can be used as input to the LLM.
+
+        Returns:
+            List[Dict[str, Any]]: A list of messages.
+        """
         raise NotImplementedError
 
 
 @dataclass
 class ActionStep(MemoryStep):
+    """
+    A memory step that represents an action taken by the agent.
+
+    This includes the model's input and output, tool calls, observations, and any errors.
+    """
+
     model_input_messages: List[Message] | None = None
     tool_calls: List[ToolCall] | None = None
     start_time: float | None = None
@@ -143,6 +165,12 @@ class ActionStep(MemoryStep):
 
 @dataclass
 class PlanningStep(MemoryStep):
+    """
+    A memory step that represents a planning step taken by the agent.
+
+    This includes the model's input and output for facts and plan generation.
+    """
+
     model_input_messages: List[Message]
     model_output_message_facts: ChatMessage
     facts: str
@@ -168,6 +196,12 @@ class PlanningStep(MemoryStep):
 
 @dataclass
 class TaskStep(MemoryStep):
+    """
+    A memory step that represents a task given to the agent.
+
+    This includes the task description and any associated images.
+    """
+
     task: str
     task_images: List[str] | None = None
 
@@ -182,6 +216,10 @@ class TaskStep(MemoryStep):
 
 @dataclass
 class SystemPromptStep(MemoryStep):
+    """
+    A memory step that represents the system prompt given to the agent.
+    """
+
     system_prompt: str
 
     def to_messages(self, summary_mode: bool = False, **kwargs) -> List[Message]:
@@ -190,24 +228,74 @@ class SystemPromptStep(MemoryStep):
         return [Message(role=MessageRole.SYSTEM, content=[{"type": "text", "text": self.system_prompt}])]
 
 
+class MemoryProvider(Protocol):
+    """
+    Protocol defining the interface for memory providers.
+
+    Memory providers are responsible for storing and retrieving memory steps.
+    """
+
+    def reset(self) -> None:
+        """Reset the memory."""
+        ...
+
+    def get_succinct_steps(self) -> list[dict]:
+        """Get a succinct representation of the memory steps."""
+        ...
+
+    def get_full_steps(self) -> list[dict]:
+        """Get a full representation of the memory steps."""
+        ...
+
+    def replay(self, logger: AgentLogger, detailed: bool = False) -> None:
+        """Replay the memory steps."""
+        ...
+
+    def write_to_messages(self, summary_mode: bool = False) -> List[Dict[str, Any]]:
+        """Convert the memory steps to a list of messages."""
+        ...
+
+
 class AgentMemory:
+    """
+    Default implementation of agent memory.
+
+    This class stores memory steps in a list and provides methods to access and manipulate them.
+    """
+
     def __init__(self, system_prompt: str):
         self.system_prompt = SystemPromptStep(system_prompt=system_prompt)
         self.steps: List[Union[TaskStep, ActionStep, PlanningStep]] = []
 
     def reset(self):
+        """Reset the memory by clearing all steps."""
         self.steps = []
 
     def get_succinct_steps(self) -> list[dict]:
+        """
+        Get a succinct representation of the memory steps.
+
+        This excludes model_input_messages to reduce verbosity.
+
+        Returns:
+            list[dict]: A list of dictionaries representing the memory steps.
+        """
         return [
             {key: value for key, value in step.dict().items() if key != "model_input_messages"} for step in self.steps
         ]
 
     def get_full_steps(self) -> list[dict]:
+        """
+        Get a full representation of the memory steps.
+
+        Returns:
+            list[dict]: A list of dictionaries representing the memory steps.
+        """
         return [step.dict() for step in self.steps]
 
     def replay(self, logger: AgentLogger, detailed: bool = False):
-        """Prints a pretty replay of the agent's steps.
+        """
+        Prints a pretty replay of the agent's steps.
 
         Args:
             logger (AgentLogger): The logger to print replay logs to.
@@ -231,5 +319,21 @@ class AgentMemory:
                     logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
                 logger.log_markdown(title="Agent output:", content=step.facts + "\n" + step.plan, level=LogLevel.ERROR)
 
+    def write_to_messages(self, summary_mode: bool = False) -> List[Dict[str, Any]]:
+        """
+        Convert the memory steps to a list of messages.
 
-__all__ = ["AgentMemory"]
+        Args:
+            summary_mode (bool, optional): If True, exclude certain details to create a summary. Defaults to False.
+
+        Returns:
+            List[Dict[str, Any]]: A list of messages.
+        """
+        messages = self.system_prompt.to_messages(summary_mode=summary_mode)
+        for memory_step in self.steps:
+            messages.extend(memory_step.to_messages(summary_mode=summary_mode))
+        return messages
+
+
+# For backward compatibility
+__all__ = ["AgentMemory", "MemoryStep", "ActionStep", "PlanningStep", "TaskStep", "SystemPromptStep", "ToolCall", "Message"]

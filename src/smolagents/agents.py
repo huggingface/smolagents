@@ -39,7 +39,7 @@ from rich.text import Text
 from .agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
-from .memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, TaskStep, ToolCall
+from .memory import ActionStep, AgentMemory, MemoryProvider, PlanningStep, SystemPromptStep, TaskStep, ToolCall
 from .models import (
     ChatMessage,
     MessageRole,
@@ -223,7 +223,7 @@ class MultiStepAgent:
         self.system_prompt = self.initialize_system_prompt()
         self.input_messages = None
         self.task = None
-        self.memory = AgentMemory(self.system_prompt)
+        self.memory: MemoryProvider = AgentMemory(self.system_prompt)
         self.logger = AgentLogger(level=verbosity_level)
         self.monitor = Monitor(self.model, self.logger)
         self.step_callbacks = step_callbacks if step_callbacks is not None else []
@@ -526,10 +526,7 @@ You have been provided with these additional arguments, that you can access usin
         that can be used as input to the LLM. Adds a number of keywords (such as PLAN, error, etc) to help
         the LLM.
         """
-        messages = self.memory.system_prompt.to_messages(summary_mode=summary_mode)
-        for memory_step in self.memory.steps:
-            messages.extend(memory_step.to_messages(summary_mode=summary_mode))
-        return messages
+        return self.memory.write_to_messages(summary_mode=summary_mode)
 
     def visualize(self):
         """Creates a rich tree visualization of the agent's structure."""
