@@ -71,10 +71,10 @@ vision = [
   "helium",
   "selenium",
 ]
-#vllm = [
-#  "vllm",
-#  "torch"
-#]
+vllm = [
+  "vllm",
+  "torch"
+]
 all = [
   "smolagents[audio,docker,e2b,gradio,litellm,mcp,openai,telemetry,transformers,vision]",
 ]
