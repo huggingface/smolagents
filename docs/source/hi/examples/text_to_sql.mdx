@@ -132,7 +132,7 @@ from smolagents import CodeAgent, HfApiModel
 
 agent = CodeAgent(
     tools=[sql_engine],
-    model=HfApiModel("meta-llama/Meta-Llama-3.1-8B-Instruct"),
+    model=HfApiModel(model_id="meta-llama/Meta-Llama-3.1-8B-Instruct"),
 )
 agent.run("Can you give me the name of the client who got the most expensive receipt?")
 ```
@@ -188,7 +188,7 @@ sql_engine.description = updated_description
 
 agent = CodeAgent(
     tools=[sql_engine],
-    model=HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct"),
+    model=HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"),
 )
 
 agent.run("Which waiter got more total money from tips?")

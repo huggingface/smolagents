@@ -53,6 +53,11 @@ jobs:
       #   run: |
       #     uv run pytest ./tests/test_all_docs.py
 
+      - name: CLI tests
+        run: |
+          uv run pytest ./tests/test_cli.py
+        if: ${{ success() || failure() }}
+
       - name: Final answer tests
         run: |
           uv run pytest ./tests/test_final_answer.py

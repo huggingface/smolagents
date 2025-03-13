@@ -128,7 +128,7 @@ from smolagents import (
     LiteLLMModel,
 )
 
-model = HfApiModel(model_id)
+model = HfApiModel(model_id=model_id)
 
 web_agent = ToolCallingAgent(
     tools=[DuckDuckGoSearchTool(), visit_webpage],
