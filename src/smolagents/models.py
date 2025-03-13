@@ -486,11 +486,11 @@ class VLLMModel(Model):
     """This engine initializes a model and tokenizer from the given `model_id`.
 
     Parameters:
-        model_id (`str`, *optional*, defaults to `"HuggingFaceTB/SmolLM2-1.7B-Instruct"`):
+        model_id (`str`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
     """
 
-    def __init__(self, model_id: Optional[str] = None, **kwargs):
+    def __init__(self, model_id, **kwargs):
         if not _is_package_available("vllm"):
             raise ModuleNotFoundError("Please install 'vllm' extra to use VLLMModel: `pip install 'smolagents[vllm]'`")
 
@@ -498,11 +498,6 @@ class VLLMModel(Model):
         from vllm.transformers_utils.tokenizer import get_tokenizer
 
         super().__init__(**kwargs)
-
-        default_model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-        if model_id is None:
-            model_id = default_model_id
-            logger.warning(f"`model_id`not provided, using this default tokenizer for token counts: '{model_id}'")
 
         self.model_id = model_id
         self.model = LLM(model=model_id)
