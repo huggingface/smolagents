@@ -336,4 +336,13 @@ class AgentMemory:
 
 
 # For backward compatibility
-__all__ = ["AgentMemory", "MemoryStep", "ActionStep", "PlanningStep", "TaskStep", "SystemPromptStep", "ToolCall", "Message"]
+__all__ = [
+    "AgentMemory",
+    "MemoryStep",
+    "ActionStep",
+    "PlanningStep",
+    "TaskStep",
+    "SystemPromptStep",
+    "ToolCall",
+    "Message",
+]

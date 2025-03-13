@@ -72,6 +72,11 @@ jobs:
         run: |
           uv run pytest ./tests/test_memory.py
         if: ${{ success() || failure() }}
+      
+      - name: External Storage Memory tests
+        run: |
+          uv run pytest ./tests/test_external_storage_memory.py
+        if: ${{ success() || failure() }}
 
       - name: Monitoring tests
         run: |

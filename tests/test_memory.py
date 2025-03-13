@@ -38,6 +38,8 @@ class TestMemoryStep:
         # MemoryStep is now an abstract class, so we can't instantiate it directly
         with pytest.raises(TypeError):
             MemoryStep()
+
+
 class TestDictMemory:
     def test_initialization(self):
         system_prompt = "This is a system prompt."

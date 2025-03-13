@@ -21,11 +21,13 @@ class MockModel:
         # Return a predefined response
         return ChatMessage(
             role=MessageRole.ASSISTANT,
-            content="```python\ndef fibonacci(n):\n    if n <= 0:\n        return 0\n    elif n == 1:\n        return 1\n    else:\n        return fibonacci(n-1) + fibonacci(n-2)\n\nresult = fibonacci(20)\nresult\n```"
+            content="```python\ndef fibonacci(n):\n    if n <= 0:\n        return 0\n    elif n == 1:\n        return 1\n    else:\n        return fibonacci(n-1) + fibonacci(n-2)\n\nresult = fibonacci(20)\nresult\n```",
         )
 
     def to_dict(self):
         return {"class": "MockModel", "data": {}}
+
+
 from smolagents.memory import ActionStep
 from smolagents.memory_providers import DictMemory, FilteredMemory
 
@@ -43,7 +45,7 @@ def run_with_default_memory():
     # Access the memory
     print("\nAccessing memory steps:")
     for i, step in enumerate(agent.memory.steps):
-        if hasattr(step, 'step_number'):
+        if hasattr(step, "step_number"):
             print(f"Step {step.step_number}: {type(step).__name__}")
         else:
             print(f"Step {i}: {type(step).__name__}")
@@ -66,7 +68,7 @@ def run_with_dict_memory():
         elif n == 1:
             return 1
         else:
-            return fibonacci(n-1) + fibonacci(n-2)
+            return fibonacci(n - 1) + fibonacci(n - 2)
 
     # Create an agent with the Fibonacci tool
     agent = CodeAgent(tools=[], model=MockModel(), verbosity_level=1)
@@ -89,6 +91,7 @@ def run_with_dict_memory():
 
     # We need to manually add the task step since we're using a custom memory provider
     from smolagents.memory import TaskStep
+
     dict_memory.add_step(TaskStep(task=task))
 
     # Run the agent step by step
@@ -142,8 +145,8 @@ def run_with_filtered_memory():
 
     # Create a filtered memory that only includes steps without errors
     def no_error_filter(step):
-        if isinstance(step, dict) and 'error' in step:
-            return step['error'] is None
+        if isinstance(step, dict) and "error" in step:
+            return step["error"] is None
         return True
 
     filtered_memory = FilteredMemory(agent.memory, no_error_filter)
@@ -151,7 +154,7 @@ def run_with_filtered_memory():
     # Get steps from the filtered memory
     print("\nSteps from filtered memory (no errors):")
     for i, step in enumerate(filtered_memory.get_succinct_steps()):
-        if 'step' in step:
+        if "step" in step:
             print(f"Step {step['step']}")
         else:
             print(f"Step {i}")
