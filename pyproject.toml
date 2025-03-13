@@ -40,6 +40,10 @@ e2b = [
   "e2b-code-interpreter>=1.0.3",
   "python-dotenv>=1.0.1",
 ]
+vllm = [
+  "vllm",
+  "torch"
+]
 gradio = [
   "gradio>=5.13.2",
 ]
