@@ -17,7 +17,7 @@ def test_import_smolagents_without_extras(monkeypatch):
 
         # Run the import test in the virtual environment
         result = subprocess.run(
-            ["uv", "run", "--python", os.path.join(venv_dir, "bin", "python"), "python", "-c", "import smolagents"],
+            [os.path.join(venv_dir, "bin", "python"), "-c", "import smolagents"],
             capture_output=True,
             text=True,
         )
