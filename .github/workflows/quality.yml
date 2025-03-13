@@ -18,7 +18,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync --extra quality
+        run: uv sync --no-dev --extra quality
 
       # Equivalent of "make quality" but step by step
       - run: uv run ruff check examples src tests utils # linter
