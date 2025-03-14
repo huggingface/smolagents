@@ -94,6 +94,7 @@ class ModelTests(unittest.TestCase):
         output = model(messages, stop_sequences=["great"]).content
         assert output == "assistant\nHello"
 
+    @require_run_all
     def test_transformers_message_vl_no_tool(self):
         from PIL import Image
 
