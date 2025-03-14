@@ -397,8 +397,8 @@ def create_function(
         return result
 
     # Store original AST, source code, and name
-    new_func.__ast__ = func_def
-    new_func.__source__ = source_code
+    new_func.__ast = func_def
+    new_func.__source = source_code
     new_func.__name__ = func_def.name
 
     return new_func

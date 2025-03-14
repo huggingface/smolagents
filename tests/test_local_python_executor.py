@@ -1016,7 +1016,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         """)
         )
         assert res.__name__ == "target_function"
-        assert "def target_function():" in res.__source__ and "Hello world" in res.__source__
+        assert "def target_function():" in res.__source and "Hello world" in res.__source
 
 
 @pytest.mark.parametrize(
