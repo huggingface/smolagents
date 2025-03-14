@@ -93,7 +93,7 @@ def load_model(model_type: str, model_id: str, api_base: str | None = None, api_
             api_base=api_base,
         )
     elif model_type == "TransformersModel":
-        return TransformersModel(model_id=model_id, device_map="auto", flatten_messages_as_text=False)
+        return TransformersModel(model_id=model_id, device_map="auto")
     elif model_type == "HfApiModel":
         return HfApiModel(
             model_id=model_id,

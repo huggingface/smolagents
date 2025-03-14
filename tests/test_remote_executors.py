@@ -17,11 +17,19 @@ class TestE2BExecutor:
         with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
             mock_sandbox.return_value.commands.run.return_value.error = None
             mock_sandbox.return_value.run_code.return_value.error = None
-            executor = E2BExecutor(additional_imports=[], logger=logger)
+            executor = E2BExecutor(
+                additional_imports=[], logger=logger, api_key="dummy-api-key", template="dummy-template-id", timeout=60
+            )
         assert isinstance(executor, E2BExecutor)
         assert executor.logger == logger
         assert executor.final_answer_pattern.pattern == r"^final_answer\((.*)\)$"
         assert executor.sandbox == mock_sandbox.return_value
+        assert mock_sandbox.call_count == 1
+        assert mock_sandbox.call_args.kwargs == {
+            "api_key": "dummy-api-key",
+            "template": "dummy-template-id",
+            "timeout": 60,
+        }
 
 
 @pytest.fixture

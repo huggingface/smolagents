@@ -24,7 +24,75 @@ from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
 from smolagents.tools import tool
-from smolagents.utils import get_source, parse_code_blobs
+from smolagents.utils import get_source, instance_to_source, parse_code_blobs
+
+
+class ValidTool(Tool):
+    name = "valid_tool"
+    description = "A valid tool"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+    simple_attr = "string"
+    dict_attr = {"key": "value"}
+
+    def __init__(self, optional_param="default"):
+        super().__init__()
+        self.param = optional_param
+
+    def forward(self, input: str) -> str:
+        return input.upper()
+
+
+@tool
+def valid_tool_function(input: str) -> str:
+    """A valid tool function.
+
+    Args:
+        input (str): Input string.
+    """
+    return input.upper()
+
+
+VALID_TOOL_SOURCE = """\
+from smolagents.tools import Tool
+
+class ValidTool(Tool):
+    name = "valid_tool"
+    description = "A valid tool"
+    inputs = {'input': {'type': 'string', 'description': 'input'}}
+    output_type = "string"
+    simple_attr = "string"
+    dict_attr = {'key': 'value'}
+
+    def __init__(self, optional_param="default"):
+        super().__init__()
+        self.param = optional_param
+
+    def forward(self, input: str) -> str:
+        return input.upper()
+"""
+
+VALID_TOOL_FUNCTION_SOURCE = '''\
+from smolagents.tools import Tool
+
+class SimpleTool(Tool):
+    name = "valid_tool_function"
+    description = "A valid tool function."
+    inputs = {'input': {'type': 'string', 'description': 'Input string.'}}
+    output_type = "string"
+
+    def __init__(self):
+        self.is_initialized = True
+
+    @tool
+    def valid_tool_function(input: str) -> str:
+        """A valid tool function.
+
+        Args:
+            input (str): Input string.
+        """
+        return input.upper()
+'''
 
 
 class AgentTextTests(unittest.TestCase):
@@ -125,6 +193,14 @@ def test_get_source_ipython_errors_definition_not_found(ipython_shell):
 def test_get_source_ipython_errors_type_error():
     with pytest.raises(TypeError, match="Expected class or callable"):
         get_source(None)
+
+
+@pytest.mark.parametrize(
+    "tool, expected_tool_source", [(ValidTool(), VALID_TOOL_SOURCE), (valid_tool_function, VALID_TOOL_FUNCTION_SOURCE)]
+)
+def test_instance_to_source(tool, expected_tool_source):
+    tool_source = instance_to_source(tool, base_cls=Tool)
+    assert tool_source == expected_tool_source
 
 
 def test_e2e_class_tool_save():
