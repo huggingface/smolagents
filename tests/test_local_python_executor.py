@@ -1018,7 +1018,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
             )
         )
         assert res.__name__ == "target_function"
-        assert res.__source == "def target_function():\n    return 'Hello world'"
+        assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
 
 @pytest.mark.parametrize(
