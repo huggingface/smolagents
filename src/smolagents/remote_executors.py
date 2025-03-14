@@ -122,7 +122,7 @@ class E2BExecutor(RemotePythonExecutor):
             execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
             logs = execution_logs
             logs += "Executing code yielded an error:"
-            logs += execution.error.name
+            logs += execution.error.name + "\n"
             logs += execution.error.value
             logs += execution.error.traceback
             raise AgentError(logs, self.logger)
