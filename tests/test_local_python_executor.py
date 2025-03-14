@@ -2040,3 +2040,20 @@ class TestLocalPythonExecutorSecurity:
         )
         with pytest.raises(InterpreterError, match="Forbidden access to dunder attribute: __base__"):
             executor(code)
+
+    @pytest.mark.parametrize(
+        "code, dunder_attribute",
+        [("a = (); b = a.__class__", "__class__"), ("class A:\n    attr=1\nx = A()\nx_dict = x.__dict__", "__dict__")],
+    )
+    def test_vulnerability_via_dunder_access(self, code, dunder_attribute):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError, match=f"Forbidden access to dunder attribute: {dunder_attribute}"):
+            executor(code)
+
+    def test_vulnerability_via_dunder_indirect_access(self):
+        executor = LocalPythonExecutor([])
+        code = "a = (); b = getattr(a, '__class__')"
+        with pytest.raises(
+            InterpreterError, match="It is not permitted to evaluate other functions than the provided"
+        ):
+            executor(code)
