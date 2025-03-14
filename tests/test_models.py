@@ -191,7 +191,7 @@ class TestOpenAIServerModel:
         client_kwargs = {"max_retries": 5}
 
         with patch("openai.OpenAI") as MockOpenAI:
-            _ = OpenAIServerModel(
+            model = OpenAIServerModel(
                 model_id=model_id,
                 api_base=api_base,
                 api_key=api_key,
@@ -199,9 +199,10 @@ class TestOpenAIServerModel:
                 project=project,
                 client_kwargs=client_kwargs,
             )
-            MockOpenAI.assert_called_once_with(
-                base_url=api_base, api_key=api_key, organization=organization, project=project, max_retries=5
-            )
+        MockOpenAI.assert_called_once_with(
+            base_url=api_base, api_key=api_key, organization=organization, project=project, max_retries=5
+        )
+        assert model.client == MockOpenAI.return_value
 
 
 class TestAzureOpenAIServerModel:
@@ -215,7 +216,7 @@ class TestAzureOpenAIServerModel:
         client_kwargs = {"max_retries": 5}
 
         with patch("openai.OpenAI") as MockOpenAI, patch("openai.AzureOpenAI") as MockAzureOpenAI:
-            _ = AzureOpenAIServerModel(
+            model = AzureOpenAIServerModel(
                 model_id=model_id,
                 api_key=api_key,
                 api_version=api_version,
@@ -234,6 +235,7 @@ class TestAzureOpenAIServerModel:
             project=project,
             max_retries=5,
         )
+        assert model.client == MockAzureOpenAI.return_value
 
 
 def test_get_clean_message_list_basic():
