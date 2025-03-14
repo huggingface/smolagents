@@ -2016,3 +2016,27 @@ class TestLocalPythonExecutorSecurity:
                     """
                 )
             )
+
+    def test_vulnerability_class_via_subclasses(self):
+        # Subclass: subprocess.Popen
+        executor = LocalPythonExecutor([])
+        code = dedent(
+            """
+            for cls in ().__class__.__base__.__subclasses__():
+                if 'Popen' in cls.__class__.__repr__(cls):
+                    break
+            cls(["sh", "-c", ":"]).wait()
+            """
+        )
+        with pytest.raises(InterpreterError, match="Forbidden access to dunder attribute: __base__"):
+            executor(code)
+
+        code = dedent(
+            """
+            [c for c in ().__class__.__base__.__subclasses__() if "Popen" in c.__class__.__repr__(c)][0](
+                ["sh", "-c", ":"]
+            ).wait()
+            """
+        )
+        with pytest.raises(InterpreterError, match="Forbidden access to dunder attribute: __base__"):
+            executor(code)
