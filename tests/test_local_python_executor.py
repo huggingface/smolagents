@@ -297,9 +297,12 @@ recur_fibo(6)"""
         assert result == "le"
 
     def test_access_attributes(self):
-        code = "integer = 1\nobj_class = integer.__class__\nobj_class"
-        result, _ = evaluate_python_code(code, {}, state={})
-        assert result is int
+        class A:
+            attr = 2
+
+        code = "A.attr"
+        result, _ = evaluate_python_code(code, {}, state={"A": A})
+        assert result == 2
 
     def test_list_comprehension(self):
         code = "sentence = 'THESEAGULL43'\nmeaningful_sentence = '-'.join([char.lower() for char in sentence if char.isalpha()])"
