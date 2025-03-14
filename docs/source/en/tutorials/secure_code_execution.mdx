@@ -59,25 +59,28 @@ To be precise, this interpreter works by loading the Abstract Syntax Tree (AST) 
 
 As a result, this interpreter is safer. We have used it on a diversity of use cases, without ever observing any damage to the environment.
 
-However, this solution is certainly not watertight, as no local python sandbox can really be: one could imagine occasions where LLMs fine-tuned for malignant actions could still hurt your environment.
-
-For instance, if you have allowed an innocuous package like `Pillow` to process images, the LLM could generate thousands of image saves to bloat your hard drive.
-Other examples of attacks can be found [here](https://gynvael.coldwind.pl/n/python_sandbox_escape).
-
-Running these targeted malicious code snippet require a supply chain attack, meaning the LLM you use has been intoxicated.
-
-The likelihood of this happening is low when using well-known LLMs from trusted inference providers, but it is still non-zero.
-
 > [!WARNING]
-> The only way to run LLM-generated code securely is to isolate the execution from your local environment.
+> It's important to understand that no local python sandbox can ever be completely secure. While our interpreter provides significant safety improvements over the standard Python interpreter, it is still possible for a determined attacker or a fine-tuned malicious LLM to find vulnerabilities and potentially harm your environment. 
+> 
+> For example, if you've allowed packages like `Pillow` to process images, the LLM could generate code that creates thousands of large image files to fill your hard drive. Other advanced escape techniques might exploit deeper vulnerabilities in authorized packages.
+> 
+> Running LLM-generated code in your local environment always carries some inherent risk. The only way to run LLM-generated code with truly robust security isolation is to use remote execution options like E2B or Docker, as detailed below.
 
-So if you want to exercise caution, you should use a remote execution sandbox.
+The risk of a malicious attack is low when using well-known LLMs from trusted inference providers, but it is not zero.
+For high-security applications or when using less trusted models, you should consider using a remote execution sandbox.
 
-Here are examples of how to do it.
+## Sandbox approaches for secure code execution
 
-## Sandbox setup for secure code execution
+When working with AI agents that execute code, security is paramount. There are two main approaches to sandboxing code execution in smolagents, each with different security properties and capabilities:
 
-When working with AI agents that execute code, security is paramount. This guide describes how to set up and use secure sandboxes for your agent applications using either E2B cloud sandboxes or local Docker containers.
+
+![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/remote_execution.png)
+
+1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"` or `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
+
+2. **Running the entire agentic system in a sandbox**: This approach (right side of diagram) runs the entire agentic system, including the agent, model, and tools, within a sandbox environment. This provides better isolation but requires more manual setup and may require passing sensitive credentials (like API keys) to the sandbox environment.
+
+This guide describes how to set up and use both types of sandbox approaches for your agent applications.
 
 ### E2B setup
 
@@ -316,3 +319,29 @@ These key practices apply to both E2B and Docker sandboxes:
   - Always ensure proper cleanup of resources, especially for Docker containers, to avoid having dangling containers eating up resources.
 
 ✨ By following these practices and implementing proper cleanup procedures, you can ensure your agent runs safely and efficiently in a sandboxed environment.
+
+## Comparing security approaches
+
+As illustrated in the diagram earlier, both sandboxing approaches have different security implications:
+
+### Approach 1: Running just the code snippets in a sandbox
+- **Pros**: 
+  - Easier to set up with a simple parameter (`executor_type="e2b"` or `executor_type="docker"`)
+  - No need to transfer API keys to the sandbox
+  - Better protection for your local environment
+- **Cons**:
+  - Doesn't support multi-agents (managed agents)
+  - Still requires transferring state between your environment and the sandbox
+  - Limited to specific code execution
+
+### Approach 2: Running the entire agentic system in a sandbox
+- **Pros**:
+  - Supports multi-agents
+  - Complete isolation of the entire agent system
+  - More flexible for complex agent architectures
+- **Cons**:
+  - Requires more manual setup
+  - May require transferring sensitive API keys to the sandbox
+  - Potentially higher latency due to more complex operations
+
+Choose the approach that best balances your security needs with your application's requirements. For most applications with simpler agent architectures, Approach 1 provides a good balance of security and ease of use. For more complex multi-agent systems where you need full isolation, Approach 2, while more involved to set up, offers better security guarantees.
