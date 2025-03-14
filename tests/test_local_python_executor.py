@@ -1008,15 +1008,17 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         executor.send_tools({"final_answer": FinalAnswerTool()})
 
         res, _, _ = executor(
-            dedent("""
-        def target_function():
-            return "Hello world"
+            dedent(
+                """
+                def target_function():
+                    return "Hello world"
 
-        final_answer(target_function)
-        """)
+                final_answer(target_function)
+                """
+            )
         )
         assert res.__name__ == "target_function"
-        assert "def target_function():" in res.__source and "Hello world" in res.__source
+        assert res.__source == "def target_function():\n    return 'Hello world'"
 
 
 @pytest.mark.parametrize(
