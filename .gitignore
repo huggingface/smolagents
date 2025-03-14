@@ -2,6 +2,7 @@
 logs
 tmp
 wandb
+memorystorage
 
 # Data
 data
