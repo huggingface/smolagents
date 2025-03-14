@@ -43,7 +43,7 @@ from smolagents.models import (
     TransformersModel,
 )
 from smolagents.tools import Tool, tool
-from smolagents.utils import BASE_BUILTIN_MODULES
+from smolagents.utils import BASE_BUILTIN_MODULES, AgentGenerationError
 
 
 def get_new_path(suffix="") -> str:
@@ -324,7 +324,11 @@ class AgentTests(unittest.TestCase):
             Args:
                 prompt: The prompt
             """
-            return Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
+            from pathlib import Path
+
+            from PIL import Image
+
+            return Image.open(Path("tests/fixtures/000000039769.png"))
 
         agent = ToolCallingAgent(tools=[fake_image_generation_tool], model=FakeToolCallModelImage())
         output = agent.run("Make me an image.")
@@ -552,7 +556,7 @@ nested_answer()
             device_map="auto",
             do_sample=False,
         )
-        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1)
+        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1, verbosity_level=10)
         agent.run("What's the weather in Paris?")
         assert agent.memory.steps[0].task == "What's the weather in Paris?"
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
@@ -568,6 +572,16 @@ nested_answer()
         agent = CodeAgent(model=fake_code_model, tools=[], final_answer_checks=[check_always_fails])
         agent.run("Dummy task.")
         assert "Error raised in check" in str(agent.write_memory_to_messages())
+
+    def test_generation_errors_are_raised(self):
+        def fake_model(messages, stop_sequences):
+            assert False, "Generation failed"
+
+        agent = CodeAgent(model=fake_model, tools=[])
+        with pytest.raises(AgentGenerationError) as e:
+            agent.run("Dummy task.")
+        assert len(agent.memory.steps) == 2
+        assert "Generation failed" in str(e)
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
@@ -905,7 +919,7 @@ class TestCodeAgent:
 
 class MultiAgentsTests(unittest.TestCase):
     def test_multiagents_save(self):
-        model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=2096, temperature=0.5)
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=2096, temperature=0.5)
 
         web_agent = ToolCallingAgent(
             model=model,

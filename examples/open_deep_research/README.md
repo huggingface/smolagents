@@ -7,20 +7,18 @@ Read more about this implementation's goal and methods in our [blog post](https:
 
 This agent achieves **55% pass@1** on the GAIA validation set, compared to **67%** for the original Deep Research.
 
----
-
-## Installation and Setup
+## Setup
 
 To get started, follow the steps below:
 
-1. **Clone the repository**:
+### Clone the repository
 
-    ```bash
-    git clone https://github.com/huggingface/smolagents.git
-    cd smolagents/examples/open_deep_research
-    ```
+```bash
+git clone https://github.com/huggingface/smolagents.git
+cd smolagents/examples/open_deep_research
+```
 
-2. **Install required dependencies**:
+### Install dependencies
 
     Run the following command to install the required dependencies from the `requirements.txt` file:
 
@@ -28,37 +26,29 @@ To get started, follow the steps below:
     pip install -r requirements.txt
     ```
 
-3. **Install the development version of `smolagents`**:
+### Install the development version of `smolagents`
 
     ```bash
     pip install -e ../../.[dev]
     ```
 
-4. **Set up environment variables**:
+### Set up environment variables
 
-    The script requires API keys to function:
+The agent uses the `GoogleSearchTool` for web search, which requires an environment variable with the corresponding API key, based on the selected provider:
+- `SERPAPI_API_KEY` for SerpApi: [Sign up here to get a key](https://serpapi.com/users/sign_up)
+- `SERPER_API_KEY` for Serper: [Sign up here to get a key](https://serper.dev/signup)
 
-    - **Hugging Face API Token**: You'll need a Hugging Face account and API token to run Open Deep Research.
-        ```bash
-        export HF_TOKEN="your_huggingface_token_here"
-        ```
-    
-    - **OpenAI API Key**: You also need an OpenAI API key to run the script with OpenAI's models. You can obtain your key from OpenAI.
-        ```bash
-        export OPENAI_API_KEY="your_openai_api_key_here"
-        ```
-    
-    - **SerperAPI Key**: Open Deep Research uses SerperAPI for web browsing functionality. 
-        ```bash
-        export SERPER_API_KEY="your_serper_api_key_here"
-        ```
+Depending on the model you want to use, you may need to set environment variables.
+For example, to use the default `o1` model, you need to set the `OPENAI_API_KEY` environment variable.
+[Sign up here to get a key](https://platform.openai.com/signup).
 
-5. **Run the script**:
+> [!WARNING]
+> The use of the default `o1` model is restricted to tier-3 access: https://help.openai.com/en/articles/10362446-api-access-to-o1-and-o3-mini
 
-    Now you're ready to run the agent and ask your question! Simply run:
 
-    ```bash
-    python run.py --model-id "o1" "Your question here!"
-    ```
+## Usage
 
-    Replace `"Your question here!"` with the question you'd like the agent to answer.
+Then you're good to go! Run the run.py script, as in:
+```bash
+python run.py --model-id "o1" "Your question here!"
+```

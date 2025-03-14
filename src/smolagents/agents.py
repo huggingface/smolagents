@@ -61,7 +61,6 @@ from .utils import (
     AgentParsingError,
     make_init_file,
     parse_code_blobs,
-    parse_json_tool_call,
     truncate_content,
 )
 
@@ -190,7 +189,6 @@ class MultiStepAgent:
         model: Callable[[List[Dict[str, str]]], ChatMessage],
         prompt_templates: Optional[PromptTemplates] = None,
         max_steps: int = 20,
-        tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
         grammar: Optional[Dict[str, str]] = None,
@@ -207,7 +205,6 @@ class MultiStepAgent:
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         self.max_steps = max_steps
         self.step_number = 0
-        self.tool_parser = tool_parser or parse_json_tool_call
         self.grammar = grammar
         self.planning_interval = planning_interval
         self.state = {}
@@ -331,7 +328,11 @@ You have been provided with these additional arguments, that you can access usin
             memory_step = self._create_memory_step(step_start_time, images)
             try:
                 final_answer = self._execute_step(task, memory_step)
+            except AgentGenerationError as e:
+                # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
+                raise e
             except AgentError as e:
+                # Other AgentError types are caused by the Model, so we should log them and iterate.
                 memory_step.error = e
             finally:
                 self._finalize_step(memory_step, step_start_time)

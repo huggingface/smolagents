@@ -21,6 +21,7 @@ import re
 import time
 from io import BytesIO
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Dict, List, Tuple
 
 import requests
@@ -44,7 +45,7 @@ class RemotePythonExecutor(PythonExecutor):
         self.additional_imports = additional_imports
         self.logger = logger
         self.logger.log("Initializing executor, hold on...")
-        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$")
+        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$", re.M)
         self.installed_packages = []
 
     def run_code_raise_errors(self, code: str, return_final_answer: bool = False) -> Tuple[Any, str]:
@@ -79,7 +80,7 @@ locals().update(vars_dict)
 
     def __call__(self, code_action: str) -> Tuple[Any, str, bool]:
         """Check if code is a final answer and run it accordingly"""
-        is_final_answer = bool(self.final_answer_pattern.match(code_action))
+        is_final_answer = bool(self.final_answer_pattern.search(code_action))
         output = self.run_code_raise_errors(code_action, return_final_answer=is_final_answer)
         return output[0], output[1], is_final_answer
 
@@ -90,7 +91,16 @@ locals().update(vars_dict)
 
 
 class E2BExecutor(RemotePythonExecutor):
-    def __init__(self, additional_imports: List[str], logger):
+    """
+    Executes Python code using E2B.
+
+    Args:
+        additional_imports (`list[str]`): Additional imports to install.
+        logger (`Logger`): Logger to use.
+        **kwargs: Additional arguments to pass to the E2B Sandbox.
+    """
+
+    def __init__(self, additional_imports: List[str], logger, **kwargs):
         super().__init__(additional_imports, logger)
         try:
             from e2b_code_interpreter import Sandbox
@@ -98,7 +108,7 @@ class E2BExecutor(RemotePythonExecutor):
             raise ModuleNotFoundError(
                 """Please install 'e2b' extra to use E2BExecutor: `pip install 'smolagents[e2b]'`"""
             )
-        self.sandbox = Sandbox()
+        self.sandbox = Sandbox(**kwargs)
         self.installed_packages = self.install_packages(additional_imports)
         self.logger.log("E2B is running", level=LogLevel.INFO)
 
@@ -114,7 +124,6 @@ class E2BExecutor(RemotePythonExecutor):
             logs += execution.error.value
             logs += execution.error.traceback
             raise ValueError(logs)
-        self.logger.log(execution.logs)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
         if not execution.results:
             return None, execution_logs
@@ -245,14 +254,15 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
         """
         try:
             if return_final_answer:
-                match = self.final_answer_pattern.match(code_action)
+                match = self.final_answer_pattern.search(code_action)
                 if match:
+                    pre_final_answer_code = self.final_answer_pattern.sub("", code_action)
                     result_expr = match.group(1)
-                    wrapped_code = f"""
-    import pickle, base64
-    _result = {result_expr}
-    print("RESULT_PICKLE:" + base64.b64encode(pickle.dumps(_result)).decode())
-    """
+                    wrapped_code = pre_final_answer_code + dedent(f"""
+                        import pickle, base64
+                        _result = {result_expr}
+                        print("RESULT_PICKLE:" + base64.b64encode(pickle.dumps(_result)).decode())
+                        """)
             else:
                 wrapped_code = code_action
 

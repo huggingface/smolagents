@@ -14,7 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import re
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -138,7 +137,7 @@ class GoogleSearchTool(Tool):
     output_type = "string"
 
     def __init__(self, provider: str = "serpapi"):
-        super().__init__(self)
+        super().__init__()
         import os
 
         self.provider = provider
@@ -226,6 +225,8 @@ class VisitWebpageTool(Tool):
 
     def forward(self, url: str) -> str:
         try:
+            import re
+
             import requests
             from markdownify import markdownify
             from requests.exceptions import RequestException
