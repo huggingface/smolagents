@@ -1721,7 +1721,11 @@ class TestLocalPythonExecutorSecurity:
         # Skip test if module is not installed: posix module is not installed on Windows
         pytest.importorskip(dangerous_module_name)
         executor = LocalPythonExecutor([dangerous_module_name])
-        with pytest.raises(InterpreterError, match=f".*Forbidden access to function: {dangerous_function_name}"):
+        if "__" in dangerous_function_name:
+            error_match = f".*Forbidden access to dunder attribute: {dangerous_function_name}"
+        else:
+            error_match = f".*Forbidden access to function: {dangerous_function_name}.*"
+        with pytest.raises(InterpreterError, match=error_match):
             executor(f"import {dangerous_module_name}; {dangerous_function}")
 
     @pytest.mark.parametrize(
@@ -1804,7 +1808,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import random; random.__dict__['_os'].system(':')",
                 [],
-                InterpreterError("Forbidden access to module: os"),
+                InterpreterError("Forbidden access to dunder attribute: __dict__"),
             ),
             (
                 "import doctest; doctest.inspect.os.system(':')",
@@ -1897,11 +1901,11 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
         [
-            ([], [], InterpreterError("Forbidden access to module: smolagents.local_python_executor")),
+            ([], [], InterpreterError("Forbidden access to dunder attribute: __traceback__")),
             (
                 ["builtins", "os"],
                 ["__import__"],
-                InterpreterError("Forbidden access to module: smolagents.local_python_executor"),
+                InterpreterError("Forbidden access to dunder attribute: __traceback__"),
             ),
         ],
     )
@@ -1938,18 +1942,19 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
         [
-            ([], [], InterpreterError("Forbidden access to module: warnings")),
-            (["warnings"], [], InterpreterError("Forbidden access to module: builtins")),
+            ([], [], InterpreterError("Forbidden access to dunder attribute: __base__")),
+            (["warnings"], [], InterpreterError("Forbidden access to dunder attribute: __base__")),
             (
                 ["warnings", "builtins"],
                 [],
-                (
-                    InterpreterError("Forbidden access to function: __import__"),
-                    InterpreterError("Forbidden access to module: os"),
-                ),
+                InterpreterError("Forbidden access to dunder attribute: __base__"),
             ),
-            (["warnings", "builtins", "os"], [], (InterpreterError("Forbidden access to function: __import__"), None)),
-            (["warnings", "builtins", "os"], ["__import__"], None),
+            (["warnings", "builtins", "os"], [], InterpreterError("Forbidden access to dunder attribute: __base__")),
+            (
+                ["warnings", "builtins", "os"],
+                ["__import__"],
+                InterpreterError("Forbidden access to dunder attribute: __base__"),
+            ),
         ],
     )
     def test_vulnerability_builtins_via_class_catch_warnings(
@@ -1987,7 +1992,10 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
-        [([], InterpreterError("Forbidden access to module: os")), (["os"], None)],
+        [
+            ([], InterpreterError("Forbidden access to dunder attribute: __base__")),
+            (["os"], InterpreterError("Forbidden access to dunder attribute: __base__")),
+        ],
     )
     def test_vulnerability_load_module_via_builtin_importer(self, additional_authorized_imports, expected_error):
         executor = LocalPythonExecutor(additional_authorized_imports)
