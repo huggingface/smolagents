@@ -173,7 +173,7 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 Model to use [vLLM](https://docs.vllm.ai/) for fast LLM inference and serving.
 
 ```python
-from smolagents import MLXModel
+from smolagents import VLLMModel
 
 model = VLLMModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
 
