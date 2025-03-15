@@ -33,7 +33,7 @@ from smolagents.agents import (
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
-from smolagents.memory import PlanningStep
+from smolagents.memory import ActionStep, PlanningStep
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -887,6 +887,31 @@ class TestCodeAgent:
         with agent.logger.console.capture() as capture:
             agent.run("Test request")
         assert "secret\\\\" in repr(capture.get())
+
+    def test_codeagent_agent_image_output(self):
+        @tool
+        def fake_image_tool() -> AgentImage:
+            """Tool that outputs an image."""
+            return AgentImage("")
+
+        def fake_code_model_image_output(messages, stop_sequences=None, grammar=None) -> str:
+            return ChatMessage(
+                role="assistant",
+                content="Thought: no\n\nCode:\n```py\nfake_image_tool()\n```"
+            )
+
+        agent = CodeAgent(
+            tools=[fake_image_tool],
+            model=fake_code_model_image_output,
+            max_steps=2,
+        )
+        agent.run("Test request")
+        memory_steps = agent.memory.steps
+        actions_steps = [s for s in memory_steps if isinstance(s, ActionStep)][:-1]
+        assert actions_steps
+        for step in actions_steps:
+            assert step.observations_images
+            assert isinstance(step.observations_images[0], AgentImage)
 
     def test_missing_import_triggers_advice_in_error_log(self):
         # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
