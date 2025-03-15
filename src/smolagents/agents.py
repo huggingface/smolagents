@@ -1180,24 +1180,24 @@ class CodeAgent(MultiStepAgent):
             )
         self.executor_type = executor_type or "local"
         self.executor_kwargs = executor_kwargs or {}
-        self.python_executor = self.create_python_executor(executor_type, self.executor_kwargs)
+        self.python_executor = self.create_python_executor()
 
-    def create_python_executor(self, executor_type: str, kwargs: Dict[str, Any]) -> PythonExecutor:
-        match executor_type:
+    def create_python_executor(self) -> PythonExecutor:
+        match self.executor_type:
             case "e2b" | "docker":
                 if self.managed_agents:
                     raise Exception("Managed agents are not yet supported with remote code execution.")
-                if executor_type == "e2b":
-                    return E2BExecutor(self.additional_authorized_imports, self.logger, **kwargs)
+                if self.executor_type == "e2b":
+                    return E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
                 else:
-                    return DockerExecutor(self.additional_authorized_imports, self.logger, **kwargs)
+                    return DockerExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
             case "local":
                 return LocalPythonExecutor(
                     self.additional_authorized_imports,
                     max_print_outputs_length=self.max_print_outputs_length,
                 )
             case _:  # if applicable
-                raise ValueError(f"Unsupported executor type: {executor_type}")
+                raise ValueError(f"Unsupported executor type: {self.executor_type}")
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
