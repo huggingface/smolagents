@@ -411,31 +411,6 @@ class AgentTests(unittest.TestCase):
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
 
-    def test_end_code_appending(self):
-        # Checking original output message
-        orig_output = fake_code_model_no_return([])
-        assert not orig_output.content.endswith("<end_code>")
-
-        # Checking the step output
-        agent = CodeAgent(
-            tools=[PythonInterpreterTool()],
-            model=fake_code_model_no_return,
-            max_steps=1,
-        )
-        answer = agent.run("What is 2 multiplied by 3.6452?")
-        assert answer
-
-        memory_steps = agent.memory.steps
-        actions_steps = [s for s in memory_steps if isinstance(s, ActionStep)]
-
-        outputs = [s.model_output for s in actions_steps if s.model_output]
-        assert outputs
-        assert all(o.endswith("<end_code>") for o in outputs)
-
-        messages = [s.model_output_message for s in actions_steps if s.model_output_message]
-        assert messages
-        assert all(m.content.endswith("<end_code>") for m in messages)
-
     def test_tool_descriptions_get_baked_in_system_prompt(self):
         tool = PythonInterpreterTool()
         tool.name = "fake_tool_name"
@@ -941,6 +916,31 @@ class TestCodeAgent:
         assert isinstance(output, AgentText)
         assert output == "got an error"
         assert '    print("Failing due to unexpected indent")' in str(agent.memory.steps)
+
+    def test_end_code_appending(self):
+        # Checking original output message
+        orig_output = fake_code_model_no_return([])
+        assert not orig_output.content.endswith("<end_code>")
+
+        # Checking the step output
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=fake_code_model_no_return,
+            max_steps=1,
+        )
+        answer = agent.run("What is 2 multiplied by 3.6452?")
+        assert answer
+
+        memory_steps = agent.memory.steps
+        actions_steps = [s for s in memory_steps if isinstance(s, ActionStep)]
+
+        outputs = [s.model_output for s in actions_steps if s.model_output]
+        assert outputs
+        assert all(o.endswith("<end_code>") for o in outputs)
+
+        messages = [s.model_output_message for s in actions_steps if s.model_output_message]
+        assert messages
+        assert all(m.content.endswith("<end_code>") for m in messages)
 
     def test_change_tools_after_init(self):
         from smolagents import tool
