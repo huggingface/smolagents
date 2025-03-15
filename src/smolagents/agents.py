@@ -286,6 +286,7 @@ class MultiStepAgent:
         agent.run("What is the result of 2 power 3.7384?")
         ```
         """
+
         max_steps = max_steps or self.max_steps
         self.task = task
         if additional_args is not None:
@@ -1234,8 +1235,13 @@ class CodeAgent(MultiStepAgent):
             )
             memory_step.model_output_message = chat_message
             model_output = chat_message.content
-            if model_output.endswith("```"):
+
+            # This adds <end_code> sequence to the history.
+            # So a model will have examples of completing code sections in a right way.
+            if model_output and model_output.strip().endswith("```"):
                 model_output += "<end_code>"
+                memory_step.model_output_message.content = model_output
+
             memory_step.model_output = model_output
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
