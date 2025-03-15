@@ -604,7 +604,7 @@ class MLXModel(Model):
             role=MessageRole.ASSISTANT, content=text, raw={"out": text, "completion_kwargs": completion_kwargs}
         )
         if tools_to_call_from:
-            chat_message.tool_calls = get_tool_call_from_text(text, self.tool_name_key, self.tool_arguments_key)
+            chat_message.tool_calls = [get_tool_call_from_text(text, self.tool_name_key, self.tool_arguments_key)]
         return chat_message
 
 
@@ -803,7 +803,9 @@ class TransformersModel(Model):
             raw={"out": output_text, "completion_kwargs": completion_kwargs},
         )
         if tools_to_call_from:
-            chat_message.tool_calls = get_tool_call_from_text(output_text, self.tool_name_key, self.tool_arguments_key)
+            chat_message.tool_calls = [
+                get_tool_call_from_text(output_text, self.tool_name_key, self.tool_arguments_key)
+            ]
         return chat_message
 
 
