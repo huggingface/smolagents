@@ -33,6 +33,7 @@ from smolagents.utils import escape_code_brackets
 __all__ = ["AgentLogger", "LogLevel", "Monitor"]
 
 
+
 class Monitor:
     def __init__(self, tracked_model, logger):
         self.step_durations = []
@@ -59,18 +60,19 @@ class Monitor:
         Args:
             step_log ([`MemoryStep`]): Step log to update the monitor with.
         """
-        step_duration = step_log.duration
-        self.step_durations.append(step_duration)
-        console_outputs = f"[Step {len(self.step_durations)}: Duration {step_duration:.2f} seconds"
+        if hasattr(step_log, 'duration'): # only ActionStep has a duration
+            step_duration = step_log.duration
+            self.step_durations.append(step_duration)
+            console_outputs = f"[Step {len(self.step_durations)}: Duration {step_duration:.2f} seconds"
 
-        if getattr(self.tracked_model, "last_input_token_count", None) is not None:
-            self.total_input_token_count += self.tracked_model.last_input_token_count
-            self.total_output_token_count += self.tracked_model.last_output_token_count
-            console_outputs += (
-                f"| Input tokens: {self.total_input_token_count:,} | Output tokens: {self.total_output_token_count:,}"
-            )
-        console_outputs += "]"
-        self.logger.log(Text(console_outputs, style="dim"), level=1)
+            if getattr(self.tracked_model, "last_input_token_count", None) is not None:
+                self.total_input_token_count += self.tracked_model.last_input_token_count
+                self.total_output_token_count += self.tracked_model.last_output_token_count
+                console_outputs += (
+                    f"| Input tokens: {self.total_input_token_count:,} | Output tokens: {self.total_output_token_count:,}"
+                )
+            console_outputs += "]"
+            self.logger.log(Text(console_outputs, style="dim"), level=1)
 
 
 class LogLevel(IntEnum):
