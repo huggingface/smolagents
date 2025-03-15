@@ -249,7 +249,7 @@ def get_tool_call_chat_message_from_text(text: str, tool_name_key: str, tool_arg
         content=text,
         tool_calls=[
             ChatMessageToolCall(
-                id=uuid.uuid4(),
+                id=str(uuid.uuid4()),
                 type="function",
                 function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
             )
