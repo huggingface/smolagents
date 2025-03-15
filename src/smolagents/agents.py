@@ -1058,7 +1058,7 @@ class ToolCallingAgent(MultiStepAgent):
             raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
 
         self.logger.log_markdown(
-            content=str(model_message.raw),
+            content=model_message.content if model_message.content else str(model_message.raw),
             title="Output message of the LLM:",
             level=LogLevel.DEBUG,
         )

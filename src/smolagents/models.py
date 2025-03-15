@@ -94,6 +94,13 @@ class ChatMessage:
         return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
 
     @classmethod
+    def from_api(cls, message, raw) -> "ChatMessage":
+        tool_calls = None
+        if getattr(message, "tool_calls", None) is not None:
+            tool_calls = [ChatMessageToolCall.from_api(tool_call) for tool_call in message.tool_calls]
+        return cls(role=message.role, content=message.content, tool_calls=tool_calls, raw=raw)
+
+    @classmethod
     def from_dict(cls, data: dict) -> "ChatMessage":
         if data.get("tool_calls"):
             tool_calls = [
@@ -117,6 +124,7 @@ def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
             return json.loads(arguments)
         except Exception:
             return arguments
+
 
 class MessageRole(str, Enum):
     USER = "user"
@@ -236,9 +244,11 @@ def get_tool_call_from_text(text: str, tool_name_key: str, tool_arguments_key: s
         function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
     )
 
+
 def get_tool_call_chat_message_from_text(text: str, tool_name_key: str, tool_arguments_key: str) -> ChatMessage:
     tool_call = get_tool_call_from_text(text, tool_name_key, tool_arguments_key)
     return ChatMessage(role=MessageRole.ASSISTANT, content=text, tool_calls=[tool_call])
+
 
 class Model:
     def __init__(
@@ -479,10 +489,12 @@ class VLLMModel(Model):
         chat_message = ChatMessage(
             role=MessageRole.ASSISTANT,
             content=output_text,
-            raw = {"out": output_text, "completion_kwargs": completion_kwargs}
+            raw={"out": output_text, "completion_kwargs": completion_kwargs},
         )
         if tools_to_call_from:
-            chat_message.tool_calls=[get_tool_call_from_text(output_text, self.tool_name_key, self.tool_arguments_key)]
+            chat_message.tool_calls = [
+                get_tool_call_from_text(output_text, self.tool_name_key, self.tool_arguments_key)
+            ]
         return chat_message
 
 
@@ -786,7 +798,9 @@ class TransformersModel(Model):
             output_text = remove_stop_sequences(output_text, stop_sequences)
 
         chat_message = ChatMessage(
-            role=MessageRole.ASSISTANT, content=output_text, raw={"out": output_text, "completion_kwargs": completion_kwargs}
+            role=MessageRole.ASSISTANT,
+            content=output_text,
+            raw={"out": output_text, "completion_kwargs": completion_kwargs},
         )
         if tools_to_call_from:
             chat_message.tool_calls = get_tool_call_from_text(output_text, self.tool_name_key, self.tool_arguments_key)
@@ -799,10 +813,13 @@ class ApiModel(Model):
 
     def postprocess_message(self, message: ChatMessage, tools_to_call_from) -> ChatMessage:
         """Sometimes APIs fail to properly parse a tool call: this function tries to parse."""
-        message.role = MessageRole.ASSISTANT # Overwrite role if needed
+        message.role = MessageRole.ASSISTANT  # Overwrite role if needed
         if tools_to_call_from and not message.tool_calls:
-            message.tool_calls = [get_tool_call_from_text(message.content, self.tool_name_key, self.tool_arguments_key)]
+            message.tool_calls = [
+                get_tool_call_from_text(message.content, self.tool_name_key, self.tool_arguments_key)
+            ]
         return message
+
 
 class LiteLLMModel(ApiModel):
     """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
@@ -887,7 +904,7 @@ class LiteLLMModel(ApiModel):
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
         )
         first_message.raw = response
-        return self.postprocess_message(first_message)
+        return self.postprocess_message(first_message, tools_to_call_from)
 
 
 class HfApiModel(ApiModel):
@@ -977,7 +994,7 @@ class HfApiModel(ApiModel):
         return self.postprocess_message(first_message, tools_to_call_from)
 
 
-class OpenAIServerModel(Model):
+class OpenAIServerModel(ApiModel):
     """This model connects to an OpenAI-compatible API server.
 
     Parameters:
