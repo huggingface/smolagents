@@ -109,7 +109,7 @@ class ModelTests(unittest.TestCase):
         assert output == "Hello! How can"
 
     def test_parse_tool_args_if_needed(self):
-        original_message = ChatMessage(role="user", content=[{"type": "text", "text": "Hello!"}])
+        original_message = ChatMessage(role="user", content={"type": "text", "text": "Hello!"})
         parsed_message = parse_tool_args_if_needed(original_message)
         assert parsed_message == original_message
 
@@ -365,3 +365,16 @@ def test_flatten_messages_as_text_for_all_models(
 
         model = model_class(**{"model_id": "test-model", **model_kwargs})
     assert model.flatten_messages_as_text is expected_flatten_messages_as_text, f"{model_class.__name__} failed"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'Action:\n{"name": "tool", "arguments": {}}',
+        'Action: {"name": "tool", "arguments": {}}',
+    ],
+)
+def test_parse_tool_args_if_needed_returns_message_with_tools_set_for_tool_calling_agent(content):
+    original_message = ChatMessage(role="user", content=content)
+    parsed_message = parse_tool_args_if_needed(original_message)
+    assert parsed_message.tool_calls

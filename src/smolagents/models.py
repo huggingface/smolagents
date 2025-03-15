@@ -126,10 +126,26 @@ def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
             return arguments
 
 
-def parse_tool_args_if_needed(message: ChatMessage) -> ChatMessage:
+def parse_tool_args_if_needed(
+    message: ChatMessage,
+    tool_name_key: str = "name",
+    tool_arguments_key: str = "arguments",
+) -> ChatMessage:
     if message.tool_calls is not None:
         for tool_call in message.tool_calls:
             tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+    elif isinstance(message.content, str) and message.content.startswith("Action:"):
+        output = message.content.split("Action:", 1)[1].strip()
+        start_index = output.index("{")
+        end_index = output.rindex("}")
+        output = output[start_index : end_index + 1]
+
+        return get_tool_call_chat_message_from_text(
+            output,
+            tool_name_key,
+            tool_arguments_key,
+        )
+
     return message
 
 
@@ -490,7 +506,7 @@ class HfApiModel(Model):
         self.last_output_token_count = response.usage.completion_tokens
         message = ChatMessage.from_hf_api(response.choices[0].message, raw=response)
         if tools_to_call_from is not None:
-            return parse_tool_args_if_needed(message)
+            return parse_tool_args_if_needed(message, self.tool_name_key, self.tool_arguments_key)
         return message
 
 
@@ -685,6 +701,8 @@ class MLXModel(Model):
         for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
             self.last_output_token_count += 1
             text += _.text
+
+            found_stop_sequence = False
             for stop_sequence in prepared_stop_sequences:
                 stop_sequence_start = text.rfind(stop_sequence)
                 if stop_sequence_start != -1:
@@ -990,7 +1008,7 @@ class LiteLLMModel(Model):
         message.raw = response
 
         if tools_to_call_from is not None:
-            return parse_tool_args_if_needed(message)
+            return parse_tool_args_if_needed(message, self.tool_name_key, self.tool_arguments_key)
         return message
 
 
@@ -1076,7 +1094,7 @@ class OpenAIServerModel(Model):
         )
         message.raw = response
         if tools_to_call_from is not None:
-            return parse_tool_args_if_needed(message)
+            return parse_tool_args_if_needed(message, self.tool_name_key, self.tool_arguments_key)
         return message
 
 
