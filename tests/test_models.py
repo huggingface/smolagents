@@ -35,7 +35,6 @@ from smolagents.models import (
     get_clean_message_list,
     get_tool_json_schema,
     parse_json_if_needed,
-    parse_tool_args_if_needed,
 )
 from smolagents.tools import tool
 
@@ -107,11 +106,6 @@ class ModelTests(unittest.TestCase):
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}, {"type": "image", "image": img}]}]
         output = model(messages, stop_sequences=["great"]).content
         assert output == "Hello! How can"
-
-    def test_parse_tool_args_if_needed(self):
-        original_message = ChatMessage(role="user", content=[{"type": "text", "text": "Hello!"}])
-        parsed_message = parse_tool_args_if_needed(original_message)
-        assert parsed_message == original_message
 
     def test_parse_json_if_needed(self):
         args = "abc"
