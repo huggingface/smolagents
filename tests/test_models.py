@@ -475,3 +475,9 @@ class TestGetToolCallFromText:
         result = get_tool_call_from_text(text, "name", "arguments")
         assert result.function.name == "calculator"
         assert result.function.arguments == 42
+
+    def test_get_tool_call_from_text_with_mutltiple_argument_keys(self):
+        text = '{"name": "calculator", "parameters": 42}'
+        result = get_tool_call_from_text(text, "name", ["arguments", "parameters"])
+        assert result.function.name == "calculator"
+        assert result.function.arguments == 42

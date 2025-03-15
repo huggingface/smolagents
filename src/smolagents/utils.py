@@ -150,26 +150,46 @@ def make_json_serializable(obj: Any) -> Any:
 
 
 def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
-    "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
+    "Extracts the first valid JSON blob from the input and returns the JSON data and the rest of the input."
+    first_accolade_index = json_blob.find("{")
+    if first_accolade_index == -1:
+        raise ValueError("No JSON object found in input.")
+
+    brace_count = 0
+    end_index = None
+
+    # Iterate from first '{' to find balanced closing '}'
+    for i in range(first_accolade_index, len(json_blob)):
+        char = json_blob[i]
+        if char == "{":
+            brace_count += 1
+        elif char == "}":
+            brace_count -= 1
+            if brace_count == 0:
+                end_index = i
+                break
+
+    if end_index is None:
+        raise ValueError("No complete JSON object found: braces are not balanced.")
+
+    json_str = json_blob[first_accolade_index : end_index + 1]
     try:
-        first_accolade_index = json_blob.find("{")
-        last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_data = json_blob[first_accolade_index : last_accolade_index + 1]
-        json_data = json.loads(json_data, strict=False)
-        return json_data, json_blob[:first_accolade_index]
-    except IndexError:
-        raise ValueError("The model output does not contain any JSON blob.")
+        json_data = json.loads(json_str)
     except json.JSONDecodeError as e:
         place = e.pos
-        if json_blob[place - 1 : place + 2] == "},\n":
+        if json_str[place - 1 : place + 2] == "},\n":
             raise ValueError(
                 "JSON is invalid: you probably tried to provide multiple tool calls in one action. PROVIDE ONLY ONE TOOL CALL."
             )
         raise ValueError(
             f"The JSON blob you used is invalid due to the following error: {e}.\n"
-            f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"
-            f"'{json_blob[place - 4 : place + 5]}'."
+            f"JSON blob was: {json_str}, decoding failed on that specific part of the blob:\n"
+            f"'{json_str[place - 4 : place + 5]}'."
         )
+
+    # The prefix BEFORE JSON (if needed)
+    prefix = json_blob[:first_accolade_index]
+    return json_data, prefix
 
 
 def parse_code_blobs(text: str) -> str:

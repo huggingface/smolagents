@@ -124,14 +124,17 @@ class ChatMessage:
         return cls.from_dict(asdict(message), raw=raw)
 
 
-def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
+def parse_json_if_needed(arguments: Union[str, dict] | None) -> Union[str, dict] | None:
+    if arguments is None:
+        return None
+
     if isinstance(arguments, dict):
         return arguments
-    else:
-        try:
-            return json.loads(arguments)
-        except Exception:
-            return arguments
+
+    try:
+        return json.loads(arguments)
+    except Exception:
+        return arguments
 
 
 class MessageRole(str, Enum):
@@ -241,16 +244,23 @@ def get_clean_message_list(
     return output_message_list
 
 
-def get_tool_call_from_text(text: str, tool_name_key: str, tool_arguments_key: str) -> ChatMessageToolCall:
+def get_tool_call_from_text(
+    text: str, tool_name_key: str, tool_arguments_key: Union[list[str], str]
+) -> ChatMessageToolCall:
+    if isinstance(tool_arguments_key, str):
+        tool_arguments_key = [tool_arguments_key]
+
     tool_call_dictionary, _ = parse_json_blob(text)
     try:
         tool_name = tool_call_dictionary[tool_name_key]
-    except Exception as e:
+    except KeyError as e:
         raise ValueError(
             f"Key {tool_name_key=} not found in the generated tool call. Got keys: {list(tool_call_dictionary.keys())} instead"
         ) from e
-    tool_arguments = tool_call_dictionary.get(tool_arguments_key, None)
+
+    tool_arguments = next((tool_call_dictionary[k] for k in tool_arguments_key if k in tool_call_dictionary), None)
     tool_arguments = parse_json_if_needed(tool_arguments)
+
     return ChatMessageToolCall(
         id=str(uuid.uuid4()),
         type="function",
@@ -263,12 +273,16 @@ class Model:
         self,
         flatten_messages_as_text: bool = False,
         tool_name_key: str = "name",
-        tool_arguments_key: str = "arguments",
+        tool_arguments_keys: list[str] | None = None,
         **kwargs,
     ):
         self.flatten_messages_as_text = flatten_messages_as_text
         self.tool_name_key = tool_name_key
-        self.tool_arguments_key = tool_arguments_key
+
+        self.tool_arguments_keys = tool_arguments_keys
+        if tool_arguments_keys is None:
+            self.tool_arguments_keys = ["arguments", "parameters"]
+
         self.kwargs = kwargs
         self.last_input_token_count = None
         self.last_output_token_count = None
@@ -511,7 +525,7 @@ class VLLMModel(Model):
         )
         if tools_to_call_from:
             chat_message.tool_calls = [
-                get_tool_call_from_text(output_text, self.tool_name_key, self.tool_arguments_key)
+                get_tool_call_from_text(output_text, self.tool_name_key, self.tool_arguments_keys)
             ]
         return chat_message
 
@@ -822,7 +836,7 @@ class TransformersModel(Model):
         )
         if tools_to_call_from:
             chat_message.tool_calls = [
-                get_tool_call_from_text(output_text, self.tool_name_key, self.tool_arguments_key)
+                get_tool_call_from_text(output_text, self.tool_name_key, self.tool_arguments_keys)
             ]
         return chat_message
 
@@ -862,9 +876,11 @@ class ApiModel(Model):
         message.role = MessageRole.ASSISTANT  # Overwrite role if needed
         if tools_to_call_from:
             if not message.tool_calls:
-                message.tool_calls = [
-                    get_tool_call_from_text(message.content, self.tool_name_key, self.tool_arguments_key)
-                ]
+                message.tool_calls = (
+                    [get_tool_call_from_text(message.content, self.tool_name_key, self.tool_arguments_keys)]
+                    if message.content
+                    else []
+                )
             for tool_call in message.tool_calls:
                 tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
         return message
