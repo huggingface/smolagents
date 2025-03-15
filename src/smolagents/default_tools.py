@@ -292,6 +292,31 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+class BaiDuSearchTool(Tool):
+    name = "baidu_search"
+    description = "Performs a Baidu web search based on your query and returns the top search results."
+    inputs = {'query': {'type': 'string', 'description': 'The search query to perform.'}}
+    output_type = "string"
+
+    def __init__(self, max_results=5, **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
+        try:
+            from baidusearch.baidusearch import search
+        except ImportError as e:
+            raise ImportError(
+                "Required package 'baidusearch' not found. Install with: pip install baidusearch"
+            ) from e
+
+    def forward(self, query: str) -> str:
+        from baidusearch.baidusearch import search
+        results = search(query, num_results=self.max_results)
+        if not results:
+            raise Exception("No results found! Try a less restrictive/shorter query.")
+        postprocessed_results = [f"[{result['title']}]({result['url']})\n{result['abstract']}" for result in results]
+        return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+
+
 TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
@@ -309,4 +334,5 @@ __all__ = [
     "GoogleSearchTool",
     "VisitWebpageTool",
     "SpeechToTextTool",
+    "BaiDuSearchTool"
 ]
