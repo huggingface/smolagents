@@ -102,6 +102,12 @@ class AgentExecutionError(AgentError):
     pass
 
 
+class AgentInvocationError(AgentError):
+    """Exception raised for errors when incorrect arguments are used"""
+
+    pass
+
+
 class AgentMaxStepsError(AgentError):
     """Exception raised for errors in execution in the agent"""
 
