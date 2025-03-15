@@ -24,7 +24,7 @@ from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
 from smolagents.tools import tool
-from smolagents.utils import get_source, instance_to_source, parse_code_blobs
+from smolagents.utils import get_source, instance_to_source, parse_code_blobs, parse_json_blob
 
 
 class ValidTool(Tool):
@@ -424,3 +424,60 @@ tool = SimpleTool()
 launch_gradio_demo(tool)
 """
         )
+
+
+@pytest.mark.parametrize(
+    "raw_json, expected_data, expected_blob",
+    [
+        (
+            """{}""",
+            {},
+            "",
+        ),
+        (
+            """Text{}""",
+            {},
+            "Text",
+        ),
+        (
+            """{"simple": "json"}""",
+            {"simple": "json"},
+            "",
+        ),
+        (
+            """With text here{"simple": "json"}""",
+            {"simple": "json"},
+            "With text here",
+        ),
+        (
+            """{"simple": "json"}With text after""",
+            {"simple": "json"},
+            "",
+        ),
+        (
+            """With text before{"simple": "json"}And text after""",
+            {"simple": "json"},
+            "With text before",
+        ),
+    ],
+)
+def test_parse_json_blob_with_valid_json(raw_json, expected_data, expected_blob):
+    data, blob = parse_json_blob(raw_json)
+
+    assert data == expected_data
+    assert blob == expected_blob
+
+
+@pytest.mark.parametrize(
+    "raw_json",
+    [
+        """simple": "json"}""",
+        """With text here"simple": "json"}""",
+        """{"simple": ""json"}With text after""",
+        """{"simple": "json"With text after""",
+        "}}",
+    ],
+)
+def test_parse_json_blob_with_invalid_json(raw_json):
+    with pytest.raises(Exception):
+        parse_json_blob(raw_json)
