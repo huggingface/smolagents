@@ -115,39 +115,34 @@ system_prompt: |-
 
   Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
 planning:
-  initial_facts: |-
-    Below I will present you a task.
+  initial_plan : |-
+    You are a world express at analyzing a situation to derive facts, and plan accordingly towards solving a task.
+    Below I will present you a task. You will need to 1. build a survey of facts known or needed to solve the task, then 2. make a plan of action to solve the task.
 
-    You will now build a comprehensive preparatory survey of which facts we have at our disposal and which ones we still need.
+    1. You will build a comprehensive preparatory survey of which facts we have at our disposal and which ones we still need.
     To do so, you will have to read the task and identify things that must be discovered in order to successfully complete it.
     Don't make any assumptions. For each item, provide a thorough reasoning. Here is how you will structure this survey:
 
     ---
-    ### 1. Facts given in the task
+    ## Facts survey
+    ### 1.1. Facts given in the task
     List here the specific facts given in the task that could help you (there might be nothing here).
 
-    ### 2. Facts to look up
+    ### 1.2. Facts to look up
     List here any facts that we may need to look up.
     Also list where to find each of these, for instance a website, a file... - maybe the task contains some sources that you should re-use here.
 
-    ### 3. Facts to derive
+    ### 1.3. Facts to derive
     List here anything that we want to derive from the above by logical reasoning, for instance computation or simulation.
 
     Keep in mind that "facts" will typically be specific names, dates, values, etc. Your answer should use the below headings:
-    ### 1. Facts given in the task
-    ### 2. Facts to look up
-    ### 3. Facts to derive
+    ### 1.1. Facts given in the task
+    ### 1.2. Facts to look up
+    ### 1.3. Facts to derive
     Do not add anything else.
 
-    Here is the task:
-    ```
-    {{task}}
-    ```
-    Now begin!
-  initial_plan : |-
-    You are a world expert at making efficient plans to solve any task using a set of carefully crafted tools.
-
-    Now for the given task, develop a step-by-step high-level plan taking into account the above inputs and list of facts.
+    ## Plan
+    Then for the given task, develop a step-by-step high-level plan taking into account the above inputs and list of facts.
     This plan should involve individual tasks based on the available tools, that if executed correctly will yield the correct answer.
     Do not skip steps, do not add any superfluous steps. Only write the high-level plan, DO NOT DETAIL INDIVIDUAL TOOL CALLS.
     After writing the final step of the plan, write the '\n<end_plan>' tag and stop there.
@@ -158,6 +153,7 @@ planning:
     ```
     {{task}}
     ```
+
     You can leverage these tools:
     {%- for tool in tools.values() %}
     - {{ tool.name }}: {{ tool.description }}
@@ -175,46 +171,44 @@ planning:
     {%- endfor %}
     {%- endif %}
 
-    List of facts that you know:
-    ```
-    {{answer_facts}}
-    ```
-
-    Now begin! Write your plan below.
-  update_facts_pre_messages: |-
-    You are a world expert at gathering known and unknown facts based on a conversation.
-    Below you will find a task, and a history of attempts made to solve the task. You will have to produce a list of these:
-    ### 1. Facts given in the task
-    ### 2. Facts that we have learned
-    ### 3. Facts still to look up
-    ### 4. Facts still to derive
-    Find the task and history below:
-  update_facts_post_messages: |-
-    Earlier we've built a list of facts.
-    But since in your previous steps you may have learned useful new facts or invalidated some false ones.
-    Please update your list of facts based on the previous history, and provide these headings:
-    ### 1. Facts given in the task
-    ### 2. Facts that we have learned
-    ### 3. Facts still to look up
-    ### 4. Facts still to derive
-
-    Now write your new list of facts below.
+    Now begin! First in part 1, list the facts that you have at your disposal, then in part 2, make a plan to solve the task.
   update_plan_pre_messages: |-
-    You are a world expert at making efficient plans to solve any task using a set of carefully crafted tools.
-
+    You are a world express at analyzing a situation to derive facts, and plan accordingly towards solving a task.
     You have been given a task:
     ```
     {{task}}
     ```
+    Below you will find a history of attempts made to solve the task. You will first have to produce a survey of known and unknown facts:
 
-    Find below the record of what has been tried so far to solve it. Then you will be asked to make an updated plan to solve the task.
+    ## Facts survey
+    ### 1. Facts given in the task
+    ### 2. Facts that we have learned
+    ### 3. Facts still to look up
+    ### 4. Facts still to derive
+
+    Then you will have to propose an updated plan to solve the task.
     If the previous tries so far have met some success, you can make an updated plan based on these actions.
     If you are stalled, you can make a completely new plan starting from scratch.
+
+    Find the task and history below:
   update_plan_post_messages: |-
-    You're still working towards solving this task:
-    ```
-    {{task}}
-    ```
+    Now write your updated facts below, taking into account the above history:
+
+    ## Updated facts survey
+    ### 1. Facts given in the task
+    ### 2. Facts that we have learned
+    ### 3. Facts still to look up
+    ### 4. Facts still to derive
+
+    Then write a step-by-step high-level plan to solve the task above.
+    ## Plan
+    ### 1. ...
+    Etc
+
+    This plan should involve individual tasks based on the available tools, that if executed correctly will yield the correct answer.
+    Beware that you have {remaining_steps} steps remaining.
+    Do not skip steps, do not add any superfluous steps. Only write the high-level plan, DO NOT DETAIL INDIVIDUAL TOOL CALLS.
+    After writing the final step of the plan, write the '\n<end_plan>' tag and stop there.
 
     You can leverage these tools:
     {%- for tool in tools.values() %}
@@ -232,17 +226,6 @@ planning:
     - {{ agent.name }}: {{ agent.description }}
     {%- endfor %}
     {%- endif %}
-
-    Here is the up to date list of facts that you know:
-    ```
-    {{facts_update}}
-    ```
-
-    Now for the given task, develop a step-by-step high-level plan taking into account the above inputs and list of facts.
-    This plan should involve individual tasks based on the available tools, that if executed correctly will yield the correct answer.
-    Beware that you have {remaining_steps} steps remaining.
-    Do not skip steps, do not add any superfluous steps. Only write the high-level plan, DO NOT DETAIL INDIVIDUAL TOOL CALLS.
-    After writing the final step of the plan, write the '\n<end_plan>' tag and stop there.
 
     Now write your new plan below.
 managed_agent:
