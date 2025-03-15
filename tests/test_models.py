@@ -143,6 +143,17 @@ class TestHfApiModel:
             "role conversion should be applied"
         )
 
+    def test_init_model_with_tokens(self):
+        model = HfApiModel(model_id="test-model", token="abc")
+        assert model.client.token == "abc"
+
+        model = HfApiModel(model_id="test-model", api_key="abc")
+        assert model.client.token == "abc"
+
+        with pytest.raises(ValueError) as e:
+            _ = HfApiModel(model_id="test-model", token="abc", api_key="def")
+        assert "Received both `token` and `api_key` arguments." in str(e)
+
     @require_run_all
     def test_get_hfapi_message_no_tool(self):
         model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
