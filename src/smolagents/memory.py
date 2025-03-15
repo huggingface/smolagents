@@ -144,25 +144,13 @@ class ActionStep(MemoryStep):
 @dataclass
 class PlanningStep(MemoryStep):
     model_input_messages: List[Message]
-    model_output_message_facts: ChatMessage
-    facts: str
-    model_output_message_plan: ChatMessage
+    model_output_message: ChatMessage
     plan: str
 
     def to_messages(self, summary_mode: bool, **kwargs) -> List[Message]:
         messages = []
-        messages.append(
-            Message(
-                role=MessageRole.ASSISTANT, content=[{"type": "text", "text": f"[FACTS LIST]:\n{self.facts.strip()}"}]
-            )
-        )
-
         if not summary_mode:  # This step is not shown to a model writing a plan to avoid influencing the new plan
-            messages.append(
-                Message(
-                    role=MessageRole.ASSISTANT, content=[{"type": "text", "text": f"[PLAN]:\n{self.plan.strip()}"}]
-                )
-            )
+            messages.append(Message(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.plan.strip()}]))
         return messages
 
 

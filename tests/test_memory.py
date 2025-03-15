@@ -114,13 +114,11 @@ def test_action_step_to_messages_no_tool_calls_with_observations():
 def test_planning_step_to_messages():
     planning_step = PlanningStep(
         model_input_messages=[Message(role=MessageRole.USER, content="Hello")],
-        model_output_message_facts=ChatMessage(role=MessageRole.ASSISTANT, content="Facts"),
-        facts="These are facts.",
-        model_output_message_plan=ChatMessage(role=MessageRole.ASSISTANT, content="Plan"),
+        model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content="Plan"),
         plan="This is a plan.",
     )
     messages = planning_step.to_messages(summary_mode=False)
-    assert len(messages) == 2
+    assert len(messages) == 1
     for message in messages:
         assert isinstance(message, dict)
         assert "role" in message
