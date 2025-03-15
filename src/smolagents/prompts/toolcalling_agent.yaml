@@ -93,10 +93,7 @@ system_prompt: |-
   {%- for tool in tools.values() %}
   - {{ tool.name }}: {{ tool.description }}
       {%- if tool.inputs %}
-      Takes inputs: {{ tool.inputs }}
-      {% else %}
-      Takes NO inputs.
-      {%- endif %}
+      Takes inputs: {{ tool.inputs | tojson }}{% else %}Takes NO inputs.{%- endif %}
       Returns an output of type: {{tool.output_type}}
   {%- endfor %}
 
@@ -166,10 +163,7 @@ planning:
     {%- for tool in tools.values() %}
     - {{ tool.name }}: {{ tool.description }}
         {%- if tool.inputs %}
-        Takes inputs: {{ tool.inputs }}
-        {% else %}
-        Takes NO inputs.
-        {%- endif %}
+        Takes inputs: {{ tool.inputs | tojson }}{% else %}Takes NO inputs.{%- endif %}
         Returns an output of type: {{tool.output_type}}
     {%- endfor %}
 
@@ -228,10 +222,7 @@ planning:
     {%- for tool in tools.values() %}
     - {{ tool.name }}: {{ tool.description }}
         {%- if tool.inputs %}
-        Takes inputs: {{ tool.inputs }}
-        {% else %}
-        Takes NO inputs.
-        {%- endif %}
+        Takes inputs: {{ tool.inputs | tojson }}{% else %}Takes NO inputs.{%- endif %}
         Returns an output of type: {{tool.output_type}}
     {%- endfor %}
 

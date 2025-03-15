@@ -1,3 +1,4 @@
+import json
 from dataclasses import asdict, dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Dict, List, TypedDict, Union
@@ -93,7 +94,7 @@ class ActionStep(MemoryStep):
                     content=[
                         {
                             "type": "text",
-                            "text": "Calling tools:\n" + str([tc.dict() for tc in self.tool_calls]),
+                            "text": "Calling tools:\n" + json.dumps([tc.dict() for tc in self.tool_calls]),
                         }
                     ],
                 )

@@ -236,10 +236,12 @@ def get_clean_message_list(
 
 
 def get_tool_call_chat_message_from_text(text: str, tool_name_key: str, tool_arguments_key: str) -> ChatMessage:
-    tool_call_dictionary, text = parse_json_blob(text)
+    parsed, text = parse_json_blob(text)
+    tool_call_dictionary: dict[str, Any] = parsed.get("function", parsed)
+
     try:
         tool_name = tool_call_dictionary[tool_name_key]
-    except Exception as e:
+    except KeyError as e:
         raise ValueError(
             f"Key {tool_name_key=} not found in the generated tool call. Got keys: {list(tool_call_dictionary.keys())} instead"
         ) from e
@@ -249,7 +251,7 @@ def get_tool_call_chat_message_from_text(text: str, tool_name_key: str, tool_arg
         content=text,
         tool_calls=[
             ChatMessageToolCall(
-                id=uuid.uuid4(),
+                id=str(uuid.uuid4()),
                 type="function",
                 function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
             )
@@ -685,6 +687,9 @@ class MLXModel(Model):
         for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
             self.last_output_token_count += 1
             text += _.text
+
+            found_stop_sequence = False
+
             for stop_sequence in prepared_stop_sequences:
                 stop_sequence_start = text.rfind(stop_sequence)
                 if stop_sequence_start != -1:
