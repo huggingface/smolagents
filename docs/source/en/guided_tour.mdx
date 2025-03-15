@@ -181,6 +181,9 @@ agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['request
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
+Additionally, as an extra security layer, access to submodule is forbidden by default, unless explicitly authorized within the import list.
+For instance, to access the `numpy.random` submodule, you need to add `'numpy.random'` to the `additional_authorized_imports` list.
+
 > [!WARNING]
 > The LLM can generate arbitrary code that will then be executed: do not add any unsafe imports!
 
