@@ -1051,7 +1051,7 @@ class ToolCallingAgent(MultiStepAgent):
             model_message: ChatMessage = self.model(
                 memory_messages,
                 tools_to_call_from=list(self.tools.values()),
-                stop_sequences=["Observation:"],
+                stop_sequences=["Observation:", "Calling tools:"],
             )
             memory_step.model_output_message = model_message
         except Exception as e:
@@ -1229,7 +1229,7 @@ class CodeAgent(MultiStepAgent):
             additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
             chat_message: ChatMessage = self.model(
                 self.input_messages,
-                stop_sequences=["<end_code>", "Observation:"],
+                stop_sequences=["<end_code>", "Observation:", "Calling tools:"],
                 **additional_args,
             )
             memory_step.model_output_message = chat_message
