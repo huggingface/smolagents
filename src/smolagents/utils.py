@@ -26,7 +26,7 @@ import types
 from functools import lru_cache
 from io import BytesIO
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 
 if TYPE_CHECKING:
@@ -175,47 +175,101 @@ def parse_code_blobs(text: str) -> str:
     Raises:
         ValueError: If no valid code block is found in the text.
     """
-    pattern = r"```(?:py|python)?\n(.*?)\n```"
-    matches = re.findall(pattern, text, re.DOTALL)
-    if matches:
-        return "\n\n".join(match.strip() for match in matches)
-    # Maybe the LLM outputted a code blob directly
     try:
         ast.parse(text)
         return text
     except SyntaxError:
         pass
-
+    blocks = _extract_markdown_code_blocks(text)
+    if blocks:
+        return "\n\n".join(blocks)
     if "final" in text and "answer" in text:
-        raise ValueError(
-            dedent(
-                f"""
-                Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
-                Here is your code snippet:
-                {text}
-                It seems like you're trying to return the final answer, you can do it as follows:
-                Code:
-                ```py
-                final_answer("YOUR FINAL ANSWER HERE")
-                ```<end_code>
-                """
-            ).strip()
-        )
-    raise ValueError(
-        dedent(
+        msg = dedent(
             f"""
-            Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
+            Your code snippet is invalid, because no valid code blocks were found.
             Here is your code snippet:
             {text}
-            Make sure to include code with the correct pattern, for instance:
-            Thoughts: Your thoughts
+            It seems like you're trying to return the final answer, you can do it as follows:
             Code:
             ```py
-            # Your python code here
+            final_answer("YOUR FINAL ANSWER HERE")
             ```<end_code>
             """
         ).strip()
-    )
+        raise ValueError(msg)
+    msg = dedent(
+        f"""
+        Your code snippet is invalid, because no valid code blocks were found.
+        Here is your code snippet:
+        {text}
+        Make sure to include code with the correct pattern, for instance:
+        Thoughts: Your thoughts
+        Code:
+        ```py
+        # Your python code here
+        ```<end_code>
+        """
+    ).strip()
+    raise ValueError(msg)
+
+
+def _extract_markdown_code_blocks(text: str) -> List[str]:
+    """Extract code blocks from markdown text.
+
+    Args:
+        text (`str`): Markdown text containing code blocks.
+
+    Returns:
+        `List[str]`: List of extracted code blocks.
+    """
+    i = 0
+    n = len(text)
+    blocks = []
+    while i < n:
+        # Find next opening fence
+        idx = text.find("```", i)
+        if idx == -1:
+            break
+        i = idx + 3
+        # Skip optional whitespace
+        while i < n and text[i] in " \t":
+            i += 1
+        # Capture a potential language identifier.
+        lang_start = i
+        while i < n and text[i].isalpha():
+            i += 1
+        lang_id = text[lang_start:i]
+        if lang_id.lower() in {"py", "python"}:
+            pass
+        else:
+            i = lang_start
+        if i < n and text[i] == "\n":
+            i += 1
+        current_block = ""
+        local_quote = None
+        # Process until a closing fence is found outside any quotes.
+        while i < n:
+            # If not inside a string and we see closing fence, break.
+            if local_quote is None and text[i : i + 3] == "```":
+                break
+            # Check for entering or exiting string (only consider ' or ").
+            if local_quote is None and text[i] in ('"', "'"):
+                local_quote = text[i]
+                current_block += text[i]
+                i += 1
+                continue
+            elif local_quote is not None and text[i] == local_quote:
+                current_block += text[i]
+                i += 1
+                local_quote = None
+                continue
+            else:
+                current_block += text[i]
+                i += 1
+        # Append trimmed block if found.
+        blocks.append(current_block.rstrip())
+        i += 3  # skip closing fence
+    return blocks
 
 
 MAX_LENGTH_TRUNCATE_CONTENT = 20000

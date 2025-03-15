@@ -135,6 +135,95 @@ def multiply(a, b):
         result = parse_code_blobs(test_input)
         assert result == expected_output
 
+    def test_standard_code_block(self):
+        """Test a standard code block with newlines."""
+        code_blob = """
+Thoughts: I need to print hello world
+
+Code:
+```py
+print("Hello, world!")
+```
+"""
+        self.assertEqual(parse_code_blobs(code_blob), 'print("Hello, world!")')
+
+    def test_no_newline_before_closing_backticks(self):
+        """Test a code block without a newline before the closing backticks."""
+        code_blob = """
+Thoughts: I need to print hello world
+
+Code:
+```py
+print("Hello, world!")```
+"""
+        self.assertEqual(parse_code_blobs(code_blob), 'print("Hello, world!")')
+
+    def test_spaces_between_backticks_and_language(self):
+        """Test a code block with spaces between backticks and language identifier."""
+        code_blob = """
+Thoughts: I need to print hello world
+
+Code:
+``` py
+print("Hello, world!")
+```
+"""
+        self.assertEqual(parse_code_blobs(code_blob), 'print("Hello, world!")')
+
+    def test_nested_backticks(self):
+        """Test a code block with nested backticks."""
+        code_blob = """
+Thoughts: I need to demonstrate markdown code blocks
+
+Code:
+```py
+def explain_markdown():
+    print("In markdown, you can use ```code blocks``` within your text.")
+    print("You can also use `inline code`.")
+```
+"""
+        expected = 'def explain_markdown():\n    print("In markdown, you can use ```code blocks``` within your text.")\n    print("You can also use `inline code`.")'
+        self.assertEqual(parse_code_blobs(code_blob), expected)
+
+    def test_complex_nested_backticks(self):
+        """Test a code block with complex nested backticks in a multiline string."""
+        code_blob = """
+Thoughts: I need to create a Python script that generates a mermaid diagram
+
+Code:
+```python
+md = \"\"\"
+Chart
+```mermaid
+graph TD
+    A[Start] --> B[Process]
+    B --> C[End]
+```
+\"\"\"
+
+print(md)
+```
+"""
+        expected = 'md = """\nChart\n```mermaid\ngraph TD\n    A[Start] --> B[Process]\n    B --> C[End]\n```\n"""\n\nprint(md)'
+        self.assertEqual(parse_code_blobs(code_blob), expected)
+
+    def test_triple_quoted_strings(self):
+        """Test a code block with triple-quoted strings."""
+        code_blob = """
+Thoughts: I need to create a multiline string
+
+Code:
+```py
+def get_message():
+    return \"\"\"
+    This is a multiline string.
+    It spans multiple lines.
+    \"\"\"
+```
+"""
+        expected = 'def get_message():\n    return """\n    This is a multiline string.\n    It spans multiple lines.\n    """'
+        self.assertEqual(parse_code_blobs(code_blob), expected)
+
 
 @pytest.fixture(scope="function")
 def ipython_shell():
