@@ -7,7 +7,7 @@ from smolagents.agents import CodeAgent, ToolCallingAgent
 # Choose which inference type to use!
 
 available_inferences = ["hf_api", "transformers", "ollama", "litellm"]
-chosen_inference = "transformers"
+chosen_inference = "hf_api"
 
 print(f"Chose model: '{chosen_inference}'")
 
@@ -43,10 +43,10 @@ def get_weather(location: str, celsius: Optional[bool] = False) -> str:
     return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
 
-agent = ToolCallingAgent(tools=[get_weather], model=model)
+agent = ToolCallingAgent(tools=[get_weather], model=model, verbosity_level=2)
 
 print("ToolCallingAgent:", agent.run("What's the weather like in Paris?"))
 
-agent = CodeAgent(tools=[get_weather], model=model)
+agent = CodeAgent(tools=[get_weather], model=model, verbosity_level=2)
 
 print("CodeAgent:", agent.run("What's the weather like in Paris?"))
