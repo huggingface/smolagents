@@ -389,123 +389,77 @@ You have been provided with these additional arguments, that you can access usin
         return final_answer
 
     def planning_step(self, task, is_first_step: bool, step: int) -> None:
-        input_messages, facts_message, plan_message = (
-            self._generate_initial_plan(task) if is_first_step else self._generate_updated_plan(task, step)
-        )
-        self._record_planning_step(input_messages, facts_message, plan_message, is_first_step)
-
-    def _generate_initial_plan(self, task: str) -> Tuple[ChatMessage, ChatMessage]:
-        input_messages = [
-            {
+        if is_first_step:
+            input_messages = [
+                {
+                    "role": MessageRole.USER,
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": populate_template(
+                                self.prompt_templates["planning"]["initial_plan"],
+                                variables={"task": task, "tools": self.tools, "managed_agents": self.managed_agents},
+                            ),
+                        }
+                    ],
+                },
+            ]
+            facts_plan_message = self.model(input_messages)
+        else:
+            memory_messages = self.write_memory_to_messages()[1:]  # Remove the system prompt (first message)
+            facts_plan_update_pre = {
+                "role": MessageRole.SYSTEM,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": populate_template(
+                            self.prompt_templates["planning"]["update_plan_pre_messages"], variables={"task": task}
+                        ),
+                    }
+                ],
+            }
+            facts_plan_update_post = {
                 "role": MessageRole.USER,
                 "content": [
                     {
                         "type": "text",
                         "text": populate_template(
-                            self.prompt_templates["planning"]["initial_facts"], variables={"task": task}
+                            self.prompt_templates["planning"]["update_plan_post_messages"],
+                            variables={
+                                "task": task,
+                                "tools": self.tools,
+                                "managed_agents": self.managed_agents,
+                                "remaining_steps": (self.max_steps - step),
+                            },
                         ),
                     }
                 ],
-            },
-        ]
-        facts_message = self.model(input_messages)
-
-        message_prompt_plan = {
-            "role": MessageRole.USER,
-            "content": [
-                {
-                    "type": "text",
-                    "text": populate_template(
-                        self.prompt_templates["planning"]["initial_plan"],
-                        variables={
-                            "task": task,
-                            "tools": self.tools,
-                            "managed_agents": self.managed_agents,
-                            "answer_facts": facts_message.content,
-                        },
-                    ),
-                }
-            ],
-        }
-        plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
-        return input_messages, facts_message, plan_message
-
-    def _generate_updated_plan(self, task: str, step: int) -> Tuple[ChatMessage, ChatMessage]:
-        # Do not take the system prompt message from the memory
-        # summary_mode=False: Do not take previous plan steps to avoid influencing the new plan
-        memory_messages = self.write_memory_to_messages()[1:]
-        facts_update_pre = {
-            "role": MessageRole.SYSTEM,
-            "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_pre_messages"]}],
-        }
-        facts_update_post = {
-            "role": MessageRole.USER,
-            "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_post_messages"]}],
-        }
-        input_messages = [facts_update_pre] + memory_messages + [facts_update_post]
-        facts_message = self.model(input_messages)
-
-        update_plan_pre = {
-            "role": MessageRole.SYSTEM,
-            "content": [
-                {
-                    "type": "text",
-                    "text": populate_template(
-                        self.prompt_templates["planning"]["update_plan_pre_messages"], variables={"task": task}
-                    ),
-                }
-            ],
-        }
-        update_plan_post = {
-            "role": MessageRole.USER,
-            "content": [
-                {
-                    "type": "text",
-                    "text": populate_template(
-                        self.prompt_templates["planning"]["update_plan_post_messages"],
-                        variables={
-                            "task": task,
-                            "tools": self.tools,
-                            "managed_agents": self.managed_agents,
-                            "facts_update": facts_message.content,
-                            "remaining_steps": (self.max_steps - step),
-                        },
-                    ),
-                }
-            ],
-        }
-        plan_message = self.model(
-            [update_plan_pre] + memory_messages + [update_plan_post], stop_sequences=["<end_plan>"]
-        )
-        return input_messages, facts_message, plan_message
+            }
+            input_messages = [facts_plan_update_pre] + memory_messages + [facts_plan_update_post]
+            facts_plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+        self._record_planning_step(input_messages, facts_plan_message, is_first_step)
 
     def _record_planning_step(
-        self, input_messages: list, facts_message: ChatMessage, plan_message: ChatMessage, is_first_step: bool
+        self, input_messages: list, facts_plan_message: ChatMessage, is_first_step: bool
     ) -> None:
         if is_first_step:
-            facts = textwrap.dedent(f"""Here are the facts that I know so far:\n```\n{facts_message.content}\n```""")
             plan = textwrap.dedent(
-                f"""Here is the plan of action that I will follow to solve the task:\n```\n{plan_message.content}\n```"""
+                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{facts_plan_message.content}\n```"""
             )
-            log_message = "Initial plan"
+            log_headline = "Initial plan"
         else:
-            facts = textwrap.dedent(
-                f"""Here is the updated list of the facts that I know:\n```\n{facts_message.content}\n```"""
-            )
             plan = textwrap.dedent(
-                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere is my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
+                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{facts_plan_message.content}\n```"""
             )
-            log_message = "Updated plan"
+            log_headline = "Updated plan"
         self.memory.steps.append(
             PlanningStep(
                 model_input_messages=input_messages,
-                facts=facts,
                 plan=plan,
-                model_output_message_plan=plan_message,
-                model_output_message_facts=facts_message,
+                model_output_message=facts_plan_message,
             )
         )
-        self.logger.log(Rule(f"[bold]{log_message}", style="orange"), Text(plan), level=LogLevel.INFO)
+        self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
 
     @property
     def logs(self):
