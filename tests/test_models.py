@@ -15,6 +15,7 @@
 import json
 import sys
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
@@ -23,6 +24,7 @@ import pytest
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.models import (
+    AzureOpenAIServerModel,
     ChatMessage,
     HfApiModel,
     LiteLLMModel,
@@ -143,13 +145,13 @@ class TestHfApiModel:
 
     @require_run_all
     def test_get_hfapi_message_no_tool(self):
-        model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
     @require_run_all
     def test_get_hfapi_message_no_tool_external_provider(self):
-        model = HfApiModel(model="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
@@ -189,7 +191,7 @@ class TestOpenAIServerModel:
         client_kwargs = {"max_retries": 5}
 
         with patch("openai.OpenAI") as MockOpenAI:
-            _ = OpenAIServerModel(
+            model = OpenAIServerModel(
                 model_id=model_id,
                 api_base=api_base,
                 api_key=api_key,
@@ -197,9 +199,43 @@ class TestOpenAIServerModel:
                 project=project,
                 client_kwargs=client_kwargs,
             )
-            MockOpenAI.assert_called_once_with(
-                base_url=api_base, api_key=api_key, organization=organization, project=project, max_retries=5
+        MockOpenAI.assert_called_once_with(
+            base_url=api_base, api_key=api_key, organization=organization, project=project, max_retries=5
+        )
+        assert model.client == MockOpenAI.return_value
+
+
+class TestAzureOpenAIServerModel:
+    def test_client_kwargs_passed_correctly(self):
+        model_id = "gpt-3.5-turbo"
+        api_key = "test_api_key"
+        api_version = "2023-12-01-preview"
+        azure_endpoint = "https://example-resource.azure.openai.com/"
+        organization = "test_org"
+        project = "test_project"
+        client_kwargs = {"max_retries": 5}
+
+        with patch("openai.OpenAI") as MockOpenAI, patch("openai.AzureOpenAI") as MockAzureOpenAI:
+            model = AzureOpenAIServerModel(
+                model_id=model_id,
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=azure_endpoint,
+                organization=organization,
+                project=project,
+                client_kwargs=client_kwargs,
             )
+        assert MockOpenAI.call_count == 0
+        MockAzureOpenAI.assert_called_once_with(
+            base_url=None,
+            api_key=api_key,
+            api_version=api_version,
+            azure_endpoint=azure_endpoint,
+            organization=organization,
+            project=project,
+            max_retries=5,
+        )
+        assert model.client == MockAzureOpenAI.return_value
 
 
 def test_get_clean_message_list_basic():
@@ -278,3 +314,54 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert len(result) == 1
     assert result[0]["role"] == "user"
     assert result[0]["content"] == "Hello!How are you?"
+
+
+@pytest.mark.parametrize(
+    "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
+    [
+        (AzureOpenAIServerModel, {}, ("openai.AzureOpenAI", {}), False),
+        (HfApiModel, {}, ("huggingface_hub.InferenceClient", {}), False),
+        (LiteLLMModel, {}, None, False),
+        (LiteLLMModel, {"model_id": "ollama"}, None, True),
+        (LiteLLMModel, {"model_id": "groq"}, None, True),
+        (LiteLLMModel, {"model_id": "cerebras"}, None, True),
+        (MLXModel, {}, ("mlx_lm.load", {"return_value": (MagicMock(), MagicMock())}), True),
+        (OpenAIServerModel, {}, ("openai.OpenAI", {}), False),
+        (OpenAIServerModel, {"flatten_messages_as_text": True}, ("openai.OpenAI", {}), True),
+        (
+            TransformersModel,
+            {},
+            [
+                ("transformers.AutoModelForCausalLM.from_pretrained", {}),
+                ("transformers.AutoTokenizer.from_pretrained", {}),
+            ],
+            True,
+        ),
+        (
+            TransformersModel,
+            {},
+            [
+                (
+                    "transformers.AutoModelForCausalLM.from_pretrained",
+                    {"side_effect": ValueError("Unrecognized configuration class")},
+                ),
+                ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
+                ("transformers.AutoProcessor.from_pretrained", {}),
+            ],
+            False,
+        ),
+    ],
+)
+def test_flatten_messages_as_text_for_all_models(
+    model_class, model_kwargs, patching, expected_flatten_messages_as_text
+):
+    with ExitStack() as stack:
+        if isinstance(patching, list):
+            for target, kwargs in patching:
+                stack.enter_context(patch(target, **kwargs))
+        elif patching:
+            target, kwargs = patching
+            stack.enter_context(patch(target, **kwargs))
+
+        model = model_class(**{"model_id": "test-model", **model_kwargs})
+    assert model.flatten_messages_as_text is expected_flatten_messages_as_text, f"{model_class.__name__} failed"
