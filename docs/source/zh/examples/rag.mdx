@@ -129,7 +129,7 @@ _Note:_ 此 Inference API 托管基于各种标准的模型，部署的模型可
 from smolagents import HfApiModel, CodeAgent
 
 agent = CodeAgent(
-    tools=[retriever_tool], model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbose=True
+    tools=[retriever_tool], model=HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbose=True
 )
 ```
 

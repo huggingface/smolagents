@@ -43,7 +43,7 @@ from smolagents.models import (
     TransformersModel,
 )
 from smolagents.tools import Tool, tool
-from smolagents.utils import BASE_BUILTIN_MODULES
+from smolagents.utils import BASE_BUILTIN_MODULES, AgentGenerationError
 
 
 def get_new_path(suffix="") -> str:
@@ -324,7 +324,11 @@ class AgentTests(unittest.TestCase):
             Args:
                 prompt: The prompt
             """
-            return Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
+            from pathlib import Path
+
+            from PIL import Image
+
+            return Image.open(Path("tests/fixtures/000000039769.png"))
 
         agent = ToolCallingAgent(tools=[fake_image_generation_tool], model=FakeToolCallModelImage())
         output = agent.run("Make me an image.")
@@ -382,26 +386,6 @@ class AgentTests(unittest.TestCase):
         output = agent.run("What is 2 multiplied by 3.6452?", reset=True)
         assert output == 7.2904
         assert len(agent.memory.steps) == 3
-
-    def test_code_agent_code_errors_show_offending_line_and_error(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
-        output = agent.run("What is 2 multiplied by 3.6452?")
-        assert isinstance(output, AgentText)
-        assert output == "got an error"
-        assert "Code execution failed at line 'error_function()'" in str(agent.memory.steps[1].error)
-        assert "ValueError" in str(agent.memory.steps)
-
-    def test_code_agent_code_error_saves_previous_print_outputs(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error, verbosity_level=10)
-        agent.run("What is 2 multiplied by 3.6452?")
-        assert "Flag!" in str(agent.memory.steps[1].observations)
-
-    def test_code_agent_syntax_error_show_offending_lines(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_syntax_error)
-        output = agent.run("What is 2 multiplied by 3.6452?")
-        assert isinstance(output, AgentText)
-        assert output == "got an error"
-        assert '    print("Failing due to unexpected indent")' in str(agent.memory.steps)
 
     def test_setup_agent_with_empty_toolbox(self):
         ToolCallingAgent(model=FakeToolCallModel(), tools=[])
@@ -492,15 +476,6 @@ class AgentTests(unittest.TestCase):
         assert "{{managed_agents_descriptions}}" not in managed_agent.system_prompt
         assert "You can also give tasks to team members." in manager_agent.system_prompt
 
-    def test_code_agent_missing_import_triggers_advice_in_error_log(self):
-        # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
-        agent = CodeAgent(tools=[], model=fake_code_model_import, verbosity_level=1)
-
-        with agent.logger.console.capture() as capture:
-            agent.run("Count to 3")
-        str_output = capture.get()
-        assert "`additional_authorized_imports`" in str_output.replace("\n", "")
-
     def test_replay_shows_logs(self):
         agent = CodeAgent(
             tools=[], model=fake_code_model_import, verbosity_level=0, additional_authorized_imports=["numpy"]
@@ -552,7 +527,7 @@ nested_answer()
             device_map="auto",
             do_sample=False,
         )
-        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1)
+        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1, verbosity_level=10)
         agent.run("What's the weather in Paris?")
         assert agent.memory.steps[0].task == "What's the weather in Paris?"
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
@@ -568,6 +543,16 @@ nested_answer()
         agent = CodeAgent(model=fake_code_model, tools=[], final_answer_checks=[check_always_fails])
         agent.run("Dummy task.")
         assert "Error raised in check" in str(agent.write_memory_to_messages())
+
+    def test_generation_errors_are_raised(self):
+        def fake_model(messages, stop_sequences):
+            assert False, "Generation failed"
+
+        agent = CodeAgent(model=fake_model, tools=[])
+        with pytest.raises(AgentGenerationError) as e:
+            agent.run("Dummy task.")
+        assert len(agent.memory.steps) == 2
+        assert "Generation failed" in str(e)
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
@@ -615,6 +600,31 @@ class TestMultiStepAgent:
         agent = MultiStepAgent(tools=tools, model=MagicMock())
         assert "final_answer" in agent.tools
         assert isinstance(agent.tools["final_answer"], expected_final_answer_tool)
+
+    def test_logs_display_thoughts_even_if_error(self):
+        def fake_json_model_no_call(messages, stop_sequences=None, tools_to_call_from=None):
+            return ChatMessage(
+                role="assistant",
+                content="""I don't want to call tools today""",
+                tool_calls=None,
+                raw="""I don't want to call tools today""",
+            )
+
+        agent_toolcalling = ToolCallingAgent(model=fake_json_model_no_call, tools=[], max_steps=1, verbosity_level=10)
+        with agent_toolcalling.logger.console.capture() as capture:
+            agent_toolcalling.run("Dummy task")
+        assert "don't" in capture.get() and "want" in capture.get()
+
+        def fake_code_model_no_call(messages, stop_sequences=None):
+            return ChatMessage(
+                role="assistant",
+                content="""I don't want to write an action today""",
+            )
+
+        agent_code = CodeAgent(model=fake_code_model_no_call, tools=[], max_steps=1, verbosity_level=10)
+        with agent_code.logger.console.capture() as capture:
+            agent_code.run("Dummy task")
+        assert "don't" in capture.get() and "want" in capture.get()
 
     def test_step_number(self):
         fake_model = MagicMock()
@@ -878,6 +888,35 @@ class TestCodeAgent:
             agent.run("Test request")
         assert "secret\\\\" in repr(capture.get())
 
+    def test_missing_import_triggers_advice_in_error_log(self):
+        # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
+        agent = CodeAgent(tools=[], model=fake_code_model_import, verbosity_level=1)
+
+        with agent.logger.console.capture() as capture:
+            agent.run("Count to 3")
+        str_output = capture.get()
+        assert "`additional_authorized_imports`" in str_output.replace("\n", "")
+
+    def test_errors_show_offending_line_and_error(self):
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
+        output = agent.run("What is 2 multiplied by 3.6452?")
+        assert isinstance(output, AgentText)
+        assert output == "got an error"
+        assert "Code execution failed at line 'error_function()'" in str(agent.memory.steps[1].error)
+        assert "ValueError" in str(agent.memory.steps)
+
+    def test_error_saves_previous_print_outputs(self):
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error, verbosity_level=10)
+        agent.run("What is 2 multiplied by 3.6452?")
+        assert "Flag!" in str(agent.memory.steps[1].observations)
+
+    def test_syntax_error_show_offending_lines(self):
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_syntax_error)
+        output = agent.run("What is 2 multiplied by 3.6452?")
+        assert isinstance(output, AgentText)
+        assert output == "got an error"
+        assert '    print("Failing due to unexpected indent")' in str(agent.memory.steps)
+
     def test_change_tools_after_init(self):
         from smolagents import tool
 
@@ -905,7 +944,7 @@ class TestCodeAgent:
 
 class MultiAgentsTests(unittest.TestCase):
     def test_multiagents_save(self):
-        model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=2096, temperature=0.5)
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=2096, temperature=0.5)
 
         web_agent = ToolCallingAgent(
             model=model,

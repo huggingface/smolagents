@@ -52,7 +52,8 @@ We have re-built a more secure `LocalPythonExecutor` from the ground up.
 
 To be precise, this interpreter works by loading the Abstract Syntax Tree (AST) from your Code and executes it operation by operation, making sure to always follow certain rules:
 - By default, imports are disallowed unless they have been explicitly added to an authorization list by the user.
-   - Even so, because some innocuous packages like `re` can give access to potentially harmful packages as in `re.subprocess`, subpackages that match a list of dangerous patterns are not imported.
+- Furthermore, access to submodules is disabled by default, and each must be explicitly authorized in the import list as well.
+   - Note that some seemingly innocuous packages like `random` can give access to potentially harmful submodules, as in `random._os`.
  - The total count of elementary operations processed is capped to prevent infinite loops and resource bloating.
  - Any operation that has not been explicitly defined in our custom interpreter will raise an error.
 

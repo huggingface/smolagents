@@ -2,6 +2,9 @@ name: Python tests
 
 on: [pull_request]
 
+env:
+  UV_SYSTEM_PYTHON: 1
+
 jobs:
   build-ubuntu:
     runs-on: ubuntu-latest
@@ -21,10 +24,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       # Setup venv
-      - name: Setup venv + uv
+      - name: Setup uv
         run: |
           pip install --upgrade uv
-          uv venv
 
       # Install dependencies
       - name: Install dependencies
@@ -36,89 +38,89 @@ jobs:
       # See https://stackoverflow.com/a/62112985
       - name: Import tests
         run: |
-          uv run pytest ./tests/test_import.py
+          pytest ./tests/test_import.py
         if: ${{ success() || failure() }}
 
       - name: Agent tests
         run: |
-          uv run pytest ./tests/test_agents.py
+          pytest ./tests/test_agents.py
         if: ${{ success() || failure() }}
 
       - name: Default tools tests
         run: |
-          uv run pytest ./tests/test_default_tools.py
+          pytest ./tests/test_default_tools.py
         if: ${{ success() || failure() }}
 
       # - name: Docs tests # Disabled for now (slow test + requires API keys)
       #   run: |
-      #     uv run pytest ./tests/test_all_docs.py
+      #     pytest ./tests/test_all_docs.py
 
       - name: CLI tests
         run: |
-          uv run pytest ./tests/test_cli.py
+          pytest ./tests/test_cli.py
         if: ${{ success() || failure() }}
 
       - name: Final answer tests
         run: |
-          uv run pytest ./tests/test_final_answer.py
+          pytest ./tests/test_final_answer.py
         if: ${{ success() || failure() }}
 
       - name: Models tests
         run: |
-          uv run pytest ./tests/test_models.py
+          pytest ./tests/test_models.py
         if: ${{ success() || failure() }}
 
       - name: Memory tests
         run: |
-          uv run pytest ./tests/test_memory.py
+          pytest ./tests/test_memory.py
         if: ${{ success() || failure() }}
 
       - name: Monitoring tests
         run: |
-          uv run pytest ./tests/test_monitoring.py
+          pytest ./tests/test_monitoring.py
         if: ${{ success() || failure() }}
 
       - name: Local Python executor tests
         run: |
-          uv run pytest ./tests/test_local_python_executor.py
+          pytest ./tests/test_local_python_executor.py
         if: ${{ success() || failure() }}
 
       - name: Remote executor tests
         run: |
-          uv run pytest ./tests/test_remote_executors.py
+          pytest ./tests/test_remote_executors.py
         if: ${{ success() || failure() }}
 
       - name: Search tests
         run: |
-          uv run pytest ./tests/test_search.py
+          pytest ./tests/test_search.py
         if: ${{ success() || failure() }}
 
       - name: Tools tests
         run: |
-          uv run pytest ./tests/test_tools.py
+          pytest ./tests/test_tools.py
         if: ${{ success() || failure() }}
 
       - name: Tool validation tests
         run: |
-          uv run pytest ./tests/test_tool_validation.py
+          pytest ./tests/test_tool_validation.py
         if: ${{ success() || failure() }}
 
       - name: Types tests
         run: |
-          uv run pytest ./tests/test_types.py
+          pytest ./tests/test_types.py
         if: ${{ success() || failure() }}
 
       - name: Utils tests
         run: |
-          uv run pytest ./tests/test_utils.py
+          pytest ./tests/test_utils.py
         if: ${{ success() || failure() }}
 
       - name: Gradio UI tests
         run: |
-          uv run pytest ./tests/test_gradio_ui.py
+          pytest ./tests/test_gradio_ui.py
         if: ${{ success() || failure() }}
 
       - name: Function type hints utils tests
         run: |
-          uv run pytest ./tests/test_function_type_hints_utils.py
+          pytest ./tests/test_function_type_hints_utils.py
         if: ${{ success() || failure() }}

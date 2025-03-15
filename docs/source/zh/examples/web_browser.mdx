@@ -1,26 +1,26 @@
-# Web Browser Automation with Agents 🤖🌐
+# 使用Agent实现网页浏览器自动化 🤖🌐
 
 [[open-in-colab]]
 
-In this notebook, we'll create an **agent-powered web browser automation system**! This system can navigate websites, interact with elements, and extract information automatically.
+在本notebook中，我们将创建一个**基于Agent的网页浏览器自动化系统**！该系统可以自动导航网站、与网页元素交互并提取信息。
 
-The agent will be able to:
+该Agent将能够：
 
-- [x] Navigate to web pages
-- [x] Click on elements
-- [x] Search within pages
-- [x] Handle popups and modals
-- [x] Extract information
+- [x] 导航到网页
+- [x] 点击元素
+- [x] 在页面内搜索
+- [x] 处理弹出窗口和模态框
+- [x] 提取信息
 
-Let's set up this system step by step!
+让我们一步步搭建这个系统！
 
-First, run these lines to install the required dependencies:
+首先运行以下命令安装所需依赖：
 
 ```bash
 pip install smolagents selenium helium pillow -q
 ```
 
-Let's import our required libraries and set up environment variables:
+让我们导入所需的库并设置环境变量：
 
 ```python
 from io import BytesIO
@@ -40,7 +40,7 @@ from smolagents.agents import ActionStep
 load_dotenv()
 ```
 
-Now let's create our core browser interaction tools that will allow our agent to navigate and interact with web pages:
+现在我们来创建核心的浏览器交互工具，使我们的Agent能够导航并与网页交互：
 
 ```python
 @tool
@@ -74,7 +74,7 @@ def close_popups() -> str:
     webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 ```
 
-Let's set up our browser with Chrome and configure screenshot capabilities:
+让我们配置使用Chrome浏览器并设置截图功能：
 
 ```python
 # Configure Chrome options
@@ -108,7 +108,7 @@ def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
     )
 ```
 
-Now let's create our web automation agent:
+现在我们来创建网页自动化Agent：
 
 ```python
 from smolagents import HfApiModel
@@ -131,7 +131,7 @@ agent = CodeAgent(
 agent.python_executor("from helium import *", agent.state)
 ```
 
-The agent needs instructions on how to use Helium for web automation. Here are the instructions we'll provide:
+Agent需要获得关于如何使用Helium进行网页自动化的指导。以下是我们将提供的操作说明：
 
 ```python
 helium_instructions = """
@@ -181,7 +181,7 @@ if Text('Accept cookies?').exists():
 """
 ```
 
-Now we can run our agent with a task! Let's try finding information on Wikipedia:
+现在我们可以运行Agent执行任务了！让我们尝试在维基百科上查找信息：
 
 ```python
 search_request = """
@@ -193,7 +193,7 @@ print("Final output:")
 print(agent_output)
 ```
 
-You can run different tasks by modifying the request. For example, here's for me to know if I should work harder:
+您可以通过修改请求参数执行不同任务。例如，以下请求可帮助我判断是否需要更加努力工作：
 
 ```python
 github_request = """
@@ -206,8 +206,9 @@ print("Final output:")
 print(agent_output)
 ```
 
-The system is particularly effective for tasks like:
-- Data extraction from websites
-- Web research automation
-- UI testing and verification
-- Content monitoring
+该系统在以下任务中尤为有效：
+
+- 从网站提取数据
+- 网页研究自动化
+- 用户界面测试与验证
+- 内容监控

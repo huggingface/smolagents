@@ -1,26 +1,38 @@
 # Open Deep Research
 
-Welcome to this open replication of [OpenAI's Deep Research](https://openai.com/index/introducing-deep-research/)!
+Welcome to this open replication of [OpenAI's Deep Research](https://openai.com/index/introducing-deep-research/)! This agent attempts to replicate OpenAI's model and achieve similar performance on research tasks.
 
-Read more about this implementation's goal and methods [in our blog post](https://huggingface.co/blog/open-deep-research).
+Read more about this implementation's goal and methods in our [blog post](https://huggingface.co/blog/open-deep-research).
 
-This agent achieves 55% pass@1 on GAIA validation set, vs 67% for Deep Research.
+
+This agent achieves **55% pass@1** on the GAIA validation set, compared to **67%** for the original Deep Research.
 
 ## Setup
 
-### Installation
+To get started, follow the steps below:
 
-To install it, first run
+### Clone the repository
+
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/huggingface/smolagents.git
+cd smolagents/examples/open_deep_research
 ```
 
-And install smolagents dev version
-```bash
-pip install -e ../../.[dev]
-```
+### Install dependencies
 
-### Environment variables
+    Run the following command to install the required dependencies from the `requirements.txt` file:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+### Install the development version of `smolagents`
+
+    ```bash
+    pip install -e ../../.[dev]
+    ```
+
+### Set up environment variables
 
 The agent uses the `GoogleSearchTool` for web search, which requires an environment variable with the corresponding API key, based on the selected provider:
 - `SERPAPI_API_KEY` for SerpApi: [Sign up here to get a key](https://serpapi.com/users/sign_up)
@@ -32,6 +44,7 @@ For example, to use the default `o1` model, you need to set the `OPENAI_API_KEY`
 
 > [!WARNING]
 > The use of the default `o1` model is restricted to tier-3 access: https://help.openai.com/en/articles/10362446-api-access-to-o1-and-o3-mini
+
 
 ## Usage
 

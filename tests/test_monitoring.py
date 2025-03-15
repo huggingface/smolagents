@@ -15,8 +15,9 @@
 
 import unittest
 
+import pytest
+
 from smolagents import (
-    AgentError,
     AgentImage,
     CodeAgent,
     ToolCallingAgent,
@@ -27,7 +28,6 @@ from smolagents.models import (
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,
 )
-from smolagents.monitoring import AgentLogger, LogLevel
 
 
 class FakeLLMModel:
@@ -119,9 +119,10 @@ class MonitoringTester(unittest.TestCase):
             model=FakeLLMModelGenerationException(),
             max_steps=1,
         )
-        agent.run("Fake task")
+        with pytest.raises(Exception):
+            agent.run("Fake task")
 
-        self.assertEqual(agent.monitor.total_input_token_count, 20)  # Should have done two monitoring callbacks
+        self.assertEqual(agent.monitor.total_input_token_count, 10)  # Should have done one monitoring callbacks
         self.assertEqual(agent.monitor.total_output_token_count, 0)
 
     def test_streaming_agent_text_output(self):
@@ -163,10 +164,8 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(final_message.content["mime_type"], "image/png")
 
     def test_streaming_with_agent_error(self):
-        logger = AgentLogger(level=LogLevel.INFO)
-
         def dummy_model(prompt, **kwargs):
-            raise AgentError("Simulated agent error", logger)
+            return ChatMessage(role="assistant", content="Malformed call")
 
         agent = CodeAgent(
             tools=[],
@@ -177,7 +176,7 @@ class MonitoringTester(unittest.TestCase):
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 9)
+        self.assertEqual(len(outputs), 11)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
-        self.assertIn("Simulated agent error", final_message.content)
+        self.assertIn("Malformed call", final_message.content)
