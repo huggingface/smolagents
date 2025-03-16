@@ -239,7 +239,7 @@ def get_tool_call_from_text(text: str, tool_name_key: str, tool_arguments_key: s
     tool_arguments = tool_call_dictionary.get(tool_arguments_key, None)
     tool_arguments = parse_json_if_needed(tool_arguments)
     return ChatMessageToolCall(
-        id=uuid.uuid4(),
+        id=str(uuid.uuid4()),
         type="function",
         function=ChatMessageToolCallDefinition(name=tool_name, arguments=tool_arguments),
     )
