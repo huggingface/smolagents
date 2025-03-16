@@ -250,11 +250,11 @@ class VisitWebpageTool(Tool):
             return truncate_content(markdown_content, 10000)
 
         except requests.exceptions.Timeout:
-            return "The request timed out. Please try again later or check the URL."
+            raise Exception("The request timed out. Please try again later or check the URL.")
         except RequestException as e:
-            return f"Error fetching the webpage: {str(e)}"
+            raise Exception(f"Error fetching the webpage: {str(e)}")
         except Exception as e:
-            return f"An unexpected error occurred: {str(e)}"
+            raise Exception(f"An unexpected error occurred: {str(e)}")
 
 
 class SpeechToTextTool(PipelineTool):
