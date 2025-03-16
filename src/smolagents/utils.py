@@ -141,19 +141,34 @@ def make_json_serializable(obj: Any) -> Any:
 
 
 def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
-    "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
+    "Extracts the latest JSON blob from the input and returns the JSON data and the rest of the input."
     try:
-        first_accolade_index = json_blob.find("{")
-        last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_data = json_blob[first_accolade_index : last_accolade_index + 1].replace('\\"', "'")
-        json_data = json.loads(json_data, strict=False)
-        return json_data, json_blob[:first_accolade_index]
+        # Reverse scan to find balanced braces
+        brace_stack = 0
+        end_index = None
+        start_index = None
+
+        for i in range(len(json_blob) - 1, -1, -1):
+            char = json_blob[i]
+            if char == "}":
+                if end_index is None:
+                    end_index = i
+                brace_stack += 1
+            elif char == "{":
+                brace_stack -= 1
+                if brace_stack == 0:
+                    start_index = i
+                    break
+
+        if start_index is None or end_index is None:
+            raise ValueError("No valid JSON object found in the input.")
+
+        json_data_str = json_blob[start_index : end_index + 1].replace('\\"', "'")
+        json_data = json.loads(json_data_str, strict=False)
+        return json_data, json_blob[:start_index]
+
     except json.JSONDecodeError as e:
         place = e.pos
-        if json_blob[place - 1 : place + 2] == "},\n":
-            raise ValueError(
-                "JSON is invalid: you probably tried to provide multiple tool calls in one action. PROVIDE ONLY ONE TOOL CALL."
-            )
         raise ValueError(
             f"The JSON blob you used is invalid due to the following error: {e}.\n"
             f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"

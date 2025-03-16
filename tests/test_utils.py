@@ -459,6 +459,43 @@ launch_gradio_demo(tool)
             {"simple": "json"},
             "With text before",
         ),
+        (
+            textwrap.dedent("""
+            {
+            "name": "final_answer",
+            "parameters": {
+                "answer": "The current record of the New York Knicks NBA team is not provided in the given functions."
+                }
+            }
+
+            However, since I can search the web for the answer, I will call the search_agent team member to find it.
+
+            Action:
+            {
+                "name": "search_agent",
+                "parameters": {
+                    "task": "Find the current record of the New York Knicks NBA team on the web."
+                }
+            }
+
+            """),
+            {
+                "name": "search_agent",
+                "parameters": {"task": "Find the current record of the New York Knicks NBA team on the web."},
+            },
+            textwrap.dedent("""
+            {
+            "name": "final_answer",
+            "parameters": {
+                "answer": "The current record of the New York Knicks NBA team is not provided in the given functions."
+                }
+            }
+
+            However, since I can search the web for the answer, I will call the search_agent team member to find it.
+
+            Action:
+            """),
+        ),
     ],
 )
 def test_parse_json_blob_with_valid_json(raw_json, expected_data, expected_blob):
