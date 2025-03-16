@@ -1236,7 +1236,7 @@ class CodeAgent(MultiStepAgent):
             model_output = chat_message.content
 
             # This adds <end_code> sequence to the history.
-            # So a model will have examples of completing code sections in a right way.
+            # This will nudge ulterior LLM calls to finish with <end_code>, thus efficiently stopping generation.
             if model_output and model_output.strip().endswith("```"):
                 model_output += "<end_code>"
                 memory_step.model_output_message.content = model_output
