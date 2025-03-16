@@ -18,7 +18,7 @@ import unittest
 import uuid
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from transformers.testing_utils import get_tests_dir
@@ -940,6 +940,33 @@ class TestCodeAgent:
 
         answer = agent.run("Fake task.")
         assert answer == "2CUSTOM"
+
+    @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10"])
+    def test_from_folder(self, agent_dict_version, get_agent_dict):
+        agent_dict = get_agent_dict(agent_dict_version)
+        with patch("smolagents.agents.Path") as mock_path, patch("smolagents.models.HfApiModel") as mock_model:
+            import json
+
+            mock_path.return_value.__truediv__.return_value.read_text.return_value = json.dumps(agent_dict)
+            mock_model.from_dict.return_value.model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
+            agent = CodeAgent.from_folder("ignored_dummy_folder")
+        assert isinstance(agent, CodeAgent)
+        assert agent.name == "test_agent"
+        assert agent.description == "dummy description"
+        assert agent.max_steps == 10
+        assert agent.planning_interval == 2
+        assert agent.grammar is None
+        assert agent.additional_authorized_imports == ["pandas"]
+        assert "pandas" in agent.authorized_imports
+        assert agent.executor_type == "local"
+        assert agent.executor_kwargs == {}
+        assert agent.max_print_outputs_length is None
+        assert agent.managed_agents == {}
+        assert set(agent.tools.keys()) == {"final_answer"}
+        assert agent.model == mock_model.from_dict.return_value
+        assert mock_model.from_dict.call_args.args[0]["model_id"] == "Qwen/Qwen2.5-Coder-32B-Instruct"
+        assert agent.model.model_id == "Qwen/Qwen2.5-Coder-32B-Instruct"
+        assert agent.logger.level == 2
 
 
 class MultiAgentsTests(unittest.TestCase):
