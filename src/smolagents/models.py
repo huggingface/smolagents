@@ -1135,6 +1135,81 @@ class AzureOpenAIServerModel(OpenAIServerModel):
 
         return openai.AzureOpenAI(**self.client_kwargs)
 
+import os
+from typing import Optional, List, Dict
+
+# Assume these are defined in your smolagents library.
+# from smolagents.core import Model, ChatMessage
+
+#adding the suppourt of the Groq Models as well, It gives access to more models endpoints, Groq API endpoints provide generous free tiers
+
+class GroqApiModel(Model):
+    """
+    A class to interact with Groq's API for language model inference.
+
+    This model allows you to communicate with Groq's models using their API endpoint.
+    It supports chat completions with options like temperature, max tokens, top-p, and streaming.
+
+    Parameters:
+        model_id (str, optional, default "qwen"):
+            The model identifier used for inference. This can be updated to any supported model.
+        **kwargs:
+            Additional keyword arguments to pass to the Groq client.
+
+    Example:
+    >>> engine = GroqApiModel(model_id="qwen-2.5-coder-32b")
+    >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
+    >>> response = engine(
+    ...     messages,
+    ...     temperature=0.6,
+    ...     max_completion_tokens=4096,
+    ...     top_p=0.95,
+    ...     stream=True
+    ... )
+    >>> print(response.content)
+    "Quantum mechanics is the branch of physics that studies..."
+    """
+    def __init__(self, model_id: str = "qwen", **kwargs):
+        from groq import Groq  # Import the Groq client
+        super().__init__(**kwargs)
+        self.model_id = model_id
+        self.client = Groq(**kwargs)
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.6,
+        max_completion_tokens: int = 4096,
+        top_p: float = 0.95,
+        stream: bool = False,
+        stop: Optional[List[str]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        # Create a chat completion request using the Groq API client.
+        completion = self.client.chat.completions.create(
+            model=self.model_id,
+            messages=messages,
+            temperature=temperature,
+            max_completion_tokens=max_completion_tokens,
+            top_p=top_p,
+            stream=stream,
+            stop=stop,
+            **kwargs,
+        )
+
+        if stream:
+            # For streaming responses, accumulate the text from each chunk.
+            full_text = ""
+            for chunk in completion:
+                full_text += chunk.choices[0].delta.content or ""
+            # Construct and return a ChatMessage with the full aggregated text.
+            return ChatMessage(content=full_text, raw=completion)
+        else:
+            # For non-streaming responses, assume a complete response is returned.
+            message_data = completion.choices[0].message
+            return ChatMessage.from_groq_api(message_data, raw=completion)
+
+
 
 __all__ = [
     "MessageRole",
