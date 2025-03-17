@@ -873,7 +873,6 @@ class TestToolCallingAgent(unittest.TestCase):
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 20
 
-        # Create your model and test it
         model = HfApiModel(model_id="test-model")
 
         from smolagents import tool
@@ -888,7 +887,7 @@ class TestToolCallingAgent(unittest.TestCase):
             """
             return f"The weather in {location} on date:{date} is sunny."
 
-        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1, verbosity_level=2)
+        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1)
         agent.run("What's the weather in Paris?")
         assert agent.memory.steps[0].task == "What's the weather in Paris?"
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
@@ -910,7 +909,7 @@ class TestToolCallingAgent(unittest.TestCase):
         agent.run("What's the weather in Paris?")
         assert agent.memory.steps[0].task == "What's the weather in Paris?"
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
-        # assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
+        assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
         assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
 
 
