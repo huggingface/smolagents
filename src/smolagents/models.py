@@ -101,7 +101,7 @@ class ChatMessage:
         return cls(role=message.role, content=message.content, tool_calls=tool_calls, raw=raw)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ChatMessage":
+    def from_dict(cls, data: dict, raw: Any | None = None) -> "ChatMessage":
         if data.get("tool_calls"):
             tool_calls = [
                 ChatMessageToolCall(
@@ -110,7 +110,7 @@ class ChatMessage:
                 for tc in data["tool_calls"]
             ]
             data["tool_calls"] = tool_calls
-        return cls(**data)
+        return cls(**data, raw=raw)
 
     def dict(self):
         return json.dumps(get_dict_from_nested_dataclasses(self))
@@ -898,9 +898,9 @@ class LiteLLMModel(ApiModel):
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
         first_message = ChatMessage.from_dict(
-            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+            raw=response,
         )
-        first_message.raw = response
         return self.postprocess_message(first_message, tools_to_call_from)
 
 
@@ -1069,9 +1069,9 @@ class OpenAIServerModel(ApiModel):
         self.last_output_token_count = response.usage.completion_tokens
 
         first_message = ChatMessage.from_dict(
-            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+            raw=response,
         )
-        first_message.raw = response
         return self.postprocess_message(first_message, tools_to_call_from)
 
 
