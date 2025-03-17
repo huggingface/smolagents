@@ -245,11 +245,6 @@ def get_tool_call_from_text(text: str, tool_name_key: str, tool_arguments_key: s
     )
 
 
-def get_tool_call_chat_message_from_text(text: str, tool_name_key: str, tool_arguments_key: str) -> ChatMessage:
-    tool_call = get_tool_call_from_text(text, tool_name_key, tool_arguments_key)
-    return ChatMessage(role=MessageRole.ASSISTANT, content=text, tool_calls=[tool_call])
-
-
 class Model:
     def __init__(
         self,
