@@ -819,6 +819,7 @@ You have been provided with these additional arguments, that you can access usin
             )
 
         agent_dict = {
+            "class": self.__class__.__name__,
             "tools": tool_dicts,
             "model": {
                 "class": self.model.__class__.__name__,
