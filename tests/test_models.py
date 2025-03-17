@@ -234,6 +234,49 @@ class TestAzureOpenAIServerModel:
         assert model.client == MockAzureOpenAI.return_value
 
 
+class TestTransformersModel:
+    @pytest.mark.parametrize(
+        "patching",
+        [
+            [
+                ("transformers.AutoModelForCausalLM.from_pretrained", {}),
+                ("transformers.AutoTokenizer.from_pretrained", {}),
+            ],
+            [
+                (
+                    "transformers.AutoModelForCausalLM.from_pretrained",
+                    {"side_effect": ValueError("Unrecognized configuration class")},
+                ),
+                ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
+                ("transformers.AutoProcessor.from_pretrained", {}),
+            ],
+        ],
+    )
+    def test_init(self, patching):
+        with ExitStack() as stack:
+            mocks = {target: stack.enter_context(patch(target, **kwargs)) for target, kwargs in patching}
+            model = TransformersModel(
+                model_id="test-model", device_map="cpu", torch_dtype="float16", trust_remote_code=True
+            )
+        assert model.model_id == "test-model"
+        if "transformers.AutoTokenizer.from_pretrained" in mocks:
+            assert model.model == mocks["transformers.AutoModelForCausalLM.from_pretrained"].return_value
+            assert mocks["transformers.AutoModelForCausalLM.from_pretrained"].call_args.kwargs == {
+                "device_map": "cpu",
+                "torch_dtype": "float16",
+                "trust_remote_code": True,
+            }
+            assert model.tokenizer == mocks["transformers.AutoTokenizer.from_pretrained"].return_value
+        elif "transformers.AutoProcessor.from_pretrained" in mocks:
+            assert model.model == mocks["transformers.AutoModelForImageTextToText.from_pretrained"].return_value
+            assert mocks["transformers.AutoModelForImageTextToText.from_pretrained"].call_args.kwargs == {
+                "device_map": "cpu",
+                "torch_dtype": "float16",
+                "trust_remote_code": True,
+            }
+            assert model.processor == mocks["transformers.AutoProcessor.from_pretrained"].return_value
+
+
 def test_get_clean_message_list_basic():
     messages = [
         {"role": "user", "content": [{"type": "text", "text": "Hello!"}]},
