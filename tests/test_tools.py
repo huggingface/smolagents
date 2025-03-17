@@ -482,6 +482,42 @@ class ToolTests(unittest.TestCase):
 
 
 @pytest.fixture
+def example_tool():
+    @tool
+    def valid_tool_function(input: str) -> str:
+        """A valid tool function.
+
+        Args:
+            input (str): Input string.
+        """
+        return input.upper()
+
+    return valid_tool_function
+
+
+class TestTool:
+    def test_from_dict_roundtrip(self, example_tool):
+        # Convert to dict
+        tool_dict = example_tool.to_dict()
+        # Create from dict
+        recreated_tool = Tool.from_dict(tool_dict)
+        # Verify properties
+        assert recreated_tool.name == example_tool.name
+        assert recreated_tool.description == example_tool.description
+        assert recreated_tool.inputs == example_tool.inputs
+        assert recreated_tool.output_type == example_tool.output_type
+        # Verify functionality
+        test_input = "Hello, world!"
+        assert recreated_tool(test_input) == test_input.upper()
+
+    def test_tool_from_dict_invalid(self):
+        # Missing code key
+        with pytest.raises(ValueError) as e:
+            Tool.from_dict({"name": "invalid_tool"})
+        assert "must contain 'code' key" in str(e)
+
+
+@pytest.fixture
 def mock_server_parameters():
     return MagicMock()
 
