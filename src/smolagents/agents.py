@@ -949,42 +949,29 @@ You have been provided with these additional arguments, that you can access usin
             folder (`str` or `Path`): The folder where the agent is saved.
             **kwargs: Additional keyword arguments that will be passed to the agent's init.
         """
+        # Load agent.json
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
 
-        # Recursively get managed agents
+        # Load managed agents from their respective folders, recursively
         managed_agents = []
-        for managed_agent_name, managed_agent_class in agent_dict["managed_agents"].items():
-            agent_cls = getattr(importlib.import_module("smolagents.agents"), managed_agent_class)
+        for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
+            agent_cls = getattr(importlib.import_module("smolagents.agents"), managed_agent_class_name)
             managed_agents.append(agent_cls.from_folder(folder / "managed_agents" / managed_agent_name))
+        agent_dict["managed_agents"] = {}
 
+        # Load tools
         tools = []
         for tool_name in agent_dict["tools"]:
             tool_code = (folder / "tools" / f"{tool_name}.py").read_text()
-            tools.append(Tool.from_code(tool_code))
+            tools.append({"name": tool_name, "code": tool_code})
+        agent_dict["tools"] = tools
 
-        model_class: Model = getattr(importlib.import_module("smolagents.models"), agent_dict["model"]["class"])
-        model = model_class.from_dict(agent_dict["model"]["data"])
+        # Add managed agents to kwargs to override the empty list in from_dict
+        if managed_agents:
+            kwargs["managed_agents"] = managed_agents
 
-        args = dict(
-            model=model,
-            tools=tools,
-            managed_agents=managed_agents,
-            name=agent_dict["name"],
-            description=agent_dict["description"],
-            max_steps=agent_dict["max_steps"],
-            planning_interval=agent_dict["planning_interval"],
-            grammar=agent_dict["grammar"],
-            verbosity_level=agent_dict["verbosity_level"],
-            prompt_templates=agent_dict["prompt_templates"],
-        )
-        if cls.__name__ == "CodeAgent":
-            args["additional_authorized_imports"] = agent_dict["authorized_imports"]
-            args["executor_type"] = agent_dict.get("executor_type")
-            args["executor_kwargs"] = agent_dict.get("executor_kwargs")
-            args["max_print_outputs_length"] = agent_dict.get("max_print_outputs_length")
-        args.update(kwargs)
-        return cls(**args)
+        return cls.from_dict(agent_dict, **kwargs)
 
     def push_to_hub(
         self,
