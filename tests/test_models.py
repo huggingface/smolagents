@@ -391,6 +391,11 @@ class TestGetToolCallFromText:
         result = get_tool_call_from_text(text, "name", "arguments")
         assert result.function.arguments == {"city": "New York"}
 
+    def test_get_tool_call_from_text_json_string_args(self):
+        text = '{"name": "weather_tool", "arguments": "{\\"city\\": \\"New York\\"}"}'
+        result = get_tool_call_from_text(text, "name", "arguments")
+        assert result.function.arguments == {"city": "New York"}
+
     def test_get_tool_call_from_text_missing_args(self):
         text = '{"name": "weather_tool"}'
         result = get_tool_call_from_text(text, "name", "arguments")
