@@ -967,6 +967,7 @@ class TestCodeAgent:
         assert mock_model.from_dict.call_args.args[0]["model_id"] == "Qwen/Qwen2.5-Coder-32B-Instruct"
         assert agent.model.model_id == "Qwen/Qwen2.5-Coder-32B-Instruct"
         assert agent.logger.level == 2
+        assert agent.prompt_templates["system_prompt"] == "dummy system prompt"
 
 
 class MultiAgentsTests(unittest.TestCase):

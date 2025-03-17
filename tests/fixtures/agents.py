@@ -14,7 +14,25 @@ AGENT_DICTS = {
             },
         },
         "managed_agents": {},
-        "prompt_templates": None,
+        "prompt_templates": {
+            "system_prompt": "dummy system prompt",
+            "planning": {
+                "initial_facts": "dummy planning initial facts",
+                "initial_plan": "dummy planning initial plan",
+                "update_facts_pre_messages": "dummy planning update facts pre messages",
+                "update_facts_post_messages": "dummy planning update facts post messages",
+                "update_plan_pre_messages": "dummy planning update plan pre messages",
+                "update_plan_post_messages": "dummy planning update plan post messages",
+            },
+            "managed_agent": {
+                "task": "dummy managed agent task",
+                "report": "dummy managed agent report",
+            },
+            "final_answer": {
+                "pre_messages": "dummy final answer pre messages",
+                "post_messages": "dummy final answer post messages",
+            },
+        },
         "max_steps": 10,
         "verbosity_level": 2,
         "grammar": None,
@@ -37,7 +55,25 @@ AGENT_DICTS = {
             },
         },
         "managed_agents": {},
-        "prompt_templates": None,
+        "prompt_templates": {
+            "system_prompt": "dummy system prompt",
+            "planning": {
+                "initial_facts": "dummy planning initial facts",
+                "initial_plan": "dummy planning initial plan",
+                "update_facts_pre_messages": "dummy planning update facts pre messages",
+                "update_facts_post_messages": "dummy planning update facts post messages",
+                "update_plan_pre_messages": "dummy planning update plan pre messages",
+                "update_plan_post_messages": "dummy planning update plan post messages",
+            },
+            "managed_agent": {
+                "task": "dummy managed agent task",
+                "report": "dummy managed agent report",
+            },
+            "final_answer": {
+                "pre_messages": "dummy final answer pre messages",
+                "post_messages": "dummy final answer post messages",
+            },
+        },
         "max_steps": 10,
         "verbosity_level": 2,
         "grammar": None,
