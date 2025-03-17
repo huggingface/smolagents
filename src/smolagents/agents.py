@@ -933,6 +933,7 @@ You have been provided with these additional arguments, that you can access usin
             planning_interval=agent_dict["planning_interval"],
             grammar=agent_dict["grammar"],
             verbosity_level=agent_dict["verbosity_level"],
+            prompt_templates=agent_dict["prompt_templates"],
         )
         if cls.__name__ == "CodeAgent":
             args["additional_authorized_imports"] = agent_dict["authorized_imports"]
