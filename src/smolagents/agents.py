@@ -799,8 +799,12 @@ You have been provided with these additional arguments, that you can access usin
         with open(os.path.join(output_dir, "app.py"), "w", encoding="utf-8") as f:
             f.write(app_text + "\n")  # Append newline at the end
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Converts agent into a dictionary."""
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the agent to a dictionary representation.
+
+        Returns:
+            `dict`: Dictionary representation of the agent.
+        """
         # TODO: handle serializing step_callbacks and final_answer_checks
         for attr in ["final_answer_checks", "step_callbacks"]:
             if getattr(self, attr, None):
@@ -835,13 +839,6 @@ You have been provided with these additional arguments, that you can access usin
             "description": self.description,
             "requirements": list(requirements),
         }
-        if hasattr(self, "authorized_imports"):
-            agent_dict["authorized_imports"] = self.authorized_imports
-        if hasattr(self, "executor_type"):
-            agent_dict["executor_type"] = self.executor_type
-            agent_dict["executor_kwargs"] = self.executor_kwargs
-        if hasattr(self, "max_print_outputs_length"):
-            agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
 
     @classmethod
@@ -1303,3 +1300,16 @@ class CodeAgent(MultiStepAgent):
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
         memory_step.action_output = output
         return output if is_final_answer else None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the agent to a dictionary representation.
+
+        Returns:
+            `dict`: Dictionary representation of the agent.
+        """
+        agent_dict = super().to_dict()
+        agent_dict["authorized_imports"] = self.authorized_imports
+        agent_dict["executor_type"] = self.executor_type
+        agent_dict["executor_kwargs"] = self.executor_kwargs
+        agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
+        return agent_dict
