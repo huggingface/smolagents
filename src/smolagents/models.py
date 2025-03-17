@@ -101,7 +101,7 @@ class ChatMessage:
         return cls(role=message.role, content=message.content, tool_calls=tool_calls, raw=raw)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ChatMessage":
+    def from_dict(cls, data: dict[str, Any]) -> "ChatMessage":
         if data.get("tool_calls"):
             tool_calls = [
                 ChatMessageToolCall(
@@ -119,11 +119,11 @@ class ChatMessage:
 def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
     if isinstance(arguments, dict):
         return arguments
-    else:
-        try:
-            return json.loads(arguments)
-        except Exception:
-            return arguments
+
+    try:
+        return json.loads(arguments)
+    except Exception:
+        return arguments
 
 
 class MessageRole(str, Enum):
@@ -144,7 +144,7 @@ tool_role_conversions = {
 }
 
 
-def get_tool_json_schema(tool: Tool) -> Dict:
+def get_tool_json_schema(tool: Tool) -> dict[str, Any]:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
@@ -312,7 +312,7 @@ class Model:
 
         return completion_kwargs
 
-    def get_token_counts(self) -> Dict[str, int]:
+    def get_token_counts(self) -> dict[str, int | None]:
         return {
             "input_token_count": self.last_input_token_count,
             "output_token_count": self.last_output_token_count,
@@ -345,11 +345,11 @@ class Model:
         """
         pass  # To be implemented in child classes!
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         """
         Converts the model into a JSON-compatible dictionary.
         """
-        model_dictionary = {
+        model_dictionary: dict[str, Any] = {
             **self.kwargs,
             "last_input_token_count": self.last_input_token_count,
             "last_output_token_count": self.last_output_token_count,

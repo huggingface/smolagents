@@ -33,7 +33,7 @@ from smolagents.agents import (
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
-from smolagents.memory import PlanningStep
+from smolagents.memory import ActionStep, PlanningStep
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -146,7 +146,7 @@ class FakeToolCallModelVL:
             )
 
 
-def fake_code_model(messages, stop_sequences=None, grammar=None) -> str:
+def fake_code_model(messages, stop_sequences=None, grammar=None) -> ChatMessage:
     prompt = str(messages)
     if "special_marker" not in prompt:
         return ChatMessage(
@@ -172,7 +172,7 @@ final_answer(7.2904)
         )
 
 
-def fake_code_model_error(messages, stop_sequences=None) -> str:
+def fake_code_model_error(messages, stop_sequences=None) -> ChatMessage:
     prompt = str(messages)
     if "special_marker" not in prompt:
         return ChatMessage(
@@ -202,7 +202,7 @@ final_answer("got an error")
         )
 
 
-def fake_code_model_syntax_error(messages, stop_sequences=None) -> str:
+def fake_code_model_syntax_error(messages, stop_sequences=None) -> ChatMessage:
     prompt = str(messages)
     if "special_marker" not in prompt:
         return ChatMessage(
@@ -231,7 +231,7 @@ final_answer("got an error")
         )
 
 
-def fake_code_model_import(messages, stop_sequences=None) -> str:
+def fake_code_model_import(messages, stop_sequences=None) -> ChatMessage:
     return ChatMessage(
         role="assistant",
         content="""
@@ -245,7 +245,7 @@ final_answer("got an error")
     )
 
 
-def fake_code_functiondef(messages, stop_sequences=None) -> str:
+def fake_code_functiondef(messages, stop_sequences=None) -> ChatMessage:
     prompt = str(messages)
     if "special_marker" not in prompt:
         return ChatMessage(
@@ -276,7 +276,7 @@ final_answer(res)
         )
 
 
-def fake_code_model_single_step(messages, stop_sequences=None, grammar=None) -> str:
+def fake_code_model_single_step(messages, stop_sequences=None, grammar=None) -> ChatMessage:
     return ChatMessage(
         role="assistant",
         content="""
@@ -290,7 +290,7 @@ final_answer(result)
     )
 
 
-def fake_code_model_no_return(messages, stop_sequences=None, grammar=None) -> str:
+def fake_code_model_no_return(messages, stop_sequences=None, grammar=None) -> ChatMessage:
     return ChatMessage(
         role="assistant",
         content="""
@@ -299,6 +299,18 @@ Code:
 ```py
 result = python_interpreter(code="2*3.6452")
 print(result)
+```
+""",
+    )
+
+
+def fake_no_valid_code_block(messages, stop_sequences=None, grammar=None) -> ChatMessage:
+    return ChatMessage(
+        role="assistant",
+        content="""
+Thought: I should multiply 2 by 3.6452. special_marker
+Code:
+ I am Incorrect Python Code !rint(result)
 ```
 """,
     )
@@ -745,6 +757,26 @@ class TestMultiStepAgent:
                 for content, expected_content in zip(message["content"], expected_message["content"]):
                     assert content == expected_content
 
+    def test_agent_memory_to_messages_suceeds_when_tool_fails_but_obeservation_is_set(self):
+        tool = PythonInterpreterTool()
+
+        def _fake_callback(memory_step: ActionStep, agent: CodeAgent) -> None:
+            memory_step.observations = "observed something"
+
+        agent = CodeAgent(
+            tools=[tool],
+            model=fake_no_valid_code_block,
+            step_callbacks=[_fake_callback],
+        )
+
+        # Perform a task. A tool call will fail since the fake model returns invalid response, but a _fake_callback
+        # sets an observation
+        agent.run("some task")
+
+        # This should not fail, even though no tool call have been recorded, and observation came from a callback
+        for s in agent.memory.steps:
+            s.to_messages()
+
     @pytest.mark.parametrize(
         "images, expected_messages_list",
         [
@@ -971,6 +1003,10 @@ class TestCodeAgent:
 
 
 class MultiAgentsTests(unittest.TestCase):
+    @pytest.fixture(autouse=True)
+    def initdir(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
     def test_multiagents_save(self):
         model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=2096, temperature=0.5)
 
