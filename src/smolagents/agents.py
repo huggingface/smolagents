@@ -865,9 +865,9 @@ You have been provided with these additional arguments, that you can access usin
             tools.append(Tool.from_code(tool_info["code"]))
         # Load managed agents
         managed_agents = []
-        for managed_agent_name, managed_agent_class in agent_dict["managed_agents"].items():
-            agent_cls = getattr(importlib.import_module("smolagents.agents"), managed_agent_class)
-            managed_agents.append(agent_cls.from_dict(agent_dict["managed_agents"][managed_agent_name]))
+        for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
+            managed_agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_class_name)
+            managed_agents.append(managed_agent_class.from_dict(agent_dict["managed_agents"][managed_agent_name]))
         # Extract base agent parameters
         agent_args = {
             "model": model,
