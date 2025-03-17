@@ -691,8 +691,8 @@ class TransformersModel(Model):
         except ValueError as e:
             if "Unrecognized configuration class" in str(e):
                 self.model = AutoModelForImageTextToText.from_pretrained(
-                    model_id, 
-                    device_map=device_map, 
+                    model_id,
+                    device_map=device_map,
                     torch_dtype=torch_dtype,
                     trust_remote_code=trust_remote_code,
                 )
