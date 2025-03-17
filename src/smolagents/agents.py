@@ -731,6 +731,7 @@ You have been provided with these additional arguments, that you can access usin
         # Save agent dictionary to json
         agent_dict = self.to_dict()
         agent_dict["tools"] = [tool.name for tool in self.tools.values()]
+        agent_dict["managed_agents"] = {agent.name: agent.__class__.__name__ for agent in self.managed_agents.values()}
         with open(os.path.join(output_dir, "agent.json"), "w", encoding="utf-8") as f:
             json.dump(agent_dict, f, indent=4)
 
@@ -823,9 +824,7 @@ You have been provided with these additional arguments, that you can access usin
                 "class": self.model.__class__.__name__,
                 "data": self.model.to_dict(),
             },
-            "managed_agents": {
-                managed_agent.name: managed_agent.__class__.__name__ for managed_agent in self.managed_agents.values()
-            },
+            "managed_agents": [managed_agent.to_dict() for managed_agent in self.managed_agents.values()],
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
             "verbosity_level": int(self.logger.level),
