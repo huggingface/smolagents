@@ -43,7 +43,6 @@ from .memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, Tas
 from .models import (
     ChatMessage,
     MessageRole,
-    Model,
 )
 from .monitoring import (
     YELLOW_HEX,
