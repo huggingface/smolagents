@@ -811,10 +811,13 @@ class ApiModel(Model):
     def postprocess_message(self, message: ChatMessage, tools_to_call_from) -> ChatMessage:
         """Sometimes APIs fail to properly parse a tool call: this function tries to parse."""
         message.role = MessageRole.ASSISTANT  # Overwrite role if needed
-        if tools_to_call_from and not message.tool_calls:
-            message.tool_calls = [
-                get_tool_call_from_text(message.content, self.tool_name_key, self.tool_arguments_key)
-            ]
+        if tools_to_call_from:
+            if not message.tool_calls:
+                message.tool_calls = [
+                    get_tool_call_from_text(message.content, self.tool_name_key, self.tool_arguments_key)
+                ]
+            for tool_call in message.tool_calls:
+                tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
         return message
 
 

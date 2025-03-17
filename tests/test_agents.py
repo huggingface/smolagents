@@ -859,6 +859,61 @@ class TestMultiStepAgent:
             )
 
 
+class TestToolCallingAgent(unittest.TestCase):
+    @patch("huggingface_hub.InferenceClient")
+    def test_toolcalling_agent_api(self, mock_inference_client):
+        mock_client = mock_inference_client.return_value
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[
+            0
+        ].message.content = '{"name": "weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+        mock_client.chat_completion.return_value = mock_response
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
+
+        # Create your model and test it
+        model = HfApiModel(model_id="test-model")
+
+        from smolagents import tool
+
+        @tool
+        def weather_api(location: str, date: str) -> str:
+            """
+            Gets the weather in the next days at given location.
+            Args:
+                location: the location
+                date: the date
+            """
+            return f"The weather in {location} on date:{date} is sunny."
+
+        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1, verbosity_level=2)
+        agent.run("What's the weather in Paris?")
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
+        assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
+        assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
+
+        mock_response.choices[0].message.tool_calls = [
+            ChatMessageToolCall(
+                function=ChatMessageToolCallDefinition(
+                    name="weather_api", arguments='{"location": "Paris", "date": "today"}'
+                ),
+                id="call_0",
+                type="function",
+            )
+        ]
+        mock_response.choices[0].message.content = None
+        mock_client.chat_completion.return_value = mock_response
+
+        agent.run("What's the weather in Paris?")
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
+        # assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
+        assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
+
+
 class TestCodeAgent:
     @pytest.mark.parametrize("provide_run_summary", [False, True])
     def test_call_with_provide_run_summary(self, provide_run_summary):
