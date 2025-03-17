@@ -679,6 +679,10 @@ class MLXModel(Model):
             tools=tools,
             add_generation_prompt=True,
         )
+        if self._num_processed_token > len(prompt_ids):
+            # TODO: this only works if the new prmopt_ids is shorter than
+            # what was previously processed.
+            self._num_processed_token = 0
         prompt_ids = prompt_ids[self._num_processed_token:]
         self._num_processed_token += len(prompt_ids)
 
