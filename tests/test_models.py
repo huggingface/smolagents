@@ -267,6 +267,8 @@ class TestTransformersModel:
                 "trust_remote_code": True,
             }
             assert model.tokenizer == mocks["transformers.AutoTokenizer.from_pretrained"].return_value
+            assert mocks["transformers.AutoTokenizer.from_pretrained"].call_args.args == ("test-model",)
+            assert mocks["transformers.AutoTokenizer.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
         elif "transformers.AutoProcessor.from_pretrained" in mocks:
             assert model.model == mocks["transformers.AutoModelForImageTextToText.from_pretrained"].return_value
             assert mocks["transformers.AutoModelForImageTextToText.from_pretrained"].call_args.kwargs == {
@@ -275,6 +277,8 @@ class TestTransformersModel:
                 "trust_remote_code": True,
             }
             assert model.processor == mocks["transformers.AutoProcessor.from_pretrained"].return_value
+            assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.args == ("test-model",)
+            assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
 
 
 def test_get_clean_message_list_basic():
