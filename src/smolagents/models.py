@@ -60,7 +60,7 @@ class ChatMessageToolCallDefinition:
     description: Optional[str] = None
 
     @classmethod
-    def from_api(cls, tool_call_definition) -> "ChatMessageToolCallDefinition":
+    def from_hf_api(cls, tool_call_definition) -> "ChatMessageToolCallDefinition":
         return cls(
             arguments=tool_call_definition.arguments,
             name=tool_call_definition.name,
@@ -75,9 +75,9 @@ class ChatMessageToolCall:
     type: str
 
     @classmethod
-    def from_api(cls, tool_call) -> "ChatMessageToolCall":
+    def from_hf_api(cls, tool_call) -> "ChatMessageToolCall":
         return cls(
-            function=ChatMessageToolCallDefinition.from_api(tool_call.function),
+            function=ChatMessageToolCallDefinition.from_hf_api(tool_call.function),
             id=tool_call.id,
             type=tool_call.type,
         )
@@ -94,10 +94,10 @@ class ChatMessage:
         return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
 
     @classmethod
-    def from_api(cls, message, raw) -> "ChatMessage":
+    def from_hf_api(cls, message, raw) -> "ChatMessage":
         tool_calls = None
         if getattr(message, "tool_calls", None) is not None:
-            tool_calls = [ChatMessageToolCall.from_api(tool_call) for tool_call in message.tool_calls]
+            tool_calls = [ChatMessageToolCall.from_hf_api(tool_call) for tool_call in message.tool_calls]
         return cls(role=message.role, content=message.content, tool_calls=tool_calls, raw=raw)
 
     @classmethod
@@ -992,7 +992,7 @@ class HfApiModel(ApiModel):
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        first_message = ChatMessage.from_api(response.choices[0].message, raw=response)
+        first_message = ChatMessage.from_hf_api(response.choices[0].message, raw=response)
         return self.postprocess_message(first_message, tools_to_call_from)
 
 
