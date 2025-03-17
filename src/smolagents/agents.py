@@ -845,6 +845,49 @@ You have been provided with these additional arguments, that you can access usin
         return agent_dict
 
     @classmethod
+    def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "MultiStepAgent":
+        """Create agent from a dictionary representation.
+
+        Args:
+            agent_dict (`dict[str, Any]`): Dictionary representation of the agent.
+            **kwargs: Additional keyword arguments that will override agent_dict values.
+
+        Returns:
+            `MultiStepAgent`: Instance of the agent class.
+        """
+        # Load model
+        model_info = agent_dict["model"]
+        model_class = getattr(importlib.import_module("smolagents.models"), model_info["class"])
+        model = model_class.from_dict(model_info["data"])
+        # Load tools
+        tools = []
+        for tool_info in agent_dict["tools"]:
+            tools.append(Tool.from_code(tool_info["code"]))
+        # Load managed agents
+        managed_agents = []
+        for managed_agent_name, managed_agent_class in agent_dict["managed_agents"].items():
+            agent_cls = getattr(importlib.import_module("smolagents.agents"), managed_agent_class)
+            managed_agents.append(agent_cls.from_dict(agent_dict["managed_agents"][managed_agent_name]))
+        # Extract base agent parameters
+        agent_args = {
+            "model": model,
+            "tools": tools,
+            "prompt_templates": agent_dict.get("prompt_templates"),
+            "max_steps": agent_dict.get("max_steps"),
+            "verbosity_level": agent_dict.get("verbosity_level"),
+            "grammar": agent_dict.get("grammar"),
+            "planning_interval": agent_dict.get("planning_interval"),
+            "name": agent_dict.get("name"),
+            "description": agent_dict.get("description"),
+        }
+        # Filter out None values to use defaults from __init__
+        agent_args = {k: v for k, v in agent_args.items() if v is not None}
+        # Update with any additional kwargs
+        agent_args.update(kwargs)
+        # Create agent instance
+        return cls(**agent_args)
+
+    @classmethod
     def from_hub(
         cls,
         repo_id: str,
@@ -1303,3 +1346,28 @@ class CodeAgent(MultiStepAgent):
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
         memory_step.action_output = output
         return output if is_final_answer else None
+
+    @classmethod
+    def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "CodeAgent":
+        """Create CodeAgent from a dictionary representation.
+
+        Args:
+            agent_dict (`dict[str, Any]`): Dictionary representation of the agent.
+            **kwargs: Additional keyword arguments that will override agent_dict values.
+
+        Returns:
+            `CodeAgent`: Instance of the CodeAgent class.
+        """
+        # Add CodeAgent-specific parameters to kwargs
+        code_agent_kwargs = {
+            "additional_authorized_imports": agent_dict.get("authorized_imports"),
+            "executor_type": agent_dict.get("executor_type"),
+            "executor_kwargs": agent_dict.get("executor_kwargs"),
+            "max_print_outputs_length": agent_dict.get("max_print_outputs_length"),
+        }
+        # Filter out None values
+        code_agent_kwargs = {k: v for k, v in code_agent_kwargs.items() if v is not None}
+        # Update with any additional kwargs
+        code_agent_kwargs.update(kwargs)
+        # Call the parent class's from_dict method
+        return super().from_dict(agent_dict, **code_agent_kwargs)
