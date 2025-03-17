@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from smolagents.memory import AgentLogger
 
 
-__all__ = ["AgentError"]
+__all__ = ["AgentError", "AgentStoppedException", "AgentPausedException"]
 
 
 @lru_cache
@@ -112,6 +112,21 @@ class AgentGenerationError(AgentError):
     """Exception raised for errors in generation in the agent"""
 
     pass
+
+
+class AgentStoppedException(AgentError):
+    """Exception raised when the agent is explicitly stopped"""
+
+    pass
+
+
+class AgentPausedException(AgentError):
+    """Exception raised when the agent is paused for later resumption"""
+
+    def __init__(self, message, logger: "AgentLogger", agent_state=None, otel_context=None):
+        super().__init__(message, logger)
+        self.agent_state = agent_state
+        self.otel_context = otel_context
 
 
 def make_json_serializable(obj: Any) -> Any:
