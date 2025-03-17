@@ -690,7 +690,12 @@ class TransformersModel(Model):
             self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         except ValueError as e:
             if "Unrecognized configuration class" in str(e):
-                self.model = AutoModelForImageTextToText.from_pretrained(model_id, device_map=device_map)
+                self.model = AutoModelForImageTextToText.from_pretrained(
+                    model_id, 
+                    device_map=device_map, 
+                    torch_dtype=torch_dtype,
+                    trust_remote_code=trust_remote_code,
+                )
                 self.processor = AutoProcessor.from_pretrained(model_id)
                 self._is_vlm = True
             else:
