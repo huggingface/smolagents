@@ -858,6 +858,56 @@ class TestMultiStepAgent:
                 managed_agents=managed_agents,
             )
 
+    def test_from_dict(self):
+        # Create a test agent dictionary
+        agent_dict = {
+            "model": {"class": "TransformersModel", "data": {"model_id": "test/model"}},
+            "tools": [
+                {
+                    "name": "valid_tool_function",
+                    "code": 'from smolagents import Tool\nfrom typing import Any, Optional\n\nclass SimpleTool(Tool):\n    name = "valid_tool_function"\n    description = "A valid tool function."\n    inputs = {"input":{"type":"string","description":"Input string."}}\n    output_type = "string"\n\n    def forward(self, input: str) -> str:\n        """A valid tool function.\n\n        Args:\n            input (str): Input string.\n        """\n        return input.upper()',
+                    "requirements": {"smolagents"},
+                }
+            ],
+            "managed_agents": {},
+            "prompt_templates": {"system_prompt": "test prompt"},
+            "max_steps": 15,
+            "verbosity_level": 2,
+            "grammar": {"test": "grammar"},
+            "planning_interval": 3,
+            "name": "test_agent",
+            "description": "Test agent description",
+        }
+
+        # Call from_dict
+        with patch("smolagents.models.TransformersModel") as mock_model_class:
+            mock_model_instance = mock_model_class.from_dict.return_value
+            agent = MultiStepAgent.from_dict(agent_dict)
+
+        # Verify the agent was created correctly
+        assert agent.model == mock_model_instance
+        assert mock_model_class.from_dict.call_args.args[0] == {"model_id": "test/model"}
+        assert agent.max_steps == 15
+        assert agent.logger.level == 2
+        assert agent.grammar == {"test": "grammar"}
+        assert agent.planning_interval == 3
+        assert agent.name == "test_agent"
+        assert agent.description == "Test agent description"
+        # Verify the tool was created correctly
+        assert sorted(agent.tools.keys()) == ["final_answer", "valid_tool_function"]
+        assert agent.tools["valid_tool_function"].name == "valid_tool_function"
+        assert agent.tools["valid_tool_function"].description == "A valid tool function."
+        assert agent.tools["valid_tool_function"].inputs == {
+            "input": {"type": "string", "description": "Input string."}
+        }
+        assert agent.tools["valid_tool_function"].output_type == "string"
+        assert agent.tools["valid_tool_function"]("test") == "TEST"
+
+        # Test overriding with kwargs
+        with patch("smolagents.models.TransformersModel") as mock_model_class:
+            agent = MultiStepAgent.from_dict(agent_dict, max_steps=30)
+        assert agent.max_steps == 30
+
 
 class TestCodeAgent:
     @pytest.mark.parametrize("provide_run_summary", [False, True])
@@ -968,6 +1018,63 @@ class TestCodeAgent:
         assert agent.model.model_id == "Qwen/Qwen2.5-Coder-32B-Instruct"
         assert agent.logger.level == 2
         assert agent.prompt_templates["system_prompt"] == "dummy system prompt"
+
+    def test_from_dict(self):
+        # Create a test agent dictionary
+        agent_dict = {
+            "model": {"class": "HfApiModel", "data": {"model_id": "Qwen/Qwen2.5-Coder-32B-Instruct"}},
+            "tools": [
+                {
+                    "name": "valid_tool_function",
+                    "code": 'from smolagents import Tool\nfrom typing import Any, Optional\n\nclass SimpleTool(Tool):\n    name = "valid_tool_function"\n    description = "A valid tool function."\n    inputs = {"input":{"type":"string","description":"Input string."}}\n    output_type = "string"\n\n    def forward(self, input: str) -> str:\n        """A valid tool function.\n\n        Args:\n            input (str): Input string.\n        """\n        return input.upper()',
+                    "requirements": {"smolagents"},
+                }
+            ],
+            "managed_agents": {},
+            "prompt_templates": {"system_prompt": "test prompt"},
+            "max_steps": 15,
+            "verbosity_level": 2,
+            "grammar": None,
+            "planning_interval": 3,
+            "name": "test_code_agent",
+            "description": "Test code agent description",
+            "authorized_imports": ["pandas", "numpy"],
+            "executor_type": "local",
+            "executor_kwargs": {"max_workers": 2},
+            "max_print_outputs_length": 1000,
+        }
+
+        # Call from_dict
+        with patch("smolagents.models.HfApiModel") as mock_model_class:
+            mock_model_instance = mock_model_class.from_dict.return_value
+            agent = CodeAgent.from_dict(agent_dict)
+
+        # Verify the agent was created correctly with CodeAgent-specific parameters
+        assert agent.model == mock_model_instance
+        assert agent.additional_authorized_imports == ["pandas", "numpy"]
+        assert agent.executor_type == "local"
+        assert agent.executor_kwargs == {"max_workers": 2}
+        assert agent.max_print_outputs_length == 1000
+
+        # Test with missing optional parameters
+        minimal_agent_dict = {
+            "model": {"class": "HfApiModel", "data": {"model_id": "Qwen/Qwen2.5-Coder-32B-Instruct"}},
+            "tools": [],
+            "managed_agents": {},
+        }
+
+        with patch("smolagents.models.HfApiModel"):
+            agent = CodeAgent.from_dict(minimal_agent_dict)
+        # Verify defaults are used
+        assert agent.max_steps == 20  # default from MultiStepAgent.__init__
+
+        # Test overriding with kwargs
+        with patch("smolagents.models.HfApiModel"):
+            agent = CodeAgent.from_dict(
+                agent_dict, additional_authorized_imports=["matplotlib"], executor_kwargs={"max_workers": 4}
+            )
+        assert agent.additional_authorized_imports == ["matplotlib"]
+        assert agent.executor_kwargs == {"max_workers": 4}
 
 
 class MultiAgentsTests(unittest.TestCase):
