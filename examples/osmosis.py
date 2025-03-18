@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from smolagents import CodeAgent, OsmosisConfig
 from smolagents.models import LiteLLMModel
+from smolagents.osmosis import OsmosisMixin
 import os
 # Load environment variables
 load_dotenv()
@@ -22,14 +23,18 @@ osmosis_config = OsmosisConfig(
     agent_type="test"
 )
 
+# Create a class that combines CodeAgent with OsmosisMixin
+class OsmosisCodeAgent(OsmosisMixin, CodeAgent):
+    pass
+
 # Create agent with Osmosis support
-agent = CodeAgent(
+agent = OsmosisCodeAgent(
     tools=[],
     model=model,
     osmosis_config=osmosis_config
 )
 
-# Run agent - Osmosis integration happens automatically
+# Run agent with Osmosis integration
 result = agent.run("Write a function to calculate fibonacci numbers")
 
 # To run without Osmosis, simply don't provide the osmosis_config

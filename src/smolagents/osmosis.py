@@ -204,7 +204,138 @@ class OsmosisAPI:
             print(f"Error during API testing: {str(e)}")
             return False
 
+class OsmosisMixin:
+    """Mixin class that adds Osmosis functionality to agent classes."""
+    
+    def __init__(self, osmosis_config: Optional[OsmosisConfig] = None, **kwargs):
+        """Initialize the Osmosis mixin.
+        
+        Args:
+            osmosis_config: Configuration for Osmosis support. If None, Osmosis functionality is disabled.
+            **kwargs: Other keyword arguments to pass to the parent class.
+        """
+        # Initialize the parent class first
+        super().__init__(**kwargs)
+        
+        # Setup Osmosis if config is provided
+        self.osmosis = OsmosisAPI(config=osmosis_config) if osmosis_config is not None else None
+    
+    def enhance_task_with_osmosis(self, task: str) -> str:
+        """Enhance a task with Osmosis knowledge if enabled.
+        
+        Args:
+            task: The task to enhance
+            
+        Returns:
+            Enhanced task or original task if Osmosis is disabled
+        """
+        if self.osmosis is not None:
+            enhanced_task = self.osmosis.enhance_task(task=task)
+            if enhanced_task:
+                return enhanced_task
+        return task
+    
+    def run(
+        self,
+        task: str,
+        stream: bool = False,
+        reset: bool = True,
+        images: Optional[List[str]] = None,
+        additional_args: Optional[Dict] = None,
+        max_steps: Optional[int] = None,
+    ):
+        """Overrides the run method to use Osmosis functionality.
+        
+        This method enhances the task with Osmosis knowledge before running it,
+        and stores the knowledge after completion.
+        
+        Args:
+            task: The task to run
+            stream: Whether to run in streaming mode
+            reset: Whether to reset the agent's state
+            images: Optional list of image paths to include
+            additional_args: Optional additional arguments
+            max_steps: Optional maximum number of steps to run
+            
+        Returns:
+            The result of running the task
+        """
+        # Use the enhanced task if available
+        enhanced_task = self.enhance_task_with_osmosis(task)
+        
+        # Get the normal result using the enhanced task
+        result = super().run(
+            task=enhanced_task,
+            stream=stream,
+            reset=reset,
+            images=images,
+            additional_args=additional_args,
+            max_steps=max_steps
+        )
+        
+        # Store knowledge if Osmosis is enabled
+        if not stream:  # Only store knowledge for non-streaming runs
+            self.store_knowledge_in_osmosis(task, result)
+            
+        return result
+    
+    def store_knowledge_in_osmosis(self, task: str, final_result: Any) -> None:
+        """Store agent interactions and knowledge in Osmosis if enabled.
+        
+        Args:
+            task: The original task/query
+            final_result: The final result/answer from the agent
+        """
+        if self.osmosis is None:
+            return
+            
+        # Convert memory steps to Osmosis turns format
+        turns = self._get_turns_from_memory()
+        
+        # Make final_result JSON serializable
+        serializable_result = make_json_serializable(final_result)
+        
+        # Add final result turn
+        turns.append({
+            "turn": len(turns) + 1,
+            "inputs": "Final result",
+            "decision": "Return final answer",
+            "memory": "Task completed",
+            "result": serializable_result
+        })
+        
+        # Store knowledge in Osmosis
+        self.osmosis.store_knowledge(
+            query=task,
+            turns=turns,
+            success=True,  # We assume success since we got a final result
+            agent_type=self.osmosis.config.agent_type
+        )
+    
+    def _get_turns_from_memory(self) -> List[Dict]:
+        """Convert agent memory steps to Osmosis turns format"""
+        turns = []
+        for step in self.memory.steps:
+            if isinstance(step, TaskStep):
+                turns.append({
+                    "turn": len(turns) + 1,
+                    "inputs": step.task,
+                    "decision": "Task definition",
+                    "memory": "Defined task",
+                    "result": None
+                })
+            elif isinstance(step, ActionStep):
+                turns.append({
+                    "turn": len(turns) + 1,
+                    "inputs": str(step.model_input_messages),
+                    "decision": str(step.tool_calls) if step.tool_calls else step.model_output,
+                    "memory": f"Step {step.step_number} execution",
+                    "result": step.action_output
+                })
+        return turns
+
 __all__ = [
     "OsmosisConfig",
-    "OsmosisAPI"
+    "OsmosisAPI",
+    "OsmosisMixin"
 ]
