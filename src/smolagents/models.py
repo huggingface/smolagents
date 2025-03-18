@@ -656,7 +656,7 @@ class TransformersModel(Model):
                 "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
             )
         import torch
-        from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
+        from transformers import AutoModel, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
 
         if not model_id:
             warnings.warn(
@@ -681,7 +681,7 @@ class TransformersModel(Model):
         logger.info(f"Using device: {device_map}")
         self._is_vlm = False
         try:
-            self.model = AutoModelForCausalLM.from_pretrained(
+            self.model = AutoModel.from_pretrained(
                 model_id,
                 device_map=device_map,
                 torch_dtype=torch_dtype,
