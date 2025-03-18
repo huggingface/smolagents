@@ -61,7 +61,6 @@ from .utils import (
     AgentParsingError,
     make_init_file,
     parse_code_blobs,
-    parse_json_tool_call,
     truncate_content,
 )
 
@@ -190,7 +189,6 @@ class MultiStepAgent:
         model: Callable[[List[Dict[str, str]]], ChatMessage],
         prompt_templates: Optional[PromptTemplates] = None,
         max_steps: int = 20,
-        tool_parser: Optional[Callable] = None,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
         grammar: Optional[Dict[str, str]] = None,
@@ -207,7 +205,6 @@ class MultiStepAgent:
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         self.max_steps = max_steps
         self.step_number = 0
-        self.tool_parser = tool_parser or parse_json_tool_call
         self.grammar = grammar
         self.planning_interval = planning_interval
         self.state = {}
@@ -331,7 +328,11 @@ You have been provided with these additional arguments, that you can access usin
             memory_step = self._create_memory_step(step_start_time, images)
             try:
                 final_answer = self._execute_step(task, memory_step)
+            except AgentGenerationError as e:
+                # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
+                raise e
             except AgentError as e:
+                # Other AgentError types are caused by the Model, so we should log them and iterate.
                 memory_step.error = e
             finally:
                 self._finalize_step(memory_step, step_start_time)
@@ -932,12 +933,13 @@ You have been provided with these additional arguments, that you can access usin
             planning_interval=agent_dict["planning_interval"],
             grammar=agent_dict["grammar"],
             verbosity_level=agent_dict["verbosity_level"],
+            prompt_templates=agent_dict["prompt_templates"],
         )
         if cls.__name__ == "CodeAgent":
             args["additional_authorized_imports"] = agent_dict["authorized_imports"]
-            args["executor_type"] = agent_dict["executor_type"]
-            args["executor_kwargs"] = agent_dict["executor_kwargs"]
-            args["max_print_outputs_length"] = agent_dict["max_print_outputs_length"]
+            args["executor_type"] = agent_dict.get("executor_type")
+            args["executor_kwargs"] = agent_dict.get("executor_kwargs")
+            args["max_print_outputs_length"] = agent_dict.get("max_print_outputs_length")
         args.update(kwargs)
         return cls(**args)
 
@@ -1053,14 +1055,23 @@ class ToolCallingAgent(MultiStepAgent):
                 stop_sequences=["Observation:"],
             )
             memory_step.model_output_message = model_message
-            if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
-                raise Exception("Model did not call any tools. Call `final_answer` tool to return a final answer.")
-            tool_call = model_message.tool_calls[0]
-            tool_name, tool_call_id = tool_call.function.name, tool_call.id
-            tool_arguments = tool_call.function.arguments
-
         except Exception as e:
             raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
+
+        self.logger.log_markdown(
+            content=model_message.content if model_message.content else str(model_message.raw),
+            title="Output message of the LLM:",
+            level=LogLevel.DEBUG,
+        )
+
+        if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
+            raise AgentParsingError(
+                "Model did not call any tools. Call `final_answer` tool to return a final answer.", self.logger
+            )
+
+        tool_call = model_message.tool_calls[0]
+        tool_name, tool_call_id = tool_call.function.name, tool_call.id
+        tool_arguments = tool_call.function.arguments
 
         memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 
@@ -1144,13 +1155,13 @@ class CodeAgent(MultiStepAgent):
         grammar: Optional[Dict[str, str]] = None,
         additional_authorized_imports: Optional[List[str]] = None,
         planning_interval: Optional[int] = None,
-        executor_type: str = "local",
+        executor_type: str | None = "local",
         executor_kwargs: Optional[Dict[str, Any]] = None,
         max_print_outputs_length: Optional[int] = None,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
-        self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
+        self.authorized_imports = sorted(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         self.max_print_outputs_length = max_print_outputs_length
         prompt_templates = prompt_templates or yaml.safe_load(
             importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
@@ -1168,26 +1179,26 @@ class CodeAgent(MultiStepAgent):
                 "Caution: you set an authorization for all imports, meaning your agent can decide to import any package it deems necessary. This might raise issues if the package is not installed in your environment.",
                 0,
             )
-        self.executor_type = executor_type
+        self.executor_type = executor_type or "local"
         self.executor_kwargs = executor_kwargs or {}
-        self.python_executor = self.create_python_executor(executor_type, self.executor_kwargs)
+        self.python_executor = self.create_python_executor()
 
-    def create_python_executor(self, executor_type: str, kwargs: Dict[str, Any]) -> PythonExecutor:
-        match executor_type:
+    def create_python_executor(self) -> PythonExecutor:
+        match self.executor_type:
             case "e2b" | "docker":
                 if self.managed_agents:
                     raise Exception("Managed agents are not yet supported with remote code execution.")
-                if executor_type == "e2b":
-                    return E2BExecutor(self.additional_authorized_imports, self.logger, **kwargs)
+                if self.executor_type == "e2b":
+                    return E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
                 else:
-                    return DockerExecutor(self.additional_authorized_imports, self.logger, **kwargs)
+                    return DockerExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
             case "local":
                 return LocalPythonExecutor(
                     self.additional_authorized_imports,
                     max_print_outputs_length=self.max_print_outputs_length,
                 )
             case _:  # if applicable
-                raise ValueError(f"Unsupported executor type: {executor_type}")
+                raise ValueError(f"Unsupported executor type: {self.executor_type}")
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
