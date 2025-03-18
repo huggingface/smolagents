@@ -22,8 +22,6 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from huggingface_hub.utils import is_torch_available
-
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url, parse_json_blob
 
@@ -651,12 +649,13 @@ class TransformersModel(Model):
         trust_remote_code: bool = False,
         **kwargs,
     ):
-        if not is_torch_available() or not _is_package_available("transformers"):
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
+        except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
             )
-        import torch
-        from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
 
         if not model_id:
             warnings.warn(

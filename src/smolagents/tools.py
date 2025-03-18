@@ -35,7 +35,6 @@ from huggingface_hub import (
     metadata_update,
     upload_folder,
 )
-from huggingface_hub.utils import is_torch_available
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
@@ -45,7 +44,7 @@ from ._function_type_hints_utils import (
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import BASE_BUILTIN_MODULES, _is_package_available, _is_pillow_available, get_source, instance_to_source
+from .utils import BASE_BUILTIN_MODULES, _is_pillow_available, get_source, instance_to_source
 
 
 logger = logging.getLogger(__name__)
@@ -950,7 +949,10 @@ class PipelineTool(Tool):
         token=None,
         **hub_kwargs,
     ):
-        if not is_torch_available() or not _is_package_available("accelerate"):
+        try:
+            import accelerate  # noqa: F401
+            import torch  # noqa: F401
+        except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "Please install 'transformers' extra to use a PipelineTool: `pip install 'smolagents[transformers]'`"
             )

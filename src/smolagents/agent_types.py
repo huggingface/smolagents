@@ -21,11 +21,8 @@ from io import BytesIO
 
 import numpy as np
 import requests
-from huggingface_hub.utils import is_torch_available
 from PIL import Image
 from PIL.Image import Image as ImageType
-
-from .utils import _is_package_available
 
 
 logger = logging.getLogger(__name__)
@@ -94,13 +91,16 @@ class AgentImage(AgentType, ImageType):
             self._raw = Image.open(BytesIO(value))
         elif isinstance(value, (str, pathlib.Path)):
             self._path = value
-        elif is_torch_available():
-            import torch
+        else:
+            try:
+                import torch
 
-            if isinstance(value, torch.Tensor):
-                self._tensor = value
-            if isinstance(value, np.ndarray):
-                self._tensor = torch.from_numpy(value)
+                if isinstance(value, torch.Tensor):
+                    self._tensor = value
+                if isinstance(value, np.ndarray):
+                    self._tensor = torch.from_numpy(value)
+            except ModuleNotFoundError:
+                pass
 
         if self._path is None and self._raw is None and self._tensor is None:
             raise TypeError(f"Unsupported type for {self.__class__.__name__}: {type(value)}")
@@ -172,11 +172,13 @@ class AgentAudio(AgentType, str):
     """
 
     def __init__(self, value, samplerate=16_000):
-        if not _is_package_available("soundfile") or not is_torch_available():
+        try:
+            import soundfile  # noqa: F401
+            import torch
+        except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "Please install 'audio' extra to use AgentAudio: `pip install 'smolagents[audio]'`"
             )
-        import torch
 
         super().__init__(value)
 
@@ -186,7 +188,7 @@ class AgentAudio(AgentType, str):
         self.samplerate = samplerate
         if isinstance(value, (str, pathlib.Path)):
             self._path = value
-        elif is_torch_available() and isinstance(value, torch.Tensor):
+        elif isinstance(value, torch.Tensor):
             self._tensor = value
         elif isinstance(value, tuple):
             self.samplerate = value[0]
@@ -263,11 +265,13 @@ def handle_agent_output_types(output, output_type=None):
         return AgentText(output)
     if isinstance(output, ImageType):
         return AgentImage(output)
-    if is_torch_available():
+    try:
         import torch
 
         if isinstance(output, torch.Tensor):
             return AgentAudio(output)
+    except ModuleNotFoundError:
+        pass
     return output
 
 

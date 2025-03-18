@@ -40,8 +40,6 @@ from typing import (
     get_type_hints,
 )
 
-from huggingface_hub.utils import is_torch_available
-
 from .utils import _is_pillow_available
 
 
@@ -384,9 +382,12 @@ def _get_json_schema_type(param_type: str) -> Dict[str, str]:
 
         if param_type == Image:
             return {"type": "image"}
-    if str(param_type) == "Tensor" and is_torch_available():
-        from torch import Tensor
+    if str(param_type) == "Tensor":
+        try:
+            from torch import Tensor
 
-        if param_type == Tensor:
-            return {"type": "audio"}
+            if param_type == Tensor:
+                return {"type": "audio"}
+        except ModuleNotFoundError:
+            pass
     return {"type": "object"}
