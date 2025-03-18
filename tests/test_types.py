@@ -21,11 +21,12 @@ from pathlib import Path
 from PIL import Image
 from transformers.testing_utils import (
     require_soundfile,
-    require_torch,
     require_vision,
 )
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
+
+from .utils.markers import require_torch
 
 
 def get_new_path(suffix="") -> str:

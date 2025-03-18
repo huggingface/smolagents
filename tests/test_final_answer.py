@@ -19,12 +19,13 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 from transformers import is_torch_available
-from transformers.testing_utils import get_tests_dir, require_torch
+from transformers.testing_utils import get_tests_dir
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import FinalAnswerTool
 
 from .test_tools import ToolTesterMixin
+from .utils.markers import require_torch
 
 
 if is_torch_available():
