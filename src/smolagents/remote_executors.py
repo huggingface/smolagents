@@ -24,8 +24,8 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, Dict, List, Tuple
 
+import PIL.Image
 import requests
-from PIL import Image
 
 from .local_python_executor import PythonExecutor
 from .monitoring import LogLevel
@@ -136,7 +136,7 @@ class E2BExecutor(RemotePythonExecutor):
                         if getattr(result, attribute_name) is not None:
                             image_output = getattr(result, attribute_name)
                             decoded_bytes = base64.b64decode(image_output.encode("utf-8"))
-                            return Image.open(BytesIO(decoded_bytes)), execution_logs
+                            return PIL.Image.open(BytesIO(decoded_bytes)), execution_logs
                     for attribute_name in [
                         "chart",
                         "data",

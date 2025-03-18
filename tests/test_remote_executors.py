@@ -2,8 +2,8 @@ from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
 import docker
+import PIL.Image
 import pytest
-from PIL import Image
 
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.remote_executors import DockerExecutor, E2BExecutor
@@ -81,7 +81,7 @@ class TestDockerExecutor:
             final_answer(image)
         """)
         result, logs, final_answer = self.executor(code_action)
-        assert isinstance(result, Image.Image), "Result should be a PIL Image"
+        assert isinstance(result, PIL.Image.Image), "Result should be a PIL Image"
 
     def test_syntax_error_handling(self):
         """Test handling of syntax errors"""

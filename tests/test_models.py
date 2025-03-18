@@ -96,9 +96,9 @@ class ModelTests(unittest.TestCase):
         assert output == "assistant\nHello"
 
     def test_transformers_message_vl_no_tool(self):
-        from PIL import Image
+        import PIL.Image
 
-        img = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
+        img = PIL.Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
         model = TransformersModel(
             model_id="llava-hf/llava-interleave-qwen-0.5b-hf",
             max_new_tokens=5,

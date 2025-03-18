@@ -45,11 +45,6 @@ def _is_package_available(package_name: str) -> bool:
         return False
 
 
-@lru_cache
-def _is_pillow_available():
-    return importlib.util.find_spec("PIL") is not None
-
-
 BASE_BUILTIN_MODULES = [
     "collections",
     "datetime",

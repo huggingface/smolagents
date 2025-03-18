@@ -18,11 +18,10 @@ import unittest
 import uuid
 from pathlib import Path
 
-from PIL import Image
+import PIL.Image
 from transformers.testing_utils import (
     require_soundfile,
     require_torch,
-    require_vision,
 )
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
@@ -70,7 +69,6 @@ class AgentAudioTests(unittest.TestCase):
         self.assertEqual(agent_type.to_string(), path)
 
 
-@require_vision
 @require_torch
 class AgentImageTests(unittest.TestCase):
     def test_from_tensor(self):
@@ -83,7 +81,7 @@ class AgentImageTests(unittest.TestCase):
         # Ensure that the tensor and the agent_type's tensor are the same
         self.assertTrue(torch.allclose(tensor, agent_type._tensor, atol=1e-4))
 
-        self.assertIsInstance(agent_type.to_raw(), Image.Image)
+        self.assertIsInstance(agent_type.to_raw(), PIL.Image.Image)
 
         # Ensure the path remains even after the object deletion
         del agent_type
@@ -91,7 +89,7 @@ class AgentImageTests(unittest.TestCase):
 
     def test_from_string(self):
         path = Path("tests/fixtures/000000039769.png")
-        image = Image.open(path)
+        image = PIL.Image.open(path)
         agent_type = AgentImage(path)
 
         self.assertTrue(path.samefile(agent_type.to_string()))
@@ -103,7 +101,7 @@ class AgentImageTests(unittest.TestCase):
 
     def test_from_image(self):
         path = Path("tests/fixtures/000000039769.png")
-        image = Image.open(path)
+        image = PIL.Image.open(path)
         agent_type = AgentImage(image)
 
         self.assertFalse(path.samefile(agent_type.to_string()))

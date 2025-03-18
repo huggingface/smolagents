@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+import PIL.Image
 from transformers import is_torch_available
 from transformers.testing_utils import get_tests_dir, require_torch
 
@@ -46,7 +46,9 @@ class FinalAnswerToolTester(unittest.TestCase, ToolTesterMixin):
 
     def create_inputs(self):
         inputs_text = {"answer": "Text input"}
-        inputs_image = {"answer": Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png").resize((512, 512))}
+        inputs_image = {
+            "answer": PIL.Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png").resize((512, 512))
+        }
         inputs_audio = {"answer": torch.Tensor(np.ones(3000))}
         return {"string": inputs_text, "image": inputs_image, "audio": inputs_audio}
 

@@ -315,10 +315,10 @@ class AgentTests(unittest.TestCase):
         assert agent.memory.steps[2].model_output is None
 
     def test_toolcalling_agent_handles_image_tool_outputs(self):
-        from PIL import Image
+        import PIL.Image
 
         @tool
-        def fake_image_generation_tool(prompt: str) -> Image.Image:
+        def fake_image_generation_tool(prompt: str) -> PIL.Image.Image:
             """Tool that generates an image.
 
             Args:
@@ -326,22 +326,22 @@ class AgentTests(unittest.TestCase):
             """
             from pathlib import Path
 
-            from PIL import Image
+            import PIL.Image
 
-            return Image.open(Path("tests/fixtures/000000039769.png"))
+            return PIL.Image.open(Path("tests/fixtures/000000039769.png"))
 
         agent = ToolCallingAgent(tools=[fake_image_generation_tool], model=FakeToolCallModelImage())
         output = agent.run("Make me an image.")
         assert isinstance(output, AgentImage)
-        assert isinstance(agent.state["image.png"], Image.Image)
+        assert isinstance(agent.state["image.png"], PIL.Image.Image)
 
     def test_toolcalling_agent_handles_image_inputs(self):
-        from PIL import Image
+        import PIL.Image
 
-        image = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")  # dummy input
+        image = PIL.Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")  # dummy input
 
         @tool
-        def fake_image_understanding_tool(prompt: str, image: Image.Image) -> str:
+        def fake_image_understanding_tool(prompt: str, image: PIL.Image.Image) -> str:
             """Tool that creates a caption for an image.
 
             Args:

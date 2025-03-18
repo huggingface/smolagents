@@ -22,9 +22,10 @@ from unittest.mock import MagicMock, patch
 
 import mcp
 import numpy as np
+import PIL.Image
 import pytest
 import torch
-from transformers import is_torch_available, is_vision_available
+from transformers import is_torch_available
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
@@ -36,9 +37,6 @@ from .utils.markers import require_run_all
 if is_torch_available():
     import torch
 
-if is_vision_available():
-    from PIL import Image
-
 
 def create_inputs(tool_inputs: Dict[str, Dict[Union[str, type], str]]):
     inputs = {}
@@ -49,7 +47,9 @@ def create_inputs(tool_inputs: Dict[str, Dict[Union[str, type], str]]):
         if input_type == "string":
             inputs[input_name] = "Text input"
         elif input_type == "image":
-            inputs[input_name] = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png").resize((512, 512))
+            inputs[input_name] = PIL.Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png").resize(
+                (512, 512)
+            )
         elif input_type == "audio":
             inputs[input_name] = np.ones(3000)
         else:
@@ -61,7 +61,7 @@ def create_inputs(tool_inputs: Dict[str, Dict[Union[str, type], str]]):
 def output_type(output):
     if isinstance(output, (str, AgentText)):
         return "string"
-    elif isinstance(output, (Image.Image, AgentImage)):
+    elif isinstance(output, (PIL.Image.Image, AgentImage)):
         return "image"
     elif isinstance(output, (torch.Tensor, AgentAudio)):
         return "audio"
