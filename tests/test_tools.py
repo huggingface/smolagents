@@ -23,18 +23,14 @@ from unittest.mock import MagicMock, patch
 import mcp
 import numpy as np
 import pytest
-import torch
-from transformers import is_torch_available, is_vision_available
+from transformers import is_vision_available
 from transformers.testing_utils import get_tests_dir
 
-from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
+from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
 
 from .utils.markers import require_run_all
 
-
-if is_torch_available():
-    import torch
 
 if is_vision_available():
     from PIL import Image
@@ -56,17 +52,6 @@ def create_inputs(tool_inputs: Dict[str, Dict[Union[str, type], str]]):
             raise ValueError(f"Invalid type requested: {input_type}")
 
     return inputs
-
-
-def output_type(output):
-    if isinstance(output, (str, AgentText)):
-        return "string"
-    elif isinstance(output, (Image.Image, AgentImage)):
-        return "image"
-    elif isinstance(output, (torch.Tensor, AgentAudio)):
-        return "audio"
-    else:
-        raise TypeError(f"Invalid output: {output}")
 
 
 class ToolTesterMixin:
