@@ -1138,6 +1138,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
 
         return openai.AzureOpenAI(**self.client_kwargs)
 
+
 __all__ = [
     "MessageRole",
     "tool_role_conversions",
