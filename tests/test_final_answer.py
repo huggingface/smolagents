@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
 from pathlib import Path
 
 import numpy as np
@@ -31,18 +30,18 @@ if is_torch_available():
     import torch
 
 
-class FinalAnswerToolTester(unittest.TestCase, ToolTesterMixin):
-    def setUp(self):
+class TestFinalAnswerTool(ToolTesterMixin):
+    def setup_method(self):
         self.inputs = {"answer": "Final answer"}
         self.tool = FinalAnswerTool()
 
     def test_exact_match_arg(self):
         result = self.tool("Final answer")
-        self.assertEqual(result, "Final answer")
+        assert result == "Final answer"
 
     def test_exact_match_kwarg(self):
         result = self.tool(answer=self.inputs["answer"])
-        self.assertEqual(result, "Final answer")
+        assert result == "Final answer"
 
     def create_inputs(self):
         inputs_text = {"answer": "Text input"}
@@ -56,4 +55,4 @@ class FinalAnswerToolTester(unittest.TestCase, ToolTesterMixin):
         for input_type, input in inputs.items():
             output = self.tool(**input, sanitize_inputs_outputs=True)
             agent_type = _AGENT_TYPE_MAPPING[input_type]
-            self.assertTrue(isinstance(output, agent_type))
+            assert isinstance(output, agent_type)
