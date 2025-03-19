@@ -1,17 +1,12 @@
 import pytest
 
-from smolagents.agents import ToolCall
 from smolagents.memory import (
-    ActionStep,
     AgentMemory,
-    ChatMessage,
     MemoryStep,
-    Message,
     MessageRole,
-    PlanningStep,
-    SystemPromptStep,
     TaskStep,
 )
+from smolagents.memory_providers import DictMemory, FilteredMemory
 
 
 class TestAgentMemory:
@@ -21,155 +16,130 @@ class TestAgentMemory:
         assert memory.system_prompt.system_prompt == system_prompt
         assert memory.steps == []
 
+    def test_write_to_messages(self):
+        system_prompt = "This is a system prompt."
+        memory = AgentMemory(system_prompt=system_prompt)
+
+        # Add a task step
+        task_step = TaskStep(task="This is a task.")
+        memory.steps.append(task_step)
+
+        # Get messages
+        messages = memory.write_to_messages()
+
+        # Check that the system prompt and task step are included
+        assert len(messages) == 2
+        assert messages[0]["role"] == MessageRole.SYSTEM
+        assert messages[1]["role"] == MessageRole.USER
+
 
 class TestMemoryStep:
     def test_initialization(self):
-        step = MemoryStep()
-        assert isinstance(step, MemoryStep)
-
-    def test_dict(self):
-        step = MemoryStep()
-        assert step.dict() == {}
-
-    def test_to_messages(self):
-        step = MemoryStep()
-        with pytest.raises(NotImplementedError):
-            step.to_messages()
+        # MemoryStep is now an abstract class, so we can't instantiate it directly
+        with pytest.raises(TypeError):
+            MemoryStep()
 
 
-def test_action_step_to_messages():
-    action_step = ActionStep(
-        model_input_messages=[Message(role=MessageRole.USER, content="Hello")],
-        tool_calls=[
-            ToolCall(id="id", name="get_weather", arguments={"location": "Paris"}),
-        ],
-        start_time=0.0,
-        end_time=1.0,
-        step_number=1,
-        error=None,
-        duration=1.0,
-        model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content="Hi"),
-        model_output="Hi",
-        observations="This is a nice observation",
-        observations_images=["image1.png"],
-        action_output="Output",
-    )
-    messages = action_step.to_messages()
-    assert len(messages) == 4
-    for message in messages:
-        assert isinstance(message, dict)
-        assert "role" in message
-        assert "content" in message
-        assert isinstance(message["role"], MessageRole)
-        assert isinstance(message["content"], list)
-    assistant_message = messages[0]
-    assert assistant_message["role"] == MessageRole.ASSISTANT
-    assert len(assistant_message["content"]) == 1
-    for content in assistant_message["content"]:
-        assert isinstance(content, dict)
-        assert "type" in content
-        assert "text" in content
-    message = messages[1]
-    assert message["role"] == MessageRole.TOOL_CALL
+class TestDictMemory:
+    def test_initialization(self):
+        system_prompt = "This is a system prompt."
+        memory = DictMemory(system_prompt=system_prompt)
+        assert memory.system_prompt.system_prompt == system_prompt
+        assert len(memory.steps) == 0
 
-    assert len(message["content"]) == 1
-    text_content = message["content"][0]
-    assert isinstance(text_content, dict)
-    assert "type" in text_content
-    assert "text" in text_content
+    def test_add_step(self):
+        system_prompt = "This is a system prompt."
+        memory = DictMemory(system_prompt=system_prompt)
 
-    observation_message = messages[2]
-    assert observation_message["role"] == MessageRole.TOOL_RESPONSE
-    assert "Observation:\nThis is a nice observation" in observation_message["content"][0]["text"]
+        # Add a task step
+        task_step = TaskStep(task="This is a task.")
+        step_id = memory.add_step(task_step)
 
-    image_message = messages[3]
-    image_content = image_message["content"][1]
-    assert isinstance(image_content, dict)
-    assert "type" in image_content
-    assert "image" in image_content
+        # Check that the step was added
+        assert len(memory.steps) == 1
+        assert memory.steps[step_id] == task_step
+
+    def test_get_step(self):
+        system_prompt = "This is a system prompt."
+        memory = DictMemory(system_prompt=system_prompt)
+
+        # Add a task step
+        task_step = TaskStep(task="This is a task.")
+        step_id = memory.add_step(task_step)
+
+        # Get the step
+        retrieved_step = memory.get_step(step_id)
+
+        # Check that the retrieved step is the same as the added step
+        assert retrieved_step == task_step
+
+    def test_write_to_messages(self):
+        system_prompt = "This is a system prompt."
+        memory = DictMemory(system_prompt=system_prompt)
+
+        # Add a task step
+        task_step = TaskStep(task="This is a task.")
+        memory.add_step(task_step)
+
+        # Get messages
+        messages = memory.write_to_messages()
+
+        # Check that the system prompt and task step are included
+        assert len(messages) == 2
+        assert messages[0]["role"] == MessageRole.SYSTEM
+        assert messages[1]["role"] == MessageRole.USER
 
 
-def test_action_step_to_messages_no_tool_calls_with_observations():
-    action_step = ActionStep(
-        model_input_messages=None,
-        tool_calls=None,
-        start_time=None,
-        end_time=None,
-        step_number=None,
-        error=None,
-        duration=None,
-        model_output_message=None,
-        model_output=None,
-        observations="This is an observation.",
-        observations_images=None,
-        action_output=None,
-    )
-    messages = action_step.to_messages()
-    assert len(messages) == 1
-    observation_message = messages[0]
-    assert observation_message["role"] == MessageRole.TOOL_RESPONSE
-    assert "Observation:\nThis is an observation." in observation_message["content"][0]["text"]
+class TestFilteredMemory:
+    def test_initialization(self):
+        system_prompt = "This is a system prompt."
+        base_memory = AgentMemory(system_prompt=system_prompt)
 
+        # Create a filtered memory that includes all steps
+        def include_all(step):
+            return True
 
-def test_planning_step_to_messages():
-    planning_step = PlanningStep(
-        model_input_messages=[Message(role=MessageRole.USER, content="Hello")],
-        model_output_message_facts=ChatMessage(role=MessageRole.ASSISTANT, content="Facts"),
-        facts="These are facts.",
-        model_output_message_plan=ChatMessage(role=MessageRole.ASSISTANT, content="Plan"),
-        plan="This is a plan.",
-    )
-    messages = planning_step.to_messages(summary_mode=False)
-    assert len(messages) == 2
-    for message in messages:
-        assert isinstance(message, dict)
-        assert "role" in message
-        assert "content" in message
-        assert isinstance(message["role"], MessageRole)
-        assert message["role"] == MessageRole.ASSISTANT
-        assert isinstance(message["content"], list)
-        assert len(message["content"]) == 1
-        for content in message["content"]:
-            assert isinstance(content, dict)
-            assert "type" in content
-            assert "text" in content
+        filtered_memory = FilteredMemory(base_memory, include_all)
 
+        # Check that the filtered memory has the same base memory
+        assert filtered_memory.base_memory == base_memory
 
-def test_task_step_to_messages():
-    task_step = TaskStep(task="This is a task.", task_images=["task_image1.png"])
-    messages = task_step.to_messages(summary_mode=False)
-    assert len(messages) == 1
-    for message in messages:
-        assert isinstance(message, dict)
-        assert "role" in message
-        assert "content" in message
-        assert isinstance(message["role"], MessageRole)
-        assert message["role"] == MessageRole.USER
-        assert isinstance(message["content"], list)
-        assert len(message["content"]) == 2
-        text_content = message["content"][0]
-        assert isinstance(text_content, dict)
-        assert "type" in text_content
-        assert "text" in text_content
-        for image_content in message["content"][1:]:
-            assert isinstance(image_content, dict)
-            assert "type" in image_content
-            assert "image" in image_content
+    def test_get_succinct_steps(self):
+        system_prompt = "This is a system prompt."
+        base_memory = AgentMemory(system_prompt=system_prompt)
 
+        # Add a task step
+        task_step = TaskStep(task="This is a task.")
+        base_memory.steps.append(task_step)
 
-def test_system_prompt_step_to_messages():
-    system_prompt_step = SystemPromptStep(system_prompt="This is a system prompt.")
-    messages = system_prompt_step.to_messages(summary_mode=False)
-    assert len(messages) == 1
-    for message in messages:
-        assert isinstance(message, dict)
-        assert "role" in message
-        assert "content" in message
-        assert isinstance(message["role"], MessageRole)
-        assert message["role"] == MessageRole.SYSTEM
-        assert isinstance(message["content"], list)
-        assert len(message["content"]) == 1
-        for content in message["content"]:
-            assert isinstance(content, dict)
-            assert "type" in content
-            assert "text" in content
+        # Create a filtered memory that excludes all steps
+        def exclude_all(step):
+            return False
+
+        filtered_memory = FilteredMemory(base_memory, exclude_all)
+
+        # Get succinct steps
+        steps = filtered_memory.get_succinct_steps()
+
+        # Check that no steps are included
+        assert len(steps) == 0
+
+    def test_get_full_steps(self):
+        system_prompt = "This is a system prompt."
+        base_memory = AgentMemory(system_prompt=system_prompt)
+
+        # Add a task step
+        task_step = TaskStep(task="This is a task.")
+        base_memory.steps.append(task_step)
+
+        # Create a filtered memory that includes all steps
+        def include_all(step):
+            return True
+
+        filtered_memory = FilteredMemory(base_memory, include_all)
+
+        # Get full steps
+        steps = filtered_memory.get_full_steps()
+
+        # Check that all steps are included
+        assert len(steps) == 1

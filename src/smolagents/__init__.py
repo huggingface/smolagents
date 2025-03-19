@@ -22,6 +22,7 @@ from .default_tools import *
 from .gradio_ui import *
 from .local_python_executor import *
 from .memory import *
+from .memory_providers import *
 from .models import *
 from .monitoring import *
 from .remote_executors import *

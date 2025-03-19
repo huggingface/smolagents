@@ -1,0 +1,545 @@
+<!--Copyright 2024 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
+rendered properly in your Markdown viewer.
+
+-->
+# 🔌 Using Different Memory Providers
+
+[[open-in-colab]]
+
+The memory system in smolagents is designed to be pluggable and extensible. This means you can use different memory providers to store and retrieve memory steps, depending on your needs. This tutorial will show you how to use the built-in memory providers and how to create your own.
+
+## Built-in Memory Providers
+
+smolagents comes with several built-in memory providers:
+
+1. **AgentMemory**: The default memory provider that stores memory steps in a list.
+2. **DictMemory**: A memory provider that stores memory steps in an OrderedDict, allowing for efficient lookup by step ID.
+3. **FilteredMemory**: A memory provider that filters memory steps based on a predicate function.
+4. **ExternalStorageMemory**: A memory provider that stores memory steps in external storage (JSON files), enabling agents to resume conversations from checkpoints and replay full conversations.
+
+### Using the Default AgentMemory
+
+The default memory provider is `AgentMemory`, which stores memory steps in a list. This is the memory provider that is used by default when you create an agent.
+
+```python
+from smolagents import CodeAgent, HfApiModel
+from smolagents.memory import AgentMemory
+
+# Create an agent with the default memory provider
+agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=1)
+
+# Run the agent
+result = agent.run("What's the 20th Fibonacci number?")
+
+# Access the memory
+print("\nAccessing memory steps:")
+for i, step in enumerate(agent.memory.steps):
+    if hasattr(step, 'step_number'):
+        print(f"Step {step.step_number}: {type(step).__name__}")
+    else:
+        print(f"Step {i}: {type(step).__name__}")
+
+# Replay the agent's steps
+print("\nReplaying agent steps:")
+agent.replay()
+```
+
+### Using DictMemory
+
+`DictMemory` stores memory steps in an OrderedDict, which allows for efficient lookup by step ID. This can be useful if you need to access specific steps by ID.
+
+```python
+from smolagents import CodeAgent, HfApiModel
+from smolagents.memory import ActionStep, TaskStep
+from smolagents.memory_providers import DictMemory
+
+# Create an agent
+agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=1)
+
+# Replace the default memory with DictMemory
+system_prompt = agent.system_prompt
+dict_memory = DictMemory(system_prompt)
+
+# Store the original memory
+original_memory = agent.memory
+
+# Replace with our custom memory
+agent.memory = dict_memory
+
+# Run the agent
+task = "What's the 20th Fibonacci number?"
+
+# We need to manually add the task step since we're using a custom memory provider
+dict_memory.add_step(TaskStep(task=task))
+
+# Run the agent step by step
+final_answer = None
+step_number = 1
+max_steps = 10
+
+while final_answer is None and step_number <= max_steps:
+    memory_step = ActionStep(
+        step_number=step_number,
+        observations_images=[],
+    )
+    
+    # Run one step
+    final_answer = agent.step(memory_step)
+    
+    # Add the step to our custom memory
+    dict_memory.add_step(memory_step)
+    
+    step_number += 1
+
+# Access the memory by step ID
+print("\nAccessing memory steps by ID:")
+for step_id, step in dict_memory.steps.items():
+    print(f"{step_id}: {type(step).__name__}")
+
+# Get a specific step
+first_step_id = next(iter(dict_memory.steps.keys()))
+first_step = dict_memory.get_step(first_step_id)
+print(f"\nFirst step ({first_step_id}): {type(first_step).__name__}")
+
+# Replay the agent's steps
+print("\nReplaying agent steps:")
+dict_memory.replay(agent.logger)
+
+# Restore the original memory
+agent.memory = original_memory
+```
+
+### Using FilteredMemory
+
+`FilteredMemory` filters memory steps based on a predicate function. This can be useful if you want to exclude certain types of steps from the memory, such as steps with errors.
+
+```python
+from smolagents import CodeAgent, HfApiModel
+from smolagents.memory_providers import FilteredMemory
+
+# Create an agent with the default memory provider
+agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=1)
+
+# Run the agent
+result = agent.run("What's the 20th Fibonacci number?")
+
+# Create a filtered memory that only includes steps without errors
+def no_error_filter(step):
+    if isinstance(step, dict) and 'error' in step:
+        return step['error'] is None
+    return True
+
+filtered_memory = FilteredMemory(agent.memory, no_error_filter)
+
+# Get steps from the filtered memory
+print("\nSteps from filtered memory (no errors):")
+for i, step in enumerate(filtered_memory.get_succinct_steps()):
+    if 'step' in step:
+        print(f"Step {step['step']}")
+    else:
+        print(f"Step {i}")
+```
+
+### Using ExternalStorageMemory
+
+`ExternalStorageMemory` stores memory steps in external storage (JSON files), which allows for persistent storage of memory steps, enabling agents to resume conversations from checkpoints and replay full conversations.
+
+```python
+from smolagents import CodeAgent, HfApiModel
+from smolagents.memory import ActionStep, TaskStep
+from smolagents.memory_providers import ExternalStorageMemory
+
+# Create an agent
+agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=1)
+
+# Replace the default memory with ExternalStorageMemory
+system_prompt = agent.system_prompt
+external_memory = ExternalStorageMemory(
+    system_prompt=system_prompt,
+    storage_dir="memory_storage",
+    conversation_id="fibonacci_example"
+)
+
+# Store the original memory
+original_memory = agent.memory
+
+# Replace with our custom memory
+agent.memory = external_memory
+
+# Run the agent
+task = "What's the Fibonacci sequence and how can we calculate it efficiently?"
+
+# We need to manually add the task step since we're using a custom memory provider
+external_memory.add_step(TaskStep(task=task))
+
+# Run the agent step by step
+final_answer = None
+step_number = 1
+max_steps = 3
+
+while final_answer is None and step_number <= max_steps:
+    memory_step = ActionStep(
+        step_number=step_number,
+        observations_images=[],
+    )
+
+    # Run one step
+    final_answer = agent.step(memory_step)
+
+    # Add the step to our custom memory
+    external_memory.add_step(memory_step)
+
+    # Save a checkpoint after each step
+    checkpoint_name = external_memory.save_checkpoint(f"step_{step_number}")
+    print(f"Saved checkpoint: {checkpoint_name}")
+
+    step_number += 1
+
+# Restore the original memory
+agent.memory = original_memory
+```
+
+#### Resuming from a Checkpoint
+
+One of the key features of `ExternalStorageMemory` is the ability to resume a conversation from a checkpoint:
+
+```python
+# Load the conversation
+external_memory = ExternalStorageMemory.load_conversation("fibonacci_example")
+
+# List all checkpoints
+checkpoints = external_memory.list_checkpoints()
+for checkpoint in checkpoints:
+    print(f"Checkpoint: {checkpoint['name']} (steps: {checkpoint['step_count']})")
+
+# Load a specific checkpoint
+external_memory.load_checkpoint("step_1")
+
+# Create an agent with the loaded memory
+agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=1)
+agent.memory = external_memory
+
+# Continue the conversation from the checkpoint
+final_answer = None
+step_number = 2  # Start from step 2 since we loaded checkpoint from step 1
+max_steps = 3
+
+while final_answer is None and step_number <= max_steps:
+    memory_step = ActionStep(
+        step_number=step_number,
+        observations_images=[],
+    )
+
+    # Run one step
+    final_answer = agent.step(memory_step)
+
+    # Add the step to our custom memory
+    external_memory.add_step(memory_step)
+
+    step_number += 1
+```
+
+#### Replaying a Full Conversation
+
+Another useful feature is the ability to replay a full conversation:
+
+```python
+# Load the conversation
+external_memory = ExternalStorageMemory.load_conversation("fibonacci_example")
+
+# Replay the full conversation
+external_memory.replay(agent.logger)
+```
+
+#### Listing All Conversations
+
+You can also list all available conversations:
+
+```python
+# Create a temporary memory instance to access the list_conversations method
+temp_memory = ExternalStorageMemory(system_prompt="temp")
+
+# List all conversations
+conversations = temp_memory.list_conversations()
+for conversation_id in conversations:
+    print(f"Conversation: {conversation_id}")
+```
+
+## Creating Your Own Memory Provider
+
+You can create your own memory provider by implementing the `MemoryProvider` protocol. This protocol defines the interface that all memory providers must implement.
+
+Here's an example of a simple memory provider that stores memory steps in a SQLite database:
+
+```python
+import sqlite3
+import json
+from typing import Dict, List, Any, Union, Optional
+
+from smolagents.memory import (
+    MemoryProvider,
+    SystemPromptStep,
+    TaskStep,
+    ActionStep,
+    PlanningStep,
+    MemoryStep,
+)
+from smolagents.monitoring import AgentLogger, LogLevel
+
+
+class SQLiteMemory:
+    """
+    A memory provider that stores memory steps in a SQLite database.
+    
+    This implementation uses a SQLite database to store memory steps, which allows for
+    persistent storage and efficient querying.
+    
+    Attributes:
+        system_prompt (SystemPromptStep): The system prompt step.
+        conn (sqlite3.Connection): The SQLite database connection.
+        cursor (sqlite3.Cursor): The SQLite database cursor.
+    """
+    
+    def __init__(self, system_prompt: str, db_path: str = ":memory:"):
+        """
+        Initialize a new SQLiteMemory instance.
+        
+        Args:
+            system_prompt (str): The system prompt to use.
+            db_path (str, optional): The path to the SQLite database file. Defaults to ":memory:".
+        """
+        self.system_prompt = SystemPromptStep(system_prompt=system_prompt)
+        self.conn = sqlite3.connect(db_path)
+        self.cursor = self.conn.cursor()
+        
+        # Create the steps table if it doesn't exist
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            data TEXT NOT NULL
+        )
+        """)
+        self.conn.commit()
+    
+    def reset(self) -> None:
+        """Reset the memory by clearing all steps."""
+        self.cursor.execute("DELETE FROM steps")
+        self.conn.commit()
+    
+    def add_step(self, step: Union[TaskStep, ActionStep, PlanningStep]) -> int:
+        """
+        Add a step to the memory.
+        
+        Args:
+            step (Union[TaskStep, ActionStep, PlanningStep]): The step to add.
+            
+        Returns:
+            int: The ID of the added step.
+        """
+        step_type = type(step).__name__
+        step_data = json.dumps(step.dict())
+        
+        self.cursor.execute(
+            "INSERT INTO steps (type, data) VALUES (?, ?)",
+            (step_type, step_data)
+        )
+        self.conn.commit()
+        
+        return self.cursor.lastrowid
+    
+    def get_step(self, step_id: int) -> Optional[MemoryStep]:
+        """
+        Get a step by ID.
+        
+        Args:
+            step_id (int): The ID of the step to get.
+            
+        Returns:
+            Optional[MemoryStep]: The step with the given ID, or None if not found.
+        """
+        self.cursor.execute(
+            "SELECT type, data FROM steps WHERE id = ?",
+            (step_id,)
+        )
+        result = self.cursor.fetchone()
+        
+        if result is None:
+            return None
+        
+        step_type, step_data = result
+        step_dict = json.loads(step_data)
+        
+        # Create the appropriate step object based on the type
+        if step_type == "TaskStep":
+            return TaskStep(**step_dict)
+        elif step_type == "ActionStep":
+            return ActionStep(**step_dict)
+        elif step_type == "PlanningStep":
+            return PlanningStep(**step_dict)
+        else:
+            return None
+    
+    def get_all_steps(self) -> List[MemoryStep]:
+        """
+        Get all steps in the memory.
+        
+        Returns:
+            List[MemoryStep]: A list of all memory steps.
+        """
+        self.cursor.execute("SELECT id, type, data FROM steps ORDER BY id")
+        results = self.cursor.fetchall()
+        
+        steps = []
+        for step_id, step_type, step_data in results:
+            step_dict = json.loads(step_data)
+            
+            # Create the appropriate step object based on the type
+            if step_type == "TaskStep":
+                steps.append(TaskStep(**step_dict))
+            elif step_type == "ActionStep":
+                steps.append(ActionStep(**step_dict))
+            elif step_type == "PlanningStep":
+                steps.append(PlanningStep(**step_dict))
+        
+        return steps
+    
+    def get_succinct_steps(self) -> list[dict]:
+        """
+        Get a succinct representation of the memory steps.
+        
+        This excludes model_input_messages to reduce verbosity.
+        
+        Returns:
+            list[dict]: A list of dictionaries representing the memory steps.
+        """
+        steps = self.get_all_steps()
+        return [
+            {key: value for key, value in step.dict().items() if key != "model_input_messages"}
+            for step in steps
+        ]
+    
+    def get_full_steps(self) -> list[dict]:
+        """
+        Get a full representation of the memory steps.
+        
+        Returns:
+            list[dict]: A list of dictionaries representing the memory steps.
+        """
+        steps = self.get_all_steps()
+        return [step.dict() for step in steps]
+    
+    def replay(self, logger: AgentLogger, detailed: bool = False) -> None:
+        """
+        Prints a pretty replay of the agent's steps.
+
+        Args:
+            logger (AgentLogger): The logger to print replay logs to.
+            detailed (bool, optional): If True, also displays the memory at each step. Defaults to False.
+                Careful: will increase log length exponentially. Use only for debugging.
+        """
+        logger.console.log("Replaying the agent's steps:")
+        
+        # First, log the system prompt if detailed is True
+        if detailed:
+            logger.log_markdown(title="System prompt", content=self.system_prompt.system_prompt, level=LogLevel.ERROR)
+        
+        # Then, log each step
+        for step in self.get_all_steps():
+            if isinstance(step, TaskStep):
+                logger.log_task(step.task, "", level=LogLevel.ERROR)
+            elif isinstance(step, ActionStep):
+                logger.log_rule(f"Step {step.step_number}", level=LogLevel.ERROR)
+                if detailed:
+                    logger.log_messages(step.model_input_messages)
+                logger.log_markdown(title="Agent output:", content=step.model_output, level=LogLevel.ERROR)
+            elif isinstance(step, PlanningStep):
+                logger.log_rule("Planning step", level=LogLevel.ERROR)
+                if detailed:
+                    logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
+                logger.log_markdown(title="Agent output:", content=step.facts + "\n" + step.plan, level=LogLevel.ERROR)
+    
+    def write_to_messages(self, summary_mode: bool = False) -> List[Dict[str, Any]]:
+        """
+        Convert the memory steps to a list of messages.
+        
+        Args:
+            summary_mode (bool, optional): If True, exclude certain details to create a summary. Defaults to False.
+            
+        Returns:
+            List[Dict[str, Any]]: A list of messages.
+        """
+        messages = self.system_prompt.to_messages(summary_mode=summary_mode)
+        for memory_step in self.get_all_steps():
+            messages.extend(memory_step.to_messages(summary_mode=summary_mode))
+        return messages
+```
+
+You can then use this memory provider with an agent:
+
+```python
+from smolagents import CodeAgent, HfApiModel
+from smolagents.memory import ActionStep, TaskStep
+
+# Create an agent
+agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=1)
+
+# Replace the default memory with SQLiteMemory
+system_prompt = agent.system_prompt
+sqlite_memory = SQLiteMemory(system_prompt, db_path="agent_memory.db")
+
+# Store the original memory
+original_memory = agent.memory
+
+# Replace with our custom memory
+agent.memory = sqlite_memory
+
+# Run the agent
+task = "What's the 20th Fibonacci number?"
+
+# We need to manually add the task step since we're using a custom memory provider
+sqlite_memory.add_step(TaskStep(task=task))
+
+# Run the agent step by step
+final_answer = None
+step_number = 1
+max_steps = 10
+
+while final_answer is None and step_number <= max_steps:
+    memory_step = ActionStep(
+        step_number=step_number,
+        observations_images=[],
+    )
+    
+    # Run one step
+    final_answer = agent.step(memory_step)
+    
+    # Add the step to our custom memory
+    sqlite_memory.add_step(memory_step)
+    
+    step_number += 1
+
+# Replay the agent's steps
+print("\nReplaying agent steps:")
+sqlite_memory.replay(agent.logger)
+
+# Restore the original memory
+agent.memory = original_memory
+```
+
+## Conclusion
+
+The memory system in smolagents is designed to be pluggable and extensible, allowing you to use different memory providers depending on your needs. You can use the built-in memory providers or create your own by implementing the `MemoryProvider` protocol.
+
+For more information on the memory system, see the [memory tutorial](./memory.mdx).
