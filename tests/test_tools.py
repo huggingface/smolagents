@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import tempfile
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -408,7 +407,7 @@ class TestTool:
 
         assert get_weather.inputs["celsius"]["nullable"]
 
-    def test_tool_supports_any_none(self):
+    def test_tool_supports_any_none(self, tmp_path):
         @tool
         def get_weather(location: Any) -> None:
             """
@@ -419,8 +418,7 @@ class TestTool:
             """
             return
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            get_weather.save(tmp_dir)
+        get_weather.save(tmp_path)
         assert get_weather.inputs["location"]["type"] == "any"
         assert get_weather.output_type == "null"
 
@@ -439,7 +437,7 @@ class TestTool:
         assert get_weather.inputs["locations"]["type"] == "array"
         assert get_weather.inputs["months"]["type"] == "array"
 
-    def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self):
+    def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self, tmp_path):
         @tool
         def get_weather(location: Any) -> None:
             """
@@ -451,13 +449,12 @@ class TestTool:
             """
             return
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            get_weather.save(tmp_dir)
-            with open(os.path.join(tmp_dir, "tool.py"), "r", encoding="utf-8") as f:
-                source_code = f.read()
-                compile(source_code, f.name, "exec")
+        get_weather.save(tmp_path)
+        with open(os.path.join(tmp_path, "tool.py"), "r", encoding="utf-8") as f:
+            source_code = f.read()
+            compile(source_code, f.name, "exec")
 
-    def test_saving_tool_produces_valid_python_code_with_complex_name(self):
+    def test_saving_tool_produces_valid_python_code_with_complex_name(self, tmp_path):
         # Test one cannot save tool with additional args in init
         class FailTool(Tool):
             name = 'spe"\rcific'
@@ -473,11 +470,10 @@ class TestTool:
                 return "foo"
 
         fail_tool = FailTool()
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            fail_tool.save(tmp_dir)
-            with open(os.path.join(tmp_dir, "tool.py"), "r", encoding="utf-8") as f:
-                source_code = f.read()
-                compile(source_code, f.name, "exec")
+        fail_tool.save(tmp_path)
+        with open(os.path.join(tmp_path, "tool.py"), "r", encoding="utf-8") as f:
+            source_code = f.read()
+            compile(source_code, f.name, "exec")
 
 
 @pytest.fixture
