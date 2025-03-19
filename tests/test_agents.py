@@ -303,7 +303,7 @@ print(result)
     )
 
 
-class AgentTests(unittest.TestCase):
+class TestAgent:
     def test_fake_toolcalling_agent(self):
         agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeToolCallModel())
         output = agent.run("What is 2 multiplied by 3.6452?")
@@ -313,7 +313,7 @@ class AgentTests(unittest.TestCase):
         assert "7.2904" in agent.memory.steps[1].observations
         assert agent.memory.steps[2].model_output is None
 
-    def test_toolcalling_agent_handles_image_tool_outputs(self):
+    def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
         import PIL.Image
 
         @tool
@@ -323,21 +323,20 @@ class AgentTests(unittest.TestCase):
             Args:
                 prompt: The prompt
             """
-            from pathlib import Path
 
             import PIL.Image
 
-            return PIL.Image.open(Path("tests/data/000000039769.png"))
+            return PIL.Image.open(shared_datadir / "000000039769.png")
 
         agent = ToolCallingAgent(tools=[fake_image_generation_tool], model=FakeToolCallModelImage())
         output = agent.run("Make me an image.")
         assert isinstance(output, AgentImage)
         assert isinstance(agent.state["image.png"], PIL.Image.Image)
 
-    def test_toolcalling_agent_handles_image_inputs(self):
+    def test_toolcalling_agent_handles_image_inputs(self, shared_datadir):
         import PIL.Image
 
-        image = PIL.Image.open(Path("tests/data/000000039769.png"))  # dummy input
+        image = PIL.Image.open(shared_datadir / "000000039769.png")  # dummy input
 
         @tool
         def fake_image_understanding_tool(prompt: str, image: PIL.Image.Image) -> str:

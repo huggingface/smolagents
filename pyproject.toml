@@ -84,6 +84,7 @@ quality = [
 test = [
   "ipython>=8.31.0", # for interactive environment tests
   "pytest>=8.1.0",
+  "pytest-datadir",
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs

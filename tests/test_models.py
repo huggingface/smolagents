@@ -16,7 +16,6 @@ import json
 import sys
 import unittest
 from contextlib import ExitStack
-from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
@@ -42,7 +41,7 @@ from smolagents.tools import tool
 from .utils.markers import require_run_all
 
 
-class ModelTests(unittest.TestCase):
+class TestModel:
     def test_get_json_schema_has_nullable_args(self):
         @tool
         def get_weather(location: str, celsius: Optional[bool] = False) -> str:
@@ -94,10 +93,10 @@ class ModelTests(unittest.TestCase):
         output = model(messages, stop_sequences=["great"]).content
         assert output == "assistant\nHello"
 
-    def test_transformers_message_vl_no_tool(self):
+    def test_transformers_message_vl_no_tool(self, shared_datadir):
         import PIL.Image
 
-        img = PIL.Image.open(Path("tests/data/000000039769.png"))
+        img = PIL.Image.open(shared_datadir / "000000039769.png")
         model = TransformersModel(
             model_id="llava-hf/llava-interleave-qwen-0.5b-hf",
             max_new_tokens=5,
