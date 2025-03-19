@@ -14,7 +14,6 @@
 # limitations under the License.
 import os
 import tempfile
-import unittest
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -100,7 +99,7 @@ class ToolTesterMixin:
             self.assertTrue(isinstance(output, agent_type))
 
 
-class ToolTests(unittest.TestCase):
+class TestTool:
     def test_tool_init_with_decorator(self):
         @tool
         def coolfunc(a: str, b: int) -> float:
@@ -165,7 +164,7 @@ class ToolTests(unittest.TestCase):
             assert coolfunc.output_type == "number"
         assert "docstring has no description for the argument" in str(e)
 
-    def test_saving_tool_raises_error_imports_outside_function(self):
+    def test_saving_tool_raises_error_imports_outside_function(self, tmp_path):
         with pytest.raises(Exception) as e:
             import numpy as np
 
@@ -176,7 +175,7 @@ class ToolTests(unittest.TestCase):
                 """
                 return str(np.random.random())
 
-            get_current_time.save("output")
+            get_current_time.save(tmp_path)
 
         assert "np" in str(e)
 
@@ -193,7 +192,7 @@ class ToolTests(unittest.TestCase):
                     return str(np.random.random())
 
             get_current_time = GetCurrentTimeTool()
-            get_current_time.save("output")
+            get_current_time.save(tmp_path)
 
         assert "np" in str(e)
 
@@ -255,7 +254,7 @@ class ToolTests(unittest.TestCase):
         fail_tool = PassTool()
         fail_tool.to_dict()
 
-    def test_saving_tool_allows_no_imports_from_outside_methods(self):
+    def test_saving_tool_allows_no_imports_from_outside_methods(self, tmp_path):
         # Test that using imports from outside functions fails
         import numpy as np
 
@@ -274,7 +273,7 @@ class ToolTests(unittest.TestCase):
 
         fail_tool = FailTool()
         with pytest.raises(Exception) as e:
-            fail_tool.save("output")
+            fail_tool.save(tmp_path)
         assert "'np' is undefined" in str(e)
 
         # Test that putting these imports inside functions works
@@ -294,7 +293,7 @@ class ToolTests(unittest.TestCase):
                 return self.useless_method() + string_input
 
         success_tool = SuccessTool()
-        success_tool.save("output")
+        success_tool.save(tmp_path)
 
     def test_tool_missing_class_attributes_raises_error(self):
         with pytest.raises(Exception) as e:
