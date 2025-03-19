@@ -66,33 +66,33 @@ def output_type(output):
 
 class ToolTesterMixin:
     def test_inputs_output(self):
-        self.assertTrue(hasattr(self.tool, "inputs"))
-        self.assertTrue(hasattr(self.tool, "output_type"))
+        assert hasattr(self.tool, "inputs")
+        assert hasattr(self.tool, "output_type")
 
         inputs = self.tool.inputs
-        self.assertTrue(isinstance(inputs, dict))
+        assert isinstance(inputs, dict)
 
         for _, input_spec in inputs.items():
-            self.assertTrue("type" in input_spec)
-            self.assertTrue("description" in input_spec)
-            self.assertTrue(input_spec["type"] in AUTHORIZED_TYPES)
-            self.assertTrue(isinstance(input_spec["description"], str))
+            assert "type" in input_spec
+            assert "description" in input_spec
+            assert input_spec["type"] in AUTHORIZED_TYPES
+            assert isinstance(input_spec["description"], str)
 
         output_type = self.tool.output_type
-        self.assertTrue(output_type in AUTHORIZED_TYPES)
+        assert output_type in AUTHORIZED_TYPES
 
     def test_common_attributes(self):
-        self.assertTrue(hasattr(self.tool, "description"))
-        self.assertTrue(hasattr(self.tool, "name"))
-        self.assertTrue(hasattr(self.tool, "inputs"))
-        self.assertTrue(hasattr(self.tool, "output_type"))
+        assert hasattr(self.tool, "description")
+        assert hasattr(self.tool, "name")
+        assert hasattr(self.tool, "inputs")
+        assert hasattr(self.tool, "output_type")
 
     def test_agent_type_output(self):
         inputs = create_inputs(self.tool.inputs)
         output = self.tool(**inputs, sanitize_inputs_outputs=True)
         if self.tool.output_type != "any":
             agent_type = _AGENT_TYPE_MAPPING[self.tool.output_type]
-            self.assertTrue(isinstance(output, agent_type))
+            assert isinstance(output, agent_type)
 
 
 class TestTool:
