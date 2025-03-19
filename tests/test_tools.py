@@ -23,6 +23,7 @@ import numpy as np
 import PIL.Image
 import pytest
 import torch
+from huggingface_hub.utils import is_torch_available
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
