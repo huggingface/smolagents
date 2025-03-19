@@ -70,7 +70,7 @@ class AgentAudioTests(unittest.TestCase):
 
 
 @require_torch
-class AgentImageTests(unittest.TestCase):
+class TestAgentImage:
     def test_from_tensor(self):
         import torch
 
@@ -79,37 +79,37 @@ class AgentImageTests(unittest.TestCase):
         path = str(agent_type.to_string())
 
         # Ensure that the tensor and the agent_type's tensor are the same
-        self.assertTrue(torch.allclose(tensor, agent_type._tensor, atol=1e-4))
+        assert torch.allclose(tensor, agent_type._tensor, atol=1e-4)
 
-        self.assertIsInstance(agent_type.to_raw(), PIL.Image.Image)
+        assert isinstance(agent_type.to_raw(), PIL.Image.Image)
 
         # Ensure the path remains even after the object deletion
         del agent_type
-        self.assertTrue(os.path.exists(path))
+        assert os.path.exists(path)
 
     def test_from_string(self):
         path = Path("tests/data/000000039769.png")
         image = PIL.Image.open(path)
         agent_type = AgentImage(path)
 
-        self.assertTrue(path.samefile(agent_type.to_string()))
-        self.assertTrue(image == agent_type.to_raw())
+        assert path.samefile(agent_type.to_string())
+        assert image == agent_type.to_raw()
 
         # Ensure the path remains even after the object deletion
         del agent_type
-        self.assertTrue(os.path.exists(path))
+        assert os.path.exists(path)
 
     def test_from_image(self):
         path = Path("tests/data/000000039769.png")
         image = PIL.Image.open(path)
         agent_type = AgentImage(image)
 
-        self.assertFalse(path.samefile(agent_type.to_string()))
-        self.assertTrue(image == agent_type.to_raw())
+        assert not path.samefile(agent_type.to_string())
+        assert image == agent_type.to_raw()
 
         # Ensure the path remains even after the object deletion
         del agent_type
-        self.assertTrue(os.path.exists(path))
+        assert os.path.exists(path)
 
 
 class AgentTextTests(unittest.TestCase):
