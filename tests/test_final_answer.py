@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 
 import numpy as np
 import PIL.Image
+import pytest
 from transformers import is_torch_available
 from transformers.testing_utils import require_torch
 
@@ -43,16 +43,17 @@ class TestFinalAnswerTool(ToolTesterMixin):
         result = self.tool(answer=self.inputs["answer"])
         assert result == "Final answer"
 
-    def create_inputs(self):
-        inputs_text = {"answer": "Text input"}
-        inputs_image = {"answer": PIL.Image.open(Path("tests/data/000000039769.png")).resize((512, 512))}
-        inputs_audio = {"answer": torch.Tensor(np.ones(3000))}
-        return {"string": inputs_text, "image": inputs_image, "audio": inputs_audio}
-
     @require_torch
-    def test_agent_type_output(self):
-        inputs = self.create_inputs()
+    def test_agent_type_output(self, inputs):
         for input_type, input in inputs.items():
             output = self.tool(**input, sanitize_inputs_outputs=True)
             agent_type = _AGENT_TYPE_MAPPING[input_type]
             assert isinstance(output, agent_type)
+
+    @pytest.fixture
+    def inputs(self, shared_datadir):
+        return {
+            "string": {"answer": "Text input"},
+            "image": {"answer": PIL.Image.open(shared_datadir / "000000039769.png").resize((512, 512))},
+            "audio": {"answer": torch.Tensor(np.ones(3000))},
+        }
