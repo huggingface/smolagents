@@ -40,6 +40,7 @@ from typing import (
     get_type_hints,
 )
 
+from docstring_parser import parse
 from huggingface_hub.utils import is_torch_available
 
 from .utils import _is_pillow_available
@@ -196,7 +197,7 @@ def get_json_schema(func: Callable) -> Dict:
             f"Cannot generate JSON schema for {func.__name__} because it has no docstring!"
         )
     doc = doc.strip()
-    main_doc, param_descriptions, return_doc = _parse_google_format_docstring(doc)
+    main_doc, param_descriptions, return_doc = _parse_docstring(doc)
 
     json_schema = _convert_type_hints_to_json_schema(func)
     if (return_dict := json_schema["properties"].pop("return", None)) is not None:
@@ -220,55 +221,29 @@ def get_json_schema(func: Callable) -> Dict:
     return {"type": "function", "function": output}
 
 
-# Extracts the initial segment of the docstring, containing the function description
-description_re = re.compile(r"^(.*?)[\n\s]*(Args:|Returns:|Raises:|\Z)", re.DOTALL)
-# Extracts the Args: block from the docstring
-args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
-# Splits the Args: block into individual arguments
-args_split_re = re.compile(
-    r"""
-(?:^|\n)  # Match the start of the args block, or a newline
-\s*(\w+)\s*(?:\([^)]*\))?:\s*  # Capture the argument name (ignore the type) and strip spacing
-(.*?)\s*  # Capture the argument description, which can span multiple lines, and strip trailing spacing
-(?=\n\s*\w+:|\Z)  # Stop when you hit the next argument or the end of the block
-""",
-    re.DOTALL | re.VERBOSE,
-)
-# Extracts the Returns: block from the docstring, if present. Note that most chat templates ignore the return type/doc!
-returns_re = re.compile(r"\n\s*Returns:\n\s*(.*?)[\n\s]*(Raises:|\Z)", re.DOTALL)
-
-
-def _parse_google_format_docstring(
+def _parse_docstring(
     docstring: str,
 ) -> Tuple[Optional[str], Optional[Dict], Optional[str]]:
     """
-    Parses a Google-style docstring to extract the function description,
+    Parses a docstring to extract the function description,
     argument descriptions, and return description.
 
     Args:
         docstring (str): The docstring to parse.
+            Can be in any of the formats supported by `docstring_parser`.
 
     Returns:
         The function description, arguments, and return description.
     """
+    parsed = parse(docstring)
 
-    # Extract the sections
-    description_match = description_re.search(docstring)
-    args_match = args_re.search(docstring)
-    returns_match = returns_re.search(docstring)
+    description = parsed.short_description
+    if parsed.long_description:
+        description += "\n" + parsed.long_description
 
-    # Clean and store the sections
-    description = description_match.group(1).strip() if description_match else None
-    docstring_args = args_match.group(1).strip() if args_match else None
-    returns = returns_match.group(1).strip() if returns_match else None
+    args_dict = {arg.arg_name: arg.description.strip().replace("\n", " ") for arg in parsed.params}
 
-    # Parsing the arguments into a dictionary
-    if docstring_args is not None:
-        docstring_args = "\n".join([line for line in docstring_args.split("\n") if line.strip()])  # Remove blank lines
-        matches = args_split_re.findall(docstring_args)
-        args_dict = {match[0]: re.sub(r"\s*\n+\s*", " ", match[1].strip()) for match in matches}
-    else:
-        args_dict = {}
+    returns = parsed.returns
 
     return description, args_dict, returns
 
