@@ -1074,7 +1074,7 @@ final_answer("Final report.")
             ):
                 return ChatMessage(
                     role="assistant",
-                    content="",
+                    content="Here is the secret content: FLAG1",
                     tool_calls=[
                         ChatMessageToolCall(
                             id="call_0",
@@ -1095,6 +1095,7 @@ final_answer("Final report.")
             max_steps=10,
             name="search_agent",
             description="Runs web searches for you. Give it your request as an argument. Make the request as detailed as needed, you can ask for thorough reports",
+            verbosity_level=2,
         )
 
         manager_code_agent = CodeAgent(
@@ -1113,8 +1114,10 @@ final_answer("Final report.")
             managed_agents=[web_agent],
         )
 
-        report = manager_toolcalling_agent.run("Fake question.")
+        with web_agent.logger.console.capture() as capture:
+            report = manager_toolcalling_agent.run("Fake question.")
         assert report == "Final report."
+        assert "FLAG1" in capture.get()  # Check that managed agent's output is properly logged
 
         # Test that visualization works
         with manager_toolcalling_agent.logger.console.capture() as capture:

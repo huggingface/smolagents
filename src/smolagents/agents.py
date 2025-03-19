@@ -390,19 +390,21 @@ You have been provided with these additional arguments, that you can access usin
 
     def planning_step(self, task, is_first_step: bool, step: int) -> None:
         if is_first_step:
-            message_prompt_plan = {
-                "role": MessageRole.USER,
-                "content": [
-                    {
-                        "type": "text",
-                        "text": populate_template(
-                            self.prompt_templates["planning"]["initial_plan"],
-                            variables={"task": task, "tools": self.tools, "managed_agents": self.managed_agents},
-                        ),
-                    }
-                ],
-            }
-            plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
+            input_messages = [
+                {
+                    "role": MessageRole.USER,
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": populate_template(
+                                self.prompt_templates["planning"]["initial_plan"],
+                                variables={"task": task, "tools": self.tools, "managed_agents": self.managed_agents},
+                            ),
+                        }
+                    ],
+                }
+            ]
+            plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
         else:
             # Summary mode removes the system prompt and previous planning messages output by the model.
             # Removing previous planning messages avoids influencing too much the new plan.
@@ -1010,7 +1012,7 @@ class ToolCallingAgent(MultiStepAgent):
             raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
 
         self.logger.log_markdown(
-            content=str(model_message.raw),
+            content=model_message.content if model_message.content else str(model_message.raw),
             title="Output message of the LLM:",
             level=LogLevel.DEBUG,
         )
