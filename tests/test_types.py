@@ -16,7 +16,6 @@ import os
 import tempfile
 import unittest
 import uuid
-from pathlib import Path
 
 import PIL.Image
 from transformers.testing_utils import (
@@ -87,8 +86,8 @@ class TestAgentImage:
         del agent_type
         assert os.path.exists(path)
 
-    def test_from_string(self):
-        path = Path("tests/data/000000039769.png")
+    def test_from_string(self, shared_datadir):
+        path = shared_datadir / "000000039769.png"
         image = PIL.Image.open(path)
         agent_type = AgentImage(path)
 
@@ -99,8 +98,8 @@ class TestAgentImage:
         del agent_type
         assert os.path.exists(path)
 
-    def test_from_image(self):
-        path = Path("tests/data/000000039769.png")
+    def test_from_image(self, shared_datadir):
+        path = shared_datadir / "000000039769.png"
         image = PIL.Image.open(path)
         agent_type = AgentImage(image)
 
