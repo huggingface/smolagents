@@ -90,7 +90,7 @@ class AgentImageTests(unittest.TestCase):
         self.assertTrue(os.path.exists(path))
 
     def test_from_string(self):
-        path = Path("tests/fixtures/000000039769.png")
+        path = Path("tests/data/000000039769.png")
         image = Image.open(path)
         agent_type = AgentImage(path)
 
@@ -102,7 +102,7 @@ class AgentImageTests(unittest.TestCase):
         self.assertTrue(os.path.exists(path))
 
     def test_from_image(self):
-        path = Path("tests/fixtures/000000039769.png")
+        path = Path("tests/data/000000039769.png")
         image = Image.open(path)
         agent_type = AgentImage(image)
 
