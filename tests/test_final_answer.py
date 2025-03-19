@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 from transformers import is_torch_available
-from transformers.testing_utils import get_tests_dir, require_torch
+from transformers.testing_utils import require_torch
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import FinalAnswerTool
@@ -46,7 +46,7 @@ class FinalAnswerToolTester(unittest.TestCase, ToolTesterMixin):
 
     def create_inputs(self):
         inputs_text = {"answer": "Text input"}
-        inputs_image = {"answer": Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png").resize((512, 512))}
+        inputs_image = {"answer": Image.open(Path("tests/data/000000039769.png")).resize((512, 512))}
         inputs_audio = {"answer": torch.Tensor(np.ones(3000))}
         return {"string": inputs_text, "image": inputs_image, "audio": inputs_audio}
 

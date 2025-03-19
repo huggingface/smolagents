@@ -21,7 +21,6 @@ from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
-from transformers.testing_utils import get_tests_dir
 
 from smolagents.models import (
     AzureOpenAIServerModel,
@@ -98,7 +97,7 @@ class ModelTests(unittest.TestCase):
     def test_transformers_message_vl_no_tool(self):
         from PIL import Image
 
-        img = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
+        img = Image.open(Path("tests/data/000000039769.png"))
         model = TransformersModel(
             model_id="llava-hf/llava-interleave-qwen-0.5b-hf",
             max_new_tokens=5,

@@ -25,7 +25,6 @@ import numpy as np
 import pytest
 import torch
 from transformers import is_torch_available, is_vision_available
-from transformers.testing_utils import get_tests_dir
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
@@ -49,7 +48,7 @@ def create_inputs(tool_inputs: Dict[str, Dict[Union[str, type], str]]):
         if input_type == "string":
             inputs[input_name] = "Text input"
         elif input_type == "image":
-            inputs[input_name] = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png").resize((512, 512))
+            inputs[input_name] = Image.open(Path("tests/data/000000039769.png")).resize((512, 512))
         elif input_type == "audio":
             inputs[input_name] = np.ones(3000)
         else:
