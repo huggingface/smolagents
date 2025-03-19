@@ -7,11 +7,12 @@ from PIL import Image
 
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.remote_executors import DockerExecutor, E2BExecutor
+from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
 
 
-class TestE2BExecutor:
+class TestE2BExecutorMock:
     def test_e2b_executor_instantiation(self):
         logger = MagicMock()
         with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
@@ -34,7 +35,7 @@ class TestE2BExecutor:
 
 @pytest.fixture
 def docker_executor():
-    executor = DockerExecutor(additional_imports=["pillow", "numpy"], logger=AgentLogger(level=LogLevel.OFF))
+    executor = DockerExecutor(additional_imports=["pillow", "numpy"], logger=AgentLogger(level=LogLevel.INFO))
     yield executor
     executor.delete()
 
@@ -85,7 +86,7 @@ class TestDockerExecutor:
     def test_syntax_error_handling(self):
         """Test handling of syntax errors"""
         code_action = 'print("Missing Parenthesis'  # Syntax error
-        with pytest.raises(RuntimeError) as exception_info:
+        with pytest.raises(AgentError) as exception_info:
             self.executor(code_action)
         assert "SyntaxError" in str(exception_info.value), "Should raise a syntax error"
 

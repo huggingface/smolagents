@@ -18,7 +18,7 @@ import unittest
 import uuid
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from transformers.testing_utils import get_tests_dir
@@ -43,7 +43,7 @@ from smolagents.models import (
     TransformersModel,
 )
 from smolagents.tools import Tool, tool
-from smolagents.utils import BASE_BUILTIN_MODULES
+from smolagents.utils import BASE_BUILTIN_MODULES, AgentGenerationError
 
 
 def get_new_path(suffix="") -> str:
@@ -387,26 +387,6 @@ class AgentTests(unittest.TestCase):
         assert output == 7.2904
         assert len(agent.memory.steps) == 3
 
-    def test_code_agent_code_errors_show_offending_line_and_error(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
-        output = agent.run("What is 2 multiplied by 3.6452?")
-        assert isinstance(output, AgentText)
-        assert output == "got an error"
-        assert "Code execution failed at line 'error_function()'" in str(agent.memory.steps[1].error)
-        assert "ValueError" in str(agent.memory.steps)
-
-    def test_code_agent_code_error_saves_previous_print_outputs(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error, verbosity_level=10)
-        agent.run("What is 2 multiplied by 3.6452?")
-        assert "Flag!" in str(agent.memory.steps[1].observations)
-
-    def test_code_agent_syntax_error_show_offending_lines(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_syntax_error)
-        output = agent.run("What is 2 multiplied by 3.6452?")
-        assert isinstance(output, AgentText)
-        assert output == "got an error"
-        assert '    print("Failing due to unexpected indent")' in str(agent.memory.steps)
-
     def test_setup_agent_with_empty_toolbox(self):
         ToolCallingAgent(model=FakeToolCallModel(), tools=[])
 
@@ -496,15 +476,6 @@ class AgentTests(unittest.TestCase):
         assert "{{managed_agents_descriptions}}" not in managed_agent.system_prompt
         assert "You can also give tasks to team members." in manager_agent.system_prompt
 
-    def test_code_agent_missing_import_triggers_advice_in_error_log(self):
-        # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
-        agent = CodeAgent(tools=[], model=fake_code_model_import, verbosity_level=1)
-
-        with agent.logger.console.capture() as capture:
-            agent.run("Count to 3")
-        str_output = capture.get()
-        assert "`additional_authorized_imports`" in str_output.replace("\n", "")
-
     def test_replay_shows_logs(self):
         agent = CodeAgent(
             tools=[], model=fake_code_model_import, verbosity_level=0, additional_authorized_imports=["numpy"]
@@ -573,6 +544,16 @@ nested_answer()
         agent.run("Dummy task.")
         assert "Error raised in check" in str(agent.write_memory_to_messages())
 
+    def test_generation_errors_are_raised(self):
+        def fake_model(messages, stop_sequences):
+            assert False, "Generation failed"
+
+        agent = CodeAgent(model=fake_model, tools=[])
+        with pytest.raises(AgentGenerationError) as e:
+            agent.run("Dummy task.")
+        assert len(agent.memory.steps) == 2
+        assert "Generation failed" in str(e)
+
 
 class CustomFinalAnswerTool(FinalAnswerTool):
     def forward(self, answer) -> str:
@@ -619,6 +600,31 @@ class TestMultiStepAgent:
         agent = MultiStepAgent(tools=tools, model=MagicMock())
         assert "final_answer" in agent.tools
         assert isinstance(agent.tools["final_answer"], expected_final_answer_tool)
+
+    def test_logs_display_thoughts_even_if_error(self):
+        def fake_json_model_no_call(messages, stop_sequences=None, tools_to_call_from=None):
+            return ChatMessage(
+                role="assistant",
+                content="""I don't want to call tools today""",
+                tool_calls=None,
+                raw="""I don't want to call tools today""",
+            )
+
+        agent_toolcalling = ToolCallingAgent(model=fake_json_model_no_call, tools=[], max_steps=1, verbosity_level=10)
+        with agent_toolcalling.logger.console.capture() as capture:
+            agent_toolcalling.run("Dummy task")
+        assert "don't" in capture.get() and "want" in capture.get()
+
+        def fake_code_model_no_call(messages, stop_sequences=None):
+            return ChatMessage(
+                role="assistant",
+                content="""I don't want to write an action today""",
+            )
+
+        agent_code = CodeAgent(model=fake_code_model_no_call, tools=[], max_steps=1, verbosity_level=10)
+        with agent_code.logger.console.capture() as capture:
+            agent_code.run("Dummy task")
+        assert "don't" in capture.get() and "want" in capture.get()
 
     def test_step_number(self):
         fake_model = MagicMock()
@@ -853,6 +859,60 @@ class TestMultiStepAgent:
             )
 
 
+class TestToolCallingAgent(unittest.TestCase):
+    @patch("huggingface_hub.InferenceClient")
+    def test_toolcalling_agent_api(self, mock_inference_client):
+        mock_client = mock_inference_client.return_value
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[
+            0
+        ].message.content = '{"name": "weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+        mock_client.chat_completion.return_value = mock_response
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
+
+        model = HfApiModel(model_id="test-model")
+
+        from smolagents import tool
+
+        @tool
+        def weather_api(location: str, date: str) -> str:
+            """
+            Gets the weather in the next days at given location.
+            Args:
+                location: the location
+                date: the date
+            """
+            return f"The weather in {location} on date:{date} is sunny."
+
+        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1)
+        agent.run("What's the weather in Paris?")
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
+        assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
+        assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
+
+        mock_response.choices[0].message.tool_calls = [
+            ChatMessageToolCall(
+                function=ChatMessageToolCallDefinition(
+                    name="weather_api", arguments='{"location": "Paris", "date": "today"}'
+                ),
+                id="call_0",
+                type="function",
+            )
+        ]
+        mock_response.choices[0].message.content = None
+        mock_client.chat_completion.return_value = mock_response
+
+        agent.run("What's the weather in Paris?")
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
+        assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
+        assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
+
+
 class TestCodeAgent:
     @pytest.mark.parametrize("provide_run_summary", [False, True])
     def test_call_with_provide_run_summary(self, provide_run_summary):
@@ -882,6 +942,35 @@ class TestCodeAgent:
             agent.run("Test request")
         assert "secret\\\\" in repr(capture.get())
 
+    def test_missing_import_triggers_advice_in_error_log(self):
+        # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
+        agent = CodeAgent(tools=[], model=fake_code_model_import, verbosity_level=1)
+
+        with agent.logger.console.capture() as capture:
+            agent.run("Count to 3")
+        str_output = capture.get()
+        assert "`additional_authorized_imports`" in str_output.replace("\n", "")
+
+    def test_errors_show_offending_line_and_error(self):
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error)
+        output = agent.run("What is 2 multiplied by 3.6452?")
+        assert isinstance(output, AgentText)
+        assert output == "got an error"
+        assert "Code execution failed at line 'error_function()'" in str(agent.memory.steps[1].error)
+        assert "ValueError" in str(agent.memory.steps)
+
+    def test_error_saves_previous_print_outputs(self):
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_error, verbosity_level=10)
+        agent.run("What is 2 multiplied by 3.6452?")
+        assert "Flag!" in str(agent.memory.steps[1].observations)
+
+    def test_syntax_error_show_offending_lines(self):
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=fake_code_model_syntax_error)
+        output = agent.run("What is 2 multiplied by 3.6452?")
+        assert isinstance(output, AgentText)
+        assert output == "got an error"
+        assert '    print("Failing due to unexpected indent")' in str(agent.memory.steps)
+
     def test_change_tools_after_init(self):
         from smolagents import tool
 
@@ -905,6 +994,34 @@ class TestCodeAgent:
 
         answer = agent.run("Fake task.")
         assert answer == "2CUSTOM"
+
+    @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10"])
+    def test_from_folder(self, agent_dict_version, get_agent_dict):
+        agent_dict = get_agent_dict(agent_dict_version)
+        with patch("smolagents.agents.Path") as mock_path, patch("smolagents.models.HfApiModel") as mock_model:
+            import json
+
+            mock_path.return_value.__truediv__.return_value.read_text.return_value = json.dumps(agent_dict)
+            mock_model.from_dict.return_value.model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
+            agent = CodeAgent.from_folder("ignored_dummy_folder")
+        assert isinstance(agent, CodeAgent)
+        assert agent.name == "test_agent"
+        assert agent.description == "dummy description"
+        assert agent.max_steps == 10
+        assert agent.planning_interval == 2
+        assert agent.grammar is None
+        assert agent.additional_authorized_imports == ["pandas"]
+        assert "pandas" in agent.authorized_imports
+        assert agent.executor_type == "local"
+        assert agent.executor_kwargs == {}
+        assert agent.max_print_outputs_length is None
+        assert agent.managed_agents == {}
+        assert set(agent.tools.keys()) == {"final_answer"}
+        assert agent.model == mock_model.from_dict.return_value
+        assert mock_model.from_dict.call_args.args[0]["model_id"] == "Qwen/Qwen2.5-Coder-32B-Instruct"
+        assert agent.model.model_id == "Qwen/Qwen2.5-Coder-32B-Instruct"
+        assert agent.logger.level == 2
+        assert agent.prompt_templates["system_prompt"] == "dummy system prompt"
 
 
 class MultiAgentsTests(unittest.TestCase):

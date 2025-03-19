@@ -8,6 +8,8 @@ from smolagents.utils import AgentError, make_json_serializable
 
 
 if TYPE_CHECKING:
+    import PIL.Image
+
     from smolagents.models import ChatMessage
     from smolagents.monitoring import AgentLogger
 
@@ -58,7 +60,7 @@ class ActionStep(MemoryStep):
     model_output_message: ChatMessage = None
     model_output: str | None = None
     observations: str | None = None
-    observations_images: List[str] | None = None
+    observations_images: List["PIL.Image.Image"] | None = None
     action_output: Any = None
 
     def dict(self):
@@ -169,7 +171,7 @@ class PlanningStep(MemoryStep):
 @dataclass
 class TaskStep(MemoryStep):
     task: str
-    task_images: List[str] | None = None
+    task_images: List["PIL.Image.Image"] | None = None
 
     def to_messages(self, summary_mode: bool = False, **kwargs) -> List[Message]:
         content = [{"type": "text", "text": f"New task:\n{self.task}"}]

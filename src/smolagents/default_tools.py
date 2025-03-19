@@ -223,6 +223,10 @@ class VisitWebpageTool(Tool):
     }
     output_type = "string"
 
+    def __init__(self, max_output_length: int = 40000):
+        super().__init__()
+        self.max_output_length = max_output_length
+
     def forward(self, url: str) -> str:
         try:
             import re
@@ -247,7 +251,7 @@ class VisitWebpageTool(Tool):
             # Remove multiple line breaks
             markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
 
-            return truncate_content(markdown_content, 10000)
+            return truncate_content(markdown_content, self.max_output_length)
 
         except requests.exceptions.Timeout:
             return "The request timed out. Please try again later or check the URL."

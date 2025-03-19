@@ -243,6 +243,19 @@ def safer_eval(func: Callable):
     return _check_return
 
 
+def evaluate_attribute(
+    expression: ast.Attribute,
+    state: Dict[str, Any],
+    static_tools: Dict[str, Callable],
+    custom_tools: Dict[str, Callable],
+    authorized_imports: List[str],
+) -> Any:
+    if expression.attr.startswith("__") and expression.attr.endswith("__"):
+        raise InterpreterError(f"Forbidden access to dunder attribute: {expression.attr}")
+    value = evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+    return getattr(value, expression.attr)
+
+
 def evaluate_unaryop(
     expression: ast.UnaryOp,
     state: Dict[str, Any],
@@ -316,6 +329,8 @@ def create_function(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> Callable:
+    source_code = ast.unparse(func_def)
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
         arg_names = [arg.arg for arg in func_def.args.args]
@@ -365,6 +380,11 @@ def create_function(
             return None
 
         return result
+
+    # Store original AST, source code, and name
+    new_func.__ast__ = func_def
+    new_func.__source__ = source_code
+    new_func.__name__ = func_def.name
 
     return new_func
 
@@ -1290,8 +1310,7 @@ def evaluate_ast(
         else:
             return evaluate_ast(expression.orelse, *common_params)
     elif isinstance(expression, ast.Attribute):
-        value = evaluate_ast(expression.value, *common_params)
-        return getattr(value, expression.attr)
+        return evaluate_attribute(expression, *common_params)
     elif isinstance(expression, ast.Slice):
         return slice(
             evaluate_ast(expression.lower, *common_params) if expression.lower is not None else None,

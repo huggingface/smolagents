@@ -30,6 +30,7 @@ from PIL import Image
 from .local_python_executor import PythonExecutor
 from .monitoring import LogLevel
 from .tools import Tool, get_tools_definition_code
+from .utils import AgentError
 
 
 try:
@@ -86,7 +87,8 @@ locals().update(vars_dict)
 
     def install_packages(self, additional_imports: List[str]):
         additional_imports = additional_imports + ["smolagents"]
-        self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
+        _, execution_logs = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
+        self.logger.log(execution_logs)
         return additional_imports
 
 
@@ -120,10 +122,10 @@ class E2BExecutor(RemotePythonExecutor):
             execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
             logs = execution_logs
             logs += "Executing code yielded an error:"
-            logs += execution.error.name
+            logs += execution.error.name + "\n"
             logs += execution.error.value
             logs += execution.error.traceback
-            raise ValueError(logs)
+            raise AgentError(logs, self.logger)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
         if not execution.results:
             return None, execution_logs
@@ -150,7 +152,7 @@ class E2BExecutor(RemotePythonExecutor):
                         if getattr(result, attribute_name) is not None:
                             return getattr(result, attribute_name), execution_logs
             if return_final_answer:
-                raise ValueError("No main result returned by executor!")
+                raise AgentError("No main result returned by executor!", self.logger)
             return None, execution_logs
 
 
@@ -293,7 +295,7 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
                         outputs.append(text)
                 elif msg_type == "error":
                     traceback = msg["content"].get("traceback", [])
-                    raise RuntimeError("\n".join(traceback)) from None
+                    raise AgentError("\n".join(traceback), self.logger)
                 elif msg_type == "status" and msg["content"]["execution_state"] == "idle":
                     if not return_final_answer or waiting_for_idle:
                         break
