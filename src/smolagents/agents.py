@@ -390,21 +390,19 @@ You have been provided with these additional arguments, that you can access usin
 
     def planning_step(self, task, is_first_step: bool, step: int) -> None:
         if is_first_step:
-            input_messages = [
-                {
-                    "role": MessageRole.USER,
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": populate_template(
-                                self.prompt_templates["planning"]["initial_plan"],
-                                variables={"task": task, "tools": self.tools, "managed_agents": self.managed_agents},
-                            ),
-                        }
-                    ],
-                },
-            ]
-            facts_plan_message = self.model(input_messages)
+            message_prompt_plan = {
+                "role": MessageRole.USER,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": populate_template(
+                            self.prompt_templates["planning"]["initial_plan"],
+                            variables={"task": task, "tools": self.tools, "managed_agents": self.managed_agents},
+                        ),
+                    }
+                ],
+            }
+            facts_plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
         else:
             memory_messages = self.write_memory_to_messages()[1:]  # Remove the system prompt (first message)
             facts_plan_update_pre = {
