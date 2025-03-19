@@ -934,6 +934,9 @@ class HfApiModel(ApiModel):
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
+        api_key (`str`, *optional*):
+            Token to use for authentication. This is a duplicated argument from `token` to make [`HfApiModel`]
+            follow the same pattern as `openai.OpenAI` client. Cannot be used if `token` is set. Defaults to None.
         **kwargs:
             Additional keyword arguments to pass to the Hugging Face API.
 
@@ -962,13 +965,21 @@ class HfApiModel(ApiModel):
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
         custom_role_conversions: Optional[Dict[str, str]] = None,
+        api_key: Optional[str] = None,
         **kwargs,
     ):
+        if token is not None and api_key is not None:
+            raise ValueError(
+                "Received both `token` and `api_key` arguments. Please provide only one of them."
+                " `api_key` is an alias for `token` to make the API compatible with OpenAI's client."
+                " It has the exact same behavior as `token`."
+            )
         from huggingface_hub import InferenceClient
 
         super().__init__(**kwargs)
         self.model_id = model_id
         self.provider = provider
+        token = token if token is not None else api_key
         if token is None:
             token = os.getenv("HF_TOKEN")
         self.client = InferenceClient(self.model_id, provider=provider, token=token, timeout=timeout)
