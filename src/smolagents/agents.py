@@ -402,10 +402,12 @@ You have been provided with these additional arguments, that you can access usin
                     }
                 ],
             }
-            facts_plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
+            plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
         else:
-            memory_messages = self.write_memory_to_messages()[1:]  # Remove the system prompt (first message)
-            facts_plan_update_pre = {
+            # Summary mode removes the system prompt and previous planning messages output by the model.
+            # Removing previous planning messages avoids influencing too much the new plan.
+            memory_messages = self.write_memory_to_messages(summary_mode=True)
+            plan_update_pre = {
                 "role": MessageRole.SYSTEM,
                 "content": [
                     {
@@ -416,7 +418,7 @@ You have been provided with these additional arguments, that you can access usin
                     }
                 ],
             }
-            facts_plan_update_post = {
+            plan_update_post = {
                 "role": MessageRole.USER,
                 "content": [
                     {
@@ -433,28 +435,26 @@ You have been provided with these additional arguments, that you can access usin
                     }
                 ],
             }
-            input_messages = [facts_plan_update_pre] + memory_messages + [facts_plan_update_post]
-            facts_plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
-        self._record_planning_step(input_messages, facts_plan_message, is_first_step)
+            input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
+            plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+        self._record_planning_step(input_messages, plan_message, is_first_step)
 
-    def _record_planning_step(
-        self, input_messages: list, facts_plan_message: ChatMessage, is_first_step: bool
-    ) -> None:
+    def _record_planning_step(self, input_messages: list, plan_message: ChatMessage, is_first_step: bool) -> None:
         if is_first_step:
             plan = textwrap.dedent(
-                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{facts_plan_message.content}\n```"""
+                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message.content}\n```"""
             )
             log_headline = "Initial plan"
         else:
             plan = textwrap.dedent(
-                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{facts_plan_message.content}\n```"""
+                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
             )
             log_headline = "Updated plan"
         self.memory.steps.append(
             PlanningStep(
                 model_input_messages=input_messages,
                 plan=plan,
-                model_output_message=facts_plan_message,
+                model_output_message=plan_message,
             )
         )
         self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
