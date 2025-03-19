@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import tempfile
-import unittest
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -22,9 +20,9 @@ from unittest.mock import MagicMock, patch
 
 import mcp
 import numpy as np
+import PIL.Image
 import pytest
 import torch
-from transformers import is_torch_available, is_vision_available
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
@@ -34,9 +32,6 @@ from .utils.markers import require_run_all
 
 if is_torch_available():
     import torch
-
-if is_vision_available():
-    from PIL import Image
 
 
 def create_inputs(tool_inputs: Dict[str, Dict[Union[str, type], str]]):
@@ -48,7 +43,7 @@ def create_inputs(tool_inputs: Dict[str, Dict[Union[str, type], str]]):
         if input_type == "string":
             inputs[input_name] = "Text input"
         elif input_type == "image":
-            inputs[input_name] = Image.open(Path("tests/data/000000039769.png")).resize((512, 512))
+            inputs[input_name] = PIL.Image.open(Path("tests/data/000000039769.png")).resize((512, 512))
         elif input_type == "audio":
             inputs[input_name] = np.ones(3000)
         else:
@@ -60,7 +55,7 @@ def create_inputs(tool_inputs: Dict[str, Dict[Union[str, type], str]]):
 def output_type(output):
     if isinstance(output, (str, AgentText)):
         return "string"
-    elif isinstance(output, (Image.Image, AgentImage)):
+    elif isinstance(output, (PIL.Image.Image, AgentImage)):
         return "image"
     elif isinstance(output, (torch.Tensor, AgentAudio)):
         return "audio"
@@ -99,7 +94,7 @@ class ToolTesterMixin:
             self.assertTrue(isinstance(output, agent_type))
 
 
-class ToolTests(unittest.TestCase):
+class TestTool:
     def test_tool_init_with_decorator(self):
         @tool
         def coolfunc(a: str, b: int) -> float:
@@ -164,7 +159,7 @@ class ToolTests(unittest.TestCase):
             assert coolfunc.output_type == "number"
         assert "docstring has no description for the argument" in str(e)
 
-    def test_saving_tool_raises_error_imports_outside_function(self):
+    def test_saving_tool_raises_error_imports_outside_function(self, tmp_path):
         with pytest.raises(Exception) as e:
             import numpy as np
 
@@ -175,7 +170,7 @@ class ToolTests(unittest.TestCase):
                 """
                 return str(np.random.random())
 
-            get_current_time.save("output")
+            get_current_time.save(tmp_path)
 
         assert "np" in str(e)
 
@@ -192,7 +187,7 @@ class ToolTests(unittest.TestCase):
                     return str(np.random.random())
 
             get_current_time = GetCurrentTimeTool()
-            get_current_time.save("output")
+            get_current_time.save(tmp_path)
 
         assert "np" in str(e)
 
@@ -254,7 +249,7 @@ class ToolTests(unittest.TestCase):
         fail_tool = PassTool()
         fail_tool.to_dict()
 
-    def test_saving_tool_allows_no_imports_from_outside_methods(self):
+    def test_saving_tool_allows_no_imports_from_outside_methods(self, tmp_path):
         # Test that using imports from outside functions fails
         import numpy as np
 
@@ -273,7 +268,7 @@ class ToolTests(unittest.TestCase):
 
         fail_tool = FailTool()
         with pytest.raises(Exception) as e:
-            fail_tool.save("output")
+            fail_tool.save(tmp_path)
         assert "'np' is undefined" in str(e)
 
         # Test that putting these imports inside functions works
@@ -293,7 +288,7 @@ class ToolTests(unittest.TestCase):
                 return self.useless_method() + string_input
 
         success_tool = SuccessTool()
-        success_tool.save("output")
+        success_tool.save(tmp_path)
 
     def test_tool_missing_class_attributes_raises_error(self):
         with pytest.raises(Exception) as e:
@@ -408,7 +403,7 @@ class ToolTests(unittest.TestCase):
 
         assert get_weather.inputs["celsius"]["nullable"]
 
-    def test_tool_supports_any_none(self):
+    def test_tool_supports_any_none(self, tmp_path):
         @tool
         def get_weather(location: Any) -> None:
             """
@@ -419,8 +414,7 @@ class ToolTests(unittest.TestCase):
             """
             return
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            get_weather.save(tmp_dir)
+        get_weather.save(tmp_path)
         assert get_weather.inputs["location"]["type"] == "any"
         assert get_weather.output_type == "null"
 
@@ -439,7 +433,7 @@ class ToolTests(unittest.TestCase):
         assert get_weather.inputs["locations"]["type"] == "array"
         assert get_weather.inputs["months"]["type"] == "array"
 
-    def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self):
+    def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self, tmp_path):
         @tool
         def get_weather(location: Any) -> None:
             """
@@ -451,13 +445,12 @@ class ToolTests(unittest.TestCase):
             """
             return
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            get_weather.save(tmp_dir)
-            with open(os.path.join(tmp_dir, "tool.py"), "r", encoding="utf-8") as f:
-                source_code = f.read()
-                compile(source_code, f.name, "exec")
+        get_weather.save(tmp_path)
+        with open(os.path.join(tmp_path, "tool.py"), "r", encoding="utf-8") as f:
+            source_code = f.read()
+            compile(source_code, f.name, "exec")
 
-    def test_saving_tool_produces_valid_python_code_with_complex_name(self):
+    def test_saving_tool_produces_valid_python_code_with_complex_name(self, tmp_path):
         # Test one cannot save tool with additional args in init
         class FailTool(Tool):
             name = 'spe"\rcific'
@@ -473,11 +466,10 @@ class ToolTests(unittest.TestCase):
                 return "foo"
 
         fail_tool = FailTool()
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            fail_tool.save(tmp_dir)
-            with open(os.path.join(tmp_dir, "tool.py"), "r", encoding="utf-8") as f:
-                source_code = f.read()
-                compile(source_code, f.name, "exec")
+        fail_tool.save(tmp_path)
+        with open(os.path.join(tmp_path, "tool.py"), "r", encoding="utf-8") as f:
+            source_code = f.read()
+            compile(source_code, f.name, "exec")
 
 
 @pytest.fixture

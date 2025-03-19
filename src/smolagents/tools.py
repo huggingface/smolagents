@@ -45,7 +45,7 @@ from ._function_type_hints_utils import (
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import BASE_BUILTIN_MODULES, _is_package_available, _is_pillow_available, get_source, instance_to_source
+from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source
 
 
 logger = logging.getLogger(__name__)
@@ -535,11 +535,9 @@ class Tool:
 
             def sanitize_argument_for_prediction(self, arg):
                 from gradio_client.utils import is_http_url_like
+                from PIL.Image import Image
 
-                if _is_pillow_available():
-                    from PIL.Image import Image
-
-                if _is_pillow_available() and isinstance(arg, Image):
+                if isinstance(arg, Image):
                     temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
                     arg.save(temp_file.name)
                     arg = temp_file.name
