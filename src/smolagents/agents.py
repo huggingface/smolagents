@@ -652,7 +652,7 @@ You have been provided with these additional arguments, that you can access usin
           code)
 
         Args:
-            output_dir (`str`): The folder in which you want to save your tool.
+            output_dir (`str`): The folder in which you want to save your agent.
         """
         make_init_file(output_dir)
 
