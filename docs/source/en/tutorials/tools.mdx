@@ -229,8 +229,9 @@ To speed up the start, tools are loaded only if called by the agent.
 
 Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
 
-The MCP servers tools can be loaded with [`ToolCollection.from_mcp`] as follow:
+The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
 
+For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
 ```py
 from smolagents import ToolCollection, CodeAgent
 from mcp import StdioServerParameters
@@ -246,10 +247,7 @@ with ToolCollection.from_mcp(server_parameters) as tool_collection:
     agent.run("Please find a remedy for hangover.")
 ```
 
-[`ToolCollection`] also supports SSE MCP servers. To use it, simply specify any parameters to `mcp.client.sse.sse_client` as a dict instead of the `StdioServerParameters` instance.
-
-For example:
-
+For SSE-based MCP servers, simply pass a dict with parameters to `mcp.client.sse.sse_client`:
 ```py
 from smolagents import ToolCollection, CodeAgent
 
