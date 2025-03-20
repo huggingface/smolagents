@@ -40,8 +40,6 @@ from typing import (
     get_type_hints,
 )
 
-from .utils import _is_pillow_available
-
 
 def get_imports(code: str) -> List[str]:
     """
@@ -377,7 +375,7 @@ _BASE_TYPE_MAPPING = {
 def _get_json_schema_type(param_type: str) -> Dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
-    if str(param_type) == "Image" and _is_pillow_available():
+    if str(param_type) == "Image":
         from PIL.Image import Image
 
         if param_type == Image:

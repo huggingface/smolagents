@@ -44,7 +44,7 @@ from ._function_type_hints_utils import (
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import BASE_BUILTIN_MODULES, _is_package_available, _is_pillow_available, get_source, instance_to_source
+from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source
 
 
 logger = logging.getLogger(__name__)
@@ -534,11 +534,9 @@ class Tool:
 
             def sanitize_argument_for_prediction(self, arg):
                 from gradio_client.utils import is_http_url_like
+                from PIL.Image import Image
 
-                if _is_pillow_available():
-                    from PIL.Image import Image
-
-                if _is_pillow_available() and isinstance(arg, Image):
+                if isinstance(arg, Image):
                     temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
                     arg.save(temp_file.name)
                     arg = temp_file.name
@@ -785,17 +783,21 @@ class ToolCollection:
     def from_mcp(cls, server_parameters) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
+        This method supports both SSE and Stdio MCP servers. Look at the `sever_parameters`
+        argument for more details on how to connect to an SSE or Stdio MCP server.
+
         Note: a separate thread will be spawned to run an asyncio event loop handling
         the MCP server.
 
         Args:
-            server_parameters (mcp.StdioServerParameters): The server parameters to use to
-            connect to the MCP server.
+            server_parameters (mcp.StdioServerParameters | dict):
+                The server parameters to use to connect to the MCP server. If a dict is
+                provided, it is assumed to be the parameters of `mcp.client.sse.sse_client`.
 
         Returns:
             ToolCollection: A tool collection instance.
 
-        Example:
+        Example with a Stdio MCP server:
         ```py
         >>> from smolagents import ToolCollection, CodeAgent
         >>> from mcp import StdioServerParameters
@@ -807,6 +809,13 @@ class ToolCollection:
         >>> )
 
         >>> with ToolCollection.from_mcp(server_parameters) as tool_collection:
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+        >>>     agent.run("Please find a remedy for hangover.")
+        ```
+
+        Example with an SSE MCP server:
+        ```py
+        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```

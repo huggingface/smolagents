@@ -25,7 +25,7 @@ import time
 from collections import deque
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, List, Optional, Set, Tuple, TypedDict, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, List, Optional, Set, Tuple, TypedDict, Union
 
 import jinja2
 import yaml
@@ -35,6 +35,10 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
+
+
+if TYPE_CHECKING:
+    import PIL.Image
 
 from .agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
@@ -264,7 +268,7 @@ class MultiStepAgent:
         task: str,
         stream: bool = False,
         reset: bool = True,
-        images: Optional[List[str]] = None,
+        images: Optional[List["PIL.Image.Image"]] = None,
         additional_args: Optional[Dict] = None,
         max_steps: Optional[int] = None,
     ):
@@ -275,7 +279,7 @@ class MultiStepAgent:
             task (`str`): Task to perform.
             stream (`bool`): Whether to run in a streaming way.
             reset (`bool`): Whether to reset the conversation or keep it going from previous run.
-            images (`list[str]`, *optional*): Paths to image(s).
+            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
             additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
             max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
 
@@ -319,7 +323,7 @@ You have been provided with these additional arguments, that you can access usin
         return deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0]
 
     def _run(
-        self, task: str, max_steps: int, images: List[str] | None = None
+        self, task: str, max_steps: int, images: List["PIL.Image.Image"] | None = None
     ) -> Generator[ActionStep | AgentType, None, None]:
         final_answer = None
         self.step_number = 1
@@ -344,7 +348,7 @@ You have been provided with these additional arguments, that you can access usin
             yield memory_step
         yield handle_agent_output_types(final_answer)
 
-    def _create_memory_step(self, step_start_time: float, images: List[str] | None) -> ActionStep:
+    def _create_memory_step(self, step_start_time: float, images: List["PIL.Image.Image"] | None) -> ActionStep:
         return ActionStep(step_number=self.step_number, start_time=step_start_time, observations_images=images)
 
     def _execute_step(self, task: str, memory_step: ActionStep) -> Union[None, Any]:
@@ -373,7 +377,7 @@ You have been provided with these additional arguments, that you can access usin
                 memory_step, agent=self
             )
 
-    def _handle_max_steps_reached(self, task: str, images: List[str], step_start_time: float) -> Any:
+    def _handle_max_steps_reached(self, task: str, images: List["PIL.Image.Image"], step_start_time: float) -> Any:
         final_answer = self.provide_final_answer(task, images)
         final_memory_step = ActionStep(
             step_number=self.step_number, error=AgentMaxStepsError("Reached max steps.", self.logger)
@@ -389,123 +393,77 @@ You have been provided with these additional arguments, that you can access usin
         return final_answer
 
     def planning_step(self, task, is_first_step: bool, step: int) -> None:
-        input_messages, facts_message, plan_message = (
-            self._generate_initial_plan(task) if is_first_step else self._generate_updated_plan(task, step)
-        )
-        self._record_planning_step(input_messages, facts_message, plan_message, is_first_step)
-
-    def _generate_initial_plan(self, task: str) -> Tuple[ChatMessage, ChatMessage]:
-        input_messages = [
-            {
+        if is_first_step:
+            input_messages = [
+                {
+                    "role": MessageRole.USER,
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": populate_template(
+                                self.prompt_templates["planning"]["initial_plan"],
+                                variables={"task": task, "tools": self.tools, "managed_agents": self.managed_agents},
+                            ),
+                        }
+                    ],
+                }
+            ]
+            plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+        else:
+            # Summary mode removes the system prompt and previous planning messages output by the model.
+            # Removing previous planning messages avoids influencing too much the new plan.
+            memory_messages = self.write_memory_to_messages(summary_mode=True)
+            plan_update_pre = {
+                "role": MessageRole.SYSTEM,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": populate_template(
+                            self.prompt_templates["planning"]["update_plan_pre_messages"], variables={"task": task}
+                        ),
+                    }
+                ],
+            }
+            plan_update_post = {
                 "role": MessageRole.USER,
                 "content": [
                     {
                         "type": "text",
                         "text": populate_template(
-                            self.prompt_templates["planning"]["initial_facts"], variables={"task": task}
+                            self.prompt_templates["planning"]["update_plan_post_messages"],
+                            variables={
+                                "task": task,
+                                "tools": self.tools,
+                                "managed_agents": self.managed_agents,
+                                "remaining_steps": (self.max_steps - step),
+                            },
                         ),
                     }
                 ],
-            },
-        ]
-        facts_message = self.model(input_messages)
+            }
+            input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
+            plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+        self._record_planning_step(input_messages, plan_message, is_first_step)
 
-        message_prompt_plan = {
-            "role": MessageRole.USER,
-            "content": [
-                {
-                    "type": "text",
-                    "text": populate_template(
-                        self.prompt_templates["planning"]["initial_plan"],
-                        variables={
-                            "task": task,
-                            "tools": self.tools,
-                            "managed_agents": self.managed_agents,
-                            "answer_facts": facts_message.content,
-                        },
-                    ),
-                }
-            ],
-        }
-        plan_message = self.model([message_prompt_plan], stop_sequences=["<end_plan>"])
-        return input_messages, facts_message, plan_message
-
-    def _generate_updated_plan(self, task: str, step: int) -> Tuple[ChatMessage, ChatMessage]:
-        # Do not take the system prompt message from the memory
-        # summary_mode=False: Do not take previous plan steps to avoid influencing the new plan
-        memory_messages = self.write_memory_to_messages()[1:]
-        facts_update_pre = {
-            "role": MessageRole.SYSTEM,
-            "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_pre_messages"]}],
-        }
-        facts_update_post = {
-            "role": MessageRole.USER,
-            "content": [{"type": "text", "text": self.prompt_templates["planning"]["update_facts_post_messages"]}],
-        }
-        input_messages = [facts_update_pre] + memory_messages + [facts_update_post]
-        facts_message = self.model(input_messages)
-
-        update_plan_pre = {
-            "role": MessageRole.SYSTEM,
-            "content": [
-                {
-                    "type": "text",
-                    "text": populate_template(
-                        self.prompt_templates["planning"]["update_plan_pre_messages"], variables={"task": task}
-                    ),
-                }
-            ],
-        }
-        update_plan_post = {
-            "role": MessageRole.USER,
-            "content": [
-                {
-                    "type": "text",
-                    "text": populate_template(
-                        self.prompt_templates["planning"]["update_plan_post_messages"],
-                        variables={
-                            "task": task,
-                            "tools": self.tools,
-                            "managed_agents": self.managed_agents,
-                            "facts_update": facts_message.content,
-                            "remaining_steps": (self.max_steps - step),
-                        },
-                    ),
-                }
-            ],
-        }
-        plan_message = self.model(
-            [update_plan_pre] + memory_messages + [update_plan_post], stop_sequences=["<end_plan>"]
-        )
-        return input_messages, facts_message, plan_message
-
-    def _record_planning_step(
-        self, input_messages: list, facts_message: ChatMessage, plan_message: ChatMessage, is_first_step: bool
-    ) -> None:
+    def _record_planning_step(self, input_messages: list, plan_message: ChatMessage, is_first_step: bool) -> None:
         if is_first_step:
-            facts = textwrap.dedent(f"""Here are the facts that I know so far:\n```\n{facts_message.content}\n```""")
             plan = textwrap.dedent(
-                f"""Here is the plan of action that I will follow to solve the task:\n```\n{plan_message.content}\n```"""
+                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message.content}\n```"""
             )
-            log_message = "Initial plan"
+            log_headline = "Initial plan"
         else:
-            facts = textwrap.dedent(
-                f"""Here is the updated list of the facts that I know:\n```\n{facts_message.content}\n```"""
-            )
             plan = textwrap.dedent(
-                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere is my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
+                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
             )
-            log_message = "Updated plan"
+            log_headline = "Updated plan"
         self.memory.steps.append(
             PlanningStep(
                 model_input_messages=input_messages,
-                facts=facts,
                 plan=plan,
-                model_output_message_plan=plan_message,
-                model_output_message_facts=facts_message,
+                model_output_message=plan_message,
             )
         )
-        self.logger.log(Rule(f"[bold]{log_message}", style="orange"), Text(plan), level=LogLevel.INFO)
+        self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
 
     @property
     def logs(self):
@@ -557,13 +515,13 @@ You have been provided with these additional arguments, that you can access usin
             )
         return rationale.strip(), action.strip()
 
-    def provide_final_answer(self, task: str, images: Optional[list[str]]) -> str:
+    def provide_final_answer(self, task: str, images: Optional[list["PIL.Image.Image"]]) -> str:
         """
         Provide the final answer to the task, based on the logs of the agent's interactions.
 
         Args:
             task (`str`): Task to perform.
-            images (`list[str]`, *optional*): Paths to image(s).
+            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
 
         Returns:
             `str`: Final answer to the task.
@@ -799,8 +757,12 @@ You have been provided with these additional arguments, that you can access usin
         with open(os.path.join(output_dir, "app.py"), "w", encoding="utf-8") as f:
             f.write(app_text + "\n")  # Append newline at the end
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Converts agent into a dictionary."""
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the agent to a dictionary representation.
+
+        Returns:
+            `dict`: Dictionary representation of the agent.
+        """
         # TODO: handle serializing step_callbacks and final_answer_checks
         for attr in ["final_answer_checks", "step_callbacks"]:
             if getattr(self, attr, None):
@@ -835,13 +797,6 @@ You have been provided with these additional arguments, that you can access usin
             "description": self.description,
             "requirements": list(requirements),
         }
-        if hasattr(self, "authorized_imports"):
-            agent_dict["authorized_imports"] = self.authorized_imports
-        if hasattr(self, "executor_type"):
-            agent_dict["executor_type"] = self.executor_type
-            agent_dict["executor_kwargs"] = self.executor_kwargs
-        if hasattr(self, "max_print_outputs_length"):
-            agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
 
     @classmethod
@@ -1052,7 +1007,7 @@ class ToolCallingAgent(MultiStepAgent):
             model_message: ChatMessage = self.model(
                 memory_messages,
                 tools_to_call_from=list(self.tools.values()),
-                stop_sequences=["Observation:"],
+                stop_sequences=["Observation:", "Calling tools:"],
             )
             memory_step.model_output_message = model_message
         except Exception as e:
@@ -1230,11 +1185,18 @@ class CodeAgent(MultiStepAgent):
             additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
             chat_message: ChatMessage = self.model(
                 self.input_messages,
-                stop_sequences=["<end_code>", "Observation:"],
+                stop_sequences=["<end_code>", "Observation:", "Calling tools:"],
                 **additional_args,
             )
             memory_step.model_output_message = chat_message
             model_output = chat_message.content
+
+            # This adds <end_code> sequence to the history.
+            # This will nudge ulterior LLM calls to finish with <end_code>, thus efficiently stopping generation.
+            if model_output and model_output.strip().endswith("```"):
+                model_output += "<end_code>"
+                memory_step.model_output_message.content = model_output
+
             memory_step.model_output = model_output
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
@@ -1303,3 +1265,16 @@ class CodeAgent(MultiStepAgent):
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
         memory_step.action_output = output
         return output if is_final_answer else None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the agent to a dictionary representation.
+
+        Returns:
+            `dict`: Dictionary representation of the agent.
+        """
+        agent_dict = super().to_dict()
+        agent_dict["authorized_imports"] = self.authorized_imports
+        agent_dict["executor_type"] = self.executor_type
+        agent_dict["executor_kwargs"] = self.executor_kwargs
+        agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
+        return agent_dict

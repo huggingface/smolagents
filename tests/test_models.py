@@ -16,12 +16,10 @@ import json
 import sys
 import unittest
 from contextlib import ExitStack
-from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
-from transformers.testing_utils import get_tests_dir
 
 from smolagents.models import (
     AzureOpenAIServerModel,
@@ -43,7 +41,7 @@ from smolagents.tools import tool
 from .utils.markers import require_run_all
 
 
-class ModelTests(unittest.TestCase):
+class TestModel:
     def test_get_json_schema_has_nullable_args(self):
         @tool
         def get_weather(location: str, celsius: Optional[bool] = False) -> str:
@@ -95,10 +93,10 @@ class ModelTests(unittest.TestCase):
         output = model(messages, stop_sequences=["great"]).content
         assert output == "assistant\nHello"
 
-    def test_transformers_message_vl_no_tool(self):
-        from PIL import Image
+    def test_transformers_message_vl_no_tool(self, shared_datadir):
+        import PIL.Image
 
-        img = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
+        img = PIL.Image.open(shared_datadir / "000000039769.png")
         model = TransformersModel(
             model_id="llava-hf/llava-interleave-qwen-0.5b-hf",
             max_new_tokens=5,
@@ -267,6 +265,8 @@ class TestTransformersModel:
                 "trust_remote_code": True,
             }
             assert model.tokenizer == mocks["transformers.AutoTokenizer.from_pretrained"].return_value
+            assert mocks["transformers.AutoTokenizer.from_pretrained"].call_args.args == ("test-model",)
+            assert mocks["transformers.AutoTokenizer.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
         elif "transformers.AutoProcessor.from_pretrained" in mocks:
             assert model.model == mocks["transformers.AutoModelForImageTextToText.from_pretrained"].return_value
             assert mocks["transformers.AutoModelForImageTextToText.from_pretrained"].call_args.kwargs == {
@@ -275,6 +275,8 @@ class TestTransformersModel:
                 "trust_remote_code": True,
             }
             assert model.processor == mocks["transformers.AutoProcessor.from_pretrained"].return_value
+            assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.args == ("test-model",)
+            assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
 
 
 def test_get_clean_message_list_basic():
@@ -431,6 +433,11 @@ class TestGetToolCallFromText:
 
     def test_get_tool_call_from_text_json_object_args(self):
         text = '{"name": "weather_tool", "arguments": {"city": "New York"}}'
+        result = get_tool_call_from_text(text, "name", "arguments")
+        assert result.function.arguments == {"city": "New York"}
+
+    def test_get_tool_call_from_text_json_string_args(self):
+        text = '{"name": "weather_tool", "arguments": "{\\"city\\": \\"New York\\"}"}'
         result = get_tool_call_from_text(text, "name", "arguments")
         assert result.function.arguments == {"city": "New York"}
 
