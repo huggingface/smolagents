@@ -204,7 +204,7 @@ agent.run(
 
 ### Use a collection of tools
 
-You can leverage tool collections by using the `ToolCollection` object. It supports loading either a collection from the Hub or an MCP server tools.
+You can leverage tool collections by using [`ToolCollection`]. It supports loading either a collection from the Hub or an MCP server tools.
 
 #### Tool Collection from a collection in the Hub
 
@@ -229,7 +229,7 @@ To speed up the start, tools are loaded only if called by the agent.
 
 Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
 
-The MCP servers tools can be loaded in a `ToolCollection` object as follow:
+The MCP servers tools can be loaded with [`ToolCollection.from_mcp`] as follow:
 
 ```py
 from smolagents import ToolCollection, CodeAgent
@@ -246,7 +246,7 @@ with ToolCollection.from_mcp(server_parameters) as tool_collection:
     agent.run("Please find a remedy for hangover.")
 ```
 
-`ToolCollection` also supports SSE MCP servers. To use it, simply specify any parameters to `mcp.client.sse.sse_client` as a dict instead of the `StdioServerParameters` instance.
+[`ToolCollection`] also supports SSE MCP servers. To use it, simply specify any parameters to `mcp.client.sse.sse_client` as a dict instead of the `StdioServerParameters` instance.
 
 For example:
 
