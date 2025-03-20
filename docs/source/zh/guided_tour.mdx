@@ -408,7 +408,7 @@ from smolagents import (
 # 从 Hub 导入工具
 image_generation_tool = load_tool("m-ric/text-to-image")
 
-model = HfApiModel(model_id)
+model = HfApiModel(model_id=model_id)
 
 # 使用图像生成工具初始化 agent
 agent = CodeAgent(tools=[image_generation_tool], model=model)

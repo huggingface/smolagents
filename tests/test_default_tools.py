@@ -34,24 +34,24 @@ class DefaultToolTests(unittest.TestCase):
         assert isinstance(result, str)
 
 
-class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):
-    def setUp(self):
+class TestPythonInterpreterTool(ToolTesterMixin):
+    def setup_method(self):
         self.tool = PythonInterpreterTool(authorized_imports=["numpy"])
         self.tool.setup()
 
     def test_exact_match_arg(self):
         result = self.tool("(2 / 2) * 4")
-        self.assertEqual(result, "Stdout:\n\nOutput: 4.0")
+        assert result == "Stdout:\n\nOutput: 4.0"
 
     def test_exact_match_kwarg(self):
         result = self.tool(code="(2 / 2) * 4")
-        self.assertEqual(result, "Stdout:\n\nOutput: 4.0")
+        assert result == "Stdout:\n\nOutput: 4.0"
 
     def test_agent_type_output(self):
         inputs = ["2 * 2"]
         output = self.tool(*inputs, sanitize_inputs_outputs=True)
         output_type = _AGENT_TYPE_MAPPING[self.tool.output_type]
-        self.assertTrue(isinstance(output, output_type))
+        assert isinstance(output, output_type)
 
     def test_agent_types_inputs(self):
         inputs = ["2 * 2"]
@@ -67,7 +67,7 @@ class PythonInterpreterToolTester(unittest.TestCase, ToolTesterMixin):
         # Should not raise an error
         output = self.tool(*inputs, sanitize_inputs_outputs=True)
         output_type = _AGENT_TYPE_MAPPING[self.tool.output_type]
-        self.assertTrue(isinstance(output, output_type))
+        assert isinstance(output, output_type)
 
     def test_imports_work(self):
         result = self.tool("import numpy as np")
