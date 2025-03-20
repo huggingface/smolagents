@@ -24,6 +24,8 @@ import requests
 from PIL import Image
 from PIL.Image import Image as ImageType
 
+from .utils import _is_package_available
+
 
 logger = logging.getLogger(__name__)
 
@@ -172,13 +174,11 @@ class AgentAudio(AgentType, str):
     """
 
     def __init__(self, value, samplerate=16_000):
-        try:
-            import soundfile  # noqa: F401
-            import torch
-        except ModuleNotFoundError:
+        if not _is_package_available("soundfile") or not _is_package_available("torch"):
             raise ModuleNotFoundError(
                 "Please install 'audio' extra to use AgentAudio: `pip install 'smolagents[audio]'`"
             )
+        import torch
 
         super().__init__(value)
 
