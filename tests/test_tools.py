@@ -21,28 +21,11 @@ import mcp
 import numpy as np
 import PIL.Image
 import pytest
-import torch
-from huggingface_hub.utils import is_torch_available
 
-from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
+from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
 
 from .utils.markers import require_run_all
-
-
-if is_torch_available():
-    import torch
-
-
-def output_type(output):
-    if isinstance(output, (str, AgentText)):
-        return "string"
-    elif isinstance(output, (PIL.Image.Image, AgentImage)):
-        return "image"
-    elif isinstance(output, (torch.Tensor, AgentAudio)):
-        return "audio"
-    else:
-        raise TypeError(f"Invalid output: {output}")
 
 
 class ToolTesterMixin:
