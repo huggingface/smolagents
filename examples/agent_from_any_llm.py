@@ -1,12 +1,12 @@
 from typing import Optional
 
-from smolagents import HfApiModel, LiteLLMModel, OpenAIServerModel, TransformersModel, tool
+from smolagents import HfApiModel, LiteLLMModel, OpenAIServerModel, TransformersModel, OllamaModel, tool
 from smolagents.agents import CodeAgent, ToolCallingAgent
 
 
 # Choose which inference type to use!
 
-available_inferences = ["hf_api", "hf_api_provider", "transformers", "ollama", "litellm", "openai"]
+available_inferences = ["hf_api", "hf_api_provider", "transformers", "ollama", "ollama_direct", "litellm", "openai"]
 chosen_inference = "openai"
 
 print(f"Chose model: '{chosen_inference}'")
@@ -26,6 +26,14 @@ elif chosen_inference == "ollama":
         api_base="http://localhost:11434",  # replace with remote open-ai compatible server if necessary
         api_key="your-api-key",  # replace with API key if necessary
         num_ctx=8192,  # ollama default is 2048 which will often fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
+    )
+
+elif chosen_inference == "ollama_direct":
+    model = OllamaModel(
+        model_id="llama3",  # change to your preferred model that's available in Ollama
+        api_base="http://localhost:11434",  # Ollama API endpoint
+        temperature=0.7,
+        num_predict=8192,  # max tokens to generate - equivalent to max_tokens or max_new_tokens
     )
 
 elif chosen_inference == "litellm":
