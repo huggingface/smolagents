@@ -261,7 +261,7 @@ class Tool:
 
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
-        return {"name": self.name, "code": tool_code, "requirements": requirements}
+        return {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
 
     def save(self, output_dir: str, tool_file_name: str = "tool", make_gradio_app: bool = True):
         """
