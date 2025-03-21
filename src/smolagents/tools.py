@@ -893,8 +893,8 @@ def tool(tool_function: Callable) -> Tool:
         + textwrap.indent(forward_method_source, "    ")  # indent for class method
     )
     # - Store the source code on both class and method for inspection
-    SimpleTool.__source = class_source
-    SimpleTool.forward.__source = forward_method_source
+    SimpleTool.__source__ = class_source
+    SimpleTool.forward.__source__ = forward_method_source
 
     simple_tool = SimpleTool()
     return simple_tool
