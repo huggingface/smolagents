@@ -88,6 +88,7 @@ test = [
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
+  "Wikipedia-API>=0.8.1",
 ]
 dev = [
   "smolagents[quality,test]",
