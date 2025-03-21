@@ -2071,7 +2071,5 @@ class TestLocalPythonExecutorSecurity:
     def test_vulnerability_via_dunder_indirect_access(self):
         executor = LocalPythonExecutor([])
         code = "a = (); b = getattr(a, '__class__')"
-        with pytest.raises(
-            InterpreterError, match="It is not permitted to evaluate other functions than the provided"
-        ):
+        with pytest.raises(InterpreterError, match="Forbidden function evaluation"):
             executor(code)
