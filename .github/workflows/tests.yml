@@ -1,6 +1,10 @@
 name: Python tests
 
-on: [pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - ci-*
 
 env:
   UV_SYSTEM_PYTHON: 1
