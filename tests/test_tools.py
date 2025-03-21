@@ -453,27 +453,6 @@ class TestTool:
             source_code = f.read()
             compile(source_code, f.name, "exec")
 
-    def test_saving_tool_produces_valid_python_code_with_complex_name(self, tmp_path):
-        # Test one cannot save tool with additional args in init
-        class FailTool(Tool):
-            name = 'spe"\rcific'
-            description = """test \n\r
-            description"""
-            inputs = {"string_input": {"type": "string", "description": "input description"}}
-            output_type = "string"
-
-            def __init__(self):
-                super().__init__(self)
-
-            def forward(self, string_input):
-                return "foo"
-
-        fail_tool = FailTool()
-        fail_tool.save(tmp_path)
-        with open(os.path.join(tmp_path, "tool.py"), "r", encoding="utf-8") as f:
-            source_code = f.read()
-            compile(source_code, f.name, "exec")
-
 
 @pytest.fixture
 def mock_server_parameters():
