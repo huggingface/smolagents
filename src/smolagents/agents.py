@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 from .agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
-from .memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, TaskStep, ToolCall
+from .memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, TaskStep, ToolCall, Message
 from .models import (
     ChatMessage,
     MessageRole,
@@ -1018,6 +1018,44 @@ class ToolCallingAgent(MultiStepAgent):
             title="Output message of the LLM:",
             level=LogLevel.DEBUG,
         )
+
+        # Re-try if the model did not call any tools
+        if (model_message.content != '') and (model_message.tool_calls is None or len(model_message.tool_calls) == 0):
+            self.logger.log_markdown(
+                content=model_message.content,
+                title="Model did not call any tools. Retrying with the model response content...",
+                level=LogLevel.DEBUG,
+            )
+
+            retry_messages = [
+                Message(
+                    role=MessageRole.SYSTEM,
+                    content=[
+                        {
+                            "type": "text",
+                            "text": "You are an expert assistant who finds the tools in the text provided using tool calls. You must use the tools provided to you to solve the task otherwise you will fail."
+                        }
+                    ]
+                ),
+                Message(
+                    role=MessageRole.USER,
+                    content=[
+                        {
+                            "type": "text",
+                            "text": f"{model_message.content}"
+                        }
+                    ]
+                ),
+            ]
+            try:
+                model_message: ChatMessage = self.model(
+                    retry_messages,
+                    tools_to_call_from=list(self.tools.values()),
+                    stop_sequences=["Observation:", "Calling tools:"],
+                )
+                memory_step.model_output_message = model_message
+            except Exception as e:
+                raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
 
         if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
             raise AgentParsingError(
