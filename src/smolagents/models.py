@@ -549,9 +549,11 @@ class MLXModel(Model):
         self.model_id = model_id
         self.model, self.tokenizer = mlx_lm.load(model_id, tokenizer_config={"trust_remote_code": trust_remote_code})
         self.stream_generate = mlx_lm.stream_generate
+        self.prompt_cache = mlx_lm.models.cache.make_prompt_cache(self.model)
         self.tool_name_key = tool_name_key
         self.tool_arguments_key = tool_arguments_key
         self.is_vlm = False  # mlx-lm doesn't support vision models
+        self._num_processed_token = 0
 
     def __call__(
         self,
@@ -578,12 +580,19 @@ class MLXModel(Model):
             tools=tools,
             add_generation_prompt=True,
         )
+        if self._num_processed_token > len(prompt_ids):
+            # TODO: this only works if the new prmopt_ids is shorter than
+            # what was previously processed.
+            self._num_processed_token = 0
+        prompt_ids = prompt_ids[self._num_processed_token:]
+        self._num_processed_token += len(prompt_ids)
 
         self.last_input_token_count = len(prompt_ids)
         self.last_output_token_count = 0
         text = ""
 
-        for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
+        found_stop_sequence = False
+        for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, prompt_cache=self.prompt_cache, **completion_kwargs):
             self.last_output_token_count += 1
             text += _.text
             for stop_sequence in prepared_stop_sequences:
