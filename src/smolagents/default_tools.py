@@ -56,7 +56,7 @@ class PythonInterpreterTool(Tool):
                 "type": "string",
                 "description": (
                     "The code snippet to evaluate. All variables used in this snippet must be defined in this same snippet, "
-                    f"else you will get an error. This code can only import the following python libraries: {authorized_imports}."
+                    f"else you will get an error. This code can only import the following python libraries: {self.authorized_imports}."
                 ),
             }
         }
