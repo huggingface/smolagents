@@ -222,7 +222,7 @@ class Tool:
             class {class_name}(Tool):
                 name = "{self.name}"
                 description = {json.dumps(textwrap.dedent(self.description).strip())}
-                inputs = {json.dumps(self.inputs, separators=(",", ":"))}
+                inputs = {self.inputs}
                 output_type = "{self.output_type}"
             """
             ).strip()
@@ -287,7 +287,7 @@ class Tool:
         tool_code = tool_dict["code"]
 
         with open(tool_file, "w", encoding="utf-8") as f:
-            f.write(tool_code.replace(":true,", ":True,").replace(":true}", ":True}"))
+            f.write(tool_code)
 
         if make_gradio_app:
             # Save app file
