@@ -167,9 +167,19 @@ class DockerExecutor(RemotePythonExecutor):
         logger,
         host: str = "127.0.0.1",
         port: int = 8888,
+        image_name: str = "jupyter-kernel",
+        rebuild_image: bool = True,
     ):
         """
         Initialize the Docker-based Jupyter Kernel Gateway executor.
+
+        Args:
+            additional_imports: Additional imports to install.
+            logger: Logger to use.
+            host: Host to bind to.
+            port: Port to bind to.
+            image_name: Name of the Docker image to use. If the image doesn't exist, it will be built.
+            rebuild_image: If True, the image will be rebuilt even if it already exists.
         """
         super().__init__(additional_imports, logger)
         try:
@@ -181,6 +191,7 @@ class DockerExecutor(RemotePythonExecutor):
             )
         self.host = host
         self.port = port
+        self.image_name = image_name
 
         # Initialize Docker
         try:
@@ -190,11 +201,23 @@ class DockerExecutor(RemotePythonExecutor):
 
         # Build and start container
         try:
-            self.logger.log("Building Docker image...", level=LogLevel.INFO)
-            dockerfile_path = Path(__file__).parent / "Dockerfile"
-            if not dockerfile_path.exists():
-                with open(dockerfile_path, "w") as f:
-                    f.write("""FROM python:3.12-slim
+            # Check if image exists, unless forced to rebuild
+            build_image = rebuild_image
+            if not rebuild_image:
+                try:
+                    self.client.images.get(self.image_name)
+                    self.logger.log(f"Using existing Docker image: {self.image_name}", level=LogLevel.INFO)
+                    build_image = False
+                except docker.errors.ImageNotFound:
+                    self.logger.log(f"Image {self.image_name} not found, building...", level=LogLevel.INFO)
+                    build_image = True
+
+            if build_image:
+                self.logger.log(f"Building Docker image {self.image_name}...", level=LogLevel.INFO)
+                dockerfile_path = Path(__file__).parent / "Dockerfile"
+                if not dockerfile_path.exists():
+                    with open(dockerfile_path, "w") as f:
+                        f.write("""FROM python:3.12-slim
 
 RUN pip install jupyter_kernel_gateway requests numpy pandas
 RUN pip install jupyter_client notebook
@@ -202,15 +225,13 @@ RUN pip install jupyter_client notebook
 EXPOSE 8888
 CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
 """)
-            _, build_logs = self.client.images.build(
-                path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag="jupyter-kernel"
-            )
-            self.logger.log(build_logs, level=LogLevel.DEBUG)
+                _, build_logs = self.client.images.build(
+                    path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
+                )
+                self.logger.log(build_logs, level=LogLevel.DEBUG)
 
             self.logger.log(f"Starting container on {host}:{port}...", level=LogLevel.INFO)
-            self.container = self.client.containers.run(
-                "jupyter-kernel", ports={"8888/tcp": (host, port)}, detach=True
-            )
+            self.container = self.client.containers.run(self.image_name, ports={"8888/tcp": (host, port)}, detach=True)
 
             retries = 0
             while self.container.status != "running" and retries < 5:
