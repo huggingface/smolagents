@@ -1110,7 +1110,7 @@ class CodeAgent(MultiStepAgent):
         grammar: Optional[Dict[str, str]] = None,
         additional_authorized_imports: Optional[List[str]] = None,
         planning_interval: Optional[int] = None,
-        executor_type: str | None = "local",
+        executor_type: str | PythonExecutor | None = "local",
         executor_kwargs: Optional[Dict[str, Any]] = None,
         max_print_outputs_length: Optional[int] = None,
         **kwargs,
@@ -1136,7 +1136,15 @@ class CodeAgent(MultiStepAgent):
             )
         self.executor_type = executor_type or "local"
         self.executor_kwargs = executor_kwargs or {}
-        self.python_executor = self.create_python_executor()
+
+        if isinstance(self.executor_type, PythonExecutor):
+            # If a PythonExecutor instance is provided, use it directly
+            # This allows users to pass a pre-configured custom executor instance
+            # Example: agent = CodeAgent(tools=tools, executor_type=my_custom_executor)
+            self.python_executor = self.executor_type
+        else:
+            # If a string or PythonExecutor subclass is provided, create an instance using create_python_executor method
+            self.python_executor = self.create_python_executor()
 
     def create_python_executor(self) -> PythonExecutor:
         match self.executor_type:
