@@ -583,6 +583,7 @@ class MLXModel(Model):
         self.last_output_token_count = 0
         text = ""
 
+        found_stop_sequence = False
         for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
             self.last_output_token_count += 1
             text += _.text
