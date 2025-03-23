@@ -63,6 +63,7 @@ from .utils import (
     AgentGenerationError,
     AgentMaxStepsError,
     AgentParsingError,
+    AgentToolCallError,
     is_valid_name,
     make_init_file,
     parse_code_blobs,
@@ -576,7 +577,7 @@ You have been provided with these additional arguments, that you can access usin
         """
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
-            error_msg = f"Unknown tool {tool_name}, should be instead one of {list(available_tools.keys())}."
+            error_msg = f"Unknown tool {tool_name}, should be instead one of: {', '.join(available_tools)}."
             raise AgentExecutionError(error_msg, self.logger)
 
         try:
@@ -595,22 +596,37 @@ You have been provided with these additional arguments, that you can access usin
                     observation = available_tools[tool_name].__call__(**arguments, sanitize_inputs_outputs=True)
             else:
                 error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
-                raise AgentExecutionError(error_msg, self.logger)
+                raise AgentToolCallError(error_msg, self.logger)
             return observation
+        except TypeError as e:
+            if tool_name in self.tools:
+                tool = self.tools[tool_name]
+                error_msg = (
+                    f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\n"
+                    "You should only use this tool with a correct input.\n"
+                    f"As a reminder, this tool's description is the following: '{tool.description}'.\n"
+                    f"It takes inputs: {json.dumps(tool.inputs)}\n"
+                    f"It returns output of type {tool.output_type}"
+                )
+                raise AgentToolCallError(error_msg, self.logger)
+            elif tool_name in self.managed_agents:
+                error_msg = (
+                    f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
+                    f"As a reminder, this team member's description is the following: {self.managed_agents[tool_name].description}\n"
+                )
+                raise AgentToolCallError(error_msg, self.logger)
         except Exception as e:
             if tool_name in self.tools:
                 tool = self.tools[tool_name]
                 error_msg = (
-                    f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
-                    f"As a reminder, this tool's description is the following: '{tool.description}'.\nIt takes inputs: {tool.inputs} and returns output type {tool.output_type}"
+                    f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\n"
+                    "The tool returned an error. Please repeat the request or use another tool"
                 )
                 raise AgentExecutionError(error_msg, self.logger)
             elif tool_name in self.managed_agents:
                 error_msg = (
-                    f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
-                    f"As a reminder, this team member's description is the following:\n{available_tools[tool_name]}"
+                    f"Team member: {e}\n is unable to handle the task. Please try again or speak to another member"
                 )
-                raise AgentExecutionError(error_msg, self.logger)
 
     def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""

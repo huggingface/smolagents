@@ -26,6 +26,7 @@ import re
 import types
 from functools import lru_cache
 from io import BytesIO
+from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, Dict, Tuple
 
@@ -100,6 +101,12 @@ class AgentExecutionError(AgentError):
 
 class AgentMaxStepsError(AgentError):
     """Exception raised for errors in execution in the agent"""
+
+    pass
+
+
+class AgentToolCallError(AgentError):
+    """Exception raised for errors when incorrect arguments are passed to the tool"""
 
     pass
 
@@ -430,7 +437,7 @@ def make_image_url(base64_image):
     return f"data:image/png;base64,{base64_image}"
 
 
-def make_init_file(folder: str):
+def make_init_file(folder: str | Path):
     os.makedirs(folder, exist_ok=True)
     # Create __init__
     with open(os.path.join(folder, "__init__.py"), "w"):
