@@ -1278,3 +1278,23 @@ class CodeAgent(MultiStepAgent):
         agent_dict["executor_kwargs"] = self.executor_kwargs
         agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
+
+    def cleanup(self):
+        """Clean up resources used by the agent, especially Docker container resources."""
+        try:
+            if hasattr(self, "python_executor") and self.executor_type == "docker":
+                container_id = getattr(self.python_executor, "container", None)
+                container_id = getattr(container_id, "short_id", "unknown") if container_id else "unknown"
+                self.logger.log(f"Stopping and removing container {container_id}...", level=LogLevel.INFO)
+                self.python_executor.delete()
+                self.logger.log("Container cleanup completed", level=LogLevel.INFO)
+        except Exception as e:
+            self.logger.log_error(f"Error during cleanup: {e}")
+
+    def __del__(self):
+        """Ensure resources are cleaned up when the agent is garbage collected."""
+        try:
+            self.cleanup()
+        except Exception as e:
+            # Cannot use logger here as it might already be garbage collected
+            print(f"Error during CodeAgent cleanup in __del__: {e}")
