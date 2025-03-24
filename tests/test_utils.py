@@ -24,7 +24,7 @@ from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
 from smolagents.tools import tool
-from smolagents.utils import get_source, parse_code_blobs
+from smolagents.utils import get_source, is_valid_name, parse_code_blobs
 
 
 class AgentTextTests(unittest.TestCase):
@@ -348,3 +348,34 @@ tool = SimpleTool()
 launch_gradio_demo(tool)
 """
         )
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Valid identifiers
+        ("valid_name", True),
+        ("ValidName", True),
+        ("valid123", True),
+        ("_private", True),
+        # Invalid identifiers
+        ("", False),
+        ("123invalid", False),
+        ("invalid-name", False),
+        ("invalid name", False),
+        ("invalid.name", False),
+        # Python keywords
+        ("if", False),
+        ("for", False),
+        ("class", False),
+        ("return", False),
+        # Non-string inputs
+        (123, False),
+        (None, False),
+        ([], False),
+        ({}, False),
+    ],
+)
+def test_is_valid_name(name, expected):
+    """Test the is_valid_name function with various inputs."""
+    assert is_valid_name(name) is expected
