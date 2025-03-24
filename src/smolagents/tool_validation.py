@@ -3,7 +3,7 @@ import builtins
 from itertools import zip_longest
 from typing import Set
 
-from .utils import BASE_BUILTIN_MODULES, get_source
+from .utils import BASE_BUILTIN_MODULES, get_source, is_valid_name
 
 
 _BUILTIN_NAMES = set(vars(builtins))
@@ -201,9 +201,9 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
                     self.invalid_attributes.append(
                         f"Class attribute 'name' must be a string, found '{node.value.value}'"
                     )
-                elif not node.value.value.isidentifier():
+                elif not is_valid_name(node.value.value):
                     self.invalid_attributes.append(
-                        f"Class attribute 'name' must be a valid Python identifier, found '{node.value.value}'"
+                        f"Class attribute 'name' must be a valid Python identifier and not a reserved keyword, found '{node.value.value}'"
                     )
 
         def _check_init_function_parameters(self, node):
