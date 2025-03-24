@@ -682,7 +682,6 @@ class TransformersModel(Model):
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
 
-        # if model path or cached model exists, parse README.md to find pipeline tag
         if os.path.exists(model_id):
             readme_path = f"{model_id}/README.md"
             with open(readme_path, "r") as f:
