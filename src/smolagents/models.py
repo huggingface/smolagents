@@ -569,7 +569,7 @@ class MLXModel(Model):
             **kwargs,
         )
         messages = completion_kwargs.pop("messages")
-        prepared_stop_sequences = completion_kwargs.pop("stop", [])
+        stops = completion_kwargs.pop("stop", [])
         tools = completion_kwargs.pop("tools", None)
         completion_kwargs.pop("tool_choice", None)
 
@@ -582,18 +582,11 @@ class MLXModel(Model):
         self.last_input_token_count = len(prompt_ids)
         self.last_output_token_count = 0
         text = ""
-
-        found_stop_sequence = False
         for response in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
             self.last_output_token_count += 1
             text += response.text
-            for stop_sequence in prepared_stop_sequences:
-                stop_sequence_start = text.rfind(stop_sequence)
-                if stop_sequence_start != -1:
-                    text = text[:stop_sequence_start]
-                    found_stop_sequence = True
-                    break
-            if found_stop_sequence:
+            if any((stop_index := text.rfind(stop)) != -1 for stop in stops):
+                text = text[:stop_index]
                 break
 
         chat_message = ChatMessage(
