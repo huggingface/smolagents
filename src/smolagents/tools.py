@@ -658,8 +658,8 @@ def launch_gradio_demo(tool: Tool):
         new_component = input_gradio_component_class(label=input_name)
         gradio_inputs.append(new_component)
 
-    output_gradio_componentclass = TYPE_TO_COMPONENT_CLASS_MAPPING[tool.output_type]
-    gradio_output = output_gradio_componentclass(label="Output")
+    output_gradio_component_class = TYPE_TO_COMPONENT_CLASS_MAPPING[tool.output_type]
+    gradio_output = output_gradio_component_class(label="Output")
 
     gr.Interface(
         fn=tool_forward,
