@@ -427,7 +427,7 @@ def make_init_file(folder: str):
         pass
 
 
-def is_valid_var(name: str) -> bool:
+def is_valid_name(name: str) -> bool:
     if not isinstance(name, str):
         return False
     return name.isidentifier() and not keyword.iskeyword(name)
