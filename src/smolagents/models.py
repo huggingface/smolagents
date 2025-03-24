@@ -657,6 +657,7 @@ class TransformersModel(Model):
                 "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
             )
         import torch
+        from huggingface_hub import HfApi
         from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
 
         if not model_id:
@@ -680,17 +681,27 @@ class TransformersModel(Model):
         if device_map is None:
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
-        self._is_vlm = False
-        try:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_id,
-                device_map=device_map,
-                torch_dtype=torch_dtype,
-                trust_remote_code=trust_remote_code,
+
+        api = HfApi()
+        pipeline_tag = api.model_info(model_id).pipeline_tag
+        if pipeline_tag == "image-to-text":
+            self._is_vlm = True
+        elif pipeline_tag == "text-generation":
+            self._is_vlm = False
+        else:
+            raise ValueError(
+                f"Unsupported task, model has to be either a vision language model or a language model: {pipeline_tag}"
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-        except ValueError as e:
-            if "Unrecognized configuration class" in str(e):
+        try:
+            if not self._is_vlm:
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    model_id,
+                    device_map=device_map,
+                    torch_dtype=torch_dtype,
+                    trust_remote_code=trust_remote_code,
+                )
+                self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+            else:
                 self.model = AutoModelForImageTextToText.from_pretrained(
                     model_id,
                     device_map=device_map,
@@ -698,9 +709,6 @@ class TransformersModel(Model):
                     trust_remote_code=trust_remote_code,
                 )
                 self.processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-                self._is_vlm = True
-            else:
-                raise e
         except Exception as e:
             raise ValueError(f"Failed to load tokenizer and model for {model_id=}: {e}") from e
         super().__init__(flatten_messages_as_text=not self._is_vlm, **kwargs)
