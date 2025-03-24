@@ -1281,7 +1281,7 @@ class CodeAgent(MultiStepAgent):
 
     def cleanup(self):
         """Clean up resources used by the agent, especially Docker container resources."""
-        if self.executor_type == "docker":
+        if hasattr(self, "python_executor") and self.executor_type == "docker":
             self.python_executor.delete()
 
     def __del__(self):
