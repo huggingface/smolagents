@@ -169,6 +169,7 @@ class DockerExecutor(RemotePythonExecutor):
         port: int = 8888,
         image_name: str = "jupyter-kernel",
         rebuild_image: bool = True,
+        container_run_kwargs: Dict[str, Any] | None = None,
     ):
         """
         Initialize the Docker-based Jupyter Kernel Gateway executor.
@@ -180,6 +181,7 @@ class DockerExecutor(RemotePythonExecutor):
             port: Port to bind to.
             image_name: Name of the Docker image to use. If the image doesn't exist, it will be built.
             rebuild_image: If True, the image will be rebuilt even if it already exists.
+            container_run_kwargs: Additional keyword arguments to pass to the Docker container run command.
         """
         super().__init__(additional_imports, logger)
         try:
@@ -231,7 +233,18 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
                 self.logger.log(build_logs, level=LogLevel.DEBUG)
 
             self.logger.log(f"Starting container on {host}:{port}...", level=LogLevel.INFO)
-            self.container = self.client.containers.run(self.image_name, ports={"8888/tcp": (host, port)}, detach=True)
+            # Create base container parameters
+            container_kwargs = {}
+            if container_run_kwargs:
+                container_kwargs.update(container_run_kwargs)
+
+            # Ensure required port mapping and background running
+            if not isinstance(container_kwargs.get("ports"), dict):
+                container_kwargs["ports"] = {}
+            container_kwargs["ports"]["8888/tcp"] = (host, port)
+            container_kwargs["detach"] = True
+
+            self.container = self.client.containers.run(self.image_name, **container_kwargs)
 
             retries = 0
             while self.container.status != "running" and retries < 5:
