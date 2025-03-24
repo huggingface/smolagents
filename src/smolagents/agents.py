@@ -63,11 +63,11 @@ from .utils import (
     AgentGenerationError,
     AgentMaxStepsError,
     AgentParsingError,
+    is_valid_var,
     make_init_file,
     parse_code_blobs,
     parse_json_tool_call,
     truncate_content,
-    is_valid_var
 )
 
 
@@ -237,12 +237,7 @@ class MultiStepAgent:
     def _setup_managed_agents(self, managed_agents):
         self.managed_agents = {}
         if managed_agents:
-            assert all(
-                agent.name
-                and agent.description
-                and is_valid_var(agent.name)
-                for agent in managed_agents
-            ), (
+            assert all(agent.name and agent.description and is_valid_var(agent.name) for agent in managed_agents), (
                 "All managed agents require: \n"
                 "1. Non-empty name\n"
                 "2. Non-empty description\n"

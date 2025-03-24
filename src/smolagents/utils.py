@@ -20,11 +20,11 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import keyword
 import os
 import re
 import textwrap
 import types
-import keyword
 from functools import lru_cache
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
