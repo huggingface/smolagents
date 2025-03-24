@@ -684,7 +684,7 @@ class TransformersModel(Model):
 
         api = HfApi()
         pipeline_tag = api.model_info(model_id).pipeline_tag
-        if pipeline_tag == "image-to-text":
+        if pipeline_tag == "image-text-to-text":
             self._is_vlm = True
         elif pipeline_tag == "text-generation":
             self._is_vlm = False
