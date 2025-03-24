@@ -639,6 +639,7 @@ def launch_gradio_demo(tool: Tool):
         raise ImportError("Gradio should be installed in order to launch a gradio demo.")
 
     TYPE_TO_COMPONENT_CLASS_MAPPING = {
+        "boolean": gr.Checkbox,
         "image": gr.Image,
         "audio": gr.Audio,
         "string": gr.Textbox,
