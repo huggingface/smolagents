@@ -584,9 +584,9 @@ class MLXModel(Model):
         text = ""
 
         found_stop_sequence = False
-        for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
+        for response in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
             self.last_output_token_count += 1
-            text += _.text
+            text += response.text
             for stop_sequence in prepared_stop_sequences:
                 stop_sequence_start = text.rfind(stop_sequence)
                 if stop_sequence_start != -1:
