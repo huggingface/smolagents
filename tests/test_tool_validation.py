@@ -112,7 +112,10 @@ class InvalidToolUndefinedNames(Tool):
 @pytest.mark.parametrize(
     "tool_class, expected_error",
     [
-        (InvalidToolName, "Class attribute 'name' must be a valid Python identifier, found 'invalid tool name'"),
+        (
+            InvalidToolName,
+            "Class attribute 'name' must be a valid Python identifier and not a reserved keyword, found 'invalid tool name'",
+        ),
         (InvalidToolComplexAttrs, "Complex attributes should be defined in __init__, not as class attributes"),
         (InvalidToolRequiredParams, "Parameters in __init__ must have default values, found required parameters"),
         (
