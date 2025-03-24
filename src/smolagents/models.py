@@ -656,8 +656,8 @@ class TransformersModel(Model):
             raise ModuleNotFoundError(
                 "Please install 'transformers' extra to use 'TransformersModel': `pip install 'smolagents[transformers]'`"
             )
+        import huggingface_hub
         import torch
-        from huggingface_hub import HfApi
         from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor, AutoTokenizer
 
         if not model_id:
@@ -682,9 +682,18 @@ class TransformersModel(Model):
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
 
-        api = HfApi()
-        pipeline_tag = api.model_info(model_id).pipeline_tag
-        if pipeline_tag == "image-to-text":
+        # if model path or cached model exists, parse README.md to find pipeline tag
+        if os.path.exists(model_id):
+            readme_path = f"{model_id}/README.md"
+            with open(readme_path, "r") as f:
+                for line in f:
+                    if "pipeline_tag" in line:
+                        pipeline_tag = line.split(":")[1].strip()
+        else:
+            api = huggingface_hub.HfApi()
+            pipeline_tag = api.model_info(model_id).pipeline_tag
+
+        if pipeline_tag == "image-text-to-text":
             self._is_vlm = True
         elif pipeline_tag == "text-generation":
             self._is_vlm = False
