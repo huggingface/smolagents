@@ -25,7 +25,7 @@ import torch
 from huggingface_hub.utils import is_torch_available
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
+from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool
 
 from .utils.markers import require_run_all
 
@@ -561,3 +561,11 @@ class TestToolCollection:
             # clean up the process when test is done
             server_process.kill()
             server_process.wait()
+
+
+@pytest.mark.parametrize("tool_fixture_name", ["boolean_default_tool_class"])
+def test_launch_gradio_demo_does_not_raise(tool_fixture_name, request):
+    tool = request.getfixturevalue(tool_fixture_name)
+    with patch("gradio.Interface.launch") as mock_launch:
+        launch_gradio_demo(tool)
+    assert mock_launch.call_count == 1
