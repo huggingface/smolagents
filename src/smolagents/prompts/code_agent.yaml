@@ -173,7 +173,7 @@ system_prompt: |-
   Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
 planning:
   initial_plan : |-
-    You are a world express at analyzing a situation to derive facts, and plan accordingly towards solving a task.
+    You are a world expert at analyzing a situation to derive facts, and plan accordingly towards solving a task.
     Below I will present you a task. You will need to 1. build a survey of facts known or needed to solve the task, then 2. make a plan of action to solve the task.
 
     1. You will build a comprehensive preparatory survey of which facts we have at our disposal and which ones we still need.
@@ -230,7 +230,7 @@ planning:
 
     Now begin! First in part 1, list the facts that you have at your disposal, then in part 2, make a plan to solve the task.
   update_plan_pre_messages: |-
-    You are a world express at analyzing a situation to derive facts, and plan accordingly towards solving a task.
+    You are a world expert at analyzing a situation to derive facts, and plan accordingly towards solving a task.
     You have been given a task:
     ```
     {{task}}

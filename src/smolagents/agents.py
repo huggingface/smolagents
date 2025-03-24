@@ -63,6 +63,7 @@ from .utils import (
     AgentGenerationError,
     AgentMaxStepsError,
     AgentParsingError,
+    is_valid_name,
     make_init_file,
     parse_code_blobs,
     truncate_content,
@@ -212,7 +213,7 @@ class MultiStepAgent:
         self.grammar = grammar
         self.planning_interval = planning_interval
         self.state = {}
-        self.name = name
+        self.name = self._validate_name(name)
         self.description = description
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks
@@ -229,6 +230,11 @@ class MultiStepAgent:
         self.monitor = Monitor(self.model, self.logger)
         self.step_callbacks = step_callbacks if step_callbacks is not None else []
         self.step_callbacks.append(self.monitor.update_metrics)
+
+    def _validate_name(self, name: str | None) -> str | None:
+        if name is not None and not is_valid_name(name):
+            raise ValueError(f"Agent name '{name}' must be a valid Python identifier and not a reserved keyword.")
+        return name
 
     def _setup_managed_agents(self, managed_agents):
         self.managed_agents = {}
@@ -639,7 +645,7 @@ You have been provided with these additional arguments, that you can access usin
             answer += "\n</summary_of_work>"
         return answer
 
-    def save(self, output_dir: str, relative_path: Optional[str] = None):
+    def save(self, output_dir: str | Path, relative_path: Optional[str] = None):
         """
         Saves the relevant code files for your agent. This will copy the code of your agent in `output_dir` as well as autogenerate:
 
@@ -652,7 +658,7 @@ You have been provided with these additional arguments, that you can access usin
           code)
 
         Args:
-            output_dir (`str`): The folder in which you want to save your tool.
+            output_dir (`str` or `Path`): The folder in which you want to save your agent.
         """
         make_init_file(output_dir)
 

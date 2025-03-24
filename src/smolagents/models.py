@@ -1146,6 +1146,7 @@ __all__ = [
     "Model",
     "MLXModel",
     "TransformersModel",
+    "ApiModel",
     "HfApiModel",
     "LiteLLMModel",
     "OpenAIServerModel",

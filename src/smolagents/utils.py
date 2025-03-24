@@ -20,6 +20,7 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import keyword
 import os
 import re
 import types
@@ -391,7 +392,7 @@ def get_source(obj) -> str:
     inspect_error = None
     try:
         # Handle dynamically created classes
-        source = obj.__source if hasattr(obj, "__source") else inspect.getsource(obj)
+        source = getattr(obj, "__source__", None) or inspect.getsource(obj)
         return dedent(source).strip()
     except OSError as e:
         # let's keep track of the exception to raise it if all further methods fail
@@ -434,3 +435,7 @@ def make_init_file(folder: str):
     # Create __init__
     with open(os.path.join(folder, "__init__.py"), "w"):
         pass
+
+
+def is_valid_name(name: str) -> bool:
+    return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False
