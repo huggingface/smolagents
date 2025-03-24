@@ -13,7 +13,7 @@
   - local: tutorials/tools
     title: 🛠️ Tools - in-depth guide
   - local: tutorials/secure_code_execution
-    title: 🛡️ Secure your code execution with E2B
+    title: 🛡️ Secure code execution
   - local: tutorials/memory
     title: 📚 Manage your agent's memory
 - title: Conceptual guides
