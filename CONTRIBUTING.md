@@ -33,18 +33,16 @@ However you choose to contribute, please be mindful and respect our
 
 There are several ways you can contribute to smolagents.
 
-* Fix outstanding issues with the existing code.
 * Submit issues related to bugs or desired new features.
 * Contribute to the examples or to the documentation.
+* Fix outstanding issues with the existing code.
 
 > All contributions are equally valuable to the community. 🥰
 
-## Fixing outstanding issues
-
-If you notice an issue with the existing code and have a fix in mind, feel free to [start contributing](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) and open
-a Pull Request!
-
 ## Submitting a bug-related issue or feature request
+
+At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
+It's often even better to open a PR with your proposed fixes/changes!
 
 Do your best to follow these guidelines when submitting a bug-related issue or a feature
 request. It will make it easier for us to come back to you quickly and with good
@@ -88,6 +86,37 @@ If your issue is well written we're already 80% of the way there by the time you
 We're always looking for improvements to the documentation that make it more clear and accurate. Please let us know 
 how the documentation can be improved such as typos and any content that is missing, unclear or inaccurate. We'll be 
 happy to make the changes or help you make a contribution if you're interested!
+
+## Fixing outstanding issues
+
+If you notice an issue with the existing code and have a fix in mind, feel free to [start contributing](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) and open
+a Pull Request!
+
+### Making code changes
+
+To install dev dependencies, run:
+```
+pip install -e ".[dev]"
+```
+
+When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
+To check code quality of the source code:
+```
+make quality
+```
+
+If the checks fail, you can run the formatter with:
+```
+make style
+```
+
+And commit the changes.
+
+To run tests locally, run this command:
+```bash
+make test
+```
+</details>
 
 ## I want to become a maintainer of the project. How do I get there?
 

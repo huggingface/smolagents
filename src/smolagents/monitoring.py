@@ -27,6 +27,11 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
+from smolagents.utils import escape_code_brackets
+
+
+__all__ = ["AgentLogger", "LogLevel", "Monitor"]
+
 
 class Monitor:
     def __init__(self, tracked_model, logger):
@@ -56,7 +61,7 @@ class Monitor:
         """
         step_duration = step_log.duration
         self.step_durations.append(step_duration)
-        console_outputs = f"[Step {len(self.step_durations) - 1}: Duration {step_duration:.2f} seconds"
+        console_outputs = f"[Step {len(self.step_durations)}: Duration {step_duration:.2f} seconds"
 
         if getattr(self.tracked_model, "last_input_token_count", None) is not None:
             self.total_input_token_count += self.tracked_model.last_input_token_count
@@ -69,6 +74,7 @@ class Monitor:
 
 
 class LogLevel(IntEnum):
+    OFF = -1  # No output
     ERROR = 0  # Only errors
     INFO = 1  # Normal output (default)
     DEBUG = 2  # Detailed output
@@ -92,6 +98,9 @@ class AgentLogger:
             level = LogLevel[level.upper()]
         if level <= self.level:
             self.console.print(*args, **kwargs)
+
+    def log_error(self, error_message: str) -> None:
+        self.log(escape_code_brackets(error_message), style="bold red", level=LogLevel.ERROR)
 
     def log_markdown(self, content: str, title: Optional[str] = None, level=LogLevel.INFO, style=YELLOW_HEX) -> None:
         markdown_content = Syntax(
@@ -141,11 +150,11 @@ class AgentLogger:
             level=LogLevel.INFO,
         )
 
-    def log_task(self, content: str, subtitle: str, level: int = LogLevel.INFO) -> None:
+    def log_task(self, content: str, subtitle: str, title: Optional[str] = None, level: int = LogLevel.INFO) -> None:
         self.log(
             Panel(
-                f"\n[bold]{content}\n",
-                title="[bold]New run",
+                f"\n[bold]{escape_code_brackets(content)}\n",
+                title="[bold]New run" + (f" - {title}" if title else ""),
                 subtitle=subtitle,
                 border_style=YELLOW_HEX,
                 subtitle_align="left",
@@ -167,7 +176,7 @@ class AgentLogger:
     def visualize_agent_tree(self, agent):
         def create_tools_section(tools_dict):
             table = Table(show_header=True, header_style="bold")
-            table.add_column("Name", style="blue")
+            table.add_column("Name", style="#1E90FF")
             table.add_column("Description")
             table.add_column("Arguments")
 
@@ -178,28 +187,31 @@ class AgentLogger:
                 ]
                 table.add_row(name, getattr(tool, "description", str(tool)), "\n".join(args))
 
-            return Group(Text("🛠️ Tools", style="bold italic blue"), table)
+            return Group("🛠️ [italic #1E90FF]Tools:[/italic #1E90FF]", table)
+
+        def get_agent_headline(agent, name: Optional[str] = None):
+            name_headline = f"{name} | " if name else ""
+            return f"[bold {YELLOW_HEX}]{name_headline}{agent.__class__.__name__} | {agent.model.model_id}"
 
         def build_agent_tree(parent_tree, agent_obj):
             """Recursively builds the agent tree."""
-            if agent_obj.tools:
-                parent_tree.add(create_tools_section(agent_obj.tools))
+            parent_tree.add(create_tools_section(agent_obj.tools))
 
             if agent_obj.managed_agents:
-                agents_branch = parent_tree.add("[bold italic blue]🤖 Managed agents")
+                agents_branch = parent_tree.add("🤖 [italic #1E90FF]Managed agents:")
                 for name, managed_agent in agent_obj.managed_agents.items():
-                    agent_node_text = f"[bold {YELLOW_HEX}]{name} - {managed_agent.agent.__class__.__name__}"
-                    agent_tree = agents_branch.add(agent_node_text)
-                    if hasattr(managed_agent, "description"):
+                    agent_tree = agents_branch.add(get_agent_headline(managed_agent, name))
+                    if managed_agent.__class__.__name__ == "CodeAgent":
                         agent_tree.add(
-                            f"[bold italic blue]📝 Description:[/bold italic blue] {managed_agent.description}"
+                            f"✅ [italic #1E90FF]Authorized imports:[/italic #1E90FF] {managed_agent.additional_authorized_imports}"
                         )
-                    if hasattr(managed_agent, "agent"):
-                        build_agent_tree(agent_tree, managed_agent.agent)
+                    agent_tree.add(f"📝 [italic #1E90FF]Description:[/italic #1E90FF] {managed_agent.description}")
+                    build_agent_tree(agent_tree, managed_agent)
 
-        main_tree = Tree(f"[bold {YELLOW_HEX}]{agent.__class__.__name__}")
+        main_tree = Tree(get_agent_headline(agent))
+        if agent.__class__.__name__ == "CodeAgent":
+            main_tree.add(
+                f"✅ [italic #1E90FF]Authorized imports:[/italic #1E90FF] {agent.additional_authorized_imports}"
+            )
         build_agent_tree(main_tree, agent)
         self.console.print(main_tree)
-
-
-__all__ = ["AgentLogger", "Monitor"]

@@ -6,21 +6,20 @@ import uuid
 from io import BytesIO
 from typing import Optional
 
+import PIL.Image
 import requests
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
-from PIL import Image
-from transformers import AutoProcessor
 
 from smolagents import Tool, tool
 
 
 load_dotenv(override=True)
 
-idefics_processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b-chatty")
-
 
 def process_images_and_text(image_path, query, client):
+    from transformers import AutoProcessor
+
     messages = [
         {
             "role": "user",
@@ -30,7 +29,7 @@ def process_images_and_text(image_path, query, client):
             ],
         },
     ]
-
+    idefics_processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b-chatty")
     prompt_with_template = idefics_processor.apply_chat_template(messages, add_generation_prompt=True)
 
     # load images from local directory
@@ -38,7 +37,7 @@ def process_images_and_text(image_path, query, client):
     # encode images to strings which can be sent to the endpoint
     def encode_local_image(image_path):
         # load image
-        image = Image.open(image_path).convert("RGB")
+        image = PIL.Image.open(image_path).convert("RGB")
 
         # Convert the image to a base64 string
         buffer = BytesIO()
@@ -99,7 +98,7 @@ headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.get
 
 
 def resize_image(image_path):
-    img = Image.open(image_path)
+    img = PIL.Image.open(image_path)
     width, height = img.size
     img = img.resize((int(width / 2), int(height / 2)))
     new_image_path = f"resized_{image_path}"

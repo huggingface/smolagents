@@ -3,11 +3,13 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, Dict, List, TypedDict, Union
 
 from smolagents.models import ChatMessage, MessageRole
-from smolagents.monitoring import AgentLogger
+from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.utils import AgentError, make_json_serializable
 
 
 if TYPE_CHECKING:
+    import PIL.Image
+
     from smolagents.models import ChatMessage
     from smolagents.monitoring import AgentLogger
 
@@ -58,7 +60,7 @@ class ActionStep(MemoryStep):
     model_output_message: ChatMessage = None
     model_output: str | None = None
     observations: str | None = None
-    observations_images: List[str] | None = None
+    observations_images: List["PIL.Image.Image"] | None = None
     action_output: Any = None
 
     def dict(self):
@@ -89,7 +91,7 @@ class ActionStep(MemoryStep):
         if self.tool_calls is not None:
             messages.append(
                 Message(
-                    role=MessageRole.ASSISTANT,
+                    role=MessageRole.TOOL_CALL,
                     content=[
                         {
                             "type": "text",
@@ -106,7 +108,8 @@ class ActionStep(MemoryStep):
                     content=[
                         {
                             "type": "text",
-                            "text": f"Call id: {self.tool_calls[0].id}\nObservation:\n{self.observations}",
+                            "text": (f"Call id: {self.tool_calls[0].id}\n" if self.tool_calls else "")
+                            + f"Observation:\n{self.observations}",
                         }
                     ],
                 )
@@ -143,32 +146,19 @@ class ActionStep(MemoryStep):
 @dataclass
 class PlanningStep(MemoryStep):
     model_input_messages: List[Message]
-    model_output_message_facts: ChatMessage
-    facts: str
-    model_output_message_plan: ChatMessage
+    model_output_message: ChatMessage
     plan: str
 
     def to_messages(self, summary_mode: bool, **kwargs) -> List[Message]:
-        messages = []
-        messages.append(
-            Message(
-                role=MessageRole.ASSISTANT, content=[{"type": "text", "text": f"[FACTS LIST]:\n{self.facts.strip()}"}]
-            )
-        )
-
-        if not summary_mode:
-            messages.append(
-                Message(
-                    role=MessageRole.ASSISTANT, content=[{"type": "text", "text": f"[PLAN]:\n{self.plan.strip()}"}]
-                )
-            )
-        return messages
+        if summary_mode:
+            return []
+        return [Message(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.plan.strip()}])]
 
 
 @dataclass
 class TaskStep(MemoryStep):
     task: str
-    task_images: List[str] | None = None
+    task_images: List["PIL.Image.Image"] | None = None
 
     def to_messages(self, summary_mode: bool = False, **kwargs) -> List[Message]:
         content = [{"type": "text", "text": f"New task:\n{self.task}"}]
@@ -186,7 +176,7 @@ class SystemPromptStep(MemoryStep):
     def to_messages(self, summary_mode: bool = False, **kwargs) -> List[Message]:
         if summary_mode:
             return []
-        return [Message(role=MessageRole.SYSTEM, content=[{"type": "text", "text": self.system_prompt.strip()}])]
+        return [Message(role=MessageRole.SYSTEM, content=[{"type": "text", "text": self.system_prompt}])]
 
 
 class AgentMemory:
@@ -216,19 +206,19 @@ class AgentMemory:
         logger.console.log("Replaying the agent's steps:")
         for step in self.steps:
             if isinstance(step, SystemPromptStep) and detailed:
-                logger.log_markdown(title="System prompt", content=step.system_prompt)
+                logger.log_markdown(title="System prompt", content=step.system_prompt, level=LogLevel.ERROR)
             elif isinstance(step, TaskStep):
-                logger.log_task(step.task, "", 2)
+                logger.log_task(step.task, "", level=LogLevel.ERROR)
             elif isinstance(step, ActionStep):
-                logger.log_rule(f"Step {step.step_number}")
+                logger.log_rule(f"Step {step.step_number}", level=LogLevel.ERROR)
                 if detailed:
                     logger.log_messages(step.model_input_messages)
-                logger.log_markdown(title="Agent output:", content=step.model_output)
+                logger.log_markdown(title="Agent output:", content=step.model_output, level=LogLevel.ERROR)
             elif isinstance(step, PlanningStep):
-                logger.log_rule("Planning step")
+                logger.log_rule("Planning step", level=LogLevel.ERROR)
                 if detailed:
-                    logger.log_messages(step.model_input_messages)
-                logger.log_markdown(title="Agent output:", content=step.facts + "\n" + step.plan)
+                    logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
+                logger.log_markdown(title="Agent output:", content=step.facts + "\n" + step.plan, level=LogLevel.ERROR)
 
 
 __all__ = ["AgentMemory"]

@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mimetypes
 import os
 import re
 import shutil
@@ -89,7 +88,7 @@ def pull_messages_from_step(
                     log_content = re.sub(r"^Execution logs:\s*", "", log_content)
                     yield gr.ChatMessage(
                         role="assistant",
-                        content=f"{log_content}",
+                        content=f"```bash\n{log_content}\n",
                         metadata={"title": "📝 Execution Logs", "parent_id": parent_id, "status": "done"},
                     )
 
@@ -120,7 +119,7 @@ def pull_messages_from_step(
             step_footnote += step_duration
         step_footnote = f"""<span style="color: #bbbbc2; font-size: 12px;">{step_footnote}</span> """
         yield gr.ChatMessage(role="assistant", content=f"{step_footnote}")
-        yield gr.ChatMessage(role="assistant", content="-----")
+        yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
 
 
 def stream_to_gradio(
@@ -141,7 +140,7 @@ def stream_to_gradio(
 
     for step_log in agent.run(task, stream=True, reset=reset_agent_memory, additional_args=additional_args):
         # Track tokens if model provides them
-        if hasattr(agent.model, "last_input_token_count"):
+        if getattr(agent.model, "last_input_token_count", None) is not None:
             total_input_tokens += agent.model.last_input_token_count
             total_output_tokens += agent.model.last_output_token_count
             if isinstance(step_log, ActionStep):
@@ -185,44 +184,47 @@ class GradioUI:
             )
         self.agent = agent
         self.file_upload_folder = file_upload_folder
+        self.name = getattr(agent, "name") or "Agent interface"
+        self.description = getattr(agent, "description", None)
         if self.file_upload_folder is not None:
             if not os.path.exists(file_upload_folder):
                 os.mkdir(file_upload_folder)
 
-    def interact_with_agent(self, prompt, messages):
+    def interact_with_agent(self, prompt, messages, session_state):
         import gradio as gr
 
-        messages.append(gr.ChatMessage(role="user", content=prompt))
-        yield messages
-        for msg in stream_to_gradio(self.agent, task=prompt, reset_agent_memory=False):
-            messages.append(msg)
-            yield messages
-        yield messages
+        # Get the agent type from the template agent
+        if "agent" not in session_state:
+            session_state["agent"] = self.agent
 
-    def upload_file(
-        self,
-        file,
-        file_uploads_log,
-        allowed_file_types=[
-            "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "text/plain",
-        ],
-    ):
+        try:
+            messages.append(gr.ChatMessage(role="user", content=prompt))
+            yield messages
+
+            for msg in stream_to_gradio(session_state["agent"], task=prompt, reset_agent_memory=False):
+                messages.append(msg)
+                yield messages
+
+            yield messages
+        except Exception as e:
+            print(f"Error in interaction: {str(e)}")
+            messages.append(gr.ChatMessage(role="assistant", content=f"Error: {str(e)}"))
+            yield messages
+
+    def upload_file(self, file, file_uploads_log, allowed_file_types=None):
         """
         Handle file uploads, default allowed types are .pdf, .docx, and .txt
         """
         import gradio as gr
 
         if file is None:
-            return gr.Textbox("No file uploaded", visible=True), file_uploads_log
+            return gr.Textbox(value="No file uploaded", visible=True), file_uploads_log
 
-        try:
-            mime_type, _ = mimetypes.guess_type(file.name)
-        except Exception as e:
-            return gr.Textbox(f"Error: {e}", visible=True), file_uploads_log
+        if allowed_file_types is None:
+            allowed_file_types = [".pdf", ".docx", ".txt"]
 
-        if mime_type not in allowed_file_types:
+        file_ext = os.path.splitext(file.name)[1].lower()
+        if file_ext not in allowed_file_types:
             return gr.Textbox("File type disallowed", visible=True), file_uploads_log
 
         # Sanitize file name
@@ -231,16 +233,6 @@ class GradioUI:
             r"[^\w\-.]", "_", original_name
         )  # Replace any non-alphanumeric, non-dash, or non-dot characters with underscores
 
-        type_to_ext = {}
-        for ext, t in mimetypes.types_map.items():
-            if t not in type_to_ext:
-                type_to_ext[t] = ext
-
-        # Ensure the extension correlates to the mime type
-        sanitized_name = sanitized_name.split(".")[:-1]
-        sanitized_name.append("" + type_to_ext[mime_type])
-        sanitized_name = "".join(sanitized_name)
-
         # Save the uploaded file to the specified folder
         file_path = os.path.join(self.file_upload_folder, os.path.basename(sanitized_name))
         shutil.copy(file.name, file_path)
@@ -248,6 +240,8 @@ class GradioUI:
         return gr.Textbox(f"File uploaded: {file_path}", visible=True), file_uploads_log + [file_path]
 
     def log_user_message(self, text_input, file_uploads_log):
+        import gradio as gr
+
         return (
             text_input
             + (
@@ -256,14 +250,56 @@ class GradioUI:
                 else ""
             ),
             "",
+            gr.Button(interactive=False),
         )
 
-    def launch(self, **kwargs):
+    def launch(self, share: bool = True, **kwargs):
+        self.create_app().launch(debug=True, share=share, **kwargs)
+
+    def create_app(self):
         import gradio as gr
 
-        with gr.Blocks(fill_height=True) as demo:
+        with gr.Blocks(theme="ocean", fill_height=True) as demo:
+            # Add session state to store session-specific data
+            session_state = gr.State({})
             stored_messages = gr.State([])
             file_uploads_log = gr.State([])
+
+            with gr.Sidebar():
+                gr.Markdown(
+                    f"# {self.name.replace('_', ' ').capitalize()}"
+                    "\n> This web ui allows you to interact with a `smolagents` agent that can use tools and execute steps to complete tasks."
+                    + (f"\n\n**Agent description:**\n{self.description}" if self.description else "")
+                )
+
+                with gr.Group():
+                    gr.Markdown("**Your request**", container=True)
+                    text_input = gr.Textbox(
+                        lines=3,
+                        label="Chat Message",
+                        container=False,
+                        placeholder="Enter your prompt here and press Shift+Enter or press the button",
+                    )
+                    submit_btn = gr.Button("Submit", variant="primary")
+
+                # If an upload folder is provided, enable the upload feature
+                if self.file_upload_folder is not None:
+                    upload_file = gr.File(label="Upload a file")
+                    upload_status = gr.Textbox(label="Upload Status", interactive=False, visible=False)
+                    upload_file.change(
+                        self.upload_file,
+                        [upload_file, file_uploads_log],
+                        [upload_status, file_uploads_log],
+                    )
+
+                gr.HTML("<br><br><h4><center>Powered by:</center></h4>")
+                with gr.Row():
+                    gr.HTML("""<div style="display: flex; align-items: center; gap: 8px; font-family: system-ui, -apple-system, sans-serif;">
+            <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png" style="width: 32px; height: 32px; object-fit: contain;" alt="logo">
+            <a target="_blank" href="https://github.com/huggingface/smolagents"><b>huggingface/smolagents</b></a>
+            </div>""")
+
+            # Main chat interface
             chatbot = gr.Chatbot(
                 label="Agent",
                 type="messages",
@@ -274,23 +310,39 @@ class GradioUI:
                 resizeable=True,
                 scale=1,
             )
-            # If an upload folder is provided, enable the upload feature
-            if self.file_upload_folder is not None:
-                upload_file = gr.File(label="Upload a file")
-                upload_status = gr.Textbox(label="Upload Status", interactive=False, visible=False)
-                upload_file.change(
-                    self.upload_file,
-                    [upload_file, file_uploads_log],
-                    [upload_status, file_uploads_log],
-                )
-            text_input = gr.Textbox(lines=1, label="Chat Message")
+
+            # Set up event handlers
             text_input.submit(
                 self.log_user_message,
                 [text_input, file_uploads_log],
-                [stored_messages, text_input],
-            ).then(self.interact_with_agent, [stored_messages, chatbot], [chatbot])
+                [stored_messages, text_input, submit_btn],
+            ).then(self.interact_with_agent, [stored_messages, chatbot, session_state], [chatbot]).then(
+                lambda: (
+                    gr.Textbox(
+                        interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"
+                    ),
+                    gr.Button(interactive=True),
+                ),
+                None,
+                [text_input, submit_btn],
+            )
 
-        demo.launch(debug=True, share=True, **kwargs)
+            submit_btn.click(
+                self.log_user_message,
+                [text_input, file_uploads_log],
+                [stored_messages, text_input, submit_btn],
+            ).then(self.interact_with_agent, [stored_messages, chatbot, session_state], [chatbot]).then(
+                lambda: (
+                    gr.Textbox(
+                        interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"
+                    ),
+                    gr.Button(interactive=True),
+                ),
+                None,
+                [text_input, submit_btn],
+            )
+
+        return demo
 
 
 __all__ = ["stream_to_gradio", "GradioUI"]

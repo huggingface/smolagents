@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.8.0.dev0"
+version = "1.13.0.dev0"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" }, { name="Thomas Wolf"},
@@ -32,10 +32,9 @@ audio = [
   "soundfile",
   "smolagents[torch]",
 ]
-transformers = [
-  "accelerate",
-  "transformers>=4.0.0",
-  "smolagents[torch]",
+docker = [
+  "docker>=7.1.0",
+  "websocket-client",
 ]
 e2b = [
   "e2b-code-interpreter>=1.0.3",
@@ -48,8 +47,11 @@ litellm = [
   "litellm>=1.60.2",
 ]
 mcp = [
-  "mcpadapt>=0.0.6",
+  "mcpadapt>=0.0.15",
   "mcp",
+]
+mlx-lm = [
+  "mlx-lm"
 ]
 openai = [
   "openai>=1.58.1"
@@ -58,17 +60,31 @@ telemetry = [
   "arize-phoenix",
   "opentelemetry-sdk", 
   "opentelemetry-exporter-otlp",
-  "openinference-instrumentation-smolagents>=0.1.1"
+  "openinference-instrumentation-smolagents>=0.1.4"
+]
+transformers = [
+  "accelerate",
+  "transformers>=4.0.0,<4.50.0",
+  "smolagents[torch]",
+]
+vision = [
+  "helium",
+  "selenium",
+]
+vllm = [
+  "vllm",
+  "torch"
+]
+all = [
+  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,openai,telemetry,transformers,vision]",
 ]
 quality = [
   "ruff>=0.9.0",
 ]
-all = [
-  "smolagents[accelerate,audio,e2b,gradio,litellm,mcp,openai,transformers,telemetry]",
-]
 test = [
   "ipython>=8.31.0", # for interactive environment tests
   "pytest>=8.1.0",
+  "pytest-datadir",
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
@@ -99,6 +115,9 @@ lint.select = ["E", "F", "I", "W"]
 [tool.ruff.lint.isort]
 known-first-party = ["smolagents"]
 lines-after-imports = 2
+
+[tool.setuptools.package-data]
+"smolagents.prompts" = ["*.yaml"]
 
 [project.scripts]
 smolagent = "smolagents.cli:main"

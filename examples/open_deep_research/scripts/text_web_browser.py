@@ -394,7 +394,7 @@ class SearchInformationTool(Tool):
 class VisitTool(Tool):
     name = "visit_page"
     description = "Visit a webpage at a given URL and return its text. Given a url to a YouTube video, this returns the transcript."
-    inputs = {"url": {"type": "string", "description": "The relative or absolute url of the webapge to visit."}}
+    inputs = {"url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}}
     output_type = "string"
 
     def __init__(self, browser):
@@ -410,7 +410,7 @@ class VisitTool(Tool):
 class DownloadTool(Tool):
     name = "download_file"
     description = """
-Download a file at a given URL. The file should be of this format: [".xlsx", ".pptx", ".wav", ".mp3", ".png", ".docx"]
+Download a file at a given URL. The file should be of this format: [".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".png", ".docx"]
 After using this tool, for further inspection of this page you should return the download path to your manager via final_answer, and they will be able to inspect it.
 DO NOT use this tool for .pdf or .txt or .htm files: for these types of files use visit_page with the file url instead."""
     inputs = {"url": {"type": "string", "description": "The relative or absolute url of the file to be downloaded."}}
