@@ -269,8 +269,7 @@ class WikipediaSearchTool(Tool):
         user_agent (str): A custom user-agent string to identify the project. This is required as per Wikipedia API policies, read more here: http://github.com/martin-majlis/Wikipedia-API/blob/master/README.rst
         language (str): The language in which to retrieve Wikipedia articles.
                 http://meta.wikimedia.org/wiki/List_of_Wikipedias
-        summary_only (bool): If True, returns only the summary of the page.
-        full_text (bool): If True, returns the full text of the page.
+        content_type (str): Defines the content to fetch. Can be "summary" for a short summary or "text" for the full article.
         extract_format (str): Defines the output format. Can be `"WIKI"` or `"HTML"`.
 
     Example:
@@ -280,7 +279,7 @@ class WikipediaSearchTool(Tool):
         >>>            WikipediaSearchTool(
         >>>                user_agent="MyResearchBot (myemail@example.com)",
         >>>                language="en",
-        >>>                summary_only=True,
+        >>>                content_type="summary",  # or "text"
         >>>                extract_format="WIKI",
         >>>            )
         >>>        ],
@@ -303,8 +302,7 @@ class WikipediaSearchTool(Tool):
         self,
         user_agent: str = "Smolagents (myemail@example.com)",
         language: str = "en",
-        summary_only: bool = False,
-        full_text: bool = True,
+        content_type: str = "text",
         extract_format: str = "WIKI",
     ):
         super().__init__()
@@ -319,8 +317,7 @@ class WikipediaSearchTool(Tool):
 
         self.user_agent = user_agent
         self.language = language
-        self.summary_only = summary_only
-        self.full_text = full_text
+        self.content_type = content_type
 
         # Map string format to wikipediaapi.ExtractFormat
         extract_format_map = {
@@ -347,12 +344,12 @@ class WikipediaSearchTool(Tool):
             title = page.title
             url = page.fullurl
 
-            if self.summary_only:
+            if self.content_type == "summary":
                 text = page.summary
-            elif self.full_text:
+            elif self.content_type == "text":
                 text = page.text
             else:
-                return "⚠️ No content selected. Set either `summary_only=True` or `full_text=True`."
+                return "⚠️ Invalid `content_type`. Use either 'summary' or 'text'."
 
             return f"✅ **Wikipedia Page:** {title}\n\n**Content:** {text}\n\n🔗 **Read more:** {url}"
 
