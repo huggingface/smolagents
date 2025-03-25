@@ -59,28 +59,12 @@ class ChatMessageToolCallDefinition:
     name: str
     description: Optional[str] = None
 
-    @classmethod
-    def from_hf_api(cls, tool_call_definition) -> "ChatMessageToolCallDefinition":
-        return cls(
-            arguments=tool_call_definition.arguments,
-            name=tool_call_definition.name,
-            description=tool_call_definition.description,
-        )
-
 
 @dataclass
 class ChatMessageToolCall:
     function: ChatMessageToolCallDefinition
     id: str
     type: str
-
-    @classmethod
-    def from_hf_api(cls, tool_call) -> "ChatMessageToolCall":
-        return cls(
-            function=ChatMessageToolCallDefinition.from_hf_api(tool_call.function),
-            id=tool_call.id,
-            type=tool_call.type,
-        )
 
 
 @dataclass
@@ -92,13 +76,6 @@ class ChatMessage:
 
     def model_dump_json(self):
         return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
-
-    @classmethod
-    def from_hf_api(cls, message, raw) -> "ChatMessage":
-        tool_calls = None
-        if getattr(message, "tool_calls", None) is not None:
-            tool_calls = [ChatMessageToolCall.from_hf_api(tool_call) for tool_call in message.tool_calls]
-        return cls(role=message.role, content=message.content, tool_calls=tool_calls, raw=raw)
 
     @classmethod
     def from_dict(cls, data: dict, raw: Any | None = None) -> "ChatMessage":
