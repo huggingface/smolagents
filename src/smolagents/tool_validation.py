@@ -3,7 +3,7 @@ import builtins
 from itertools import zip_longest
 from typing import Set
 
-from .utils import BASE_BUILTIN_MODULES, get_source
+from .utils import BASE_BUILTIN_MODULES, get_source, is_valid_name
 
 
 _BUILTIN_NAMES = set(vars(builtins))
@@ -166,6 +166,7 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
             self.non_defaults = set()
             self.non_literal_defaults = set()
             self.in_method = False
+            self.invalid_attributes = []
 
         def visit_FunctionDef(self, node):
             if node.name == "__init__":
@@ -192,6 +193,19 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
                     if isinstance(target, ast.Name):
                         self.complex_attributes.add(target.id)
 
+            # Check specific class attributes
+            if getattr(node.targets[0], "id", "") == "name":
+                if not isinstance(node.value, ast.Constant):
+                    self.invalid_attributes.append(f"Class attribute 'name' must be a constant, found '{node.value}'")
+                elif not isinstance(node.value.value, str):
+                    self.invalid_attributes.append(
+                        f"Class attribute 'name' must be a string, found '{node.value.value}'"
+                    )
+                elif not is_valid_name(node.value.value):
+                    self.invalid_attributes.append(
+                        f"Class attribute 'name' must be a valid Python identifier and not a reserved keyword, found '{node.value.value}'"
+                    )
+
         def _check_init_function_parameters(self, node):
             # Check defaults in parameters
             for arg, default in reversed(list(zip_longest(reversed(node.args.args), reversed(node.args.defaults)))):
@@ -210,6 +224,9 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     class_level_checker.visit(class_node)
 
     errors = []
+    # Check invalid class attributes
+    if class_level_checker.invalid_attributes:
+        errors += class_level_checker.invalid_attributes
     if class_level_checker.complex_attributes:
         errors.append(
             f"Complex attributes should be defined in __init__, not as class attributes: "

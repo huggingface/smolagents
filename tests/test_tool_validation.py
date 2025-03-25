@@ -44,6 +44,19 @@ def test_validate_tool_attributes_valid(tool_class):
     assert validate_tool_attributes(tool_class) is None
 
 
+class InvalidToolName(Tool):
+    name = "invalid tool name"
+    description = "Tool with invalid name"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input: str) -> str:
+        return input
+
+
 class InvalidToolComplexAttrs(Tool):
     name = "invalid_tool"
     description = "Tool with complex class attributes"
@@ -99,6 +112,10 @@ class InvalidToolUndefinedNames(Tool):
 @pytest.mark.parametrize(
     "tool_class, expected_error",
     [
+        (
+            InvalidToolName,
+            "Class attribute 'name' must be a valid Python identifier and not a reserved keyword, found 'invalid tool name'",
+        ),
         (InvalidToolComplexAttrs, "Complex attributes should be defined in __init__, not as class attributes"),
         (InvalidToolRequiredParams, "Parameters in __init__ must have default values, found required parameters"),
         (
