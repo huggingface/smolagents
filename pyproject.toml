@@ -64,7 +64,7 @@ telemetry = [
 ]
 transformers = [
   "accelerate",
-  "transformers>=4.0.0,<4.50.0",
+  "transformers>=4.0.0",
   "smolagents[torch]",
 ]
 vision = [
