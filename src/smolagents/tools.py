@@ -377,14 +377,14 @@ class Tool:
         """Get the Gradio app code."""
         class_name = self.__class__.__name__
         return textwrap.dedent(
-            f"""
+            f"""\
             from smolagents import launch_gradio_demo
             from {tool_module_name} import {class_name}
 
             tool = {class_name}()
             launch_gradio_demo(tool)
             """
-        ).strip()
+        )
 
     def _get_requirements(self) -> str:
         """Get the requirements."""
