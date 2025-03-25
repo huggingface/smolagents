@@ -390,13 +390,13 @@ class Tool:
         """Get the tool's code."""
         return self.to_dict()["code"]
 
-    def _get_gradio_app_code(self) -> str:
+    def _get_gradio_app_code(self, tool_module_name: str = "tool") -> str:
         """Get the Gradio app code."""
         class_name = self.__class__.__name__
         return textwrap.dedent(
             f"""
             from smolagents import launch_gradio_demo
-            from tool import {class_name}
+            from {tool_module_name} import {class_name}
 
             tool = {class_name}()
             launch_gradio_demo(tool)
