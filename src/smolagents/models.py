@@ -989,7 +989,7 @@ class HfApiModel(ApiModel):
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        first_message = ChatMessage.from_hf_api(response.choices[0].message, raw=response)
+        first_message = ChatMessage.from_dict(asdict(response.choices[0].message), raw=response)
         return self.postprocess_message(first_message, tools_to_call_from)
 
 
