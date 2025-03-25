@@ -33,6 +33,10 @@ def test_load_model_litellm_model():
 
 def test_load_model_transformers_model():
     with (
+        patch(
+            "transformers.AutoModelForImageTextToText.from_pretrained",
+            side_effect=ValueError("Unrecognized configuration class"),
+        ),
         patch("transformers.AutoModelForCausalLM.from_pretrained"),
         patch("transformers.AutoTokenizer.from_pretrained"),
     ):

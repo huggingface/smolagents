@@ -569,7 +569,7 @@ class MLXModel(Model):
             **kwargs,
         )
         messages = completion_kwargs.pop("messages")
-        prepared_stop_sequences = completion_kwargs.pop("stop", [])
+        stops = completion_kwargs.pop("stop", [])
         tools = completion_kwargs.pop("tools", None)
         completion_kwargs.pop("tool_choice", None)
 
@@ -582,17 +582,11 @@ class MLXModel(Model):
         self.last_input_token_count = len(prompt_ids)
         self.last_output_token_count = 0
         text = ""
-
-        for _ in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
+        for response in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
             self.last_output_token_count += 1
-            text += _.text
-            for stop_sequence in prepared_stop_sequences:
-                stop_sequence_start = text.rfind(stop_sequence)
-                if stop_sequence_start != -1:
-                    text = text[:stop_sequence_start]
-                    found_stop_sequence = True
-                    break
-            if found_stop_sequence:
+            text += response.text
+            if any((stop_index := text.rfind(stop)) != -1 for stop in stops):
+                text = text[:stop_index]
                 break
 
         chat_message = ChatMessage(
@@ -681,23 +675,23 @@ class TransformersModel(Model):
         logger.info(f"Using device: {device_map}")
         self._is_vlm = False
         try:
-            self.model = AutoModelForCausalLM.from_pretrained(
+            self.model = AutoModelForImageTextToText.from_pretrained(
                 model_id,
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 trust_remote_code=trust_remote_code,
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+            self.processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+            self._is_vlm = True
         except ValueError as e:
             if "Unrecognized configuration class" in str(e):
-                self.model = AutoModelForImageTextToText.from_pretrained(
+                self.model = AutoModelForCausalLM.from_pretrained(
                     model_id,
                     device_map=device_map,
                     torch_dtype=torch_dtype,
                     trust_remote_code=trust_remote_code,
                 )
-                self.processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=trust_remote_code)
-                self._is_vlm = True
+                self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
             else:
                 raise e
         except Exception as e:

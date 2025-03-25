@@ -20,6 +20,7 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import keyword
 import os
 import re
 import types
@@ -434,3 +435,7 @@ def make_init_file(folder: str):
     # Create __init__
     with open(os.path.join(folder, "__init__.py"), "w"):
         pass
+
+
+def is_valid_name(name: str) -> bool:
+    return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False
