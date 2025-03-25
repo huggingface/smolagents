@@ -566,6 +566,15 @@ You have been provided with these additional arguments, that you can access usin
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
+    def _resolve_arguments(self, arguments: Union[Dict[str, str], str]) -> Union[Dict[str, Any], str]:
+        """Replace state variables in dict arguments with actual values."""
+        if isinstance(arguments, dict):
+            return {
+                key: self.state.get(value, value) if isinstance(value, str) else value
+                for key, value in arguments.items()
+            }
+        return arguments
+
     def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
         """
         Execute tool with the provided input and returns the result.
@@ -580,53 +589,50 @@ You have been provided with these additional arguments, that you can access usin
             error_msg = f"Unknown tool {tool_name}, should be instead one of: {', '.join(available_tools)}."
             raise AgentExecutionError(error_msg, self.logger)
 
+        func = available_tools[tool_name].__call__
+        arguments = self._resolve_arguments(arguments)
+
         try:
-            if isinstance(arguments, str):
-                if tool_name in self.managed_agents:
-                    observation = available_tools[tool_name].__call__(arguments)
-                else:
-                    observation = available_tools[tool_name].__call__(arguments, sanitize_inputs_outputs=True)
-            elif isinstance(arguments, dict):
-                for key, value in arguments.items():
-                    if isinstance(value, str) and value in self.state:
-                        arguments[key] = self.state[value]
-                if tool_name in self.managed_agents:
-                    observation = available_tools[tool_name].__call__(**arguments)
-                else:
-                    observation = available_tools[tool_name].__call__(**arguments, sanitize_inputs_outputs=True)
-            else:
-                error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
-                raise AgentToolCallError(error_msg, self.logger)
-            return observation
-        except TypeError as e:
-            if tool_name in self.tools:
-                tool = self.tools[tool_name]
-                error_msg = (
-                    f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\n"
-                    "You should only use this tool with a correct input.\n"
-                    f"As a reminder, this tool's description is the following: '{tool.description}'.\n"
-                    f"It takes inputs: {json.dumps(tool.inputs)}\n"
-                    f"It returns output of type {tool.output_type}"
+            sanitize = tool_name not in self.managed_agents
+            match arguments:
+                case str():
+                    if sanitize:
+                        return func(arguments, sanitize_inputs_outputs=True)
+                    return func(arguments)
+                case dict():
+                    if sanitize:
+                        return func(**arguments, sanitize_inputs_outputs=True)
+                    return func(**arguments)
+            raise TypeError("unsupported arguments")
+        except TypeError:
+            description = getattr(available_tools[tool_name], "description", "No description")
+            if tool_name not in self.tools:
+                raise AgentToolCallError(
+                    f"Invalid request to team member '{tool_name}': {arguments}\nDescription: {description}",
+                    self.logger,
                 )
-                raise AgentToolCallError(error_msg, self.logger)
-            elif tool_name in self.managed_agents:
-                error_msg = (
-                    f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
-                    f"As a reminder, this team member's description is the following: {self.managed_agents[tool_name].description}\n"
-                )
-                raise AgentToolCallError(error_msg, self.logger)
+
+            tool = self.tools[tool_name]
+            raise AgentToolCallError(
+                f"Invalid arguments for tool '{tool_name}': {arguments}\n"
+                f"Tool description: '{description}'\n"
+                f"Expected inputs: {json.dumps(tool.inputs)}\n"
+                f"Returns: {tool.output_type}",
+                self.logger,
+            )
         except Exception as e:
+            error_msg = str(e)
             if tool_name in self.tools:
                 tool = self.tools[tool_name]
                 error_msg = (
                     f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\n"
                     "The tool returned an error. Please repeat the request or use another tool"
                 )
-                raise AgentExecutionError(error_msg, self.logger)
             elif tool_name in self.managed_agents:
                 error_msg = (
                     f"Team member: {e}\n is unable to handle the task. Please try again or speak to another member"
                 )
+            raise AgentExecutionError(error_msg, self.logger) from e
 
     def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
