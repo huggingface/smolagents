@@ -603,6 +603,96 @@ class MLXModel(Model):
         return chat_message
 
 
+class MLXVLMModel(Model):
+    def __init__(
+        self,
+        model_id: str,
+        tool_name_key: str = "name",
+        tool_arguments_key: str = "arguments",
+        trust_remote_code: bool = False,
+        **kwargs,
+    ):
+        super().__init__(flatten_messages_as_text=False, **kwargs)
+        if not _is_package_available("mlx_vlm"):
+            raise ModuleNotFoundError(
+                "Please install 'mlx-vlm' extra to use 'MLXVLMModel': `pip install 'smolagents[mlx-vlm]'`"
+            )
+        import mlx_vlm
+
+        self.model_id = model_id
+        self.model, self.processor = mlx_vlm.load(model_id, tokenizer_config={"trust_remote_code": trust_remote_code})
+        self.config = mlx_vlm.utils.load_config(model_id)
+        self.stream_generate = mlx_vlm.stream_generate
+        self.tool_name_key = tool_name_key
+        self.tool_arguments_key = tool_arguments_key
+        self.is_vlm = True
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        import mlx_vlm
+
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+
+        messages = completion_kwargs.pop("messages")
+        tools = completion_kwargs.pop("tools", None)
+        completion_kwargs.pop("tool_choice", None)
+
+        def extract_content(messages, role, content_type, key):
+            return [
+                content_item.get(key)
+                for message in messages
+                if message.get("role") == role
+                for content_item in message.get("content", [])
+                if content_item.get("type") == content_type
+            ]
+
+        images = extract_content(messages, MessageRole.USER, "image", "image")
+
+        prompt = mlx_vlm.prompt_utils.apply_chat_template(
+            self.processor,
+            self.config,
+            messages,
+            num_images=len(images),
+            tools=tools,
+            add_generation_prompt=True,
+        )
+
+        self.last_input_token_count = len(prompt)
+        self.last_output_token_count = 0
+        text = ""
+
+        for response in self.stream_generate(
+            self.model,
+            self.processor,
+            prompt,
+            images,
+            **completion_kwargs,
+        ):
+            self.last_output_token_count += 1
+            text += response
+
+        chat_message = ChatMessage(
+            role=MessageRole.ASSISTANT, content=text, raw={"out": text, "completion_kwargs": completion_kwargs}
+        )
+        if tools_to_call_from:
+            chat_message.tool_calls = [get_tool_call_from_text(text, self.tool_name_key, self.tool_arguments_key)]
+
+        return chat_message
+
+
 class TransformersModel(Model):
     """A class that uses Hugging Face's Transformers library for language model interaction.
 
