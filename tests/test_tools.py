@@ -25,7 +25,7 @@ import torch
 from huggingface_hub.utils import is_torch_available
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
+from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool
 
 from .utils.markers import require_run_all
 
@@ -474,6 +474,26 @@ class TestTool:
             source_code = f.read()
             compile(source_code, f.name, "exec")
 
+    @pytest.mark.parametrize("fixture_name", ["boolean_default_tool_class", "boolean_default_tool_function"])
+    def test_to_dict_boolean_default_input(self, fixture_name, request):
+        """Test that boolean input parameter with default value is correctly represented in to_dict output"""
+        tool = request.getfixturevalue(fixture_name)
+        result = tool.to_dict()
+        # Check that the boolean default annotation is preserved
+        assert "flag: bool = False" in result["code"]
+        # Check nullable attribute is set for the parameter with default value
+        assert "'nullable': True" in result["code"]
+
+    @pytest.mark.parametrize("fixture_name", ["optional_input_tool_class", "optional_input_tool_function"])
+    def test_to_dict_optional_input(self, fixture_name, request):
+        """Test that Optional/nullable input parameter is correctly represented in to_dict output"""
+        tool = request.getfixturevalue(fixture_name)
+        result = tool.to_dict()
+        # Check the Optional type annotation is preserved
+        assert "optional_text: Optional[str] = None" in result["code"]
+        # Check that the input is marked as nullable in the code
+        assert "'nullable': True" in result["code"]
+
 
 @pytest.fixture
 def mock_server_parameters():
@@ -561,3 +581,11 @@ class TestToolCollection:
             # clean up the process when test is done
             server_process.kill()
             server_process.wait()
+
+
+@pytest.mark.parametrize("tool_fixture_name", ["boolean_default_tool_class"])
+def test_launch_gradio_demo_does_not_raise(tool_fixture_name, request):
+    tool = request.getfixturevalue(tool_fixture_name)
+    with patch("gradio.Interface.launch") as mock_launch:
+        launch_gradio_demo(tool)
+    assert mock_launch.call_count == 1

@@ -820,7 +820,7 @@ You have been provided with these additional arguments, that you can access usin
             "grammar": self.grammar,
             "name": self.name,
             "description": self.description,
-            "requirements": list(requirements),
+            "requirements": sorted(requirements),
         }
         return agent_dict
 

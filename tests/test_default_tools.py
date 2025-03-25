@@ -17,7 +17,13 @@ import unittest
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.default_tools import DuckDuckGoSearchTool, PythonInterpreterTool, SpeechToTextTool, VisitWebpageTool
+from smolagents.default_tools import (
+    DuckDuckGoSearchTool,
+    PythonInterpreterTool,
+    SpeechToTextTool,
+    VisitWebpageTool,
+    WikipediaSearchTool,
+)
 
 from .test_tools import ToolTesterMixin
 
@@ -87,3 +93,32 @@ class TestSpeechToTextTool:
         assert tool is not None
         assert tool.pre_processor_class == WhisperProcessor
         assert tool.model_class == WhisperForConditionalGeneration
+
+
+@pytest.mark.parametrize(
+    "language, content_type, extract_format, query",
+    [
+        ("en", "summary", "HTML", "Python_(programming_language)"),  # English, Summary Mode, HTML format
+        ("en", "text", "WIKI", "Python_(programming_language)"),  # English, Full Text Mode, WIKI format
+        ("es", "summary", "HTML", "Python_(lenguaje_de_programación)"),  # Spanish, Summary Mode, HTML format
+        ("es", "text", "WIKI", "Python_(lenguaje_de_programación)"),  # Spanish, Full Text Mode, WIKI format
+    ],
+)
+def test_wikipedia_search(language, content_type, extract_format, query):
+    tool = WikipediaSearchTool(
+        user_agent="TestAgent (test@example.com)",
+        language=language,
+        content_type=content_type,
+        extract_format=extract_format,
+    )
+
+    result = tool.forward(query)
+
+    assert isinstance(result, str), "Output should be a string"
+    assert "✅ **Wikipedia Page:**" in result, "Response should contain Wikipedia page title"
+    assert "🔗 **Read more:**" in result, "Response should contain Wikipedia page URL"
+
+    if content_type == "summary":
+        assert len(result.split()) < 1000, "Summary mode should return a shorter text"
+    if content_type == "text":
+        assert len(result.split()) > 1000, "Full text mode should return a longer text"

@@ -337,7 +337,7 @@ def test_e2e_function_tool_save(tmp_path):
         class SimpleTool(Tool):
             name = "test_tool"
             description = "Test tool description"
-            inputs = {"task":{"type":"string","description":"tool input"}}
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
             output_type = "string"
 
             def forward(self, task: str) -> str:
@@ -396,7 +396,7 @@ def test_e2e_ipython_function_tool_save(tmp_path):
         class SimpleTool(Tool):
             name = "test_tool"
             description = "Test tool description"
-            inputs = {"task":{"type":"string","description":"tool input"}}
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
             output_type = "string"
 
             def forward(self, task: str) -> str:
