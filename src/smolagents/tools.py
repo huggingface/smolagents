@@ -222,7 +222,7 @@ class Tool:
             class {class_name}(Tool):
                 name = "{self.name}"
                 description = {json.dumps(textwrap.dedent(self.description).strip())}
-                inputs = {self.inputs}
+                inputs = {repr(self.inputs)}
                 output_type = "{self.output_type}"
             """
             ).strip()
