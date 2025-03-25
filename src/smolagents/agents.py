@@ -608,7 +608,7 @@ You have been provided with these additional arguments, that you can access usin
             elif tool_name in self.managed_agents:
                 error_msg = (
                     f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
-                    f"As a reminder, this team member's description is the following:\n{available_tools[tool_name]}"
+                    f"As a reminder, this team member's description is the following:\n{available_tools[tool_name].description}"
                 )
                 raise AgentExecutionError(error_msg, self.logger)
 
