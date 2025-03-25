@@ -333,6 +333,12 @@ You have been provided with these additional arguments, that you can access usin
     ) -> Generator[ActionStep | AgentType, None, None]:
         final_answer = None
         self.step_number = 1
+        
+        # Add memory management options
+        if hasattr(self, 'memory_management_strategy') and self.memory_management_strategy == 'summarize':
+            # Periodically summarize older memory entries to prevent context window issues
+            self._manage_memory()
+            
         while final_answer is None and self.step_number <= max_steps:
             step_start_time = time.time()
             memory_step = self._create_memory_step(step_start_time, images)
@@ -398,7 +404,16 @@ You have been provided with these additional arguments, that you can access usin
             )
         return final_answer
 
-    def planning_step(self, task, is_first_step: bool, step: int) -> None:
+    def planning_step(self, task, is_first_step: bool, step: int, planning_mode: str = "default") -> None:
+        """
+        Execute a planning step that helps the agent organize its thoughts.
+        
+        Args:
+            task: The task being solved
+            is_first_step: Whether this is the first planning step
+            step: The current step number 
+            planning_mode: The planning mode to use (default, structured, or free-form)
+        """
         if is_first_step:
             input_messages = [
                 {
@@ -425,7 +440,8 @@ You have been provided with these additional arguments, that you can access usin
                     {
                         "type": "text",
                         "text": populate_template(
-                            self.prompt_templates["planning"]["update_plan_pre_messages"], variables={"task": task}
+                            self.prompt_templates["planning"]["update_plan_pre_messages"], 
+                            variables={"task": task}
                         ),
                     }
                 ],
@@ -449,6 +465,7 @@ You have been provided with these additional arguments, that you can access usin
             }
             input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
             plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+        
         self._record_planning_step(input_messages, plan_message, is_first_step)
 
     def _record_planning_step(self, input_messages: list, plan_message: ChatMessage, is_first_step: bool) -> None:
@@ -462,6 +479,7 @@ You have been provided with these additional arguments, that you can access usin
                 f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
             )
             log_headline = "Updated plan"
+        
         self.memory.steps.append(
             PlanningStep(
                 model_input_messages=input_messages,
@@ -618,7 +636,7 @@ You have been provided with these additional arguments, that you can access usin
 
     def replay(self, detailed: bool = False):
         """Prints a pretty replay of the agent's steps.
-
+        
         Args:
             detailed (bool, optional): If True, also displays the memory at each step. Defaults to False.
                 Careful: will increase log length exponentially. Use only for debugging.
@@ -648,11 +666,10 @@ You have been provided with these additional arguments, that you can access usin
     def save(self, output_dir: str | Path, relative_path: Optional[str] = None):
         """
         Saves the relevant code files for your agent. This will copy the code of your agent in `output_dir` as well as autogenerate:
-
         - a `tools` folder containing the logic for each of the tools under `tools/{tool_name}.py`.
         - a `managed_agents` folder containing the logic for each of the managed agents.
+        - a `prompts.yaml` file containing the prompt templates used by your agent.
         - an `agent.json` file containing a dictionary representing your agent.
-        - a `prompt.yaml` file containing the prompt templates used by your agent.
         - an `app.py` file providing a UI for your agent when it is exported to a Space with `agent.push_to_hub()`
         - a `requirements.txt` containing the names of the modules used by your tool (as detected when inspecting its
           code)
@@ -661,8 +678,6 @@ You have been provided with these additional arguments, that you can access usin
             output_dir (`str` or `Path`): The folder in which you want to save your agent.
         """
         make_init_file(output_dir)
-
-        # Recursively save managed agents
         if self.managed_agents:
             make_init_file(os.path.join(output_dir, "managed_agents"))
             for agent_name, agent in self.managed_agents.items():
@@ -670,7 +685,6 @@ You have been provided with these additional arguments, that you can access usin
                 if relative_path:
                     agent_suffix = relative_path + "." + agent_suffix
                 agent.save(os.path.join(output_dir, "managed_agents", agent_name), relative_path=agent_suffix)
-
         class_name = self.__class__.__name__
 
         # Save tools to different .py files
@@ -683,9 +697,9 @@ You have been provided with these additional arguments, that you can access usin
             self.prompt_templates,
             default_style="|",  # This forces block literals for all strings
             default_flow_style=False,
+            allow_unicode=True,
             width=float("inf"),
             sort_keys=False,
-            allow_unicode=True,
             indent=2,
         )
 
@@ -716,6 +730,7 @@ You have been provided with these additional arguments, that you can access usin
             {% for tool in tools.values() -%}
             from {{managed_agent_relative_path}}tools.{{ tool.name }} import {{ tool.__class__.__name__ }} as {{ tool.name | camelcase }}
             {% endfor %}
+
             {% for managed_agent in managed_agents.values() -%}
             from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app import agent_{{ managed_agent.name }}
             {% endfor %}
@@ -723,7 +738,8 @@ You have been provided with these additional arguments, that you can access usin
             model = {{ agent_dict['model']['class'] }}(
             {% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
                 {{ key }}={{ agent_dict['model']['data'][key]|repr }},
-            {% endfor %})
+            {% endfor %}
+            )
 
             {% for tool in tools.values() -%}
             {{ tool.name }} = {{ tool.name | camelcase }}()
@@ -736,13 +752,16 @@ You have been provided with these additional arguments, that you can access usin
                 model=model,
                 tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
                 managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                prompt_templates=prompt_templates
                 {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
                 {{ attribute_name }}={{ value|repr }},
-                {% endfor %}prompt_templates=prompt_templates
+                {% endfor %}
             )
+
             if __name__ == "__main__":
                 GradioUI({{ agent_name }}).launch()
             """).strip()
+
         template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
         template_env.filters["repr"] = repr
         template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
@@ -754,9 +773,9 @@ You have been provided with these additional arguments, that you can access usin
                 "agent_name": agent_name,
                 "class_name": class_name,
                 "agent_dict": agent_dict,
+                "managed_agent_relative_path": managed_agent_relative_path,
                 "tools": self.tools,
                 "managed_agents": self.managed_agents,
-                "managed_agent_relative_path": managed_agent_relative_path,
             }
         )
 
@@ -796,9 +815,9 @@ You have been provided with these additional arguments, that you can access usin
             },
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
+            "planning_interval": self.planning_interval,
             "verbosity_level": int(self.logger.level),
             "grammar": self.grammar,
-            "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
             "requirements": list(requirements),
@@ -855,13 +874,13 @@ You have been provided with these additional arguments, that you can access usin
             ]
             if key in kwargs
         }
-
         download_folder = Path(snapshot_download(repo_id=repo_id, **download_kwargs))
         return cls.from_folder(download_folder, **kwargs)
 
     @classmethod
     def from_folder(cls, folder: Union[str, Path], **kwargs):
-        """Loads an agent from a local folder.
+        """
+        Loads an agent from a local folder.
 
         Args:
             folder (`str` or `Path`): The folder where the agent is saved.
@@ -898,9 +917,9 @@ You have been provided with these additional arguments, that you can access usin
         )
         if cls.__name__ == "CodeAgent":
             args["additional_authorized_imports"] = agent_dict["authorized_imports"]
-            args["executor_type"] = agent_dict.get("executor_type")
-            args["executor_kwargs"] = agent_dict.get("executor_kwargs")
-            args["max_print_outputs_length"] = agent_dict.get("max_print_outputs_length")
+            args["executor_type"] = agent_dict["executor_type"]
+            args["executor_kwargs"] = agent_dict["executor_kwargs"]
+            args["max_print_outputs_length"] = agent_dict["max_print_outputs_length"]
         args.update(kwargs)
         return cls(**args)
 
@@ -1077,7 +1096,6 @@ class ToolCallingAgent(MultiStepAgent):
                 elif observation_type == AgentAudio:
                     observation_name = "audio.mp3"
                 # TODO: observation naming could allow for different names of same type
-
                 self.state[observation_name] = observation
                 updated_information = f"Stored '{observation_name}' in memory."
             else:
@@ -1138,7 +1156,7 @@ class CodeAgent(MultiStepAgent):
         if "*" in self.additional_authorized_imports:
             self.logger.log(
                 "Caution: you set an authorization for all imports, meaning your agent can decide to import any package it deems necessary. This might raise issues if the package is not installed in your environment.",
-                0,
+                LogLevel.INFO,
             )
         self.executor_type = executor_type or "local"
         self.executor_kwargs = executor_kwargs or {}
@@ -1158,7 +1176,7 @@ class CodeAgent(MultiStepAgent):
                     self.additional_authorized_imports,
                     max_print_outputs_length=self.max_print_outputs_length,
                 )
-            case _:  # if applicable
+            case _:
                 raise ValueError(f"Unsupported executor type: {self.executor_type}")
 
     def initialize_system_prompt(self) -> str:
@@ -1187,6 +1205,7 @@ class CodeAgent(MultiStepAgent):
 
         # Add new step in logs
         memory_step.model_input_messages = memory_messages.copy()
+
         try:
             additional_args = {"grammar": self.grammar} if self.grammar is not None else {}
             chat_message: ChatMessage = self.model(
@@ -1202,7 +1221,6 @@ class CodeAgent(MultiStepAgent):
             if model_output and model_output.strip().endswith("```"):
                 model_output += "<end_code>"
                 memory_step.model_output_message.content = model_output
-
             memory_step.model_output = model_output
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
@@ -1241,6 +1259,7 @@ class CodeAgent(MultiStepAgent):
                 ]
             observation = "Execution logs:\n" + execution_logs
         except Exception as e:
+            error_msg = str(e)
             if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
                 execution_logs = str(self.python_executor.state["_print_outputs"])
                 if len(execution_logs) > 0:
@@ -1248,9 +1267,8 @@ class CodeAgent(MultiStepAgent):
                         Text("Execution logs:", style="bold"),
                         Text(execution_logs),
                     ]
-                    memory_step.observations = "Execution logs:\n" + execution_logs
+                    observation = "Execution logs:\n" + execution_logs
                     self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
-            error_msg = str(e)
             if "Import of " in error_msg and " is not allowed" in error_msg:
                 self.logger.log(
                     "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
