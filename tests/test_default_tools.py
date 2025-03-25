@@ -96,20 +96,19 @@ class TestSpeechToTextTool:
 
 
 @pytest.mark.parametrize(
-    "language, summary_only, full_text, extract_format, query",
+    "language, content_type, extract_format, query",
     [
-        ("en", True, False, "HTML", "Python_(programming_language)"),  # English, Summary Mode, HTML format
-        ("en", False, True, "WIKI", "Python_(programming_language)"),  # English, Full Text Mode, WIKI format
-        ("es", True, False, "HTML", "Python_(lenguaje_de_programación)"),  # Spanish, Summary Mode, HTML format
-        ("es", False, True, "WIKI", "Python_(lenguaje_de_programación)"),  # Spanish, Full Text Mode, WIKI format
+        ("en", "summary", "HTML", "Python_(programming_language)"),  # English, Summary Mode, HTML format
+        ("en", "text", "WIKI", "Python_(programming_language)"),  # English, Full Text Mode, WIKI format
+        ("es", "summary", "HTML", "Python_(lenguaje_de_programación)"),  # Spanish, Summary Mode, HTML format
+        ("es", "text", "WIKI", "Python_(lenguaje_de_programación)"),  # Spanish, Full Text Mode, WIKI format
     ],
 )
-def test_wikipedia_search(language, summary_only, full_text, extract_format, query):
+def test_wikipedia_search(language, content_type, extract_format, query):
     tool = WikipediaSearchTool(
         user_agent="TestAgent (test@example.com)",
         language=language,
-        summary_only=summary_only,
-        full_text=full_text,
+        content_type=content_type,
         extract_format=extract_format,
     )
 
@@ -119,7 +118,7 @@ def test_wikipedia_search(language, summary_only, full_text, extract_format, que
     assert "✅ **Wikipedia Page:**" in result, "Response should contain Wikipedia page title"
     assert "🔗 **Read more:**" in result, "Response should contain Wikipedia page URL"
 
-    if summary_only:
+    if content_type == "summary":
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
-    if full_text:
+    if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
