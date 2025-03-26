@@ -48,7 +48,7 @@ Malicious code execution could happen in at least 3 ways.
 - **Plain LLM error:** LLMs are still quite dumb, and they might destroy your system by trying to help you. This risk is low, but in my thousands of agent runs I've observed a few attempts to run code that could have been harmful.
 - **Supply chain attack** where you run a malicious LLM: then this LLM will generate code that actively tries to harm your system. This risk is extremely low when using well-known models on secure inference, but it could happen.
 - **Prompt injection:** an agent browsing the web could arrive on a malicious website that contains harmful instructions, thus injecting an attack into the agent's memory
-
+- **Exploitation of publicly accessible agents:** Agents exposed to the public can be misused by malicious actors to execute harmful code. Attackers may craft adversarial inputs to exploit the agent's execution capabilities, leading to unintended consequences.
 Once malicious code can be executed, accidentally or intentionally, it can harm your file system, abuse resources, be it local resources or API services, even compromise your network.
 
 One could argue that on the [spectrum of agency](../conceptual_guides/intro_agents), code agents give much higher agency to the LLM on your system than other less agentic setups: this goes hand-in-hand with higher risk.
