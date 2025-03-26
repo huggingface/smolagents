@@ -49,7 +49,7 @@ def pull_messages_from_step(
 
     if isinstance(step_log, ActionStep):
         # Output the step number
-        step_number = f"Step {step_log.step_number}" if step_log.step_number is not None else "New step"
+        step_number = f"Step {step_log.step_number}" if step_log.step_number is not None else "Step"
         yield gr.ChatMessage(role="assistant", content=f"**{step_number}**")
 
         # First yield the thought/reasoning from the LLM
