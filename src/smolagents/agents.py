@@ -566,79 +566,6 @@ You have been provided with these additional arguments, that you can access usin
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
-    def _substitute_state_variables(self, arguments: Union[Dict[str, str], str]) -> Union[Dict[str, Any], str]:
-        """Replace string values in arguments with their corresponding state values if they exist."""
-        if isinstance(arguments, dict):
-            return {
-                key: self.state.get(value, value) if isinstance(value, str) else value
-                for key, value in arguments.items()
-            }
-        return arguments
-
-    def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
-        """
-        Execute a tool or managed agent with the provided arguments.
-
-        The arguments are replaced with the actual values from the state if they refer to state variables.
-
-        Args:
-            tool_name (`str`): Name of the tool or managed agent to execute.
-            arguments (dict[str, str] | str): Arguments passed to the tool call.
-        """
-        # Check if the tool exists
-        available_tools = {**self.tools, **self.managed_agents}
-        if tool_name not in available_tools:
-            raise AgentExecutionError(
-                f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
-            )
-
-        # Get the tool and substitute state variables in arguments
-        tool = available_tools[tool_name]
-        arguments = self._substitute_state_variables(arguments)
-        is_managed_agent = tool_name in self.managed_agents
-
-        try:
-            # Call tool with appropriate arguments
-            if isinstance(arguments, dict):
-                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
-            elif isinstance(arguments, str):
-                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
-            else:
-                raise TypeError(f"Unsupported arguments type: {type(arguments)}")
-
-        except TypeError as e:
-            # Handle invalid arguments
-            description = getattr(tool, "description", "No description")
-            if is_managed_agent:
-                error_msg = (
-                    f"Invalid request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
-                    "You should call this team member with a valid request.\n"
-                    f"Team member description: {description}"
-                )
-            else:
-                error_msg = (
-                    f"Invalid call to tool '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
-                    "You should call this tool with correct input arguments.\n"
-                    f"Expected inputs: {json.dumps(tool.inputs)}\n"
-                    f"Returns output type: {tool.output_type}\n"
-                    f"Tool description: '{description}'"
-                )
-            raise AgentToolCallError(error_msg, self.logger) from e
-
-        except Exception as e:
-            # Handle execution errors
-            if is_managed_agent:
-                error_msg = (
-                    f"Error executing request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
-                    "Please try again or request to another team member"
-                )
-            else:
-                error_msg = (
-                    f"Error executing tool '{tool_name}' with arguments {json.dumps(arguments)}: {type(e).__name__}: {e}\n"
-                    "Please try again or use another tool"
-                )
-            raise AgentExecutionError(error_msg, self.logger) from e
-
     def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
         pass
@@ -1115,6 +1042,79 @@ class ToolCallingAgent(MultiStepAgent):
             )
             memory_step.observations = updated_information
             return None
+
+    def _substitute_state_variables(self, arguments: Union[Dict[str, str], str]) -> Union[Dict[str, Any], str]:
+        """Replace string values in arguments with their corresponding state values if they exist."""
+        if isinstance(arguments, dict):
+            return {
+                key: self.state.get(value, value) if isinstance(value, str) else value
+                for key, value in arguments.items()
+            }
+        return arguments
+
+    def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
+        """
+        Execute a tool or managed agent with the provided arguments.
+
+        The arguments are replaced with the actual values from the state if they refer to state variables.
+
+        Args:
+            tool_name (`str`): Name of the tool or managed agent to execute.
+            arguments (dict[str, str] | str): Arguments passed to the tool call.
+        """
+        # Check if the tool exists
+        available_tools = {**self.tools, **self.managed_agents}
+        if tool_name not in available_tools:
+            raise AgentExecutionError(
+                f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
+            )
+
+        # Get the tool and substitute state variables in arguments
+        tool = available_tools[tool_name]
+        arguments = self._substitute_state_variables(arguments)
+        is_managed_agent = tool_name in self.managed_agents
+
+        try:
+            # Call tool with appropriate arguments
+            if isinstance(arguments, dict):
+                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+            elif isinstance(arguments, str):
+                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+            else:
+                raise TypeError(f"Unsupported arguments type: {type(arguments)}")
+
+        except TypeError as e:
+            # Handle invalid arguments
+            description = getattr(tool, "description", "No description")
+            if is_managed_agent:
+                error_msg = (
+                    f"Invalid request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "You should call this team member with a valid request.\n"
+                    f"Team member description: {description}"
+                )
+            else:
+                error_msg = (
+                    f"Invalid call to tool '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "You should call this tool with correct input arguments.\n"
+                    f"Expected inputs: {json.dumps(tool.inputs)}\n"
+                    f"Returns output type: {tool.output_type}\n"
+                    f"Tool description: '{description}'"
+                )
+            raise AgentToolCallError(error_msg, self.logger) from e
+
+        except Exception as e:
+            # Handle execution errors
+            if is_managed_agent:
+                error_msg = (
+                    f"Error executing request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "Please try again or request to another team member"
+                )
+            else:
+                error_msg = (
+                    f"Error executing tool '{tool_name}' with arguments {json.dumps(arguments)}: {type(e).__name__}: {e}\n"
+                    "Please try again or use another tool"
+                )
+            raise AgentExecutionError(error_msg, self.logger) from e
 
 
 class CodeAgent(MultiStepAgent):
