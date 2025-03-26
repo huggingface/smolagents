@@ -404,7 +404,7 @@ You have been provided with these additional arguments, that you can access usin
             )
         return final_answer
 
-    def get_planning_step(self, task, is_first_step: bool, step: int) -> None:
+    def get_planning_step(self, task, is_first_step: bool, step: int) -> PlanningStep:
         if is_first_step:
             input_messages = [
                 {
