@@ -24,20 +24,6 @@ Or add it to a `.env` file in this directory.
 
 ## Running the Example
 
-To set up the sample directory, run:
-
-```
-python gemini_vision_agent.py --setup
-```
-
-To start the UI, run:
-
-```
-python gemini_vision_agent.py --ui
-```
-
-or simply:
-
 ```
 python gemini_vision_agent.py
 ```
