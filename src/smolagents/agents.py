@@ -183,7 +183,10 @@ class MultiStepAgent:
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]`, *optional*): Callbacks that will be called at each step.
-        planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
+        planning_interval (`int`, *optional*): Controls planning behavior:
+            - None: No planning steps
+            - 0: Plan only once at the start
+            - N > 0: Plan every N steps
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
         provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
@@ -360,7 +363,9 @@ You have been provided with these additional arguments, that you can access usin
         return ActionStep(step_number=self.step_number, start_time=step_start_time, observations_images=images)
 
     def _execute_step(self, task: str, memory_step: ActionStep) -> Union[None, Any]:
-        if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
+        if (self.planning_interval == 0 and self.step_number == 1) or (
+            self.planning_interval and (self.step_number - 1) % self.planning_interval == 0
+        ):
             self.planning_step(task, is_first_step=(self.step_number == 1), step=self.step_number)
         self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
         final_answer = self.step(memory_step)
