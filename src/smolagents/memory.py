@@ -179,6 +179,11 @@ class SystemPromptStep(MemoryStep):
         return [Message(role=MessageRole.SYSTEM, content=[{"type": "text", "text": self.system_prompt}])]
 
 
+@dataclass
+class FinalAnswerStep(MemoryStep):
+    final_answer: Any
+
+
 class AgentMemory:
     def __init__(self, system_prompt: str):
         self.system_prompt = SystemPromptStep(system_prompt=system_prompt)
