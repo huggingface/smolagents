@@ -26,6 +26,7 @@ dependencies = [
 torch = [
   "torch",
   "torchvision",
+  "numpy>=1.21.2",
 ]
 audio = [
   "soundfile",
