@@ -173,7 +173,8 @@ This is illustrated in the figure below.
 </p>
 
 
-However, this does not work (yet) with more complicated multi-agent setups.
+However, since any call to a [managed agent](../examples/multiagents) would require model calls, since we do not transfer secrets to the remote sandbox, the model call would lack credentials.
+Hence this solution does not work (yet) with more complicated multi-agent setups.
 
 #### Running your agent in E2B: multi-agents
 
