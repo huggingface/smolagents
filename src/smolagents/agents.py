@@ -338,31 +338,31 @@ You have been provided with these additional arguments, that you can access usin
         while final_answer is None and self.step_number <= max_steps:
             step_start_time = time.time()
             if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
-                planning_step = self.get_planning_step(
+                planning_step = self._create_planning_step(
                     task, is_first_step=(self.step_number == 1), step=self.step_number
                 )
                 self.memory.steps.append(planning_step)
                 yield planning_step
-            memory_step = self._create_memory_step(step_start_time, images)
+            action_step = self._create_action_step(step_start_time, images)
             try:
-                final_answer = self._execute_step(task, memory_step)
+                final_answer = self._execute_step(task, action_step)
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
                 raise e
             except AgentError as e:
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
-                memory_step.error = e
+                action_step.error = e
             finally:
-                self._finalize_step(memory_step, step_start_time)
-                yield memory_step
+                self._finalize_step(action_step, step_start_time)
+                yield action_step
                 self.step_number += 1
 
         if final_answer is None and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task, images, step_start_time)
-            yield memory_step
+            yield action_step
         yield FinalAnswerStep(handle_agent_output_types(final_answer))
 
-    def _create_memory_step(self, step_start_time: float, images: List["PIL.Image.Image"] | None) -> ActionStep:
+    def _create_action_step(self, step_start_time: float, images: List["PIL.Image.Image"] | None) -> ActionStep:
         return ActionStep(step_number=self.step_number, start_time=step_start_time, observations_images=images)
 
     def _execute_step(self, task: str, memory_step: ActionStep) -> Union[None, Any]:
@@ -404,7 +404,7 @@ You have been provided with these additional arguments, that you can access usin
             )
         return final_answer
 
-    def get_planning_step(self, task, is_first_step: bool, step: int) -> PlanningStep:
+    def _create_planning_step(self, task, is_first_step: bool, step: int) -> PlanningStep:
         if is_first_step:
             input_messages = [
                 {
