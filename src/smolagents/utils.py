@@ -111,6 +111,12 @@ class AgentToolCallError(AgentError):
     pass
 
 
+class AgentToolExecutionError(AgentExecutionError):
+    """Exception raised for errors when executing a tool"""
+
+    pass
+
+
 class AgentGenerationError(AgentError):
     """Exception raised for errors in generation in the agent"""
 

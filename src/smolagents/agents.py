@@ -64,6 +64,7 @@ from .utils import (
     AgentMaxStepsError,
     AgentParsingError,
     AgentToolCallError,
+    AgentToolExecutionError,
     is_valid_name,
     make_init_file,
     parse_code_blobs,
@@ -1065,7 +1066,7 @@ class ToolCallingAgent(MultiStepAgent):
         # Check if the tool exists
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
-            raise AgentExecutionError(
+            raise AgentToolExecutionError(
                 f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
             )
 
@@ -1114,7 +1115,7 @@ class ToolCallingAgent(MultiStepAgent):
                     f"Error executing tool '{tool_name}' with arguments {json.dumps(arguments)}: {type(e).__name__}: {e}\n"
                     "Please try again or use another tool"
                 )
-            raise AgentExecutionError(error_msg, self.logger) from e
+            raise AgentToolExecutionError(error_msg, self.logger) from e
 
 
 class CodeAgent(MultiStepAgent):
