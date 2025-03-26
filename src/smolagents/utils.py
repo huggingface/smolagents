@@ -105,7 +105,7 @@ class AgentMaxStepsError(AgentError):
     pass
 
 
-class AgentToolCallError(AgentError):
+class AgentToolCallError(AgentExecutionError):
     """Exception raised for errors when incorrect arguments are passed to the tool"""
 
     pass
