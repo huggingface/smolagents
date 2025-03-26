@@ -153,7 +153,8 @@ pip install 'smolagents[e2b]'
 
 #### Running your agent in E2B: quick start
 
-We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` to the agent initialization, like:
+We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` to the agent initialization, as follows:
+
 ```py
 from smolagents import HfApiModel, CodeAgent
 
@@ -161,6 +162,16 @@ agent = CodeAgent(model=HfApiModel(), tools=[], executor_type="e2b")
 
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
+
+This solution send the agent state to the server at the start of each `agent.run()`.
+Then the models are called from the local environment, but the generated code will be sent to the sandbox for execution, and only the output will be returned.
+
+This is illustrated in the figure below.
+
+<p align="center">
+    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png" alt="sandboxed code execution" width=60% max-width=500px>
+</p>
+
 
 However, this does not work (yet) with more complicated multi-agent setups.
 
