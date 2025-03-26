@@ -63,6 +63,9 @@ from .utils import (
     AgentGenerationError,
     AgentMaxStepsError,
     AgentParsingError,
+    AgentToolCallError,
+    AgentToolExecutionError,
+    is_valid_name,
     make_init_file,
     parse_code_blobs,
     truncate_content,
@@ -212,7 +215,7 @@ class MultiStepAgent:
         self.grammar = grammar
         self.planning_interval = planning_interval
         self.state = {}
-        self.name = name
+        self.name = self._validate_name(name)
         self.description = description
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks
@@ -229,6 +232,11 @@ class MultiStepAgent:
         self.monitor = Monitor(self.model, self.logger)
         self.step_callbacks = step_callbacks if step_callbacks is not None else []
         self.step_callbacks.append(self.monitor.update_metrics)
+
+    def _validate_name(self, name: str | None) -> str | None:
+        if name is not None and not is_valid_name(name):
+            raise ValueError(f"Agent name '{name}' must be a valid Python identifier and not a reserved keyword.")
+        return name
 
     def _setup_managed_agents(self, managed_agents):
         self.managed_agents = {}
@@ -559,53 +567,6 @@ You have been provided with these additional arguments, that you can access usin
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
-    def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
-        """
-        Execute tool with the provided input and returns the result.
-        This method replaces arguments with the actual values from the state if they refer to state variables.
-
-        Args:
-            tool_name (`str`): Name of the Tool to execute (should be one from self.tools).
-            arguments (Dict[str, str]): Arguments passed to the Tool.
-        """
-        available_tools = {**self.tools, **self.managed_agents}
-        if tool_name not in available_tools:
-            error_msg = f"Unknown tool {tool_name}, should be instead one of {list(available_tools.keys())}."
-            raise AgentExecutionError(error_msg, self.logger)
-
-        try:
-            if isinstance(arguments, str):
-                if tool_name in self.managed_agents:
-                    observation = available_tools[tool_name].__call__(arguments)
-                else:
-                    observation = available_tools[tool_name].__call__(arguments, sanitize_inputs_outputs=True)
-            elif isinstance(arguments, dict):
-                for key, value in arguments.items():
-                    if isinstance(value, str) and value in self.state:
-                        arguments[key] = self.state[value]
-                if tool_name in self.managed_agents:
-                    observation = available_tools[tool_name].__call__(**arguments)
-                else:
-                    observation = available_tools[tool_name].__call__(**arguments, sanitize_inputs_outputs=True)
-            else:
-                error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
-                raise AgentExecutionError(error_msg, self.logger)
-            return observation
-        except Exception as e:
-            if tool_name in self.tools:
-                tool = self.tools[tool_name]
-                error_msg = (
-                    f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
-                    f"As a reminder, this tool's description is the following: '{tool.description}'.\nIt takes inputs: {tool.inputs} and returns output type {tool.output_type}"
-                )
-                raise AgentExecutionError(error_msg, self.logger)
-            elif tool_name in self.managed_agents:
-                error_msg = (
-                    f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
-                    f"As a reminder, this team member's description is the following:\n{available_tools[tool_name]}"
-                )
-                raise AgentExecutionError(error_msg, self.logger)
-
     def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
         pass
@@ -639,7 +600,7 @@ You have been provided with these additional arguments, that you can access usin
             answer += "\n</summary_of_work>"
         return answer
 
-    def save(self, output_dir: str, relative_path: Optional[str] = None):
+    def save(self, output_dir: str | Path, relative_path: Optional[str] = None):
         """
         Saves the relevant code files for your agent. This will copy the code of your agent in `output_dir` as well as autogenerate:
 
@@ -652,7 +613,7 @@ You have been provided with these additional arguments, that you can access usin
           code)
 
         Args:
-            output_dir (`str`): The folder in which you want to save your tool.
+            output_dir (`str` or `Path`): The folder in which you want to save your agent.
         """
         make_init_file(output_dir)
 
@@ -795,7 +756,7 @@ You have been provided with these additional arguments, that you can access usin
             "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
-            "requirements": list(requirements),
+            "requirements": sorted(requirements),
         }
         return agent_dict
 
@@ -1082,6 +1043,79 @@ class ToolCallingAgent(MultiStepAgent):
             )
             memory_step.observations = updated_information
             return None
+
+    def _substitute_state_variables(self, arguments: Union[Dict[str, str], str]) -> Union[Dict[str, Any], str]:
+        """Replace string values in arguments with their corresponding state values if they exist."""
+        if isinstance(arguments, dict):
+            return {
+                key: self.state.get(value, value) if isinstance(value, str) else value
+                for key, value in arguments.items()
+            }
+        return arguments
+
+    def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
+        """
+        Execute a tool or managed agent with the provided arguments.
+
+        The arguments are replaced with the actual values from the state if they refer to state variables.
+
+        Args:
+            tool_name (`str`): Name of the tool or managed agent to execute.
+            arguments (dict[str, str] | str): Arguments passed to the tool call.
+        """
+        # Check if the tool exists
+        available_tools = {**self.tools, **self.managed_agents}
+        if tool_name not in available_tools:
+            raise AgentToolExecutionError(
+                f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
+            )
+
+        # Get the tool and substitute state variables in arguments
+        tool = available_tools[tool_name]
+        arguments = self._substitute_state_variables(arguments)
+        is_managed_agent = tool_name in self.managed_agents
+
+        try:
+            # Call tool with appropriate arguments
+            if isinstance(arguments, dict):
+                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+            elif isinstance(arguments, str):
+                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+            else:
+                raise TypeError(f"Unsupported arguments type: {type(arguments)}")
+
+        except TypeError as e:
+            # Handle invalid arguments
+            description = getattr(tool, "description", "No description")
+            if is_managed_agent:
+                error_msg = (
+                    f"Invalid request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "You should call this team member with a valid request.\n"
+                    f"Team member description: {description}"
+                )
+            else:
+                error_msg = (
+                    f"Invalid call to tool '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "You should call this tool with correct input arguments.\n"
+                    f"Expected inputs: {json.dumps(tool.inputs)}\n"
+                    f"Returns output type: {tool.output_type}\n"
+                    f"Tool description: '{description}'"
+                )
+            raise AgentToolCallError(error_msg, self.logger) from e
+
+        except Exception as e:
+            # Handle execution errors
+            if is_managed_agent:
+                error_msg = (
+                    f"Error executing request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "Please try again or request to another team member"
+                )
+            else:
+                error_msg = (
+                    f"Error executing tool '{tool_name}' with arguments {json.dumps(arguments)}: {type(e).__name__}: {e}\n"
+                    "Please try again or use another tool"
+                )
+            raise AgentToolExecutionError(error_msg, self.logger) from e
 
 
 class CodeAgent(MultiStepAgent):

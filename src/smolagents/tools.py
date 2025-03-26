@@ -29,11 +29,12 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 from huggingface_hub import (
+    CommitOperationAdd,
+    create_commit,
     create_repo,
     get_collection,
     hf_hub_download,
     metadata_update,
-    upload_folder,
 )
 
 from ._function_type_hints_utils import (
@@ -221,7 +222,7 @@ class Tool:
             class {class_name}(Tool):
                 name = "{self.name}"
                 description = {json.dumps(textwrap.dedent(self.description).strip())}
-                inputs = {json.dumps(self.inputs, separators=(",", ":"))}
+                inputs = {repr(self.inputs)}
                 output_type = "{self.output_type}"
             """
             ).strip()
@@ -260,9 +261,9 @@ class Tool:
 
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
-        return {"name": self.name, "code": tool_code, "requirements": requirements}
+        return {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
 
-    def save(self, output_dir: str, tool_file_name: str = "tool", make_gradio_app: bool = True):
+    def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True):
         """
         Saves the relevant code files for your tool so it can be pushed to the Hub. This will copy the code of your
         tool in `output_dir` as well as autogenerate:
@@ -274,7 +275,7 @@ class Tool:
           code)
 
         Args:
-            output_dir (`str`): The folder in which you want to save your tool.
+            output_dir (`str` or `Path`): The folder in which you want to save your tool.
             tool_file_name (`str`, *optional*): The file name in which you want to save your tool.
             make_gradio_app (`bool`, *optional*, defaults to True): Whether to also export a `requirements.txt` file and Gradio UI.
         """
@@ -286,7 +287,7 @@ class Tool:
         tool_code = tool_dict["code"]
 
         with open(tool_file, "w", encoding="utf-8") as f:
-            f.write(tool_code.replace(":true,", ":True,").replace(":true}", ":True}"))
+            f.write(tool_code)
 
         if make_gradio_app:
             # Save app file
@@ -333,8 +334,25 @@ class Tool:
                 The token to use as HTTP bearer authorization for remote files. If unset, will use the token generated
                 when running `huggingface-cli login` (stored in `~/.huggingface`).
             create_pr (`bool`, *optional*, defaults to `False`):
-                Whether or not to create a PR with the uploaded files or directly commit.
+                Whether to create a PR with the uploaded files or directly commit.
         """
+        # Initialize repository
+        repo_id = self._initialize_hub_repo(repo_id, token, private)
+        # Prepare files for commit
+        additions = self._prepare_hub_files()
+        # Create commit
+        return create_commit(
+            repo_id=repo_id,
+            operations=additions,
+            commit_message=commit_message,
+            token=token,
+            create_pr=create_pr,
+            repo_type="space",
+        )
+
+    @staticmethod
+    def _initialize_hub_repo(repo_id: str, token: Optional[Union[bool, str]], private: Optional[bool]) -> str:
+        """Initialize repository on Hugging Face Hub."""
         repo_url = create_repo(
             repo_id=repo_id,
             token=token,
@@ -343,21 +361,50 @@ class Tool:
             repo_type="space",
             space_sdk="gradio",
         )
-        repo_id = repo_url.repo_id
-        metadata_update(repo_id, {"tags": ["smolagents", "tool"]}, repo_type="space", token=token)
+        metadata_update(repo_url.repo_id, {"tags": ["smolagents", "tool"]}, repo_type="space", token=token)
+        return repo_url.repo_id
 
-        with tempfile.TemporaryDirectory() as work_dir:
-            # Save all files.
-            self.save(work_dir)
-            logger.info(f"Uploading the following files to {repo_id}: {','.join(os.listdir(work_dir))}")
-            return upload_folder(
-                repo_id=repo_id,
-                commit_message=commit_message,
-                folder_path=work_dir,
-                token=token,
-                create_pr=create_pr,
-                repo_type="space",
-            )
+    def _prepare_hub_files(self) -> list:
+        """Prepare files for Hub commit."""
+        additions = [
+            # Add tool code
+            CommitOperationAdd(
+                path_in_repo="tool.py",
+                path_or_fileobj=self._get_tool_code().encode(),
+            ),
+            # Add Gradio app
+            CommitOperationAdd(
+                path_in_repo="app.py",
+                path_or_fileobj=self._get_gradio_app_code().encode(),
+            ),
+            # Add requirements
+            CommitOperationAdd(
+                path_in_repo="requirements.txt",
+                path_or_fileobj=self._get_requirements().encode(),
+            ),
+        ]
+        return additions
+
+    def _get_tool_code(self) -> str:
+        """Get the tool's code."""
+        return self.to_dict()["code"]
+
+    def _get_gradio_app_code(self) -> str:
+        """Get the Gradio app code."""
+        class_name = self.__class__.__name__
+        return textwrap.dedent(
+            f"""
+            from smolagents import launch_gradio_demo
+            from tool import {class_name}
+
+            tool = {class_name}()
+            launch_gradio_demo(tool)
+            """
+        ).strip()
+
+    def _get_requirements(self) -> str:
+        """Get the requirements."""
+        return "\n".join(self.to_dict()["requirements"])
 
     @classmethod
     def from_hub(
@@ -638,6 +685,7 @@ def launch_gradio_demo(tool: Tool):
         raise ImportError("Gradio should be installed in order to launch a gradio demo.")
 
     TYPE_TO_COMPONENT_CLASS_MAPPING = {
+        "boolean": gr.Checkbox,
         "image": gr.Image,
         "audio": gr.Audio,
         "string": gr.Textbox,
@@ -656,8 +704,8 @@ def launch_gradio_demo(tool: Tool):
         new_component = input_gradio_component_class(label=input_name)
         gradio_inputs.append(new_component)
 
-    output_gradio_componentclass = TYPE_TO_COMPONENT_CLASS_MAPPING[tool.output_type]
-    gradio_output = output_gradio_componentclass(label="Output")
+    output_gradio_component_class = TYPE_TO_COMPONENT_CLASS_MAPPING[tool.output_type]
+    gradio_output = output_gradio_component_class(label="Output")
 
     gr.Interface(
         fn=tool_forward,
@@ -892,8 +940,8 @@ def tool(tool_function: Callable) -> Tool:
         + textwrap.indent(forward_method_source, "    ")  # indent for class method
     )
     # - Store the source code on both class and method for inspection
-    SimpleTool.__source = class_source
-    SimpleTool.forward.__source = forward_method_source
+    SimpleTool.__source__ = class_source
+    SimpleTool.forward.__source__ = forward_method_source
 
     simple_tool = SimpleTool()
     return simple_tool

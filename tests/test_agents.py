@@ -42,7 +42,7 @@ from smolagents.models import (
     TransformersModel,
 )
 from smolagents.tools import Tool, tool
-from smolagents.utils import BASE_BUILTIN_MODULES, AgentGenerationError
+from smolagents.utils import BASE_BUILTIN_MODULES, AgentExecutionError, AgentGenerationError, AgentToolCallError
 
 
 def get_new_path(suffix="") -> str:
@@ -1236,3 +1236,48 @@ def prompt_templates():
         "system_prompt": "This is a test system prompt.",
         "managed_agent": {"task": "Task for {{name}}: {{task}}", "report": "Report for {{name}}: {{final_answer}}"},
     }
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"arg": "bar"},
+        {None: None},
+        [1, 2, 3],
+    ],
+)
+def test_tool_calling_agents_raises_tool_call_error_being_invoked_with_wrong_arguments(arguments):
+    @tool
+    def _sample_tool(prompt: str) -> str:
+        """Tool that returns same string
+
+        Args:
+            prompt: The string to return
+        Returns:
+            The same string
+        """
+
+        return prompt
+
+    agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
+    with pytest.raises(AgentToolCallError):
+        agent.execute_tool_call(_sample_tool.name, arguments)
+
+
+def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
+    @tool
+    def _sample_tool(_: str) -> float:
+        """Tool that fails
+
+        Args:
+            _: The pointless string
+        Returns:
+            Some number
+        """
+
+        return 1 / 0
+
+    agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
+    with pytest.raises(AgentExecutionError):
+        agent.execute_tool_call(_sample_tool.name, "sample")

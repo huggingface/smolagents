@@ -20,17 +20,17 @@ cd smolagents/examples/open_deep_research
 
 ### Install dependencies
 
-    Run the following command to install the required dependencies from the `requirements.txt` file:
+Run the following command to install the required dependencies from the `requirements.txt` file:
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+```bash
+pip install -r requirements.txt
+```
 
 ### Install the development version of `smolagents`
 
-    ```bash
-    pip install -e ../../.[dev]
-    ```
+```bash
+pip install -e ../../.[dev]
+```
 
 ### Set up environment variables
 
