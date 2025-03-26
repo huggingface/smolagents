@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 from typing import List, Optional, Tuple
 
 import pytest
@@ -20,40 +19,67 @@ import pytest
 from smolagents._function_type_hints_utils import get_imports, get_json_schema
 
 
-class TestJsonSchema(unittest.TestCase):
-    def test_get_json_schema(self):
-        def fn(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
-            """
-            Test function
-            Args:
-                x: The first input
-                y: The second input
-            """
-            pass
+def fn_google(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
+    """
+    Test function.
+    Args:
+        x: The first input
+        y: The second input.
+            With multiline description.
+    """
+    pass
 
-        schema = get_json_schema(fn)
-        expected_schema = {
-            "name": "fn",
-            "description": "Test function",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "x": {"type": "integer", "description": "The first input"},
-                    "y": {
-                        "type": "array",
-                        "description": "The second input",
-                        "nullable": True,
-                        "prefixItems": [{"type": "string"}, {"type": "string"}, {"type": "number"}],
-                    },
+
+def fn_numpy(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
+    """Test function.
+
+    Parameters
+    ----------
+    x : int
+        The first input
+    y
+        The second input.
+        With multiline description.
+    """
+    pass
+
+
+def fn_rest(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
+    """
+    Test function.
+
+    :param x: The first input
+    :type x: int
+    :param y: The second input.
+        With multiline description.
+    :type y: int
+    """
+    pass
+
+
+@pytest.mark.parametrize("fn", [fn_google, fn_numpy, fn_rest])
+def test_get_json_schema(fn):
+    schema = get_json_schema(fn)
+    expected_schema = {
+        "name": fn.__name__,
+        "description": "Test function.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "integer", "description": "The first input"},
+                "y": {
+                    "type": "array",
+                    "description": "The second input. With multiline description.",
+                    "nullable": True,
+                    "prefixItems": [{"type": "string"}, {"type": "string"}, {"type": "number"}],
                 },
-                "required": ["x"],
             },
-            "return": {"type": "null"},
-        }
-        self.assertEqual(
-            schema["function"]["parameters"]["properties"]["y"], expected_schema["parameters"]["properties"]["y"]
-        )
-        self.assertEqual(schema["function"], expected_schema)
+            "required": ["x"],
+        },
+        "return": {"type": "null"},
+    }
+    assert schema["function"]["parameters"]["properties"]["y"] == expected_schema["parameters"]["properties"]["y"]
+    assert schema["function"] == expected_schema
 
 
 class TestGetCode:
