@@ -45,7 +45,7 @@ By default, the `CodeAgent` runs LLM-generated code in your environment.
 This is inherently risky, LLM-generated code could be harmful to your environment.
 
 Malicious code execution can occur in several ways:
-- **Plain LLM error:** LLMs are still quite dumb, and they might destroy your system by trying to help you. This risk is low, but in my thousands of agent runs I've observed a few attempts to run code that could have been harmful.
+- **Plain LLM error:** LLMs are still far from perfect and may unintentionally generate harmful commands while attempting to be helpful. While this risk is low, instances have been observed where an LLM attempted to execute potentially dangerous code.  
 - **Supply chain attack** where you run a malicious LLM: then this LLM will generate code that actively tries to harm your system. This risk is extremely low when using well-known models on secure inference, but it could happen.
 - **Prompt injection:** an agent browsing the web could arrive on a malicious website that contains harmful instructions, thus injecting an attack into the agent's memory
 - **Exploitation of publicly accessible agents:** Agents exposed to the public can be misused by malicious actors to execute harmful code. Attackers may craft adversarial inputs to exploit the agent's execution capabilities, leading to unintended consequences.
