@@ -136,7 +136,7 @@ class MonitoringTester(unittest.TestCase):
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 10)
+        self.assertEqual(len(outputs), 11)
         plan_message = outputs[1]
         self.assertEqual(plan_message.role, "assistant")
         self.assertIn("Code:", plan_message.content)
