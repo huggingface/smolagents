@@ -83,25 +83,30 @@ def run_capture_exception(command: str):
 # Undefined command just do not work
 harmful_command="!echo Bad command"
 run_capture_exception(harmful_command)
->>> Error: invalid syntax (<unknown>, line 1)
+# >>> ERROR: invalid syntax (<unknown>, line 1)
 
 
 # Imports like os will not be performed unless explicitly added to `additional_authorized_imports`
 harmful_command="import os; exit_code = os.system("echo Bad command")"
 run_capture_exception(harmful_command)
+# >>> ERROR: Code execution failed at line 'import os' due to: InterpreterError: Import of os is not allowed. Authorized imports are: ['statistics', 'numpy', 'itertools', 'time', 'queue', 'collections', 'math', 'random', 're', 'datetime', 'stat', 'unicodedata']
 
 # Even in authorized imports, potentially harmful packages will not be imported
 harmful_command="import random; random._os.system('echo Bad command')"
 run_capture_exception(harmful_command)
+# >>> ERROR: Code execution failed at line 'random._os.system('echo Bad command')' due to: InterpreterError: Forbidden access to module: os
 
-# Infinite loop are broken after N operations
+# Infinite loop are interrupted after N operations
 harmful_command="""
 while True:
     pass
 """
 run_capture_exception(harmful_command)
+# >>> ERROR: Code execution failed at line 'while True: pass' due to: InterpreterError: Maximum number of 1000000 iterations in While loop exceeded
 ```
-As a result, this interpreter is safer. We have used it on a diversity of use cases, without ever observing any damage to the environment.
+
+These safeguards make out interpreter is safer.
+We have used it on a diversity of use cases, without ever observing any damage to the environment.
 
 However, this solution is certainly not watertight, as no local python sandbox can really be: one could imagine occasions where LLMs fine-tuned for malignant actions could still hurt your environment.
 
