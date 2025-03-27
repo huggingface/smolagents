@@ -812,7 +812,7 @@ class ToolCollection:
 
     @classmethod
     @contextmanager
-    def from_mcp(cls, server_parameters) -> "ToolCollection":
+    def from_mcp(cls, server_parameters, trust_remote_code: bool = False) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
         This method supports both SSE and Stdio MCP servers. Look at the `sever_parameters`
@@ -825,6 +825,12 @@ class ToolCollection:
             server_parameters (mcp.StdioServerParameters | dict):
                 The server parameters to use to connect to the MCP server. If a dict is
                 provided, it is assumed to be the parameters of `mcp.client.sse.sse_client`.
+            trust_remote_code (`bool`, *optional*, defaults to `False`):
+                Whether to trust the execution of code from tools defined on the MCP server.
+                This option should only be set to `True` if you trust the MCP server,
+                and undertand the risks associated with running remote code on your local machine.
+                If set to `False`, loading tools from MCP will fail.
+
 
         Returns:
             ToolCollection: A tool collection instance.
@@ -852,6 +858,11 @@ class ToolCollection:
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
+                "as it will execute code on your local machine: pass `trust_remote_code=True`."
+            )
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
