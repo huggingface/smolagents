@@ -70,6 +70,7 @@ BASE_PYTHON_TOOLS = {
     "list": list,
     "dict": dict,
     "tuple": tuple,
+    "bytes": bytes,
     "round": round,
     "ceil": math.ceil,
     "floor": math.floor,
