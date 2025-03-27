@@ -32,8 +32,6 @@ from typing import (
     Callable,
     Dict,
     List,
-    Optional,
-    Tuple,
     Union,
     get_args,
     get_origin,
@@ -205,11 +203,23 @@ def get_json_schema(func: Callable) -> Dict:
             raise DocstringParsingException(
                 f"Cannot generate JSON schema for {func.__name__} because the docstring has no description for the argument '{arg}'"
             )
+
         desc = param_descriptions[arg]
-        enum_choices = re.search(r"\(choices:\s*(.*?)\)\s*$", desc, flags=re.IGNORECASE)
-        if enum_choices:
-            schema["enum"] = [c.strip() for c in json.loads(enum_choices.group(1))]
-            desc = enum_choices.string[: enum_choices.start()].strip()
+
+        lines = [line.rstrip() for line in desc.strip().splitlines()]
+        for i in reversed(range(len(lines))):
+            match = re.search(r"\(choices:\s*(.*?)\)", lines[i], flags=re.IGNORECASE)
+            if match:
+                try:
+                    schema["enum"] = json.loads(match.group(1))
+                except json.JSONDecodeError as e:
+                    raise DocstringParsingException(
+                        f"Invalid JSON in choices enum for argument '{arg}': {match.group(1)}"
+                    ) from e
+                lines[i] = lines[i][: match.start()].rstrip()
+                break
+        desc = "\n".join(lines).strip()
+
         schema["description"] = desc
 
     output = {"name": func.__name__, "description": main_doc, "parameters": json_schema}
@@ -240,39 +250,46 @@ returns_re = re.compile(
 )
 
 
-def _parse_google_format_docstring(
-    docstring: str,
-) -> Tuple[Optional[str], Optional[Dict], Optional[str]]:
-    """
-    Parses a Google-style docstring to extract the function description,
-    argument descriptions, and return description.
+def _parse_google_format_docstring(doc: str) -> tuple[str, dict[str, str], str | None]:
+    lines = doc.strip().splitlines()
+    headers = {"Args:", "Returns:", "Raises:"}
+    sections = {}
+    current_lines = []
+    description_lines = []
+    current_section = None
 
-    Args:
-        docstring (str): The docstring to parse.
+    for line in lines:
+        if (header := line.strip()) in headers:
+            if current_section:
+                sections[current_section] = current_lines
+            else:
+                description_lines = current_lines
+            current_section = header[:-1].lower()  # strip colon
+            current_lines = []
+        else:
+            current_lines.append(line)
 
-    Returns:
-        The function description, arguments, and return description.
-    """
+    # Capture the final section or all as description if no headers
+    if current_section:
+        sections[current_section] = current_lines
+    elif not description_lines:
+        description_lines = lines
 
-    # Extract the sections
-    description_match = description_re.search(docstring)
-    args_match = args_re.search(docstring)
-    returns_match = returns_re.search(docstring)
+    args = {}
+    if "args" in sections:
+        for match in args_split_re.finditer("\n".join(sections["args"])):
+            args[match.group(1)] = match.group(2).strip()
 
-    # Clean and store the sections
-    description = description_match.group(1).strip() if description_match else None
-    docstring_args = args_match.group(1).strip() if args_match else None
-    returns = returns_match.group(1).strip() if returns_match else None
+    return_doc = None
+    if "returns" in sections:
+        lines = sections["returns"]
+        if lines:
+            first = lines[0].strip()
+            if match := re.match(r"^(\w[\w.\[\], ]*):\s*(.*)", first):
+                lines[0] = match.group(2).strip()
+            return_doc = "\n".join(lines).strip()
 
-    # Parsing the arguments into a dictionary
-    if docstring_args is not None:
-        docstring_args = "\n".join([line for line in docstring_args.split("\n") if line.strip()])  # Remove blank lines
-        matches = args_split_re.findall(docstring_args)
-        args_dict = {match[0]: re.sub(r"\s*\n+\s*", " ", match[1].strip()) for match in matches}
-    else:
-        args_dict = {}
-
-    return description, args_dict, returns
+    return "\n".join(description_lines).strip(), args, return_doc
 
 
 def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hints: bool = True) -> Dict:

@@ -220,6 +220,33 @@ def complex_docstring_types_func():
     return process
 
 
+@pytest.fixture
+def with_enums_and_trailing_text_func():
+    def process(color: str) -> None:
+        """
+        Some description
+
+        Args:
+            color: The color to select (choices: ["red", "green", "blue"]) or not.
+        """
+        pass
+
+    return process
+
+
+@pytest.fixture
+def with_special_words_in_description_func():
+    def process(color: str) -> None:
+        """
+        In case you decide to play with Args: do not
+        Args:
+            color: The color to select (choices: ["red", "green", "blue"]) or not.
+        """
+        pass
+
+    return process
+
+
 class TestGetJsonSchema:
     def test_get_json_schema_example(self):
         def fn(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
@@ -414,6 +441,16 @@ class TestGetJsonSchema:
         # Description should include the type information from docstring
         assert data_prop["description"] == "Nested structure with types."
         assert return_prop["description"] == "Processed results with types."
+
+    def test_with_inline_code_func(self, with_enums_and_trailing_text_func):
+        schema = get_json_schema(with_enums_and_trailing_text_func)
+        color_prop = schema["function"]["parameters"]["properties"]["color"]
+        assert "enum" in color_prop
+        assert color_prop["enum"] == ["red", "green", "blue"]
+
+    def test_with_special_words_in_description_func(self, with_special_words_in_description_func):
+        schema = get_json_schema(with_special_words_in_description_func)
+        assert schema["function"]["description"] == "In case you decide to play with Args: do not"
 
     @pytest.mark.parametrize(
         "fixture_name,expected_description",
