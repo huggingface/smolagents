@@ -224,12 +224,10 @@ description_re = re.compile(r"^(.*?)[\n\s]*(Args:|Returns:|Raises:|\Z)", re.DOTA
 args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
 # Splits the Args: block into individual arguments
 args_split_re = re.compile(
-    r"""
-(?:^|\n)  # Match the start of the args block, or a newline
-\s*(\w+)\s*(?:\([^)]*?\))?:\s*  # Capture the argument name (ignore the type) and strip spacing
-(.*?)\s*  # Capture the argument description, which can span multiple lines, and strip trailing spacing
-(?=\n\s*\w+\s*(?:\([^)]*?\))?:|\Z)  # Stop when you hit the next argument (with or without type) or the end of the block
-""",
+    r"(?:^|\n)"  # Match the start of the args block, or a newline
+    r"\s*(\w+)\s*(?:\([^)]*?\))?:\s*"  # Capture the argument name (ignore the type) and strip spacing
+    r"(.*?)\s*"  # Capture the argument description, which can span multiple lines, and strip trailing spacing
+    r"(?=\n\s*\w+\s*(?:\([^)]*?\))?:|\Z)",  # Stop when you hit the next argument (with or without type) or the end of the block
     re.DOTALL | re.VERBOSE,
 )
 # Extracts the Returns: block from the docstring, if present. Note that most chat templates ignore the return type/doc!
