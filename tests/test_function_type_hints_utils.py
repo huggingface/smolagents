@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 from typing import List, Optional, Tuple
 
 import pytest
@@ -20,7 +19,7 @@ import pytest
 from smolagents._function_type_hints_utils import get_imports, get_json_schema
 
 
-class TestJsonSchema(unittest.TestCase):
+class TestGetJsonSchema:
     def test_get_json_schema(self):
         def fn(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
             """
@@ -50,10 +49,8 @@ class TestJsonSchema(unittest.TestCase):
             },
             "return": {"type": "null"},
         }
-        self.assertEqual(
-            schema["function"]["parameters"]["properties"]["y"], expected_schema["parameters"]["properties"]["y"]
-        )
-        self.assertEqual(schema["function"], expected_schema)
+        assert schema["function"]["parameters"]["properties"]["y"] == expected_schema["parameters"]["properties"]["y"]
+        assert schema["function"] == expected_schema
 
 
 class TestGetCode:
