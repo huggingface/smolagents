@@ -168,6 +168,58 @@ def nested_types_func():
     return process_nested_data
 
 
+@pytest.fixture
+def typed_docstring_func():
+    def calculate(x: int, y: float) -> float:
+        """
+        Calculate something.
+
+        Args:
+            x (int): An integer parameter with type in docstring.
+            y (float): A float parameter with type in docstring.
+
+        Returns:
+            float: The calculated result.
+        """
+        return x * y
+
+    return calculate
+
+
+@pytest.fixture
+def mismatched_types_func():
+    def convert(value: int) -> str:
+        """
+        Convert a value.
+
+        Args:
+            value (str): A string value (type mismatch with hint).
+
+        Returns:
+            int: Converted value (type mismatch with hint).
+        """
+        return str(value)
+
+    return convert
+
+
+@pytest.fixture
+def complex_docstring_types_func():
+    def process(data: Dict[str, List[int]]) -> List[Dict[str, Any]]:
+        """
+        Process complex data.
+
+        Args:
+            data (Dict[str, List[int]]): Nested structure with types.
+
+        Returns:
+            List[Dict[str, Any]]: Processed results with types.
+        """
+        return [{"result": sum(v) for k, v in data.items()}]
+
+    return process
+
+
 class TestGetJsonSchema:
     def test_get_json_schema_example(self):
         def fn(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
@@ -322,6 +374,61 @@ class TestGetJsonSchema:
         schema = get_json_schema(nested_types_func)
         data_prop = schema["function"]["parameters"]["properties"]["data"]
         assert data_prop["type"] == "array"
+
+    def test_typed_docstring_parsing(self, typed_docstring_func):
+        """Test parsing of docstrings with type annotations."""
+        schema = get_json_schema(typed_docstring_func)
+        # Type hints should take precedence over docstring types
+        assert schema["function"]["parameters"]["properties"]["x"]["type"] == "integer"
+        assert schema["function"]["parameters"]["properties"]["y"]["type"] == "number"
+        # Description should be extracted correctly
+        assert (
+            schema["function"]["parameters"]["properties"]["x"]["description"]
+            == "An integer parameter with type in docstring."
+        )
+        assert (
+            schema["function"]["parameters"]["properties"]["y"]["description"]
+            == "A float parameter with type in docstring."
+        )
+        # Return type and description should be correct
+        assert schema["function"]["return"]["type"] == "number"
+        assert schema["function"]["return"]["description"] == "The calculated result."
+
+    def test_mismatched_docstring_types(self, mismatched_types_func):
+        """Test that type hints take precedence over docstring types when they conflict."""
+        schema = get_json_schema(mismatched_types_func)
+        # Type hints should take precedence over docstring types
+        assert schema["function"]["parameters"]["properties"]["value"]["type"] == "integer"
+        # Return type from type hint should be used, not docstring
+        assert schema["function"]["return"]["type"] == "string"
+
+    def test_complex_docstring_types(self, complex_docstring_types_func):
+        """Test parsing of complex type annotations in docstrings."""
+        schema = get_json_schema(complex_docstring_types_func)
+        # Check that complex nested type is parsed correctly from type hints
+        data_prop = schema["function"]["parameters"]["properties"]["data"]
+        assert data_prop["type"] == "object"
+        # Check return type
+        return_prop = schema["function"]["return"]
+        assert return_prop["type"] == "array"
+        # Description should include the type information from docstring
+        assert data_prop["description"] == "Nested structure with types."
+        assert return_prop["description"] == "Processed results with types."
+
+    @pytest.mark.parametrize(
+        "fixture_name,expected_description",
+        [
+            ("typed_docstring_func", "An integer parameter with type in docstring."),
+            ("complex_docstring_types_func", "Nested structure with types."),
+        ],
+    )
+    def test_type_in_description_handling(self, request, fixture_name, expected_description):
+        """Test that type information in docstrings is preserved in description."""
+        func = request.getfixturevalue(fixture_name)
+        schema = get_json_schema(func)
+        # First parameter description should contain the expected text
+        first_param_name = list(schema["function"]["parameters"]["properties"].keys())[0]
+        assert schema["function"]["parameters"]["properties"][first_param_name]["description"] == expected_description
 
 
 class TestGetCode:
