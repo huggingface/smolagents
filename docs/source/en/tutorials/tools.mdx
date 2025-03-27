@@ -229,6 +229,14 @@ To speed up the start, tools are loaded only if called by the agent.
 
 Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
 
+> [!WARNING]
+> **Security Warning:** Using MCP servers comes with security risks:
+> - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
+> - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
+> - **SSE-based MCP servers** in the current implementation may be vulnerable to remote code execution attacks. A fix is being developed, but caution is still advised.
+>
+> Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
+
 The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
 
 For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
