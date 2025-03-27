@@ -233,7 +233,13 @@ args_split_re = re.compile(
     re.DOTALL | re.VERBOSE,
 )
 # Extracts the Returns: block from the docstring, if present. Note that most chat templates ignore the return type/doc!
-returns_re = re.compile(r"\n\s*Returns:\n\s*(.*?)[\n\s]*(Raises:|\Z)", re.DOTALL)
+returns_re = re.compile(
+    r"\n\s*Returns:\n\s*"
+    r"(?:[^)]*?:\s*)?"  # Ignore the return type if present
+    r"(.*?)"  # Capture the return description
+    r"[\n\s]*(Raises:|\Z)",
+    re.DOTALL,
+)
 
 
 def _parse_google_format_docstring(
