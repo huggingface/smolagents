@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import importlib.util
 import json
 import logging
 import os
@@ -1046,10 +1045,6 @@ class OpenAIServerModel(ApiModel):
         flatten_messages_as_text: bool = False,
         **kwargs,
     ):
-        if importlib.util.find_spec("openai") is None:
-            raise ModuleNotFoundError(
-                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
-            )
         super().__init__(
             model_id=model_id,
             custom_role_conversions=custom_role_conversions,
@@ -1063,7 +1058,12 @@ class OpenAIServerModel(ApiModel):
         self.client = self.create_client()
 
     def create_client(self):
-        import openai
+        try:
+            import openai
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from e
 
         return openai.OpenAI(**self.client_kwargs)
 
@@ -1127,10 +1127,6 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         custom_role_conversions: dict[str, str] | None = None,
         **kwargs,
     ):
-        if importlib.util.find_spec("openai") is None:
-            raise ModuleNotFoundError(
-                "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
-            )
         client_kwargs = client_kwargs or {}
         client_kwargs.update(
             {
@@ -1147,7 +1143,12 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         )
 
     def create_client(self):
-        import openai
+        try:
+            import openai
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from e
 
         return openai.AzureOpenAI(**self.client_kwargs)
 
