@@ -806,6 +806,11 @@ class ApiModel(Model):
         super().__init__(**kwargs)
         self.model_id = model_id
         self.custom_role_conversions = custom_role_conversions or {}
+        self.client = self.create_client()
+
+    def create_client(self):
+        """Create the API client for the specific service."""
+        raise NotImplementedError("Subclasses must implement this method to create a client")
 
     def postprocess_message(self, message: ChatMessage, tools_to_call_from) -> ChatMessage:
         """Sometimes APIs fail to properly parse a tool call: this function tries to parse."""
@@ -869,7 +874,6 @@ class LiteLLMModel(ApiModel):
             flatten_messages_as_text=flatten_messages_as_text,
             **kwargs,
         )
-        self.client = self.create_client()
 
     def create_client(self):
         """Create the LiteLLM client."""
@@ -977,7 +981,6 @@ class HfApiModel(ApiModel):
             "token": token,
             "timeout": timeout,
         }
-        self.client = self.create_client()
         super().__init__(model_id=model_id, custom_role_conversions=custom_role_conversions, **kwargs)
 
     def create_client(self):
@@ -1048,12 +1051,6 @@ class OpenAIServerModel(ApiModel):
         flatten_messages_as_text: bool = False,
         **kwargs,
     ):
-        super().__init__(
-            model_id=model_id,
-            custom_role_conversions=custom_role_conversions,
-            flatten_messages_as_text=flatten_messages_as_text,
-            **kwargs,
-        )
         self.client_kwargs = {
             **(client_kwargs or {}),
             "api_key": api_key,
@@ -1061,7 +1058,12 @@ class OpenAIServerModel(ApiModel):
             "organization": organization,
             "project": project,
         }
-        self.client = self.create_client()
+        super().__init__(
+            model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
 
     def create_client(self):
         try:
