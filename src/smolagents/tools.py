@@ -817,7 +817,7 @@ class ToolCollection:
     @classmethod
     @contextmanager
     def from_mcp(
-        cls, server_parameters: "mcp.StdioServerParameters" | dict, trust_remote_code: bool = False
+        cls, server_parameters: Union["mcp.StdioServerParameters", dict], trust_remote_code: bool = False
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
