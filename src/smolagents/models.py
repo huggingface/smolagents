@@ -862,7 +862,7 @@ class LiteLLMModel(ApiModel):
         flatten_messages_as_text = (
             flatten_messages_as_text
             if flatten_messages_as_text is not None
-            else self.model_id.startswith(("ollama", "groq", "cerebras"))
+            else model_id.startswith(("ollama", "groq", "cerebras"))
         )
         super().__init__(model_id=model_id, flatten_messages_as_text=flatten_messages_as_text, **kwargs)
 
