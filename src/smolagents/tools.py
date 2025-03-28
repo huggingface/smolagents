@@ -852,14 +852,14 @@ class ToolCollection:
         >>>     env={"UV_PYTHON": "3.12", **os.environ},
         >>> )
 
-        >>> with ToolCollection.from_mcp(server_parameters) as tool_collection:
+        >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
 
         Example with an SSE MCP server:
         ```py
-        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}) as tool_collection:
+        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
