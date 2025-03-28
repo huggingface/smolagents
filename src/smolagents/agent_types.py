@@ -19,7 +19,6 @@ import tempfile
 import uuid
 from io import BytesIO
 
-import numpy as np
 import PIL.Image
 import requests
 
@@ -98,6 +97,8 @@ class AgentImage(AgentType, PIL.Image.Image):
 
                 if isinstance(value, torch.Tensor):
                     self._tensor = value
+                import numpy as np
+
                 if isinstance(value, np.ndarray):
                     self._tensor = torch.from_numpy(value)
             except ModuleNotFoundError:
@@ -126,6 +127,8 @@ class AgentImage(AgentType, PIL.Image.Image):
             return self._raw
 
         if self._tensor is not None:
+            import numpy as np
+
             array = self._tensor.cpu().detach().numpy()
             return PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
 
@@ -144,6 +147,8 @@ class AgentImage(AgentType, PIL.Image.Image):
             return self._path
 
         if self._tensor is not None:
+            import numpy as np
+
             array = self._tensor.cpu().detach().numpy()
 
             # There is likely simpler than load into image into save
@@ -177,6 +182,7 @@ class AgentAudio(AgentType, str):
             raise ModuleNotFoundError(
                 "Please install 'audio' extra to use AgentAudio: `pip install 'smolagents[audio]'`"
             )
+        import numpy as np
         import torch
 
         super().__init__(value)

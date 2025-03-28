@@ -666,7 +666,7 @@ class TestMultiStepAgent:
             model=fake_model,
         )
         task = "Test task"
-        agent.planning_step(task, is_first_step=(step == 1), step=step)
+        planning_step = agent._create_planning_step(task, is_first_step=(step == 1), step=step)
         expected_message_texts = {
             "INITIAL_PLAN_USER_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["initial_plan"],
@@ -674,7 +674,7 @@ class TestMultiStepAgent:
                     task=task,
                     tools=agent.tools,
                     managed_agents=agent.managed_agents,
-                    answer_facts=agent.memory.steps[0].model_output_message.content,
+                    answer_facts=planning_step.model_output_message.content,
                 ),
             ),
             "UPDATE_PLAN_SYSTEM_PROMPT": populate_template(
@@ -686,7 +686,7 @@ class TestMultiStepAgent:
                     task=task,
                     tools=agent.tools,
                     managed_agents=agent.managed_agents,
-                    facts_update=agent.memory.steps[0].model_output_message.content,
+                    facts_update=planning_step.model_output_message.content,
                     remaining_steps=agent.max_steps - step,
                 ),
             ),
@@ -695,8 +695,6 @@ class TestMultiStepAgent:
             for expected_message in expected_messages:
                 for expected_content in expected_message["content"]:
                     expected_content["text"] = expected_message_texts[expected_content["text"]]
-        assert len(agent.memory.steps) == 1
-        planning_step = agent.memory.steps[0]
         assert isinstance(planning_step, PlanningStep)
         expected_model_input_messages = expected_messages_list[0]
         model_input_messages = planning_step.model_input_messages

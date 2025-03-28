@@ -15,7 +15,6 @@ dependencies = [
   "huggingface-hub>=0.28.0",
   "requests>=2.32.3",
   "rich>=13.9.4",
-  "pandas>=2.2.3",
   "jinja2>=3.1.4",
   "pillow>=11.0.0",
   "markdownify>=0.14.1",
@@ -27,6 +26,7 @@ dependencies = [
 torch = [
   "torch",
   "torchvision",
+  "numpy>=1.21.2",
 ]
 audio = [
   "soundfile",
@@ -83,6 +83,7 @@ quality = [
 ]
 test = [
   "ipython>=8.31.0", # for interactive environment tests
+  "pandas>=2.2.3",
   "pytest>=8.1.0",
   "pytest-datadir",
   "python-dotenv>=1.0.1", # For test_all_docs

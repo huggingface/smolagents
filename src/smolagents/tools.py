@@ -279,37 +279,20 @@ class Tool:
             tool_file_name (`str`, *optional*): The file name in which you want to save your tool.
             make_gradio_app (`bool`, *optional*, defaults to True): Whether to also export a `requirements.txt` file and Gradio UI.
         """
-        os.makedirs(output_dir, exist_ok=True)
-        class_name = self.__class__.__name__
-        tool_file = os.path.join(output_dir, f"{tool_file_name}.py")
-
-        tool_dict = self.to_dict()
-        tool_code = tool_dict["code"]
-
-        with open(tool_file, "w", encoding="utf-8") as f:
-            f.write(tool_code)
-
+        # Ensure output directory exists
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        # Save tool file
+        self._write_file(output_path / f"{tool_file_name}.py", self._get_tool_code())
         if make_gradio_app:
-            # Save app file
-            app_file = os.path.join(output_dir, "app.py")
-            with open(app_file, "w", encoding="utf-8") as f:
-                f.write(
-                    textwrap.dedent(
-                        f"""
-                from smolagents import launch_gradio_demo
-                from {tool_file_name} import {class_name}
-
-                tool = {class_name}()
-
-                launch_gradio_demo(tool)
-                """
-                    ).lstrip()
-                )
-
+            #  Save app file
+            self._write_file(output_path / "app.py", self._get_gradio_app_code(tool_module_name=tool_file_name))
             # Save requirements file
-            requirements_file = os.path.join(output_dir, "requirements.txt")
-            with open(requirements_file, "w", encoding="utf-8") as f:
-                f.write("\n".join(tool_dict["requirements"]) + "\n")
+            self._write_file(output_path / "requirements.txt", self._get_requirements())
+
+    def _write_file(self, file_path: Path, content: str) -> None:
+        """Writes content to a file with UTF-8 encoding."""
+        file_path.write_text(content, encoding="utf-8")
 
     def push_to_hub(
         self,
@@ -389,18 +372,18 @@ class Tool:
         """Get the tool's code."""
         return self.to_dict()["code"]
 
-    def _get_gradio_app_code(self) -> str:
+    def _get_gradio_app_code(self, tool_module_name: str = "tool") -> str:
         """Get the Gradio app code."""
         class_name = self.__class__.__name__
         return textwrap.dedent(
-            f"""
+            f"""\
             from smolagents import launch_gradio_demo
-            from tool import {class_name}
+            from {tool_module_name} import {class_name}
 
             tool = {class_name}()
             launch_gradio_demo(tool)
             """
-        ).strip()
+        )
 
     def _get_requirements(self) -> str:
         """Get the requirements."""

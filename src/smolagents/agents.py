@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 from .agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
-from .memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, TaskStep, ToolCall
+from .memory import ActionStep, AgentMemory, FinalAnswerStep, PlanningStep, SystemPromptStep, TaskStep, ToolCall
 from .models import (
     ChatMessage,
     MessageRole,
@@ -328,7 +328,7 @@ You have been provided with these additional arguments, that you can access usin
             # The steps are returned as they are executed through a generator to iterate on.
             return self._run(task=self.task, max_steps=max_steps, images=images)
         # Outputs are returned only at the end. We only look at the last step.
-        return deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0]
+        return deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0].final_answer
 
     def _run(
         self, task: str, max_steps: int, images: List["PIL.Image.Image"] | None = None
@@ -337,31 +337,35 @@ You have been provided with these additional arguments, that you can access usin
         self.step_number = 1
         while final_answer is None and self.step_number <= max_steps:
             step_start_time = time.time()
-            memory_step = self._create_memory_step(step_start_time, images)
+            if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
+                planning_step = self._create_planning_step(
+                    task, is_first_step=(self.step_number == 1), step=self.step_number
+                )
+                self.memory.steps.append(planning_step)
+                yield planning_step
+            action_step = self._create_action_step(step_start_time, images)
             try:
-                final_answer = self._execute_step(task, memory_step)
+                final_answer = self._execute_step(task, action_step)
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
                 raise e
             except AgentError as e:
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
-                memory_step.error = e
+                action_step.error = e
             finally:
-                self._finalize_step(memory_step, step_start_time)
-                yield memory_step
+                self._finalize_step(action_step, step_start_time)
+                yield action_step
                 self.step_number += 1
 
         if final_answer is None and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task, images, step_start_time)
-            yield memory_step
-        yield handle_agent_output_types(final_answer)
+            yield action_step
+        yield FinalAnswerStep(handle_agent_output_types(final_answer))
 
-    def _create_memory_step(self, step_start_time: float, images: List["PIL.Image.Image"] | None) -> ActionStep:
+    def _create_action_step(self, step_start_time: float, images: List["PIL.Image.Image"] | None) -> ActionStep:
         return ActionStep(step_number=self.step_number, start_time=step_start_time, observations_images=images)
 
     def _execute_step(self, task: str, memory_step: ActionStep) -> Union[None, Any]:
-        if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
-            self.planning_step(task, is_first_step=(self.step_number == 1), step=self.step_number)
         self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
         final_answer = self.step(memory_step)
         if final_answer is not None and self.final_answer_checks:
@@ -400,7 +404,7 @@ You have been provided with these additional arguments, that you can access usin
             )
         return final_answer
 
-    def planning_step(self, task, is_first_step: bool, step: int) -> None:
+    def _create_planning_step(self, task, is_first_step: bool, step: int) -> PlanningStep:
         if is_first_step:
             input_messages = [
                 {
@@ -417,6 +421,9 @@ You have been provided with these additional arguments, that you can access usin
                 }
             ]
             plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+            plan = textwrap.dedent(
+                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message.content}\n```"""
+            )
         else:
             # Summary mode removes the system prompt and previous planning messages output by the model.
             # Removing previous planning messages avoids influencing too much the new plan.
@@ -451,27 +458,16 @@ You have been provided with these additional arguments, that you can access usin
             }
             input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
             plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
-        self._record_planning_step(input_messages, plan_message, is_first_step)
-
-    def _record_planning_step(self, input_messages: list, plan_message: ChatMessage, is_first_step: bool) -> None:
-        if is_first_step:
-            plan = textwrap.dedent(
-                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message.content}\n```"""
-            )
-            log_headline = "Initial plan"
-        else:
             plan = textwrap.dedent(
                 f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
             )
-            log_headline = "Updated plan"
-        self.memory.steps.append(
-            PlanningStep(
-                model_input_messages=input_messages,
-                plan=plan,
-                model_output_message=plan_message,
-            )
-        )
+        log_headline = "Initial plan" if is_first_step else "Updated plan"
         self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
+        return PlanningStep(
+            model_input_messages=input_messages,
+            plan=plan,
+            model_output_message=plan_message,
+        )
 
     @property
     def logs(self):
