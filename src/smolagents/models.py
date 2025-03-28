@@ -969,11 +969,14 @@ class HfApiModel(ApiModel):
         custom_role_conversions: dict[str, str] | None = None,
         **kwargs,
     ):
-        self.provider = provider
-        if token is None:
-            token = os.getenv("HF_TOKEN")
-        self.client_kwargs = client_kwargs or {}
-        self.client_kwargs.update({"model": model_id, "provider": provider, "token": token, "timeout": timeout})
+        token = token or os.getenv("HF_TOKEN")
+        self.client_kwargs = {
+            **(client_kwargs or {}),
+            "model": model_id,
+            "provider": provider,
+            "token": token,
+            "timeout": timeout,
+        }
         self.client = self.create_client()
         super().__init__(model_id=model_id, custom_role_conversions=custom_role_conversions, **kwargs)
 
@@ -1051,10 +1054,13 @@ class OpenAIServerModel(ApiModel):
             flatten_messages_as_text=flatten_messages_as_text,
             **kwargs,
         )
-        self.client_kwargs = client_kwargs or {}
-        self.client_kwargs.update(
-            {"api_key": api_key, "base_url": api_base, "organization": organization, "project": project}
-        )
+        self.client_kwargs = {
+            **(client_kwargs or {}),
+            "api_key": api_key,
+            "base_url": api_base,
+            "organization": organization,
+            "project": project,
+        }
         self.client = self.create_client()
 
     def create_client(self):
