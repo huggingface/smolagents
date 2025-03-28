@@ -20,6 +20,7 @@ from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
+from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.models import (
     AzureOpenAIServerModel,
@@ -130,6 +131,8 @@ class TestHfApiModel:
         custom_role_conversions = {MessageRole.USER: MessageRole.SYSTEM}
         model = HfApiModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
         model.client = MagicMock()
+        mock_response = model.client.chat_completion.return_value
+        mock_response.choices[0].message = ChatCompletionOutputMessage(role="assistant")
         messages = [{"role": "user", "content": "Test message"}]
         _ = model(messages)
         # Verify that the role conversion was applied

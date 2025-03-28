@@ -21,6 +21,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
@@ -848,13 +849,10 @@ class TestToolCallingAgent(unittest.TestCase):
     @patch("huggingface_hub.InferenceClient")
     def test_toolcalling_agent_api(self, mock_inference_client):
         mock_client = mock_inference_client.return_value
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message = MagicMock()
-        mock_response.choices[
-            0
-        ].message.content = '{"name": "weather_api", "arguments": {"location": "Paris", "date": "today"}}'
-        mock_client.chat_completion.return_value = mock_response
+        mock_response = mock_client.chat_completion.return_value
+        mock_response.choices[0].message = ChatCompletionOutputMessage(
+            role="assistant", content='{"name": "weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+        )
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 20
 
@@ -879,17 +877,19 @@ class TestToolCallingAgent(unittest.TestCase):
         assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
         assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
 
-        mock_response.choices[0].message.tool_calls = [
-            ChatMessageToolCall(
-                function=ChatMessageToolCallDefinition(
-                    name="weather_api", arguments='{"location": "Paris", "date": "today"}'
-                ),
-                id="call_0",
-                type="function",
-            )
-        ]
-        mock_response.choices[0].message.content = None
-        mock_client.chat_completion.return_value = mock_response
+        mock_response.choices[0].message = ChatCompletionOutputMessage(
+            role="assistant",
+            content=None,
+            tool_calls=[
+                ChatMessageToolCall(
+                    function=ChatMessageToolCallDefinition(
+                        name="weather_api", arguments='{"location": "Paris", "date": "today"}'
+                    ),
+                    id="call_0",
+                    type="function",
+                )
+            ],
+        )
 
         agent.run("What's the weather in Paris?")
         assert agent.memory.steps[0].task == "What's the weather in Paris?"
