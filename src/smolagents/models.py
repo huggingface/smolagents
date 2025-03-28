@@ -804,9 +804,9 @@ class TransformersModel(Model):
 
 class ApiModel(Model):
     def __init__(self, model_id: str, custom_role_conversions: dict[str, str] | None = None, **kwargs):
+        super().__init__(**kwargs)
         self.model_id = model_id
         self.custom_role_conversions = custom_role_conversions or {}
-        super().__init__(**kwargs)
 
     def postprocess_message(self, message: ChatMessage, tools_to_call_from) -> ChatMessage:
         """Sometimes APIs fail to properly parse a tool call: this function tries to parse."""
@@ -870,6 +870,18 @@ class LiteLLMModel(ApiModel):
             flatten_messages_as_text=flatten_messages_as_text,
             **kwargs,
         )
+        self.client = self.create_client()
+
+    def create_client(self):
+        """Create the LiteLLM client."""
+        try:
+            import litellm
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
+            ) from e
+
+        return litellm
 
     def __call__(
         self,
@@ -879,13 +891,6 @@ class LiteLLMModel(ApiModel):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
-        try:
-            import litellm
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
-            )
-
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -899,7 +904,7 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
 
-        response = litellm.completion(**completion_kwargs)
+        response = self.client.completion(**completion_kwargs)
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
