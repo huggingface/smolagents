@@ -21,7 +21,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from huggingface_hub import ChatCompletionOutputMessage
+from huggingface_hub import (
+    ChatCompletionOutputFunctionDefinition,
+    ChatCompletionOutputMessage,
+    ChatCompletionOutputToolCall,
+)
 
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
@@ -881,8 +885,8 @@ class TestToolCallingAgent(unittest.TestCase):
             role="assistant",
             content=None,
             tool_calls=[
-                ChatMessageToolCall(
-                    function=ChatMessageToolCallDefinition(
+                ChatCompletionOutputToolCall(
+                    function=ChatCompletionOutputFunctionDefinition(
                         name="weather_api", arguments='{"location": "Paris", "date": "today"}'
                     ),
                     id="call_0",
