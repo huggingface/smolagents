@@ -970,15 +970,19 @@ class HfApiModel(ApiModel):
         custom_role_conversions: dict[str, str] | None = None,
         **kwargs,
     ):
-        from huggingface_hub import InferenceClient
-
         self.provider = provider
         if token is None:
             token = os.getenv("HF_TOKEN")
         self.client_kwargs = client_kwargs or {}
         self.client_kwargs.update({"model": model_id, "provider": provider, "token": token, "timeout": timeout})
-        self.client = InferenceClient(**self.client_kwargs)
+        self.client = self.create_client()
         super().__init__(model_id=model_id, custom_role_conversions=custom_role_conversions, **kwargs)
+
+    def create_client(self):
+        """Create the Hugging Face client."""
+        from huggingface_hub import InferenceClient
+
+        return InferenceClient(**self.client_kwargs)
 
     def __call__(
         self,
