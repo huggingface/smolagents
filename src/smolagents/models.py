@@ -1046,7 +1046,7 @@ class OpenAIServerModel(ApiModel):
         api_key: Optional[str] = None,
         organization: Optional[str] | None = None,
         project: Optional[str] | None = None,
-        client_kwargs: Optional[Dict[str, Any]] = None,
+        client_kwargs: dict[str, Any] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool = False,
         **kwargs,
@@ -1131,7 +1131,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         azure_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
         api_version: Optional[str] = None,
-        client_kwargs: Optional[Dict[str, Any]] = None,
+        client_kwargs: dict[str, Any] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
         **kwargs,
     ):
