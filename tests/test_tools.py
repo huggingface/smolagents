@@ -499,7 +499,7 @@ def mock_smolagents_adapter():
 
 class TestToolCollection:
     def test_from_mcp(self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter):
-        with ToolCollection.from_mcp(mock_server_parameters) as tool_collection:
+        with ToolCollection.from_mcp(mock_server_parameters, trust_remote_code=True) as tool_collection:
             assert isinstance(tool_collection, ToolCollection)
             assert len(tool_collection.tools) == 2
             assert "tool1" in tool_collection.tools
@@ -525,7 +525,7 @@ class TestToolCollection:
             args=["-c", mcp_server_script],
         )
 
-        with ToolCollection.from_mcp(mcp_server_params) as tool_collection:
+        with ToolCollection.from_mcp(mcp_server_params, trust_remote_code=True) as tool_collection:
             assert len(tool_collection.tools) == 1, "Expected 1 tool"
             assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
             assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
@@ -556,7 +556,9 @@ class TestToolCollection:
         time.sleep(1)
 
         try:
-            with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}) as tool_collection:
+            with ToolCollection.from_mcp(
+                {"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True
+            ) as tool_collection:
                 assert len(tool_collection.tools) == 1, "Expected 1 tool"
                 assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
                 assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"

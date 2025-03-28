@@ -241,7 +241,7 @@ server_parameters = StdioServerParameters(
     env={"UV_PYTHON": "3.12", **os.environ},
 )
 
-with ToolCollection.from_mcp(server_parameters) as tool_collection:
+with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
     agent.run("Please find a remedy for hangover.")
 ```
