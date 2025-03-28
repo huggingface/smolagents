@@ -264,7 +264,7 @@ class Model:
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
         convert_images_to_image_urls: bool = False,
         **kwargs,
     ) -> Dict:
@@ -803,8 +803,9 @@ class TransformersModel(Model):
 
 
 class ApiModel(Model):
-    def __init__(self, model_id: str, **kwargs):
+    def __init__(self, model_id: str, custom_role_conversions: dict[str, str] | None = None, **kwargs):
         self.model_id = model_id
+        self.custom_role_conversions = custom_role_conversions or {}
         super().__init__(**kwargs)
 
     def postprocess_message(self, message: ChatMessage, tools_to_call_from) -> ChatMessage:
@@ -844,7 +845,7 @@ class LiteLLMModel(ApiModel):
         model_id: Optional[str] = None,
         api_base=None,
         api_key=None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool | None = None,
         **kwargs,
     ):
@@ -858,13 +859,17 @@ class LiteLLMModel(ApiModel):
             model_id = "anthropic/claude-3-5-sonnet-20240620"
         self.api_base = api_base
         self.api_key = api_key
-        self.custom_role_conversions = custom_role_conversions
         flatten_messages_as_text = (
             flatten_messages_as_text
             if flatten_messages_as_text is not None
             else model_id.startswith(("ollama", "groq", "cerebras"))
         )
-        super().__init__(model_id=model_id, flatten_messages_as_text=flatten_messages_as_text, **kwargs)
+        super().__init__(
+            model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
 
     def __call__(
         self,
@@ -954,17 +959,16 @@ class HfApiModel(ApiModel):
         provider: Optional[str] = None,
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
         **kwargs,
     ):
         from huggingface_hub import InferenceClient
 
-        super().__init__(model_id=model_id, **kwargs)
+        super().__init__(model_id=model_id, custom_role_conversions=custom_role_conversions, **kwargs)
         self.provider = provider
         if token is None:
             token = os.getenv("HF_TOKEN")
         self.client = InferenceClient(self.model_id, provider=provider, token=token, timeout=timeout)
-        self.custom_role_conversions = custom_role_conversions
 
     def __call__(
         self,
@@ -1024,7 +1028,7 @@ class OpenAIServerModel(ApiModel):
         organization: Optional[str] | None = None,
         project: Optional[str] | None = None,
         client_kwargs: Optional[Dict[str, Any]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool = False,
         **kwargs,
     ):
@@ -1032,8 +1036,12 @@ class OpenAIServerModel(ApiModel):
             raise ModuleNotFoundError(
                 "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
             )
-        super().__init__(model_id=model_id, flatten_messages_as_text=flatten_messages_as_text, **kwargs)
-        self.custom_role_conversions = custom_role_conversions
+        super().__init__(
+            model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
         self.client_kwargs = client_kwargs or {}
         self.client_kwargs.update(
             {"api_key": api_key, "base_url": api_base, "organization": organization, "project": project}
@@ -1102,7 +1110,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         api_key: Optional[str] = None,
         api_version: Optional[str] = None,
         client_kwargs: Optional[Dict[str, Any]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
         **kwargs,
     ):
         if importlib.util.find_spec("openai") is None:
