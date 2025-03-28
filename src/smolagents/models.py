@@ -803,7 +803,8 @@ class TransformersModel(Model):
 
 
 class ApiModel(Model):
-    def __init__(self, **kwargs):
+    def __init__(self, model_id: str, **kwargs):
+        self.model_id = model_id
         super().__init__(**kwargs)
 
     def postprocess_message(self, message: ChatMessage, tools_to_call_from) -> ChatMessage:
@@ -855,7 +856,6 @@ class LiteLLMModel(ApiModel):
                 FutureWarning,
             )
             model_id = "anthropic/claude-3-5-sonnet-20240620"
-        self.model_id = model_id
         self.api_base = api_base
         self.api_key = api_key
         self.custom_role_conversions = custom_role_conversions
@@ -864,7 +864,7 @@ class LiteLLMModel(ApiModel):
             if flatten_messages_as_text is not None
             else self.model_id.startswith(("ollama", "groq", "cerebras"))
         )
-        super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
+        super().__init__(model_id=model_id, flatten_messages_as_text=flatten_messages_as_text, **kwargs)
 
     def __call__(
         self,
@@ -959,8 +959,7 @@ class HfApiModel(ApiModel):
     ):
         from huggingface_hub import InferenceClient
 
-        super().__init__(**kwargs)
-        self.model_id = model_id
+        super().__init__(model_id=model_id, **kwargs)
         self.provider = provider
         if token is None:
             token = os.getenv("HF_TOKEN")
@@ -1033,8 +1032,7 @@ class OpenAIServerModel(ApiModel):
             raise ModuleNotFoundError(
                 "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
             )
-        super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
-        self.model_id = model_id
+        super().__init__(model_id=model_id, flatten_messages_as_text=flatten_messages_as_text, **kwargs)
         self.custom_role_conversions = custom_role_conversions
         self.client_kwargs = client_kwargs or {}
         self.client_kwargs.update(
