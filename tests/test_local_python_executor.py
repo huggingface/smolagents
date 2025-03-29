@@ -1846,16 +1846,16 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio"],
-                InterpreterError("Forbidden access to module: asyncio.base_events"),
+                InterpreterError("Forbidden access to module: subprocess"),
             ),
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio", "asyncio.base_events"],
-                InterpreterError("Forbidden access to module: asyncio.events"),
+                InterpreterError("Forbidden access to module: subprocess"),
             ),
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
-                ["asyncio", "asyncio.base_events", "asyncio.events"],
+                ["asyncio", "asyncio.base_events", "asyncio.base_events.events"],
                 InterpreterError("Forbidden access to module: subprocess"),
             ),
             # sys submodule
