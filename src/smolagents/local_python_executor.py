@@ -224,7 +224,10 @@ def safer_eval(func: Callable):
         result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
         if "*" not in authorized_imports:
             if isinstance(result, ModuleType):
-                if result.__name__ not in authorized_imports:
+                split_result = result.__name__.split(".")
+                if not any(
+                    [".".join(split_result[:i]) in authorized_imports for i in range(1, len(split_result) + 1)]
+                ):
                     raise InterpreterError(f"Forbidden access to module: {result.__name__}")
             elif isinstance(result, dict) and result.get("__spec__"):
                 if result["__name__"] not in authorized_imports:
