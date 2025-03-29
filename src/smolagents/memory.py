@@ -8,6 +8,8 @@ from smolagents.utils import AgentError, make_json_serializable
 
 
 if TYPE_CHECKING:
+    import PIL.Image
+
     from smolagents.models import ChatMessage
     from smolagents.monitoring import AgentLogger
 
@@ -58,7 +60,7 @@ class ActionStep(MemoryStep):
     model_output_message: ChatMessage = None
     model_output: str | None = None
     observations: str | None = None
-    observations_images: List[str] | None = None
+    observations_images: List["PIL.Image.Image"] | None = None
     action_output: Any = None
 
     def dict(self):
@@ -144,32 +146,19 @@ class ActionStep(MemoryStep):
 @dataclass
 class PlanningStep(MemoryStep):
     model_input_messages: List[Message]
-    model_output_message_facts: ChatMessage
-    facts: str
-    model_output_message_plan: ChatMessage
+    model_output_message: ChatMessage
     plan: str
 
     def to_messages(self, summary_mode: bool, **kwargs) -> List[Message]:
-        messages = []
-        messages.append(
-            Message(
-                role=MessageRole.ASSISTANT, content=[{"type": "text", "text": f"[FACTS LIST]:\n{self.facts.strip()}"}]
-            )
-        )
-
-        if not summary_mode:  # This step is not shown to a model writing a plan to avoid influencing the new plan
-            messages.append(
-                Message(
-                    role=MessageRole.ASSISTANT, content=[{"type": "text", "text": f"[PLAN]:\n{self.plan.strip()}"}]
-                )
-            )
-        return messages
+        if summary_mode:
+            return []
+        return [Message(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.plan.strip()}])]
 
 
 @dataclass
 class TaskStep(MemoryStep):
     task: str
-    task_images: List[str] | None = None
+    task_images: List["PIL.Image.Image"] | None = None
 
     def to_messages(self, summary_mode: bool = False, **kwargs) -> List[Message]:
         content = [{"type": "text", "text": f"New task:\n{self.task}"}]
@@ -188,6 +177,11 @@ class SystemPromptStep(MemoryStep):
         if summary_mode:
             return []
         return [Message(role=MessageRole.SYSTEM, content=[{"type": "text", "text": self.system_prompt}])]
+
+
+@dataclass
+class FinalAnswerStep(MemoryStep):
+    final_answer: Any
 
 
 class AgentMemory:

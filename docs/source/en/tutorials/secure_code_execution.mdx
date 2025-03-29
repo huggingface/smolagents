@@ -43,9 +43,17 @@ This is why we put emphasis on proposing code agents, in this case python agents
 By default, the `CodeAgent` runs LLM-generated code in your environment.
 
 This is inherently risky, LLM-generated code could be harmful to your environment.
+
+Malicious code execution can occur in several ways:
+- **Plain LLM error:** LLMs are still far from perfect and may unintentionally generate harmful commands while attempting to be helpful. While this risk is low, instances have been observed where an LLM attempted to execute potentially dangerous code.  
+- **Supply chain attack:** Running an untrusted or compromised LLM could expose a system to harmful code generation. While this risk is extremely low when using well-known models on secure inference infrastructure, it remains a theoretical possibility.  
+- **Prompt injection:** an agent browsing the web could arrive on a malicious website that contains harmful instructions, thus injecting an attack into the agent's memory
+- **Exploitation of publicly accessible agents:** Agents exposed to the public can be misused by malicious actors to execute harmful code. Attackers may craft adversarial inputs to exploit the agent's execution capabilities, leading to unintended consequences.
+Once malicious code is executed, whether accidentally or intentionally, it can damage the file system, exploit local or cloud-based resources, abuse API services, and even compromise network security.
+
 One could argue that on the [spectrum of agency](../conceptual_guides/intro_agents), code agents give much higher agency to the LLM on your system than other less agentic setups: this goes hand-in-hand with higher risk.
 
-So you need to be mindful of security.
+So you need to be very mindful of security.
 
 To add a first layer of security, code execution in `smolagents` is not performed by the vanilla Python interpreter.
 We have re-built a more secure `LocalPythonExecutor` from the ground up.
@@ -57,11 +65,70 @@ To be precise, this interpreter works by loading the Abstract Syntax Tree (AST) 
  - The total count of elementary operations processed is capped to prevent infinite loops and resource bloating.
  - Any operation that has not been explicitly defined in our custom interpreter will raise an error.
 
-As a result, this interpreter is safer. We have used it on a diversity of use cases, without ever observing any damage to the environment.
+You could try these safeguards as follows:
+
+```py
+from smolagents.local_python_executor import LocalPythonExecutor
+
+# Set up custom executor, authorize package "numpy"
+custom_executor = LocalPythonExecutor(["numpy"])
+
+# Utilisty for pretty printing errors
+def run_capture_exception(command: str):
+    try:
+        custom_executor(harmful_command)
+    except Exception as e:
+        print("ERROR:\n", e)
+
+# Undefined command just do not work
+harmful_command="!echo Bad command"
+run_capture_exception(harmful_command)
+# >>> ERROR: invalid syntax (<unknown>, line 1)
+
+
+# Imports like os will not be performed unless explicitly added to `additional_authorized_imports`
+harmful_command="import os; exit_code = os.system("echo Bad command")"
+run_capture_exception(harmful_command)
+# >>> ERROR: Code execution failed at line 'import os' due to: InterpreterError: Import of os is not allowed. Authorized imports are: ['statistics', 'numpy', 'itertools', 'time', 'queue', 'collections', 'math', 'random', 're', 'datetime', 'stat', 'unicodedata']
+
+# Even in authorized imports, potentially harmful packages will not be imported
+harmful_command="import random; random._os.system('echo Bad command')"
+run_capture_exception(harmful_command)
+# >>> ERROR: Code execution failed at line 'random._os.system('echo Bad command')' due to: InterpreterError: Forbidden access to module: os
+
+# Infinite loop are interrupted after N operations
+harmful_command="""
+while True:
+    pass
+"""
+run_capture_exception(harmful_command)
+# >>> ERROR: Code execution failed at line 'while True: pass' due to: InterpreterError: Maximum number of 1000000 iterations in While loop exceeded
+```
+
+These safeguards make out interpreter is safer.
+We have used it on a diversity of use cases, without ever observing any damage to the environment.
 
 However, this solution is certainly not watertight, as no local python sandbox can really be: one could imagine occasions where LLMs fine-tuned for malignant actions could still hurt your environment.
 
+
 For instance, if you have allowed an innocuous package like `Pillow` to process images, the LLM could generate thousands of image saves to bloat your hard drive.
+
+```py
+custom_executor = LocalPythonExecutor(["PIL"])
+
+harmful_command="""
+from PIL import Image
+
+img = Image.new('RGB', (100, 100), color='blue')
+
+i=0
+while i < 10000:
+    img.save('simple_image_{i}.png')
+    i += 1
+"""
+# Let's not execute this but it would not error out, and it would bloat your system with images.
+```
+
 Other examples of attacks can be found [here](https://gynvael.coldwind.pl/n/python_sandbox_escape).
 
 Running these targeted malicious code snippet require a supply chain attack, meaning the LLM you use has been intoxicated.
@@ -89,9 +156,10 @@ When working with AI agents that execute code, security is paramount. This guide
 pip install 'smolagents[e2b]'
 ```
 
-#### Running your agent in E2B: mono agents
+#### Running your agent in E2B: quick start
 
-We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` to the agent initialization, like:
+We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` to the agent initialization, as follows:
+
 ```py
 from smolagents import HfApiModel, CodeAgent
 
@@ -100,7 +168,18 @@ agent = CodeAgent(model=HfApiModel(), tools=[], executor_type="e2b")
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
-However, this does not work (yet) with more complicated multi-agent setups.
+This solution send the agent state to the server at the start of each `agent.run()`.
+Then the models are called from the local environment, but the generated code will be sent to the sandbox for execution, and only the output will be returned.
+
+This is illustrated in the figure below.
+
+<p align="center">
+    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png" alt="sandboxed code execution" width=60% max-width=500px>
+</p>
+
+
+However, since any call to a [managed agent](../examples/multiagents) would require model calls, since we do not transfer secrets to the remote sandbox, the model call would lack credentials.
+Hence this solution does not work (yet) with more complicated multi-agent setups.
 
 #### Running your agent in E2B: multi-agents
 
@@ -169,9 +248,22 @@ print(execution_logs)
 pip install 'smolagents[docker]'
 ```
 
-#### Setting up the docker sandbox
+#### Running your agent in E2B: quick start
 
-Create a Dockerfile for your agent environment:
+Similar to the E2B Sandbox above, to quickly get started with Docker, simply add `executor_type="docker"` to the agent initialization, like:
+```py
+from smolagents import HfApiModel, CodeAgent
+
+agent = CodeAgent(model=HfApiModel(), tools=[], executor_type="docker")
+
+agent.run("Can you give me the 100th Fibonacci number?")
+```
+
+#### Advanced docker usage
+
+If you want to run multi-agent systems in Docker, you'll need to setup a custom interpreter in a sandbox.
+
+Here is how to setup the a Dockerfile:
 
 ```dockerfile
 FROM python:3.10-bullseye
