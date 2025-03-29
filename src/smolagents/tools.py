@@ -147,12 +147,12 @@ class Tool:
             and getattr(self, "skip_forward_signature_validation") is True
         ):
             signature = inspect.signature(self.forward)
-            found_keys = set(key for key in signature.parameters.keys() if key != "self")
+            actual_keys = set(key for key in signature.parameters.keys() if key != "self")
             expected_keys = set(self.inputs.keys())
-            if not found_keys == expected_keys:
+            if actual_keys != expected_keys:
                 raise Exception(
-                    f"In tool '{self.name}', 'forward' method should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'. "
-                    f"Got ({found_keys}), expected ({expected_keys})."
+                    f"In tool '{self.name}', 'forward' method parameters were {actual_keys}, but expected {expected_keys}. "
+                    f"It should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
                 )
 
             json_schema = _convert_type_hints_to_json_schema(self.forward, error_on_missing_type_hints=False)[
