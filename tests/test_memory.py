@@ -118,19 +118,19 @@ def test_planning_step_to_messages():
         plan="This is a plan.",
     )
     messages = planning_step.to_messages(summary_mode=False)
-    assert len(messages) == 1
+    assert len(messages) == 2
     for message in messages:
         assert isinstance(message, dict)
         assert "role" in message
         assert "content" in message
-        assert isinstance(message["role"], MessageRole)
-        assert message["role"] == MessageRole.ASSISTANT
         assert isinstance(message["content"], list)
         assert len(message["content"]) == 1
         for content in message["content"]:
             assert isinstance(content, dict)
             assert "type" in content
             assert "text" in content
+    assert messages[0]["role"] == MessageRole.ASSISTANT
+    assert messages[1]["role"] == MessageRole.USER
 
 
 def test_task_step_to_messages():
