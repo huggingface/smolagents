@@ -25,8 +25,8 @@ limitations under the License.
 
 <h3 align="center">
   <div style="display:flex;flex-direction:row;">
-    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot.png" alt="Hugging Face mascot as James Bond" width=100px>
-    <p>smolagents - a smol library to build great agents!</p>
+    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/smolagents.png" alt="Hugging Face mascot as James Bond" width=400px>
+    <p>A smol library to build great agents!</p>
   </div>
 </h3>
 
@@ -34,7 +34,7 @@ limitations under the License.
 
 ✨ **Simplicity**: the logic for agents fits in ~1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)). We kept abstractions to their minimal shape above raw code!
 
-🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/).
+🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/) or via Docker.
 
 🤗 **Hub integrations**: you can [share/pull tools to/from the Hub](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_hub), and more is to come!
 
@@ -95,7 +95,7 @@ model = HfApiModel(
 from smolagents import LiteLLMModel
 
 model = LiteLLMModel(
-    "anthropic/claude-3-5-sonnet-latest",
+    model_id="anthropic/claude-3-5-sonnet-latest",
     temperature=0.2,
     api_key=os.environ["ANTHROPIC_API_KEY"]
 )
@@ -151,7 +151,7 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`.
 `smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools.
 
 ```bash
-smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "HfApiModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search translation"
+smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "HfApiModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
 ```
 
 Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
@@ -201,7 +201,7 @@ Writing actions as code snippets is demonstrated to work better than the current
 
 Especially, since code execution can be a security concern (arbitrary code execution!), we provide options at runtime:
   - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
-  - a sandboxed environment using [E2B](https://e2b.dev/) (removes the risk to your own system).
+  - a sandboxed environment using [E2B](https://e2b.dev/) or Docker (removes the risk to your own system).
 
 On top of this [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) class, we still support the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) that writes actions as JSON/text blobs. But we recommend always using `CodeAgent`.
 
@@ -216,7 +216,7 @@ By the way, why use a framework at all? Well, because a big part of this stuff i
 
 We've created [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) instances with some leading models, and compared them on [this benchmark](https://huggingface.co/datasets/m-ric/agents_medium_benchmark_2) that gathers questions from a few different benchmarks to propose a varied blend of challenges.
 
-[Find the benchmarking code here](https://github.com/huggingface/smolagents/blob/main/examples/benchmark.ipynb) for more detail on the agentic setup used, and see a comparison of using LLMs code agents compared to vanilla (spoilers: code agents works better).
+[Find the benchmarking code here](https://github.com/huggingface/smolagents/blob/main/examples/smolagents_benchmark/run.py) for more detail on the agentic setup used, and see a comparison of using LLMs code agents compared to vanilla (spoilers: code agents works better).
 
 <p align="center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/benchmark_code_agents.jpeg" alt="benchmark of different models on agentic workflows. Open model DeepSeek-R1 beats closed-source models." width=60% max-width=500px>
@@ -226,34 +226,7 @@ This comparison shows that open-source models can now take on the best closed mo
 
 ## Contribute
 
-To contribute, follow our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
-
-At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
-It's often even better to open a PR with your proposed fixes/changes!
-
-To install dev dependencies, run:
-```
-pip install -e ".[dev]"
-```
-
-When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
-To check code quality of the source code:
-```
-make quality
-```
-
-If the checks fail, you can run the formatter with:
-```
-make style
-```
-
-And commit the changes.
-
-To run tests locally, run this command:
-```bash
-make test
-```
-</details>
+Everyone is welcome to contribute, get started with our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
 
 ## Cite smolagents
 

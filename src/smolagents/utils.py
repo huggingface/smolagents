@@ -20,13 +20,15 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import keyword
 import os
 import re
-import textwrap
 import types
 from functools import lru_cache
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
+from pathlib import Path
+from textwrap import dedent
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 
 if TYPE_CHECKING:
@@ -45,11 +47,6 @@ def _is_package_available(package_name: str) -> bool:
         return False
 
 
-@lru_cache
-def _is_pillow_available():
-    return importlib.util.find_spec("PIL") is not None
-
-
 BASE_BUILTIN_MODULES = [
     "collections",
     "datetime",
@@ -65,13 +62,26 @@ BASE_BUILTIN_MODULES = [
 ]
 
 
+def escape_code_brackets(text: str) -> str:
+    """Escapes square brackets in code segments while preserving Rich styling tags."""
+
+    def replace_bracketed_content(match):
+        content = match.group(1)
+        cleaned = re.sub(
+            r"bold|red|green|blue|yellow|magenta|cyan|white|black|italic|dim|\s|#[0-9a-fA-F]{6}", "", content
+        )
+        return f"\\[{content}\\]" if cleaned.strip() else f"[{content}]"
+
+    return re.sub(r"\[([^\]]*)\]", replace_bracketed_content, text)
+
+
 class AgentError(Exception):
     """Base class for other agent-related exceptions"""
 
     def __init__(self, message, logger: "AgentLogger"):
         super().__init__(message)
         self.message = message
-        logger.log(f"[bold red]{message}[/bold red]", level="ERROR")
+        logger.log_error(message)
 
     def dict(self) -> Dict[str, str]:
         return {"type": self.__class__.__name__, "message": str(self.message)}
@@ -91,6 +101,18 @@ class AgentExecutionError(AgentError):
 
 class AgentMaxStepsError(AgentError):
     """Exception raised for errors in execution in the agent"""
+
+    pass
+
+
+class AgentToolCallError(AgentExecutionError):
+    """Exception raised for errors when incorrect arguments are passed to the tool"""
+
+    pass
+
+
+class AgentToolExecutionError(AgentExecutionError):
+    """Exception raised for errors when executing a tool"""
 
     pass
 
@@ -127,13 +149,16 @@ def make_json_serializable(obj: Any) -> Any:
         return str(obj)
 
 
-def parse_json_blob(json_blob: str) -> Dict[str, str]:
+def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
+    "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
     try:
         first_accolade_index = json_blob.find("{")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_blob = json_blob[first_accolade_index : last_accolade_index + 1].replace('\\"', "'")
-        json_data = json.loads(json_blob, strict=False)
-        return json_data
+        json_data = json_blob[first_accolade_index : last_accolade_index + 1]
+        json_data = json.loads(json_data, strict=False)
+        return json_data, json_blob[:first_accolade_index]
+    except IndexError:
+        raise ValueError("The JSON blob you used is invalid")
     except json.JSONDecodeError as e:
         place = e.pos
         if json_blob[place - 1 : place + 2] == "},\n":
@@ -145,70 +170,63 @@ def parse_json_blob(json_blob: str) -> Dict[str, str]:
             f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"
             f"'{json_blob[place - 4 : place + 5]}'."
         )
-    except Exception as e:
-        raise ValueError(f"Error in parsing the JSON blob: {e}")
 
 
-def parse_code_blobs(code_blob: str) -> str:
-    """Parses the LLM's output to get any code blob inside. Will return the code directly if it's code."""
+def parse_code_blobs(text: str) -> str:
+    """Extract code blocs from the LLM's output.
+
+    If a valid code block is passed, it returns it directly.
+
+    Args:
+        text (`str`): LLM's output text to parse.
+
+    Returns:
+        `str`: Extracted code block.
+
+    Raises:
+        ValueError: If no valid code block is found in the text.
+    """
     pattern = r"```(?:py|python)?\n(.*?)\n```"
-    matches = re.findall(pattern, code_blob, re.DOTALL)
-    if len(matches) == 0:
-        try:  # Maybe the LLM outputted a code blob directly
-            ast.parse(code_blob)
-            return code_blob
-        except SyntaxError:
-            pass
+    matches = re.findall(pattern, text, re.DOTALL)
+    if matches:
+        return "\n\n".join(match.strip() for match in matches)
+    # Maybe the LLM outputted a code blob directly
+    try:
+        ast.parse(text)
+        return text
+    except SyntaxError:
+        pass
 
-        if "final" in code_blob and "answer" in code_blob:
-            raise ValueError(
-                f"""
-Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
-Here is your code snippet:
-{code_blob}
-It seems like you're trying to return the final answer, you can do it as follows:
-Code:
-```py
-final_answer("YOUR FINAL ANSWER HERE")
-```<end_code>""".strip()
-            )
+    if "final" in text and "answer" in text:
         raise ValueError(
-            f"""
-Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
-Here is your code snippet:
-{code_blob}
-Make sure to include code with the correct pattern, for instance:
-Thoughts: Your thoughts
-Code:
-```py
-# Your python code here
-```<end_code>""".strip()
+            dedent(
+                f"""
+                Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
+                Here is your code snippet:
+                {text}
+                It seems like you're trying to return the final answer, you can do it as follows:
+                Code:
+                ```py
+                final_answer("YOUR FINAL ANSWER HERE")
+                ```<end_code>
+                """
+            ).strip()
         )
-    return "\n\n".join(match.strip() for match in matches)
-
-
-def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
-    json_blob = json_blob.replace("```json", "").replace("```", "")
-    tool_call = parse_json_blob(json_blob)
-    tool_name_key, tool_arguments_key = None, None
-    for possible_tool_name_key in ["action", "tool_name", "tool", "name", "function"]:
-        if possible_tool_name_key in tool_call:
-            tool_name_key = possible_tool_name_key
-    for possible_tool_arguments_key in [
-        "action_input",
-        "tool_arguments",
-        "tool_args",
-        "parameters",
-    ]:
-        if possible_tool_arguments_key in tool_call:
-            tool_arguments_key = possible_tool_arguments_key
-    if tool_name_key is not None:
-        if tool_arguments_key is not None:
-            return tool_call[tool_name_key], tool_call[tool_arguments_key]
-        else:
-            return tool_call[tool_name_key], None
-    error_msg = "No tool name key found in tool call!" + f" Tool call: {json_blob}"
-    raise AgentParsingError(error_msg)
+    raise ValueError(
+        dedent(
+            f"""
+            Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
+            Here is your code snippet:
+            {text}
+            Make sure to include code with the correct pattern, for instance:
+            Thoughts: Your thoughts
+            Code:
+            ```py
+            # Your python code here
+            ```<end_code>
+            """
+        ).strip()
+    )
 
 
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
@@ -316,8 +334,14 @@ def instance_to_source(instance, base_cls=None):
         name: func
         for name, func in cls.__dict__.items()
         if callable(func)
-        and not (
-            base_cls and hasattr(base_cls, name) and getattr(base_cls, name).__code__.co_code == func.__code__.co_code
+        and (
+            not base_cls
+            or not hasattr(base_cls, name)
+            or (
+                isinstance(func, staticmethod)
+                or isinstance(func, classmethod)
+                or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code)
+            )
         )
     }
 
@@ -382,7 +406,9 @@ def get_source(obj) -> str:
 
     inspect_error = None
     try:
-        return textwrap.dedent(inspect.getsource(obj)).strip()
+        # Handle dynamically created classes
+        source = getattr(obj, "__source__", None) or inspect.getsource(obj)
+        return dedent(source).strip()
     except OSError as e:
         # let's keep track of the exception to raise it if all further methods fail
         inspect_error = e
@@ -399,7 +425,7 @@ def get_source(obj) -> str:
         tree = ast.parse(all_cells)
         for node in ast.walk(tree):
             if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name == obj.__name__:
-                return textwrap.dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
+                return dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
         raise ValueError(f"Could not find source code for {obj.__name__} in IPython history")
     except ImportError:
         # IPython is not available, let's just raise the original inspect error
@@ -419,8 +445,12 @@ def make_image_url(base64_image):
     return f"data:image/png;base64,{base64_image}"
 
 
-def make_init_file(folder: str):
+def make_init_file(folder: str | Path):
     os.makedirs(folder, exist_ok=True)
     # Create __init__
     with open(os.path.join(folder, "__init__.py"), "w"):
         pass
+
+
+def is_valid_name(name: str) -> bool:
+    return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False

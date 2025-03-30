@@ -26,6 +26,8 @@ from typing import List
 import pytest
 from dotenv import load_dotenv
 
+from .utils.markers import require_run_all
+
 
 class SubprocessCallException(Exception):
     pass
@@ -78,7 +80,7 @@ class DocCodeExtractor:
         return tmp_file
 
 
-@pytest.mark.skipif(not os.getenv("RUN_ALL"), reason="RUN_ALL environment variable not set")
+@require_run_all
 class TestDocs:
     """Test case for documentation code testing."""
 
@@ -94,7 +96,7 @@ class TestDocs:
 
         load_dotenv()
 
-        cls.md_files = list(cls.docs_dir.rglob("*.md"))
+        cls.md_files = list(cls.docs_dir.rglob("*.mdx"))
         if not cls.md_files:
             raise ValueError(f"No markdown files found in {cls.docs_dir}")
 

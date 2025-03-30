@@ -70,7 +70,7 @@ def test_action_step_to_messages():
         assert "type" in content
         assert "text" in content
     message = messages[1]
-    assert message["role"] == MessageRole.ASSISTANT
+    assert message["role"] == MessageRole.TOOL_CALL
 
     assert len(message["content"]) == 1
     text_content = message["content"][0]
@@ -89,16 +89,36 @@ def test_action_step_to_messages():
     assert "image" in image_content
 
 
+def test_action_step_to_messages_no_tool_calls_with_observations():
+    action_step = ActionStep(
+        model_input_messages=None,
+        tool_calls=None,
+        start_time=None,
+        end_time=None,
+        step_number=None,
+        error=None,
+        duration=None,
+        model_output_message=None,
+        model_output=None,
+        observations="This is an observation.",
+        observations_images=None,
+        action_output=None,
+    )
+    messages = action_step.to_messages()
+    assert len(messages) == 1
+    observation_message = messages[0]
+    assert observation_message["role"] == MessageRole.TOOL_RESPONSE
+    assert "Observation:\nThis is an observation." in observation_message["content"][0]["text"]
+
+
 def test_planning_step_to_messages():
     planning_step = PlanningStep(
         model_input_messages=[Message(role=MessageRole.USER, content="Hello")],
-        model_output_message_facts=ChatMessage(role=MessageRole.ASSISTANT, content="Facts"),
-        facts="These are facts.",
-        model_output_message_plan=ChatMessage(role=MessageRole.ASSISTANT, content="Plan"),
+        model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content="Plan"),
         plan="This is a plan.",
     )
     messages = planning_step.to_messages(summary_mode=False)
-    assert len(messages) == 2
+    assert len(messages) == 1
     for message in messages:
         assert isinstance(message, dict)
         assert "role" in message
