@@ -4,3 +4,4 @@ matplotlib>=3.5.0
 python-dotenv>=0.19.0
 requests>=2.27.0
 smolagents>=1.0.0
+pyscreenshot>=3.1  # For screenshot capability

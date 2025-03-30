@@ -20,7 +20,12 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from io import BytesIO
 
-from smolagents import tool
+try:
+    import pyscreenshot as ImageGrab
+except ImportError:
+    from PIL import ImageGrab
+
+from smolagents import tool, ChatMessage, MessageRole, CodeAgent, LiteLLMModel
 from smolagents.monitoring import LogLevel
 
 # Disable info level logging from external libraries
@@ -35,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables and setup API key
 load_dotenv()
-google_api_key = os.environ.get("GOOGLE_API_KEY")
+google_api_key = os.environ.get("GOOGLE_API_KEY","AIzaSyCUQC-HOsVI2UQYfmBzBMwtD_vIUGiAcZU")
 os.environ["GEMINI_API_KEY"] = google_api_key
 genai.configure(api_key=google_api_key)
 
@@ -77,8 +82,7 @@ def get_available_images() -> dict:
     """
     return {
         "space.jpeg": "https://huggingface.co/datasets/emredeveloper/images_for_agents/resolve/main/space.jpeg",
-        "carbon.png": "https://huggingface.co/datasets/emredeveloper/images_for_agents/resolve/main/carbon.png",
-        "code.png": "https://i.imgur.com/EBtOadA.png"  # Direct link to a code image for testing
+        "carbon.png": "https://huggingface.co/datasets/emredeveloper/images_for_agents/resolve/main/carbon.png"
     }
 
 @tool
@@ -269,6 +273,192 @@ def compare_images(image1: str, image2: str, comparison_prompt: str) -> str:
     except Exception as e:
         return f"Error comparing images: {str(e)}"
 
+@tool
+def capture_screenshot() -> str:
+    """
+    Capture a screenshot of the current screen and save it.
+    
+    Returns:
+        Path to the saved screenshot
+    """
+    try:
+        # Create screenshots directory if it doesn't exist
+        screenshot_dir = "screenshots"
+        os.makedirs(screenshot_dir, exist_ok=True)
+        
+        # Capture the screenshot - handling potential errors with PIL fallback
+        try:
+            img = ImageGrab.grab()
+        except Exception as e:
+            # Fallback to PIL's ImageGrab if pyscreenshot fails
+            from PIL import ImageGrab as PILImageGrab
+            img = PILImageGrab.grab()
+        
+        # Save screenshot with timestamp
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filepath = os.path.join(screenshot_dir, f"screenshot_{timestamp}.png")
+        img.save(filepath)
+        
+        # Display the screenshot
+        plt.figure(figsize=(10, 10))
+        plt.imshow(img)
+        plt.axis('off')
+        plt.show()
+        
+        return f"Screenshot saved to {filepath}"
+    except Exception as e:
+        return f"Error capturing screenshot: {str(e)}"
+
+@tool
+def analyze_screenshot(prompt: str = "Describe what you see on this screen") -> str:
+    """
+    Capture a screenshot and analyze it with Gemini Vision API.
+    
+    Args:
+        prompt: Instructions for the analysis
+        
+    Returns:
+        Analysis result from Gemini
+    """
+    try:
+        # Create screenshots directory if it doesn't exist
+        screenshot_dir = "screenshots"
+        os.makedirs(screenshot_dir, exist_ok=True)
+        
+        # Capture the screenshot
+        img = ImageGrab.grab()
+        
+        # Save screenshot with timestamp
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filepath = os.path.join(screenshot_dir, f"screenshot_{timestamp}.png")
+        img.save(filepath)
+        
+        # Convert to base64 for Gemini API
+        with open(filepath, "rb") as img_file:
+            image_data = base64.b64encode(img_file.read()).decode('utf-8')
+        
+        # Call Gemini API
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content([
+            prompt, 
+            {"mime_type": "image/png", "data": image_data}
+        ])
+        
+        return f"Screenshot saved to {filepath}\n\nAnalysis:\n{response.text}"
+    except Exception as e:
+        return f"Error analyzing screenshot: {str(e)}"
+
+def create_smolagent() -> CodeAgent:
+    """
+    Create a CodeAgent with all tools for structured interaction.
+    
+    Returns:
+        A configured CodeAgent instance
+    """
+    # Setup the model with more appropriate settings
+    model = LiteLLMModel(
+        model_id="gemini/gemini-2.0-flash",
+        api_key=google_api_key,
+        temperature=0.1,  # Daha deterministik davranış için sıcaklığı azalt
+        max_completion_tokens=2048,
+        max_retries=2
+    )
+    
+    # Define all tools
+    tools = [
+        get_available_images,
+        display_image,
+        analyze_image, 
+        extract_code,
+        compare_images,
+        capture_screenshot,
+        analyze_screenshot
+    ]
+    
+    # Özel bir sistem prompt'u tanımla
+    system_prompt = """
+    You are a vision analysis assistant that uses tools to help users with image-related tasks.
+    
+    IMPORTANT RULES:
+    1. ONLY use the tools that are directly requested by the user.
+    2. Do NOT perform additional analyses or actions unless explicitly asked.
+    3. For functions like get_available_images(), just return the result directly.
+    4. When asked to display_image, only display the image without analyzing it.
+    5. If the user's request is unclear, ask for clarification instead of guessing.
+    
+    These rules are critical to ensure you perform exactly what the user requests - no more, no less.
+    """
+    
+    # Create the agent with better retry mechanism
+    agent = CodeAgent(
+        model=model,
+        tools=tools,
+        name="GeminiVisionAgent",
+        description="An agent that can analyze images using Gemini Vision API",
+        verbosity_level=LogLevel.INFO,
+        max_steps=7,  # İşlem adımlarını azalt
+        add_base_tools=False,  # Vision yeteneklerine odaklanmak için temel araçları devre dışı bırak
+        system_prompt=system_prompt  # Özel sistem talimatını ekle
+    )
+    
+    return agent
+
+def run_agent_session():
+    """Run a session with a structured CodeAgent."""
+    # Clear the terminal for a clean output
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
+    print("\n" + "="*70)
+    print(" Gemini Vision Agent - CodeAgent Mode")
+    print("="*70)
+    
+    print("\nThis agent uses smolagents CodeAgent architecture to provide:")
+    print("* Structured tool usage")
+    print("* Better error handling")
+    print("* Advanced image analysis")
+    print("* Screenshot capture and analysis")
+    
+    # Create the agent
+    agent = create_smolagent()
+    
+    print("\nAvailable tools:")
+    print("- get_available_images() - List available demo images")
+    print("- display_image(image) - Display an image")
+    print("- analyze_image(image, prompt) - Analyze an image")
+    print("- extract_code(image) - Extract code from an image")
+    print("- compare_images(image1, image2, prompt) - Compare two images")
+    print("- capture_screenshot() - Capture and save a screenshot")
+    print("- analyze_screenshot(prompt) - Capture and analyze a screenshot")
+    print("\nType 'exit' to quit")
+    
+    print("Usage examples:")
+    print("- \"get_available_images()\" - Just list the available images")
+    print("- \"display_image('space.jpeg')\" - Only display the image without analysis")
+    print("- \"analyze_image('carbon.png', 'What does this image show?')\" - Analyze with custom prompt")
+    print("- \"capture_screenshot()\" - Just take a screenshot without analysis")
+    
+    # Start interaction loop
+    while True:
+        user_input = input("\nEnter your request: ")
+        if user_input.lower() in ['exit', 'quit', 'q']:
+            break
+        
+        # Make corrections for common user inputs
+        if user_input.strip() == "get_available_images":
+            user_input = "get_available_images()"
+        elif user_input.strip() == "display_image":
+            user_input = "display_image('space.jpeg')"
+        elif user_input.strip() == "capture_screenshot":
+            user_input = "capture_screenshot()"
+            
+        # Run the agent with the user input
+        try:
+            response = agent.run(user_input)
+            print("\nAgent response:")
+            print(response)
+        except Exception as e:
+            print(f"\nError running agent: {str(e)}")
+
 def run_interactive_session():
     """Run an interactive session allowing the user to directly use tools."""
     # Clear the terminal for a clean output
@@ -284,8 +474,11 @@ def run_interactive_session():
     print("3. analyze <image>   - Analyze image content")
     print("4. code <image>      - Extract & save code from image")
     print("5. compare <img1> <img2> - Compare two images")
-    print("6. help              - Show commands")
-    print("7. exit              - Quit program")
+    print("6. screenshot        - Capture a screenshot")
+    print("7. analyze-screen    - Analyze current screen")
+    print("8. agent             - Switch to CodeAgent mode")
+    print("9. help              - Show commands")
+    print("0. exit              - Quit program")
     
     # Store the available images for quick access
     available_images = get_available_images()
@@ -313,8 +506,11 @@ def run_interactive_session():
                 print("3. analyze <image>   - Analyze image content")
                 print("4. code <image>      - Extract & save code from image")
                 print("5. compare <img1> <img2> - Compare two images")
-                print("6. help              - Show commands")
-                print("7. exit              - Quit program")
+                print("6. screenshot        - Capture a screenshot")
+                print("7. analyze-screen    - Analyze current screen")
+                print("8. agent             - Switch to CodeAgent mode")
+                print("9. help              - Show commands")
+                print("0. exit              - Quit program")
                 
             elif cmd == "list":
                 print("\nAvailable images:")
@@ -364,6 +560,21 @@ def run_interactive_session():
                 result = compare_images(image1, image2, prompt)
                 print(f"\n{result}")
                 
+            elif cmd in ["screenshot", "capture"]:
+                print("Capturing screenshot...")
+                result = capture_screenshot()
+                print(result)
+                
+            elif cmd in ["analyze-screen", "screen"]:
+                print("Analyzing screen...")
+                prompt = " ".join(parts[1:]) if len(parts) > 1 else "Describe what you see on this screen"
+                result = analyze_screenshot(prompt)
+                print(f"\n{result}")
+                
+            elif cmd in ["agent", "advanced"]:
+                print("Switching to CodeAgent mode...")
+                run_agent_session()
+                
             else:
                 print(f"Unknown command: {cmd}. Type 'help' to see available commands.")
                 
@@ -377,9 +588,26 @@ def main():
         print("ERROR: GOOGLE_API_KEY is not set in your environment or .env file.")
         print("Please set this key and try again.")
         return
-        
-    # Run the interactive session
-    run_interactive_session()
+    
+    # Parse command line arguments for more flexibility
+    parser = argparse.ArgumentParser(description="Gemini Vision Interactive Tool")
+    parser.add_argument("--agent", action="store_true", help="Run in CodeAgent mode")
+    parser.add_argument("--screenshot", action="store_true", help="Capture a screenshot immediately")
+    args = parser.parse_args()
+    
+    if args.agent:
+        run_agent_session()
+    elif args.screenshot:
+        print(capture_screenshot())
+        analyze = input("Would you like to analyze this screenshot? (y/n): ")
+        if analyze.lower().startswith('y'):
+            prompt = input("Enter analysis prompt (or press Enter for default): ")
+            if not prompt:
+                prompt = "Describe what you see on this screen"
+            print(analyze_screenshot(prompt))
+    else:
+        # Run the interactive session
+        run_interactive_session()
 
 if __name__ == "__main__":
     # Silence matplotlib warning messages
