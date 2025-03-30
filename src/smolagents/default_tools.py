@@ -124,7 +124,7 @@ class DuckDuckGoSearchTool(Tool):
 
 
 class SearXNGSearchTool(Tool):
-    name = "searxng_search"
+    name = "web_search"
     description = """Performs a SearXNG web search based on your query and returns the top search results."""
     inputs = {
         "query": {"type": "string", "description": "The search query to perform."},
