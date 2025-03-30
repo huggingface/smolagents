@@ -42,27 +42,15 @@ except ModuleNotFoundError:
 
 
 class RemotePythonExecutor(PythonExecutor):
-    def __init__(self, additional_imports: List[str], logger, cache_results: bool = False):
+    def __init__(self, additional_imports: List[str], logger):
         self.additional_imports = additional_imports
         self.logger = logger
         self.logger.log("Initializing executor, hold on...")
         self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$", re.M)
         self.installed_packages = []
-        self.cache_results = cache_results
-        self.results_cache = {}
 
     def run_code_raise_errors(self, code: str, return_final_answer: bool = False) -> Tuple[Any, str]:
-        # Add caching to avoid re-executing identical code blocks
-        if self.cache_results and code in self.results_cache:
-            return self.results_cache[code]
-            
         raise NotImplementedError
-
-        # Store result in cache if enabled
-        if self.cache_results:
-            self.results_cache[code] = result
-            
-        return result
 
     def send_tools(self, tools: Dict[str, Tool]):
         tool_definition_code = get_tools_definition_code(tools)
