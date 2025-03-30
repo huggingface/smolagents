@@ -24,20 +24,6 @@ Or add it to a `.env` file in this directory.
 
 ## Running the Example
 
-To set up the sample directory, run:
-
-```
-python gemini_vision_agent.py --setup
-```
-
-To start the UI, run:
-
-```
-python gemini_vision_agent.py --ui
-```
-
-or simply:
-
 ```
 python gemini_vision_agent.py
 ```
@@ -47,10 +33,3 @@ To run the sample usage, run:
 ```
 python gemini_vision_agent.py --sample
 ```
-
-This will start an interactive session with the Gemini Vision agent where you can upload images and ask questions about them.
-
-## Files that can be deleted
-
-1. `sample_usage.py` - all functionality has been moved to the main file
-2. `setup_sample.py` - all functionality has been moved to the main file
