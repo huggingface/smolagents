@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables and setup API key
 load_dotenv()
-google_api_key = os.environ.get("GOOGLE_API_KEY", "AIzaSyAfOLF4KmHEWo22g-y0t4mEvlNeOXqyJnw")
+google_api_key = os.environ.get("GOOGLE_API_KEY")
 os.environ["GEMINI_API_KEY"] = google_api_key
 genai.configure(api_key=google_api_key)
 
