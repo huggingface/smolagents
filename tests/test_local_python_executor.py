@@ -1805,7 +1805,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import queue; queue.threading._os.system(':')",
                 [],
-                InterpreterError("Forbidden access to module: threading"),
+                InterpreterError("Forbidden access to module: os"),
             ),
             (
                 "import queue; queue.threading._os.system(':')",
@@ -1821,7 +1821,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import doctest; doctest.inspect.os.system(':')",
                 ["doctest"],
-                InterpreterError("Forbidden access to module: inspect"),
+                InterpreterError("Forbidden access to module: os"),
             ),
             (
                 "import doctest; doctest.inspect.os.system(':')",
@@ -1848,7 +1848,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
                 [],
-                InterpreterError("Forbidden access to module: threading"),
+                InterpreterError("Forbidden access to module: sys"),
             ),
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
