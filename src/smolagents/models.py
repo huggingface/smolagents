@@ -265,6 +265,7 @@ class Model:
         tools_to_call_from: Optional[List[Tool]] = None,
         custom_role_conversions: dict[str, str] | None = None,
         convert_images_to_image_urls: bool = False,
+        is_bedrock_runtime: bool = False,
         **kwargs,
     ) -> Dict:
         """
@@ -303,6 +304,14 @@ class Model:
                     "tool_choice": "required",
                 }
             )
+
+        # The Bedrock API does not support the `type` key in requests.  
+        # This block of code modifies the object to meet Bedrock's requirements.
+        if is_bedrock_runtime:
+            for message in completion_kwargs.get("messages", []):
+                for content in message.get("content", []):
+                    if "type" in content:
+                        del content["type"]
 
         # Finally, use the passed-in kwargs to override all settings
         completion_kwargs.update(kwargs)
