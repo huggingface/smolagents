@@ -359,7 +359,7 @@ def create_smolagent() -> CodeAgent:
     model = LiteLLMModel(
         model_id="gemini/gemini-2.0-flash",
         api_key=google_api_key,
-        temperature=0.1,  # Daha deterministik davranış için sıcaklığı azalt
+        temperature=0.1,  # Reduce temperature for more deterministic behavior
         max_completion_tokens=2048,
         max_retries=2
     )
@@ -375,7 +375,7 @@ def create_smolagent() -> CodeAgent:
         analyze_screenshot
     ]
     
-    # Özel bir sistem prompt'u tanımla
+    # Define a custom system prompt
     system_prompt = """
     You are a vision analysis assistant that uses tools to help users with image-related tasks.
     
@@ -396,9 +396,9 @@ def create_smolagent() -> CodeAgent:
         name="GeminiVisionAgent",
         description="An agent that can analyze images using Gemini Vision API",
         verbosity_level=LogLevel.INFO,
-        max_steps=7,  # İşlem adımlarını azalt
-        add_base_tools=False,  # Vision yeteneklerine odaklanmak için temel araçları devre dışı bırak
-        system_prompt=system_prompt  # Özel sistem talimatını ekle
+        max_steps=7,  # Reduce processing steps
+        add_base_tools=False,  # Disable basic tools to focus on vision capabilities
+        system_prompt=system_prompt  # Add custom system instructions
     )
     
     return agent
