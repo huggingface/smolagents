@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import importlib.util
 import json
 import logging
 import os
@@ -264,7 +263,7 @@ class Model:
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
         convert_images_to_image_urls: bool = False,
         **kwargs,
     ) -> Dict:
@@ -803,8 +802,15 @@ class TransformersModel(Model):
 
 
 class ApiModel(Model):
-    def __init__(self, **kwargs):
+    def __init__(self, model_id: str, custom_role_conversions: dict[str, str] | None = None, **kwargs):
         super().__init__(**kwargs)
+        self.model_id = model_id
+        self.custom_role_conversions = custom_role_conversions or {}
+        self.client = self.create_client()
+
+    def create_client(self):
+        """Create the API client for the specific service."""
+        raise NotImplementedError("Subclasses must implement this method to create a client")
 
     def postprocess_message(self, message: ChatMessage, tools_to_call_from) -> ChatMessage:
         """Sometimes APIs fail to properly parse a tool call: this function tries to parse."""
@@ -843,7 +849,7 @@ class LiteLLMModel(ApiModel):
         model_id: Optional[str] = None,
         api_base=None,
         api_key=None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool | None = None,
         **kwargs,
     ):
@@ -855,16 +861,30 @@ class LiteLLMModel(ApiModel):
                 FutureWarning,
             )
             model_id = "anthropic/claude-3-5-sonnet-20240620"
-        self.model_id = model_id
         self.api_base = api_base
         self.api_key = api_key
-        self.custom_role_conversions = custom_role_conversions
         flatten_messages_as_text = (
             flatten_messages_as_text
             if flatten_messages_as_text is not None
-            else self.model_id.startswith(("ollama", "groq", "cerebras"))
+            else model_id.startswith(("ollama", "groq", "cerebras"))
         )
-        super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
+        super().__init__(
+            model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
+
+    def create_client(self):
+        """Create the LiteLLM client."""
+        try:
+            import litellm
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
+            ) from e
+
+        return litellm
 
     def __call__(
         self,
@@ -874,13 +894,6 @@ class LiteLLMModel(ApiModel):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
-        try:
-            import litellm
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
-            )
-
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -894,7 +907,7 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
 
-        response = litellm.completion(**completion_kwargs)
+        response = self.client.completion(**completion_kwargs)
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
@@ -924,6 +937,8 @@ class HfApiModel(ApiModel):
             If not provided, the class will try to use environment variable 'HF_TOKEN', else use the token stored in the Hugging Face CLI configuration.
         timeout (`int`, *optional*, defaults to 120):
             Timeout for the API request, in seconds.
+        client_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to the Hugging Face InferenceClient (like provider, token, timeout, etc.).
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
@@ -954,18 +969,25 @@ class HfApiModel(ApiModel):
         provider: Optional[str] = None,
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
         **kwargs,
     ):
+        token = token or os.getenv("HF_TOKEN")
+        self.client_kwargs = {
+            **(client_kwargs or {}),
+            "model": model_id,
+            "provider": provider,
+            "token": token,
+            "timeout": timeout,
+        }
+        super().__init__(model_id=model_id, custom_role_conversions=custom_role_conversions, **kwargs)
+
+    def create_client(self):
+        """Create the Hugging Face client."""
         from huggingface_hub import InferenceClient
 
-        super().__init__(**kwargs)
-        self.model_id = model_id
-        self.provider = provider
-        if token is None:
-            token = os.getenv("HF_TOKEN")
-        self.client = InferenceClient(self.model_id, provider=provider, token=token, timeout=timeout)
-        self.custom_role_conversions = custom_role_conversions
+        return InferenceClient(**self.client_kwargs)
 
     def __call__(
         self,
@@ -1024,26 +1046,32 @@ class OpenAIServerModel(ApiModel):
         api_key: Optional[str] = None,
         organization: Optional[str] | None = None,
         project: Optional[str] | None = None,
-        client_kwargs: Optional[Dict[str, Any]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool = False,
         **kwargs,
     ):
-        if importlib.util.find_spec("openai") is None:
-            raise ModuleNotFoundError(
-                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
-            )
-        super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
-        self.model_id = model_id
-        self.custom_role_conversions = custom_role_conversions
-        self.client_kwargs = client_kwargs or {}
-        self.client_kwargs.update(
-            {"api_key": api_key, "base_url": api_base, "organization": organization, "project": project}
+        self.client_kwargs = {
+            **(client_kwargs or {}),
+            "api_key": api_key,
+            "base_url": api_base,
+            "organization": organization,
+            "project": project,
+        }
+        super().__init__(
+            model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
         )
-        self.client = self.create_client()
 
     def create_client(self):
-        import openai
+        try:
+            import openai
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from e
 
         return openai.OpenAI(**self.client_kwargs)
 
@@ -1103,14 +1131,10 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         azure_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
         api_version: Optional[str] = None,
-        client_kwargs: Optional[Dict[str, Any]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
         **kwargs,
     ):
-        if importlib.util.find_spec("openai") is None:
-            raise ModuleNotFoundError(
-                "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
-            )
         client_kwargs = client_kwargs or {}
         client_kwargs.update(
             {
@@ -1127,7 +1151,12 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         )
 
     def create_client(self):
-        import openai
+        try:
+            import openai
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from e
 
         return openai.AzureOpenAI(**self.client_kwargs)
 
