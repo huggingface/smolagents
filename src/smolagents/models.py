@@ -29,6 +29,11 @@ from .utils import _is_package_available, encode_image_base64, make_image_url, p
 
 
 if TYPE_CHECKING:
+    from huggingface_hub import (
+        ChatCompletionOutputFunctionDefinition,
+        ChatCompletionOutputMessage,
+        ChatCompletionOutputToolCall,
+    )
     from transformers import StoppingCriteriaList
 
 logger = logging.getLogger(__name__)
@@ -59,12 +64,32 @@ class ChatMessageToolCallDefinition:
     name: str
     description: Optional[str] = None
 
+    @classmethod
+    def from_hf_api(
+        cls, tool_call_definition: "ChatCompletionOutputFunctionDefinition"
+    ) -> "ChatMessageToolCallDefinition":
+        warnings.warn(
+            "ChatMessageToolCallDefinition.from_hf_api is deprecated and will be removed in version 2.0.0. "
+            "Please use ChatMessageToolCallDefinition.from_dict with asdict() instead.",
+            FutureWarning,
+        )
+        return cls(**asdict(tool_call_definition))
+
 
 @dataclass
 class ChatMessageToolCall:
     function: ChatMessageToolCallDefinition
     id: str
     type: str
+
+    @classmethod
+    def from_hf_api(cls, tool_call: "ChatCompletionOutputToolCall") -> "ChatMessageToolCall":
+        warnings.warn(
+            "ChatMessageToolCall.from_hf_api is deprecated and will be removed in version 2.0.0. "
+            "Please use ChatMessageToolCall.from_dict with asdict() instead.",
+            FutureWarning,
+        )
+        return cls(**asdict(tool_call))
 
 
 @dataclass
@@ -91,6 +116,15 @@ class ChatMessage:
 
     def dict(self):
         return json.dumps(get_dict_from_nested_dataclasses(self))
+
+    @classmethod
+    def from_hf_api(cls, message: "ChatCompletionOutputMessage", raw) -> "ChatMessage":
+        warnings.warn(
+            "ChatMessage.from_hf_api is deprecated and will be removed in version 2.0.0. "
+            "Please use ChatMessage.from_dict with asdict() instead.",
+            FutureWarning,
+        )
+        return cls.from_dict(asdict(message), raw=raw)
 
 
 def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
