@@ -17,6 +17,7 @@ from io import BytesIO
 
 import google.generativeai as genai
 import matplotlib.pyplot as plt
+import numpy as np
 import requests
 from dotenv import load_dotenv
 from PIL import Image
@@ -43,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables and setup API key
 load_dotenv()
-google_api_key = os.environ.get("GOOGLE_API_KEY")
+google_api_key = os.environ.get("GOOGLE_API_KEY", "AIzaSyAfOLF4KmHEWo22g-y0t4mEvlNeOXqyJnw")
 os.environ["GEMINI_API_KEY"] = google_api_key
 genai.configure(api_key=google_api_key)
 
@@ -124,6 +125,76 @@ def display_image(image_name_or_url: str) -> str:
         return f"Successfully displayed image: {image_name_or_url}"
     except Exception as e:
         return f"Error displaying image: {str(e)}"
+
+
+@tool
+def display_multiple_images(image_names_or_urls: list) -> str:
+    """
+    Display multiple images in a grid layout.
+    Args:
+        image_names_or_urls: List of image names or URLs to display
+    Returns:
+        Success message or error
+    """
+    try:
+        available_images = get_available_images()
+        image_count = len(image_names_or_urls)
+
+        if image_count == 0:
+            return "No images provided to display"
+
+        # Create a grid layout based on the number of images
+        rows = int(image_count**0.5)
+        cols = (image_count + rows - 1) // rows
+
+        # Create a figure with appropriate dimensions
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4))
+
+        # Make axes iterable even if there's only one image
+        if image_count == 1:
+            axes = np.array([axes])
+
+        # Flatten the axes array for easy iteration
+        if image_count > 1:
+            axes = axes.flatten()
+
+        # Display each image in its subplot
+        displayed_images = []
+        for i, image_name in enumerate(image_names_or_urls):
+            if i >= len(axes):
+                break  # Safety check
+
+            # Get the URL for the image
+            if image_name in available_images:
+                image_url = available_images[image_name]
+            else:
+                image_url = image_name
+
+            try:
+                # Download and display the image
+                response = requests.get(image_url)
+                response.raise_for_status()
+                img = Image.open(BytesIO(response.content))
+
+                # Display in the appropriate subplot
+                axes[i].imshow(img)
+                axes[i].set_title(image_name)
+                axes[i].axis("off")
+                displayed_images.append(image_name)
+            except Exception as e:
+                axes[i].text(0.5, 0.5, f"Error: {str(e)}", ha='center', va='center')
+                axes[i].axis("off")
+
+        # Hide any unused subplots
+        for i in range(len(image_names_or_urls), len(axes)):
+            axes[i].axis("off")
+
+        plt.tight_layout()
+        plt.show()
+
+        return f"Successfully displayed images: {', '.join(displayed_images)}"
+    except Exception as e:
+        return f"Error displaying multiple images: {str(e)}"
 
 
 @tool
@@ -239,35 +310,29 @@ def compare_images(image1: str, image2: str, comparison_prompt: str) -> str:
     try:
         # Get the actual URLs if image names are provided
         available_images = get_available_images()
+        image_urls = []
+        image_data_list = []
 
-        if image1 in available_images:
-            image1_url = available_images[image1]
-        else:
-            image1_url = image1
-
-        if image2 in available_images:
-            image2_url = available_images[image2]
-        else:
-            image2_url = image2
+        # Process each image
+        for image_name in [image1, image2]:
+            if image_name in available_images:
+                image_urls.append(available_images[image_name])
+            else:
+                image_urls.append(image_name)
 
         # Download both images
-        response1 = requests.get(image1_url)
-        response1.raise_for_status()
-        image_data1 = base64.b64encode(response1.content).decode("utf-8")
+        for image_url in image_urls:
+            response = requests.get(image_url)
+            response.raise_for_status()
+            image_data_list.append(base64.b64encode(response.content).decode("utf-8"))
 
-        response2 = requests.get(image2_url)
-        response2.raise_for_status()
-        image_data2 = base64.b64encode(response2.content).decode("utf-8")
-
-        # Call Gemini API with both images
+        # Call Gemini API for comparison
         model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content(
-            [
-                comparison_prompt,
-                {"mime_type": "image/jpeg", "data": image_data1},
-                {"mime_type": "image/jpeg", "data": image_data2},
-            ]
-        )
+        response = model.generate_content([
+            comparison_prompt,
+            {"mime_type": "image/jpeg", "data": image_data_list[0]},
+            {"mime_type": "image/jpeg", "data": image_data_list[1]},
+        ])
         return response.text
     except Exception as e:
         return f"Error comparing images: {str(e)}"
@@ -291,7 +356,6 @@ def capture_screenshot() -> str:
         except Exception:
             # Fallback to PIL's ImageGrab if pyscreenshot fails
             from PIL import ImageGrab as PILImageGrab
-
             img = PILImageGrab.grab()
 
         # Save screenshot with timestamp
@@ -345,6 +409,65 @@ def analyze_screenshot(prompt: str = "Describe what you see on this screen") -> 
         return f"Error analyzing screenshot: {str(e)}"
 
 
+def parse_command(command: str) -> str:
+    """
+    Parse simple commands and convert them to proper tool calls.
+    This helps with simple commands that the CodeAgent might struggle with.
+    
+    Args:
+        command: The user command to parse
+    Returns:
+        A properly formatted tool call if recognized, otherwise returns the original command
+    """
+    command = command.strip().lower()
+
+    # Handle basic commands
+    if command in ["list", "images", "get_available_images", "get available images"]:
+        return "get_available_images()"
+    if command in ["screenshot", "capture", "take screenshot"]:
+        return "capture_screenshot()"
+    if command.startswith("view ") or command.startswith("display "):
+        parts = command.split(" ", 1)
+        if len(parts) > 1:
+            images_part = parts[1].strip()
+            # Check if there are multiple images specified
+            if " " in images_part:
+                # Split by spaces to get multiple image names
+                image_names = [img.strip() for img in images_part.split() if img.strip()]
+                if len(image_names) > 1:
+                    # Format as a display_multiple_images call with a Python list
+                    image_list = ", ".join([f"'{img}'" for img in image_names])
+                    return f"display_multiple_images([{image_list}])"
+                elif len(image_names) == 1:
+                    # Just one image after all
+                    return f"display_image('{image_names[0]}')"
+            else:
+                # Single image
+                return f"display_image('{images_part}')"
+    if command.startswith("analyze "):
+        parts = command.split(" ", 2)
+        if len(parts) > 1:
+            image = parts[1].strip()
+            prompt = parts[2] if len(parts) > 2 else "Describe what you see in this image"
+            return f"analyze_image('{image}', '{prompt}')"
+
+    if command.startswith("code "):
+        parts = command.split(" ", 1)
+        if len(parts) > 1:
+            image = parts[1].strip()
+            return f"extract_code('{image}')"
+    if command.startswith("compare "):
+        parts = command.split(" ", 3)
+        if len(parts) > 2:
+            image1 = parts[1].strip()
+            image2 = parts[2].strip()
+            prompt = parts[3] if len(parts) > 3 else "Compare these two images"
+            return f"compare_images('{image1}', '{image2}', '{prompt}')"
+
+    # Return the original command if not recognized
+    return command
+
+
 def create_smolagent() -> CodeAgent:
     """
     Create a CodeAgent with all tools for structured interaction.
@@ -364,6 +487,7 @@ def create_smolagent() -> CodeAgent:
     tools = [
         get_available_images,
         display_image,
+        display_multiple_images,
         analyze_image,
         extract_code,
         compare_images,
@@ -371,30 +495,44 @@ def create_smolagent() -> CodeAgent:
         analyze_screenshot,
     ]
 
-    # Define a custom system prompt
-    system_prompt = """
-    You are a vision analysis assistant that uses tools to help users with image-related tasks.
-    IMPORTANT RULES:
-    1. ONLY use the tools that are directly requested by the user.
-    2. Do NOT perform additional analyses or actions unless explicitly asked.
-    3. For functions like get_available_images(), just return the result directly.
-    4. When asked to display_image, only display the image without analyzing it.
-    5. If the user's request is unclear, ask for clarification instead of guessing.
-    These rules are critical to ensure you perform exactly what the user requests - no more, no less.
-    """
-
-    # Create the agent with better retry mechanism
+    # Create agent properly for smolagents 1.13.0.dev0
+    # In the development version, we need to avoid using system_prompt and prompt_prefix
     agent = CodeAgent(
-        model=model,
         tools=tools,
+        model=model,
         name="GeminiVisionAgent",
-        description="An agent that can analyze images using Gemini Vision API",
+        description="""An agent that can analyze images using Gemini Vision API.
+        
+        You are a vision analysis assistant that uses tools to help users with image-related tasks.
+        
+        When you need to use a tool, generate a response using this format:
+        Thoughts: <reasoning>
+        Code:
+        ```py
+        result = function_name(arg1, arg2)
+        print(result)
+        ```<end_code>
+        
+        Use the tools requested by the user directly, do not add complexity.
+        """,
         verbosity_level=LogLevel.INFO,
-        max_steps=7,  # Reduce processing steps
-        add_base_tools=False,  # Disable basic tools to focus on vision capabilities
-        system_prompt=system_prompt,  # Add custom system instructions
+        max_steps=7,
+        add_base_tools=False,
     )
-
+    
+    # Modify the code pattern regex to be more flexible
+    if hasattr(agent, "_code_pattern"):
+        try:
+            import re
+            # This pattern matches various forms of code blocks
+            more_flexible_pattern = re.compile(
+                r'(?:Code:|```(?:py|python)?)\s*\n(.*?)\n(?:```(?:<end_code>)?|\Z)', 
+                re.DOTALL
+            )
+            agent._code_pattern = more_flexible_pattern
+        except Exception:
+            pass
+    
     return agent
 
 
@@ -419,6 +557,7 @@ def run_agent_session():
     print("\nAvailable tools:")
     print("- get_available_images() - List available demo images")
     print("- display_image(image) - Display an image")
+    print("- display_multiple_images([img1, img2]) - Display multiple images")
     print("- analyze_image(image, prompt) - Analyze an image")
     print("- extract_code(image) - Extract code from an image")
     print("- compare_images(image1, image2, prompt) - Compare two images")
@@ -427,10 +566,11 @@ def run_agent_session():
     print("\nType 'exit' to quit")
 
     print("Usage examples:")
-    print('- "get_available_images()" - Just list the available images')
-    print("- \"display_image('space.jpeg')\" - Only display the image without analysis")
-    print("- \"analyze_image('carbon.png', 'What does this image show?')\" - Analyze with custom prompt")
-    print('- "capture_screenshot()" - Just take a screenshot without analysis')
+    print('- "list" or "get_available_images()" - List the available images')
+    print('- "view space.jpeg" or "display_image(\'space.jpeg\')" - Display single image')
+    print('- "view space.jpeg carbon.png" - Display multiple images in a grid')
+    print('- "analyze carbon.png What does this show?" - Analyze with custom prompt')
+    print('- "screenshot" or "capture_screenshot()" - Take a screenshot')
 
     # Start interaction loop
     while True:
@@ -438,13 +578,51 @@ def run_agent_session():
         if user_input.lower() in ["exit", "quit", "q"]:
             break
 
-        # Make corrections for common user inputs
-        if user_input.strip() == "get_available_images":
-            user_input = "get_available_images()"
-        elif user_input.strip() == "display_image":
-            user_input = "display_image('space.jpeg')"
-        elif user_input.strip() == "capture_screenshot":
-            user_input = "capture_screenshot()"
+        # Parse simple commands into proper function calls
+        parsed_input = parse_command(user_input)
+
+        # If parsed input is different, use it instead
+        if parsed_input != user_input:
+            print(f"Processing command as: {parsed_input}")
+            user_input = parsed_input
+
+        # Try direct function execution for very simple commands first
+        # This bypasses the agent for commands that are already in function call format
+        try:
+            if "get_available_images()" in user_input:
+                print("\nDirect execution result:")
+                print(get_available_images())
+                continue
+            if "capture_screenshot()" in user_input:
+                print("\nDirect execution result:")
+                print(capture_screenshot())
+                continue
+            if "display_image(" in user_input and ")" in user_input:
+                # Extract the image name from the command
+                import re
+                match = re.search(r"display_image\(['\"](.+?)['\"]\)", user_input)
+                if match:
+                    image_name = match.group(1)
+                    print(f"\nDirectly displaying image: {image_name}")
+                    print(display_image(image_name))
+                    continue
+            if "display_multiple_images(" in user_input and ")" in user_input:
+                # Extract the image list from the command
+                import ast
+                import re
+                try:
+                    # Use regex to extract the list part within the function call
+                    match = re.search(r"display_multiple_images\((\[.+?\])\)", user_input)
+                    if match:
+                        # Use ast.literal_eval to safely parse the list string into a Python list
+                        image_list = ast.literal_eval(match.group(1))
+                        print(f"\nDirectly displaying multiple images: {', '.join(image_list)}")
+                        print(display_multiple_images(image_list))
+                        continue
+                except Exception as e:
+                    print(f"Error parsing image list: {str(e)}")
+        except Exception as e:
+            print(f"Direct execution failed, falling back to agent: {str(e)}")
 
         # Run the agent with the user input
         try:
@@ -452,7 +630,37 @@ def run_agent_session():
             print("\nAgent response:")
             print(response)
         except Exception as e:
-            print(f"\nError running agent: {str(e)}")
+            # Handle specific CodeAgent errors
+            error_message = str(e)
+            if "Your code snippet is invalid" in error_message:
+                print("\nThe agent had difficulty parsing the command.")
+                print("Trying direct execution of the command...")
+
+                try:
+                    # Extract the command from error message if possible
+                    if "get_available_images" in user_input:
+                        print(get_available_images())
+                    elif "display_image" in user_input or "view" in user_input:
+                        # Try to extract image name(s)
+                        if "view " in user_input or "display " in user_input:
+                            # Split by space after the command
+                            cmd_parts = user_input.split(" ", 1)
+                            if len(cmd_parts) > 1:
+                                image_parts = cmd_parts[1].split()
+                                if len(image_parts) == 1:
+                                    # Single image
+                                    print(display_image(image_parts[0]))
+                                else:
+                                    # Multiple images
+                                    print(display_multiple_images(image_parts))
+                    else:
+                        print(f"\nError running agent: {str(e)}")
+                        print("Try using a complete function call format, like: get_available_images()")
+                except Exception as e2:
+                    print(f"\nBoth agent and direct execution failed: {str(e2)}")
+            else:
+                print(f"\nError running agent: {str(e)}")
+                print("Try using a complete function call format, like: get_available_images()")
 
 
 def run_interactive_session():
@@ -467,13 +675,14 @@ def run_interactive_session():
     print("\nCommands:")
     print("1. list              - Show available images")
     print("2. view <image>      - Display an image")
-    print("3. analyze <image>   - Analyze image content")
-    print("4. code <image>      - Extract & save code from image")
-    print("5. compare <img1> <img2> - Compare two images")
-    print("6. screenshot        - Capture a screenshot")
-    print("7. analyze-screen    - Analyze current screen")
-    print("8. agent             - Switch to CodeAgent mode")
-    print("9. help              - Show commands")
+    print("3. view <img1> <img2> - Display multiple images")
+    print("4. analyze <image>   - Analyze image content")
+    print("5. code <image>      - Extract & save code from image")
+    print("6. compare <img1> <img2> - Compare two images")
+    print("7. screenshot        - Capture a screenshot")
+    print("8. analyze-screen    - Analyze current screen")
+    print("9. agent             - Switch to CodeAgent mode")
+    print("10. help             - Show commands")
     print("0. exit              - Quit program")
 
     # Store the available images for quick access
@@ -494,18 +703,18 @@ def run_interactive_session():
             # Simple command parsing
             if cmd in ["exit", "quit", "q"]:
                 break
-
             elif cmd in ["help", "?", "h"]:
                 print("\nCommands:")
                 print("1. list              - Show available images")
                 print("2. view <image>      - Display an image")
-                print("3. analyze <image>   - Analyze image content")
-                print("4. code <image>      - Extract & save code from image")
-                print("5. compare <img1> <img2> - Compare two images")
-                print("6. screenshot        - Capture a screenshot")
-                print("7. analyze-screen    - Analyze current screen")
-                print("8. agent             - Switch to CodeAgent mode")
-                print("9. help              - Show commands")
+                print("3. view <img1> <img2> - Display multiple images")
+                print("4. analyze <image>   - Analyze image content")
+                print("5. code <image>      - Extract & save code from image")
+                print("6. compare <img1> <img2> - Compare two images")
+                print("7. screenshot        - Capture a screenshot")
+                print("8. analyze-screen    - Analyze current screen")
+                print("9. agent             - Switch to CodeAgent mode")
+                print("10. help             - Show commands")
                 print("0. exit              - Quit program")
 
             elif cmd == "list":
@@ -515,12 +724,21 @@ def run_interactive_session():
 
             elif cmd in ["view", "display", "show"]:
                 if len(parts) < 2:
-                    print(f"Usage: view <image>\nAvailable: {', '.join(image_names)}")
+                    print(f"Usage: view <image> or view <img1> <img2> ...\nAvailable: {', '.join(image_names)}")
                     continue
 
-                image_name = parts[1]
-                print(f"Displaying {image_name}...")
-                result = display_image(image_name)
+                # Check if multiple images are requested
+                if len(parts) > 2:
+                    # Multiple images
+                    image_names_to_display = parts[1:]
+                    print(f"Displaying multiple images: {', '.join(image_names_to_display)}...")
+                    result = display_multiple_images(image_names_to_display)
+                else:
+                    # Single image
+                    image_name = parts[1]
+                    print(f"Displaying {image_name}...")
+                    result = display_image(image_name)
+
                 print(result)
 
             elif cmd in ["analyze", "describe"]:
@@ -588,8 +806,8 @@ def main():
 
     # Parse command line arguments for more flexibility
     parser = argparse.ArgumentParser(description="Gemini Vision Interactive Tool")
-    parser.add_argument("--agent", action="store_true", help="Run in CodeAgent mode")
     parser.add_argument("--screenshot", action="store_true", help="Capture a screenshot immediately")
+    parser.add_argument("--agent", action="store_true", help="Run in CodeAgent mode")
     args = parser.parse_args()
 
     if args.agent:
@@ -603,11 +821,8 @@ def main():
                 prompt = "Describe what you see on this screen"
             print(analyze_screenshot(prompt))
     else:
-        # Run the interactive session
         run_interactive_session()
 
 
 if __name__ == "__main__":
-    # Silence matplotlib warning messages
-    plt.set_loglevel("warning")
     main()
