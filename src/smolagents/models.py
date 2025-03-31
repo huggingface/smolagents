@@ -1161,6 +1161,142 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         return openai.AzureOpenAI(**self.client_kwargs)
 
 
+class OllamaModel(ApiModel):
+    """Model to use Ollama for local LLM inference.
+
+    This model connects to the Ollama API to run inference on locally hosted models.
+
+    Parameters:
+        model_id (`str`):
+            The Ollama model name to use (e.g. "llama3", "phi3").
+        api_base (`str`, *optional*, defaults to "http://localhost:11434"):
+            The base URL for the Ollama API. If not provided, it will try to use the
+            OLLAMA_API_BASE environment variable, and if that's not set, defaults to
+            "http://localhost:11434".
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles.
+        **kwargs:
+            Additional keyword arguments to pass to the Ollama API, 
+            like `temperature`, `num_predict` (max tokens), etc.
+
+    Example:
+    ```python
+    >>> engine = OllamaModel(
+    ...     model_id="llama3",
+    ...     temperature=0.7,
+    ...     num_predict=2048,
+    ... )
+    >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
+    >>> response = engine(messages)
+    >>> print(response.content)
+    "Quantum mechanics is the branch of physics that studies..."
+    ```
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        api_base: Optional[str] = None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ):
+        if not _is_package_available("requests"):
+            raise ModuleNotFoundError(
+                "Please install 'requests' to use OllamaModel: `pip install requests`"
+            )
+        
+        # Use API base from arguments, environment variable, or default
+        if api_base is None:
+            api_base = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434")
+            
+        super().__init__(flatten_messages_as_text=True, **kwargs)
+        self.model_id = model_id
+        self.api_base = api_base
+        self.custom_role_conversions = custom_role_conversions
+        
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        import requests
+        import json
+
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            custom_role_conversions=self.custom_role_conversions,
+            **kwargs,
+        )
+        
+        # Ollama API expects a different format than OpenAI
+        ollama_messages = completion_kwargs.pop("messages")
+        stop = completion_kwargs.pop("stop", [])
+        
+        # Format the request payload for Ollama
+        payload = {
+            "model": self.model_id,
+            "messages": ollama_messages,
+            "options": {},
+            "stream": False,
+        }
+        
+        # Add stop sequences if provided
+        if stop:
+            payload["options"]["stop"] = stop
+            
+        # Map common parameters to Ollama parameters
+        param_mapping = {
+            "temperature": "temperature",
+            "max_tokens": "num_predict",
+            "top_p": "top_p",
+            "presence_penalty": "presence_penalty",
+            "frequency_penalty": "frequency_penalty",
+        }
+        
+        # Add any supported parameters from kwargs
+        for param, ollama_param in param_mapping.items():
+            if param in completion_kwargs:
+                payload["options"][ollama_param] = completion_kwargs.pop(param)
+                
+        # Add any remaining parameters to options
+        for key, value in completion_kwargs.items():
+            if key not in ["model", "messages", "stream", "options"]:
+                payload["options"][key] = value
+                
+        # Make the API call
+        response = requests.post(f"{self.api_base}/api/chat", json=payload)
+        
+        if response.status_code != 200:
+            raise Exception(f"Ollama API error: {response.status_code} - {response.text}")
+            
+        result = response.json()
+        
+        # Get token counts if available
+        self.last_input_token_count = result.get("prompt_eval_count", None)
+        self.last_output_token_count = result.get("eval_count", None)
+        
+        # Create the chat message response
+        content = result.get("message", {}).get("content", "")
+        chat_message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=content,
+            raw=result,
+        )
+        
+        # Handle tool calls if needed
+        if tools_to_call_from:
+            chat_message = self.postprocess_message(chat_message, tools_to_call_from)
+            
+        return chat_message
+
+
 __all__ = [
     "MessageRole",
     "tool_role_conversions",
@@ -1174,5 +1310,6 @@ __all__ = [
     "OpenAIServerModel",
     "VLLMModel",
     "AzureOpenAIServerModel",
+    "OllamaModel",
     "ChatMessage",
 ]
