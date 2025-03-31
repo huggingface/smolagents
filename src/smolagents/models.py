@@ -1161,6 +1161,136 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         return openai.AzureOpenAI(**self.client_kwargs)
 
 
+class AmazonBedrockServerModel(ApiModel):
+    """
+    A model class for interacting with Amazon Bedrock Server models through the Bedrock API.
+
+    This class provides an interface to interact with various Bedrock language models,
+    allowing for customized model inference, guardrail configuration, message handling,
+    and other parameters allowed by boto3 API.
+
+    Parameters:
+        model_id (`str`):
+            The model identifier to use on Bedrock (e.g. "us.amazon.nova-pro-v1:0").
+        boto3_client (`boto3.client`, *optional*):
+            A custom boto3 client for AWS interactions. If not provided, a default client will be created.
+        inference_config (`dict`, *optional*):
+            Configuration parameters for model inference, such as temperature, max tokens, and other model-specific settings.
+        guardrail_config (`dict`, *optional*):
+            Configuration for model guardrails to control and moderate model behavior and outputs.
+        api_kwargs (`dict`, *optional*):
+            Additional keyword arguments to be passed to boto3 bedrock-runtime API requests.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
+        flatten_messages_as_text (`bool`, default `False`):
+            Whether to flatten messages as text.
+
+    Example:
+        >>> bedrock_model = AmazonBedrockServerModel(
+        ...     model_id='us.amazon.nova-pro-v1:0',
+        ...     inference_config={'temperature': 0.7, 'max_tokens': 3000}
+        ... )
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        boto3_client=None,
+        inference_config: dict[str, Any] | None = None,
+        guardrail_config: dict[str, Any] | None = None,
+        bedrock_api_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        flatten_messages_as_text: bool = False,
+        **kwargs,
+    ):
+        self.model_id = model_id
+        self.client = boto3_client or self.create_client()
+        self.inference_config = inference_config
+        self.guardrail_config = guardrail_config
+        self.bedrock_api_kwargs = bedrock_api_kwargs
+        self.custom_role_conversions = custom_role_conversions
+
+        super().__init__(
+            model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
+
+    def create_client(self):
+        try:
+            import boto3
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'aws_sdk' extra to use AmazonBedrockServerModel: `pip install 'smolagents[aws_sdk]'`"
+            ) from e
+
+        return boto3.client("bedrock-runtime")
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        # smolagents inject automatic parameters like end_stop, Observation and others
+        # The Bedrock API only supports the fields explicitly defined here.
+        # To ensure compliance, `kwargs` is set to empty, and customers must provide additional parameters using `bedrock_api_kwargs`.
+        kwargs = {}
+
+        # Bedrock only supports `assistant` and `user` roles.
+        # Many Bedrock models do not allow conversations to start with the `assistant` role, so the default is set to `user/user`.
+        # This parameter is retained for future model implementations and extended support.
+        if not self.custom_role_conversions:
+            self.custom_role_conversions = {
+                MessageRole.SYSTEM: MessageRole.USER,
+                MessageRole.ASSISTANT: MessageRole.USER,
+                MessageRole.TOOL_CALL: MessageRole.USER,
+                MessageRole.TOOL_RESPONSE: MessageRole.USER,
+            }
+
+        completion_kwargs: Dict = self._prepare_completion_kwargs(
+            messages=messages,
+            tools_to_call_from=tools_to_call_from,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            is_bedrock_runtime=True,
+            **kwargs,
+        )
+
+        # Preparing the request payload to bedrock-runtime API
+        request_payload: dict[str, Any] = {
+            "modelId": self.model_id,
+            **completion_kwargs,
+        }
+
+        if self.guardrail_config:
+            request_payload["guardrailConfig"] = self.guardrail_config
+
+        if self.inference_config:
+            request_payload["inferenceConfig"] = self.inference_config
+
+        if self.bedrock_api_kwargs:
+            if self.bedrock_api_kwargs.get("toolConfig"):
+                # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
+                # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
+                self.bedrock_api_kwargs.pop("toolConfig")
+            request_payload.update(**self.bedrock_api_kwargs)
+
+        response = self.client.converse(**request_payload)
+
+        # Get usage
+        self.last_input_token_count = response["usage"]["inputTokens"]
+        self.last_output_token_count = response["usage"]["outputTokens"]
+
+        # Get first message
+        response["output"]["message"]["content"] = response["output"]["message"]["content"][0]["text"]
+        first_message = ChatMessage.from_dict(response["output"]["message"], raw=response)
+
+        return self.postprocess_message(first_message, tools_to_call_from)
+
+
 __all__ = [
     "MessageRole",
     "tool_role_conversions",
@@ -1174,5 +1304,6 @@ __all__ = [
     "OpenAIServerModel",
     "VLLMModel",
     "AzureOpenAIServerModel",
+    "AmazonBedrockServerModel",
     "ChatMessage",
 ]

@@ -28,11 +28,12 @@ To initialize a minimal agent, you need at least these two arguments:
     - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood and supports all Inference Providers on the Hub.
     - [`LiteLLMModel`] similarly lets you call 100+ different models and providers through [LiteLLM](https://docs.litellm.ai/)!
     - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
+    - [`AmazonBedrockServerModel`] allows you to use Amazon Bedrock in [AWS](https://aws.amazon.com/bedrock/?nc1=h_ls).
     - [`MLXModel`] creates a [mlx-lm](https://pypi.org/project/mlx-lm/) pipeline to run inference on your local machine.
 
 - `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), or [mlx-lm](https://pypi.org/project/mlx-lm/).
+Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), [Amazon Bedrock](https://aws.amazon.com/bedrock/?nc1=h_ls), or [mlx-lm](https://pypi.org/project/mlx-lm/).
 
 <hfoptions id="Pick a LLM">
 <hfoption id="HF Inference API">
@@ -147,6 +148,79 @@ agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.run(
    "Could you give me the 118th number in the Fibonacci sequence?",
 )
+```
+
+</hfoption>
+<hfoption id="Amazon Bedrock">
+
+The `AmazonBedrockServerModel` class provides native integration with Amazon Bedrock, allowing for direct API calls and comprehensive configuration.
+
+#### Basic Usage
+
+```python
+# !pip install smolagents[aws_sdk]
+from smolagents import CodeAgent, AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+#### Advanced Configuration
+
+```python
+import boto3
+from smolagents import AmazonBedrockServerModel
+
+# Create a custom Bedrock client
+bedrock_client = boto3.client(
+    'bedrock-runtime',
+    region_name='us-east-1',
+    aws_access_key_id='YOUR_ACCESS_KEY',
+    aws_secret_access_key='YOUR_SECRET_KEY'
+)
+
+# Initialize with comprehensive configuration
+model = AmazonBedrockServerModel(
+    model_id="us.amazon.nova-pro-v1:0",
+    boto3_client=bedrock_client,  # Use custom client
+    inference_config={
+        "temperature": 0.5,
+        "top_p": 0.9,
+        "max_tokens": 1000
+    },
+    guardrail_config={
+        "guardrail_id": "my-custom-guardrail",
+        "guardrail_version": "DRAFT"
+    },
+    bedrock_api_kwargs={
+        "performanceConfig": {
+            "latency": "standard"
+        }
+    }
+)
+
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+#### Using LiteLLMModel
+
+Alternatively, you can use `LiteLLMModel` with Bedrock models:
+
+```python
+from smolagents import LiteLLMModel, CodeAgent
+
+model = LiteLLMModel(model_name="bedrock/anthropic.claude-3-sonnet-20240229-v1:0")
+agent = CodeAgent(tools=[], model=model)
+
+agent.run("Explain the concept of quantum computing")
 ```
 
 </hfoption>

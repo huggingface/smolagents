@@ -19,9 +19,12 @@ from contextlib import ExitStack
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
+import boto3
 import pytest
+from botocore.config import Config
 
 from smolagents.models import (
+    AmazonBedrockServerModel,
     AzureOpenAIServerModel,
     ChatMessage,
     ChatMessageToolCall,
@@ -197,6 +200,22 @@ class TestOpenAIServerModel:
             base_url=api_base, api_key=api_key, organization=organization, project=project, max_retries=5
         )
         assert model.client == MockOpenAI.return_value
+
+
+class TestAmazonBedrockServerModel:
+    def test_client_for_bedrock(self):
+        model_id = "us.amazon.nova-pro-v1:0"
+
+        config = Config(retries={"max_attempts": 10, "mode": "standard"})
+        bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-1", config=config)
+
+        with patch("boto3.client") as MockBoto3:
+            model = AmazonBedrockServerModel(
+                model_id=model_id,
+                boto3_client=bedrock_client,
+            )
+
+        assert model.client == MockBoto3.return_value
 
 
 class TestAzureOpenAIServerModel:

@@ -143,6 +143,18 @@ model = AzureOpenAIServerModel(
 )
 ```
 </details>
+<details>
+<summary> <b>Amazon Bedrock models</b></summary>
+
+```py
+import os
+from smolagents import AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(
+    model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID") 
+)
+```
+</details>
 
 ## CLI
 
