@@ -38,7 +38,7 @@ logging.getLogger("litellm.utils").setLevel(logging.WARNING)
 logging.getLogger("litellm").setLevel(logging.WARNING)
 
 # Configure basic logging for our app
-logging.basicConfig(level=logging.WARNING, format='%(message)s')
+logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 # Load environment variables and setup API key
@@ -46,6 +46,7 @@ load_dotenv()
 google_api_key = os.environ.get("GOOGLE_API_KEY")
 os.environ["GEMINI_API_KEY"] = google_api_key
 genai.configure(api_key=google_api_key)
+
 
 # Rate limiter
 class RateLimiter:
@@ -64,38 +65,40 @@ class RateLimiter:
 
         self.last_call_time = time.time()
 
+
 # Create global rate limiter
 RATE_LIMITER = RateLimiter(max_calls_per_minute=5)
+
 
 def rate_limited(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         RATE_LIMITER.wait_if_needed()
         return func(*args, **kwargs)
+
     return wrapper
+
 
 # Define vision tools
 @tool
 def get_available_images() -> dict:
     """
     Get list of available demo images from Hugging Face.
-    
     Returns:
         Dictionary of image names and their URLs.
     """
     return {
         "space.jpeg": "https://huggingface.co/datasets/emredeveloper/images_for_agents/resolve/main/space.jpeg",
-        "carbon.png": "https://huggingface.co/datasets/emredeveloper/images_for_agents/resolve/main/carbon.png"
+        "carbon.png": "https://huggingface.co/datasets/emredeveloper/images_for_agents/resolve/main/carbon.png",
     }
+
 
 @tool
 def display_image(image_name_or_url: str) -> str:
     """
     Display an image from Hugging Face or a direct URL.
-    
     Args:
         image_name_or_url: Name of predefined image or a direct URL
-        
     Returns:
         Success message or error
     """
@@ -115,23 +118,22 @@ def display_image(image_name_or_url: str) -> str:
 
         plt.figure(figsize=(8, 8))
         plt.imshow(img)
-        plt.axis('off')
+        plt.axis("off")
         plt.show()
 
         return f"Successfully displayed image: {image_name_or_url}"
     except Exception as e:
         return f"Error displaying image: {str(e)}"
 
+
 @tool
 @rate_limited
 def analyze_image(image_name_or_url: str, prompt: str = "Describe what you see") -> str:
     """
     Analyze an image using Gemini Vision API.
-    
     Args:
         image_name_or_url: Name of predefined image or a direct URL
         prompt: Instructions for the analysis
-        
     Returns:
         Analysis result from Gemini
     """
@@ -147,27 +149,23 @@ def analyze_image(image_name_or_url: str, prompt: str = "Describe what you see")
         # Download the image
         response = requests.get(image_url)
         response.raise_for_status()
-        image_data = base64.b64encode(response.content).decode('utf-8')
+        image_data = base64.b64encode(response.content).decode("utf-8")
 
         # Call Gemini API with modified prompt to ensure visual description focus
         visual_prompt = f"Focus only on what you can visually see in this image. {prompt}"
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content([
-            visual_prompt,
-            {"mime_type": "image/jpeg", "data": image_data}
-        ])
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content([visual_prompt, {"mime_type": "image/jpeg", "data": image_data}])
         return response.text
     except Exception as e:
         return f"Error analyzing image: {str(e)}"
+
 
 @tool
 def extract_code(image_name_or_url: str) -> str:
     """
     Extract code from an image and save it with proper extension.
-    
     Args:
         image_name_or_url: Name of predefined image or a direct URL
-        
     Returns:
         Extracted code and file path where it was saved
     """
@@ -183,17 +181,14 @@ def extract_code(image_name_or_url: str) -> str:
         # Download the image
         response = requests.get(image_url)
         response.raise_for_status()
-        image_data = base64.b64encode(response.content).decode('utf-8')
+        image_data = base64.b64encode(response.content).decode("utf-8")
 
         # Create prompt to extract code and identify language
         prompt = "Extract any code visible in this image. First, identify the programming language. Then provide ONLY the exact code, with no additional commentary or formatting."
 
         # Call Gemini API
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content([
-            prompt,
-            {"mime_type": "image/jpeg", "data": image_data}
-        ])
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content([prompt, {"mime_type": "image/jpeg", "data": image_data}])
 
         # Get the text response
         code_text = response.text
@@ -228,17 +223,16 @@ def extract_code(image_name_or_url: str) -> str:
     except Exception as e:
         return f"Error extracting code: {str(e)}"
 
+
 @tool
 @rate_limited
 def compare_images(image1: str, image2: str, comparison_prompt: str) -> str:
     """
     Compare two images using Gemini Vision API.
-    
     Args:
         image1: First image name or URL
         image2: Second image name or URL
         comparison_prompt: Instructions for comparison
-        
     Returns:
         Comparison results
     """
@@ -259,28 +253,30 @@ def compare_images(image1: str, image2: str, comparison_prompt: str) -> str:
         # Download both images
         response1 = requests.get(image1_url)
         response1.raise_for_status()
-        image_data1 = base64.b64encode(response1.content).decode('utf-8')
+        image_data1 = base64.b64encode(response1.content).decode("utf-8")
 
         response2 = requests.get(image2_url)
         response2.raise_for_status()
-        image_data2 = base64.b64encode(response2.content).decode('utf-8')
+        image_data2 = base64.b64encode(response2.content).decode("utf-8")
 
         # Call Gemini API with both images
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content([
-            comparison_prompt,
-            {"mime_type": "image/jpeg", "data": image_data1},
-            {"mime_type": "image/jpeg", "data": image_data2}
-        ])
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content(
+            [
+                comparison_prompt,
+                {"mime_type": "image/jpeg", "data": image_data1},
+                {"mime_type": "image/jpeg", "data": image_data2},
+            ]
+        )
         return response.text
     except Exception as e:
         return f"Error comparing images: {str(e)}"
+
 
 @tool
 def capture_screenshot() -> str:
     """
     Capture a screenshot of the current screen and save it.
-    
     Returns:
         Path to the saved screenshot
     """
@@ -295,6 +291,7 @@ def capture_screenshot() -> str:
         except Exception:
             # Fallback to PIL's ImageGrab if pyscreenshot fails
             from PIL import ImageGrab as PILImageGrab
+
             img = PILImageGrab.grab()
 
         # Save screenshot with timestamp
@@ -305,21 +302,20 @@ def capture_screenshot() -> str:
         # Display the screenshot
         plt.figure(figsize=(10, 10))
         plt.imshow(img)
-        plt.axis('off')
+        plt.axis("off")
         plt.show()
 
         return f"Screenshot saved to {filepath}"
     except Exception as e:
         return f"Error capturing screenshot: {str(e)}"
 
+
 @tool
 def analyze_screenshot(prompt: str = "Describe what you see on this screen") -> str:
     """
     Capture a screenshot and analyze it with Gemini Vision API.
-    
     Args:
         prompt: Instructions for the analysis
-        
     Returns:
         Analysis result from Gemini
     """
@@ -338,23 +334,20 @@ def analyze_screenshot(prompt: str = "Describe what you see on this screen") -> 
 
         # Convert to base64 for Gemini API
         with open(filepath, "rb") as img_file:
-            image_data = base64.b64encode(img_file.read()).decode('utf-8')
+            image_data = base64.b64encode(img_file.read()).decode("utf-8")
 
         # Call Gemini API
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content([
-            prompt,
-            {"mime_type": "image/png", "data": image_data}
-        ])
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content([prompt, {"mime_type": "image/png", "data": image_data}])
 
         return f"Screenshot saved to {filepath}\n\nAnalysis:\n{response.text}"
     except Exception as e:
         return f"Error analyzing screenshot: {str(e)}"
 
+
 def create_smolagent() -> CodeAgent:
     """
     Create a CodeAgent with all tools for structured interaction.
-    
     Returns:
         A configured CodeAgent instance
     """
@@ -364,7 +357,7 @@ def create_smolagent() -> CodeAgent:
         api_key=google_api_key,
         temperature=0.1,  # Reduce temperature for more deterministic behavior
         max_completion_tokens=2048,
-        max_retries=2
+        max_retries=2,
     )
 
     # Define all tools
@@ -375,20 +368,18 @@ def create_smolagent() -> CodeAgent:
         extract_code,
         compare_images,
         capture_screenshot,
-        analyze_screenshot
+        analyze_screenshot,
     ]
 
     # Define a custom system prompt
     system_prompt = """
     You are a vision analysis assistant that uses tools to help users with image-related tasks.
-    
     IMPORTANT RULES:
     1. ONLY use the tools that are directly requested by the user.
     2. Do NOT perform additional analyses or actions unless explicitly asked.
     3. For functions like get_available_images(), just return the result directly.
     4. When asked to display_image, only display the image without analyzing it.
     5. If the user's request is unclear, ask for clarification instead of guessing.
-    
     These rules are critical to ensure you perform exactly what the user requests - no more, no less.
     """
 
@@ -401,19 +392,20 @@ def create_smolagent() -> CodeAgent:
         verbosity_level=LogLevel.INFO,
         max_steps=7,  # Reduce processing steps
         add_base_tools=False,  # Disable basic tools to focus on vision capabilities
-        system_prompt=system_prompt  # Add custom system instructions
+        system_prompt=system_prompt,  # Add custom system instructions
     )
 
     return agent
 
+
 def run_agent_session():
     """Run a session with a structured CodeAgent."""
     # Clear the terminal for a clean output
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system("cls" if os.name == "nt" else "clear")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(" Gemini Vision Agent - CodeAgent Mode")
-    print("="*70)
+    print("=" * 70)
 
     print("\nThis agent uses smolagents CodeAgent architecture to provide:")
     print("* Structured tool usage")
@@ -435,15 +427,15 @@ def run_agent_session():
     print("\nType 'exit' to quit")
 
     print("Usage examples:")
-    print("- \"get_available_images()\" - Just list the available images")
+    print('- "get_available_images()" - Just list the available images')
     print("- \"display_image('space.jpeg')\" - Only display the image without analysis")
     print("- \"analyze_image('carbon.png', 'What does this image show?')\" - Analyze with custom prompt")
-    print("- \"capture_screenshot()\" - Just take a screenshot without analysis")
+    print('- "capture_screenshot()" - Just take a screenshot without analysis')
 
     # Start interaction loop
     while True:
         user_input = input("\nEnter your request: ")
-        if user_input.lower() in ['exit', 'quit', 'q']:
+        if user_input.lower() in ["exit", "quit", "q"]:
             break
 
         # Make corrections for common user inputs
@@ -462,14 +454,15 @@ def run_agent_session():
         except Exception as e:
             print(f"\nError running agent: {str(e)}")
 
+
 def run_interactive_session():
     """Run an interactive session allowing the user to directly use tools."""
     # Clear the terminal for a clean output
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system("cls" if os.name == "nt" else "clear")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(" Gemini Vision Interactive Tool")
-    print("="*70)
+    print("=" * 70)
 
     print("\nCommands:")
     print("1. list              - Show available images")
@@ -584,6 +577,7 @@ def run_interactive_session():
         except Exception as e:
             print(f"Error: {str(e)}")
 
+
 def main():
     """Run the Gemini Vision Interactive Tool."""
     # Ensure API key is set
@@ -603,7 +597,7 @@ def main():
     elif args.screenshot:
         print(capture_screenshot())
         analyze = input("Would you like to analyze this screenshot? (y/n): ")
-        if analyze.lower().startswith('y'):
+        if analyze.lower().startswith("y"):
             prompt = input("Enter analysis prompt (or press Enter for default): ")
             if not prompt:
                 prompt = "Describe what you see on this screen"
@@ -612,7 +606,8 @@ def main():
         # Run the interactive session
         run_interactive_session()
 
+
 if __name__ == "__main__":
     # Silence matplotlib warning messages
-    plt.set_loglevel('warning')
+    plt.set_loglevel("warning")
     main()
