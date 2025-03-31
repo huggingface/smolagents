@@ -55,15 +55,22 @@ One could argue that on the [spectrum of agency](../conceptual_guides/intro_agen
 
 So you need to be very mindful of security.
 
+To improve safety, we propose a range of measures that propose elevated levels of security, at a higher setup cost.
+
+We advise you to keep in mind that no solution will be 100% safe.
+
+<img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_execution_safety_diagram.png">
+
+### Our local Python executor
+
 To add a first layer of security, code execution in `smolagents` is not performed by the vanilla Python interpreter.
 We have re-built a more secure `LocalPythonExecutor` from the ground up.
 
 To be precise, this interpreter works by loading the Abstract Syntax Tree (AST) from your Code and executes it operation by operation, making sure to always follow certain rules:
 - By default, imports are disallowed unless they have been explicitly added to an authorization list by the user.
-- Furthermore, access to submodules is disabled by default, and each must be explicitly authorized in the import list as well.
-   - Note that some seemingly innocuous packages like `random` can give access to potentially harmful submodules, as in `random._os`.
- - The total count of elementary operations processed is capped to prevent infinite loops and resource bloating.
- - Any operation that has not been explicitly defined in our custom interpreter will raise an error.
+- Note that some seemingly innocuous packages like `random` can give access to potentially harmful submodules, as in `random._os`.
+- The total count of elementary operations processed is capped to prevent infinite loops and resource bloating.
+- Any operation that has not been explicitly defined in our custom interpreter will raise an error.
 
 You could try these safeguards as follows:
 

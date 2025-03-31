@@ -27,6 +27,7 @@ import pytest
 from smolagents.default_tools import BASE_PYTHON_TOOLS, FinalAnswerTool
 from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
+    DANGEROUS_MODULES,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -38,21 +39,6 @@ from smolagents.local_python_executor import (
     fix_final_answer_code,
     get_safe_module,
 )
-
-
-# Non-exhaustive list of dangerous modules that should not be imported
-DANGEROUS_MODULES = [
-    "builtins",
-    "io",
-    "multiprocessing",
-    "os",
-    "pathlib",
-    "pty",
-    "shutil",
-    "socket",
-    "subprocess",
-    "sys",
-]
 
 
 # Fake function we will use as tool
@@ -525,6 +511,10 @@ if char.isalpha():
 
         code = "from numpy.random import default_rng as d_rng\nrng = d_rng(12345)\nrng.random()"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy.random"])
+
+        # Test that importing numpy imports submodules
+        code = "import numpy as np\nnp.random.default_rng(12345)\nnp.random.random()"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy"])
 
     def test_additional_imports(self):
         code = "import numpy as np"
@@ -1815,7 +1805,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import queue; queue.threading._os.system(':')",
                 [],
-                InterpreterError("Forbidden access to module: threading"),
+                InterpreterError("Forbidden access to module: os"),
             ),
             (
                 "import queue; queue.threading._os.system(':')",
@@ -1831,7 +1821,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import doctest; doctest.inspect.os.system(':')",
                 ["doctest"],
-                InterpreterError("Forbidden access to module: inspect"),
+                InterpreterError("Forbidden access to module: os"),
             ),
             (
                 "import doctest; doctest.inspect.os.system(':')",
@@ -1842,23 +1832,23 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio"],
-                InterpreterError("Forbidden access to module: asyncio.base_events"),
+                InterpreterError("Forbidden access to module: subprocess"),
             ),
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio", "asyncio.base_events"],
-                InterpreterError("Forbidden access to module: asyncio.events"),
+                InterpreterError("Forbidden access to module: subprocess"),
             ),
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
-                ["asyncio", "asyncio.base_events", "asyncio.events"],
+                ["asyncio", "asyncio.base_events", "asyncio.base_events.events"],
                 InterpreterError("Forbidden access to module: subprocess"),
             ),
             # sys submodule
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
                 [],
-                InterpreterError("Forbidden access to module: threading"),
+                InterpreterError("Forbidden access to module: sys"),
             ),
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
