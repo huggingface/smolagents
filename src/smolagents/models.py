@@ -70,7 +70,7 @@ class ChatMessageToolCallDefinition:
     ) -> "ChatMessageToolCallDefinition":
         warnings.warn(
             "ChatMessageToolCallDefinition.from_hf_api is deprecated and will be removed in version 2.0.0. "
-            "Please use ChatMessageToolCallDefinition.from_dict with asdict() instead.",
+            "Please use ChatMessageToolCallDefinition with asdict() instead.",
             FutureWarning,
         )
         return cls(**asdict(tool_call_definition))
@@ -86,7 +86,7 @@ class ChatMessageToolCall:
     def from_hf_api(cls, tool_call: "ChatCompletionOutputToolCall") -> "ChatMessageToolCall":
         warnings.warn(
             "ChatMessageToolCall.from_hf_api is deprecated and will be removed in version 2.0.0. "
-            "Please use ChatMessageToolCall.from_dict with asdict() instead.",
+            "Please use ChatMessageToolCall with asdict() instead.",
             FutureWarning,
         )
         return cls(**asdict(tool_call))
