@@ -55,6 +55,14 @@ One could argue that on the [spectrum of agency](../conceptual_guides/intro_agen
 
 So you need to be very mindful of security.
 
+To improve safety, we propose a range of measures that propose elevated levels of security, at a higher setup cost.
+
+We advise you to keep in mind that no solution will be 100% safe.
+
+<img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_execution_safety_diagram.png">
+
+### Our local Python executor
+
 To add a first layer of security, code execution in `smolagents` is not performed by the vanilla Python interpreter.
 We have re-built a more secure `LocalPythonExecutor` from the ground up.
 
