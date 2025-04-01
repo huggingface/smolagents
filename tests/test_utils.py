@@ -250,7 +250,6 @@ def test_e2e_class_tool_save(tmp_path):
         from tool import TestTool
 
         tool = TestTool()
-
         launch_gradio_demo(tool)
         """
     )
@@ -308,7 +307,6 @@ def test_e2e_ipython_class_tool_save(tmp_path):
         from tool import TestTool
 
         tool = TestTool()
-
         launch_gradio_demo(tool)
         """
     )
@@ -337,7 +335,7 @@ def test_e2e_function_tool_save(tmp_path):
         class SimpleTool(Tool):
             name = "test_tool"
             description = "Test tool description"
-            inputs = {"task":{"type":"string","description":"tool input"}}
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
             output_type = "string"
 
             def forward(self, task: str) -> str:
@@ -359,7 +357,6 @@ def test_e2e_function_tool_save(tmp_path):
         from tool import SimpleTool
 
         tool = SimpleTool()
-
         launch_gradio_demo(tool)
         """
     )
@@ -396,7 +393,7 @@ def test_e2e_ipython_function_tool_save(tmp_path):
         class SimpleTool(Tool):
             name = "test_tool"
             description = "Test tool description"
-            inputs = {"task":{"type":"string","description":"tool input"}}
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
             output_type = "string"
 
             def forward(self, task: str) -> str:
@@ -418,7 +415,6 @@ def test_e2e_ipython_function_tool_save(tmp_path):
         from tool import SimpleTool
 
         tool = SimpleTool()
-
         launch_gradio_demo(tool)
         """
     )

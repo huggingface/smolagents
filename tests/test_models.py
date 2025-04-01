@@ -237,14 +237,14 @@ class TestTransformersModel:
         "patching",
         [
             [
+                (
+                    "transformers.AutoModelForImageTextToText.from_pretrained",
+                    {"side_effect": ValueError("Unrecognized configuration class")},
+                ),
                 ("transformers.AutoModelForCausalLM.from_pretrained", {}),
                 ("transformers.AutoTokenizer.from_pretrained", {}),
             ],
             [
-                (
-                    "transformers.AutoModelForCausalLM.from_pretrained",
-                    {"side_effect": ValueError("Unrecognized configuration class")},
-                ),
                 ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
                 ("transformers.AutoProcessor.from_pretrained", {}),
             ],
@@ -373,6 +373,10 @@ def test_get_clean_message_list_flatten_messages_as_text():
             TransformersModel,
             {},
             [
+                (
+                    "transformers.AutoModelForImageTextToText.from_pretrained",
+                    {"side_effect": ValueError("Unrecognized configuration class")},
+                ),
                 ("transformers.AutoModelForCausalLM.from_pretrained", {}),
                 ("transformers.AutoTokenizer.from_pretrained", {}),
             ],
@@ -382,10 +386,6 @@ def test_get_clean_message_list_flatten_messages_as_text():
             TransformersModel,
             {},
             [
-                (
-                    "transformers.AutoModelForCausalLM.from_pretrained",
-                    {"side_effect": ValueError("Unrecognized configuration class")},
-                ),
                 ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
                 ("transformers.AutoProcessor.from_pretrained", {}),
             ],

@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 from .agent_types import AgentAudio, AgentImage, AgentType, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
-from .memory import ActionStep, AgentMemory, PlanningStep, SystemPromptStep, TaskStep, ToolCall
+from .memory import ActionStep, AgentMemory, FinalAnswerStep, PlanningStep, SystemPromptStep, TaskStep, ToolCall
 from .models import (
     ChatMessage,
     MessageRole,
@@ -63,6 +63,8 @@ from .utils import (
     AgentGenerationError,
     AgentMaxStepsError,
     AgentParsingError,
+    AgentToolCallError,
+    AgentToolExecutionError,
     is_valid_name,
     make_init_file,
     parse_code_blobs,
@@ -298,6 +300,7 @@ class MultiStepAgent:
         """
         max_steps = max_steps or self.max_steps
         self.task = task
+        self.interrupt_switch = False
         if additional_args is not None:
             self.state.update(additional_args)
             self.task += f"""
@@ -326,7 +329,7 @@ You have been provided with these additional arguments, that you can access usin
             # The steps are returned as they are executed through a generator to iterate on.
             return self._run(task=self.task, max_steps=max_steps, images=images)
         # Outputs are returned only at the end. We only look at the last step.
-        return deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0]
+        return deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0].final_answer
 
     def _run(
         self, task: str, max_steps: int, images: List["PIL.Image.Image"] | None = None
@@ -334,32 +337,38 @@ You have been provided with these additional arguments, that you can access usin
         final_answer = None
         self.step_number = 1
         while final_answer is None and self.step_number <= max_steps:
+            if self.interrupt_switch:
+                raise AgentError("Agent interrupted.", self.logger)
             step_start_time = time.time()
-            memory_step = self._create_memory_step(step_start_time, images)
+            if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
+                planning_step = self._create_planning_step(
+                    task, is_first_step=(self.step_number == 1), step=self.step_number
+                )
+                self.memory.steps.append(planning_step)
+                yield planning_step
+            action_step = self._create_action_step(step_start_time, images)
             try:
-                final_answer = self._execute_step(task, memory_step)
+                final_answer = self._execute_step(task, action_step)
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
                 raise e
             except AgentError as e:
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
-                memory_step.error = e
+                action_step.error = e
             finally:
-                self._finalize_step(memory_step, step_start_time)
-                yield memory_step
+                self._finalize_step(action_step, step_start_time)
+                yield action_step
                 self.step_number += 1
 
         if final_answer is None and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task, images, step_start_time)
-            yield memory_step
-        yield handle_agent_output_types(final_answer)
+            yield action_step
+        yield FinalAnswerStep(handle_agent_output_types(final_answer))
 
-    def _create_memory_step(self, step_start_time: float, images: List["PIL.Image.Image"] | None) -> ActionStep:
+    def _create_action_step(self, step_start_time: float, images: List["PIL.Image.Image"] | None) -> ActionStep:
         return ActionStep(step_number=self.step_number, start_time=step_start_time, observations_images=images)
 
     def _execute_step(self, task: str, memory_step: ActionStep) -> Union[None, Any]:
-        if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
-            self.planning_step(task, is_first_step=(self.step_number == 1), step=self.step_number)
         self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
         final_answer = self.step(memory_step)
         if final_answer is not None and self.final_answer_checks:
@@ -398,7 +407,7 @@ You have been provided with these additional arguments, that you can access usin
             )
         return final_answer
 
-    def planning_step(self, task, is_first_step: bool, step: int) -> None:
+    def _create_planning_step(self, task, is_first_step: bool, step: int) -> PlanningStep:
         if is_first_step:
             input_messages = [
                 {
@@ -415,6 +424,9 @@ You have been provided with these additional arguments, that you can access usin
                 }
             ]
             plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
+            plan = textwrap.dedent(
+                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message.content}\n```"""
+            )
         else:
             # Summary mode removes the system prompt and previous planning messages output by the model.
             # Removing previous planning messages avoids influencing too much the new plan.
@@ -449,27 +461,16 @@ You have been provided with these additional arguments, that you can access usin
             }
             input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
             plan_message = self.model(input_messages, stop_sequences=["<end_plan>"])
-        self._record_planning_step(input_messages, plan_message, is_first_step)
-
-    def _record_planning_step(self, input_messages: list, plan_message: ChatMessage, is_first_step: bool) -> None:
-        if is_first_step:
-            plan = textwrap.dedent(
-                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message.content}\n```"""
-            )
-            log_headline = "Initial plan"
-        else:
             plan = textwrap.dedent(
                 f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message.content}\n```"""
             )
-            log_headline = "Updated plan"
-        self.memory.steps.append(
-            PlanningStep(
-                model_input_messages=input_messages,
-                plan=plan,
-                model_output_message=plan_message,
-            )
-        )
+        log_headline = "Initial plan" if is_first_step else "Updated plan"
         self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
+        return PlanningStep(
+            model_input_messages=input_messages,
+            plan=plan,
+            model_output_message=plan_message,
+        )
 
     @property
     def logs(self):
@@ -481,6 +482,10 @@ You have been provided with these additional arguments, that you can access usin
     def initialize_system_prompt(self):
         """To be implemented in child classes"""
         pass
+
+    def interrupt(self):
+        """Interrupts the agent execution."""
+        self.interrupt_switch = True
 
     def write_memory_to_messages(
         self,
@@ -564,53 +569,6 @@ You have been provided with these additional arguments, that you can access usin
             return chat_message.content
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
-
-    def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
-        """
-        Execute tool with the provided input and returns the result.
-        This method replaces arguments with the actual values from the state if they refer to state variables.
-
-        Args:
-            tool_name (`str`): Name of the Tool to execute (should be one from self.tools).
-            arguments (Dict[str, str]): Arguments passed to the Tool.
-        """
-        available_tools = {**self.tools, **self.managed_agents}
-        if tool_name not in available_tools:
-            error_msg = f"Unknown tool {tool_name}, should be instead one of {list(available_tools.keys())}."
-            raise AgentExecutionError(error_msg, self.logger)
-
-        try:
-            if isinstance(arguments, str):
-                if tool_name in self.managed_agents:
-                    observation = available_tools[tool_name].__call__(arguments)
-                else:
-                    observation = available_tools[tool_name].__call__(arguments, sanitize_inputs_outputs=True)
-            elif isinstance(arguments, dict):
-                for key, value in arguments.items():
-                    if isinstance(value, str) and value in self.state:
-                        arguments[key] = self.state[value]
-                if tool_name in self.managed_agents:
-                    observation = available_tools[tool_name].__call__(**arguments)
-                else:
-                    observation = available_tools[tool_name].__call__(**arguments, sanitize_inputs_outputs=True)
-            else:
-                error_msg = f"Arguments passed to tool should be a dict or string: got a {type(arguments)}."
-                raise AgentExecutionError(error_msg, self.logger)
-            return observation
-        except Exception as e:
-            if tool_name in self.tools:
-                tool = self.tools[tool_name]
-                error_msg = (
-                    f"Error when executing tool {tool_name} with arguments {arguments}: {type(e).__name__}: {e}\nYou should only use this tool with a correct input.\n"
-                    f"As a reminder, this tool's description is the following: '{tool.description}'.\nIt takes inputs: {tool.inputs} and returns output type {tool.output_type}"
-                )
-                raise AgentExecutionError(error_msg, self.logger)
-            elif tool_name in self.managed_agents:
-                error_msg = (
-                    f"Error in calling team member: {e}\nYou should only ask this team member with a correct request.\n"
-                    f"As a reminder, this team member's description is the following:\n{available_tools[tool_name]}"
-                )
-                raise AgentExecutionError(error_msg, self.logger)
 
     def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
@@ -801,7 +759,7 @@ You have been provided with these additional arguments, that you can access usin
             "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
-            "requirements": list(requirements),
+            "requirements": sorted(requirements),
         }
         return agent_dict
 
@@ -1088,6 +1046,79 @@ class ToolCallingAgent(MultiStepAgent):
             )
             memory_step.observations = updated_information
             return None
+
+    def _substitute_state_variables(self, arguments: Union[Dict[str, str], str]) -> Union[Dict[str, Any], str]:
+        """Replace string values in arguments with their corresponding state values if they exist."""
+        if isinstance(arguments, dict):
+            return {
+                key: self.state.get(value, value) if isinstance(value, str) else value
+                for key, value in arguments.items()
+            }
+        return arguments
+
+    def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
+        """
+        Execute a tool or managed agent with the provided arguments.
+
+        The arguments are replaced with the actual values from the state if they refer to state variables.
+
+        Args:
+            tool_name (`str`): Name of the tool or managed agent to execute.
+            arguments (dict[str, str] | str): Arguments passed to the tool call.
+        """
+        # Check if the tool exists
+        available_tools = {**self.tools, **self.managed_agents}
+        if tool_name not in available_tools:
+            raise AgentToolExecutionError(
+                f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
+            )
+
+        # Get the tool and substitute state variables in arguments
+        tool = available_tools[tool_name]
+        arguments = self._substitute_state_variables(arguments)
+        is_managed_agent = tool_name in self.managed_agents
+
+        try:
+            # Call tool with appropriate arguments
+            if isinstance(arguments, dict):
+                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+            elif isinstance(arguments, str):
+                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+            else:
+                raise TypeError(f"Unsupported arguments type: {type(arguments)}")
+
+        except TypeError as e:
+            # Handle invalid arguments
+            description = getattr(tool, "description", "No description")
+            if is_managed_agent:
+                error_msg = (
+                    f"Invalid request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "You should call this team member with a valid request.\n"
+                    f"Team member description: {description}"
+                )
+            else:
+                error_msg = (
+                    f"Invalid call to tool '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "You should call this tool with correct input arguments.\n"
+                    f"Expected inputs: {json.dumps(tool.inputs)}\n"
+                    f"Returns output type: {tool.output_type}\n"
+                    f"Tool description: '{description}'"
+                )
+            raise AgentToolCallError(error_msg, self.logger) from e
+
+        except Exception as e:
+            # Handle execution errors
+            if is_managed_agent:
+                error_msg = (
+                    f"Error executing request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "Please try again or request to another team member"
+                )
+            else:
+                error_msg = (
+                    f"Error executing tool '{tool_name}' with arguments {json.dumps(arguments)}: {type(e).__name__}: {e}\n"
+                    "Please try again or use another tool"
+                )
+            raise AgentToolExecutionError(error_msg, self.logger) from e
 
 
 class CodeAgent(MultiStepAgent):

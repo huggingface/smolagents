@@ -17,17 +17,12 @@
 import numpy as np
 import PIL.Image
 import pytest
-from transformers import is_torch_available
-from transformers.testing_utils import require_torch
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import FinalAnswerTool
 
 from .test_tools import ToolTesterMixin
-
-
-if is_torch_available():
-    import torch
+from .utils.markers import require_torch
 
 
 class TestFinalAnswerTool(ToolTesterMixin):
@@ -52,6 +47,8 @@ class TestFinalAnswerTool(ToolTesterMixin):
 
     @pytest.fixture
     def inputs(self, shared_datadir):
+        import torch
+
         return {
             "string": {"answer": "Text input"},
             "image": {"answer": PIL.Image.open(shared_datadir / "000000039769.png").resize((512, 512))},

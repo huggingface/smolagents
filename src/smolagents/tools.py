@@ -26,16 +26,16 @@ import types
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
 from huggingface_hub import (
+    CommitOperationAdd,
+    create_commit,
     create_repo,
     get_collection,
     hf_hub_download,
     metadata_update,
-    upload_folder,
 )
-from huggingface_hub.utils import is_torch_available
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
@@ -46,6 +46,10 @@ from ._function_type_hints_utils import (
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
 from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source, is_valid_name
+
+
+if TYPE_CHECKING:
+    import mcp
 
 
 logger = logging.getLogger(__name__)
@@ -228,7 +232,7 @@ class Tool:
             class {class_name}(Tool):
                 name = "{self.name}"
                 description = {json.dumps(textwrap.dedent(self.description).strip())}
-                inputs = {json.dumps(self.inputs, separators=(",", ":"))}
+                inputs = {repr(self.inputs)}
                 output_type = "{self.output_type}"
             """
             ).strip()
@@ -267,7 +271,7 @@ class Tool:
 
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
-        return {"name": self.name, "code": tool_code, "requirements": requirements}
+        return {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
 
     def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True):
         """
@@ -285,37 +289,20 @@ class Tool:
             tool_file_name (`str`, *optional*): The file name in which you want to save your tool.
             make_gradio_app (`bool`, *optional*, defaults to True): Whether to also export a `requirements.txt` file and Gradio UI.
         """
-        os.makedirs(output_dir, exist_ok=True)
-        class_name = self.__class__.__name__
-        tool_file = os.path.join(output_dir, f"{tool_file_name}.py")
-
-        tool_dict = self.to_dict()
-        tool_code = tool_dict["code"]
-
-        with open(tool_file, "w", encoding="utf-8") as f:
-            f.write(tool_code.replace(":true,", ":True,").replace(":true}", ":True}"))
-
+        # Ensure output directory exists
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        # Save tool file
+        self._write_file(output_path / f"{tool_file_name}.py", self._get_tool_code())
         if make_gradio_app:
-            # Save app file
-            app_file = os.path.join(output_dir, "app.py")
-            with open(app_file, "w", encoding="utf-8") as f:
-                f.write(
-                    textwrap.dedent(
-                        f"""
-                from smolagents import launch_gradio_demo
-                from {tool_file_name} import {class_name}
-
-                tool = {class_name}()
-
-                launch_gradio_demo(tool)
-                """
-                    ).lstrip()
-                )
-
+            #  Save app file
+            self._write_file(output_path / "app.py", self._get_gradio_app_code(tool_module_name=tool_file_name))
             # Save requirements file
-            requirements_file = os.path.join(output_dir, "requirements.txt")
-            with open(requirements_file, "w", encoding="utf-8") as f:
-                f.write("\n".join(tool_dict["requirements"]) + "\n")
+            self._write_file(output_path / "requirements.txt", self._get_requirements())
+
+    def _write_file(self, file_path: Path, content: str) -> None:
+        """Writes content to a file with UTF-8 encoding."""
+        file_path.write_text(content, encoding="utf-8")
 
     def push_to_hub(
         self,
@@ -340,8 +327,25 @@ class Tool:
                 The token to use as HTTP bearer authorization for remote files. If unset, will use the token generated
                 when running `huggingface-cli login` (stored in `~/.huggingface`).
             create_pr (`bool`, *optional*, defaults to `False`):
-                Whether or not to create a PR with the uploaded files or directly commit.
+                Whether to create a PR with the uploaded files or directly commit.
         """
+        # Initialize repository
+        repo_id = self._initialize_hub_repo(repo_id, token, private)
+        # Prepare files for commit
+        additions = self._prepare_hub_files()
+        # Create commit
+        return create_commit(
+            repo_id=repo_id,
+            operations=additions,
+            commit_message=commit_message,
+            token=token,
+            create_pr=create_pr,
+            repo_type="space",
+        )
+
+    @staticmethod
+    def _initialize_hub_repo(repo_id: str, token: Optional[Union[bool, str]], private: Optional[bool]) -> str:
+        """Initialize repository on Hugging Face Hub."""
         repo_url = create_repo(
             repo_id=repo_id,
             token=token,
@@ -350,21 +354,50 @@ class Tool:
             repo_type="space",
             space_sdk="gradio",
         )
-        repo_id = repo_url.repo_id
-        metadata_update(repo_id, {"tags": ["smolagents", "tool"]}, repo_type="space", token=token)
+        metadata_update(repo_url.repo_id, {"tags": ["smolagents", "tool"]}, repo_type="space", token=token)
+        return repo_url.repo_id
 
-        with tempfile.TemporaryDirectory() as work_dir:
-            # Save all files.
-            self.save(work_dir)
-            logger.info(f"Uploading the following files to {repo_id}: {','.join(os.listdir(work_dir))}")
-            return upload_folder(
-                repo_id=repo_id,
-                commit_message=commit_message,
-                folder_path=work_dir,
-                token=token,
-                create_pr=create_pr,
-                repo_type="space",
-            )
+    def _prepare_hub_files(self) -> list:
+        """Prepare files for Hub commit."""
+        additions = [
+            # Add tool code
+            CommitOperationAdd(
+                path_in_repo="tool.py",
+                path_or_fileobj=self._get_tool_code().encode(),
+            ),
+            # Add Gradio app
+            CommitOperationAdd(
+                path_in_repo="app.py",
+                path_or_fileobj=self._get_gradio_app_code().encode(),
+            ),
+            # Add requirements
+            CommitOperationAdd(
+                path_in_repo="requirements.txt",
+                path_or_fileobj=self._get_requirements().encode(),
+            ),
+        ]
+        return additions
+
+    def _get_tool_code(self) -> str:
+        """Get the tool's code."""
+        return self.to_dict()["code"]
+
+    def _get_gradio_app_code(self, tool_module_name: str = "tool") -> str:
+        """Get the Gradio app code."""
+        class_name = self.__class__.__name__
+        return textwrap.dedent(
+            f"""\
+            from smolagents import launch_gradio_demo
+            from {tool_module_name} import {class_name}
+
+            tool = {class_name}()
+            launch_gradio_demo(tool)
+            """
+        )
+
+    def _get_requirements(self) -> str:
+        """Get the requirements."""
+        return "\n".join(self.to_dict()["requirements"])
 
     @classmethod
     def from_hub(
@@ -645,6 +678,7 @@ def launch_gradio_demo(tool: Tool):
         raise ImportError("Gradio should be installed in order to launch a gradio demo.")
 
     TYPE_TO_COMPONENT_CLASS_MAPPING = {
+        "boolean": gr.Checkbox,
         "image": gr.Image,
         "audio": gr.Audio,
         "string": gr.Textbox,
@@ -663,8 +697,8 @@ def launch_gradio_demo(tool: Tool):
         new_component = input_gradio_component_class(label=input_name)
         gradio_inputs.append(new_component)
 
-    output_gradio_componentclass = TYPE_TO_COMPONENT_CLASS_MAPPING[tool.output_type]
-    gradio_output = output_gradio_componentclass(label="Output")
+    output_gradio_component_class = TYPE_TO_COMPONENT_CLASS_MAPPING[tool.output_type]
+    gradio_output = output_gradio_component_class(label="Output")
 
     gr.Interface(
         fn=tool_forward,
@@ -787,7 +821,9 @@ class ToolCollection:
 
     @classmethod
     @contextmanager
-    def from_mcp(cls, server_parameters) -> "ToolCollection":
+    def from_mcp(
+        cls, server_parameters: Union["mcp.StdioServerParameters", dict], trust_remote_code: bool = False
+    ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
         This method supports both SSE and Stdio MCP servers. Look at the `sever_parameters`
@@ -797,9 +833,15 @@ class ToolCollection:
         the MCP server.
 
         Args:
-            server_parameters (mcp.StdioServerParameters | dict):
+            server_parameters (`mcp.StdioServerParameters` or `dict`):
                 The server parameters to use to connect to the MCP server. If a dict is
                 provided, it is assumed to be the parameters of `mcp.client.sse.sse_client`.
+            trust_remote_code (`bool`, *optional*, defaults to `False`):
+                Whether to trust the execution of code from tools defined on the MCP server.
+                This option should only be set to `True` if you trust the MCP server,
+                and undertand the risks associated with running remote code on your local machine.
+                If set to `False`, loading tools from MCP will fail.
+
 
         Returns:
             ToolCollection: A tool collection instance.
@@ -815,18 +857,23 @@ class ToolCollection:
         >>>     env={"UV_PYTHON": "3.12", **os.environ},
         >>> )
 
-        >>> with ToolCollection.from_mcp(server_parameters) as tool_collection:
+        >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
 
         Example with an SSE MCP server:
         ```py
-        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}) as tool_collection:
+        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
+                "as it will execute code on your local machine: pass `trust_remote_code=True`."
+            )
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
@@ -965,7 +1012,7 @@ class PipelineTool(Tool):
         token=None,
         **hub_kwargs,
     ):
-        if not is_torch_available() or not _is_package_available("accelerate"):
+        if not _is_package_available("accelerate") or not _is_package_available("torch"):
             raise ModuleNotFoundError(
                 "Please install 'transformers' extra to use a PipelineTool: `pip install 'smolagents[transformers]'`"
             )
