@@ -112,7 +112,7 @@ class ChatMessage:
                 for tc in data["tool_calls"]
             ]
             data["tool_calls"] = tool_calls
-        return cls(**data, raw=raw)
+        return cls(role=data["role"], content=data.get("content"), tool_calls=tool_calls, raw=raw)
 
     def dict(self):
         return json.dumps(get_dict_from_nested_dataclasses(self))
