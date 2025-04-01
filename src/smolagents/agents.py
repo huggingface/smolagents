@@ -147,6 +147,7 @@ class PromptTemplates(TypedDict):
     """
 
     system_prompt: str
+    system_prompt_with_memory_bank: str
     planning: PlanningPromptTemplate
     managed_agent: ManagedAgentPromptTemplate
     final_answer: FinalAnswerPromptTemplate
@@ -154,6 +155,7 @@ class PromptTemplates(TypedDict):
 
 EMPTY_PROMPT_TEMPLATES = PromptTemplates(
     system_prompt="",
+    system_prompt_with_memory_bank="",
     planning=PlanningPromptTemplate(
         initial_facts="",
         initial_plan="",
@@ -206,6 +208,7 @@ class MultiStepAgent:
         description: Optional[str] = None,
         provide_run_summary: bool = False,
         final_answer_checks: Optional[List[Callable]] = None,
+        use_memory_bank: Optional[bool] = False,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -219,6 +222,7 @@ class MultiStepAgent:
         self.description = description
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks
+        self.use_memory_bank = use_memory_bank
 
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)
@@ -1193,8 +1197,12 @@ class CodeAgent(MultiStepAgent):
                 raise ValueError(f"Unsupported executor type: {self.executor_type}")
 
     def initialize_system_prompt(self) -> str:
+        if self.use_memory_bank:
+            template = self.prompt_templates["system_prompt_with_memory_bank"]
+        else:
+            template = self.prompt_templates["system_prompt"]
         system_prompt = populate_template(
-            self.prompt_templates["system_prompt"],
+            template,
             variables={
                 "tools": self.tools,
                 "managed_agents": self.managed_agents,
