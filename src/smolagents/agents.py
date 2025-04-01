@@ -340,7 +340,7 @@ You have been provided with these additional arguments, that you can access usin
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
             step_start_time = time.time()
-            if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
+            if self.planning_interval is not None and (self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0):
                 planning_step = self._create_planning_step(
                     task, is_first_step=(self.step_number == 1), step=self.step_number
                 )
