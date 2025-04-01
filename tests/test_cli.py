@@ -91,9 +91,9 @@ def test_vision_web_browser_main():
         with patch("smolagents.vision_web_browser.load_model") as mock_load_model:
             mock_load_model.return_value = "mock_model"
             with patch("smolagents.vision_web_browser.CodeAgent") as mock_code_agent:
-                from smolagents.vision_web_browser import helium_instructions, main
+                from smolagents.vision_web_browser import helium_instructions, run_webagent
 
-                main("test_prompt", "HfApiModel", "test_model_id")
+                run_webagent("test_prompt", "HfApiModel", "test_model_id")
     # load_model
     assert len(mock_load_model.call_args_list) == 1
     assert mock_load_model.call_args.args == ("HfApiModel", "test_model_id")
