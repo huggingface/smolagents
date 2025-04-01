@@ -82,7 +82,8 @@ class TestModel:
         # check stop_sequence capture when output has trailing chars
         assert model(messages, stop_sequences=[stop_sequence]).content == "I'm ready to help you"
 
-    def test_transformers_message_no_tool(self):
+    def test_transformers_message_no_tool(self, monkeypatch):
+        monkeypatch.setattr("huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT", 30)  # instead of 10
         model = TransformersModel(
             model_id="HuggingFaceTB/SmolLM2-135M-Instruct",
             max_new_tokens=5,
@@ -93,7 +94,8 @@ class TestModel:
         output = model(messages, stop_sequences=["great"]).content
         assert output == "assistant\nHello"
 
-    def test_transformers_message_vl_no_tool(self, shared_datadir):
+    def test_transformers_message_vl_no_tool(self, shared_datadir, monkeypatch):
+        monkeypatch.setattr("huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT", 30)  # instead of 10
         import PIL.Image
 
         img = PIL.Image.open(shared_datadir / "000000039769.png")
