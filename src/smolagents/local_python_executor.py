@@ -114,6 +114,7 @@ BASE_PYTHON_TOOLS = {
     "complex": complex,
 }
 
+# Non-exhaustive list of dangerous modules that should not be imported
 DANGEROUS_MODULES = [
     "builtins",
     "io",
@@ -247,7 +248,7 @@ def safer_eval(func: Callable):
                         == (getattr(import_module(module_name), "__file__", "") if find_spec(module_name) else "")
                     ):
                         raise InterpreterError(f"Forbidden access to module: {module_name}")
-            elif isinstance(result, dict) and result.get("__name__"):
+            elif isinstance(result, dict) and result.get("__spec__"):
                 for module_name in DANGEROUS_MODULES:
                     if (
                         module_name not in authorized_imports
@@ -269,6 +270,19 @@ def safer_eval(func: Callable):
         return result
 
     return _check_return
+
+
+def evaluate_attribute(
+    expression: ast.Attribute,
+    state: Dict[str, Any],
+    static_tools: Dict[str, Callable],
+    custom_tools: Dict[str, Callable],
+    authorized_imports: List[str],
+) -> Any:
+    if expression.attr.startswith("__") and expression.attr.endswith("__"):
+        raise InterpreterError(f"Forbidden access to dunder attribute: {expression.attr}")
+    value = evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+    return getattr(value, expression.attr)
 
 
 def evaluate_unaryop(
@@ -344,6 +358,8 @@ def create_function(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> Callable:
+    source_code = ast.unparse(func_def)
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
         arg_names = [arg.arg for arg in func_def.args.args]
@@ -393,6 +409,11 @@ def create_function(
             return None
 
         return result
+
+    # Store original AST, source code, and name
+    new_func.__ast__ = func_def
+    new_func.__source__ = source_code
+    new_func.__name__ = func_def.name
 
     return new_func
 
@@ -668,7 +689,7 @@ def evaluate_call(
             func = ERRORS[func_name]
         else:
             raise InterpreterError(
-                f"It is not permitted to evaluate other functions than the provided tools or functions defined/imported in previous code (tried to execute {call.func.id})."
+                f"Forbidden function evaluation: '{call.func.id}' is not among the explicitly allowed tools or defined/imported in the preceding code"
             )
     elif isinstance(call.func, ast.Subscript):
         func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
@@ -1318,8 +1339,7 @@ def evaluate_ast(
         else:
             return evaluate_ast(expression.orelse, *common_params)
     elif isinstance(expression, ast.Attribute):
-        value = evaluate_ast(expression.value, *common_params)
-        return getattr(value, expression.attr)
+        return evaluate_attribute(expression, *common_params)
     elif isinstance(expression, ast.Slice):
         return slice(
             evaluate_ast(expression.lower, *common_params) if expression.lower is not None else None,

@@ -2,31 +2,40 @@ from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
 import docker
+import PIL.Image
 import pytest
-from PIL import Image
 
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.remote_executors import DockerExecutor, E2BExecutor
+from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
 
 
-class TestE2BExecutor:
+class TestE2BExecutorMock:
     def test_e2b_executor_instantiation(self):
         logger = MagicMock()
         with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
             mock_sandbox.return_value.commands.run.return_value.error = None
             mock_sandbox.return_value.run_code.return_value.error = None
-            executor = E2BExecutor(additional_imports=[], logger=logger)
+            executor = E2BExecutor(
+                additional_imports=[], logger=logger, api_key="dummy-api-key", template="dummy-template-id", timeout=60
+            )
         assert isinstance(executor, E2BExecutor)
         assert executor.logger == logger
         assert executor.final_answer_pattern.pattern == r"^final_answer\((.*)\)$"
         assert executor.sandbox == mock_sandbox.return_value
+        assert mock_sandbox.call_count == 1
+        assert mock_sandbox.call_args.kwargs == {
+            "api_key": "dummy-api-key",
+            "template": "dummy-template-id",
+            "timeout": 60,
+        }
 
 
 @pytest.fixture
 def docker_executor():
-    executor = DockerExecutor(additional_imports=["pillow", "numpy"], logger=AgentLogger(level=LogLevel.OFF))
+    executor = DockerExecutor(additional_imports=["pillow", "numpy"], logger=AgentLogger(level=LogLevel.INFO))
     yield executor
     executor.delete()
 
@@ -72,12 +81,12 @@ class TestDockerExecutor:
             final_answer(image)
         """)
         result, logs, final_answer = self.executor(code_action)
-        assert isinstance(result, Image.Image), "Result should be a PIL Image"
+        assert isinstance(result, PIL.Image.Image), "Result should be a PIL Image"
 
     def test_syntax_error_handling(self):
         """Test handling of syntax errors"""
         code_action = 'print("Missing Parenthesis'  # Syntax error
-        with pytest.raises(RuntimeError) as exception_info:
+        with pytest.raises(AgentError) as exception_info:
             self.executor(code_action)
         assert "SyntaxError" in str(exception_info.value), "Should raise a syntax error"
 

@@ -2,7 +2,7 @@ import pytest
 
 from smolagents.default_tools import DuckDuckGoSearchTool, GoogleSearchTool, SpeechToTextTool, VisitWebpageTool
 from smolagents.tool_validation import validate_tool_attributes
-from smolagents.tools import Tool
+from smolagents.tools import Tool, tool
 
 
 UNDEFINED_VARIABLE = "undefined_variable"
@@ -29,8 +29,32 @@ class ValidTool(Tool):
         return input.upper()
 
 
-def test_validate_tool_attributes_valid():
-    assert validate_tool_attributes(ValidTool) is None
+@tool
+def valid_tool_function(input: str) -> str:
+    """A valid tool function.
+
+    Args:
+        input (str): Input string.
+    """
+    return input.upper()
+
+
+@pytest.mark.parametrize("tool_class", [ValidTool, valid_tool_function.__class__])
+def test_validate_tool_attributes_valid(tool_class):
+    assert validate_tool_attributes(tool_class) is None
+
+
+class InvalidToolName(Tool):
+    name = "invalid tool name"
+    description = "Tool with invalid name"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input: str) -> str:
+        return input
 
 
 class InvalidToolComplexAttrs(Tool):
@@ -88,6 +112,10 @@ class InvalidToolUndefinedNames(Tool):
 @pytest.mark.parametrize(
     "tool_class, expected_error",
     [
+        (
+            InvalidToolName,
+            "Class attribute 'name' must be a valid Python identifier and not a reserved keyword, found 'invalid tool name'",
+        ),
         (InvalidToolComplexAttrs, "Complex attributes should be defined in __init__, not as class attributes"),
         (InvalidToolRequiredParams, "Parameters in __init__ must have default values, found required parameters"),
         (

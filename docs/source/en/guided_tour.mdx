@@ -415,6 +415,9 @@ The `reset=False` flag means the agent's memory is not flushed before launching 
 
 You can also use this `reset=False` argument to keep the conversation going in any other agentic application.
 
+In gradio UIs, if you want to allow users to interrupt a running agent, you could do this with a button that triggers method `agent.interrupt()`.
+This will stop the agent at the end of its current step, then raise an error.
+
 ## Next steps
 
 Finally, when you've configured your agent to your needs, you can share it to the Hub!

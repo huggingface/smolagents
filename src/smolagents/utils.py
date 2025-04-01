@@ -20,13 +20,15 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import keyword
 import os
 import re
 import types
 from functools import lru_cache
 from io import BytesIO
+from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 
 if TYPE_CHECKING:
@@ -43,11 +45,6 @@ def _is_package_available(package_name: str) -> bool:
         return True
     except importlib.metadata.PackageNotFoundError:
         return False
-
-
-@lru_cache
-def _is_pillow_available():
-    return importlib.util.find_spec("PIL") is not None
 
 
 BASE_BUILTIN_MODULES = [
@@ -108,6 +105,18 @@ class AgentMaxStepsError(AgentError):
     pass
 
 
+class AgentToolCallError(AgentExecutionError):
+    """Exception raised for errors when incorrect arguments are passed to the tool"""
+
+    pass
+
+
+class AgentToolExecutionError(AgentExecutionError):
+    """Exception raised for errors when executing a tool"""
+
+    pass
+
+
 class AgentGenerationError(AgentError):
     """Exception raised for errors in generation in the agent"""
 
@@ -140,13 +149,16 @@ def make_json_serializable(obj: Any) -> Any:
         return str(obj)
 
 
-def parse_json_blob(json_blob: str) -> Dict[str, str]:
+def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
+    "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
     try:
         first_accolade_index = json_blob.find("{")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_blob = json_blob[first_accolade_index : last_accolade_index + 1].replace('\\"', "'")
-        json_data = json.loads(json_blob, strict=False)
-        return json_data
+        json_data = json_blob[first_accolade_index : last_accolade_index + 1]
+        json_data = json.loads(json_data, strict=False)
+        return json_data, json_blob[:first_accolade_index]
+    except IndexError:
+        raise ValueError("The JSON blob you used is invalid")
     except json.JSONDecodeError as e:
         place = e.pos
         if json_blob[place - 1 : place + 2] == "},\n":
@@ -158,8 +170,6 @@ def parse_json_blob(json_blob: str) -> Dict[str, str]:
             f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"
             f"'{json_blob[place - 4 : place + 5]}'."
         )
-    except Exception as e:
-        raise ValueError(f"Error in parsing the JSON blob: {e}")
 
 
 def parse_code_blobs(text: str) -> str:
@@ -217,30 +227,6 @@ def parse_code_blobs(text: str) -> str:
             """
         ).strip()
     )
-
-
-def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
-    json_blob = json_blob.replace("```json", "").replace("```", "")
-    tool_call = parse_json_blob(json_blob)
-    tool_name_key, tool_arguments_key = None, None
-    for possible_tool_name_key in ["action", "tool_name", "tool", "name", "function"]:
-        if possible_tool_name_key in tool_call:
-            tool_name_key = possible_tool_name_key
-    for possible_tool_arguments_key in [
-        "action_input",
-        "tool_arguments",
-        "tool_args",
-        "parameters",
-    ]:
-        if possible_tool_arguments_key in tool_call:
-            tool_arguments_key = possible_tool_arguments_key
-    if tool_name_key is not None:
-        if tool_arguments_key is not None:
-            return tool_call[tool_name_key], tool_call[tool_arguments_key]
-        else:
-            return tool_call[tool_name_key], None
-    error_msg = "No tool name key found in tool call!" + f" Tool call: {json_blob}"
-    raise AgentParsingError(error_msg)
 
 
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
@@ -348,8 +334,14 @@ def instance_to_source(instance, base_cls=None):
         name: func
         for name, func in cls.__dict__.items()
         if callable(func)
-        and not (
-            base_cls and hasattr(base_cls, name) and getattr(base_cls, name).__code__.co_code == func.__code__.co_code
+        and (
+            not base_cls
+            or not hasattr(base_cls, name)
+            or (
+                isinstance(func, staticmethod)
+                or isinstance(func, classmethod)
+                or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code)
+            )
         )
     }
 
@@ -414,7 +406,9 @@ def get_source(obj) -> str:
 
     inspect_error = None
     try:
-        return dedent(inspect.getsource(obj)).strip()
+        # Handle dynamically created classes
+        source = getattr(obj, "__source__", None) or inspect.getsource(obj)
+        return dedent(source).strip()
     except OSError as e:
         # let's keep track of the exception to raise it if all further methods fail
         inspect_error = e
@@ -451,8 +445,12 @@ def make_image_url(base64_image):
     return f"data:image/png;base64,{base64_image}"
 
 
-def make_init_file(folder: str):
+def make_init_file(folder: str | Path):
     os.makedirs(folder, exist_ok=True)
     # Create __init__
     with open(os.path.join(folder, "__init__.py"), "w"):
         pass
+
+
+def is_valid_name(name: str) -> bool:
+    return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False
