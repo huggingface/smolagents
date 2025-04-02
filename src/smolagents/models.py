@@ -19,7 +19,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, override
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url, parse_json_blob
@@ -265,7 +265,6 @@ class Model:
         tools_to_call_from: Optional[List[Tool]] = None,
         custom_role_conversions: dict[str, str] | None = None,
         convert_images_to_image_urls: bool = False,
-        is_bedrock_runtime: bool = False,
         **kwargs,
     ) -> Dict:
         """
@@ -304,14 +303,6 @@ class Model:
                     "tool_choice": "required",
                 }
             )
-
-        # The Bedrock API does not support the `type` key in requests.  
-        # This block of code modifies the object to meet Bedrock's requirements.
-        if is_bedrock_runtime:
-            for message in completion_kwargs.get("messages", []):
-                for content in message.get("content", []):
-                    if "type" in content:
-                        del content["type"]
 
         # Finally, use the passed-in kwargs to override all settings
         completion_kwargs.update(kwargs)
@@ -1181,61 +1172,143 @@ class AmazonBedrockServerModel(ApiModel):
     Parameters:
         model_id (`str`):
             The model identifier to use on Bedrock (e.g. "us.amazon.nova-pro-v1:0").
-        boto3_client (`boto3.client`, *optional*):
+        client (`boto3.client`, *optional*):
             A custom boto3 client for AWS interactions. If not provided, a default client will be created.
-        inference_config (`dict`, *optional*):
-            Configuration parameters for model inference, such as temperature, max tokens, and other model-specific settings.
-        guardrail_config (`dict`, *optional*):
-            Configuration for model guardrails to control and moderate model behavior and outputs.
-        api_kwargs (`dict`, *optional*):
-            Additional keyword arguments to be passed to boto3 bedrock-runtime API requests.
+        client_kwargs (dict[str, Any], *optional*):
+            Keyword arguments used to configure the boto3 client if it needs to be created internally.
+            Examples include `region_name`, `config`, or `endpoint_url`.
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
         flatten_messages_as_text (`bool`, default `False`):
             Whether to flatten messages as text.
+        **kwargs
+            Additional keyword arguments passed directly to the underlying API calls.
 
     Example:
+        Creating a model instance with default settings:
+        >>> bedrock_model = AmazonBedrockServerModel(
+        ...     model_id='us.amazon.nova-pro-v1:0'
+        ... )
+
+        Creating a model instance with a custom boto3 client:
+        >>> import boto3
+        >>> client = boto3.client('bedrock-runtime', region_name='us-west-2')
         >>> bedrock_model = AmazonBedrockServerModel(
         ...     model_id='us.amazon.nova-pro-v1:0',
-        ...     inference_config={'temperature': 0.7, 'max_tokens': 3000}
+        ...     client=client
+        ... )
+
+        Creating a model instance with client_kwargs for internal client creation:
+        >>> bedrock_model = AmazonBedrockServerModel(
+        ...     model_id='us.amazon.nova-pro-v1:0',
+        ...     client_kwargs={'region_name': 'us-west-2', 'endpoint_url': 'https://custom-endpoint.com'}
+        ... )
+
+        Creating a model instance with inference and guardrail configurations:
+        >>> additional_api_config = {
+        ...     "inferenceConfig": {
+        ...         "maxTokens": 3000
+        ...     },
+        ...     "guardrailConfig": {
+        ...         "guardrailIdentifier": "identify1",
+        ...         "guardrailVersion": 'v1'
+        ...     },
+        ... }
+        >>> bedrock_model = AmazonBedrockServerModel(
+        ...     model_id='anthropic.claude-3-haiku-20240307-v1:0',
+        ...     **additional_api_config
         ... )
     """
 
     def __init__(
         self,
         model_id: str,
-        boto3_client=None,
-        inference_config: dict[str, Any] | None = None,
-        guardrail_config: dict[str, Any] | None = None,
-        bedrock_api_kwargs: dict[str, Any] | None = None,
+        client = None,
+        client_kwargs: dict[str, Any] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool = False,
         **kwargs,
     ):
         self.model_id = model_id
-        self.client = boto3_client or self.create_client()
-        self.inference_config = inference_config
-        self.guardrail_config = guardrail_config
-        self.bedrock_api_kwargs = bedrock_api_kwargs
-        self.custom_role_conversions = custom_role_conversions
+        self.client_kwargs = client_kwargs
+        self.client = client or self.create_client()
+        self.custom_api_kwargs = kwargs
+
+        # Bedrock only supports `assistant` and `user` roles.
+        # Many Bedrock models do not allow conversations to start with the `assistant` role, so the default is set to `user/user`.
+        # This parameter is retained for future model implementations and extended support.
+        self.custom_role_conversions = custom_role_conversions or {
+                        MessageRole.SYSTEM: MessageRole.USER,
+                        MessageRole.ASSISTANT: MessageRole.USER,
+                        MessageRole.TOOL_CALL: MessageRole.USER,
+                        MessageRole.TOOL_RESPONSE: MessageRole.USER,
+                    }
 
         super().__init__(
             model_id=model_id,
-            custom_role_conversions=custom_role_conversions,
+            custom_role_conversions=self.custom_role_conversions,
             flatten_messages_as_text=flatten_messages_as_text,
-            **kwargs,
+            **self.custom_api_kwargs,
         )
 
+    @override
+    def _prepare_completion_kwargs(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        convert_images_to_image_urls: bool = False,
+        **kwargs,
+    ) -> Dict:
+
+        """
+        Overrides the base method to handle Bedrock-specific configurations.
+
+        This implementation adapts the completion keyword arguments to align with
+        Bedrock's requirements, ensuring compatibility with its unique setup and
+        constraints.
+        """
+        messages = super()._prepare_completion_kwargs(messages=messages,
+                                                      stop_sequences=stop_sequences,
+                                                      grammar=grammar,
+                                                      tools_to_call_from=tools_to_call_from,
+                                                      custom_role_conversions=custom_role_conversions,
+                                                      convert_images_to_image_urls=convert_images_to_image_urls,
+                                                      **kwargs)
+
+        if messages.get("toolConfig"):
+            # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
+            # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
+            messages.pop("toolConfig")
+
+        # The Bedrock API does not support the `type` key in requests.
+        # This block of code modifies the object to meet Bedrock's requirements.
+        for message in messages.get("messages", []):
+            for content in message.get("content", []):
+                if "type" in content:
+                    del content["type"]
+
+        return {
+            "modelId": self.model_id,
+            **messages,
+        }
+
     def create_client(self):
+        # A custom client might already exist
+        # If so, we use the previously created client to avoid overwriting custom configurations or instances.
+        if getattr(self, 'client', None):
+            return self.client
+
         try:
             import boto3
+            return boto3.client("bedrock-runtime", self.client_kwargs)
         except ModuleNotFoundError as e:
             raise ModuleNotFoundError(
-                "Please install 'aws_sdk' extra to use AmazonBedrockServerModel: `pip install 'smolagents[aws_sdk]'`"
+                "Please install 'bedrock' extra to use AmazonBedrockServerModel: `pip install 'smolagents[bedrock]'`"
             ) from e
-
-        return boto3.client("bedrock-runtime")
 
     def __call__(
         self,
@@ -1243,51 +1316,16 @@ class AmazonBedrockServerModel(ApiModel):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
-        # smolagents inject automatic parameters like end_stop, Observation and others
-        # The Bedrock API only supports the fields explicitly defined here.
-        # To ensure compliance, `kwargs` is set to empty, and customers must provide additional parameters using `bedrock_api_kwargs`.
-        kwargs = {}
-
-        # Bedrock only supports `assistant` and `user` roles.
-        # Many Bedrock models do not allow conversations to start with the `assistant` role, so the default is set to `user/user`.
-        # This parameter is retained for future model implementations and extended support.
-        if not self.custom_role_conversions:
-            self.custom_role_conversions = {
-                MessageRole.SYSTEM: MessageRole.USER,
-                MessageRole.ASSISTANT: MessageRole.USER,
-                MessageRole.TOOL_CALL: MessageRole.USER,
-                MessageRole.TOOL_RESPONSE: MessageRole.USER,
-            }
 
         completion_kwargs: Dict = self._prepare_completion_kwargs(
             messages=messages,
             tools_to_call_from=tools_to_call_from,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
-            is_bedrock_runtime=True,
-            **kwargs,
+            **self.custom_api_kwargs,
         )
 
-        # Preparing the request payload to bedrock-runtime API
-        request_payload: dict[str, Any] = {
-            "modelId": self.model_id,
-            **completion_kwargs,
-        }
-
-        if self.guardrail_config:
-            request_payload["guardrailConfig"] = self.guardrail_config
-
-        if self.inference_config:
-            request_payload["inferenceConfig"] = self.inference_config
-
-        if self.bedrock_api_kwargs:
-            if self.bedrock_api_kwargs.get("toolConfig"):
-                # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
-                # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
-                self.bedrock_api_kwargs.pop("toolConfig")
-            request_payload.update(**self.bedrock_api_kwargs)
-
-        response = self.client.converse(**request_payload)
+        response = self.client.converse(**completion_kwargs)
 
         # Get usage
         self.last_input_token_count = response["usage"]["inputTokens"]

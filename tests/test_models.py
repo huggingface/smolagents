@@ -206,13 +206,9 @@ class TestAmazonBedrockServerModel:
     def test_client_for_bedrock(self):
         model_id = "us.amazon.nova-pro-v1:0"
 
-        config = Config(retries={"max_attempts": 10, "mode": "standard"})
-        bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-1", config=config)
-
         with patch("boto3.client") as MockBoto3:
             model = AmazonBedrockServerModel(
                 model_id=model_id,
-                boto3_client=bedrock_client,
             )
 
         assert model.client == MockBoto3.return_value

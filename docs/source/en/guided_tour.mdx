@@ -183,24 +183,21 @@ bedrock_client = boto3.client(
     aws_secret_access_key='YOUR_SECRET_KEY'
 )
 
+additional_api_config = {
+    "inferenceConfig": {
+        "maxTokens": 3000
+    },
+    "guardrailConfig": {
+        "guardrailIdentifier": "identify1",
+        "guardrailVersion": 'v1'
+    },
+}
+
 # Initialize with comprehensive configuration
 model = AmazonBedrockServerModel(
     model_id="us.amazon.nova-pro-v1:0",
-    boto3_client=bedrock_client,  # Use custom client
-    inference_config={
-        "temperature": 0.5,
-        "top_p": 0.9,
-        "max_tokens": 1000
-    },
-    guardrail_config={
-        "guardrail_id": "my-custom-guardrail",
-        "guardrail_version": "DRAFT"
-    },
-    bedrock_api_kwargs={
-        "performanceConfig": {
-            "latency": "standard"
-        }
-    }
+    client=bedrock_client,  # Use custom client
+    **additional_api_config
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
