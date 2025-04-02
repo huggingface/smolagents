@@ -7,7 +7,7 @@ from smolagents.agents import CodeAgent, ToolCallingAgent
 # Choose which inference type to use!
 
 available_inferences = ["hf_api", "hf_api_provider", "transformers", "ollama", "litellm", "openai"]
-chosen_inference = "openai"
+chosen_inference = "hf_api_provider"
 
 print(f"Chose model: '{chosen_inference}'")
 

@@ -24,6 +24,7 @@ import pytest
 
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
+    AgentError,
     AgentMaxStepsError,
     CodeAgent,
     MultiStepAgent,
@@ -796,6 +797,23 @@ class TestMultiStepAgent:
                 for content, expected_content in zip(message["content"], expected_message["content"]):
                     assert content == expected_content
 
+    def test_interrupt(self):
+        fake_model = MagicMock()
+        fake_model.return_value.content = "Model output."
+        fake_model.last_input_token_count = None
+
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt()
+
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+        with pytest.raises(AgentError) as e:
+            agent.run("Test task")
+        assert "Agent interrupted" in str(e)
+
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
         [
@@ -894,6 +912,31 @@ class TestToolCallingAgent(unittest.TestCase):
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
         assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
         assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
+
+    @patch("huggingface_hub.InferenceClient")
+    def test_toolcalling_agent_api_misformatted_output(self, mock_inference_client):
+        """Test that even misformatted json blobs don't interrupt the run for a ToolCallingAgent."""
+        mock_client = mock_inference_client.return_value
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[
+            0
+        ].message.content = '{"name": weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+        mock_client.chat_completion.return_value = mock_response
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
+
+        model = HfApiModel(model_id="test-model")
+
+        agent = ToolCallingAgent(model=model, tools=[], max_steps=2, verbosity_level=1)
+        with agent.logger.console.capture() as capture:
+            agent.run("What's the weather in Paris?")
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls is None
+        assert "The JSON blob you used is invalid" in agent.memory.steps[1].error.message
+        assert "Error while generating or parsing output:" in capture.get()
+        assert len(agent.memory.steps) == 4
 
 
 class TestCodeAgent:

@@ -94,9 +94,8 @@ class PythonInterpreterTester(unittest.TestCase):
         self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": {"counter": 3}})
 
         # Should not work without the tool
-        with pytest.raises(InterpreterError) as e:
+        with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'add_two'"):
             evaluate_python_code(code, {}, state=state)
-        assert "tried to execute add_two" in str(e.value)
 
     def test_evaluate_constant(self):
         code = "x = 3"
@@ -2061,7 +2060,5 @@ class TestLocalPythonExecutorSecurity:
     def test_vulnerability_via_dunder_indirect_access(self):
         executor = LocalPythonExecutor([])
         code = "a = (); b = getattr(a, '__class__')"
-        with pytest.raises(
-            InterpreterError, match="It is not permitted to evaluate other functions than the provided"
-        ):
+        with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'getattr'"):
             executor(code)

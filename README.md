@@ -26,7 +26,7 @@ limitations under the License.
 <h3 align="center">
   <div style="display:flex;flex-direction:row;">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/smolagents.png" alt="Hugging Face mascot as James Bond" width=400px>
-    <p>A smol library to build great agents!</p>
+    <p>Agents that think in code!</p>
   </div>
 </h3>
 
