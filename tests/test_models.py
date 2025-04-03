@@ -19,9 +19,7 @@ from contextlib import ExitStack
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
-import boto3
 import pytest
-from botocore.config import Config
 
 from smolagents.models import (
     AmazonBedrockServerModel,

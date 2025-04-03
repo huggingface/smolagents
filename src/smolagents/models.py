@@ -1224,7 +1224,7 @@ class AmazonBedrockServerModel(ApiModel):
     def __init__(
         self,
         model_id: str,
-        client = None,
+        client=None,
         client_kwargs: dict[str, Any] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool = False,
@@ -1239,11 +1239,11 @@ class AmazonBedrockServerModel(ApiModel):
         # Many Bedrock models do not allow conversations to start with the `assistant` role, so the default is set to `user/user`.
         # This parameter is retained for future model implementations and extended support.
         self.custom_role_conversions = custom_role_conversions or {
-                        MessageRole.SYSTEM: MessageRole.USER,
-                        MessageRole.ASSISTANT: MessageRole.USER,
-                        MessageRole.TOOL_CALL: MessageRole.USER,
-                        MessageRole.TOOL_RESPONSE: MessageRole.USER,
-                    }
+            MessageRole.SYSTEM: MessageRole.USER,
+            MessageRole.ASSISTANT: MessageRole.USER,
+            MessageRole.TOOL_CALL: MessageRole.USER,
+            MessageRole.TOOL_RESPONSE: MessageRole.USER,
+        }
 
         super().__init__(
             model_id=model_id,
@@ -1262,7 +1262,6 @@ class AmazonBedrockServerModel(ApiModel):
         convert_images_to_image_urls: bool = False,
         **kwargs,
     ) -> Dict:
-
         """
         Overrides the base method to handle Bedrock-specific configurations.
 
@@ -1270,13 +1269,15 @@ class AmazonBedrockServerModel(ApiModel):
         Bedrock's requirements, ensuring compatibility with its unique setup and
         constraints.
         """
-        messages = super()._prepare_completion_kwargs(messages=messages,
-                                                      stop_sequences=stop_sequences,
-                                                      grammar=grammar,
-                                                      tools_to_call_from=tools_to_call_from,
-                                                      custom_role_conversions=custom_role_conversions,
-                                                      convert_images_to_image_urls=convert_images_to_image_urls,
-                                                      **kwargs)
+        messages = super()._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            custom_role_conversions=custom_role_conversions,
+            convert_images_to_image_urls=convert_images_to_image_urls,
+            **kwargs,
+        )
 
         if messages.get("toolConfig"):
             # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
@@ -1298,11 +1299,12 @@ class AmazonBedrockServerModel(ApiModel):
     def create_client(self):
         # A custom client might already exist
         # If so, we use the previously created client to avoid overwriting custom configurations or instances.
-        if getattr(self, 'client', None):
+        if getattr(self, "client", None):
             return self.client
 
         try:
             import boto3
+
             return boto3.client("bedrock-runtime", self.client_kwargs)
         except ModuleNotFoundError as e:
             raise ModuleNotFoundError(
@@ -1315,7 +1317,6 @@ class AmazonBedrockServerModel(ApiModel):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
-
         completion_kwargs: Dict = self._prepare_completion_kwargs(
             messages=messages,
             tools_to_call_from=tools_to_call_from,
