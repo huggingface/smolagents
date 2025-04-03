@@ -930,7 +930,7 @@ class LiteLLMRouter(ApiModel):
     >>> os.environ["AWS_ACCESS_KEY_ID"] = ""
     >>> os.environ["AWS_SECRET_ACCESS_KEY"] = ""
     >>> os.environ["AWS_REGION"] = ""
-    
+
     >>> llm_loadbalancer_model_list = [
     ...     {
     ...         "model_name": "model-group-1",

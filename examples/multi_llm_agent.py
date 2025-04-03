@@ -1,6 +1,7 @@
-
 import os
+
 from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouter
+
 
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["AWS_ACCESS_KEY_ID"] = ""
@@ -36,11 +37,7 @@ llm_loadbalancer_model_list = [
 ]
 
 
-model = LiteLLMRouter(
-    model_id="model-group-1",model_list=llm_loadbalancer_model_list
-)
+model = LiteLLMRouter(model_id="model-group-1", model_list=llm_loadbalancer_model_list)
 agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
-
-
