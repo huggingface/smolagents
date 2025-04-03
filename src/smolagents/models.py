@@ -19,7 +19,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, override
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url, parse_json_blob
@@ -1252,7 +1252,6 @@ class AmazonBedrockServerModel(ApiModel):
             **self.custom_api_kwargs,
         )
 
-    @override
     def _prepare_completion_kwargs(
         self,
         messages: List[Dict[str, str]],
