@@ -401,8 +401,8 @@ class VLLMModel(Model):
             Additional keyword arguments to pass to the vLLM model (like revision, max_model_len, etc.).
     """
     def __init__(
-        self, 
-        model_id, 
+        self,
+        model_id,
         client_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
