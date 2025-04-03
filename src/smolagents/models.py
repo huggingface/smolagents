@@ -913,10 +913,6 @@ class LiteLLMRouter(ApiModel):
             The model group identifier to use from the model list(e.g. "model-group-1").
         model_list (`List[Dict[Any, Any]]`)
             The models in the pool available. Refer to this document [LiteLLM Routing](https://docs.litellm.ai/docs/routing#quick-start)
-        api_base (`str`, *optional*):
-            The base URL of the provider API to call the model.
-        api_key (`str`, *optional*):
-            The API key to use for authentication.
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
@@ -924,14 +920,47 @@ class LiteLLMRouter(ApiModel):
             Defaults to `True` for models that start with "ollama", "groq", "cerebras".
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
+
+    Example:
+    ```python
+    >>> import os
+    >>> from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouter
+
+    >>> os.environ["OPENAI_API_KEY"] = ""
+    >>> os.environ["AWS_ACCESS_KEY_ID"] = ""
+    >>> os.environ["AWS_SECRET_ACCESS_KEY"] = ""
+    >>> os.environ["AWS_REGION"] = ""
+    
+    >>> llm_loadbalancer_model_list = [
+    ...     {
+    ...         "model_name": "model-group-1",
+    ...         "litellm_params": {
+    ...             "model": "gpt-4o-mini",
+    ...             "api_key": os.getenv("OPENAI_API_KEY"),
+    ...         },
+    ...     },
+    ...     {
+    ...         "model_name": "model-group-1",
+    ...         "litellm_params": {
+    ...             "model": "bedrock/anthropic.claude-3-sonnet-20240229-v1:0",
+    ...             "aws_access_key_id": os.getenv("AWS_ACCESS_KEY_ID"),
+    ...             "aws_secret_access_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
+    ...             "aws_region_name": os.getenv("AWS_REGION"),
+    ...         },
+    ...     },
+    >>> ]
+    >>> model = LiteLLMRouter(
+    >>>     model_id="model-group-1",model_list=llm_loadbalancer_model_list
+    >>> )
+    >>> agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
+    >>> agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
+    ```
     """
 
     def __init__(
         self,
         model_id: Optional[str],
         model_list: List[Dict[Any, Any]],
-        api_base=None,
-        api_key=None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         flatten_messages_as_text: bool | None = None,
         **kwargs,
@@ -956,8 +985,6 @@ class LiteLLMRouter(ApiModel):
             model_list=self._model_list,
             routing_strategy="simple-shuffle",
         )
-        self.api_base = api_base
-        self.api_key = api_key
         self.custom_role_conversions = custom_role_conversions
         flatten_messages_as_text = (
             flatten_messages_as_text
@@ -980,8 +1007,6 @@ class LiteLLMRouter(ApiModel):
             grammar=grammar,
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
-            api_base=self.api_base,
-            api_key=self.api_key,
             convert_images_to_image_urls=True,
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
@@ -1235,6 +1260,7 @@ __all__ = [
     "ApiModel",
     "HfApiModel",
     "LiteLLMModel",
+    "LiteLLMRouter",
     "OpenAIServerModel",
     "VLLMModel",
     "AzureOpenAIServerModel",
