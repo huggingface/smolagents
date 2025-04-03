@@ -170,11 +170,20 @@ def remove_stop_sequences(content: str, stop_sequences: List[str]) -> str:
     return content
 
 
+def contains_image(message_list: List[Dict[str, str]]) -> bool:
+    for message in message_list:
+        if isinstance(message["content"], list):
+            for element in message["content"]:
+                if element["type"] == "image":
+                    return True
+    return False
+
+
 def get_clean_message_list(
     message_list: List[Dict[str, str]],
     role_conversions: Dict[MessageRole, MessageRole] = {},
     convert_images_to_image_urls: bool = False,
-    flatten_messages_as_text: bool = False,
+    flatten_messages_as_text: Optional[bool] = None,
 ) -> List[Dict[str, str]]:
     """
     Subsequent messages with the same role will be concatenated to a single message.
@@ -184,8 +193,14 @@ def get_clean_message_list(
         message_list (`list[dict[str, str]]`): List of chat messages.
         role_conversions (`dict[MessageRole, MessageRole]`, *optional* ): Mapping to convert roles.
         convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
-        flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
+        flatten_messages_as_text (`bool`, default `True`): Force flattening messages as text. Will raise an error if message list contains an image.
     """
+    if contains_image(message_list):
+        if flatten_messages_as_text:
+            raise ValueError("Cannot flatten messages as text if message list contains an image.")
+    else:
+        flatten_messages_as_text = True
+
     output_message_list = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
     for message in message_list:
@@ -838,7 +853,7 @@ class LiteLLMModel(ApiModel):
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
-        flatten_messages_as_text (`bool`, *optional*): Whether to flatten messages as text.
+        flatten_messages_as_text (`bool`, *optional*): Force flattening messages as text.
             Defaults to `True` for models that start with "ollama", "groq", "cerebras".
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
@@ -1034,7 +1049,7 @@ class OpenAIServerModel(ApiModel):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
         flatten_messages_as_text (`bool`, default `False`):
-            Whether to flatten messages as text.
+            Force flattening messages as text.
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
