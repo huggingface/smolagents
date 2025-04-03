@@ -921,13 +921,10 @@ class TestToolCallingAgent(unittest.TestCase):
     def test_toolcalling_agent_api_misformatted_output(self, mock_inference_client):
         """Test that even misformatted json blobs don't interrupt the run for a ToolCallingAgent."""
         mock_client = mock_inference_client.return_value
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message = MagicMock()
-        mock_response.choices[
-            0
-        ].message.content = '{"name": weather_api", "arguments": {"location": "Paris", "date": "today"}}'
-        mock_client.chat_completion.return_value = mock_response
+        mock_response = mock_client.chat_completion.return_value
+        mock_response.choices[0].message = ChatCompletionOutputMessage(
+            role="assistant", content='{"name": weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+        )
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 20
 
