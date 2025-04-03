@@ -181,9 +181,6 @@ agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['request
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
-Additionally, as an extra security layer, access to submodule is forbidden by default, unless explicitly authorized within the import list.
-For instance, to access the `numpy.random` submodule, you need to add `'numpy.random'` to the `additional_authorized_imports` list.
-
 > [!WARNING]
 > The LLM can generate arbitrary code that will then be executed: do not add any unsafe imports!
 
@@ -417,6 +414,9 @@ Under the hood, when the user types a new answer, the agent is launched with `ag
 The `reset=False` flag means the agent's memory is not flushed before launching this new task, which lets the conversation go on.
 
 You can also use this `reset=False` argument to keep the conversation going in any other agentic application.
+
+In gradio UIs, if you want to allow users to interrupt a running agent, you could do this with a button that triggers method `agent.interrupt()`.
+This will stop the agent at the end of its current step, then raise an error.
 
 ## Next steps
 

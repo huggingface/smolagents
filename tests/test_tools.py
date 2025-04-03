@@ -21,28 +21,11 @@ import mcp
 import numpy as np
 import PIL.Image
 import pytest
-import torch
-from huggingface_hub.utils import is_torch_available
 
-from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
+from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool
 
 from .utils.markers import require_run_all
-
-
-if is_torch_available():
-    import torch
-
-
-def output_type(output):
-    if isinstance(output, (str, AgentText)):
-        return "string"
-    elif isinstance(output, (PIL.Image.Image, AgentImage)):
-        return "image"
-    elif isinstance(output, (torch.Tensor, AgentAudio)):
-        return "audio"
-    else:
-        raise TypeError(f"Invalid output: {output}")
 
 
 class ToolTesterMixin:
@@ -453,27 +436,6 @@ class TestTool:
             source_code = f.read()
             compile(source_code, f.name, "exec")
 
-    def test_saving_tool_produces_valid_python_code_with_complex_name(self, tmp_path):
-        # Test one cannot save tool with additional args in init
-        class FailTool(Tool):
-            name = 'spe"\rcific'
-            description = """test \n\r
-            description"""
-            inputs = {"string_input": {"type": "string", "description": "input description"}}
-            output_type = "string"
-
-            def __init__(self):
-                super().__init__(self)
-
-            def forward(self, string_input):
-                return "foo"
-
-        fail_tool = FailTool()
-        fail_tool.save(tmp_path)
-        with open(os.path.join(tmp_path, "tool.py"), "r", encoding="utf-8") as f:
-            source_code = f.read()
-            compile(source_code, f.name, "exec")
-
     @pytest.mark.parametrize("fixture_name", ["boolean_default_tool_class", "boolean_default_tool_function"])
     def test_to_dict_boolean_default_input(self, fixture_name, request):
         """Test that boolean input parameter with default value is correctly represented in to_dict output"""
@@ -516,7 +478,7 @@ def mock_smolagents_adapter():
 
 class TestToolCollection:
     def test_from_mcp(self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter):
-        with ToolCollection.from_mcp(mock_server_parameters) as tool_collection:
+        with ToolCollection.from_mcp(mock_server_parameters, trust_remote_code=True) as tool_collection:
             assert isinstance(tool_collection, ToolCollection)
             assert len(tool_collection.tools) == 2
             assert "tool1" in tool_collection.tools
@@ -542,7 +504,7 @@ class TestToolCollection:
             args=["-c", mcp_server_script],
         )
 
-        with ToolCollection.from_mcp(mcp_server_params) as tool_collection:
+        with ToolCollection.from_mcp(mcp_server_params, trust_remote_code=True) as tool_collection:
             assert len(tool_collection.tools) == 1, "Expected 1 tool"
             assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
             assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
@@ -573,7 +535,9 @@ class TestToolCollection:
         time.sleep(1)
 
         try:
-            with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}) as tool_collection:
+            with ToolCollection.from_mcp(
+                {"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True
+            ) as tool_collection:
                 assert len(tool_collection.tools) == 1, "Expected 1 tool"
                 assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
                 assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"

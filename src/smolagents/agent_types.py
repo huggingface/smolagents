@@ -19,10 +19,8 @@ import tempfile
 import uuid
 from io import BytesIO
 
-import numpy as np
 import PIL.Image
 import requests
-from huggingface_hub.utils import is_torch_available
 
 from .utils import _is_package_available
 
@@ -93,13 +91,18 @@ class AgentImage(AgentType, PIL.Image.Image):
             self._raw = PIL.Image.open(BytesIO(value))
         elif isinstance(value, (str, pathlib.Path)):
             self._path = value
-        elif is_torch_available():
-            import torch
+        else:
+            try:
+                import torch
 
-            if isinstance(value, torch.Tensor):
-                self._tensor = value
-            if isinstance(value, np.ndarray):
-                self._tensor = torch.from_numpy(value)
+                if isinstance(value, torch.Tensor):
+                    self._tensor = value
+                import numpy as np
+
+                if isinstance(value, np.ndarray):
+                    self._tensor = torch.from_numpy(value)
+            except ModuleNotFoundError:
+                pass
 
         if self._path is None and self._raw is None and self._tensor is None:
             raise TypeError(f"Unsupported type for {self.__class__.__name__}: {type(value)}")
@@ -124,6 +127,8 @@ class AgentImage(AgentType, PIL.Image.Image):
             return self._raw
 
         if self._tensor is not None:
+            import numpy as np
+
             array = self._tensor.cpu().detach().numpy()
             return PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
 
@@ -142,6 +147,8 @@ class AgentImage(AgentType, PIL.Image.Image):
             return self._path
 
         if self._tensor is not None:
+            import numpy as np
+
             array = self._tensor.cpu().detach().numpy()
 
             # There is likely simpler than load into image into save
@@ -171,10 +178,11 @@ class AgentAudio(AgentType, str):
     """
 
     def __init__(self, value, samplerate=16_000):
-        if not _is_package_available("soundfile") or not is_torch_available():
+        if not _is_package_available("soundfile") or not _is_package_available("torch"):
             raise ModuleNotFoundError(
                 "Please install 'audio' extra to use AgentAudio: `pip install 'smolagents[audio]'`"
             )
+        import numpy as np
         import torch
 
         super().__init__(value)
@@ -185,7 +193,7 @@ class AgentAudio(AgentType, str):
         self.samplerate = samplerate
         if isinstance(value, (str, pathlib.Path)):
             self._path = value
-        elif is_torch_available() and isinstance(value, torch.Tensor):
+        elif isinstance(value, torch.Tensor):
             self._tensor = value
         elif isinstance(value, tuple):
             self.samplerate = value[0]
@@ -262,11 +270,13 @@ def handle_agent_output_types(output, output_type=None):
         return AgentText(output)
     if isinstance(output, PIL.Image.Image):
         return AgentImage(output)
-    if is_torch_available():
+    try:
         import torch
 
         if isinstance(output, torch.Tensor):
             return AgentAudio(output)
+    except ModuleNotFoundError:
+        pass
     return output
 
 

@@ -26,7 +26,7 @@ import types
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -36,7 +36,6 @@ from huggingface_hub import (
     hf_hub_download,
     metadata_update,
 )
-from huggingface_hub.utils import is_torch_available
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
@@ -46,7 +45,11 @@ from ._function_type_hints_utils import (
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source
+from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source, is_valid_name
+
+
+if TYPE_CHECKING:
+    import mcp
 
 
 logger = logging.getLogger(__name__)
@@ -121,7 +124,7 @@ class Tool:
             "inputs": dict,
             "output_type": str,
         }
-
+        # Validate class attributes
         for attr, expected_type in required_attributes.items():
             attr_value = getattr(self, attr, None)
             if attr_value is None:
@@ -130,6 +133,12 @@ class Tool:
                 raise TypeError(
                     f"Attribute {attr} should have type {expected_type.__name__}, got {type(attr_value)} instead."
                 )
+        # - Validate name
+        if not is_valid_name(self.name):
+            raise Exception(
+                f"Invalid Tool name '{self.name}': must be a valid Python identifier and not a reserved keyword"
+            )
+        # Validate inputs
         for input_name, input_content in self.inputs.items():
             assert isinstance(input_content, dict), f"Input '{input_name}' should be a dictionary."
             assert "type" in input_content and "description" in input_content, (
@@ -139,7 +148,7 @@ class Tool:
                 raise Exception(
                     f"Input '{input_name}': type '{input_content['type']}' is not an authorized value, should be one of {AUTHORIZED_TYPES}."
                 )
-
+        # Validate output type
         assert getattr(self, "output_type", None) in AUTHORIZED_TYPES
 
         # Validate forward function signature, except for Tools that use a "generic" signature (PipelineTool, SpaceToolWrapper, LangChainToolWrapper)
@@ -148,10 +157,12 @@ class Tool:
             and getattr(self, "skip_forward_signature_validation") is True
         ):
             signature = inspect.signature(self.forward)
-
-            if not set(key for key in signature.parameters.keys() if key != "self") == set(self.inputs.keys()):
+            actual_keys = set(key for key in signature.parameters.keys() if key != "self")
+            expected_keys = set(self.inputs.keys())
+            if actual_keys != expected_keys:
                 raise Exception(
-                    f"In tool '{self.name}', 'forward' method should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
+                    f"In tool '{self.name}', 'forward' method parameters were {actual_keys}, but expected {expected_keys}. "
+                    f"It should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
                 )
 
             json_schema = _convert_type_hints_to_json_schema(self.forward, error_on_missing_type_hints=False)[
@@ -280,37 +291,20 @@ class Tool:
             tool_file_name (`str`, *optional*): The file name in which you want to save your tool.
             make_gradio_app (`bool`, *optional*, defaults to True): Whether to also export a `requirements.txt` file and Gradio UI.
         """
-        os.makedirs(output_dir, exist_ok=True)
-        class_name = self.__class__.__name__
-        tool_file = os.path.join(output_dir, f"{tool_file_name}.py")
-
-        tool_dict = self.to_dict()
-        tool_code = tool_dict["code"]
-
-        with open(tool_file, "w", encoding="utf-8") as f:
-            f.write(tool_code)
-
+        # Ensure output directory exists
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        # Save tool file
+        self._write_file(output_path / f"{tool_file_name}.py", self._get_tool_code())
         if make_gradio_app:
-            # Save app file
-            app_file = os.path.join(output_dir, "app.py")
-            with open(app_file, "w", encoding="utf-8") as f:
-                f.write(
-                    textwrap.dedent(
-                        f"""
-                from smolagents import launch_gradio_demo
-                from {tool_file_name} import {class_name}
-
-                tool = {class_name}()
-
-                launch_gradio_demo(tool)
-                """
-                    ).lstrip()
-                )
-
+            #  Save app file
+            self._write_file(output_path / "app.py", self._get_gradio_app_code(tool_module_name=tool_file_name))
             # Save requirements file
-            requirements_file = os.path.join(output_dir, "requirements.txt")
-            with open(requirements_file, "w", encoding="utf-8") as f:
-                f.write("\n".join(tool_dict["requirements"]) + "\n")
+            self._write_file(output_path / "requirements.txt", self._get_requirements())
+
+    def _write_file(self, file_path: Path, content: str) -> None:
+        """Writes content to a file with UTF-8 encoding."""
+        file_path.write_text(content, encoding="utf-8")
 
     def push_to_hub(
         self,
@@ -390,18 +384,18 @@ class Tool:
         """Get the tool's code."""
         return self.to_dict()["code"]
 
-    def _get_gradio_app_code(self) -> str:
+    def _get_gradio_app_code(self, tool_module_name: str = "tool") -> str:
         """Get the Gradio app code."""
         class_name = self.__class__.__name__
         return textwrap.dedent(
-            f"""
+            f"""\
             from smolagents import launch_gradio_demo
-            from tool import {class_name}
+            from {tool_module_name} import {class_name}
 
             tool = {class_name}()
             launch_gradio_demo(tool)
             """
-        ).strip()
+        )
 
     def _get_requirements(self) -> str:
         """Get the requirements."""
@@ -829,7 +823,9 @@ class ToolCollection:
 
     @classmethod
     @contextmanager
-    def from_mcp(cls, server_parameters) -> "ToolCollection":
+    def from_mcp(
+        cls, server_parameters: Union["mcp.StdioServerParameters", dict], trust_remote_code: bool = False
+    ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
         This method supports both SSE and Stdio MCP servers. Look at the `sever_parameters`
@@ -839,9 +835,15 @@ class ToolCollection:
         the MCP server.
 
         Args:
-            server_parameters (mcp.StdioServerParameters | dict):
+            server_parameters (`mcp.StdioServerParameters` or `dict`):
                 The server parameters to use to connect to the MCP server. If a dict is
                 provided, it is assumed to be the parameters of `mcp.client.sse.sse_client`.
+            trust_remote_code (`bool`, *optional*, defaults to `False`):
+                Whether to trust the execution of code from tools defined on the MCP server.
+                This option should only be set to `True` if you trust the MCP server,
+                and undertand the risks associated with running remote code on your local machine.
+                If set to `False`, loading tools from MCP will fail.
+
 
         Returns:
             ToolCollection: A tool collection instance.
@@ -857,18 +859,23 @@ class ToolCollection:
         >>>     env={"UV_PYTHON": "3.12", **os.environ},
         >>> )
 
-        >>> with ToolCollection.from_mcp(server_parameters) as tool_collection:
+        >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
 
         Example with an SSE MCP server:
         ```py
-        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}) as tool_collection:
+        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
+                "as it will execute code on your local machine: pass `trust_remote_code=True`."
+            )
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
@@ -1007,7 +1014,7 @@ class PipelineTool(Tool):
         token=None,
         **hub_kwargs,
     ):
-        if not is_torch_available() or not _is_package_available("accelerate"):
+        if not _is_package_available("accelerate") or not _is_package_available("torch"):
             raise ModuleNotFoundError(
                 "Please install 'transformers' extra to use a PipelineTool: `pip install 'smolagents[transformers]'`"
             )

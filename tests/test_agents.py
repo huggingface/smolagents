@@ -29,6 +29,7 @@ from huggingface_hub import (
 
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
+    AgentError,
     AgentMaxStepsError,
     CodeAgent,
     MultiStepAgent,
@@ -47,7 +48,7 @@ from smolagents.models import (
     TransformersModel,
 )
 from smolagents.tools import Tool, tool
-from smolagents.utils import BASE_BUILTIN_MODULES, AgentGenerationError
+from smolagents.utils import BASE_BUILTIN_MODULES, AgentExecutionError, AgentGenerationError, AgentToolCallError
 
 
 def get_new_path(suffix="") -> str:
@@ -671,7 +672,7 @@ class TestMultiStepAgent:
             model=fake_model,
         )
         task = "Test task"
-        agent.planning_step(task, is_first_step=(step == 1), step=step)
+        planning_step = agent._create_planning_step(task, is_first_step=(step == 1), step=step)
         expected_message_texts = {
             "INITIAL_PLAN_USER_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["initial_plan"],
@@ -679,7 +680,7 @@ class TestMultiStepAgent:
                     task=task,
                     tools=agent.tools,
                     managed_agents=agent.managed_agents,
-                    answer_facts=agent.memory.steps[0].model_output_message.content,
+                    answer_facts=planning_step.model_output_message.content,
                 ),
             ),
             "UPDATE_PLAN_SYSTEM_PROMPT": populate_template(
@@ -691,7 +692,7 @@ class TestMultiStepAgent:
                     task=task,
                     tools=agent.tools,
                     managed_agents=agent.managed_agents,
-                    facts_update=agent.memory.steps[0].model_output_message.content,
+                    facts_update=planning_step.model_output_message.content,
                     remaining_steps=agent.max_steps - step,
                 ),
             ),
@@ -700,8 +701,6 @@ class TestMultiStepAgent:
             for expected_message in expected_messages:
                 for expected_content in expected_message["content"]:
                     expected_content["text"] = expected_message_texts[expected_content["text"]]
-        assert len(agent.memory.steps) == 1
-        planning_step = agent.memory.steps[0]
         assert isinstance(planning_step, PlanningStep)
         expected_model_input_messages = expected_messages_list[0]
         model_input_messages = planning_step.model_input_messages
@@ -803,6 +802,23 @@ class TestMultiStepAgent:
                 for content, expected_content in zip(message["content"], expected_message["content"]):
                     assert content == expected_content
 
+    def test_interrupt(self):
+        fake_model = MagicMock()
+        fake_model.return_value.content = "Model output."
+        fake_model.last_input_token_count = None
+
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt()
+
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+        with pytest.raises(AgentError) as e:
+            agent.run("Test task")
+        assert "Agent interrupted" in str(e)
+
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
         [
@@ -900,6 +916,31 @@ class TestToolCallingAgent(unittest.TestCase):
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
         assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
         assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
+
+    @patch("huggingface_hub.InferenceClient")
+    def test_toolcalling_agent_api_misformatted_output(self, mock_inference_client):
+        """Test that even misformatted json blobs don't interrupt the run for a ToolCallingAgent."""
+        mock_client = mock_inference_client.return_value
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[
+            0
+        ].message.content = '{"name": weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+        mock_client.chat_completion.return_value = mock_response
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
+
+        model = HfApiModel(model_id="test-model")
+
+        agent = ToolCallingAgent(model=model, tools=[], max_steps=2, verbosity_level=1)
+        with agent.logger.console.capture() as capture:
+            agent.run("What's the weather in Paris?")
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls is None
+        assert "The JSON blob you used is invalid" in agent.memory.steps[1].error.message
+        assert "Error while generating or parsing output:" in capture.get()
+        assert len(agent.memory.steps) == 4
 
 
 class TestCodeAgent:
@@ -1240,3 +1281,48 @@ def prompt_templates():
         "system_prompt": "This is a test system prompt.",
         "managed_agent": {"task": "Task for {{name}}: {{task}}", "report": "Report for {{name}}: {{final_answer}}"},
     }
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"arg": "bar"},
+        {None: None},
+        [1, 2, 3],
+    ],
+)
+def test_tool_calling_agents_raises_tool_call_error_being_invoked_with_wrong_arguments(arguments):
+    @tool
+    def _sample_tool(prompt: str) -> str:
+        """Tool that returns same string
+
+        Args:
+            prompt: The string to return
+        Returns:
+            The same string
+        """
+
+        return prompt
+
+    agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
+    with pytest.raises(AgentToolCallError):
+        agent.execute_tool_call(_sample_tool.name, arguments)
+
+
+def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
+    @tool
+    def _sample_tool(_: str) -> float:
+        """Tool that fails
+
+        Args:
+            _: The pointless string
+        Returns:
+            Some number
+        """
+
+        return 1 / 0
+
+    agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
+    with pytest.raises(AgentExecutionError):
+        agent.execute_tool_call(_sample_tool.name, "sample")

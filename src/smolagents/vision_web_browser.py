@@ -187,7 +187,7 @@ When you have modals or cookie banners on screen, you should get rid of them bef
 """
 
 
-def main(prompt: str, model_type: str, model_id: str) -> None:
+def run_webagent(prompt: str, model_type: str, model_id: str) -> None:
     # Load environment variables
     load_dotenv()
 
@@ -203,8 +203,11 @@ def main(prompt: str, model_type: str, model_id: str) -> None:
     agent.run(prompt + helium_instructions)
 
 
-if __name__ == "__main__":
+def main() -> None:
     # Parse command line arguments
     args = parse_arguments()
+    run_webagent(args.prompt, args.model_type, args.model_id)
 
-    main(args.prompt, args.model_type, args.model_id)
+
+if __name__ == "__main__":
+    main()

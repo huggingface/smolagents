@@ -130,12 +130,16 @@ class MonitoringTester(unittest.TestCase):
             tools=[],
             model=FakeLLMModel(),
             max_steps=1,
+            planning_interval=2,
         )
 
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 7)
+        self.assertEqual(len(outputs), 11)
+        plan_message = outputs[1]
+        self.assertEqual(plan_message.role, "assistant")
+        self.assertIn("Code:", plan_message.content)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("This is the final answer.", final_message.content)
@@ -176,7 +180,7 @@ class MonitoringTester(unittest.TestCase):
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 11)
+        self.assertEqual(len(outputs), 13)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("Malformed call", final_message.content)
