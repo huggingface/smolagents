@@ -1250,7 +1250,7 @@ class AmazonBedrockServerModel(ApiModel):
         **kwargs,
     ):
         self.model_id = model_id
-        self.client_kwargs = client_kwargs
+        self.client_kwargs = client_kwargs or {}
 
         # Bedrock only supports `assistant` and `user` roles.
         # Many Bedrock models do not allow conversations to start with the `assistant` role, so the default is set to `user/user`.
@@ -1321,7 +1321,7 @@ class AmazonBedrockServerModel(ApiModel):
                 "Please install 'bedrock' extra to use AmazonBedrockServerModel: `pip install 'smolagents[bedrock]'`"
             ) from e
 
-        return boto3.client("bedrock-runtime", **self.client_kwargs or {})
+        return boto3.client("bedrock-runtime", **self.client_kwargs)
 
     def __call__(
         self,
