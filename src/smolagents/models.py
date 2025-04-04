@@ -911,8 +911,10 @@ class LiteLLMRouter(ApiModel):
     Parameters:
         model_id (`str`):
             The model group identifier to use from the model list(e.g. "model-group-1").
-        model_list (`List[Dict[Any, Any]]`)
+        model_list (`list[dict[Any, Any]]`)
             The models in the pool available. Refer to this document [LiteLLM Routing](https://docs.litellm.ai/docs/routing#quick-start)
+        router_kwargs (`dict[Any, Any]`, *optional*):
+            Router Configuration. Default None. [LiteLLM Routing Configurations](https://docs.litellm.ai/docs/routing)
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
@@ -950,7 +952,11 @@ class LiteLLMRouter(ApiModel):
     ...     },
     >>> ]
     >>> model = LiteLLMRouter(
-    >>>     model_id="model-group-1",model_list=llm_loadbalancer_model_list
+    ...    model_id="model-group-1", 
+    ...    model_list=llm_loadbalancer_model_list, 
+    ...    router_kwargs={
+    ...        "routing_strategy":"simple-shuffle"
+    ...    }
     >>> )
     >>> agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
     >>> agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
@@ -961,6 +967,7 @@ class LiteLLMRouter(ApiModel):
         self,
         model_id: Optional[str],
         model_list: List[Dict[Any, Any]],
+        router_kwargs: Optional[Dict[Any, Any]] = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         flatten_messages_as_text: bool | None = None,
         **kwargs,
@@ -973,25 +980,29 @@ class LiteLLMRouter(ApiModel):
                 FutureWarning,
             )
             model_id = "anthropic/claude-3-5-sonnet-20240620"
-        try:
-            from litellm import Router
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
-            )
         self.model_id = model_id
         self._model_list = model_list
-        self.router: Router = Router(
-            model_list=self._model_list,
-            routing_strategy="simple-shuffle",
-        )
+        self._router_kwargs = router_kwargs or {}
         self.custom_role_conversions = custom_role_conversions
         flatten_messages_as_text = (
             flatten_messages_as_text
             if flatten_messages_as_text is not None
             else self.model_id.startswith(("ollama", "groq", "cerebras"))
         )
+        self.create_client()
         super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
+
+    def create_client(self,):
+        try:
+            from litellm import Router
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
+            )
+        self.router: Router = Router(
+            model_list=self._model_list,
+            **self._router_kwargs
+        )
 
     def __call__(
         self,
