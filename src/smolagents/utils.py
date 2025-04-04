@@ -122,6 +122,11 @@ class AgentGenerationError(AgentError):
 
     pass
 
+class AgentNoMoreToolCallError(AgentError):
+    """Exception raised when there are no more tool calls to action"""
+
+    pass
+
 
 def make_json_serializable(obj: Any) -> Any:
     """Recursive function to make objects JSON serializable"""
