@@ -927,12 +927,10 @@ class LiteLLMRouter(ApiModel):
     ```python
     >>> import os
     >>> from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouter
-
     >>> os.environ["OPENAI_API_KEY"] = ""
     >>> os.environ["AWS_ACCESS_KEY_ID"] = ""
     >>> os.environ["AWS_SECRET_ACCESS_KEY"] = ""
     >>> os.environ["AWS_REGION"] = ""
-
     >>> llm_loadbalancer_model_list = [
     ...     {
     ...         "model_name": "model-group-1",
@@ -952,8 +950,8 @@ class LiteLLMRouter(ApiModel):
     ...     },
     >>> ]
     >>> model = LiteLLMRouter(
-    ...    model_id="model-group-1", 
-    ...    model_list=llm_loadbalancer_model_list, 
+    ...    model_id="model-group-1",
+    ...    model_list=llm_loadbalancer_model_list,
     ...    router_kwargs={
     ...        "routing_strategy":"simple-shuffle"
     ...    }
@@ -992,17 +990,16 @@ class LiteLLMRouter(ApiModel):
         self.create_client()
         super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
 
-    def create_client(self,):
+    def create_client(
+        self,
+    ):
         try:
             from litellm import Router
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
             )
-        self.router: Router = Router(
-            model_list=self._model_list,
-            **self._router_kwargs
-        )
+        self.router: Router = Router(model_list=self._model_list, **self._router_kwargs)
 
     def __call__(
         self,
