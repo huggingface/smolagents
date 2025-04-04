@@ -802,6 +802,23 @@ class TransformersModel(Model):
 
 
 class ApiModel(Model):
+    """
+    Base class for API-based language models.
+
+    This class serves as a foundation for implementing models that interact with
+    external APIs. It handles the common functionality for managing model IDs,
+    custom role mappings, and API client connections.
+
+    Parameters:
+        model_id (`str`):
+            The identifier for the model to be used with the API.
+        custom_role_conversions (`dict[str, str`], **optional**):
+            Mapping to convert  between internal role names and API-specific role names. Defaults to None.
+        client (`Any`, **optional**):
+            Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
+        **kwargs: Additional keyword arguments to pass to the parent class.
+    """
+
     def __init__(
         self, model_id: str, custom_role_conversions: dict[str, str] | None = None, client: Any | None = None, **kwargs
     ):
