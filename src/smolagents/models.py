@@ -1255,7 +1255,7 @@ class AmazonBedrockServerModel(ApiModel):
         # Bedrock only supports `assistant` and `user` roles.
         # Many Bedrock models do not allow conversations to start with the `assistant` role, so the default is set to `user/user`.
         # This parameter is retained for future model implementations and extended support.
-        self.custom_role_conversions = custom_role_conversions or {
+        custom_role_conversions = custom_role_conversions or {
             MessageRole.SYSTEM: MessageRole.USER,
             MessageRole.ASSISTANT: MessageRole.USER,
             MessageRole.TOOL_CALL: MessageRole.USER,
@@ -1264,7 +1264,7 @@ class AmazonBedrockServerModel(ApiModel):
 
         super().__init__(
             model_id=model_id,
-            custom_role_conversions=self.custom_role_conversions,
+            custom_role_conversions=custom_role_conversions,
             flatten_messages_as_text=False,  # Bedrock API doesn't support flatten messages, must be a list of messages
             client=client,
             **kwargs,
