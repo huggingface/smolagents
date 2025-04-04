@@ -220,6 +220,23 @@ def complex_docstring_types_func():
     return process
 
 
+@pytest.fixture
+def keywords_in_description_func():
+    def process(value: str) -> str:
+        """
+        Function with Args: or Returns: keywords in its description.
+
+        Args:
+            value: A string value.
+
+        Returns:
+            str: Processed value.
+        """
+        return value.upper()
+
+    return process
+
+
 class TestGetJsonSchema:
     def test_get_json_schema_example(self):
         def fn(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
@@ -429,6 +446,10 @@ class TestGetJsonSchema:
         # First parameter description should contain the expected text
         first_param_name = list(schema["function"]["parameters"]["properties"].keys())[0]
         assert schema["function"]["parameters"]["properties"][first_param_name]["description"] == expected_description
+
+    def test_with_special_words_in_description_func(self, keywords_in_description_func):
+        schema = get_json_schema(keywords_in_description_func)
+        assert schema["function"]["description"] == "Function with Args: or Returns: keywords in its description."
 
 
 class TestGetCode:
