@@ -372,7 +372,7 @@ def test_get_clean_message_list_flatten_messages_as_text():
     result = get_clean_message_list(messages, flatten_messages_as_text=True)
     assert len(result) == 1
     assert result[0]["role"] == "user"
-    assert result[0]["content"] == "Hello!How are you?"
+    assert result[0]["content"] == "Hello!\nHow are you?"
 
 
 @pytest.mark.parametrize(
