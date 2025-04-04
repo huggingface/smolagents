@@ -958,6 +958,132 @@ class LiteLLMModel(ApiModel):
         return self.postprocess_message(first_message, tools_to_call_from)
 
 
+class LiteLLMRouter(ApiModel):
+    """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
+
+    Parameters:
+        model_id (`str`):
+            The model group identifier to use from the model list(e.g. "model-group-1").
+        model_list (`list[dict[Any, Any]]`)
+            The models in the pool available. Refer to this document [LiteLLM Routing](https://docs.litellm.ai/docs/routing#quick-start)
+        router_kwargs (`dict[Any, Any]`, *optional*):
+            Router Configuration. Default None. [LiteLLM Routing Configurations](https://docs.litellm.ai/docs/routing)
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
+        flatten_messages_as_text (`bool`, *optional*): Whether to flatten messages as text.
+            Defaults to `True` for models that start with "ollama", "groq", "cerebras".
+        **kwargs:
+            Additional keyword arguments to pass to the OpenAI API.
+
+    Example:
+    ```python
+    >>> import os
+    >>> from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouter
+    >>> os.environ["OPENAI_API_KEY"] = ""
+    >>> os.environ["AWS_ACCESS_KEY_ID"] = ""
+    >>> os.environ["AWS_SECRET_ACCESS_KEY"] = ""
+    >>> os.environ["AWS_REGION"] = ""
+    >>> llm_loadbalancer_model_list = [
+    ...     {
+    ...         "model_name": "model-group-1",
+    ...         "litellm_params": {
+    ...             "model": "gpt-4o-mini",
+    ...             "api_key": os.getenv("OPENAI_API_KEY"),
+    ...         },
+    ...     },
+    ...     {
+    ...         "model_name": "model-group-1",
+    ...         "litellm_params": {
+    ...             "model": "bedrock/anthropic.claude-3-sonnet-20240229-v1:0",
+    ...             "aws_access_key_id": os.getenv("AWS_ACCESS_KEY_ID"),
+    ...             "aws_secret_access_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
+    ...             "aws_region_name": os.getenv("AWS_REGION"),
+    ...         },
+    ...     },
+    >>> ]
+    >>> model = LiteLLMRouter(
+    ...    model_id="model-group-1",
+    ...    model_list=llm_loadbalancer_model_list,
+    ...    router_kwargs={
+    ...        "routing_strategy":"simple-shuffle"
+    ...    }
+    >>> )
+    >>> agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
+    >>> agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
+    ```
+    """
+
+    def __init__(
+        self,
+        model_id: Optional[str],
+        model_list: List[Dict[Any, Any]],
+        router_kwargs: Optional[Dict[Any, Any]] = None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
+        flatten_messages_as_text: bool | None = None,
+        **kwargs,
+    ):
+        if not model_id:
+            warnings.warn(
+                "The 'model_id' parameter will be required in version 2.0.0. "
+                "Please update your code to pass this parameter to avoid future errors. "
+                "For now, it defaults to 'anthropic/claude-3-5-sonnet-20240620'.",
+                FutureWarning,
+            )
+            model_id = "anthropic/claude-3-5-sonnet-20240620"
+        self.model_id = model_id
+        self._model_list = model_list
+        self._router_kwargs = router_kwargs or {}
+        self.custom_role_conversions = custom_role_conversions
+        flatten_messages_as_text = (
+            flatten_messages_as_text
+            if flatten_messages_as_text is not None
+            else self.model_id.startswith(("ollama", "groq", "cerebras"))
+        )
+        self.create_client()
+        super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
+
+    def create_client(
+        self,
+    ):
+        try:
+            from litellm import Router
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
+            )
+        self.router: Router = Router(model_list=self._model_list, **self._router_kwargs)
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            convert_images_to_image_urls=True,
+            custom_role_conversions=self.custom_role_conversions,
+            **kwargs,
+        )
+
+        response = self.router.completion(**completion_kwargs)
+
+        self.last_input_token_count = response.usage.prompt_tokens
+        self.last_output_token_count = response.usage.completion_tokens
+        first_message = ChatMessage.from_dict(
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+            raw=response,
+        )
+        return self.postprocess_message(first_message, tools_to_call_from)
+
+
 class HfApiModel(ApiModel):
     """A class to interact with Hugging Face's Inference API for language model interaction.
 
@@ -1382,6 +1508,7 @@ __all__ = [
     "ApiModel",
     "HfApiModel",
     "LiteLLMModel",
+    "LiteLLMRouter",
     "OpenAIServerModel",
     "VLLMModel",
     "AzureOpenAIServerModel",

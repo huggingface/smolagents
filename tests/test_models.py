@@ -29,6 +29,7 @@ from smolagents.models import (
     ChatMessageToolCall,
     HfApiModel,
     LiteLLMModel,
+    LiteLLMRouter,
     MessageRole,
     MLXModel,
     OpenAIServerModel,
@@ -178,6 +179,23 @@ class TestLiteLLMModel:
         assert not model.flatten_messages_as_text
 
         model = LiteLLMModel(model_id="fal/llama-3.3-70b", flatten_messages_as_text=True)
+        assert model.flatten_messages_as_text
+
+
+class TestLiteLLMRouter:
+    def test_passing_flatten_messages(self):
+        model_list = [
+            {"model_name": "model-group-1", "litellm_params": {"model": "groq/llama-3.3-70b"}},
+            {"model_name": "model-group-1", "litellm_params": {"model": "cerebras/llama-3.3-70b"}},
+            {"model_name": "model-group-2", "litellm_params": {"model": "mistral/mistral-tiny"}},
+        ]
+        model = LiteLLMRouter(model_id="model-group-1", model_list=model_list, flatten_messages_as_text=False)
+        assert not model.flatten_messages_as_text
+
+        model = LiteLLMRouter(model_id="mdoel-group-1", model_list=model_list, flatten_messages_as_text=True)
+        assert model.flatten_messages_as_text
+
+        model = LiteLLMRouter(model_id="mdoel-group-2", model_list=model_list, flatten_messages_as_text=True)
         assert model.flatten_messages_as_text
 
 
