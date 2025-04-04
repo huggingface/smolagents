@@ -1247,7 +1247,6 @@ class AmazonBedrockServerModel(ApiModel):
         client=None,
         client_kwargs: dict[str, Any] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
-        flatten_messages_as_text: bool = False,
         **kwargs,
     ):
         self.model_id = model_id
@@ -1266,7 +1265,7 @@ class AmazonBedrockServerModel(ApiModel):
         super().__init__(
             model_id=model_id,
             custom_role_conversions=self.custom_role_conversions,
-            flatten_messages_as_text=flatten_messages_as_text,
+            flatten_messages_as_text=False,  # Bedrock API doesn't support flatten messages, must be a list of messages
             client=client,
             **kwargs,
         )
