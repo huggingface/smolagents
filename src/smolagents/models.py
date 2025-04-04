@@ -802,11 +802,13 @@ class TransformersModel(Model):
 
 
 class ApiModel(Model):
-    def __init__(self, model_id: str, custom_role_conversions: dict[str, str] | None = None, **kwargs):
+    def __init__(
+        self, model_id: str, custom_role_conversions: dict[str, str] | None = None, client: Any | None = None, **kwargs
+    ):
         super().__init__(**kwargs)
         self.model_id = model_id
         self.custom_role_conversions = custom_role_conversions or {}
-        self.client = self.create_client()
+        self.client = client or self.create_client()
 
     def create_client(self):
         """Create the API client for the specific service."""
@@ -1180,6 +1182,7 @@ class AmazonBedrockServerModel(ApiModel):
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
+            Defaults to converting all roles to "user" role to enable using all the Bedrock models.
         flatten_messages_as_text (`bool`, default `False`):
             Whether to flatten messages as text.
         **kwargs
@@ -1232,8 +1235,6 @@ class AmazonBedrockServerModel(ApiModel):
     ):
         self.model_id = model_id
         self.client_kwargs = client_kwargs
-        self.client = client or self.create_client()
-        self.custom_api_kwargs = kwargs
 
         # Bedrock only supports `assistant` and `user` roles.
         # Many Bedrock models do not allow conversations to start with the `assistant` role, so the default is set to `user/user`.
@@ -1249,7 +1250,8 @@ class AmazonBedrockServerModel(ApiModel):
             model_id=model_id,
             custom_role_conversions=self.custom_role_conversions,
             flatten_messages_as_text=flatten_messages_as_text,
-            **self.custom_api_kwargs,
+            client=client,
+            **kwargs,
         )
 
     def _prepare_completion_kwargs(
@@ -1269,47 +1271,41 @@ class AmazonBedrockServerModel(ApiModel):
         Bedrock's requirements, ensuring compatibility with its unique setup and
         constraints.
         """
-        messages = super()._prepare_completion_kwargs(
+        completion_kwargs = super()._prepare_completion_kwargs(
             messages=messages,
-            stop_sequences=stop_sequences,
-            grammar=grammar,
+            stop_sequences=None,  # Bedrock support stop_sequence using Inference Config
+            grammar=None,  # Bedrock doesn't support grammar
             tools_to_call_from=tools_to_call_from,
             custom_role_conversions=custom_role_conversions,
             convert_images_to_image_urls=convert_images_to_image_urls,
             **kwargs,
         )
 
-        if messages.get("toolConfig"):
-            # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
-            # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
-            messages.pop("toolConfig")
+        # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
+        # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
+        completion_kwargs.pop("toolConfig", None)
 
         # The Bedrock API does not support the `type` key in requests.
         # This block of code modifies the object to meet Bedrock's requirements.
-        for message in messages.get("messages", []):
+        for message in completion_kwargs.get("messages", []):
             for content in message.get("content", []):
                 if "type" in content:
                     del content["type"]
 
         return {
             "modelId": self.model_id,
-            **messages,
+            **completion_kwargs,
         }
 
     def create_client(self):
-        # A custom client might already exist
-        # If so, we use the previously created client to avoid overwriting custom configurations or instances.
-        if getattr(self, "client", None):
-            return self.client
-
         try:
             import boto3
-
-            return boto3.client("bedrock-runtime", self.client_kwargs)
         except ModuleNotFoundError as e:
             raise ModuleNotFoundError(
                 "Please install 'bedrock' extra to use AmazonBedrockServerModel: `pip install 'smolagents[bedrock]'`"
             ) from e
+
+        return boto3.client("bedrock-runtime", **self.client_kwargs or {})
 
     def __call__(
         self,
@@ -1322,9 +1318,10 @@ class AmazonBedrockServerModel(ApiModel):
             tools_to_call_from=tools_to_call_from,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
-            **self.custom_api_kwargs,
+            **kwargs,
         )
 
+        # self.client is created in ApiModel class
         response = self.client.converse(**completion_kwargs)
 
         # Get usage
