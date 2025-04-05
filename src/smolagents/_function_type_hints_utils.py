@@ -217,7 +217,7 @@ def get_json_schema(func: Callable) -> Dict:
 
 
 # Extracts the initial segment of the docstring, containing the function description
-description_re = re.compile(r"^(.*?)[\n\s]*(Args:|Returns:|Raises:|\Z)", re.DOTALL)
+description_re = re.compile(r"^(.*?)(?=\n\s*(Args:|Returns:|Raises:)|\Z)", re.DOTALL)
 # Extracts the Args: block from the docstring
 args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
 # Splits the Args: block into individual arguments
