@@ -528,7 +528,7 @@ You have been provided with these additional arguments, that you can access usin
             )
         return rationale.strip(), action.strip()
 
-    def provide_final_answer(self, task: str, images: Optional[list["PIL.Image.Image"]]) -> str:
+    def provide_final_answer(self, task: str, images: Optional[list["PIL.Image.Image"]] = None) -> str:
         """
         Provide the final answer to the task, based on the logs of the agent's interactions.
 
