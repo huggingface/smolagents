@@ -23,8 +23,9 @@ import sys
 import tempfile
 import textwrap
 import types
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from functools import wraps
+from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
@@ -824,7 +825,9 @@ class ToolCollection:
     @classmethod
     @contextmanager
     def from_mcp(
-        cls, server_parameters: Union["mcp.StdioServerParameters", dict], trust_remote_code: bool = False
+        cls,
+        server_parameters: Union["mcp.StdioServerParameters", dict, List[Union["mcp.StdioServerParameters", dict]]],
+        trust_remote_code: bool = False,
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
@@ -835,9 +838,10 @@ class ToolCollection:
         the MCP server.
 
         Args:
-            server_parameters (`mcp.StdioServerParameters` or `dict`):
+            server_parameters (`mcp.StdioServerParameters` a list of `mcp.StdioServerParameters` or `dict`):
                 The server parameters to use to connect to the MCP server. If a dict is
                 provided, it is assumed to be the parameters of `mcp.client.sse.sse_client`.
+                You can pass a list of `mcp.StdioServerParameters` if you want to attach multiple servers.
             trust_remote_code (`bool`, *optional*, defaults to `False`):
                 Whether to trust the execution of code from tools defined on the MCP server.
                 This option should only be set to `True` if you trust the MCP server,
@@ -854,7 +858,7 @@ class ToolCollection:
         >>> from mcp import StdioServerParameters
 
         >>> server_parameters = StdioServerParameters(
-        >>>     command="uv",
+        >>>     command="uvx",
         >>>     args=["--quiet", "pubmedmcp@0.1.3"],
         >>>     env={"UV_PYTHON": "3.12", **os.environ},
         >>> )
@@ -864,6 +868,28 @@ class ToolCollection:
         >>>     agent.run("Please find a remedy for hangover.")
         ```
 
+        Example with mulyiple Stdio MCP servers:
+        ```py
+        >>> from smolagents import ToolCollection, CodeAgent
+        >>> from mcp import StdioServerParameters
+
+        >>> server_parameters = [
+        >>>     StdioServerParameters(
+        >>>         command="npx",
+        >>>         args=["-y", "@modelcontextprotocol/server-filesystem", "/Users/username/sample-project"],
+        >>>         env={**os.environ},
+        >>>     ),
+        >>>     StdioServerParameters(
+        >>>         command="npx",
+        >>>         args=["-y", "@bharathvaj/whois-mcp@latest"],
+        >>>         env={**os.environ},
+        >>>     ),
+        >>> ]
+
+        >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+        >>>     agent.run("Please check the whois information of IP 1.1.1.1 and store that under sample-project foo.txt")
+        ```
         Example with an SSE MCP server:
         ```py
         >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True) as tool_collection:
@@ -884,7 +910,19 @@ class ToolCollection:
                 """Please install 'mcp' extra to use ToolCollection.from_mcp: `pip install "smolagents[mcp]"`."""
             )
 
-        with MCPAdapt(server_parameters, SmolAgentsAdapter()) as tools:
+        with ExitStack() as stack:
+            if not isinstance(server_parameters, list):
+                parameters: List[Union["mcp.StdioServerParameters", dict]] = [server_parameters]
+            else:
+                parameters = server_parameters
+
+            tools: List[Tool] = [
+                tool
+                for tool in chain.from_iterable(
+                    stack.enter_context(MCPAdapt(params, SmolAgentsAdapter())) for params in parameters
+                )
+            ]
+
             yield cls(tools)
 
 
