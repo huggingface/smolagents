@@ -18,13 +18,16 @@ import types
 import unittest
 from contextlib import nullcontext as does_not_raise
 from textwrap import dedent
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from smolagents.default_tools import BASE_PYTHON_TOOLS
+from smolagents.default_tools import BASE_PYTHON_TOOLS, FinalAnswerTool
 from smolagents.local_python_executor import (
+    DANGEROUS_FUNCTIONS,
+    DANGEROUS_MODULES,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -55,14 +58,14 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 3
-        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": 2})
+        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": {"counter": 2}})
 
         code = "x = y"
         state = {"y": 5}
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 5, "y": 5, "_operations_count": 2})
+        self.assertDictEqualNoPrint(state, {"x": 5, "y": 5, "_operations_count": {"counter": 2}})
 
         code = "a=1;b=None"
         result, _ = evaluate_python_code(code, {}, state={})
@@ -88,26 +91,27 @@ class PythonInterpreterTester(unittest.TestCase):
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": 3})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": {"counter": 3}})
 
         # Should not work without the tool
-        with pytest.raises(InterpreterError) as e:
+        with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'add_two'"):
             evaluate_python_code(code, {}, state=state)
-        assert "tried to execute add_two" in str(e.value)
 
     def test_evaluate_constant(self):
         code = "x = 3"
         state = {}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 3
-        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": 2})
+        self.assertDictEqualNoPrint(state, {"x": 3, "_operations_count": {"counter": 2}})
 
     def test_evaluate_dict(self):
         code = "test_dict = {'x': x, 'y': add_two(x)}"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         self.assertDictEqual(result, {"x": 3, "y": 5})
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 7})
+        self.assertDictEqualNoPrint(
+            state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": {"counter": 7}}
+        )
 
     def test_evaluate_expression(self):
         code = "x = 3\ny = 5"
@@ -115,7 +119,7 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": 4})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 5, "_operations_count": {"counter": 4}})
 
     def test_evaluate_f_string(self):
         code = "text = f'This is x: {x}.'"
@@ -123,14 +127,16 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == "This is x: 3."
-        self.assertDictEqualNoPrint(state, {"x": 3, "text": "This is x: 3.", "_operations_count": 6})
+        self.assertDictEqualNoPrint(state, {"x": 3, "text": "This is x: 3.", "_operations_count": {"counter": 6}})
 
     def test_evaluate_f_string_with_format(self):
         code = "text = f'This is x: {x:.2f}.'"
         state = {"x": 3.336}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == "This is x: 3.34."
-        self.assertDictEqualNoPrint(state, {"x": 3.336, "text": "This is x: 3.34.", "_operations_count": 8})
+        self.assertDictEqualNoPrint(
+            state, {"x": 3.336, "text": "This is x: 3.34.", "_operations_count": {"counter": 8}}
+        )
 
     def test_evaluate_f_string_with_complex_format(self):
         code = "text = f'This is x: {x:>{width}.{precision}f}.'"
@@ -138,7 +144,14 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == "This is x:       3.34."
         self.assertDictEqualNoPrint(
-            state, {"x": 3.336, "width": 10, "precision": 2, "text": "This is x:       3.34.", "_operations_count": 14}
+            state,
+            {
+                "x": 3.336,
+                "width": 10,
+                "precision": 2,
+                "text": "This is x:       3.34.",
+                "_operations_count": {"counter": 14},
+            },
         )
 
     def test_evaluate_if(self):
@@ -147,40 +160,42 @@ class PythonInterpreterTester(unittest.TestCase):
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 2
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 2, "_operations_count": 6})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 2, "_operations_count": {"counter": 6}})
 
         state = {"x": 8}
         result, _ = evaluate_python_code(code, {}, state=state)
         # evaluate returns the value of the last assignment.
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 8, "y": 5, "_operations_count": 6})
+        self.assertDictEqualNoPrint(state, {"x": 8, "y": 5, "_operations_count": {"counter": 6}})
 
     def test_evaluate_list(self):
         code = "test_list = [x, add_two(x)]"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         self.assertListEqual(result, [3, 5])
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 5})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": {"counter": 5}})
 
     def test_evaluate_name(self):
         code = "y = x"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 3
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 3, "_operations_count": 2})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 3, "_operations_count": {"counter": 2}})
 
     def test_evaluate_subscript(self):
         code = "test_list = [x, add_two(x)]\ntest_list[1]"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": 9})
+        self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": {"counter": 9}})
 
         code = "test_dict = {'x': x, 'y': add_two(x)}\ntest_dict['y']"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
         assert result == 5
-        self.assertDictEqualNoPrint(state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": 11})
+        self.assertDictEqualNoPrint(
+            state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": {"counter": 11}}
+        )
 
         code = "vendor = {'revenue': 31000, 'rent': 50312}; vendor['ratio'] = round(vendor['revenue'] / vendor['rent'], 2)"
         state = {}
@@ -204,14 +219,14 @@ for result in search_results:
         state = {}
         result, _ = evaluate_python_code(code, {"range": range}, state=state)
         assert result == 2
-        self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": 11})
+        self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
 
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 9
-        self.assertDictEqualNoPrint(state, {"x": 3, "y": 6, "_operations_count": 4})
+        self.assertDictEqualNoPrint(state, {"x": 3, "y": 6, "_operations_count": {"counter": 4}})
 
     def test_recursive_function(self):
         code = """
@@ -224,6 +239,38 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == 8
 
+    def test_max_operations(self):
+        # Check that operation counter is not reset in functions
+        code = dedent(
+            """
+            def func(a):
+                for j in range(10):
+                    a += j
+                return a
+
+            for i in range(5):
+                func(i)
+            """
+        )
+        with patch("smolagents.local_python_executor.MAX_OPERATIONS", 100):
+            with pytest.raises(InterpreterError) as exception_info:
+                evaluate_python_code(code, {"range": range}, state={})
+        assert "Reached the max number of operations" in str(exception_info.value)
+
+    def test_operations_count(self):
+        # Check that operation counter is not reset in functions
+        code = dedent(
+            """
+            def func():
+                return 0
+
+            func()
+            """
+        )
+        state = {}
+        evaluate_python_code(code, {"range": range}, state=state)
+        assert state["_operations_count"]["counter"] == 5
+
     def test_evaluate_string_methods(self):
         code = "'hello'.replace('h', 'o').split('e')"
         result, _ = evaluate_python_code(code, {}, state={})
@@ -235,9 +282,12 @@ recur_fibo(6)"""
         assert result == "le"
 
     def test_access_attributes(self):
-        code = "integer = 1\nobj_class = integer.__class__\nobj_class"
-        result, _ = evaluate_python_code(code, {}, state={})
-        assert result is int
+        class A:
+            attr = 2
+
+        code = "A.attr"
+        result, _ = evaluate_python_code(code, {}, state={"A": A})
+        assert result == 2
 
     def test_list_comprehension(self):
         code = "sentence = 'THESEAGULL43'\nmeaningful_sentence = '-'.join([char.lower() for char in sentence if char.isalpha()])"
@@ -367,17 +417,19 @@ shift_minutes = {worker: ('a', 'b') for worker, (start, end) in shifts.items()}
 
         # test infinite loop
         code = "i = 0\nwhile i < 3:\n    i -= 1\ni"
-        with pytest.raises(InterpreterError) as e:
-            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
-        assert "iterations in While loop exceeded" in str(e)
+        with patch("smolagents.local_python_executor.MAX_WHILE_ITERATIONS", 100):
+            with pytest.raises(InterpreterError, match=".*Maximum number of 100 iterations in While loop exceeded"):
+                evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
 
         # test lazy evaluation
-        code = """
-house_positions = [0, 7, 10, 15, 18, 22, 22]
-i, n, loc = 0, 7, 30
-while i < n and house_positions[i] <= loc:
-    i += 1
-"""
+        code = dedent(
+            """
+            house_positions = [0, 7, 10, 15, 18, 22, 22]
+            i, n, loc = 0, 7, 30
+            while i < n and house_positions[i] <= loc:
+                i += 1
+            """
+        )
         state = {}
         evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
 
@@ -454,9 +506,13 @@ if char.isalpha():
 
         # Test submodules are handled properly, thus not raising error
         code = "import numpy.random as rd\nrng = rd.default_rng(12345)\nrng.random()"
-        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy"])
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy.random"])
 
         code = "from numpy.random import default_rng as d_rng\nrng = d_rng(12345)\nrng.random()"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy.random"])
+
+        # Test that importing numpy imports submodules
+        code = "import numpy as np\nnp.random.default_rng(12345)\nnp.random.random()"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy"])
 
     def test_additional_imports(self):
@@ -996,6 +1052,24 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
     def test_can_import_sklearn_if_explicitly_authorized(self):
         code = "import sklearn"
         evaluate_python_code(code, authorized_imports=["sklearn"])
+
+    def test_function_def_recovers_source_code(self):
+        executor = LocalPythonExecutor([])
+
+        executor.send_tools({"final_answer": FinalAnswerTool()})
+
+        res, _, _ = executor(
+            dedent(
+                """
+                def target_function():
+                    return "Hello world"
+
+                final_answer(target_function)
+                """
+            )
+        )
+        assert res.__name__ == "target_function"
+        assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
 
 @pytest.mark.parametrize(
@@ -1648,9 +1722,26 @@ class TestLocalPythonExecutorSecurity:
         ):
             executor("import os; os.popen")
 
+    @pytest.mark.parametrize("dangerous_function", DANGEROUS_FUNCTIONS)
+    def test_vulnerability_for_all_dangerous_functions(self, dangerous_function):
+        dangerous_module_name, dangerous_function_name = dangerous_function.rsplit(".", 1)
+        # Skip test if module is not installed: posix module is not installed on Windows
+        pytest.importorskip(dangerous_module_name)
+        executor = LocalPythonExecutor([dangerous_module_name])
+        if "__" in dangerous_function_name:
+            error_match = f".*Forbidden access to dunder attribute: {dangerous_function_name}"
+        else:
+            error_match = f".*Forbidden access to function: {dangerous_function_name}.*"
+        with pytest.raises(InterpreterError, match=error_match):
+            executor(f"import {dangerous_module_name}; {dangerous_function}")
+
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
-        [([], InterpreterError("Import of sys is not allowed")), (["os", "sys"], None)],
+        [
+            ([], InterpreterError("Import of sys is not allowed")),
+            (["sys"], InterpreterError("Forbidden access to module: os")),
+            (["sys", "os"], None),
+        ],
     )
     def test_vulnerability_via_sys(self, additional_authorized_imports, expected_error):
         executor = LocalPythonExecutor(additional_authorized_imports)
@@ -1667,6 +1758,24 @@ class TestLocalPythonExecutorSecurity:
                     """
                 )
             )
+
+    @pytest.mark.parametrize("dangerous_module", DANGEROUS_MODULES)
+    def test_vulnerability_via_sys_for_all_dangerous_modules(self, dangerous_module):
+        import sys
+
+        if dangerous_module not in sys.modules or dangerous_module == "sys":
+            pytest.skip("module not present in sys.modules")
+        executor = LocalPythonExecutor(["sys"])
+        with pytest.raises(InterpreterError) as exception_info:
+            executor(
+                dedent(
+                    f"""
+                    import sys
+                    sys.modules["{dangerous_module}"]
+                    """
+                )
+            )
+        assert f"Forbidden access to module: {dangerous_module}" in str(exception_info.value)
 
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
@@ -1692,16 +1801,30 @@ class TestLocalPythonExecutorSecurity:
         "code, additional_authorized_imports, expected_error",
         [
             # os submodule
-            ("import queue; queue.threading._os.system(':')", [], InterpreterError("Forbidden access to module: os")),
-            ("import random; random._os.system(':')", [], InterpreterError("Forbidden access to module: os")),
             (
-                "import random; random.__dict__['_os'].system(':')",
+                "import queue; queue.threading._os.system(':')",
                 [],
                 InterpreterError("Forbidden access to module: os"),
             ),
             (
+                "import queue; queue.threading._os.system(':')",
+                ["threading"],
+                InterpreterError("Forbidden access to module: os"),
+            ),
+            ("import random; random._os.system(':')", [], InterpreterError("Forbidden access to module: os")),
+            (
+                "import random; random.__dict__['_os'].system(':')",
+                [],
+                InterpreterError("Forbidden access to dunder attribute: __dict__"),
+            ),
+            (
                 "import doctest; doctest.inspect.os.system(':')",
                 ["doctest"],
+                InterpreterError("Forbidden access to module: os"),
+            ),
+            (
+                "import doctest; doctest.inspect.os.system(':')",
+                ["doctest", "inspect"],
                 InterpreterError("Forbidden access to module: os"),
             ),
             # subprocess submodule
@@ -1710,14 +1833,29 @@ class TestLocalPythonExecutorSecurity:
                 ["asyncio"],
                 InterpreterError("Forbidden access to module: subprocess"),
             ),
+            (
+                "import asyncio; asyncio.base_events.events.subprocess",
+                ["asyncio", "asyncio.base_events"],
+                InterpreterError("Forbidden access to module: subprocess"),
+            ),
+            (
+                "import asyncio; asyncio.base_events.events.subprocess",
+                ["asyncio", "asyncio.base_events", "asyncio.base_events.events"],
+                InterpreterError("Forbidden access to module: subprocess"),
+            ),
             # sys submodule
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
                 [],
                 InterpreterError("Forbidden access to module: sys"),
             ),
+            (
+                "import queue; queue.threading._sys.modules['os'].system(':')",
+                ["threading"],
+                InterpreterError("Forbidden access to module: sys"),
+            ),
             # Allowed
-            ("import pandas; pandas.io", ["pandas"], None),
+            ("import pandas; pandas.io", ["pandas", "pandas.io"], None),
         ],
     )
     def test_vulnerability_via_submodules(self, code, additional_authorized_imports, expected_error):
@@ -1770,8 +1908,12 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
         [
-            ([], [], InterpreterError("Forbidden access to module: builtins")),
-            (["builtins", "os"], ["__import__"], None),
+            ([], [], InterpreterError("Forbidden access to dunder attribute: __traceback__")),
+            (
+                ["builtins", "os"],
+                ["__import__"],
+                InterpreterError("Forbidden access to dunder attribute: __traceback__"),
+            ),
         ],
     )
     def test_vulnerability_builtins_via_traceback(
@@ -1807,8 +1949,19 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
         "additional_authorized_imports, additional_tools, expected_error",
         [
-            ([], [], InterpreterError("Forbidden access to module: builtins")),
-            (["builtins", "os"], ["__import__"], None),
+            ([], [], InterpreterError("Forbidden access to dunder attribute: __base__")),
+            (["warnings"], [], InterpreterError("Forbidden access to dunder attribute: __base__")),
+            (
+                ["warnings", "builtins"],
+                [],
+                InterpreterError("Forbidden access to dunder attribute: __base__"),
+            ),
+            (["warnings", "builtins", "os"], [], InterpreterError("Forbidden access to dunder attribute: __base__")),
+            (
+                ["warnings", "builtins", "os"],
+                ["__import__"],
+                InterpreterError("Forbidden access to dunder attribute: __base__"),
+            ),
         ],
     )
     def test_vulnerability_builtins_via_class_catch_warnings(
@@ -1821,20 +1974,22 @@ class TestLocalPythonExecutorSecurity:
             from builtins import __import__
 
             executor.send_tools({"__import__": __import__})
-        with (
-            pytest.raises(type(expected_error), match=f".*{expected_error}")
-            if isinstance(expected_error, Exception)
-            else does_not_raise()
-        ):
+        if isinstance(expected_error, tuple):  # different error depending on patch status
+            expected_error = expected_error[patch_builtin_import_module]
+        if isinstance(expected_error, Exception):
+            expectation = pytest.raises(type(expected_error), match=f".*{expected_error}")
+        elif expected_error is None:
+            expectation = does_not_raise()
+        with expectation:
             executor(
                 dedent(
                     """
                     classes = {}.__class__.__base__.__subclasses__()
                     for cls in classes:
                         if cls.__name__ == "catch_warnings":
-                            builtins = cls()._module.__builtins__
-                            builtins_import = builtins["__import__"]
                             break
+                    builtins = cls()._module.__builtins__
+                    builtins_import = builtins["__import__"]
                     os_module = builtins_import('os')
                     os_module.system(":")
                     """
@@ -1844,7 +1999,10 @@ class TestLocalPythonExecutorSecurity:
     @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
-        [([], InterpreterError("Forbidden access to module: os")), (["os"], None)],
+        [
+            ([], InterpreterError("Forbidden access to dunder attribute: __base__")),
+            (["os"], InterpreterError("Forbidden access to dunder attribute: __base__")),
+        ],
     )
     def test_vulnerability_load_module_via_builtin_importer(self, additional_authorized_imports, expected_error):
         executor = LocalPythonExecutor(additional_authorized_imports)
@@ -1865,3 +2023,42 @@ class TestLocalPythonExecutorSecurity:
                     """
                 )
             )
+
+    def test_vulnerability_class_via_subclasses(self):
+        # Subclass: subprocess.Popen
+        executor = LocalPythonExecutor([])
+        code = dedent(
+            """
+            for cls in ().__class__.__base__.__subclasses__():
+                if 'Popen' in cls.__class__.__repr__(cls):
+                    break
+            cls(["sh", "-c", ":"]).wait()
+            """
+        )
+        with pytest.raises(InterpreterError, match="Forbidden access to dunder attribute: __base__"):
+            executor(code)
+
+        code = dedent(
+            """
+            [c for c in ().__class__.__base__.__subclasses__() if "Popen" in c.__class__.__repr__(c)][0](
+                ["sh", "-c", ":"]
+            ).wait()
+            """
+        )
+        with pytest.raises(InterpreterError, match="Forbidden access to dunder attribute: __base__"):
+            executor(code)
+
+    @pytest.mark.parametrize(
+        "code, dunder_attribute",
+        [("a = (); b = a.__class__", "__class__"), ("class A:\n    attr=1\nx = A()\nx_dict = x.__dict__", "__dict__")],
+    )
+    def test_vulnerability_via_dunder_access(self, code, dunder_attribute):
+        executor = LocalPythonExecutor([])
+        with pytest.raises(InterpreterError, match=f"Forbidden access to dunder attribute: {dunder_attribute}"):
+            executor(code)
+
+    def test_vulnerability_via_dunder_indirect_access(self):
+        executor = LocalPythonExecutor([])
+        code = "a = (); b = getattr(a, '__class__')"
+        with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'getattr'"):
+            executor(code)

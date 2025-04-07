@@ -26,7 +26,7 @@ limitations under the License.
 <h3 align="center">
   <div style="display:flex;flex-direction:row;">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/smolagents.png" alt="Hugging Face mascot as James Bond" width=400px>
-    <p>A smol library to build great agents!</p>
+    <p>Agents that think in code!</p>
   </div>
 </h3>
 
@@ -95,7 +95,7 @@ model = HfApiModel(
 from smolagents import LiteLLMModel
 
 model = LiteLLMModel(
-    "anthropic/claude-3-5-sonnet-latest",
+    model_id="anthropic/claude-3-5-sonnet-latest",
     temperature=0.2,
     api_key=os.environ["ANTHROPIC_API_KEY"]
 )
@@ -140,6 +140,18 @@ model = AzureOpenAIServerModel(
     azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
     api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
     api_version=os.environ.get("OPENAI_API_VERSION")    
+)
+```
+</details>
+<details>
+<summary> <b>Amazon Bedrock models</b></summary>
+
+```py
+import os
+from smolagents import AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(
+    model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID") 
 )
 ```
 </details>
@@ -216,7 +228,7 @@ By the way, why use a framework at all? Well, because a big part of this stuff i
 
 We've created [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) instances with some leading models, and compared them on [this benchmark](https://huggingface.co/datasets/m-ric/agents_medium_benchmark_2) that gathers questions from a few different benchmarks to propose a varied blend of challenges.
 
-[Find the benchmarking code here](https://github.com/huggingface/smolagents/blob/main/examples/benchmark.ipynb) for more detail on the agentic setup used, and see a comparison of using LLMs code agents compared to vanilla (spoilers: code agents works better).
+[Find the benchmarking code here](https://github.com/huggingface/smolagents/blob/main/examples/smolagents_benchmark/run.py) for more detail on the agentic setup used, and see a comparison of using LLMs code agents compared to vanilla (spoilers: code agents works better).
 
 <p align="center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/benchmark_code_agents.jpeg" alt="benchmark of different models on agentic workflows. Open model DeepSeek-R1 beats closed-source models." width=60% max-width=500px>

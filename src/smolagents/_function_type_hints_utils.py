@@ -40,10 +40,6 @@ from typing import (
     get_type_hints,
 )
 
-from huggingface_hub.utils import is_torch_available
-
-from .utils import _is_pillow_available
-
 
 def get_imports(code: str) -> List[str]:
     """
@@ -221,21 +217,25 @@ def get_json_schema(func: Callable) -> Dict:
 
 
 # Extracts the initial segment of the docstring, containing the function description
-description_re = re.compile(r"^(.*?)[\n\s]*(Args:|Returns:|Raises:|\Z)", re.DOTALL)
+description_re = re.compile(r"^(.*?)(?=\n\s*(Args:|Returns:|Raises:)|\Z)", re.DOTALL)
 # Extracts the Args: block from the docstring
 args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
 # Splits the Args: block into individual arguments
 args_split_re = re.compile(
-    r"""
-(?:^|\n)  # Match the start of the args block, or a newline
-\s*(\w+)\s*(?:\([^)]*\))?:\s*  # Capture the argument name (ignore the type) and strip spacing
-(.*?)\s*  # Capture the argument description, which can span multiple lines, and strip trailing spacing
-(?=\n\s*\w+:|\Z)  # Stop when you hit the next argument or the end of the block
-""",
+    r"(?:^|\n)"  # Match the start of the args block, or a newline
+    r"\s*(\w+)\s*(?:\([^)]*?\))?:\s*"  # Capture the argument name (ignore the type) and strip spacing
+    r"(.*?)\s*"  # Capture the argument description, which can span multiple lines, and strip trailing spacing
+    r"(?=\n\s*\w+\s*(?:\([^)]*?\))?:|\Z)",  # Stop when you hit the next argument (with or without type) or the end of the block
     re.DOTALL | re.VERBOSE,
 )
 # Extracts the Returns: block from the docstring, if present. Note that most chat templates ignore the return type/doc!
-returns_re = re.compile(r"\n\s*Returns:\n\s*(.*?)[\n\s]*(Raises:|\Z)", re.DOTALL)
+returns_re = re.compile(
+    r"\n\s*Returns:\n\s*"
+    r"(?:[^)]*?:\s*)?"  # Ignore the return type if present
+    r"(.*?)"  # Capture the return description
+    r"[\n\s]*(Raises:|\Z)",
+    re.DOTALL,
+)
 
 
 def _parse_google_format_docstring(
@@ -379,14 +379,17 @@ _BASE_TYPE_MAPPING = {
 def _get_json_schema_type(param_type: str) -> Dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
-    if str(param_type) == "Image" and _is_pillow_available():
+    if str(param_type) == "Image":
         from PIL.Image import Image
 
         if param_type == Image:
             return {"type": "image"}
-    if str(param_type) == "Tensor" and is_torch_available():
-        from torch import Tensor
+    if str(param_type) == "Tensor":
+        try:
+            from torch import Tensor
 
-        if param_type == Tensor:
-            return {"type": "audio"}
+            if param_type == Tensor:
+                return {"type": "audio"}
+        except ModuleNotFoundError:
+            pass
     return {"type": "object"}

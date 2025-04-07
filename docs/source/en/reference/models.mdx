@@ -103,7 +103,7 @@ messages = [
   {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}
 ]
 
-model = LiteLLMModel("anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10)
+model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10)
 print(model(messages))
 ```
 
@@ -149,6 +149,24 @@ model = AzureOpenAIServerModel(
 
 [[autodoc]] AzureOpenAIServerModel
 
+### AmazonBedrockServerModel
+
+`AmazonBedrockServerModel` helps you connect to Amazon Bedrock and run your agent with any available models.
+
+Below is an example setup. This class also offers additional options for customization.
+
+```py
+import os
+
+from smolagents import AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(
+    model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID"),
+)
+```
+
+[[autodoc]] AmazonBedrockServerModel
+
 ### MLXModel
 
 
@@ -167,3 +185,20 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 > You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
 
 [[autodoc]] MLXModel
+
+### VLLMModel
+
+Model to use [vLLM](https://docs.vllm.ai/) for fast LLM inference and serving.
+
+```python
+from smolagents import VLLMModel
+
+model = VLLMModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
+
+print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
+```
+
+> [!TIP]
+> You must have `vllm` installed on your machine. Please run `pip install smolagents[vllm]` if it's not the case.
+
+[[autodoc]] VLLMModel

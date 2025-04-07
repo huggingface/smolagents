@@ -24,6 +24,7 @@ import re
 from collections.abc import Mapping
 from functools import wraps
 from importlib import import_module
+from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
@@ -113,17 +114,7 @@ BASE_PYTHON_TOOLS = {
     "complex": complex,
 }
 
-DANGEROUS_FUNCTIONS = [
-    "builtins.compile",
-    "builtins.eval",
-    "builtins.exec",
-    "builtins.globals",
-    "builtins.locals",
-    "builtins.__import__",
-    "os.popen",
-    "os.system",
-]
-
+# Non-exhaustive list of dangerous modules that should not be imported
 DANGEROUS_MODULES = [
     "builtins",
     "io",
@@ -135,6 +126,18 @@ DANGEROUS_MODULES = [
     "socket",
     "subprocess",
     "sys",
+]
+
+DANGEROUS_FUNCTIONS = [
+    "builtins.compile",
+    "builtins.eval",
+    "builtins.exec",
+    "builtins.globals",
+    "builtins.locals",
+    "builtins.__import__",
+    "os.popen",
+    "os.system",
+    "posix.system",
 ]
 
 
@@ -241,16 +244,18 @@ def safer_eval(func: Callable):
                         module_name not in authorized_imports
                         and result.__name__ == module_name
                         # builtins has no __file__ attribute
-                        and getattr(result, "__file__", "") == getattr(import_module(module_name), "__file__", "")
+                        and getattr(result, "__file__", "")
+                        == (getattr(import_module(module_name), "__file__", "") if find_spec(module_name) else "")
                     ):
                         raise InterpreterError(f"Forbidden access to module: {module_name}")
-            elif isinstance(result, dict) and result.get("__name__"):
+            elif isinstance(result, dict) and result.get("__spec__"):
                 for module_name in DANGEROUS_MODULES:
                     if (
                         module_name not in authorized_imports
                         and result["__name__"] == module_name
                         # builtins has no __file__ attribute
-                        and result.get("__file__", "") == getattr(import_module(module_name), "__file__", "")
+                        and result.get("__file__", "")
+                        == (getattr(import_module(module_name), "__file__", "") if find_spec(module_name) else "")
                     ):
                         raise InterpreterError(f"Forbidden access to module: {module_name}")
             elif isinstance(result, (FunctionType, BuiltinFunctionType)):
@@ -265,6 +270,19 @@ def safer_eval(func: Callable):
         return result
 
     return _check_return
+
+
+def evaluate_attribute(
+    expression: ast.Attribute,
+    state: Dict[str, Any],
+    static_tools: Dict[str, Callable],
+    custom_tools: Dict[str, Callable],
+    authorized_imports: List[str],
+) -> Any:
+    if expression.attr.startswith("__") and expression.attr.endswith("__"):
+        raise InterpreterError(f"Forbidden access to dunder attribute: {expression.attr}")
+    value = evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
+    return getattr(value, expression.attr)
 
 
 def evaluate_unaryop(
@@ -340,6 +358,8 @@ def create_function(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> Callable:
+    source_code = ast.unparse(func_def)
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
         arg_names = [arg.arg for arg in func_def.args.args]
@@ -390,6 +410,11 @@ def create_function(
 
         return result
 
+    # Store original AST, source code, and name
+    new_func.__ast__ = func_def
+    new_func.__source__ = source_code
+    new_func.__name__ = func_def.name
+
     return new_func
 
 
@@ -417,7 +442,7 @@ def evaluate_class_def(
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
-            class_dict[stmt.name] = evaluate_function_def(stmt, state, static_tools, custom_tools, authorized_imports)
+            class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.Assign):
             for target in stmt.targets:
                 if isinstance(target, ast.Name):
@@ -643,9 +668,9 @@ def evaluate_call(
     func, func_name = None, None
 
     if isinstance(call.func, ast.Call):
-        func = evaluate_call(call.func, state, static_tools, custom_tools, authorized_imports)
+        func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
     elif isinstance(call.func, ast.Lambda):
-        func = evaluate_lambda(call.func, state, static_tools, custom_tools, authorized_imports)
+        func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
     elif isinstance(call.func, ast.Attribute):
         obj = evaluate_ast(call.func.value, state, static_tools, custom_tools, authorized_imports)
         func_name = call.func.attr
@@ -664,10 +689,10 @@ def evaluate_call(
             func = ERRORS[func_name]
         else:
             raise InterpreterError(
-                f"It is not permitted to evaluate other functions than the provided tools or functions defined/imported in previous code (tried to execute {call.func.id})."
+                f"Forbidden function evaluation: '{call.func.id}' is not among the explicitly allowed tools or defined/imported in the preceding code"
             )
     elif isinstance(call.func, ast.Subscript):
-        func = evaluate_subscript(call.func, state, static_tools, custom_tools, authorized_imports)
+        func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
         if not callable(func):
             raise InterpreterError(f"This is not a correct function: {call.func}).")
         func_name = None
@@ -1082,7 +1107,7 @@ def check_module_authorized(module_name, authorized_imports):
         return any(subpath in authorized_imports for subpath in module_subpaths)
 
 
-def import_modules(expression, state, authorized_imports):
+def evaluate_import(expression, state, authorized_imports):
     if isinstance(expression, ast.Import):
         for alias in expression.names:
             if check_module_authorized(alias.name, authorized_imports):
@@ -1224,11 +1249,11 @@ def evaluate_ast(
             The list of modules that can be imported by the code. By default, only a few safe modules are allowed.
             If it contains "*", it will authorize any import. Use this at your own risk!
     """
-    if state.setdefault("_operations_count", 0) >= MAX_OPERATIONS:
+    if state.setdefault("_operations_count", {"counter": 0})["counter"] >= MAX_OPERATIONS:
         raise InterpreterError(
             f"Reached the max number of operations of {MAX_OPERATIONS}. Maybe there is an infinite loop somewhere in the code, or you're just asking too many calculations."
         )
-    state["_operations_count"] += 1
+    state["_operations_count"]["counter"] += 1
     common_params = (state, static_tools, custom_tools, authorized_imports)
     if isinstance(expression, ast.Assign):
         # Assignment -> we evaluate the assignment which should update the state
@@ -1314,8 +1339,7 @@ def evaluate_ast(
         else:
             return evaluate_ast(expression.orelse, *common_params)
     elif isinstance(expression, ast.Attribute):
-        value = evaluate_ast(expression.value, *common_params)
-        return getattr(value, expression.attr)
+        return evaluate_attribute(expression, *common_params)
     elif isinstance(expression, ast.Slice):
         return slice(
             evaluate_ast(expression.lower, *common_params) if expression.lower is not None else None,
@@ -1325,7 +1349,7 @@ def evaluate_ast(
     elif isinstance(expression, ast.While):
         return evaluate_while(expression, *common_params)
     elif isinstance(expression, (ast.Import, ast.ImportFrom)):
-        return import_modules(expression, state, authorized_imports)
+        return evaluate_import(expression, state, authorized_imports)
     elif isinstance(expression, ast.ClassDef):
         return evaluate_class_def(expression, *common_params)
     elif isinstance(expression, ast.Try):
@@ -1398,7 +1422,7 @@ def evaluate_python_code(
     custom_tools = custom_tools if custom_tools is not None else {}
     result = None
     state["_print_outputs"] = PrintContainer()
-    state["_operations_count"] = 0
+    state["_operations_count"] = {"counter": 0}
 
     if "final_answer" in static_tools:
         previous_final_answer = static_tools["final_answer"]

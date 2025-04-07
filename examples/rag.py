@@ -58,7 +58,7 @@ from smolagents import CodeAgent, HfApiModel
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
     tools=[retriever_tool],
-    model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"),
+    model=HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct"),
     max_steps=4,
     verbosity_level=2,
 )
