@@ -38,7 +38,7 @@ def docker_executor():
     executor = DockerExecutor(
         additional_imports=["pillow", "numpy"],
         logger=AgentLogger(level=LogLevel.INFO),
-        environment={"TEST_ENV": "TEST123"},
+        environment_variables={"TEST_ENV": "TEST123"},
     )
     yield executor
     executor.delete()
