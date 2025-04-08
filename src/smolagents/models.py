@@ -20,6 +20,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from transformers import QuantizationConfigMixin
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url, parse_json_blob
@@ -638,6 +639,8 @@ class TransformersModel(Model):
             The torch_dtype to initialize your model with.
         trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
+        quantization_config: Optional[QuantizationConfigMixin] = None,
+            Abstract class of the HuggingFace quantizer. Supports for now quantizing HF transformers models for inference and/or quantization.
         kwargs (dict, *optional*):
             Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
         **kwargs:
@@ -666,6 +669,7 @@ class TransformersModel(Model):
         device_map: Optional[str] = None,
         torch_dtype: Optional[str] = None,
         trust_remote_code: bool = False,
+        quantization_config: Optional[QuantizationConfigMixin] = None,
         **kwargs,
     ):
         try:
@@ -704,6 +708,7 @@ class TransformersModel(Model):
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 trust_remote_code=trust_remote_code,
+                quantization_config=quantization_config,
             )
             self.processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=trust_remote_code)
             self._is_vlm = True
