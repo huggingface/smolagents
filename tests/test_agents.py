@@ -494,6 +494,15 @@ class TestAgent:
         assert 'final_answer("got' in str_output
         assert "```<end_code>" in str_output
 
+        agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeToolCallModel(), verbosity_level=0)
+        agent.run("What is 2 multiplied by 3.6452?")
+        with agent.logger.console.capture() as capture:
+            agent.replay()
+        str_output = capture.get().replace("\n", "")
+        assert "Called" in str_output
+        assert "Tool" in str_output
+        assert "arguments" in str_output
+
     def test_code_nontrivial_final_answer_works(self):
         def fake_code_model_final_answer(messages, stop_sequences=None, grammar=None):
             return ChatMessage(
