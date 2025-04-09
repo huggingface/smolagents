@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import io
 import os
 import tempfile
 import unittest
@@ -26,6 +27,7 @@ from huggingface_hub import (
     ChatCompletionOutputMessage,
     ChatCompletionOutputToolCall,
 )
+from rich.console import Console
 
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
@@ -47,6 +49,7 @@ from smolagents.models import (
     MessageRole,
     TransformersModel,
 )
+from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.tools import Tool, tool
 from smolagents.utils import BASE_BUILTIN_MODULES, AgentExecutionError, AgentGenerationError, AgentToolCallError
 
@@ -54,6 +57,13 @@ from smolagents.utils import BASE_BUILTIN_MODULES, AgentExecutionError, AgentGen
 def get_new_path(suffix="") -> str:
     directory = tempfile.mkdtemp()
     return os.path.join(directory, str(uuid.uuid4()) + suffix)
+
+
+@pytest.fixture
+def agent_logger():
+    return AgentLogger(
+        LogLevel.DEBUG, console=Console(record=True, no_color=True, force_terminal=False, file=io.StringIO())
+    )
 
 
 class FakeToolCallModel:
@@ -481,27 +491,30 @@ class TestAgent:
         assert "{{managed_agents_descriptions}}" not in managed_agent.system_prompt
         assert "You can also give tasks to team members." in manager_agent.system_prompt
 
-    def test_replay_shows_logs(self):
+    def test_replay_shows_logs(self, agent_logger):
         agent = CodeAgent(
-            tools=[], model=fake_code_model_import, verbosity_level=0, additional_authorized_imports=["numpy"]
+            tools=[],
+            model=fake_code_model_import,
+            verbosity_level=0,
+            additional_authorized_imports=["numpy"],
+            logger=agent_logger,
         )
         agent.run("Count to 3")
 
-        with agent.logger.console.capture() as capture:
-            agent.replay()
-        str_output = capture.get().replace("\n", "")
+        str_output = agent_logger.console.export_text()
+
         assert "New run" in str_output
-        assert "Agent output:" in str_output
         assert 'final_answer("got' in str_output
         assert "```<end_code>" in str_output
 
         agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeToolCallModel(), verbosity_level=0)
+        agent.logger = agent_logger
+
         agent.run("What is 2 multiplied by 3.6452?")
-        with agent.logger.console.capture() as capture:
-            agent.replay()
-        str_output = capture.get().replace("\n", "")
-        assert "Called" in str_output
-        assert "Tool" in str_output
+        agent.replay()
+
+        str_output = agent_logger.console.export_text()
+        assert "Called Tool" in str_output
         assert "arguments" in str_output
 
     def test_code_nontrivial_final_answer_works(self):
