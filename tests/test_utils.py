@@ -423,58 +423,141 @@ def test_e2e_ipython_function_tool_save(tmp_path):
 @pytest.mark.parametrize(
     "raw_json, expected_data, expected_blob",
     [
+        # Nested objects
         (
-            """{}""",
+            """{"outer": {"inner": "value"}}""",
+            {"outer": {"inner": "value"}},
+            "",
+        ),
+        # Multiple nested levels with arrays
+        (
+            """{"level1": {"level2": {"level3": [1, 2, {"key": "value"}]}}}""",
+            {"level1": {"level2": {"level3": [1, 2, {"key": "value"}]}}},
+            "",
+        ),
+        # String containing braces
+        (
+            """{"text": "This is {not} a real brace"}""",
+            {"text": "This is {not} a real brace"},
+            "",
+        ),
+        # Multiple JSON-like strings in content, should get first valid one
+        (
+            """Text before {"first": "json"} {"second": "json"}""",
+            {"first": "json"},
+            "Text before ",
+        ),
+        # Escaped quotes in strings
+        (
+            """{"key": "value with \\"quotes\\""}""",
+            {"key": 'value with "quotes"'},
+            "",
+        ),
+        # JSON with whitespace
+        (
+            """   {
+                "spaced": "content"
+            }   """,
+            {"spaced": "content"},
+            "   ",
+        ),
+        # Empty object with prefix/suffix
+        (
+            """Action: {} More text""",
             {},
+            "Action: ",
+        ),
+        # Special characters in string values
+        (
+            """{"special": "\\n\\t\\r"}""",
+            {"special": "\n\t\r"},
             "",
         ),
+        # Unicode characters
         (
-            """Text{}""",
-            {},
-            "Text",
-        ),
-        (
-            """{"simple": "json"}""",
-            {"simple": "json"},
+            """{"unicode": "你好世界"}""",
+            {"unicode": "你好世界"},
             "",
         ),
+        # Complex keys with quotes
         (
-            """With text here{"simple": "json"}""",
-            {"simple": "json"},
-            "With text here",
-        ),
-        (
-            """{"simple": "json"}With text after""",
-            {"simple": "json"},
+            """{"quoted key \\"in\\" brackets": "value"}""",
+            {'quoted key "in" brackets': "value"},
             "",
-        ),
-        (
-            """With text before{"simple": "json"}And text after""",
-            {"simple": "json"},
-            "With text before",
         ),
     ],
 )
-def test_parse_json_blob_with_valid_json(raw_json, expected_data, expected_blob):
+def test_parse_json_blob_advanced_valid_cases(raw_json, expected_data, expected_blob):
     data, blob = parse_json_blob(raw_json)
-
     assert data == expected_data
     assert blob == expected_blob
 
 
 @pytest.mark.parametrize(
-    "raw_json",
+    "raw_json, expected_exception_text",
     [
-        """simple": "json"}""",
-        """With text here"simple": "json"}""",
-        """{"simple": ""json"}With text after""",
-        """{"simple": "json"With text after""",
-        "}}",
+        # Unclosed JSON object
+        (
+            """{"unclosed": "object""",
+            "Incomplete JSON object: unclosed string literal",
+        ),
+        # Unclosed string literal - gets caught by JSON decoder
+        (
+            """{"unclosed: "string}""",
+            "Invalid JSON: Expecting",
+        ),
+        # Unterminated escape sequence
+        (
+            """{"bad_escape": "\\""",
+            "Incomplete JSON object: unclosed string literal",
+        ),
+        # No JSON at all
+        (
+            """Just plain text without any JSON""",
+            "No JSON object found in input",
+        ),
+        # Invalid JSON syntax - missing colon
+        (
+            """{"missing" "colon"}""",
+            "Invalid JSON",
+        ),
+        # Invalid JSON syntax - trailing comma
+        (
+            """{"trailing": "comma", }""",
+            "Invalid JSON",
+        ),
+        # Deeply nested unclosed braces
+        (
+            """{"level1": {"level2": {"level3": {"level4": "value"}}""",
+            "Incomplete JSON object: missing 2 closing braces",
+        ),
+        # Mixed unclosed string and brace
+        (
+            """{"mixed": "problem{"nested": true}""",
+            "Incomplete JSON object: unclosed string literal",
+        ),
     ],
 )
-def test_parse_json_blob_with_invalid_json(raw_json):
-    with pytest.raises(Exception):
+def test_parse_json_blob_advanced_invalid_cases(raw_json, expected_exception_text):
+    with pytest.raises(ValueError) as excinfo:
         parse_json_blob(raw_json)
+    assert expected_exception_text in str(excinfo.value)
+
+
+def test_parse_json_blob_with_unicode_surrogate_pairs():
+    """Test correct handling of Unicode surrogate pairs"""
+    # This tests emoji and other characters that use surrogate pairs
+    json_str = '{"emoji": "😀🌍🚀"}'
+    data, _ = parse_json_blob(json_str)
+    assert data["emoji"] == "😀🌍🚀"
+
+
+def test_parse_json_blob_with_special_characters_in_keys():
+    """Test parsing JSON with special characters in keys"""
+    json_str = '{"special\\nkey": "value"}'
+    data, _ = parse_json_blob(json_str)
+    assert "special\nkey" in data
+    assert data["special\nkey"] == "value"
 
 
 @pytest.mark.parametrize(

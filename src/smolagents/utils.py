@@ -149,47 +149,93 @@ def make_json_serializable(obj: Any) -> Any:
         return str(obj)
 
 
-def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
-    "Extracts the first valid JSON blob from the input and returns the JSON data and the rest of the input."
+def parse_json_blob(json_blob: str) -> Tuple[Dict[str, Any], str]:
+    """Extracts the first valid JSON blob from the input and returns the JSON data and the prefix.
+
+    Args:
+        json_blob: String containing a JSON object, possibly with text before and/or after.
+
+    Returns:
+        Tuple of (parsed JSON dict, text before the JSON object)
+
+    Raises:
+        ValueError: If no valid JSON object is found or JSON parsing fails
+    """
+    # Find the first opening brace
     first_accolade_index = json_blob.find("{")
     if first_accolade_index == -1:
         raise ValueError("No JSON object found in input.")
 
+    # Track balanced braces
     brace_count = 0
-    end_index = None
+    in_string = False
+    escape_char = False
+    i = first_accolade_index
 
-    # Iterate from first '{' to find balanced closing '}'
-    for i in range(first_accolade_index, len(json_blob)):
-        char = json_blob[i]
-        if char == "{":
-            brace_count += 1
-        elif char == "}":
-            brace_count -= 1
-            if brace_count == 0:
-                end_index = i
-                break
-
-    if end_index is None:
-        raise ValueError("No complete JSON object found: braces are not balanced.")
-
-    json_str = json_blob[first_accolade_index : end_index + 1]
     try:
-        json_data = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        place = e.pos
-        if json_str[place - 1 : place + 2] == "},\n":
-            raise ValueError(
-                "JSON is invalid: you probably tried to provide multiple tool calls in one action. PROVIDE ONLY ONE TOOL CALL."
-            )
-        raise ValueError(
-            f"The JSON blob you used is invalid due to the following error: {e}.\n"
-            f"JSON blob was: {json_str}, decoding failed on that specific part of the blob:\n"
-            f"'{json_str[place - 4 : place + 5]}'."
-        )
+        # Scan for the balanced closing brace
+        while i < len(json_blob):
+            char = json_blob[i]
 
-    # The prefix BEFORE JSON (if needed)
-    prefix = json_blob[:first_accolade_index]
-    return json_data, prefix
+            if in_string:
+                if escape_char:
+                    escape_char = False
+                elif char == "\\":
+                    escape_char = True
+                elif char == '"':
+                    in_string = False
+            else:
+                if char == '"':
+                    in_string = True
+                elif char == "{":
+                    brace_count += 1
+                elif char == "}":
+                    brace_count -= 1
+                    if brace_count == 0:
+                        break
+
+            i += 1
+
+        # Check if we reached the end without finding a balanced close
+        if i >= len(json_blob) or brace_count != 0:
+            if in_string:
+                raise ValueError("Incomplete JSON object: unclosed string literal.")
+            elif brace_count > 0:
+                raise ValueError(f"Incomplete JSON object: missing {brace_count} closing braces.")
+            else:
+                # This shouldn't happen with our algorithm, but just in case
+                raise ValueError("Malformed JSON: unbalanced braces.")
+
+        # Extract the complete JSON string
+        json_str = json_blob[first_accolade_index : i + 1]
+
+        # Handle the case where there's another JSON object immediately after
+        if i + 1 < len(json_blob) and json_blob[i + 1] == "{":
+            # This is likely valid - we extracted the first complete JSON object
+            pass
+
+        # Try to parse the JSON
+        try:
+            json_data = json.loads(json_str)
+            return json_data, json_blob[:first_accolade_index]
+        except json.JSONDecodeError as e:
+            context_range = 10
+            context_start = max(0, e.pos - context_range)
+            context_end = min(len(json_str), e.pos + context_range)
+            position_marker = " " * (min(e.pos, context_range)) + "^"
+
+            raise ValueError(
+                f"Invalid JSON: {e.msg} at position {e.pos}.\n"
+                f"Context:\n{json_str[context_start:context_end]}\n{position_marker}\n"
+                f"Make sure your JSON is properly formatted."
+            )
+
+    except IndexError:
+        # Handle case where we go out of bounds
+        if brace_count > 0:
+            raise ValueError(f"Incomplete JSON object: missing {brace_count} closing braces.")
+        else:
+            raise ValueError("Malformed JSON: unexpected end of input.")
 
 
 def parse_code_blobs(text: str) -> str:
