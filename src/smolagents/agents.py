@@ -1318,3 +1318,14 @@ class CodeAgent(MultiStepAgent):
         agent_dict["executor_kwargs"] = self.executor_kwargs
         agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
+
+    def cleanup(self):
+        """Clean up resources used by the agent, especially Docker container resources."""
+        try:
+            self.python_executor.delete()
+        except AttributeError:
+            pass
+
+    def __del__(self):
+        """Ensure resources are cleaned up when the agent is garbage collected."""
+        self.cleanup()

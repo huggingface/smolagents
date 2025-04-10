@@ -569,6 +569,35 @@ nested_answer()
         assert len(agent.memory.steps) == 2
         assert "Generation failed" in str(e)
 
+    @pytest.mark.require_run_all
+    def test_codeagent_cleanup_releases_docker_resources(self):
+        """Test if CodeAgent properly releases Docker resources when cleanup is called"""
+        # Create a simple model
+        model = MagicMock()
+        model.return_value = ChatMessage(role="assistant", content="```python\nprint('Hello, World!')\n```")
+
+        import docker
+
+        # Create Docker client
+        client = docker.from_env()
+
+        # Create CodeAgent with docker as executor
+        agent = CodeAgent(tools=[], model=model, executor_type="docker")
+
+        # Get container ID
+        container_id = agent.python_executor.container.id
+
+        # Verify container is running
+        containers = [c.id for c in client.containers.list()]
+        assert container_id in containers, "Container should be created and running"
+
+        # Directly call cleanup method instead of relying on garbage collection
+        agent.cleanup()
+
+        # Verify container has been removed
+        containers = [c.id for c in client.containers.list(all=True)]
+        assert container_id not in containers, "Docker container should be removed when CodeAgent.cleanup() is called"
+
 
 class CustomFinalAnswerTool(FinalAnswerTool):
     def forward(self, answer) -> str:
