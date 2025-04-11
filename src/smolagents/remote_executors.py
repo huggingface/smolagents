@@ -167,6 +167,7 @@ class DockerExecutor(RemotePythonExecutor):
         logger,
         host: str = "127.0.0.1",
         port: int = 8888,
+        environment_variables: Dict[str, str] = None,
     ):
         """
         Initialize the Docker-based Jupyter Kernel Gateway executor.
@@ -209,7 +210,7 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
 
             self.logger.log(f"Starting container on {host}:{port}...", level=LogLevel.INFO)
             self.container = self.client.containers.run(
-                "jupyter-kernel", ports={"8888/tcp": (host, port)}, detach=True
+                "jupyter-kernel", ports={"8888/tcp": (host, port)}, detach=True, environment=environment_variables
             )
 
             retries = 0

@@ -35,7 +35,11 @@ class TestE2BExecutorMock:
 
 @pytest.fixture
 def docker_executor():
-    executor = DockerExecutor(additional_imports=["pillow", "numpy"], logger=AgentLogger(level=LogLevel.INFO))
+    executor = DockerExecutor(
+        additional_imports=["pillow", "numpy"],
+        logger=AgentLogger(level=LogLevel.INFO),
+        environment_variables={"TEST_ENV": "TEST123"},
+    )
     yield executor
     executor.delete()
 
@@ -58,6 +62,15 @@ class TestDockerExecutor:
         code_action = "print(np.sqrt(a))"
         result, logs, final_answer = self.executor(code_action)
         assert "1.41421" in logs
+
+    def test_environment_variables(self):
+        """Test that custom environment variables are added to the container"""
+        code_action = dedent("""
+            import os
+            print(os.environ.get("TEST_ENV", ""))
+        """)
+        result, logs, final_answer = self.executor(code_action)
+        assert "TEST123" in logs
 
     def test_execute_output(self):
         """Test execution that returns a string"""
