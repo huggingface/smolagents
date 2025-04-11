@@ -31,7 +31,7 @@ from smolagents.local_python_executor import (
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
-    check_module_authorized,
+    check_import_authorized,
     evaluate_condition,
     evaluate_delete,
     evaluate_python_code,
@@ -511,20 +511,25 @@ if char.isalpha():
         code = "from numpy.random import default_rng as d_rng\nrng = d_rng(12345)\nrng.random()"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy.random"])
 
-        # Test that importing numpy imports submodules
-        code = "import numpy as np\nnp.random.default_rng(12345)\nnp.random.random()"
-        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy"])
-
     def test_additional_imports(self):
         code = "import numpy as np"
         evaluate_python_code(code, authorized_imports=["numpy"], state={})
 
+        # Test that allowing 'numpy.*' allows submodules
+        code = "import numpy as np\nnp.random.default_rng(12345)\nnp.random.random()"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy.*"])
+
         code = "import numpy.random as rd"
         evaluate_python_code(code, authorized_imports=["numpy.random"], state={})
-        evaluate_python_code(code, authorized_imports=["numpy"], state={})
+        evaluate_python_code(code, authorized_imports=["numpy.*"], state={})
         evaluate_python_code(code, authorized_imports=["*"], state={})
         with pytest.raises(InterpreterError):
             evaluate_python_code(code, authorized_imports=["random"], state={})
+
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(code, authorized_imports=["numpy.a"], state={})
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(code, authorized_imports=["numpy.a.*"], state={})
 
     def test_multiple_comparators(self):
         code = "0 <= -1 < 4 and 0 <= -5 < 4"
@@ -1572,18 +1577,18 @@ class TestPrintContainer:
 @pytest.mark.parametrize(
     "module,authorized_imports,expected",
     [
-        ("os", ["*"], True),
+        ("os", ["other", "*"], True),
         ("AnyModule", ["*"], True),
         ("os", ["os"], True),
         ("AnyModule", ["AnyModule"], True),
-        ("Module.os", ["Module"], True),
-        ("Module.os", ["Module", "os"], True),
-        ("os.path", ["os"], True),
-        ("os", ["os.path"], False),
+        ("Module.os", ["Module"], False),
+        ("Module.os", ["Module", "Module.os"], True),
+        ("os.path", ["os.*"], True),
+        ("os", ["os.path"], True),
     ],
 )
-def test_check_module_authorized(module: str, authorized_imports: list[str], expected: bool):
-    assert check_module_authorized(module, authorized_imports) == expected
+def test_check_import_authorized(module: str, authorized_imports: list[str], expected: bool):
+    assert check_import_authorized(module, authorized_imports) == expected
 
 
 class TestLocalPythonExecutor:
@@ -1804,7 +1809,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import queue; queue.threading._os.system(':')",
                 [],
-                InterpreterError("Forbidden access to module: os"),
+                InterpreterError("Forbidden access to module: threading"),
             ),
             (
                 "import queue; queue.threading._os.system(':')",
@@ -1820,7 +1825,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import doctest; doctest.inspect.os.system(':')",
                 ["doctest"],
-                InterpreterError("Forbidden access to module: os"),
+                InterpreterError("Forbidden access to module: inspect"),
             ),
             (
                 "import doctest; doctest.inspect.os.system(':')",
@@ -1831,23 +1836,23 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio"],
-                InterpreterError("Forbidden access to module: subprocess"),
+                InterpreterError("Forbidden access to module: asyncio.base_events"),
             ),
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio", "asyncio.base_events"],
-                InterpreterError("Forbidden access to module: subprocess"),
+                InterpreterError("Forbidden access to module: asyncio.events"),
             ),
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio", "asyncio.base_events", "asyncio.base_events.events"],
-                InterpreterError("Forbidden access to module: subprocess"),
+                InterpreterError("Forbidden access to module: asyncio.events"),
             ),
             # sys submodule
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
                 [],
-                InterpreterError("Forbidden access to module: sys"),
+                InterpreterError("Forbidden access to module: threading"),
             ),
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
