@@ -1,7 +1,10 @@
+import ast
+from textwrap import dedent
+
 import pytest
 
 from smolagents.default_tools import DuckDuckGoSearchTool, GoogleSearchTool, SpeechToTextTool, VisitWebpageTool
-from smolagents.tool_validation import validate_tool_attributes
+from smolagents.tool_validation import MethodChecker, validate_tool_attributes
 from smolagents.tools import Tool, tool
 
 
@@ -128,3 +131,51 @@ class InvalidToolUndefinedNames(Tool):
 def test_validate_tool_attributes_exceptions(tool_class, expected_error):
     with pytest.raises(ValueError, match=expected_error):
         validate_tool_attributes(tool_class)
+
+
+class MultipleAssignmentsTool(Tool):
+    name = "multiple_assignments_tool"
+    description = "Tool with multiple assignments"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input: str) -> str:
+        a, b = "1", "2"
+        return a + b
+
+
+def test_validate_tool_attributes_multiple_assignments():
+    validate_tool_attributes(MultipleAssignmentsTool)
+
+
+@tool
+def tool_function_with_multiple_assignments(input: str) -> str:
+    """A valid tool function.
+
+    Args:
+        input (str): Input string.
+    """
+    a, b = "1", "2"
+    return input.upper() + a + b
+
+
+@pytest.mark.parametrize("tool_instance", [MultipleAssignmentsTool(), tool_function_with_multiple_assignments])
+def test_tool_to_dict_validation_with_multiple_assignments(tool_instance):
+    tool_instance.to_dict()
+
+
+class TestMethodChecker:
+    def test_multiple_assignments(self):
+        source_code = dedent(
+            """
+            def forward(self) -> str:
+                a, b = "1", "2"
+                return a + b
+            """
+        )
+        method_checker = MethodChecker(set())
+        method_checker.visit(ast.parse(source_code))
+        assert method_checker.errors == []
