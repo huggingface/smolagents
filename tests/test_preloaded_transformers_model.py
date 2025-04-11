@@ -1,32 +1,55 @@
+###############################
+# ADD LOCAL PACKAGE TO SYSTEM #
+###############################
+import os
 import sys
-sys.path.insert(0, r"C:\Users\jonna\Desktop\projetos\2_HUGGING_FACE_AGENT_AI\2_1_THE_SMOLAGENS_FRAMEWORK\smolagents_v1\smolagents\src")  
 
-from transformers   import BitsAndBytesConfig
-from src.smolagents import CodeAgent, TransformersModel
+_actual_path    = os.path.dirname(os.path.abspath(__file__))
+_path_local     = os.path.abspath(os.path.join(_actual_path, '..', 'src'))
+sys.path.insert(0, _path_local)  
 
+print(_path_local)
+
+###############
+# SETUP MODEL #
+###############
+import torch
+from transformers   import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from smolagents     import CodeAgent, PreloadedTransformersModel
+
+# --- Configuração do Qwen em 4-bit ---
 model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
 
 bnb_config = BitsAndBytesConfig(
-    load_in_4bit                =True,
-    bnb_4bit_compute_dtype      = "float16",
-    bnb_4bit_use_double_quant   = True,
-    bnb_4bit_quant_type         = "nf4"
+    load_in_4bit                = True,
+    bnb_4bit_quant_type         = "nf4",
+    bnb_4bit_compute_dtype      = torch.bfloat16,
+    bnb_4bit_use_double_quant   = True
 )
 
-model = TransformersModel(
+tokenizer       = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+model_engine    = AutoModelForCausalLM.from_pretrained(
     model_id,
+    quantization_config = bnb_config,
     device_map          = "auto",
-    torch_dtype         = "auto",  # pode ser omitido se quiser
-    trust_remote_code   = True,
-    model_config        = {'quantization_config': bnb_config},
-    max_new_tokens      = 2000
+    trust_remote_code   = True
 )
 
-'''
-agent = CodeAgent(tools=[], model=model)
-agent.run("Explain quantum mechanics in simple terms.")
-'''
+model = PreloadedTransformersModel(
+    model_engine,
+    tokenizer = tokenizer
+)
 
+###########
+# TESTE 1 #
+###########
+agent   = CodeAgent(tools=[], model=model)
+result  = agent.run("Explain quantum mechanics in simple terms.")
+print(result)
+
+###########
+# TESTE 2 #
+###########
 from langchain.docstore.document    import Document
 from langchain.text_splitter        import RecursiveCharacterTextSplitter
 from smolagents                     import Tool
