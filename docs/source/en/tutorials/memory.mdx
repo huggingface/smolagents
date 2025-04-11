@@ -118,8 +118,7 @@ This will also let you update the memory on each step.
 from smolagents import HfApiModel, CodeAgent, ActionStep, TaskStep
 
 agent = CodeAgent(tools=[], model=HfApiModel(), verbosity_level=1)
-# If tools are provided, you need to send them to the Python executor using `send_tools`.
-# agent.python_executor.send_tools({**agent.tools})
+agent.python_executor.send_tools({**agent.tools})
 print(agent.memory.system_prompt)
 
 task = "What is the 20th Fibonacci number?"
