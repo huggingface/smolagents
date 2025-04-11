@@ -24,6 +24,7 @@ import re
 from collections.abc import Mapping
 from functools import wraps
 from importlib import import_module
+from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
@@ -112,6 +113,20 @@ BASE_PYTHON_TOOLS = {
     "type": type,
     "complex": complex,
 }
+
+# Non-exhaustive list of dangerous modules that should not be imported
+DANGEROUS_MODULES = [
+    "builtins",
+    "io",
+    "multiprocessing",
+    "os",
+    "pathlib",
+    "pty",
+    "shutil",
+    "socket",
+    "subprocess",
+    "sys",
+]
 
 DANGEROUS_FUNCTIONS = [
     "builtins.compile",
@@ -224,11 +239,25 @@ def safer_eval(func: Callable):
         result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
         if "*" not in authorized_imports:
             if isinstance(result, ModuleType):
-                if result.__name__ not in authorized_imports:
-                    raise InterpreterError(f"Forbidden access to module: {result.__name__}")
+                for module_name in DANGEROUS_MODULES:
+                    if (
+                        module_name not in authorized_imports
+                        and result.__name__ == module_name
+                        # builtins has no __file__ attribute
+                        and getattr(result, "__file__", "")
+                        == (getattr(import_module(module_name), "__file__", "") if find_spec(module_name) else "")
+                    ):
+                        raise InterpreterError(f"Forbidden access to module: {module_name}")
             elif isinstance(result, dict) and result.get("__spec__"):
-                if result["__name__"] not in authorized_imports:
-                    raise InterpreterError(f"Forbidden access to module: {result['__name__']}")
+                for module_name in DANGEROUS_MODULES:
+                    if (
+                        module_name not in authorized_imports
+                        and result["__name__"] == module_name
+                        # builtins has no __file__ attribute
+                        and result.get("__file__", "")
+                        == (getattr(import_module(module_name), "__file__", "") if find_spec(module_name) else "")
+                    ):
+                        raise InterpreterError(f"Forbidden access to module: {module_name}")
             elif isinstance(result, (FunctionType, BuiltinFunctionType)):
                 for qualified_function_name in DANGEROUS_FUNCTIONS:
                     module_name, function_name = qualified_function_name.rsplit(".", 1)
@@ -329,6 +358,8 @@ def create_function(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> Callable:
+    source_code = ast.unparse(func_def)
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
         arg_names = [arg.arg for arg in func_def.args.args]
@@ -378,6 +409,11 @@ def create_function(
             return None
 
         return result
+
+    # Store original AST, source code, and name
+    new_func.__ast__ = func_def
+    new_func.__source__ = source_code
+    new_func.__name__ = func_def.name
 
     return new_func
 
@@ -653,7 +689,7 @@ def evaluate_call(
             func = ERRORS[func_name]
         else:
             raise InterpreterError(
-                f"It is not permitted to evaluate other functions than the provided tools or functions defined/imported in previous code (tried to execute {call.func.id})."
+                f"Forbidden function evaluation: '{call.func.id}' is not among the explicitly allowed tools or defined/imported in the preceding code"
             )
     elif isinstance(call.func, ast.Subscript):
         func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)

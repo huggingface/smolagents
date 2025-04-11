@@ -16,16 +16,17 @@ import json
 import sys
 import unittest
 from contextlib import ExitStack
-from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
-from transformers.testing_utils import get_tests_dir
+from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.models import (
+    AmazonBedrockServerModel,
     AzureOpenAIServerModel,
     ChatMessage,
+    ChatMessageToolCall,
     HfApiModel,
     LiteLLMModel,
     MessageRole,
@@ -33,16 +34,16 @@ from smolagents.models import (
     OpenAIServerModel,
     TransformersModel,
     get_clean_message_list,
+    get_tool_call_from_text,
     get_tool_json_schema,
     parse_json_if_needed,
-    parse_tool_args_if_needed,
 )
 from smolagents.tools import tool
 
 from .utils.markers import require_run_all
 
 
-class ModelTests(unittest.TestCase):
+class TestModel:
     def test_get_json_schema_has_nullable_args(self):
         @tool
         def get_weather(location: str, celsius: Optional[bool] = False) -> str:
@@ -83,7 +84,8 @@ class ModelTests(unittest.TestCase):
         # check stop_sequence capture when output has trailing chars
         assert model(messages, stop_sequences=[stop_sequence]).content == "I'm ready to help you"
 
-    def test_transformers_message_no_tool(self):
+    def test_transformers_message_no_tool(self, monkeypatch):
+        monkeypatch.setattr("huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT", 30)  # instead of 10
         model = TransformersModel(
             model_id="HuggingFaceTB/SmolLM2-135M-Instruct",
             max_new_tokens=5,
@@ -94,10 +96,11 @@ class ModelTests(unittest.TestCase):
         output = model(messages, stop_sequences=["great"]).content
         assert output == "assistant\nHello"
 
-    def test_transformers_message_vl_no_tool(self):
-        from PIL import Image
+    def test_transformers_message_vl_no_tool(self, shared_datadir, monkeypatch):
+        monkeypatch.setattr("huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT", 30)  # instead of 10
+        import PIL.Image
 
-        img = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")
+        img = PIL.Image.open(shared_datadir / "000000039769.png")
         model = TransformersModel(
             model_id="llava-hf/llava-interleave-qwen-0.5b-hf",
             max_new_tokens=5,
@@ -107,11 +110,6 @@ class ModelTests(unittest.TestCase):
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}, {"type": "image", "image": img}]}]
         output = model(messages, stop_sequences=["great"]).content
         assert output == "Hello! How can"
-
-    def test_parse_tool_args_if_needed(self):
-        original_message = ChatMessage(role="user", content=[{"type": "text", "text": "Hello!"}])
-        parsed_message = parse_tool_args_if_needed(original_message)
-        assert parsed_message == original_message
 
     def test_parse_json_if_needed(self):
         args = "abc"
@@ -136,6 +134,8 @@ class TestHfApiModel:
         custom_role_conversions = {MessageRole.USER: MessageRole.SYSTEM}
         model = HfApiModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
         model.client = MagicMock()
+        mock_response = model.client.chat_completion.return_value
+        mock_response.choices[0].message = ChatCompletionOutputMessage(role="assistant")
         messages = [{"role": "user", "content": "Test message"}]
         _ = model(messages)
         # Verify that the role conversion was applied
@@ -205,6 +205,18 @@ class TestOpenAIServerModel:
         assert model.client == MockOpenAI.return_value
 
 
+class TestAmazonBedrockServerModel:
+    def test_client_for_bedrock(self):
+        model_id = "us.amazon.nova-pro-v1:0"
+
+        with patch("boto3.client") as MockBoto3:
+            model = AmazonBedrockServerModel(
+                model_id=model_id,
+            )
+
+        assert model.client == MockBoto3.return_value
+
+
 class TestAzureOpenAIServerModel:
     def test_client_kwargs_passed_correctly(self):
         model_id = "gpt-3.5-turbo"
@@ -236,6 +248,53 @@ class TestAzureOpenAIServerModel:
             max_retries=5,
         )
         assert model.client == MockAzureOpenAI.return_value
+
+
+class TestTransformersModel:
+    @pytest.mark.parametrize(
+        "patching",
+        [
+            [
+                (
+                    "transformers.AutoModelForImageTextToText.from_pretrained",
+                    {"side_effect": ValueError("Unrecognized configuration class")},
+                ),
+                ("transformers.AutoModelForCausalLM.from_pretrained", {}),
+                ("transformers.AutoTokenizer.from_pretrained", {}),
+            ],
+            [
+                ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
+                ("transformers.AutoProcessor.from_pretrained", {}),
+            ],
+        ],
+    )
+    def test_init(self, patching):
+        with ExitStack() as stack:
+            mocks = {target: stack.enter_context(patch(target, **kwargs)) for target, kwargs in patching}
+            model = TransformersModel(
+                model_id="test-model", device_map="cpu", torch_dtype="float16", trust_remote_code=True
+            )
+        assert model.model_id == "test-model"
+        if "transformers.AutoTokenizer.from_pretrained" in mocks:
+            assert model.model == mocks["transformers.AutoModelForCausalLM.from_pretrained"].return_value
+            assert mocks["transformers.AutoModelForCausalLM.from_pretrained"].call_args.kwargs == {
+                "device_map": "cpu",
+                "torch_dtype": "float16",
+                "trust_remote_code": True,
+            }
+            assert model.tokenizer == mocks["transformers.AutoTokenizer.from_pretrained"].return_value
+            assert mocks["transformers.AutoTokenizer.from_pretrained"].call_args.args == ("test-model",)
+            assert mocks["transformers.AutoTokenizer.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
+        elif "transformers.AutoProcessor.from_pretrained" in mocks:
+            assert model.model == mocks["transformers.AutoModelForImageTextToText.from_pretrained"].return_value
+            assert mocks["transformers.AutoModelForImageTextToText.from_pretrained"].call_args.kwargs == {
+                "device_map": "cpu",
+                "torch_dtype": "float16",
+                "trust_remote_code": True,
+            }
+            assert model.processor == mocks["transformers.AutoProcessor.from_pretrained"].return_value
+            assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.args == ("test-model",)
+            assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
 
 
 def test_get_clean_message_list_basic():
@@ -313,7 +372,7 @@ def test_get_clean_message_list_flatten_messages_as_text():
     result = get_clean_message_list(messages, flatten_messages_as_text=True)
     assert len(result) == 1
     assert result[0]["role"] == "user"
-    assert result[0]["content"] == "Hello!How are you?"
+    assert result[0]["content"] == "Hello!\nHow are you?"
 
 
 @pytest.mark.parametrize(
@@ -332,6 +391,10 @@ def test_get_clean_message_list_flatten_messages_as_text():
             TransformersModel,
             {},
             [
+                (
+                    "transformers.AutoModelForImageTextToText.from_pretrained",
+                    {"side_effect": ValueError("Unrecognized configuration class")},
+                ),
                 ("transformers.AutoModelForCausalLM.from_pretrained", {}),
                 ("transformers.AutoTokenizer.from_pretrained", {}),
             ],
@@ -341,10 +404,6 @@ def test_get_clean_message_list_flatten_messages_as_text():
             TransformersModel,
             {},
             [
-                (
-                    "transformers.AutoModelForCausalLM.from_pretrained",
-                    {"side_effect": ValueError("Unrecognized configuration class")},
-                ),
                 ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
                 ("transformers.AutoProcessor.from_pretrained", {}),
             ],
@@ -365,3 +424,54 @@ def test_flatten_messages_as_text_for_all_models(
 
         model = model_class(**{"model_id": "test-model", **model_kwargs})
     assert model.flatten_messages_as_text is expected_flatten_messages_as_text, f"{model_class.__name__} failed"
+
+
+class TestGetToolCallFromText:
+    @pytest.fixture(autouse=True)
+    def mock_uuid4(self):
+        with patch("uuid.uuid4", return_value="test-uuid"):
+            yield
+
+    def test_get_tool_call_from_text_basic(self):
+        text = '{"name": "weather_tool", "arguments": "New York"}'
+        result = get_tool_call_from_text(text, "name", "arguments")
+        assert isinstance(result, ChatMessageToolCall)
+        assert result.id == "test-uuid"
+        assert result.type == "function"
+        assert result.function.name == "weather_tool"
+        assert result.function.arguments == "New York"
+
+    def test_get_tool_call_from_text_name_key_missing(self):
+        text = '{"action": "weather_tool", "arguments": "New York"}'
+        with pytest.raises(ValueError) as exc_info:
+            get_tool_call_from_text(text, "name", "arguments")
+        error_msg = str(exc_info.value)
+        assert "Key tool_name_key='name' not found" in error_msg
+        assert "'action', 'arguments'" in error_msg
+
+    def test_get_tool_call_from_text_json_object_args(self):
+        text = '{"name": "weather_tool", "arguments": {"city": "New York"}}'
+        result = get_tool_call_from_text(text, "name", "arguments")
+        assert result.function.arguments == {"city": "New York"}
+
+    def test_get_tool_call_from_text_json_string_args(self):
+        text = '{"name": "weather_tool", "arguments": "{\\"city\\": \\"New York\\"}"}'
+        result = get_tool_call_from_text(text, "name", "arguments")
+        assert result.function.arguments == {"city": "New York"}
+
+    def test_get_tool_call_from_text_missing_args(self):
+        text = '{"name": "weather_tool"}'
+        result = get_tool_call_from_text(text, "name", "arguments")
+        assert result.function.arguments is None
+
+    def test_get_tool_call_from_text_custom_keys(self):
+        text = '{"tool": "weather_tool", "params": "New York"}'
+        result = get_tool_call_from_text(text, "tool", "params")
+        assert result.function.name == "weather_tool"
+        assert result.function.arguments == "New York"
+
+    def test_get_tool_call_from_text_numeric_args(self):
+        text = '{"name": "calculator", "arguments": 42}'
+        result = get_tool_call_from_text(text, "name", "arguments")
+        assert result.function.name == "calculator"
+        assert result.function.arguments == 42
