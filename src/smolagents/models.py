@@ -939,6 +939,11 @@ class LiteLLMModel(ApiModel):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
+        is_streaming = kwargs.get("stream", False)
+
+        if is_streaming and "stream_options" not in kwargs:
+            kwargs["stream_options"] = {"include_usage": True}
+
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -954,8 +959,16 @@ class LiteLLMModel(ApiModel):
 
         response = self.client.completion(**completion_kwargs)
 
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
+        try:
+            self.last_input_token_count = response.usage.prompt_tokens
+            self.last_output_token_count = response.usage.completion_tokens
+        except (AttributeError, TypeError) as e:
+            if is_streaming:
+                logger.debug(f"Token usage information not available for streaming response: {e}")
+                self.last_input_token_count = 0  # Set default values
+                self.last_output_token_count = 0
+            else:
+                raise
         first_message = ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
