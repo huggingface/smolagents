@@ -50,6 +50,10 @@ class MethodChecker(ast.NodeVisitor):
         for target in node.targets:
             if isinstance(target, ast.Name):
                 self.assigned_names.add(target.id)
+            elif isinstance(target, (ast.Tuple, ast.List)):
+                for elt in target.elts:
+                    if isinstance(elt, ast.Name):
+                        self.assigned_names.add(elt.id)
         self.visit(node.value)
 
     def visit_With(self, node):
