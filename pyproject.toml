@@ -56,6 +56,9 @@ mcp = [
 mlx-lm = [
   "mlx-lm"
 ]
+mlx-vlm = [
+  "mlx-vlm"
+]
 openai = [
   "openai>=1.58.1"
 ]
