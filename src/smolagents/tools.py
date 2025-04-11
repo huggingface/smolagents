@@ -223,7 +223,8 @@ class Tool:
             method_checker.visit(forward_node)
 
             if len(method_checker.errors) > 0:
-                raise (ValueError("\n".join(method_checker.errors)))
+                errors = [f"- {error}" for error in method_checker.errors]
+                raise (ValueError(f"SimpleTool validation failed for {self.name}:\n" + "\n".join(errors)))
 
             forward_source_code = get_source(self.forward)
             tool_code = textwrap.dedent(
