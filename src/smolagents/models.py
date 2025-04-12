@@ -979,27 +979,24 @@ class LiteLLMRouter(ApiModel):
             )
             model_id = "anthropic/claude-3-5-sonnet-20240620"
         self.model_id = model_id
-        self._model_list = model_list
-        self._router_kwargs = router_kwargs or {}
         self.custom_role_conversions = custom_role_conversions
         flatten_messages_as_text = (
             flatten_messages_as_text
             if flatten_messages_as_text is not None
             else self.model_id.startswith(("ollama", "groq", "cerebras"))
         )
-        self.create_client()
+        self.create_client(model_list, router_kwargs)
         super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
 
-    def create_client(
-        self,
-    ):
+    def create_client(self, model_list: List[Dict[Any, Any]], router_kwargs: Optional[Dict[Any, Any]] = None):
         try:
             from litellm import Router
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
             )
-        self.router: Router = Router(model_list=self._model_list, **self._router_kwargs)
+        router_kwargs = router_kwargs or {}
+        self.router: Router = Router(model_list=model_list, **router_kwargs)
 
     def __call__(
         self,
