@@ -168,7 +168,7 @@ class DockerExecutor(RemotePythonExecutor):
         host: str = "127.0.0.1",
         port: int = 8888,
         image_name: str = "jupyter-kernel",
-        rebuild_image: bool = True,
+        build_new_image: bool = True,
         container_run_kwargs: Dict[str, Any] | None = None,
     ):
         """
@@ -180,7 +180,7 @@ class DockerExecutor(RemotePythonExecutor):
             host: Host to bind to.
             port: Port to bind to.
             image_name: Name of the Docker image to use. If the image doesn't exist, it will be built.
-            rebuild_image: If True, the image will be rebuilt even if it already exists.
+            build_new_image: If True, the image will be rebuilt even if it already exists.
             container_run_kwargs: Additional keyword arguments to pass to the Docker container run command.
         """
         super().__init__(additional_imports, logger)
@@ -204,17 +204,15 @@ class DockerExecutor(RemotePythonExecutor):
         # Build and start container
         try:
             # Check if image exists, unless forced to rebuild
-            build_image = rebuild_image
-            if not rebuild_image:
+            if not build_new_image:
                 try:
                     self.client.images.get(self.image_name)
                     self.logger.log(f"Using existing Docker image: {self.image_name}", level=LogLevel.INFO)
-                    build_image = False
                 except docker.errors.ImageNotFound:
                     self.logger.log(f"Image {self.image_name} not found, building...", level=LogLevel.INFO)
-                    build_image = True
+                    build_new_image = True
 
-            if build_image:
+            if build_new_image:
                 self.logger.log(f"Building Docker image {self.image_name}...", level=LogLevel.INFO)
                 dockerfile_path = Path(__file__).parent / "Dockerfile"
                 if not dockerfile_path.exists():
