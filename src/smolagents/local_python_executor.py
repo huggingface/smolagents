@@ -461,6 +461,14 @@ def evaluate_class_def(
                         custom_tools,
                         authorized_imports,
                     )
+        elif (
+            isinstance(stmt, ast.Expr)
+            and stmt == class_def.body[0]
+            and isinstance(stmt.value, ast.Constant)
+            and isinstance(stmt.value.value, str)
+        ):
+            # Check if it is a docstring: first statement in class body which is a string literal expression
+            class_dict["__doc__"] = stmt.value.value
         else:
             raise InterpreterError(f"Unsupported statement in class body: {stmt.__class__.__name__}")
 
