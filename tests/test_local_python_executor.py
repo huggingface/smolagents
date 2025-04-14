@@ -1072,6 +1072,36 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
 
+def test_evaluate_annassign():
+    code = dedent("""\
+        # Basic annotated assignment
+        x: int = 42
+
+        # Type annotations with expressions
+        y: float = x / 2
+
+        # Type annotation without assignment
+        z: list
+
+        # Type annotation with complex value
+        names: list = ["Alice", "Bob", "Charlie"]
+
+        # Type hint shouldn't restrict values at runtime
+        s: str = 123  # Would be a type error in static checking, but valid at runtime
+
+        # Access the values
+        result = (x, y, names, s)
+    """)
+    state = {}
+    evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+    assert state["x"] == 42
+    assert state["y"] == 21.0
+    assert "z" not in state  # z should be not be defined
+    assert state["names"] == ["Alice", "Bob", "Charlie"]
+    assert state["s"] == 123  # Type hints don't restrict at runtime
+    assert state["result"] == (42, 21.0, ["Alice", "Bob", "Charlie"], 123)
+
+
 @pytest.mark.parametrize(
     "code, expected_result",
     [
