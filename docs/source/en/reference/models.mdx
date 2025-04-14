@@ -149,6 +149,24 @@ model = AzureOpenAIServerModel(
 
 [[autodoc]] AzureOpenAIServerModel
 
+### AmazonBedrockServerModel
+
+`AmazonBedrockServerModel` helps you connect to Amazon Bedrock and run your agent with any available models.
+
+Below is an example setup. This class also offers additional options for customization.
+
+```py
+import os
+
+from smolagents import AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(
+    model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID"),
+)
+```
+
+[[autodoc]] AmazonBedrockServerModel
+
 ### MLXModel
 
 

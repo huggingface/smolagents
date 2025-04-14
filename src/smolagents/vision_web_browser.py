@@ -3,8 +3,8 @@ from io import BytesIO
 from time import sleep
 
 import helium
+import PIL.Image
 from dotenv import load_dotenv
-from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -57,7 +57,7 @@ def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
             if isinstance(previous_memory_step, ActionStep) and previous_memory_step.step_number <= current_step - 2:
                 previous_memory_step.observations_images = None
         png_bytes = driver.get_screenshot_as_png()
-        image = Image.open(BytesIO(png_bytes))
+        image = PIL.Image.open(BytesIO(png_bytes))
         print(f"Captured a browser screenshot: {image.size} pixels")
         memory_step.observations_images = [image.copy()]  # Create a copy to ensure it persists, important!
 
@@ -187,7 +187,7 @@ When you have modals or cookie banners on screen, you should get rid of them bef
 """
 
 
-def main(prompt: str, model_type: str, model_id: str) -> None:
+def run_webagent(prompt: str, model_type: str, model_id: str) -> None:
     # Load environment variables
     load_dotenv()
 
@@ -203,8 +203,11 @@ def main(prompt: str, model_type: str, model_id: str) -> None:
     agent.run(prompt + helium_instructions)
 
 
-if __name__ == "__main__":
+def main() -> None:
     # Parse command line arguments
     args = parse_arguments()
+    run_webagent(args.prompt, args.model_type, args.model_id)
 
-    main(args.prompt, args.model_type, args.model_id)
+
+if __name__ == "__main__":
+    main()

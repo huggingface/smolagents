@@ -204,7 +204,7 @@ agent.run(
 
 ### Use a collection of tools
 
-You can leverage tool collections by using the `ToolCollection` object. It supports loading either a collection from the Hub or an MCP server tools.
+You can leverage tool collections by using [`ToolCollection`]. It supports loading either a collection from the Hub or an MCP server tools.
 
 #### Tool Collection from a collection in the Hub
 
@@ -229,8 +229,17 @@ To speed up the start, tools are loaded only if called by the agent.
 
 Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
 
-The MCP servers tools can be loaded in a `ToolCollection` object as follow:
+> [!WARNING]
+> **Security Warning:** Using MCP servers comes with security risks:
+> - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
+> - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
+> - **SSE-based MCP servers** in the current implementation may be vulnerable to remote code execution attacks. A fix is being developed, but caution is still advised.
+>
+> Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
 
+The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
+
+For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
 ```py
 from smolagents import ToolCollection, CodeAgent
 from mcp import StdioServerParameters
@@ -241,7 +250,16 @@ server_parameters = StdioServerParameters(
     env={"UV_PYTHON": "3.12", **os.environ},
 )
 
-with ToolCollection.from_mcp(server_parameters) as tool_collection:
+with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
     agent = CodeAgent(tools=[*tool_collection.tools], model=model, add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
+
+For SSE-based MCP servers, simply pass a dict with parameters to `mcp.client.sse.sse_client`:
+```py
+from smolagents import ToolCollection, CodeAgent
+
+with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
     agent.run("Please find a remedy for hangover.")
 ```
