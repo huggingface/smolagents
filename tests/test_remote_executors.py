@@ -1,9 +1,11 @@
+import io
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
 import docker
+import PIL.Image
 import pytest
-from PIL import Image
+from rich.console import Console
 
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.remote_executors import DockerExecutor, E2BExecutor
@@ -35,7 +37,10 @@ class TestE2BExecutorMock:
 
 @pytest.fixture
 def docker_executor():
-    executor = DockerExecutor(additional_imports=["pillow", "numpy"], logger=AgentLogger(level=LogLevel.INFO))
+    executor = DockerExecutor(
+        additional_imports=["pillow", "numpy"],
+        logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
+    )
     yield executor
     executor.delete()
 
@@ -81,7 +86,7 @@ class TestDockerExecutor:
             final_answer(image)
         """)
         result, logs, final_answer = self.executor(code_action)
-        assert isinstance(result, Image.Image), "Result should be a PIL Image"
+        assert isinstance(result, PIL.Image.Image), "Result should be a PIL Image"
 
     def test_syntax_error_handling(self):
         """Test handling of syntax errors"""

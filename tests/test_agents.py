@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import io
 import os
 import tempfile
 import unittest
@@ -21,10 +22,17 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from transformers.testing_utils import get_tests_dir
+from huggingface_hub import (
+    ChatCompletionOutputFunctionDefinition,
+    ChatCompletionOutputMessage,
+    ChatCompletionOutputToolCall,
+)
+from rich.console import Console
 
+from smolagents import EMPTY_PROMPT_TEMPLATES
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
+    AgentError,
     AgentMaxStepsError,
     CodeAgent,
     MultiStepAgent,
@@ -33,7 +41,7 @@ from smolagents.agents import (
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
-from smolagents.memory import PlanningStep
+from smolagents.memory import ActionStep, PlanningStep
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -42,13 +50,21 @@ from smolagents.models import (
     MessageRole,
     TransformersModel,
 )
+from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.tools import Tool, tool
-from smolagents.utils import BASE_BUILTIN_MODULES, AgentGenerationError
+from smolagents.utils import BASE_BUILTIN_MODULES, AgentExecutionError, AgentGenerationError, AgentToolCallError
 
 
 def get_new_path(suffix="") -> str:
     directory = tempfile.mkdtemp()
     return os.path.join(directory, str(uuid.uuid4()) + suffix)
+
+
+@pytest.fixture
+def agent_logger():
+    return AgentLogger(
+        LogLevel.DEBUG, console=Console(record=True, no_color=True, force_terminal=False, file=io.StringIO())
+    )
 
 
 class FakeToolCallModel:
@@ -304,7 +320,7 @@ print(result)
     )
 
 
-class AgentTests(unittest.TestCase):
+class TestAgent:
     def test_fake_toolcalling_agent(self):
         agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeToolCallModel())
         output = agent.run("What is 2 multiplied by 3.6452?")
@@ -312,36 +328,35 @@ class AgentTests(unittest.TestCase):
         assert "7.2904" in output
         assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
         assert "7.2904" in agent.memory.steps[1].observations
-        assert agent.memory.steps[2].model_output is None
+        assert agent.memory.steps[2].model_output == "Called Tool: 'final_answer' with arguments: {'answer': '7.2904'}"
 
-    def test_toolcalling_agent_handles_image_tool_outputs(self):
-        from PIL import Image
+    def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
+        import PIL.Image
 
         @tool
-        def fake_image_generation_tool(prompt: str) -> Image.Image:
+        def fake_image_generation_tool(prompt: str) -> PIL.Image.Image:
             """Tool that generates an image.
 
             Args:
                 prompt: The prompt
             """
-            from pathlib import Path
 
-            from PIL import Image
+            import PIL.Image
 
-            return Image.open(Path("tests/fixtures/000000039769.png"))
+            return PIL.Image.open(shared_datadir / "000000039769.png")
 
         agent = ToolCallingAgent(tools=[fake_image_generation_tool], model=FakeToolCallModelImage())
         output = agent.run("Make me an image.")
         assert isinstance(output, AgentImage)
-        assert isinstance(agent.state["image.png"], Image.Image)
+        assert isinstance(agent.state["image.png"], PIL.Image.Image)
 
-    def test_toolcalling_agent_handles_image_inputs(self):
-        from PIL import Image
+    def test_toolcalling_agent_handles_image_inputs(self, shared_datadir):
+        import PIL.Image
 
-        image = Image.open(Path(get_tests_dir("fixtures")) / "000000039769.png")  # dummy input
+        image = PIL.Image.open(shared_datadir / "000000039769.png")  # dummy input
 
         @tool
-        def fake_image_understanding_tool(prompt: str, image: Image.Image) -> str:
+        def fake_image_understanding_tool(prompt: str, image: PIL.Image.Image) -> str:
             """Tool that creates a caption for an image.
 
             Args:
@@ -417,8 +432,9 @@ class AgentTests(unittest.TestCase):
         tool.description = "fake_tool_description"
         agent = CodeAgent(tools=[tool], model=fake_code_model)
         agent.run("Empty task")
-        assert tool.name in agent.system_prompt
-        assert tool.description in agent.system_prompt
+        assert agent.system_prompt is not None
+        assert f"def {tool.name}(" in agent.system_prompt
+        assert f'"""{tool.description}' in agent.system_prompt
 
     def test_module_imports_get_baked_in_system_prompt(self):
         agent = CodeAgent(tools=[], model=fake_code_model)
@@ -476,19 +492,31 @@ class AgentTests(unittest.TestCase):
         assert "{{managed_agents_descriptions}}" not in managed_agent.system_prompt
         assert "You can also give tasks to team members." in manager_agent.system_prompt
 
-    def test_replay_shows_logs(self):
+    def test_replay_shows_logs(self, agent_logger):
         agent = CodeAgent(
-            tools=[], model=fake_code_model_import, verbosity_level=0, additional_authorized_imports=["numpy"]
+            tools=[],
+            model=fake_code_model_import,
+            verbosity_level=0,
+            additional_authorized_imports=["numpy"],
+            logger=agent_logger,
         )
         agent.run("Count to 3")
 
-        with agent.logger.console.capture() as capture:
-            agent.replay()
-        str_output = capture.get().replace("\n", "")
+        str_output = agent_logger.console.export_text()
+
         assert "New run" in str_output
-        assert "Agent output:" in str_output
         assert 'final_answer("got' in str_output
         assert "```<end_code>" in str_output
+
+        agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeToolCallModel(), verbosity_level=0)
+        agent.logger = agent_logger
+
+        agent.run("What is 2 multiplied by 3.6452?")
+        agent.replay()
+
+        str_output = agent_logger.console.export_text()
+        assert "Called Tool" in str_output
+        assert "arguments" in str_output
 
     def test_code_nontrivial_final_answer_works(self):
         def fake_code_model_final_answer(messages, stop_sequences=None, grammar=None):
@@ -528,8 +556,9 @@ nested_answer()
             do_sample=False,
         )
         agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1, verbosity_level=10)
-        agent.run("What's the weather in Paris?")
-        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        task = "Use your weather api to tell me the weather in Paris."
+        agent.run(task)
+        assert agent.memory.steps[0].task == task
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
         step_memory_dict = agent.memory.get_succinct_steps()[1]
         assert step_memory_dict["model_output_message"].tool_calls[0].function.name == "weather_api"
@@ -644,20 +673,12 @@ class TestMultiStepAgent:
             (
                 1,
                 [
-                    [{"role": MessageRole.USER, "content": [{"type": "text", "text": "INITIAL_FACTS_USER_PROMPT"}]}],
                     [{"role": MessageRole.USER, "content": [{"type": "text", "text": "INITIAL_PLAN_USER_PROMPT"}]}],
                 ],
             ),
             (
                 2,
                 [
-                    [
-                        {
-                            "role": MessageRole.SYSTEM,
-                            "content": [{"type": "text", "text": "UPDATE_FACTS_SYSTEM_PROMPT"}],
-                        },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "UPDATE_FACTS_USER_PROMPT"}]},
-                    ],
                     [
                         {
                             "role": MessageRole.SYSTEM,
@@ -676,22 +697,17 @@ class TestMultiStepAgent:
             model=fake_model,
         )
         task = "Test task"
-        agent.planning_step(task, is_first_step=(step == 1), step=step)
+        planning_step = agent._create_planning_step(task, is_first_step=(step == 1), step=step)
         expected_message_texts = {
-            "INITIAL_FACTS_USER_PROMPT": populate_template(
-                agent.prompt_templates["planning"]["initial_facts"], variables=dict(task=task)
-            ),
             "INITIAL_PLAN_USER_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["initial_plan"],
                 variables=dict(
                     task=task,
                     tools=agent.tools,
                     managed_agents=agent.managed_agents,
-                    answer_facts=agent.memory.steps[0].model_output_message_facts.content,
+                    answer_facts=planning_step.model_output_message.content,
                 ),
             ),
-            "UPDATE_FACTS_SYSTEM_PROMPT": agent.prompt_templates["planning"]["update_facts_pre_messages"],
-            "UPDATE_FACTS_USER_PROMPT": agent.prompt_templates["planning"]["update_facts_post_messages"],
             "UPDATE_PLAN_SYSTEM_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["update_plan_pre_messages"], variables=dict(task=task)
             ),
@@ -701,7 +717,7 @@ class TestMultiStepAgent:
                     task=task,
                     tools=agent.tools,
                     managed_agents=agent.managed_agents,
-                    facts_update=agent.memory.steps[0].model_output_message_facts.content,
+                    facts_update=planning_step.model_output_message.content,
                     remaining_steps=agent.max_steps - step,
                 ),
             ),
@@ -710,8 +726,6 @@ class TestMultiStepAgent:
             for expected_message in expected_messages:
                 for expected_content in expected_message["content"]:
                     expected_content["text"] = expected_message_texts[expected_content["text"]]
-        assert len(agent.memory.steps) == 1
-        planning_step = agent.memory.steps[0]
         assert isinstance(planning_step, PlanningStep)
         expected_model_input_messages = expected_messages_list[0]
         model_input_messages = planning_step.model_input_messages
@@ -728,7 +742,7 @@ class TestMultiStepAgent:
             for content, expected_content in zip(message["content"], expected_message["content"]):
                 assert content == expected_content
         # Test calls to model
-        assert len(fake_model.call_args_list) == 2
+        assert len(fake_model.call_args_list) == 1
         for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
             assert len(call_args.args) == 1
             messages = call_args.args[0]
@@ -813,6 +827,23 @@ class TestMultiStepAgent:
                 for content, expected_content in zip(message["content"], expected_message["content"]):
                     assert content == expected_content
 
+    def test_interrupt(self):
+        fake_model = MagicMock()
+        fake_model.return_value.content = "Model output."
+        fake_model.last_input_token_count = None
+
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt()
+
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+        with pytest.raises(AgentError) as e:
+            agent.run("Test task")
+        assert "Agent interrupted" in str(e)
+
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
         [
@@ -857,6 +888,131 @@ class TestMultiStepAgent:
                 name=name,
                 managed_agents=managed_agents,
             )
+
+    def test_from_dict(self):
+        # Create a test agent dictionary
+        agent_dict = {
+            "model": {"class": "TransformersModel", "data": {"model_id": "test/model"}},
+            "tools": [
+                {
+                    "name": "valid_tool_function",
+                    "code": 'from smolagents import Tool\nfrom typing import Any, Optional\n\nclass SimpleTool(Tool):\n    name = "valid_tool_function"\n    description = "A valid tool function."\n    inputs = {"input":{"type":"string","description":"Input string."}}\n    output_type = "string"\n\n    def forward(self, input: str) -> str:\n        """A valid tool function.\n\n        Args:\n            input (str): Input string.\n        """\n        return input.upper()',
+                    "requirements": {"smolagents"},
+                }
+            ],
+            "managed_agents": {},
+            "prompt_templates": EMPTY_PROMPT_TEMPLATES,
+            "max_steps": 15,
+            "verbosity_level": 2,
+            "grammar": {"test": "grammar"},
+            "planning_interval": 3,
+            "name": "test_agent",
+            "description": "Test agent description",
+        }
+
+        # Call from_dict
+        with patch("smolagents.models.TransformersModel") as mock_model_class:
+            mock_model_instance = mock_model_class.from_dict.return_value
+            agent = MultiStepAgent.from_dict(agent_dict)
+
+        # Verify the agent was created correctly
+        assert agent.model == mock_model_instance
+        assert mock_model_class.from_dict.call_args.args[0] == {"model_id": "test/model"}
+        assert agent.max_steps == 15
+        assert agent.logger.level == 2
+        assert agent.grammar == {"test": "grammar"}
+        assert agent.planning_interval == 3
+        assert agent.name == "test_agent"
+        assert agent.description == "Test agent description"
+        # Verify the tool was created correctly
+        assert sorted(agent.tools.keys()) == ["final_answer", "valid_tool_function"]
+        assert agent.tools["valid_tool_function"].name == "valid_tool_function"
+        assert agent.tools["valid_tool_function"].description == "A valid tool function."
+        assert agent.tools["valid_tool_function"].inputs == {
+            "input": {"type": "string", "description": "Input string."}
+        }
+        assert agent.tools["valid_tool_function"].output_type == "string"
+        assert agent.tools["valid_tool_function"]("test") == "TEST"
+
+        # Test overriding with kwargs
+        with patch("smolagents.models.TransformersModel") as mock_model_class:
+            agent = MultiStepAgent.from_dict(agent_dict, max_steps=30)
+        assert agent.max_steps == 30
+
+
+class TestToolCallingAgent(unittest.TestCase):
+    @patch("huggingface_hub.InferenceClient")
+    def test_toolcalling_agent_api(self, mock_inference_client):
+        mock_client = mock_inference_client.return_value
+        mock_response = mock_client.chat_completion.return_value
+        mock_response.choices[0].message = ChatCompletionOutputMessage(
+            role="assistant", content='{"name": "weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+        )
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
+
+        model = HfApiModel(model_id="test-model")
+
+        from smolagents import tool
+
+        @tool
+        def weather_api(location: str, date: str) -> str:
+            """
+            Gets the weather in the next days at given location.
+            Args:
+                location: the location
+                date: the date
+            """
+            return f"The weather in {location} on date:{date} is sunny."
+
+        agent = ToolCallingAgent(model=model, tools=[weather_api], max_steps=1)
+        agent.run("What's the weather in Paris?")
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
+        assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
+        assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
+
+        mock_response.choices[0].message = ChatCompletionOutputMessage(
+            role="assistant",
+            content=None,
+            tool_calls=[
+                ChatCompletionOutputToolCall(
+                    function=ChatCompletionOutputFunctionDefinition(
+                        name="weather_api", arguments='{"location": "Paris", "date": "today"}'
+                    ),
+                    id="call_0",
+                    type="function",
+                )
+            ],
+        )
+
+        agent.run("What's the weather in Paris?")
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
+        assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
+        assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
+
+    @patch("huggingface_hub.InferenceClient")
+    def test_toolcalling_agent_api_misformatted_output(self, mock_inference_client):
+        """Test that even misformatted json blobs don't interrupt the run for a ToolCallingAgent."""
+        mock_client = mock_inference_client.return_value
+        mock_response = mock_client.chat_completion.return_value
+        mock_response.choices[0].message = ChatCompletionOutputMessage(
+            role="assistant", content='{"name": weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+        )
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
+
+        model = HfApiModel(model_id="test-model")
+
+        agent = ToolCallingAgent(model=model, tools=[], max_steps=2, verbosity_level=1)
+        with agent.logger.console.capture() as capture:
+            agent.run("What's the weather in Paris?")
+        assert agent.memory.steps[0].task == "What's the weather in Paris?"
+        assert agent.memory.steps[1].tool_calls is None
+        assert "The JSON blob you used is invalid" in agent.memory.steps[1].error.message
+        assert "Error while generating or parsing output:" in capture.get()
+        assert len(agent.memory.steps) == 4
 
 
 class TestCodeAgent:
@@ -917,6 +1073,31 @@ class TestCodeAgent:
         assert output == "got an error"
         assert '    print("Failing due to unexpected indent")' in str(agent.memory.steps)
 
+    def test_end_code_appending(self):
+        # Checking original output message
+        orig_output = fake_code_model_no_return([])
+        assert not orig_output.content.endswith("<end_code>")
+
+        # Checking the step output
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=fake_code_model_no_return,
+            max_steps=1,
+        )
+        answer = agent.run("What is 2 multiplied by 3.6452?")
+        assert answer
+
+        memory_steps = agent.memory.steps
+        actions_steps = [s for s in memory_steps if isinstance(s, ActionStep)]
+
+        outputs = [s.model_output for s in actions_steps if s.model_output]
+        assert outputs
+        assert all(o.endswith("<end_code>") for o in outputs)
+
+        messages = [s.model_output_message for s in actions_steps if s.model_output_message]
+        assert messages
+        assert all(m.content.endswith("<end_code>") for m in messages)
+
     def test_change_tools_after_init(self):
         from smolagents import tool
 
@@ -969,9 +1150,66 @@ class TestCodeAgent:
         assert agent.logger.level == 2
         assert agent.prompt_templates["system_prompt"] == "dummy system prompt"
 
+    def test_from_dict(self):
+        # Create a test agent dictionary
+        agent_dict = {
+            "model": {"class": "HfApiModel", "data": {"model_id": "Qwen/Qwen2.5-Coder-32B-Instruct"}},
+            "tools": [
+                {
+                    "name": "valid_tool_function",
+                    "code": 'from smolagents import Tool\nfrom typing import Any, Optional\n\nclass SimpleTool(Tool):\n    name = "valid_tool_function"\n    description = "A valid tool function."\n    inputs = {"input":{"type":"string","description":"Input string."}}\n    output_type = "string"\n\n    def forward(self, input: str) -> str:\n        """A valid tool function.\n\n        Args:\n            input (str): Input string.\n        """\n        return input.upper()',
+                    "requirements": {"smolagents"},
+                }
+            ],
+            "managed_agents": {},
+            "prompt_templates": EMPTY_PROMPT_TEMPLATES,
+            "max_steps": 15,
+            "verbosity_level": 2,
+            "grammar": None,
+            "planning_interval": 3,
+            "name": "test_code_agent",
+            "description": "Test code agent description",
+            "authorized_imports": ["pandas", "numpy"],
+            "executor_type": "local",
+            "executor_kwargs": {"max_workers": 2},
+            "max_print_outputs_length": 1000,
+        }
 
-class MultiAgentsTests(unittest.TestCase):
-    def test_multiagents_save(self):
+        # Call from_dict
+        with patch("smolagents.models.HfApiModel") as mock_model_class:
+            mock_model_instance = mock_model_class.from_dict.return_value
+            agent = CodeAgent.from_dict(agent_dict)
+
+        # Verify the agent was created correctly with CodeAgent-specific parameters
+        assert agent.model == mock_model_instance
+        assert agent.additional_authorized_imports == ["pandas", "numpy"]
+        assert agent.executor_type == "local"
+        assert agent.executor_kwargs == {"max_workers": 2}
+        assert agent.max_print_outputs_length == 1000
+
+        # Test with missing optional parameters
+        minimal_agent_dict = {
+            "model": {"class": "HfApiModel", "data": {"model_id": "Qwen/Qwen2.5-Coder-32B-Instruct"}},
+            "tools": [],
+            "managed_agents": {},
+        }
+
+        with patch("smolagents.models.HfApiModel"):
+            agent = CodeAgent.from_dict(minimal_agent_dict)
+        # Verify defaults are used
+        assert agent.max_steps == 20  # default from MultiStepAgent.__init__
+
+        # Test overriding with kwargs
+        with patch("smolagents.models.HfApiModel"):
+            agent = CodeAgent.from_dict(
+                agent_dict, additional_authorized_imports=["matplotlib"], executor_kwargs={"max_workers": 4}
+            )
+        assert agent.additional_authorized_imports == ["matplotlib"]
+        assert agent.executor_kwargs == {"max_workers": 4}
+
+
+class TestMultiAgents:
+    def test_multiagents_save(self, tmp_path):
         model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=2096, temperature=0.5)
 
         web_agent = ToolCallingAgent(
@@ -991,7 +1229,7 @@ class MultiAgentsTests(unittest.TestCase):
             executor_type="local",
             executor_kwargs={"max_workers": 2},
         )
-        agent.save("agent_export")
+        agent.save(tmp_path)
 
         expected_structure = {
             "managed_agents": {
@@ -1020,10 +1258,10 @@ class MultiAgentsTests(unittest.TestCase):
                         assert file_path.exists(), f"File {file_path} does not exist"
                         assert file_path.is_file(), f"{file_path} is not a file"
 
-        verify_structure(Path("agent_export"), expected_structure)
+        verify_structure(tmp_path, expected_structure)
 
         # Test that re-loaded agents work as expected.
-        agent2 = CodeAgent.from_folder("agent_export", planning_interval=5)
+        agent2 = CodeAgent.from_folder(tmp_path, planning_interval=5)
         assert agent2.planning_interval == 5  # Check that kwargs are used
         assert set(agent2.authorized_imports) == set(["pandas", "datetime"] + BASE_BUILTIN_MODULES)
         assert agent2.max_print_outputs_length == 1000
@@ -1115,7 +1353,7 @@ final_answer("Final report.")
             ):
                 return ChatMessage(
                     role="assistant",
-                    content="",
+                    content="Here is the secret content: FLAG1",
                     tool_calls=[
                         ChatMessageToolCall(
                             id="call_0",
@@ -1136,6 +1374,7 @@ final_answer("Final report.")
             max_steps=10,
             name="search_agent",
             description="Runs web searches for you. Give it your request as an argument. Make the request as detailed as needed, you can ask for thorough reports",
+            verbosity_level=2,
         )
 
         manager_code_agent = CodeAgent(
@@ -1154,8 +1393,10 @@ final_answer("Final report.")
             managed_agents=[web_agent],
         )
 
-        report = manager_toolcalling_agent.run("Fake question.")
+        with web_agent.logger.console.capture() as capture:
+            report = manager_toolcalling_agent.run("Fake question.")
         assert report == "Final report."
+        assert "FLAG1" in capture.get()  # Check that managed agent's output is properly logged
 
         # Test that visualization works
         with manager_toolcalling_agent.logger.console.capture() as capture:
@@ -1168,4 +1409,55 @@ def prompt_templates():
     return {
         "system_prompt": "This is a test system prompt.",
         "managed_agent": {"task": "Task for {{name}}: {{task}}", "report": "Report for {{name}}: {{final_answer}}"},
+        "planning": {
+            "initial_plan": "The plan.",
+            "update_plan_pre_messages": "custom",
+            "update_plan_post_messages": "custom",
+        },
+        "final_answer": {"pre_messages": "custom", "post_messages": "custom"},
     }
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"arg": "bar"},
+        {None: None},
+        [1, 2, 3],
+    ],
+)
+def test_tool_calling_agents_raises_tool_call_error_being_invoked_with_wrong_arguments(arguments):
+    @tool
+    def _sample_tool(prompt: str) -> str:
+        """Tool that returns same string
+
+        Args:
+            prompt: The string to return
+        Returns:
+            The same string
+        """
+
+        return prompt
+
+    agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
+    with pytest.raises(AgentToolCallError):
+        agent.execute_tool_call(_sample_tool.name, arguments)
+
+
+def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
+    @tool
+    def _sample_tool(_: str) -> float:
+        """Tool that fails
+
+        Args:
+            _: The pointless string
+        Returns:
+            Some number
+        """
+
+        return 1 / 0
+
+    agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
+    with pytest.raises(AgentExecutionError):
+        agent.execute_tool_call(_sample_tool.name, "sample")
