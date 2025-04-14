@@ -456,22 +456,6 @@ class TestTool:
         # Check that the input is marked as nullable in the code
         assert "'nullable': True" in result["code"]
 
-
-@pytest.fixture
-def example_tool():
-    @tool
-    def valid_tool_function(input: str) -> str:
-        """A valid tool function.
-
-        Args:
-            input (str): Input string.
-        """
-        return input.upper()
-
-    return valid_tool_function
-
-
-class TestTool:
     def test_from_dict_roundtrip(self, example_tool):
         # Convert to dict
         tool_dict = example_tool.to_dict()
