@@ -14,7 +14,7 @@
 # limitations under the License.
 import os
 from textwrap import dedent
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from unittest.mock import MagicMock, patch
 
 import mcp
@@ -418,6 +418,49 @@ class TestTool:
 
         assert get_weather.inputs["locations"]["type"] == "array"
         assert get_weather.inputs["months"]["type"] == "array"
+
+    def test_tool_supports_string_literal(self):
+        @tool
+        def get_weather(unit: Literal["celsius", "fahrenheit"] = "celsius") -> None:
+            """
+            Get weather in the next days at given location.
+
+            Args:
+                unit: The unit of temperature
+            """
+            return
+
+        assert get_weather.inputs["unit"]["type"] == "string"
+        assert get_weather.inputs["unit"]["enum"] == ["celsius", "fahrenheit"]
+
+    def test_tool_supports_numeric_literal(self):
+        @tool
+        def get_choice(choice: Literal[1, 2, 3]) -> None:
+            """
+            Get choice based on the provided numeric literal.
+
+            Args:
+                choice: The numeric choice to be made.
+            """
+            return
+
+        assert get_choice.inputs["choice"]["type"] == "integer"
+        assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
+
+    def test_tool_supports_nullable_literal(self):
+        @tool
+        def get_choice(choice: Literal[1, 2, 3, None]) -> None:
+            """
+            Get choice based on the provided value.
+
+            Args:
+                choice: The numeric choice to be made.
+            """
+            return
+
+        assert get_choice.inputs["choice"]["type"] == "integer"
+        assert get_choice.inputs["choice"]["nullable"] is True
+        assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
 
     def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self, tmp_path):
         @tool
