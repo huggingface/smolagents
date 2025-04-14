@@ -29,6 +29,7 @@ from huggingface_hub import (
 )
 from rich.console import Console
 
+from smolagents import EMPTY_PROMPT_TEMPLATES
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
     AgentError,
@@ -900,7 +901,7 @@ class TestMultiStepAgent:
                 }
             ],
             "managed_agents": {},
-            "prompt_templates": {"system_prompt": "test prompt"},
+            "prompt_templates": EMPTY_PROMPT_TEMPLATES,
             "max_steps": 15,
             "verbosity_level": 2,
             "grammar": {"test": "grammar"},
@@ -1161,7 +1162,7 @@ class TestCodeAgent:
                 }
             ],
             "managed_agents": {},
-            "prompt_templates": {"system_prompt": "test prompt"},
+            "prompt_templates": EMPTY_PROMPT_TEMPLATES,
             "max_steps": 15,
             "verbosity_level": 2,
             "grammar": None,
