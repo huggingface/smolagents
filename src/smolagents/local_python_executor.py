@@ -547,17 +547,30 @@ def evaluate_boolop(
     static_tools: Dict[str, Callable],
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
-) -> bool:
+) -> Any:
     if isinstance(node.op, ast.And):
-        for value in node.values:
-            if not evaluate_ast(value, state, static_tools, custom_tools, authorized_imports):
-                return False
-        return True
+        # 'and' returns the first falsy value encountered, or the last value if all are truthy.
+        last_value = None
+        for value_node in node.values:
+            # Evaluate the AST node for the current value in the 'and' expression
+            last_value = evaluate_ast(value_node, state, static_tools, custom_tools, authorized_imports)
+            # Check if the evaluated value is falsy in a Python context (e.g., False, None, 0, "", [], {})
+            if not last_value:
+                return last_value # Return the first falsy value immediately (short-circuit)
+        # If the loop completes without returning, all values were truthy. Return the last evaluated value.
+        return last_value
+
     elif isinstance(node.op, ast.Or):
-        for value in node.values:
-            if evaluate_ast(value, state, static_tools, custom_tools, authorized_imports):
-                return True
-        return False
+        # 'or' returns the first truthy value encountered, or the last value if all are falsy.
+        last_value = None
+        for value_node in node.values:
+            # Evaluate the AST node for the current value in the 'or' expression
+            last_value = evaluate_ast(value_node, state, static_tools, custom_tools, authorized_imports)
+            # Check if the evaluated value is truthy in a Python context
+            if last_value:
+                return last_value # Return the first truthy value immediately (short-circuit)
+        # If the loop completes without returning, all values were falsy. Return the last evaluated value.
+        return last_value
 
 
 def evaluate_binop(
