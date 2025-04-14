@@ -28,11 +28,12 @@ To initialize a minimal agent, you need at least these two arguments:
     - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood and supports all Inference Providers on the Hub.
     - [`LiteLLMModel`] similarly lets you call 100+ different models and providers through [LiteLLM](https://docs.litellm.ai/)!
     - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
+    - [`AmazonBedrockServerModel`] allows you to use Amazon Bedrock in [AWS](https://aws.amazon.com/bedrock/?nc1=h_ls).
     - [`MLXModel`] creates a [mlx-lm](https://pypi.org/project/mlx-lm/) pipeline to run inference on your local machine.
 
 - `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), or [mlx-lm](https://pypi.org/project/mlx-lm/).
+Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), [Amazon Bedrock](https://aws.amazon.com/bedrock/?nc1=h_ls), or [mlx-lm](https://pypi.org/project/mlx-lm/).
 
 <hfoptions id="Pick a LLM">
 <hfoption id="HF Inference API">
@@ -150,6 +151,76 @@ agent.run(
 ```
 
 </hfoption>
+<hfoption id="Amazon Bedrock">
+
+The `AmazonBedrockServerModel` class provides native integration with Amazon Bedrock, allowing for direct API calls and comprehensive configuration.
+
+#### Basic Usage
+
+```python
+# !pip install smolagents[aws_sdk]
+from smolagents import CodeAgent, AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+#### Advanced Configuration
+
+```python
+import boto3
+from smolagents import AmazonBedrockServerModel
+
+# Create a custom Bedrock client
+bedrock_client = boto3.client(
+    'bedrock-runtime',
+    region_name='us-east-1',
+    aws_access_key_id='YOUR_ACCESS_KEY',
+    aws_secret_access_key='YOUR_SECRET_KEY'
+)
+
+additional_api_config = {
+    "inferenceConfig": {
+        "maxTokens": 3000
+    },
+    "guardrailConfig": {
+        "guardrailIdentifier": "identify1",
+        "guardrailVersion": 'v1'
+    },
+}
+
+# Initialize with comprehensive configuration
+model = AmazonBedrockServerModel(
+    model_id="us.amazon.nova-pro-v1:0",
+    client=bedrock_client,  # Use custom client
+    **additional_api_config
+)
+
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+#### Using LiteLLMModel
+
+Alternatively, you can use `LiteLLMModel` with Bedrock models:
+
+```python
+from smolagents import LiteLLMModel, CodeAgent
+
+model = LiteLLMModel(model_name="bedrock/anthropic.claude-3-sonnet-20240229-v1:0")
+agent = CodeAgent(tools=[], model=model)
+
+agent.run("Explain the concept of quantum computing")
+```
+
+</hfoption>
 <hfoption id="mlx-lm">
 
 ```python
@@ -180,9 +251,6 @@ model = HfApiModel()
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
-
-Additionally, as an extra security layer, access to submodule is forbidden by default, unless explicitly authorized within the import list.
-For instance, to access the `numpy.random` submodule, you need to add `'numpy.random'` to the `additional_authorized_imports` list.
 
 > [!WARNING]
 > The LLM can generate arbitrary code that will then be executed: do not add any unsafe imports!
@@ -417,6 +485,9 @@ Under the hood, when the user types a new answer, the agent is launched with `ag
 The `reset=False` flag means the agent's memory is not flushed before launching this new task, which lets the conversation go on.
 
 You can also use this `reset=False` argument to keep the conversation going in any other agentic application.
+
+In gradio UIs, if you want to allow users to interrupt a running agent, you could do this with a button that triggers method `agent.interrupt()`.
+This will stop the agent at the end of its current step, then raise an error.
 
 ## Next steps
 
