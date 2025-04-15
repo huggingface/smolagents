@@ -306,7 +306,15 @@ class GradioUI:
                         placeholder="Enter your prompt here and press Shift+Enter or press the button",
                     )
                     if speech2text_func:
-                        audio_input = gr.Audio(source="microphone", type="filepath", label="Voice Input")
+                        audio_input = gr.Audio(
+                            sources=["microphone"], 
+                            label="Voice Input",
+                            waveform_options=gr.WaveformOptions(
+                            waveform_color="#01C6FF",
+                            waveform_progress_color="#0066B4",
+                            skip_length=2,
+                            show_controls=False,
+                        ),)
                     else:
                         audio_input = None
                     submit_btn = gr.Button("Submit", variant="primary")
