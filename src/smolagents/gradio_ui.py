@@ -369,6 +369,10 @@ class GradioUI:
                 inputs=[text_input, audio_input], 
                 outputs=[text_input],  # Update the text input with transcribed text if audio is provided
             ).then(
+                lambda: None,
+                inputs=None,
+                outputs=[audio_input],  # Clear audio_input
+            ).then(
                 self.log_user_message,
                 [text_input, file_uploads_log],
                 [stored_messages, text_input, submit_btn],
