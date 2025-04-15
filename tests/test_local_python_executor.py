@@ -463,15 +463,15 @@ else:
         # (T and 0) or (T and T) => 0 or True => True
         code = "result = (x > 3 and y) or (z == 10 and not y)\nresult"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"x": 5, "y": 0, "z": 10})
-        assert result == True
+        assert result
 
         # (None or "") or "Found" => "" or "Found" => "Found"
         code = "result = (a or c) or b\nresult"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"a": None, "b": "Found", "c": ""})
         assert result == "Found"
-        
+
         # ("First" and "") or "Third" => "" or "Third" -> "Third"
-        code = "result = (a and b) or c\nresult"   
+        code = "result = (a and b) or c\nresult"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"a": "First", "b": "", "c": "Third"})
         assert result == "Third"
 
