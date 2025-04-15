@@ -459,6 +459,22 @@ else:
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"a": 1, "b": 2, "c": 3, "d": 4, "e": 5})
         assert result == "Sacramento"
 
+        # Short-circuit evaluation:
+        # (T and 0) or (T and T) => 0 or True => True
+        code = "result = (x > 3 and y) or (z == 10 and not y)\nresult"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"x": 5, "y": 0, "z": 10})
+        assert result == True
+
+        # (None or "") or "Found" => "" or "Found" => "Found"
+        code = "result = (a or c) or b\nresult"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"a": None, "b": "Found", "c": ""})
+        assert result == "Found"
+        
+        # ("First" and "") or "Third" => "" or "Third" -> "Third"
+        code = "result = (a and b) or c\nresult"   
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"a": "First", "b": "", c: "Third"})
+        assert result == "Third"
+
     def test_if_conditions(self):
         code = """char='a'
 if char.isalpha():
