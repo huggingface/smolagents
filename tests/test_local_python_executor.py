@@ -472,7 +472,7 @@ else:
         
         # ("First" and "") or "Third" => "" or "Third" -> "Third"
         code = "result = (a and b) or c\nresult"   
-        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"a": "First", "b": "", c: "Third"})
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"a": "First", "b": "", "c": "Third"})
         assert result == "Third"
 
     def test_if_conditions(self):
