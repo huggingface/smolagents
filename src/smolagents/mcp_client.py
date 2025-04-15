@@ -103,7 +103,7 @@ class MCPClient:
             )
         return self._tools
 
-    def __enter__(self):
+    def __enter__(self) -> list[Tool]:
         """Connect to the MCP server and return the tools directly."""
         self.connect()
         return self.tools
