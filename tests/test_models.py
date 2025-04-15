@@ -310,15 +310,15 @@ class TestTransformersModel:
 
 def test_get_clean_message_list_basic():
     messages = [
-        {"role": "user", "content": [{"type": "text", "text": "Hello!"}]},
+        {"role": "user", "content": [{"type": "text", "text": "Hello"}, {"type": "text", "text": "there!"}]},
         {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]},
     ]
     result = get_clean_message_list(messages)
     assert len(result) == 2
     assert result[0]["role"] == "user"
-    assert result[0]["content"][0]["text"] == "Hello!"
+    assert result[0]["content"] == "Hello\nthere!"
     assert result[1]["role"] == "assistant"
-    assert result[1]["content"][0]["text"] == "Hi there!"
+    assert result[1]["content"] == "Hi there!"
 
 
 def test_get_clean_message_list_role_conversions():
@@ -329,9 +329,9 @@ def test_get_clean_message_list_role_conversions():
     result = get_clean_message_list(messages, role_conversions={"tool-call": "assistant", "tool-response": "user"})
     assert len(result) == 2
     assert result[0]["role"] == "assistant"
-    assert result[0]["content"][0]["text"] == "Calling tool..."
+    assert result[0]["content"] == "Calling tool..."
     assert result[1]["role"] == "user"
-    assert result[1]["content"][0]["text"] == "Tool response"
+    assert result[1]["content"] == "Tool response"
 
 
 @pytest.mark.parametrize(
@@ -389,15 +389,15 @@ def test_get_clean_message_list_flatten_messages_as_text():
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
-        (AzureOpenAIServerModel, {}, ("openai.AzureOpenAI", {}), False),
-        (HfApiModel, {}, ("huggingface_hub.InferenceClient", {}), False),
-        (LiteLLMModel, {}, None, False),
-        (LiteLLMModel, {"model_id": "ollama"}, None, True),
-        (LiteLLMModel, {"model_id": "groq"}, None, True),
-        (LiteLLMModel, {"model_id": "cerebras"}, None, True),
-        (MLXModel, {}, ("mlx_lm.load", {"return_value": (MagicMock(), MagicMock())}), True),
-        (OpenAIServerModel, {}, ("openai.OpenAI", {}), False),
-        (OpenAIServerModel, {"flatten_messages_as_text": True}, ("openai.OpenAI", {}), True),
+        (AzureOpenAIServerModel, {}, ("openai.AzureOpenAI", {}), None),
+        (HfApiModel, {}, ("huggingface_hub.InferenceClient", {}), None),
+        (LiteLLMModel, {}, None, None),
+        (LiteLLMModel, {"model_id": "ollama"}, None, "always"),
+        (LiteLLMModel, {"model_id": "groq"}, None, "always"),
+        (LiteLLMModel, {"model_id": "cerebras"}, None, "always"),
+        (MLXModel, {}, ("mlx_lm.load", {"return_value": (MagicMock(), MagicMock())}), "always"),
+        (OpenAIServerModel, {}, ("openai.OpenAI", {}), None),
+        (OpenAIServerModel, {"flatten_messages_as_text": "always"}, ("openai.OpenAI", {}), "always"),
         (
             TransformersModel,
             {},
@@ -409,7 +409,7 @@ def test_get_clean_message_list_flatten_messages_as_text():
                 ("transformers.AutoModelForCausalLM.from_pretrained", {}),
                 ("transformers.AutoTokenizer.from_pretrained", {}),
             ],
-            True,
+            "auto",
         ),
         (
             TransformersModel,
@@ -418,7 +418,7 @@ def test_get_clean_message_list_flatten_messages_as_text():
                 ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
                 ("transformers.AutoProcessor.from_pretrained", {}),
             ],
-            False,
+            "never",
         ),
     ],
 )

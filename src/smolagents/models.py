@@ -181,22 +181,42 @@ def remove_stop_sequences(content: str, stop_sequences: List[str]) -> str:
     return content
 
 
+def contains_image(message_list: List[Dict[str, str]]) -> bool:
+    for message in message_list:
+        if isinstance(message["content"], list):
+            for element in message["content"]:
+                if element["type"] == "image":
+                    return True
+    return False
+
+
 def get_clean_message_list(
     message_list: List[Dict[str, str]],
     role_conversions: Dict[MessageRole, MessageRole] = {},
     convert_images_to_image_urls: bool = False,
-    flatten_messages_as_text: bool = False,
+    flatten_messages_as_text: str = "auto",
 ) -> List[Dict[str, str]]:
     """
-    Subsequent messages with the same role will be concatenated to a single message.
-    output_message_list is a list of messages that will be used to generate the final message that is chat template compatible with transformers LLM chat template.
+    Cleans message list to pass to inference. Subsequent messages with the same role will be concatenated to a single message.
+    output_message_list is a list of messages used to generate the final message.
 
     Args:
         message_list (`list[dict[str, str]]`): List of chat messages.
         role_conversions (`dict[MessageRole, MessageRole]`, *optional* ): Mapping to convert roles.
         convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
-        flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
+        flatten_messages_as_text (`string`, *optional*): Can be 'never', 'auto' or 'always'. Flattening reduces messages content to a string.
+            'auto' flattens messages, except if one of them contains an image. 'always' raises an error if an image is in the text.
     """
+    has_images = contains_image(message_list)
+    if flatten_messages_as_text == "always":
+        if has_images:
+            raise ValueError("Cannot flatten messages as text if message list contains an image.")
+        flatten_messages = True
+    elif flatten_messages_as_text == "never":
+        flatten_messages = False
+    else:
+        flatten_messages = not has_images
+
     output_message_list = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
     for message in message_list:
@@ -210,7 +230,6 @@ def get_clean_message_list(
         if isinstance(message["content"], list):
             for element in message["content"]:
                 if element["type"] == "image":
-                    assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
                     if convert_images_to_image_urls:
                         element.update(
                             {
@@ -223,7 +242,7 @@ def get_clean_message_list(
 
         if len(output_message_list) > 0 and message["role"] == output_message_list[-1]["role"]:
             assert isinstance(message["content"], list), "Error: wrong content:" + str(message["content"])
-            if flatten_messages_as_text:
+            if flatten_messages:
                 output_message_list[-1]["content"] += "\n" + message["content"][0]["text"]
             else:
                 for el in message["content"]:
@@ -233,8 +252,8 @@ def get_clean_message_list(
                     else:
                         output_message_list[-1]["content"].append(el)
         else:
-            if flatten_messages_as_text:
-                content = message["content"][0]["text"]
+            if flatten_messages and isinstance(message["content"], list):
+                content = "\n".join([message["text"] for message in message["content"]])
             else:
                 content = message["content"]
             output_message_list.append({"role": message["role"], "content": content})
@@ -261,7 +280,7 @@ def get_tool_call_from_text(text: str, tool_name_key: str, tool_arguments_key: s
 class Model:
     def __init__(
         self,
-        flatten_messages_as_text: bool = False,
+        flatten_messages_as_text: Optional[str] = None,
         tool_name_key: str = "name",
         tool_arguments_key: str = "arguments",
         **kwargs,
@@ -437,7 +456,7 @@ class VLLMModel(Model):
         self.model_id = model_id
         self.model = LLM(**self.model_kwargs)
         self.tokenizer = get_tokenizer(model_id)
-        self._is_vlm = False  # VLLMModel does not support vision models yet.
+        self.flatten_messages_as_text = "always"  # VLLMModel does not support vision models yet.
 
     def cleanup(self):
         import gc
@@ -466,7 +485,7 @@ class VLLMModel(Model):
 
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
-            flatten_messages_as_text=(not self._is_vlm),
+            flatten_messages_as_text=self.flatten_messages_as_text,
             stop_sequences=stop_sequences,
             grammar=grammar,
             tools_to_call_from=tools_to_call_from,
@@ -562,7 +581,7 @@ class MLXModel(Model):
         trust_remote_code: bool = False,
         **kwargs,
     ):
-        super().__init__(flatten_messages_as_text=True, **kwargs)  # mlx-lm doesn't support vision models
+        super().__init__(flatten_messages_as_text="always", **kwargs)  # mlx-lm doesn't support vision models
         if not _is_package_available("mlx_lm"):
             raise ModuleNotFoundError(
                 "Please install 'mlx-lm' extra to use 'MLXModel': `pip install 'smolagents[mlx-lm]'`"
@@ -720,7 +739,7 @@ class TransformersModel(Model):
                 raise e
         except Exception as e:
             raise ValueError(f"Failed to load tokenizer and model for {model_id=}: {e}") from e
-        super().__init__(flatten_messages_as_text=not self._is_vlm, **kwargs)
+        super().__init__(flatten_messages_as_text="never" if self._is_vlm else "auto", **kwargs)
 
     def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
@@ -883,8 +902,9 @@ class LiteLLMModel(ApiModel):
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
-        flatten_messages_as_text (`bool`, *optional*): Whether to flatten messages as text.
-            Defaults to `True` for models that start with "ollama", "groq", "cerebras".
+        flatten_messages_as_text (`string`, *optional*): Can be 'never', 'auto' or 'always'. Flattening reduces messages content to a string.
+            'auto' flattens messages, except if one of them contains an image. 'always' raises an error if an image is in the text.
+            Defaults to `always` for models that start with "ollama", "groq", "cerebras".
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
@@ -895,7 +915,7 @@ class LiteLLMModel(ApiModel):
         api_base=None,
         api_key=None,
         custom_role_conversions: dict[str, str] | None = None,
-        flatten_messages_as_text: bool | None = None,
+        flatten_messages_as_text: str | None = None,
         **kwargs,
     ):
         if not model_id:
@@ -908,11 +928,8 @@ class LiteLLMModel(ApiModel):
             model_id = "anthropic/claude-3-5-sonnet-20240620"
         self.api_base = api_base
         self.api_key = api_key
-        flatten_messages_as_text = (
-            flatten_messages_as_text
-            if flatten_messages_as_text is not None
-            else model_id.startswith(("ollama", "groq", "cerebras"))
-        )
+        if model_id.startswith(("ollama", "groq", "cerebras")) and flatten_messages_as_text is None:
+            flatten_messages_as_text = "always"
         super().__init__(
             model_id=model_id,
             custom_role_conversions=custom_role_conversions,
@@ -1093,8 +1110,8 @@ class OpenAIServerModel(ApiModel):
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
-        flatten_messages_as_text (`bool`, default `False`):
-            Whether to flatten messages as text.
+        flatten_messages_as_text (`string`, *optional*): Can be 'never', 'auto' or 'always'. Flattening reduces messages content to a string.
+            'auto' flattens messages, except if one of them contains an image. 'always' raises an error if an image is in the text.
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
     """
@@ -1108,7 +1125,7 @@ class OpenAIServerModel(ApiModel):
         project: Optional[str] | None = None,
         client_kwargs: dict[str, Any] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
-        flatten_messages_as_text: bool = False,
+        flatten_messages_as_text: Optional[str] | None = None,
         **kwargs,
     ):
         self.client_kwargs = {
@@ -1241,8 +1258,8 @@ class AmazonBedrockServerModel(ApiModel):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
             Defaults to converting all roles to "user" role to enable using all the Bedrock models.
-        flatten_messages_as_text (`bool`, default `False`):
-            Whether to flatten messages as text.
+        flatten_messages_as_text (`string`, *optional*): Can be 'never', 'auto' or 'always'. Flattening reduces messages content to a string.
+            'auto' flattens messages, except if one of them contains an image. 'always' raises an error if an image is in the text.
         **kwargs
             Additional keyword arguments passed directly to the underlying API calls.
 
@@ -1288,6 +1305,7 @@ class AmazonBedrockServerModel(ApiModel):
         client=None,
         client_kwargs: dict[str, Any] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
+        flatten_messages_as_text: Optional[str] | None = None,
         **kwargs,
     ):
         self.model_id = model_id
@@ -1298,15 +1316,15 @@ class AmazonBedrockServerModel(ApiModel):
         # This parameter is retained for future model implementations and extended support.
         custom_role_conversions = custom_role_conversions or {
             MessageRole.SYSTEM: MessageRole.USER,
-            MessageRole.ASSISTANT: MessageRole.USER,
-            MessageRole.TOOL_CALL: MessageRole.USER,
+            MessageRole.ASSISTANT: MessageRole.ASSISTANT,
+            MessageRole.TOOL_CALL: MessageRole.ASSISTANT,
             MessageRole.TOOL_RESPONSE: MessageRole.USER,
         }
 
         super().__init__(
             model_id=model_id,
             custom_role_conversions=custom_role_conversions,
-            flatten_messages_as_text=False,  # Bedrock API doesn't support flatten messages, must be a list of messages
+            flatten_messages_as_text=flatten_messages_as_text,
             client=client,
             **kwargs,
         )
