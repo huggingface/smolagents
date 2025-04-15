@@ -307,7 +307,7 @@ class GradioUI:
                     )
                     if speech2text_func:
                         audio_input = gr.Audio(
-                            sources=["microphone"], 
+                            sources=["upload", "microphone"], 
                             label="Voice Input",
                             waveform_options=gr.WaveformOptions(
                             waveform_color="#01C6FF",
