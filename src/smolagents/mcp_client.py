@@ -23,7 +23,8 @@ try:
 except ImportError:
     raise ImportError("MCPClient needs optional dependencies to be installed, run `pip install smolagents[mcp]`")
 
-from typing import Any, Optional, Type, TracebackType
+from types import TracebackType
+from typing import Any, Optional, Type
 
 from smolagents.tools import Tool
 
@@ -70,13 +71,13 @@ class MCPClient:
         """
         super().__init__()
         self._adapter = MCPAdapt(serverparams, SmolAgentsAdapter())
-        self._tools = None
+        self._tools: list[Tool] | None = None
 
         self.connect()
 
     def connect(self):
         """Connect to the MCP server and initialize the tools."""
-        self._tools = self._adapter.__enter__()
+        self._tools: list[Tool] = self._adapter.__enter__()
 
     def disconnect(
         self,
@@ -104,10 +105,18 @@ class MCPClient:
         return self._tools
 
     def __enter__(self) -> list[Tool]:
-        """Connect to the MCP server and return the tools directly."""
-        self.connect()
+        """Connect to the MCP server and return the tools directly.
+
+        Note that because of the `.connect` in the init, the mcp_client
+        is already connected at this point.
+        """
         return self.tools
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[TracebackType],
+    ):
         """Disconnect from the MCP server."""
-        self.disconnect(exc_type, exc_value, traceback)
+        self.disconnect(exc_type, exc_value, exc_traceback)
