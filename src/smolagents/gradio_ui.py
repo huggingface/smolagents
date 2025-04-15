@@ -271,10 +271,17 @@ class GradioUI:
             gr.Button(interactive=False),
         )
 
-    def launch(self, share: bool = True, **kwargs):
-        self.create_app().launch(debug=True, share=share, **kwargs)
+    def launch(self, share: bool = True, speech2text_func = None, **kwargs):
+        self.create_app(speech2text_func).launch(debug=True, share=share, **kwargs)
 
-    def create_app(self):
+    def create_app(self, speech2text_func = None):
+
+        def handle_input(text_input, audio_input):
+            if audio_input: 
+                return speech2text_func(audio_input)
+            return text_input
+
+
         import gradio as gr
 
         with gr.Blocks(theme="ocean", fill_height=True) as demo:
@@ -298,6 +305,10 @@ class GradioUI:
                         container=False,
                         placeholder="Enter your prompt here and press Shift+Enter or press the button",
                     )
+                    if speech2text_func:
+                        audio_input = gr.Audio(source="microphone", type="filepath", label="Voice Input")
+                    else:
+                        audio_input = None
                     submit_btn = gr.Button("Submit", variant="primary")
 
                 # If an upload folder is provided, enable the upload feature
@@ -346,10 +357,18 @@ class GradioUI:
             )
 
             submit_btn.click(
+                handle_input,
+                inputs=[text_input, audio_input], 
+                outputs=[text_input],  # Update the text input with transcribed text if audio is provided
+            ).then(
                 self.log_user_message,
                 [text_input, file_uploads_log],
                 [stored_messages, text_input, submit_btn],
-            ).then(self.interact_with_agent, [stored_messages, chatbot, session_state], [chatbot]).then(
+            ).then(
+                self.interact_with_agent,
+                [stored_messages, chatbot, session_state],
+                [chatbot],
+            ).then(
                 lambda: (
                     gr.Textbox(
                         interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"
