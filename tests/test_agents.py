@@ -19,6 +19,7 @@ import unittest
 import uuid
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
+from typing import Any, Union
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -607,14 +608,22 @@ class MockAgent:
         self.description = description
 
 
+class DummyMultiStepAgent(MultiStepAgent):
+    def step(self, memory_step: ActionStep) -> Union[None, Any]:
+        return super().step(memory_step)
+
+    def initialize_system_prompt(self):
+        return super().initialize_system_prompt()
+
+
 class TestMultiStepAgent:
     def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
-        agent = MultiStepAgent(tools=[], model=fake_model)
+        agent = DummyMultiStepAgent(tools=[], model=fake_model)
         assert agent.logger.level == -1, "logging to terminal should be disabled for testing using a fixture"
 
     def test_instantiation_with_prompt_templates(self, prompt_templates):
-        agent = MultiStepAgent(tools=[], model=MagicMock(), prompt_templates=prompt_templates)
+        agent = DummyMultiStepAgent(tools=[], model=MagicMock(), prompt_templates=prompt_templates)
         assert agent.prompt_templates == prompt_templates
         assert agent.prompt_templates["system_prompt"] == "This is a test system prompt."
         assert "managed_agent" in agent.prompt_templates
@@ -626,7 +635,7 @@ class TestMultiStepAgent:
         [([], FinalAnswerTool), ([CustomFinalAnswerTool()], CustomFinalAnswerTool)],
     )
     def test_instantiation_with_final_answer_tool(self, tools, expected_final_answer_tool):
-        agent = MultiStepAgent(tools=tools, model=MagicMock())
+        agent = DummyMultiStepAgent(tools=tools, model=MagicMock())
         assert "final_answer" in agent.tools
         assert isinstance(agent.tools["final_answer"], expected_final_answer_tool)
 
@@ -660,7 +669,7 @@ class TestMultiStepAgent:
         fake_model.last_input_token_count = 10
         fake_model.last_output_token_count = 20
         max_steps = 2
-        agent = MultiStepAgent(tools=[], model=fake_model, max_steps=max_steps)
+        agent = DummyMultiStepAgent(tools=[], model=fake_model, max_steps=max_steps)
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
         assert agent.step_number == 0, "step_number should be initialized to 0"
         agent.run("Test task")
@@ -882,7 +891,7 @@ class TestMultiStepAgent:
     def test_validate_tools_and_managed_agents(self, tools, managed_agents, name, expectation):
         fake_model = MagicMock()
         with expectation:
-            MultiStepAgent(
+            DummyMultiStepAgent(
                 tools=tools,
                 model=fake_model,
                 name=name,
@@ -913,7 +922,7 @@ class TestMultiStepAgent:
         # Call from_dict
         with patch("smolagents.models.TransformersModel") as mock_model_class:
             mock_model_instance = mock_model_class.from_dict.return_value
-            agent = MultiStepAgent.from_dict(agent_dict)
+            agent = DummyMultiStepAgent.from_dict(agent_dict)
 
         # Verify the agent was created correctly
         assert agent.model == mock_model_instance
@@ -936,7 +945,7 @@ class TestMultiStepAgent:
 
         # Test overriding with kwargs
         with patch("smolagents.models.TransformersModel") as mock_model_class:
-            agent = MultiStepAgent.from_dict(agent_dict, max_steps=30)
+            agent = DummyMultiStepAgent.from_dict(agent_dict, max_steps=30)
         assert agent.max_steps == 30
 
 

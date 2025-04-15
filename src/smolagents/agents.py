@@ -22,6 +22,7 @@ import re
 import tempfile
 import textwrap
 import time
+from abc import ABC, abstractmethod
 from collections import deque
 from logging import getLogger
 from pathlib import Path
@@ -157,7 +158,7 @@ EMPTY_PROMPT_TEMPLATES = PromptTemplates(
 )
 
 
-class MultiStepAgent:
+class MultiStepAgent(ABC):
     """
     Agent class that solves the given task step by step, using the ReAct framework:
     While the objective is not reached, the agent will perform a cycle of action (given by the LLM) and observation (obtained from the environment).
@@ -487,6 +488,7 @@ You have been provided with these additional arguments, that you can access usin
         )
         return [self.memory.system_prompt] + self.memory.steps
 
+    @abstractmethod
     def initialize_system_prompt(self):
         """To be implemented in child classes"""
         pass
@@ -578,6 +580,7 @@ You have been provided with these additional arguments, that you can access usin
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
+    @abstractmethod
     def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
         pass
