@@ -977,7 +977,7 @@ class HfApiModel(ApiModel):
             Currently, it defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`, but this may change in the future.
         provider (`str`, *optional*):
             Name of the provider to use for inference. Can be `"black-forest-labs"`, `"cerebras"`, `"cohere"`, `"fal-ai"`, `"fireworks-ai"`, `"hf-inference"`, `"hyperbolic"`, `"nebius"`, `"novita"`, `"openai"`, `"replicate"`, "sambanova"`, `"together"`, etc.
-            defaults to hf-inference (HF Inference API).
+            Currently, it defaults to hf-inference (HF Inference API).
         token (`str`, *optional*):
             Token used by the Hugging Face API for authentication. This token need to be authorized 'Make calls to the serverless Inference Providers'.
             If the model is gated (like Llama-3 models), the token also needs 'Read access to contents of all public gated repos you can access'.
