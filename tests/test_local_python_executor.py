@@ -32,6 +32,7 @@ from smolagents.local_python_executor import (
     LocalPythonExecutor,
     PrintContainer,
     check_module_authorized,
+    evaluate_boolop,
     evaluate_condition,
     evaluate_delete,
     evaluate_python_code,
@@ -1244,6 +1245,26 @@ def test_evaluate_python_code_with_evaluate_delete(code, expected_error_message)
     with pytest.raises(InterpreterError) as exception_info:
         evaluate_python_code(code, {}, state=state)
     assert expected_error_message in str(exception_info.value)
+
+
+@pytest.mark.parametrize("a", [1, 0])
+@pytest.mark.parametrize("b", [2, 0])
+@pytest.mark.parametrize("c", [3, 0])
+def test_evaluate_boolop_and(a, b, c):
+    boolop_ast = ast.parse("a and b and c").body[0].value
+    state = {"a": a, "b": b, "c": c}
+    result = evaluate_boolop(boolop_ast, state, {}, {}, [])
+    assert result == (a and b and c)
+
+
+@pytest.mark.parametrize("a", [1, 0])
+@pytest.mark.parametrize("b", [2, 0])
+@pytest.mark.parametrize("c", [3, 0])
+def test_evaluate_boolop_or(a, b, c):
+    boolop_ast = ast.parse("a or b or c").body[0].value
+    state = {"a": a, "b": b, "c": c}
+    result = evaluate_boolop(boolop_ast, state, {}, {}, [])
+    assert result == (a or b or c)
 
 
 @pytest.mark.parametrize(
