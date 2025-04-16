@@ -83,6 +83,10 @@ all = [
 ]
 quality = [
   "ruff>=0.9.0",
+  "mypy>=1.9.0",
+  "types-requests",
+  "types-PyYAML",
+  "types-docker"
 ]
 test = [
   "ipython>=8.31.0", # for interactive environment tests
@@ -119,6 +123,46 @@ lint.select = ["E", "F", "I", "W"]
 [tool.ruff.lint.isort]
 known-first-party = ["smolagents"]
 lines-after-imports = 2
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = [
+    "torch.*", 
+    "transformers.*", 
+    "pillow.*", 
+    "huggingface_hub.*",
+    "pandas.*",
+    "duckduckgo_search.*",
+    "markdownify.*",
+    "IPython.*",
+    "soundfile.*",
+    "gradio_client.*",
+    "gradio.*",
+    "mcpadapt.*",
+    "accelerate.*",
+    "mlx_lm.*",
+    "litellm.*",
+    "openai.*",
+    "e2b_code_interpreter.*",
+    "websocket.*",
+    "helium.*",
+    "selenium.*"
+]
+ignore_missing_imports = true
 
 [tool.setuptools.package-data]
 "smolagents.prompts" = ["*.yaml"]
