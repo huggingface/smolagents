@@ -550,7 +550,6 @@ def evaluate_boolop(
 ) -> Any:
     if isinstance(node.op, ast.And):
         # 'and' returns the first falsy value encountered, or the last value if all are truthy.
-        last_value = None
         for value_node in node.values:
             # Evaluate the AST node for the current value in the 'and' expression
             last_value = evaluate_ast(value_node, state, static_tools, custom_tools, authorized_imports)
@@ -562,7 +561,6 @@ def evaluate_boolop(
 
     elif isinstance(node.op, ast.Or):
         # 'or' returns the first truthy value encountered, or the last value if all are falsy.
-        last_value = None
         for value_node in node.values:
             # Evaluate the AST node for the current value in the 'or' expression
             last_value = evaluate_ast(value_node, state, static_tools, custom_tools, authorized_imports)
