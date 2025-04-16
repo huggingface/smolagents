@@ -548,27 +548,17 @@ def evaluate_boolop(
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
 ) -> Any:
-    if isinstance(node.op, ast.And):
-        # 'and' returns the first falsy value encountered, or the last value if all are truthy.
-        for value in node.values:
-            # Evaluate the AST node for the current value in the 'and' expression
-            result = evaluate_ast(value, state, static_tools, custom_tools, authorized_imports)
-            # Check if the evaluated value is falsy in a Python context (e.g., False, None, 0, "", [], {})
-            if not result:
-                return result  # Return the first falsy value immediately (short-circuit)
-        # If the loop completes without returning, all values were truthy. Return the last evaluated value.
-        return result
-
-    elif isinstance(node.op, ast.Or):
-        # 'or' returns the first truthy value encountered, or the last value if all are falsy.
-        for value in node.values:
-            # Evaluate the AST node for the current value in the 'or' expression
-            result = evaluate_ast(value, state, static_tools, custom_tools, authorized_imports)
-            # Check if the evaluated value is truthy in a Python context
-            if result:
-                return result  # Return the first truthy value immediately (short-circuit)
-        # If the loop completes without returning, all values were falsy. Return the last evaluated value.
-        return result
+    # Determine which value should trigger short-circuit based on operation type:
+    # - 'and' returns the first falsy value encountered (or the last value if all are truthy)
+    # - 'or' returns the first truthy value encountered (or the last value if all are falsy)
+    is_short_circuit_value = (lambda x: not x) if isinstance(node.op, ast.And) else (lambda x: bool(x))
+    for value in node.values:
+        result = evaluate_ast(value, state, static_tools, custom_tools, authorized_imports)
+        # Short-circuit: return immediately if the condition is met
+        if is_short_circuit_value(result):
+            return result
+    # If no short-circuit occurred, return the last evaluated value
+    return result
 
 
 def evaluate_binop(
