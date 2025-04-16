@@ -964,9 +964,11 @@ class LiteLLMModel(ApiModel):
 
 
 class HfApiModel(ApiModel):
-    """A class to interact with Hugging Face's Inference API for language model interaction.
+    """A class to interact with Hugging Face's Inference Providers for language model interaction.
 
-    This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+    This model allows you to communicate with Hugging Face's models using Inference Providers. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+
+    Providers include Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
 
     Parameters:
         model_id (`str`, *optional*, default `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
@@ -974,16 +976,16 @@ class HfApiModel(ApiModel):
             This can be a model identifier from the Hugging Face model hub or a URL to a deployed Inference Endpoint.
             Currently, it defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`, but this may change in the future.
         provider (`str`, *optional*):
-            Name of the provider to use for inference. Can be `"replicate"`, `"together"`, `"fal-ai"`, `"sambanova"` or `"hf-inference"`.
-            defaults to hf-inference (HF Inference API).
+            Name of the provider to use for inference. Can be `"black-forest-labs"`, `"cerebras"`, `"cohere"`, `"fal-ai"`, `"fireworks-ai"`, `"hf-inference"`, `"hyperbolic"`, `"nebius"`, `"novita"`, `"openai"`, `"replicate"`, "sambanova"`, `"together"`, etc.
+            Currently, it defaults to hf-inference (HF Inference API).
         token (`str`, *optional*):
-            Token used by the Hugging Face API for authentication. This token need to be authorized 'Make calls to the serverless Inference API'.
+            Token used by the Hugging Face API for authentication. This token need to be authorized 'Make calls to the serverless Inference Providers'.
             If the model is gated (like Llama-3 models), the token also needs 'Read access to contents of all public gated repos you can access'.
             If not provided, the class will try to use environment variable 'HF_TOKEN', else use the token stored in the Hugging Face CLI configuration.
         timeout (`int`, *optional*, defaults to 120):
             Timeout for the API request, in seconds.
         client_kwargs (`dict[str, Any]`, *optional*):
-            Additional keyword arguments to pass to the Hugging Face InferenceClient (like provider, token, timeout, etc.).
+            Additional keyword arguments to pass to the Hugging Face InferenceClient.
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
@@ -1001,6 +1003,7 @@ class HfApiModel(ApiModel):
     ```python
     >>> engine = HfApiModel(
     ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
+    ...     provider="together",
     ...     token="your_hf_token_here",
     ...     max_tokens=5000,
     ... )

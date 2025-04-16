@@ -439,7 +439,7 @@ class Tool:
 
         Args:
             repo_id (`str`):
-                The name of the repo on the Hub where your tool is defined.
+                The name of the Space repo on the Hub where your tool is defined.
             token (`str`, *optional*):
                 The token to identify you on hf.co. If unset, will use the token generated when running
                 `huggingface-cli login` (stored in `~/.huggingface`).
@@ -749,7 +749,7 @@ def load_tool(
 
     Args:
         repo_id (`str`):
-            Repo ID of a tool on the Hub.
+            Space repo ID of a tool on the Hub.
         model_repo_id (`str`, *optional*):
             Use this argument to use a different model than the default one for the tool you selected.
         token (`str`, *optional*):

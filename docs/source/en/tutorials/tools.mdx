@@ -82,7 +82,7 @@ In this case, you can build your tool by subclassing [`Tool`] as described above
 
 ### Share your tool to the Hub
 
-You can share your custom tool to the Hub by calling [`~Tool.push_to_hub`] on the tool. Make sure you've created a repository for it on the Hub and are using a token with read access.
+You can share your custom tool to the Hub as a Space repository by calling [`~Tool.push_to_hub`] on the tool. Make sure you've created a repository for it on the Hub and are using a token with read access.
 
 ```python
 model_downloads_tool.push_to_hub("{your_username}/hf-model-downloads", token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
@@ -112,7 +112,7 @@ model_download_tool = load_tool(
 
 ### Import a Space as a tool
 
-You can directly import a Space from the Hub as a tool using the [`Tool.from_space`] method!
+You can directly import a Gradio Space from the Hub as a tool using the [`Tool.from_space`] method!
 
 You only need to provide the id of the Space on the Hub, its name, and a description that will help you agent understand what the tool does. Under the hood, this will use [`gradio-client`](https://pypi.org/project/gradio-client/) library to call the Space.
 
@@ -131,7 +131,7 @@ And voilà, here's your image! 🏖️
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/sunny_beach.webp">
 
-Then you can use this tool just like any other tool.  For example, let's improve the prompt  `a rabbit wearing a space suit` and generate an image of it. This example also shows how you can pass additional arguments to the agent.
+Then you can use this tool just like any other tool.  For example, let's improve the prompt `a rabbit wearing a space suit` and generate an image of it. This example also shows how you can pass additional arguments to the agent.
 
 ```python
 from smolagents import CodeAgent, HfApiModel

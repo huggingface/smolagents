@@ -25,32 +25,6 @@ from smolagents import (
 )
 
 
-AUTHORIZED_IMPORTS = [
-    "requests",
-    "zipfile",
-    "os",
-    "pandas",
-    "numpy",
-    "sympy",
-    "json",
-    "bs4",
-    "pubchempy",
-    "xml",
-    "yahoo_finance",
-    "Bio",
-    "sklearn",
-    "scipy",
-    "pydub",
-    "io",
-    "PIL",
-    "chess",
-    "PyPDF2",
-    "pptx",
-    "torch",
-    "datetime",
-    "fractions",
-    "csv",
-]
 load_dotenv(override=True)
 login(os.getenv("HF_TOKEN"))
 
@@ -129,7 +103,7 @@ def create_agent(model_id="o1"):
         tools=[visualizer, TextInspectorTool(model, text_limit)],
         max_steps=12,
         verbosity_level=2,
-        additional_authorized_imports=AUTHORIZED_IMPORTS,
+        additional_authorized_imports=["*"],
         planning_interval=4,
         managed_agents=[text_webbrowser_agent],
     )

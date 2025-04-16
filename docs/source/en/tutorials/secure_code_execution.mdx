@@ -68,7 +68,8 @@ We have re-built a more secure `LocalPythonExecutor` from the ground up.
 
 To be precise, this interpreter works by loading the Abstract Syntax Tree (AST) from your Code and executes it operation by operation, making sure to always follow certain rules:
 - By default, imports are disallowed unless they have been explicitly added to an authorization list by the user.
-- Note that some seemingly innocuous packages like `random` can give access to potentially harmful submodules, as in `random._os`.
+- Furthermore, access to submodules is disabled by default, and each must be explicitly authorized in the import list as well, or you can pass for instance `numpy.*` to allow both `numpy` and all its subpackags, like `numpy.random` or `numpy.a.b`.
+   - Note that some seemingly innocuous packages like `random` can give access to potentially harmful submodules, as in `random._os`.
 - The total count of elementary operations processed is capped to prevent infinite loops and resource bloating.
 - Any operation that has not been explicitly defined in our custom interpreter will raise an error.
 

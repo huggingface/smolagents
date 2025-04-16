@@ -227,7 +227,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 ### 默认工具箱
 
-`smolagents` 附带了一个用于增强 agent 的默认工具箱，您可以在初始化时通过参数 `add_base_tools = True` 将其添加到您的 agent 中：
+`smolagents` 附带了一个用于增强 agent 的默认工具箱，您可以在初始化时通过参数 `add_base_tools=True` 将其添加到您的 agent 中：
 
 - **DuckDuckGo 网页搜索**：使用 DuckDuckGo 浏览器执行网页搜索。
 - **Python 代码解释器**：在安全环境中运行 LLM 生成的 Python 代码。只有在使用 `add_base_tools=True` 初始化 [`ToolCallingAgent`] 时才会添加此工具，因为基于代码的 agent 已经可以原生执行 Python 代码

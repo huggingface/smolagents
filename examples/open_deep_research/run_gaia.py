@@ -39,32 +39,6 @@ from smolagents import (
 )
 
 
-AUTHORIZED_IMPORTS = [
-    "requests",
-    "zipfile",
-    "os",
-    "pandas",
-    "numpy",
-    "sympy",
-    "json",
-    "bs4",
-    "pubchempy",
-    "xml",
-    "yahoo_finance",
-    "Bio",
-    "sklearn",
-    "scipy",
-    "pydub",
-    "io",
-    "PIL",
-    "chess",
-    "PyPDF2",
-    "pptx",
-    "torch",
-    "datetime",
-    "fractions",
-    "csv",
-]
 load_dotenv(override=True)
 login(os.getenv("HF_TOKEN"))
 
@@ -162,7 +136,7 @@ def create_agent_team(model: Model):
         tools=[visualizer, ti_tool],
         max_steps=12,
         verbosity_level=2,
-        additional_authorized_imports=AUTHORIZED_IMPORTS,
+        additional_authorized_imports=["*"],
         planning_interval=4,
         managed_agents=[text_webbrowser_agent],
     )

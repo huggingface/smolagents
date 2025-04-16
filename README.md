@@ -42,7 +42,7 @@ limitations under the License.
 
 👁️ **Modality-agnostic**: Agents support text, vision, video, even audio inputs! Cf [this tutorial](https://huggingface.co/docs/smolagents/examples/web_browser) for vision.
 
-🛠️ **Tool-agnostic**: you can use tools from [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), [Anthropic's MCP](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), you can even use a [Hub Space](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space) as a tool.
+🛠️ **Tool-agnostic**: you can use tools from [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), [MCP](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), you can even use a [Hub Space](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space) as a tool.
 
 Full documentation can be found [here](https://huggingface.co/docs/smolagents/index).
 
@@ -67,7 +67,7 @@ agent.run("How many seconds would it take for a leopard at full speed to run thr
 
 https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884
 
-You can even share your agent to hub:
+You can even share your agent to the Hub, as a Space repository:
 ```py
 agent.push_to_hub("m-ric/my_agent")
 
@@ -77,7 +77,7 @@ agent.push_to_hub("m-ric/my_agent")
 Our library is LLM-agnostic: you could switch the example above to any inference provider.
 
 <details>
-<summary> <b>HfApiModel, gateway for 4 inference providers</b></summary>
+<summary> <b>HfApiModel, gateway for all <a href="https://huggingface.co/docs/inference-providers/index">inference providers</a> supported on HF</b></summary>
 
 ```py
 from smolagents import HfApiModel

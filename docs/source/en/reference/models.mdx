@@ -45,7 +45,7 @@ model_id = "meta-llama/Llama-3.3-70B-Instruct"
 client = InferenceClient(model=model_id)
 
 def custom_model(messages, stop_sequences=["Task"]):
-    response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1000)
+    response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1024)
     answer = response.choices[0].message
     return answer
 ```
@@ -74,7 +74,7 @@ print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], st
 
 ### HfApiModel
 
-The `HfApiModel` wraps huggingface_hub's [InferenceClient](https://huggingface.co/docs/huggingface_hub/main/en/guides/inference) for the execution of the LLM. It supports both HF's own [Inference API](https://huggingface.co/docs/api-inference/index) as well as all [Inference Providers](https://huggingface.co/blog/inference-providers) available on the Hub.
+The `HfApiModel` wraps huggingface_hub's [InferenceClient](https://huggingface.co/docs/huggingface_hub/main/en/guides/inference) for the execution of the LLM. It supports all [Inference Providers](https://huggingface.co/docs/inference-providers/index) available on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
 
 ```python
 from smolagents import HfApiModel
@@ -83,7 +83,7 @@ messages = [
   {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}
 ]
 
-model = HfApiModel()
+model = HfApiModel(provider="novita")
 print(model(messages))
 ```
 ```text

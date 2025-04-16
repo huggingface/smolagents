@@ -32,6 +32,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Literal,
     Optional,
     Tuple,
     Union,
@@ -314,20 +315,7 @@ def _parse_type_hint(hint: str) -> Dict:
             )
 
     elif origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
-        # Recurse into each of the subtypes in the Union, except None, which is handled separately at the end
-        subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
-        if len(subtypes) == 1:
-            # A single non-null type can be expressed directly
-            return_dict = subtypes[0]
-        elif all(isinstance(subtype["type"], str) for subtype in subtypes):
-            # A union of basic types can be expressed as a list in the schema
-            return_dict = {"type": sorted([subtype["type"] for subtype in subtypes])}
-        else:
-            # A union of more complex types requires "anyOf"
-            return_dict = {"anyOf": subtypes}
-        if type(None) in args:
-            return_dict["nullable"] = True
-        return return_dict
+        return _parse_union_type(args)
 
     elif origin is list:
         if not args:
@@ -363,7 +351,31 @@ def _parse_type_hint(hint: str) -> Dict:
             out["additionalProperties"] = _parse_type_hint(args[1])
         return out
 
+    elif origin is Literal:
+        literal_types = set(type(arg) for arg in args)
+        final_type = _parse_union_type(literal_types)
+
+        # None literal value is represented by 'nullable' field set by _parse_union_type
+        final_type.update({"enum": [arg for arg in args if arg is not None]})
+        return final_type
+
     raise TypeHintParsingException("Couldn't parse this type hint, likely due to a custom class or object: ", hint)
+
+
+def _parse_union_type(args: tuple[Any, ...]) -> Dict:
+    subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
+    if len(subtypes) == 1:
+        # A single non-null type can be expressed directly
+        return_dict = subtypes[0]
+    elif all(isinstance(subtype["type"], str) for subtype in subtypes):
+        # A union of basic types can be expressed as a list in the schema
+        return_dict = {"type": sorted([subtype["type"] for subtype in subtypes])}
+    else:
+        # A union of more complex types requires "anyOf"
+        return_dict = {"anyOf": subtypes}
+    if type(None) in args:
+        return_dict["nullable"] = True
+    return return_dict
 
 
 _BASE_TYPE_MAPPING = {

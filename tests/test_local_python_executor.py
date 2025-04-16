@@ -31,7 +31,7 @@ from smolagents.local_python_executor import (
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
-    check_module_authorized,
+    check_import_authorized,
     evaluate_boolop,
     evaluate_condition,
     evaluate_delete,
@@ -97,6 +97,25 @@ class PythonInterpreterTester(unittest.TestCase):
         # Should not work without the tool
         with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'add_two'"):
             evaluate_python_code(code, {}, state=state)
+
+    def test_evaluate_class_def(self):
+        code = dedent('''\
+            class MyClass:
+                """A class with a value."""
+
+                def __init__(self, value):
+                    self.value = value
+
+                def get_value(self):
+                    return self.value
+
+            instance = MyClass(42)
+            result = instance.get_value()
+        ''')
+        state = {}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == 42
+        assert state["instance"].__doc__ == "A class with a value."
 
     def test_evaluate_constant(self):
         code = "x = 3"
@@ -528,20 +547,29 @@ if char.isalpha():
         code = "from numpy.random import default_rng as d_rng\nrng = d_rng(12345)\nrng.random()"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy.random"])
 
-        # Test that importing numpy imports submodules
-        code = "import numpy as np\nnp.random.default_rng(12345)\nnp.random.random()"
-        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy"])
-
     def test_additional_imports(self):
         code = "import numpy as np"
         evaluate_python_code(code, authorized_imports=["numpy"], state={})
 
+        # Test that allowing 'numpy.*' allows numpy root package and its submodules
+        code = "import numpy as np\nnp.random.default_rng(123)\nnp.array([1, 2])"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy.*"])
+
+        # Test that allowing 'numpy.*' allows importing a submodule
+        code = "import numpy.random as rd\nrd.default_rng(12345)"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy.*"])
+
         code = "import numpy.random as rd"
         evaluate_python_code(code, authorized_imports=["numpy.random"], state={})
-        evaluate_python_code(code, authorized_imports=["numpy"], state={})
+        evaluate_python_code(code, authorized_imports=["numpy.*"], state={})
         evaluate_python_code(code, authorized_imports=["*"], state={})
         with pytest.raises(InterpreterError):
             evaluate_python_code(code, authorized_imports=["random"], state={})
+
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(code, authorized_imports=["numpy.a"], state={})
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(code, authorized_imports=["numpy.a.*"], state={})
 
     def test_multiple_comparators(self):
         code = "0 <= -1 < 4 and 0 <= -5 < 4"
@@ -1089,6 +1117,36 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
 
+def test_evaluate_annassign():
+    code = dedent("""\
+        # Basic annotated assignment
+        x: int = 42
+
+        # Type annotations with expressions
+        y: float = x / 2
+
+        # Type annotation without assignment
+        z: list
+
+        # Type annotation with complex value
+        names: list = ["Alice", "Bob", "Charlie"]
+
+        # Type hint shouldn't restrict values at runtime
+        s: str = 123  # Would be a type error in static checking, but valid at runtime
+
+        # Access the values
+        result = (x, y, names, s)
+    """)
+    state = {}
+    evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+    assert state["x"] == 42
+    assert state["y"] == 21.0
+    assert "z" not in state  # z should be not be defined
+    assert state["names"] == ["Alice", "Bob", "Charlie"]
+    assert state["s"] == 123  # Type hints don't restrict at runtime
+    assert state["result"] == (42, 21.0, ["Alice", "Bob", "Charlie"], 123)
+
+
 @pytest.mark.parametrize(
     "code, expected_result",
     [
@@ -1609,18 +1667,18 @@ class TestPrintContainer:
 @pytest.mark.parametrize(
     "module,authorized_imports,expected",
     [
-        ("os", ["*"], True),
+        ("os", ["other", "*"], True),
         ("AnyModule", ["*"], True),
         ("os", ["os"], True),
         ("AnyModule", ["AnyModule"], True),
-        ("Module.os", ["Module"], True),
-        ("Module.os", ["Module", "os"], True),
-        ("os.path", ["os"], True),
-        ("os", ["os.path"], False),
+        ("Module.os", ["Module"], False),
+        ("Module.os", ["Module", "Module.os"], True),
+        ("os.path", ["os.*"], True),
+        ("os", ["os.path"], True),
     ],
 )
-def test_check_module_authorized(module: str, authorized_imports: list[str], expected: bool):
-    assert check_module_authorized(module, authorized_imports) == expected
+def test_check_import_authorized(module: str, authorized_imports: list[str], expected: bool):
+    assert check_import_authorized(module, authorized_imports) == expected
 
 
 class TestLocalPythonExecutor:
@@ -1841,7 +1899,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import queue; queue.threading._os.system(':')",
                 [],
-                InterpreterError("Forbidden access to module: os"),
+                InterpreterError("Forbidden access to module: threading"),
             ),
             (
                 "import queue; queue.threading._os.system(':')",
@@ -1857,7 +1915,7 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import doctest; doctest.inspect.os.system(':')",
                 ["doctest"],
-                InterpreterError("Forbidden access to module: os"),
+                InterpreterError("Forbidden access to module: inspect"),
             ),
             (
                 "import doctest; doctest.inspect.os.system(':')",
@@ -1868,23 +1926,23 @@ class TestLocalPythonExecutorSecurity:
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio"],
-                InterpreterError("Forbidden access to module: subprocess"),
+                InterpreterError("Forbidden access to module: asyncio.base_events"),
             ),
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio", "asyncio.base_events"],
-                InterpreterError("Forbidden access to module: subprocess"),
+                InterpreterError("Forbidden access to module: asyncio.events"),
             ),
             (
                 "import asyncio; asyncio.base_events.events.subprocess",
                 ["asyncio", "asyncio.base_events", "asyncio.base_events.events"],
-                InterpreterError("Forbidden access to module: subprocess"),
+                InterpreterError("Forbidden access to module: asyncio.events"),
             ),
             # sys submodule
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
                 [],
-                InterpreterError("Forbidden access to module: sys"),
+                InterpreterError("Forbidden access to module: threading"),
             ),
             (
                 "import queue; queue.threading._sys.modules['os'].system(':')",
