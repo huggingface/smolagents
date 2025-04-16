@@ -524,32 +524,30 @@ class TestTool:
         # Define a test function with type hints and docstring
         def test_function(items: List[str]) -> str:
             """Join a list of strings.
-            
             Args:
                 items: A list of strings to join
-                
             Returns:
                 The joined string
             """
             return ", ".join(items)
-        
+
         # Store original function signature, name, and source
         original_signature = inspect.signature(test_function)
         original_name = test_function.__name__
         original_docstring = test_function.__doc__
-        
+
         # Create a tool from the function
         test_tool = tool(test_function)
-        
+
         # Check that the original function is unchanged
         assert original_signature == inspect.signature(test_function)
         assert original_name == test_function.__name__
         assert original_docstring == test_function.__doc__
-        
+
         # Verify that the tool's forward method has a different signature (it has 'self')
         tool_forward_sig = inspect.signature(test_tool.forward)
         assert list(tool_forward_sig.parameters.keys())[0] == "self"
-        
+
         # Original function should not have 'self' parameter
         assert "self" not in original_signature.parameters
 

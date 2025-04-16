@@ -928,10 +928,11 @@ def tool(tool_function: Callable) -> Tool:
     SimpleTool.description = tool_json_schema["description"]
     SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
     SimpleTool.output_type = tool_json_schema["return"]["type"]
+
     @wraps(tool_function)
     def wrapped_function(*args, **kwargs):
         return tool_function(*args, **kwargs)
-    
+
     # Bind the copied function to the forward method
     SimpleTool.forward = staticmethod(wrapped_function)
 
