@@ -550,25 +550,25 @@ def evaluate_boolop(
 ) -> Any:
     if isinstance(node.op, ast.And):
         # 'and' returns the first falsy value encountered, or the last value if all are truthy.
-        for value_node in node.values:
+        for value in node.values:
             # Evaluate the AST node for the current value in the 'and' expression
-            last_value = evaluate_ast(value_node, state, static_tools, custom_tools, authorized_imports)
+            result = evaluate_ast(value, state, static_tools, custom_tools, authorized_imports)
             # Check if the evaluated value is falsy in a Python context (e.g., False, None, 0, "", [], {})
-            if not last_value:
-                return last_value  # Return the first falsy value immediately (short-circuit)
+            if not result:
+                return result  # Return the first falsy value immediately (short-circuit)
         # If the loop completes without returning, all values were truthy. Return the last evaluated value.
-        return last_value
+        return result
 
     elif isinstance(node.op, ast.Or):
         # 'or' returns the first truthy value encountered, or the last value if all are falsy.
-        for value_node in node.values:
+        for value in node.values:
             # Evaluate the AST node for the current value in the 'or' expression
-            last_value = evaluate_ast(value_node, state, static_tools, custom_tools, authorized_imports)
+            result = evaluate_ast(value, state, static_tools, custom_tools, authorized_imports)
             # Check if the evaluated value is truthy in a Python context
-            if last_value:
-                return last_value  # Return the first truthy value immediately (short-circuit)
+            if result:
+                return result  # Return the first truthy value immediately (short-circuit)
         # If the loop completes without returning, all values were falsy. Return the last evaluated value.
-        return last_value
+        return result
 
 
 def evaluate_binop(
