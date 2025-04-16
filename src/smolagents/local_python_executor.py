@@ -556,7 +556,7 @@ def evaluate_boolop(
             last_value = evaluate_ast(value_node, state, static_tools, custom_tools, authorized_imports)
             # Check if the evaluated value is falsy in a Python context (e.g., False, None, 0, "", [], {})
             if not last_value:
-                return last_value # Return the first falsy value immediately (short-circuit)
+                return last_value  # Return the first falsy value immediately (short-circuit)
         # If the loop completes without returning, all values were truthy. Return the last evaluated value.
         return last_value
 
@@ -568,7 +568,7 @@ def evaluate_boolop(
             last_value = evaluate_ast(value_node, state, static_tools, custom_tools, authorized_imports)
             # Check if the evaluated value is truthy in a Python context
             if last_value:
-                return last_value # Return the first truthy value immediately (short-circuit)
+                return last_value  # Return the first truthy value immediately (short-circuit)
         # If the loop completes without returning, all values were falsy. Return the last evaluated value.
         return last_value
 
