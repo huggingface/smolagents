@@ -94,9 +94,6 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 
-headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
-
-
 def resize_image(image_path):
     img = PIL.Image.open(image_path)
     width, height = img.size
@@ -150,6 +147,12 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
         image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
         question: The question to answer.
     """
+    import mimetypes
+    import os
+
+    import requests
+
+    from .visual_qa import encode_image
 
     add_note = False
     if not question:
@@ -174,6 +177,7 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
         ],
         "max_tokens": 1000,
     }
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
     try:
         output = response.json()["choices"][0]["message"]["content"]
