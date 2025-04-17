@@ -292,7 +292,9 @@ class MultiStepAgent(ABC):
 
         Args:
             task (`str`): Task to perform.
-            stream (`bool`): Whether to run in a streaming way.
+            stream (`bool`): Whether to run in streaming mode.
+                If `True`, returns a generator that yields each step as it is executed. You must iterate over this generator to process the individual steps (e.g., using a for loop or `next()`).
+                If `False`, executes all steps internally and returns only the final answer after completion.
             reset (`bool`): Whether to reset the conversation or keep it going from previous run.
             images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
             additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
