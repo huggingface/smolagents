@@ -6,6 +6,20 @@ from smolagents.tools import Tool, tool
 
 
 @pytest.fixture
+def example_tool():
+    @tool
+    def valid_tool_function(input: str) -> str:
+        """A valid tool function.
+
+        Args:
+            input (str): Input string.
+        """
+        return input.upper()
+
+    return valid_tool_function
+
+
+@pytest.fixture
 def boolean_default_tool_class():
     class BooleanDefaultTool(Tool):
         name = "boolean_default_tool"

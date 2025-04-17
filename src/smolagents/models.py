@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import importlib.util
 import json
 import logging
 import os
@@ -27,6 +26,11 @@ from .utils import _is_package_available, encode_image_base64, make_image_url, p
 
 
 if TYPE_CHECKING:
+    from huggingface_hub import (
+        ChatCompletionOutputFunctionDefinition,
+        ChatCompletionOutputMessage,
+        ChatCompletionOutputToolCall,
+    )
     from transformers import StoppingCriteriaList
 
 logger = logging.getLogger(__name__)
@@ -58,12 +62,15 @@ class ChatMessageToolCallDefinition:
     description: Optional[str] = None
 
     @classmethod
-    def from_hf_api(cls, tool_call_definition) -> "ChatMessageToolCallDefinition":
-        return cls(
-            arguments=tool_call_definition.arguments,
-            name=tool_call_definition.name,
-            description=tool_call_definition.description,
+    def from_hf_api(
+        cls, tool_call_definition: "ChatCompletionOutputFunctionDefinition"
+    ) -> "ChatMessageToolCallDefinition":
+        warnings.warn(
+            "ChatMessageToolCallDefinition.from_hf_api is deprecated and will be removed in version 1.16.0. "
+            "Please use ChatMessageToolCallDefinition with asdict() instead.",
+            FutureWarning,
         )
+        return cls(**asdict(tool_call_definition))
 
 
 @dataclass
@@ -73,12 +80,13 @@ class ChatMessageToolCall:
     type: str
 
     @classmethod
-    def from_hf_api(cls, tool_call) -> "ChatMessageToolCall":
-        return cls(
-            function=ChatMessageToolCallDefinition.from_hf_api(tool_call.function),
-            id=tool_call.id,
-            type=tool_call.type,
+    def from_hf_api(cls, tool_call: "ChatCompletionOutputToolCall") -> "ChatMessageToolCall":
+        warnings.warn(
+            "ChatMessageToolCall.from_hf_api is deprecated and will be removed in version 1.16.0. "
+            "Please use ChatMessageToolCall with asdict() instead.",
+            FutureWarning,
         )
+        return cls(**asdict(tool_call))
 
 
 @dataclass
@@ -92,13 +100,6 @@ class ChatMessage:
         return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
 
     @classmethod
-    def from_hf_api(cls, message, raw) -> "ChatMessage":
-        tool_calls = None
-        if getattr(message, "tool_calls", None) is not None:
-            tool_calls = [ChatMessageToolCall.from_hf_api(tool_call) for tool_call in message.tool_calls]
-        return cls(role=message.role, content=message.content, tool_calls=tool_calls, raw=raw)
-
-    @classmethod
     def from_dict(cls, data: dict, raw: Any | None = None) -> "ChatMessage":
         if data.get("tool_calls"):
             tool_calls = [
@@ -108,10 +109,19 @@ class ChatMessage:
                 for tc in data["tool_calls"]
             ]
             data["tool_calls"] = tool_calls
-        return cls(**data, raw=raw)
+        return cls(role=data["role"], content=data.get("content"), tool_calls=data.get("tool_calls"), raw=raw)
 
     def dict(self):
         return json.dumps(get_dict_from_nested_dataclasses(self))
+
+    @classmethod
+    def from_hf_api(cls, message: "ChatCompletionOutputMessage", raw) -> "ChatMessage":
+        warnings.warn(
+            "ChatMessage.from_hf_api is deprecated and will be removed in version 1.16.0. "
+            "Please use ChatMessage.from_dict with asdict() instead.",
+            FutureWarning,
+        )
+        return cls.from_dict(asdict(message), raw=raw)
 
 
 def parse_json_if_needed(arguments: Union[str, dict]) -> Union[str, dict]:
@@ -214,9 +224,14 @@ def get_clean_message_list(
         if len(output_message_list) > 0 and message["role"] == output_message_list[-1]["role"]:
             assert isinstance(message["content"], list), "Error: wrong content:" + str(message["content"])
             if flatten_messages_as_text:
-                output_message_list[-1]["content"] += message["content"][0]["text"]
+                output_message_list[-1]["content"] += "\n" + message["content"][0]["text"]
             else:
-                output_message_list[-1]["content"] += message["content"]
+                for el in message["content"]:
+                    if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
+                        # Merge consecutive text messages rather than creating new ones
+                        output_message_list[-1]["content"][-1]["text"] += "\n" + el["text"]
+                    else:
+                        output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
                 content = message["content"][0]["text"]
@@ -264,7 +279,7 @@ class Model:
         stop_sequences: Optional[List[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[List[Tool]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
         convert_images_to_image_urls: bool = False,
         **kwargs,
     ) -> Dict:
@@ -398,19 +413,29 @@ class VLLMModel(Model):
         model_id (`str`):
             The Hugging Face model ID to be used for inference.
             This can be a path or model identifier from the Hugging Face model hub.
+        model_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to the vLLM model (like revision, max_model_len, etc.).
     """
 
-    def __init__(self, model_id, **kwargs):
+    def __init__(
+        self,
+        model_id,
+        model_kwargs: dict[str, Any] | None = None,
+        **kwargs,
+    ):
         if not _is_package_available("vllm"):
             raise ModuleNotFoundError("Please install 'vllm' extra to use VLLMModel: `pip install 'smolagents[vllm]'`")
 
         from vllm import LLM
         from vllm.transformers_utils.tokenizer import get_tokenizer
 
+        self.model_kwargs = {
+            **(model_kwargs or {}),
+            "model": model_id,
+        }
         super().__init__(**kwargs)
-
         self.model_id = model_id
-        self.model = LLM(model=model_id)
+        self.model = LLM(**self.model_kwargs)
         self.tokenizer = get_tokenizer(model_id)
         self._is_vlm = False  # VLLMModel does not support vision models yet.
 
@@ -803,8 +828,34 @@ class TransformersModel(Model):
 
 
 class ApiModel(Model):
-    def __init__(self, **kwargs):
+    """
+    Base class for API-based language models.
+
+    This class serves as a foundation for implementing models that interact with
+    external APIs. It handles the common functionality for managing model IDs,
+    custom role mappings, and API client connections.
+
+    Parameters:
+        model_id (`str`):
+            The identifier for the model to be used with the API.
+        custom_role_conversions (`dict[str, str`], **optional**):
+            Mapping to convert  between internal role names and API-specific role names. Defaults to None.
+        client (`Any`, **optional**):
+            Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
+        **kwargs: Additional keyword arguments to pass to the parent class.
+    """
+
+    def __init__(
+        self, model_id: str, custom_role_conversions: dict[str, str] | None = None, client: Any | None = None, **kwargs
+    ):
         super().__init__(**kwargs)
+        self.model_id = model_id
+        self.custom_role_conversions = custom_role_conversions or {}
+        self.client = client or self.create_client()
+
+    def create_client(self):
+        """Create the API client for the specific service."""
+        raise NotImplementedError("Subclasses must implement this method to create a client")
 
     def postprocess_message(self, message: ChatMessage, tools_to_call_from) -> ChatMessage:
         """Sometimes APIs fail to properly parse a tool call: this function tries to parse."""
@@ -843,7 +894,7 @@ class LiteLLMModel(ApiModel):
         model_id: Optional[str] = None,
         api_base=None,
         api_key=None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool | None = None,
         **kwargs,
     ):
@@ -855,16 +906,30 @@ class LiteLLMModel(ApiModel):
                 FutureWarning,
             )
             model_id = "anthropic/claude-3-5-sonnet-20240620"
-        self.model_id = model_id
         self.api_base = api_base
         self.api_key = api_key
-        self.custom_role_conversions = custom_role_conversions
         flatten_messages_as_text = (
             flatten_messages_as_text
             if flatten_messages_as_text is not None
-            else self.model_id.startswith(("ollama", "groq", "cerebras"))
+            else model_id.startswith(("ollama", "groq", "cerebras"))
         )
-        super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
+        super().__init__(
+            model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
+
+    def create_client(self):
+        """Create the LiteLLM client."""
+        try:
+            import litellm
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
+            ) from e
+
+        return litellm
 
     def __call__(
         self,
@@ -874,13 +939,6 @@ class LiteLLMModel(ApiModel):
         tools_to_call_from: Optional[List[Tool]] = None,
         **kwargs,
     ) -> ChatMessage:
-        try:
-            import litellm
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
-            )
-
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -894,7 +952,7 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
 
-        response = litellm.completion(**completion_kwargs)
+        response = self.client.completion(**completion_kwargs)
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
@@ -903,7 +961,6 @@ class LiteLLMModel(ApiModel):
             raw=response,
         )
         return self.postprocess_message(first_message, tools_to_call_from)
-
 
 class LiteLLMRouter(ApiModel):
     """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
@@ -1028,10 +1085,12 @@ class LiteLLMRouter(ApiModel):
         return self.postprocess_message(first_message, tools_to_call_from)
 
 
-class HfApiModel(ApiModel):
-    """A class to interact with Hugging Face's Inference API for language model interaction.
+class InferenceClientModel(ApiModel):
+    """A class to interact with Hugging Face's Inference Providers for language model interaction.
 
-    This model allows you to communicate with Hugging Face's models using the Inference API. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+    This model allows you to communicate with Hugging Face's models using Inference Providers. It can be used in both serverless mode or with a dedicated endpoint, supporting features like stop sequences and grammar customization.
+
+    Providers include Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
 
     Parameters:
         model_id (`str`, *optional*, default `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
@@ -1039,17 +1098,22 @@ class HfApiModel(ApiModel):
             This can be a model identifier from the Hugging Face model hub or a URL to a deployed Inference Endpoint.
             Currently, it defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`, but this may change in the future.
         provider (`str`, *optional*):
-            Name of the provider to use for inference. Can be `"replicate"`, `"together"`, `"fal-ai"`, `"sambanova"` or `"hf-inference"`.
-            defaults to hf-inference (HF Inference API).
+            Name of the provider to use for inference. Can be `"black-forest-labs"`, `"cerebras"`, `"cohere"`, `"fal-ai"`, `"fireworks-ai"`, `"hf-inference"`, `"hyperbolic"`, `"nebius"`, `"novita"`, `"openai"`, `"replicate"`, "sambanova"`, `"together"`, etc.
+            Currently, it defaults to hf-inference (HF Inference API).
         token (`str`, *optional*):
-            Token used by the Hugging Face API for authentication. This token need to be authorized 'Make calls to the serverless Inference API'.
+            Token used by the Hugging Face API for authentication. This token need to be authorized 'Make calls to the serverless Inference Providers'.
             If the model is gated (like Llama-3 models), the token also needs 'Read access to contents of all public gated repos you can access'.
             If not provided, the class will try to use environment variable 'HF_TOKEN', else use the token stored in the Hugging Face CLI configuration.
         timeout (`int`, *optional*, defaults to 120):
             Timeout for the API request, in seconds.
+        client_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to the Hugging Face InferenceClient.
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
+        api_key (`str`, *optional*):
+            Token to use for authentication. This is a duplicated argument from `token` to make [`InferenceClientModel`]
+            follow the same pattern as `openai.OpenAI` client. Cannot be used if `token` is set. Defaults to None.
         **kwargs:
             Additional keyword arguments to pass to the Hugging Face API.
 
@@ -1059,8 +1123,9 @@ class HfApiModel(ApiModel):
 
     Example:
     ```python
-    >>> engine = HfApiModel(
+    >>> engine = InferenceClientModel(
     ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
+    ...     provider="together",
     ...     token="your_hf_token_here",
     ...     max_tokens=5000,
     ... )
@@ -1077,18 +1142,34 @@ class HfApiModel(ApiModel):
         provider: Optional[str] = None,
         token: Optional[str] = None,
         timeout: Optional[int] = 120,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        api_key: Optional[str] = None,
         **kwargs,
     ):
-        from huggingface_hub import InferenceClient
-
-        super().__init__(**kwargs)
-        self.model_id = model_id
-        self.provider = provider
+        if token is not None and api_key is not None:
+            raise ValueError(
+                "Received both `token` and `api_key` arguments. Please provide only one of them."
+                " `api_key` is an alias for `token` to make the API compatible with OpenAI's client."
+                " It has the exact same behavior as `token`."
+            )
+        token = token if token is not None else api_key
         if token is None:
             token = os.getenv("HF_TOKEN")
-        self.client = InferenceClient(self.model_id, provider=provider, token=token, timeout=timeout)
-        self.custom_role_conversions = custom_role_conversions
+        self.client_kwargs = {
+            **(client_kwargs or {}),
+            "model": model_id,
+            "provider": provider,
+            "token": token,
+            "timeout": timeout,
+        }
+        super().__init__(model_id=model_id, custom_role_conversions=custom_role_conversions, **kwargs)
+
+    def create_client(self):
+        """Create the Hugging Face client."""
+        from huggingface_hub import InferenceClient
+
+        return InferenceClient(**self.client_kwargs)
 
     def __call__(
         self,
@@ -1111,8 +1192,17 @@ class HfApiModel(ApiModel):
 
         self.last_input_token_count = response.usage.prompt_tokens
         self.last_output_token_count = response.usage.completion_tokens
-        first_message = ChatMessage.from_hf_api(response.choices[0].message, raw=response)
+        first_message = ChatMessage.from_dict(asdict(response.choices[0].message), raw=response)
         return self.postprocess_message(first_message, tools_to_call_from)
+
+
+class HfApiModel(InferenceClientModel):
+    def __new__(cls, *args, **kwargs):
+        warnings.warn(
+            "HfApiModel has been renamed to InferenceClientModel to more closely follow the name of the underlying Inference library.",
+            DeprecationWarning,
+        )
+        return super().__new__(cls)
 
 
 class OpenAIServerModel(ApiModel):
@@ -1147,26 +1237,32 @@ class OpenAIServerModel(ApiModel):
         api_key: Optional[str] = None,
         organization: Optional[str] | None = None,
         project: Optional[str] | None = None,
-        client_kwargs: Optional[Dict[str, Any]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool = False,
         **kwargs,
     ):
-        if importlib.util.find_spec("openai") is None:
-            raise ModuleNotFoundError(
-                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
-            )
-        super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
-        self.model_id = model_id
-        self.custom_role_conversions = custom_role_conversions
-        self.client_kwargs = client_kwargs or {}
-        self.client_kwargs.update(
-            {"api_key": api_key, "base_url": api_base, "organization": organization, "project": project}
+        self.client_kwargs = {
+            **(client_kwargs or {}),
+            "api_key": api_key,
+            "base_url": api_base,
+            "organization": organization,
+            "project": project,
+        }
+        super().__init__(
+            model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
         )
-        self.client = self.create_client()
 
     def create_client(self):
-        import openai
+        try:
+            import openai
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from e
 
         return openai.OpenAI(**self.client_kwargs)
 
@@ -1226,14 +1322,10 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         azure_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
         api_version: Optional[str] = None,
-        client_kwargs: Optional[Dict[str, Any]] = None,
-        custom_role_conversions: Optional[Dict[str, str]] = None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
         **kwargs,
     ):
-        if importlib.util.find_spec("openai") is None:
-            raise ModuleNotFoundError(
-                "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
-            )
         client_kwargs = client_kwargs or {}
         client_kwargs.update(
             {
@@ -1250,9 +1342,185 @@ class AzureOpenAIServerModel(OpenAIServerModel):
         )
 
     def create_client(self):
-        import openai
+        try:
+            import openai
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
+            ) from e
 
         return openai.AzureOpenAI(**self.client_kwargs)
+
+
+class AmazonBedrockServerModel(ApiModel):
+    """
+    A model class for interacting with Amazon Bedrock Server models through the Bedrock API.
+
+    This class provides an interface to interact with various Bedrock language models,
+    allowing for customized model inference, guardrail configuration, message handling,
+    and other parameters allowed by boto3 API.
+
+    Parameters:
+        model_id (`str`):
+            The model identifier to use on Bedrock (e.g. "us.amazon.nova-pro-v1:0").
+        client (`boto3.client`, *optional*):
+            A custom boto3 client for AWS interactions. If not provided, a default client will be created.
+        client_kwargs (dict[str, Any], *optional*):
+            Keyword arguments used to configure the boto3 client if it needs to be created internally.
+            Examples include `region_name`, `config`, or `endpoint_url`.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
+            Defaults to converting all roles to "user" role to enable using all the Bedrock models.
+        flatten_messages_as_text (`bool`, default `False`):
+            Whether to flatten messages as text.
+        **kwargs
+            Additional keyword arguments passed directly to the underlying API calls.
+
+    Example:
+        Creating a model instance with default settings:
+        >>> bedrock_model = AmazonBedrockServerModel(
+        ...     model_id='us.amazon.nova-pro-v1:0'
+        ... )
+
+        Creating a model instance with a custom boto3 client:
+        >>> import boto3
+        >>> client = boto3.client('bedrock-runtime', region_name='us-west-2')
+        >>> bedrock_model = AmazonBedrockServerModel(
+        ...     model_id='us.amazon.nova-pro-v1:0',
+        ...     client=client
+        ... )
+
+        Creating a model instance with client_kwargs for internal client creation:
+        >>> bedrock_model = AmazonBedrockServerModel(
+        ...     model_id='us.amazon.nova-pro-v1:0',
+        ...     client_kwargs={'region_name': 'us-west-2', 'endpoint_url': 'https://custom-endpoint.com'}
+        ... )
+
+        Creating a model instance with inference and guardrail configurations:
+        >>> additional_api_config = {
+        ...     "inferenceConfig": {
+        ...         "maxTokens": 3000
+        ...     },
+        ...     "guardrailConfig": {
+        ...         "guardrailIdentifier": "identify1",
+        ...         "guardrailVersion": 'v1'
+        ...     },
+        ... }
+        >>> bedrock_model = AmazonBedrockServerModel(
+        ...     model_id='anthropic.claude-3-haiku-20240307-v1:0',
+        ...     **additional_api_config
+        ... )
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        client=None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        **kwargs,
+    ):
+        self.model_id = model_id
+        self.client_kwargs = client_kwargs or {}
+
+        # Bedrock only supports `assistant` and `user` roles.
+        # Many Bedrock models do not allow conversations to start with the `assistant` role, so the default is set to `user/user`.
+        # This parameter is retained for future model implementations and extended support.
+        custom_role_conversions = custom_role_conversions or {
+            MessageRole.SYSTEM: MessageRole.USER,
+            MessageRole.ASSISTANT: MessageRole.USER,
+            MessageRole.TOOL_CALL: MessageRole.USER,
+            MessageRole.TOOL_RESPONSE: MessageRole.USER,
+        }
+
+        super().__init__(
+            model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=False,  # Bedrock API doesn't support flatten messages, must be a list of messages
+            client=client,
+            **kwargs,
+        )
+
+    def _prepare_completion_kwargs(
+        self,
+        messages: List[Dict[str, str]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        convert_images_to_image_urls: bool = False,
+        **kwargs,
+    ) -> Dict:
+        """
+        Overrides the base method to handle Bedrock-specific configurations.
+
+        This implementation adapts the completion keyword arguments to align with
+        Bedrock's requirements, ensuring compatibility with its unique setup and
+        constraints.
+        """
+        completion_kwargs = super()._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=None,  # Bedrock support stop_sequence using Inference Config
+            grammar=None,  # Bedrock doesn't support grammar
+            tools_to_call_from=tools_to_call_from,
+            custom_role_conversions=custom_role_conversions,
+            convert_images_to_image_urls=convert_images_to_image_urls,
+            **kwargs,
+        )
+
+        # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
+        # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
+        completion_kwargs.pop("toolConfig", None)
+
+        # The Bedrock API does not support the `type` key in requests.
+        # This block of code modifies the object to meet Bedrock's requirements.
+        for message in completion_kwargs.get("messages", []):
+            for content in message.get("content", []):
+                if "type" in content:
+                    del content["type"]
+
+        return {
+            "modelId": self.model_id,
+            **completion_kwargs,
+        }
+
+    def create_client(self):
+        try:
+            import boto3
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'bedrock' extra to use AmazonBedrockServerModel: `pip install 'smolagents[bedrock]'`"
+            ) from e
+
+        return boto3.client("bedrock-runtime", **self.client_kwargs)
+
+    def __call__(
+        self,
+        messages: List[Dict[str, str]],
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        completion_kwargs: Dict = self._prepare_completion_kwargs(
+            messages=messages,
+            tools_to_call_from=tools_to_call_from,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+
+        # self.client is created in ApiModel class
+        response = self.client.converse(**completion_kwargs)
+
+        # Get usage
+        self.last_input_token_count = response["usage"]["inputTokens"]
+        self.last_output_token_count = response["usage"]["outputTokens"]
+
+        # Get first message
+        response["output"]["message"]["content"] = response["output"]["message"]["content"][0]["text"]
+        first_message = ChatMessage.from_dict(response["output"]["message"], raw=response)
+
+        return self.postprocess_message(first_message, tools_to_call_from)
 
 
 __all__ = [
@@ -1263,11 +1531,13 @@ __all__ = [
     "MLXModel",
     "TransformersModel",
     "ApiModel",
+    "InferenceClientModel",
     "HfApiModel",
     "LiteLLMModel",
     "LiteLLMRouter",
     "OpenAIServerModel",
     "VLLMModel",
     "AzureOpenAIServerModel",
+    "AmazonBedrockServerModel",
     "ChatMessage",
 ]

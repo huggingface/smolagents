@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Secure code execution
 
 [[open-in-colab]]
@@ -55,15 +40,23 @@ One could argue that on the [spectrum of agency](../conceptual_guides/intro_agen
 
 So you need to be very mindful of security.
 
+To improve safety, we propose a range of measures that propose elevated levels of security, at a higher setup cost.
+
+We advise you to keep in mind that no solution will be 100% safe.
+
+<img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/code_execution_safety_diagram.png">
+
+### Our local Python executor
+
 To add a first layer of security, code execution in `smolagents` is not performed by the vanilla Python interpreter.
 We have re-built a more secure `LocalPythonExecutor` from the ground up.
 
 To be precise, this interpreter works by loading the Abstract Syntax Tree (AST) from your Code and executes it operation by operation, making sure to always follow certain rules:
 - By default, imports are disallowed unless they have been explicitly added to an authorization list by the user.
-- Furthermore, access to submodules is disabled by default, and each must be explicitly authorized in the import list as well.
+- Furthermore, access to submodules is disabled by default, and each must be explicitly authorized in the import list as well, or you can pass for instance `numpy.*` to allow both `numpy` and all its subpackags, like `numpy.random` or `numpy.a.b`.
    - Note that some seemingly innocuous packages like `random` can give access to potentially harmful submodules, as in `random._os`.
- - The total count of elementary operations processed is capped to prevent infinite loops and resource bloating.
- - Any operation that has not been explicitly defined in our custom interpreter will raise an error.
+- The total count of elementary operations processed is capped to prevent infinite loops and resource bloating.
+- Any operation that has not been explicitly defined in our custom interpreter will raise an error.
 
 You could try these safeguards as follows:
 
@@ -108,43 +101,28 @@ run_capture_exception(harmful_command)
 These safeguards make out interpreter is safer.
 We have used it on a diversity of use cases, without ever observing any damage to the environment.
 
-However, this solution is certainly not watertight, as no local python sandbox can really be: one could imagine occasions where LLMs fine-tuned for malignant actions could still hurt your environment.
-
-
-For instance, if you have allowed an innocuous package like `Pillow` to process images, the LLM could generate thousands of image saves to bloat your hard drive.
-
-```py
-custom_executor = LocalPythonExecutor(["PIL"])
-
-harmful_command="""
-from PIL import Image
-
-img = Image.new('RGB', (100, 100), color='blue')
-
-i=0
-while i < 10000:
-    img.save('simple_image_{i}.png')
-    i += 1
-"""
-# Let's not execute this but it would not error out, and it would bloat your system with images.
-```
-
-Other examples of attacks can be found [here](https://gynvael.coldwind.pl/n/python_sandbox_escape).
-
-Running these targeted malicious code snippet require a supply chain attack, meaning the LLM you use has been intoxicated.
-
-The likelihood of this happening is low when using well-known LLMs from trusted inference providers, but it is still non-zero.
-
 > [!WARNING]
-> The only way to run LLM-generated code securely is to isolate the execution from your local environment.
+> It's important to understand that no local python sandbox can ever be completely secure. While our interpreter provides significant safety improvements over the standard Python interpreter, it is still possible for a determined attacker or a fine-tuned malicious LLM to find vulnerabilities and potentially harm your environment. 
+> 
+> For example, if you've allowed packages like `Pillow` to process images, the LLM could generate code that creates thousands of large image files to fill your hard drive. Other advanced escape techniques might exploit deeper vulnerabilities in authorized packages.
+> 
+> Running LLM-generated code in your local environment always carries some inherent risk. The only way to run LLM-generated code with truly robust security isolation is to use remote execution options like E2B or Docker, as detailed below.
 
-So if you want to exercise caution, you should use a remote execution sandbox.
+The risk of a malicious attack is low when using well-known LLMs from trusted inference providers, but it is not zero.
+For high-security applications or when using less trusted models, you should consider using a remote execution sandbox.
 
-Here are examples of how to do it.
+## Sandbox approaches for secure code execution
 
-## Sandbox setup for secure code execution
+When working with AI agents that execute code, security is paramount. There are two main approaches to sandboxing code execution in smolagents, each with different security properties and capabilities:
 
-When working with AI agents that execute code, security is paramount. This guide describes how to set up and use secure sandboxes for your agent applications using either E2B cloud sandboxes or local Docker containers.
+
+![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/remote_execution.png)
+
+1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"` or `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
+
+2. **Running the entire agentic system in a sandbox**: This approach (right side of diagram) runs the entire agentic system, including the agent, model, and tools, within a sandbox environment. This provides better isolation but requires more manual setup and may require passing sensitive credentials (like API keys) to the sandbox environment.
+
+This guide describes how to set up and use both types of sandbox approaches for your agent applications.
 
 ### E2B setup
 
@@ -161,9 +139,9 @@ pip install 'smolagents[e2b]'
 We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` to the agent initialization, as follows:
 
 ```py
-from smolagents import HfApiModel, CodeAgent
+from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=HfApiModel(), tools=[], executor_type="e2b")
+agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b")
 
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
@@ -212,18 +190,18 @@ def run_code_raise_errors(sandbox, code: str, verbose: bool = False) -> str:
 # Define your agent application
 agent_code = """
 import os
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 # Initialize the agents
 agent = CodeAgent(
-    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
+    model=InferenceClientModel(token=os.getenv("HF_TOKEN"), provider="together"),
     tools=[],
     name="coder_agent",
     description="This agent takes care of your difficult algorithmic problems using code."
 )
 
 manager_agent = CodeAgent(
-    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
+    model=InferenceClientModel(token=os.getenv("HF_TOKEN"), provider="together"),
     tools=[],
     managed_agents=[agent],
 )
@@ -252,9 +230,9 @@ pip install 'smolagents[docker]'
 
 Similar to the E2B Sandbox above, to quickly get started with Docker, simply add `executor_type="docker"` to the agent initialization, like:
 ```py
-from smolagents import HfApiModel, CodeAgent
+from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=HfApiModel(), tools=[], executor_type="docker")
+agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker")
 
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
@@ -366,11 +344,11 @@ try:
     # Define your agent code
     agent_code = """
 import os
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 # Initialize the agent
 agent = CodeAgent(
-    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
+    model=InferenceClientModel(token=os.getenv("HF_TOKEN"), provider="together"),
     tools=[]
 )
 
@@ -408,3 +386,29 @@ These key practices apply to both E2B and Docker sandboxes:
   - Always ensure proper cleanup of resources, especially for Docker containers, to avoid having dangling containers eating up resources.
 
 ✨ By following these practices and implementing proper cleanup procedures, you can ensure your agent runs safely and efficiently in a sandboxed environment.
+
+## Comparing security approaches
+
+As illustrated in the diagram earlier, both sandboxing approaches have different security implications:
+
+### Approach 1: Running just the code snippets in a sandbox
+- **Pros**: 
+  - Easier to set up with a simple parameter (`executor_type="e2b"` or `executor_type="docker"`)
+  - No need to transfer API keys to the sandbox
+  - Better protection for your local environment
+- **Cons**:
+  - Doesn't support multi-agents (managed agents)
+  - Still requires transferring state between your environment and the sandbox
+  - Limited to specific code execution
+
+### Approach 2: Running the entire agentic system in a sandbox
+- **Pros**:
+  - Supports multi-agents
+  - Complete isolation of the entire agent system
+  - More flexible for complex agent architectures
+- **Cons**:
+  - Requires more manual setup
+  - May require transferring sensitive API keys to the sandbox
+  - Potentially higher latency due to more complex operations
+
+Choose the approach that best balances your security needs with your application's requirements. For most applications with simpler agent architectures, Approach 1 provides a good balance of security and ease of use. For more complex multi-agent systems where you need full isolation, Approach 2, while more involved to set up, offers better security guarantees.

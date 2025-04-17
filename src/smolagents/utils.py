@@ -158,7 +158,7 @@ def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
         json_data = json.loads(json_data, strict=False)
         return json_data, json_blob[:first_accolade_index]
     except IndexError:
-        raise ValueError("The JSON blob you used is invalid")
+        raise ValueError("The model output does not contain any JSON blob.")
     except json.JSONDecodeError as e:
         place = e.pos
         if json_blob[place - 1 : place + 2] == "},\n":
@@ -186,7 +186,7 @@ def parse_code_blobs(text: str) -> str:
     Raises:
         ValueError: If no valid code block is found in the text.
     """
-    pattern = r"```(?:py|python)?\n(.*?)\n```"
+    pattern = r"```(?:py|python)?\s*\n(.*?)\n```"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)

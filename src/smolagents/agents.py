@@ -22,6 +22,7 @@ import re
 import tempfile
 import textwrap
 import time
+from abc import ABC, abstractmethod
 from collections import deque
 from logging import getLogger
 from pathlib import Path
@@ -47,7 +48,6 @@ from .memory import ActionStep, AgentMemory, FinalAnswerStep, PlanningStep, Syst
 from .models import (
     ChatMessage,
     MessageRole,
-    Model,
 )
 from .monitoring import (
     YELLOW_HEX,
@@ -93,18 +93,12 @@ class PlanningPromptTemplate(TypedDict):
     Prompt templates for the planning step.
 
     Args:
-        initial_facts (`str`): Initial facts prompt.
-        initial_plan (`str`): Initial plan prompt.
-        update_facts_pre_messages (`str`): Update facts pre-messages prompt.
-        update_facts_post_messages (`str`): Update facts post-messages prompt.
+        plan (`str`): Initial plan prompt.
         update_plan_pre_messages (`str`): Update plan pre-messages prompt.
         update_plan_post_messages (`str`): Update plan post-messages prompt.
     """
 
-    initial_facts: str
-    initial_plan: str
-    update_facts_pre_messages: str
-    update_facts_post_messages: str
+    plan: str
     update_plan_pre_messages: str
     update_plan_post_messages: str
 
@@ -155,10 +149,7 @@ class PromptTemplates(TypedDict):
 EMPTY_PROMPT_TEMPLATES = PromptTemplates(
     system_prompt="",
     planning=PlanningPromptTemplate(
-        initial_facts="",
         initial_plan="",
-        update_facts_pre_messages="",
-        update_facts_post_messages="",
         update_plan_pre_messages="",
         update_plan_post_messages="",
     ),
@@ -167,7 +158,7 @@ EMPTY_PROMPT_TEMPLATES = PromptTemplates(
 )
 
 
-class MultiStepAgent:
+class MultiStepAgent(ABC):
     """
     Agent class that solves the given task step by step, using the ReAct framework:
     While the objective is not reached, the agent will perform a cycle of action (given by the LLM) and observation (obtained from the environment).
@@ -206,10 +197,21 @@ class MultiStepAgent:
         description: Optional[str] = None,
         provide_run_summary: bool = False,
         final_answer_checks: Optional[List[Callable]] = None,
+        logger: Optional[AgentLogger] = None,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
+        if prompt_templates is not None:
+            missing_keys = set(EMPTY_PROMPT_TEMPLATES.keys()) - set(prompt_templates.keys())
+            assert not missing_keys, (
+                f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
+            )
+            for key in EMPTY_PROMPT_TEMPLATES.keys():
+                for subkey in EMPTY_PROMPT_TEMPLATES[key]:
+                    assert subkey in prompt_templates[key], (
+                        f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
+                    )
         self.max_steps = max_steps
         self.step_number = 0
         self.grammar = grammar
@@ -228,7 +230,12 @@ class MultiStepAgent:
         self.input_messages = None
         self.task = None
         self.memory = AgentMemory(self.system_prompt)
-        self.logger = AgentLogger(level=verbosity_level)
+
+        if logger is None:
+            self.logger = AgentLogger(level=verbosity_level)
+        else:
+            self.logger = logger
+
         self.monitor = Monitor(self.model, self.logger)
         self.step_callbacks = step_callbacks if step_callbacks is not None else []
         self.step_callbacks.append(self.monitor.update_metrics)
@@ -300,6 +307,7 @@ class MultiStepAgent:
         """
         max_steps = max_steps or self.max_steps
         self.task = task
+        self.interrupt_switch = False
         if additional_args is not None:
             self.state.update(additional_args)
             self.task += f"""
@@ -336,8 +344,12 @@ You have been provided with these additional arguments, that you can access usin
         final_answer = None
         self.step_number = 1
         while final_answer is None and self.step_number <= max_steps:
+            if self.interrupt_switch:
+                raise AgentError("Agent interrupted.", self.logger)
             step_start_time = time.time()
-            if self.planning_interval is not None and self.step_number % self.planning_interval == 1:
+            if self.planning_interval is not None and (
+                self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0
+            ):
                 planning_step = self._create_planning_step(
                     task, is_first_step=(self.step_number == 1), step=self.step_number
                 )
@@ -354,6 +366,7 @@ You have been provided with these additional arguments, that you can access usin
                 action_step.error = e
             finally:
                 self._finalize_step(action_step, step_start_time)
+                self.memory.steps.append(action_step)
                 yield action_step
                 self.step_number += 1
 
@@ -382,7 +395,6 @@ You have been provided with these additional arguments, that you can access usin
     def _finalize_step(self, memory_step: ActionStep, step_start_time: float):
         memory_step.end_time = time.time()
         memory_step.duration = memory_step.end_time - step_start_time
-        self.memory.steps.append(memory_step)
         for callback in self.step_callbacks:
             # For compatibility with old callbacks that don't take the agent as an argument
             callback(memory_step) if len(inspect.signature(callback).parameters) == 1 else callback(
@@ -476,9 +488,14 @@ You have been provided with these additional arguments, that you can access usin
         )
         return [self.memory.system_prompt] + self.memory.steps
 
+    @abstractmethod
     def initialize_system_prompt(self):
         """To be implemented in child classes"""
         pass
+
+    def interrupt(self):
+        """Interrupts the agent execution."""
+        self.interrupt_switch = True
 
     def write_memory_to_messages(
         self,
@@ -519,7 +536,7 @@ You have been provided with these additional arguments, that you can access usin
             )
         return rationale.strip(), action.strip()
 
-    def provide_final_answer(self, task: str, images: Optional[list["PIL.Image.Image"]]) -> str:
+    def provide_final_answer(self, task: str, images: Optional[list["PIL.Image.Image"]] = None) -> str:
         """
         Provide the final answer to the task, based on the logs of the agent's interactions.
 
@@ -563,6 +580,7 @@ You have been provided with these additional arguments, that you can access usin
         except Exception as e:
             return f"Error in generating final LLM output:\n{e}"
 
+    @abstractmethod
     def step(self, memory_step: ActionStep) -> Union[None, Any]:
         """To be implemented in children classes. Should return either None if the step is not final."""
         pass
@@ -646,6 +664,7 @@ You have been provided with these additional arguments, that you can access usin
         # Save agent dictionary to json
         agent_dict = self.to_dict()
         agent_dict["tools"] = [tool.name for tool in self.tools.values()]
+        agent_dict["managed_agents"] = {agent.name: agent.__class__.__name__ for agent in self.managed_agents.values()}
         with open(os.path.join(output_dir, "agent.json"), "w", encoding="utf-8") as f:
             json.dump(agent_dict, f, indent=4)
 
@@ -737,14 +756,13 @@ You have been provided with these additional arguments, that you can access usin
             )
 
         agent_dict = {
+            "class": self.__class__.__name__,
             "tools": tool_dicts,
             "model": {
                 "class": self.model.__class__.__name__,
                 "data": self.model.to_dict(),
             },
-            "managed_agents": {
-                managed_agent.name: managed_agent.__class__.__name__ for managed_agent in self.managed_agents.values()
-            },
+            "managed_agents": [managed_agent.to_dict() for managed_agent in self.managed_agents.values()],
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
             "verbosity_level": int(self.logger.level),
@@ -755,6 +773,49 @@ You have been provided with these additional arguments, that you can access usin
             "requirements": sorted(requirements),
         }
         return agent_dict
+
+    @classmethod
+    def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "MultiStepAgent":
+        """Create agent from a dictionary representation.
+
+        Args:
+            agent_dict (`dict[str, Any]`): Dictionary representation of the agent.
+            **kwargs: Additional keyword arguments that will override agent_dict values.
+
+        Returns:
+            `MultiStepAgent`: Instance of the agent class.
+        """
+        # Load model
+        model_info = agent_dict["model"]
+        model_class = getattr(importlib.import_module("smolagents.models"), model_info["class"])
+        model = model_class.from_dict(model_info["data"])
+        # Load tools
+        tools = []
+        for tool_info in agent_dict["tools"]:
+            tools.append(Tool.from_code(tool_info["code"]))
+        # Load managed agents
+        managed_agents = []
+        for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
+            managed_agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_class_name)
+            managed_agents.append(managed_agent_class.from_dict(agent_dict["managed_agents"][managed_agent_name]))
+        # Extract base agent parameters
+        agent_args = {
+            "model": model,
+            "tools": tools,
+            "prompt_templates": agent_dict.get("prompt_templates"),
+            "max_steps": agent_dict.get("max_steps"),
+            "verbosity_level": agent_dict.get("verbosity_level"),
+            "grammar": agent_dict.get("grammar"),
+            "planning_interval": agent_dict.get("planning_interval"),
+            "name": agent_dict.get("name"),
+            "description": agent_dict.get("description"),
+        }
+        # Filter out None values to use defaults from __init__
+        agent_args = {k: v for k, v in agent_args.items() if v is not None}
+        # Update with any additional kwargs
+        agent_args.update(kwargs)
+        # Create agent instance
+        return cls(**agent_args)
 
     @classmethod
     def from_hub(
@@ -818,42 +879,29 @@ You have been provided with these additional arguments, that you can access usin
             folder (`str` or `Path`): The folder where the agent is saved.
             **kwargs: Additional keyword arguments that will be passed to the agent's init.
         """
+        # Load agent.json
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
 
-        # Recursively get managed agents
+        # Load managed agents from their respective folders, recursively
         managed_agents = []
-        for managed_agent_name, managed_agent_class in agent_dict["managed_agents"].items():
-            agent_cls = getattr(importlib.import_module("smolagents.agents"), managed_agent_class)
+        for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
+            agent_cls = getattr(importlib.import_module("smolagents.agents"), managed_agent_class_name)
             managed_agents.append(agent_cls.from_folder(folder / "managed_agents" / managed_agent_name))
+        agent_dict["managed_agents"] = {}
 
+        # Load tools
         tools = []
         for tool_name in agent_dict["tools"]:
             tool_code = (folder / "tools" / f"{tool_name}.py").read_text()
-            tools.append(Tool.from_code(tool_code))
+            tools.append({"name": tool_name, "code": tool_code})
+        agent_dict["tools"] = tools
 
-        model_class: Model = getattr(importlib.import_module("smolagents.models"), agent_dict["model"]["class"])
-        model = model_class.from_dict(agent_dict["model"]["data"])
+        # Add managed agents to kwargs to override the empty list in from_dict
+        if managed_agents:
+            kwargs["managed_agents"] = managed_agents
 
-        args = dict(
-            model=model,
-            tools=tools,
-            managed_agents=managed_agents,
-            name=agent_dict["name"],
-            description=agent_dict["description"],
-            max_steps=agent_dict["max_steps"],
-            planning_interval=agent_dict["planning_interval"],
-            grammar=agent_dict["grammar"],
-            verbosity_level=agent_dict["verbosity_level"],
-            prompt_templates=agent_dict["prompt_templates"],
-        )
-        if cls.__name__ == "CodeAgent":
-            args["additional_authorized_imports"] = agent_dict["authorized_imports"]
-            args["executor_type"] = agent_dict.get("executor_type")
-            args["executor_kwargs"] = agent_dict.get("executor_kwargs")
-            args["max_print_outputs_length"] = agent_dict.get("max_print_outputs_length")
-        args.update(kwargs)
-        return cls(**args)
+        return cls.from_dict(agent_dict, **kwargs)
 
     def push_to_hub(
         self,
@@ -968,7 +1016,7 @@ class ToolCallingAgent(MultiStepAgent):
             )
             memory_step.model_output_message = model_message
         except Exception as e:
-            raise AgentGenerationError(f"Error in generating tool call with model:\n{e}", self.logger) from e
+            raise AgentParsingError(f"Error while generating or parsing output:\n{e}", self.logger) from e
 
         self.logger.log_markdown(
             content=model_message.content if model_message.content else str(model_message.raw),
@@ -984,7 +1032,7 @@ class ToolCallingAgent(MultiStepAgent):
         tool_call = model_message.tool_calls[0]
         tool_name, tool_call_id = tool_call.function.name, tool_call.id
         tool_arguments = tool_call.function.arguments
-
+        memory_step.model_output = str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}")
         memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 
         # Execute
@@ -1308,3 +1356,28 @@ class CodeAgent(MultiStepAgent):
         agent_dict["executor_kwargs"] = self.executor_kwargs
         agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
+
+    @classmethod
+    def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "CodeAgent":
+        """Create CodeAgent from a dictionary representation.
+
+        Args:
+            agent_dict (`dict[str, Any]`): Dictionary representation of the agent.
+            **kwargs: Additional keyword arguments that will override agent_dict values.
+
+        Returns:
+            `CodeAgent`: Instance of the CodeAgent class.
+        """
+        # Add CodeAgent-specific parameters to kwargs
+        code_agent_kwargs = {
+            "additional_authorized_imports": agent_dict.get("authorized_imports"),
+            "executor_type": agent_dict.get("executor_type"),
+            "executor_kwargs": agent_dict.get("executor_kwargs"),
+            "max_print_outputs_length": agent_dict.get("max_print_outputs_length"),
+        }
+        # Filter out None values
+        code_agent_kwargs = {k: v for k, v in code_agent_kwargs.items() if v is not None}
+        # Update with any additional kwargs
+        code_agent_kwargs.update(kwargs)
+        # Call the parent class's from_dict method
+        return super().from_dict(agent_dict, **code_agent_kwargs)

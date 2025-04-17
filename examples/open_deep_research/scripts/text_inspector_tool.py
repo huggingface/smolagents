@@ -1,9 +1,7 @@
 from typing import Optional
 
 from smolagents import Tool
-from smolagents.models import MessageRole, Model
-
-from .mdconvert import MarkdownConverter
+from smolagents.models import Model
 
 
 class TextInspectorTool(Tool):
@@ -24,14 +22,18 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         },
     }
     output_type = "string"
-    md_converter = MarkdownConverter()
 
-    def __init__(self, model: Model, text_limit: int):
+    def __init__(self, model: Model = None, text_limit: int = 100000):
         super().__init__()
         self.model = model
         self.text_limit = text_limit
+        from .mdconvert import MarkdownConverter
+
+        self.md_converter = MarkdownConverter()
 
     def forward_initial_exam_mode(self, file_path, question):
+        from smolagents.models import MessageRole
+
         result = self.md_converter.convert(file_path)
 
         if file_path[-4:] in [".png", ".jpg"]:
@@ -74,6 +76,8 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         return self.model(messages).content
 
     def forward(self, file_path, question: Optional[str] = None) -> str:
+        from smolagents.models import MessageRole
+
         result = self.md_converter.convert(file_path)
 
         if file_path[-4:] in [".png", ".jpg"]:

@@ -26,7 +26,7 @@ import types
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -45,7 +45,11 @@ from ._function_type_hints_utils import (
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source
+from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source, is_valid_name
+
+
+if TYPE_CHECKING:
+    import mcp
 
 
 logger = logging.getLogger(__name__)
@@ -120,7 +124,7 @@ class Tool:
             "inputs": dict,
             "output_type": str,
         }
-
+        # Validate class attributes
         for attr, expected_type in required_attributes.items():
             attr_value = getattr(self, attr, None)
             if attr_value is None:
@@ -129,6 +133,12 @@ class Tool:
                 raise TypeError(
                     f"Attribute {attr} should have type {expected_type.__name__}, got {type(attr_value)} instead."
                 )
+        # - Validate name
+        if not is_valid_name(self.name):
+            raise Exception(
+                f"Invalid Tool name '{self.name}': must be a valid Python identifier and not a reserved keyword"
+            )
+        # Validate inputs
         for input_name, input_content in self.inputs.items():
             assert isinstance(input_content, dict), f"Input '{input_name}' should be a dictionary."
             assert "type" in input_content and "description" in input_content, (
@@ -138,7 +148,7 @@ class Tool:
                 raise Exception(
                     f"Input '{input_name}': type '{input_content['type']}' is not an authorized value, should be one of {AUTHORIZED_TYPES}."
                 )
-
+        # Validate output type
         assert getattr(self, "output_type", None) in AUTHORIZED_TYPES
 
         # Validate forward function signature, except for Tools that use a "generic" signature (PipelineTool, SpaceToolWrapper, LangChainToolWrapper)
@@ -147,10 +157,12 @@ class Tool:
             and getattr(self, "skip_forward_signature_validation") is True
         ):
             signature = inspect.signature(self.forward)
-
-            if not set(key for key in signature.parameters.keys() if key != "self") == set(self.inputs.keys()):
+            actual_keys = set(key for key in signature.parameters.keys() if key != "self")
+            expected_keys = set(self.inputs.keys())
+            if actual_keys != expected_keys:
                 raise Exception(
-                    f"In tool '{self.name}', 'forward' method should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
+                    f"In tool '{self.name}', 'forward' method parameters were {actual_keys}, but expected {expected_keys}. "
+                    f"It should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
                 )
 
             json_schema = _convert_type_hints_to_json_schema(self.forward, error_on_missing_type_hints=False)[
@@ -211,7 +223,8 @@ class Tool:
             method_checker.visit(forward_node)
 
             if len(method_checker.errors) > 0:
-                raise (ValueError("\n".join(method_checker.errors)))
+                errors = [f"- {error}" for error in method_checker.errors]
+                raise (ValueError(f"SimpleTool validation failed for {self.name}:\n" + "\n".join(errors)))
 
             forward_source_code = get_source(self.forward)
             tool_code = textwrap.dedent(
@@ -262,6 +275,22 @@ class Tool:
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
         return {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
+
+    @classmethod
+    def from_dict(cls, tool_dict: dict[str, Any], **kwargs) -> "Tool":
+        """
+        Create tool from a dictionary representation.
+
+        Args:
+            tool_dict (`dict[str, Any]`): Dictionary representation of the tool.
+            **kwargs: Additional keyword arguments to pass to the tool's constructor.
+
+        Returns:
+            `Tool`: Tool object.
+        """
+        if "code" not in tool_dict:
+            raise ValueError("Tool dictionary must contain 'code' key with the tool source code")
+        return cls.from_code(tool_dict["code"], **kwargs)
 
     def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True):
         """
@@ -410,7 +439,7 @@ class Tool:
 
         Args:
             repo_id (`str`):
-                The name of the repo on the Hub where your tool is defined.
+                The name of the Space repo on the Hub where your tool is defined.
             token (`str`, *optional*):
                 The token to identify you on hf.co. If unset, will use the token generated when running
                 `huggingface-cli login` (stored in `~/.huggingface`).
@@ -720,7 +749,7 @@ def load_tool(
 
     Args:
         repo_id (`str`):
-            Repo ID of a tool on the Hub.
+            Space repo ID of a tool on the Hub.
         model_repo_id (`str`, *optional*):
             Use this argument to use a different model than the default one for the tool you selected.
         token (`str`, *optional*):
@@ -811,7 +840,9 @@ class ToolCollection:
 
     @classmethod
     @contextmanager
-    def from_mcp(cls, server_parameters) -> "ToolCollection":
+    def from_mcp(
+        cls, server_parameters: Union["mcp.StdioServerParameters", dict], trust_remote_code: bool = False
+    ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
         This method supports both SSE and Stdio MCP servers. Look at the `sever_parameters`
@@ -821,9 +852,15 @@ class ToolCollection:
         the MCP server.
 
         Args:
-            server_parameters (mcp.StdioServerParameters | dict):
+            server_parameters (`mcp.StdioServerParameters` or `dict`):
                 The server parameters to use to connect to the MCP server. If a dict is
                 provided, it is assumed to be the parameters of `mcp.client.sse.sse_client`.
+            trust_remote_code (`bool`, *optional*, defaults to `False`):
+                Whether to trust the execution of code from tools defined on the MCP server.
+                This option should only be set to `True` if you trust the MCP server,
+                and undertand the risks associated with running remote code on your local machine.
+                If set to `False`, loading tools from MCP will fail.
+
 
         Returns:
             ToolCollection: A tool collection instance.
@@ -839,18 +876,23 @@ class ToolCollection:
         >>>     env={"UV_PYTHON": "3.12", **os.environ},
         >>> )
 
-        >>> with ToolCollection.from_mcp(server_parameters) as tool_collection:
+        >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
 
         Example with an SSE MCP server:
         ```py
-        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}) as tool_collection:
+        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
+                "as it will execute code on your local machine: pass `trust_remote_code=True`."
+            )
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
@@ -886,8 +928,13 @@ def tool(tool_function: Callable) -> Tool:
     SimpleTool.description = tool_json_schema["description"]
     SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
     SimpleTool.output_type = tool_json_schema["return"]["type"]
-    # Bind the tool function to the forward method
-    SimpleTool.forward = staticmethod(tool_function)
+
+    @wraps(tool_function)
+    def wrapped_function(*args, **kwargs):
+        return tool_function(*args, **kwargs)
+
+    # Bind the copied function to the forward method
+    SimpleTool.forward = staticmethod(wrapped_function)
 
     # Get the signature parameters of the tool function
     sig = inspect.signature(tool_function)

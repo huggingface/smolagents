@@ -84,9 +84,12 @@ YELLOW_HEX = "#d4b702"
 
 
 class AgentLogger:
-    def __init__(self, level: LogLevel = LogLevel.INFO):
+    def __init__(self, level: LogLevel = LogLevel.INFO, console: Console | None = None):
         self.level = level
-        self.console = Console()
+        if console is None:
+            self.console = Console()
+        else:
+            self.console = console
 
     def log(self, *args, level: str | LogLevel = LogLevel.INFO, **kwargs) -> None:
         """Logs a message to the console.

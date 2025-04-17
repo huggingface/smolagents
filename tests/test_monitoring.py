@@ -160,7 +160,7 @@ class MonitoringTester(unittest.TestCase):
             )
         )
 
-        self.assertEqual(len(outputs), 5)
+        self.assertEqual(len(outputs), 6)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIsInstance(final_message.content, dict)
@@ -180,7 +180,7 @@ class MonitoringTester(unittest.TestCase):
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 11)
+        self.assertEqual(len(outputs), 13)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("Malformed call", final_message.content)

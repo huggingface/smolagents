@@ -12,9 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import os
 from textwrap import dedent
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from unittest.mock import MagicMock, patch
 
 import mcp
@@ -419,6 +420,49 @@ class TestTool:
         assert get_weather.inputs["locations"]["type"] == "array"
         assert get_weather.inputs["months"]["type"] == "array"
 
+    def test_tool_supports_string_literal(self):
+        @tool
+        def get_weather(unit: Literal["celsius", "fahrenheit"] = "celsius") -> None:
+            """
+            Get weather in the next days at given location.
+
+            Args:
+                unit: The unit of temperature
+            """
+            return
+
+        assert get_weather.inputs["unit"]["type"] == "string"
+        assert get_weather.inputs["unit"]["enum"] == ["celsius", "fahrenheit"]
+
+    def test_tool_supports_numeric_literal(self):
+        @tool
+        def get_choice(choice: Literal[1, 2, 3]) -> None:
+            """
+            Get choice based on the provided numeric literal.
+
+            Args:
+                choice: The numeric choice to be made.
+            """
+            return
+
+        assert get_choice.inputs["choice"]["type"] == "integer"
+        assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
+
+    def test_tool_supports_nullable_literal(self):
+        @tool
+        def get_choice(choice: Literal[1, 2, 3, None]) -> None:
+            """
+            Get choice based on the provided value.
+
+            Args:
+                choice: The numeric choice to be made.
+            """
+            return
+
+        assert get_choice.inputs["choice"]["type"] == "integer"
+        assert get_choice.inputs["choice"]["nullable"] is True
+        assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
+
     def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self, tmp_path):
         @tool
         def get_weather(location: Any) -> None:
@@ -432,27 +476,6 @@ class TestTool:
             return
 
         get_weather.save(tmp_path)
-        with open(os.path.join(tmp_path, "tool.py"), "r", encoding="utf-8") as f:
-            source_code = f.read()
-            compile(source_code, f.name, "exec")
-
-    def test_saving_tool_produces_valid_python_code_with_complex_name(self, tmp_path):
-        # Test one cannot save tool with additional args in init
-        class FailTool(Tool):
-            name = 'spe"\rcific'
-            description = """test \n\r
-            description"""
-            inputs = {"string_input": {"type": "string", "description": "input description"}}
-            output_type = "string"
-
-            def __init__(self):
-                super().__init__(self)
-
-            def forward(self, string_input):
-                return "foo"
-
-        fail_tool = FailTool()
-        fail_tool.save(tmp_path)
         with open(os.path.join(tmp_path, "tool.py"), "r", encoding="utf-8") as f:
             source_code = f.read()
             compile(source_code, f.name, "exec")
@@ -477,6 +500,57 @@ class TestTool:
         # Check that the input is marked as nullable in the code
         assert "'nullable': True" in result["code"]
 
+    def test_from_dict_roundtrip(self, example_tool):
+        # Convert to dict
+        tool_dict = example_tool.to_dict()
+        # Create from dict
+        recreated_tool = Tool.from_dict(tool_dict)
+        # Verify properties
+        assert recreated_tool.name == example_tool.name
+        assert recreated_tool.description == example_tool.description
+        assert recreated_tool.inputs == example_tool.inputs
+        assert recreated_tool.output_type == example_tool.output_type
+        # Verify functionality
+        test_input = "Hello, world!"
+        assert recreated_tool(test_input) == test_input.upper()
+
+    def test_tool_from_dict_invalid(self):
+        # Missing code key
+        with pytest.raises(ValueError) as e:
+            Tool.from_dict({"name": "invalid_tool"})
+        assert "must contain 'code' key" in str(e)
+
+    def test_tool_decorator_preserves_original_function(self):
+        # Define a test function with type hints and docstring
+        def test_function(items: List[str]) -> str:
+            """Join a list of strings.
+            Args:
+                items: A list of strings to join
+            Returns:
+                The joined string
+            """
+            return ", ".join(items)
+
+        # Store original function signature, name, and source
+        original_signature = inspect.signature(test_function)
+        original_name = test_function.__name__
+        original_docstring = test_function.__doc__
+
+        # Create a tool from the function
+        test_tool = tool(test_function)
+
+        # Check that the original function is unchanged
+        assert original_signature == inspect.signature(test_function)
+        assert original_name == test_function.__name__
+        assert original_docstring == test_function.__doc__
+
+        # Verify that the tool's forward method has a different signature (it has 'self')
+        tool_forward_sig = inspect.signature(test_tool.forward)
+        assert list(tool_forward_sig.parameters.keys())[0] == "self"
+
+        # Original function should not have 'self' parameter
+        assert "self" not in original_signature.parameters
+
 
 @pytest.fixture
 def mock_server_parameters():
@@ -499,7 +573,7 @@ def mock_smolagents_adapter():
 
 class TestToolCollection:
     def test_from_mcp(self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter):
-        with ToolCollection.from_mcp(mock_server_parameters) as tool_collection:
+        with ToolCollection.from_mcp(mock_server_parameters, trust_remote_code=True) as tool_collection:
             assert isinstance(tool_collection, ToolCollection)
             assert len(tool_collection.tools) == 2
             assert "tool1" in tool_collection.tools
@@ -525,7 +599,7 @@ class TestToolCollection:
             args=["-c", mcp_server_script],
         )
 
-        with ToolCollection.from_mcp(mcp_server_params) as tool_collection:
+        with ToolCollection.from_mcp(mcp_server_params, trust_remote_code=True) as tool_collection:
             assert len(tool_collection.tools) == 1, "Expected 1 tool"
             assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
             assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
@@ -556,7 +630,9 @@ class TestToolCollection:
         time.sleep(1)
 
         try:
-            with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}) as tool_collection:
+            with ToolCollection.from_mcp(
+                {"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True
+            ) as tool_collection:
                 assert len(tool_collection.tools) == 1, "Expected 1 tool"
                 assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
                 assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
