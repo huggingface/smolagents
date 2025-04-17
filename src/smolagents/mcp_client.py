@@ -36,7 +36,7 @@ class MCPClient:
         `connect()` method, done during the init. If you don't use the context manager
         we strongly encourage to use "try ... finally" to ensure the connection is cleaned up.
 
-    Attributes:
+    **Attributes**:
         tools: The SmolAgents tools available from the MCP server.
 
     Usage:
