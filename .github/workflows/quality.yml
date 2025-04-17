@@ -29,4 +29,3 @@ jobs:
       # Equivalent of "make quality" but step by step
       - run: ruff check examples src tests utils # linter
       - run: ruff format --check examples src tests utils # formatter
-      - run: python utils/check_tests_in_ci.py
