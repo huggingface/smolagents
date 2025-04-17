@@ -40,6 +40,7 @@ class MCPClient:
         tools: The SmolAgents tools available from the MCP server.
 
     Example:
+        ```python
         # fully managed context manager + stdio
         with MCPClient(...) as tools:
             # tools are now available
