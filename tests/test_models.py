@@ -196,7 +196,7 @@ class TestLiteLLMModel:
     @pytest.mark.parametrize(
         "model_id, error_flag",
         [
-            ("groq/llama-3.3-70b", "Missing API Key"),
+            ("groq/llama-3.3-70b", "Invalid API Key"),
             ("cerebras/llama-3.3-70b", "The api_key client option must be set"),
             ("mistral/mistral-tiny", "The api_key client option must be set"),
         ],
