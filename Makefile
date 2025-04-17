@@ -1,4 +1,4 @@
-.PHONY: quality style test docs utils
+.PHONY: quality style test docs
 
 check_dirs := examples src tests utils
 
