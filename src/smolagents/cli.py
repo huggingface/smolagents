@@ -19,7 +19,7 @@ import os
 
 from dotenv import load_dotenv
 
-from smolagents import CodeAgent, HfApiModel, LiteLLMModel, Model, OpenAIServerModel, Tool, TransformersModel
+from smolagents import CodeAgent, InferenceClientModel, LiteLLMModel, Model, OpenAIServerModel, Tool, TransformersModel
 from smolagents.default_tools import TOOL_MAPPING
 
 
@@ -38,8 +38,8 @@ def parse_arguments():
     parser.add_argument(
         "--model-type",
         type=str,
-        default="HfApiModel",
-        help="The model type to use (e.g., HfApiModel, OpenAIServerModel, LiteLLMModel, TransformersModel)",
+        default="InferenceClientModel",
+        help="The model type to use (e.g., InferenceClientModel, OpenAIServerModel, LiteLLMModel, TransformersModel)",
     )
     parser.add_argument(
         "--model-id",
@@ -67,6 +67,12 @@ def parse_arguments():
     )
     group = parser.add_argument_group("api options", "Options for API-based model types")
     group.add_argument(
+        "--provider",
+        type=str,
+        default=None,
+        help="The inference provider to use for the model",
+    )
+    group.add_argument(
         "--api-base",
         type=str,
         help="The base URL for the model",
@@ -79,7 +85,13 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def load_model(model_type: str, model_id: str, api_base: str | None = None, api_key: str | None = None) -> Model:
+def load_model(
+    model_type: str,
+    model_id: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
+    provider: str | None = None,
+) -> Model:
     if model_type == "OpenAIServerModel":
         return OpenAIServerModel(
             api_key=api_key or os.getenv("FIREWORKS_API_KEY"),
@@ -94,10 +106,11 @@ def load_model(model_type: str, model_id: str, api_base: str | None = None, api_
         )
     elif model_type == "TransformersModel":
         return TransformersModel(model_id=model_id, device_map="auto")
-    elif model_type == "HfApiModel":
-        return HfApiModel(
+    elif model_type == "InferenceClientModel":
+        return InferenceClientModel(
             model_id=model_id,
             token=api_key or os.getenv("HF_API_KEY"),
+            provider=provider,
         )
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
@@ -111,10 +124,11 @@ def run_smolagent(
     api_base: str | None = None,
     api_key: str | None = None,
     imports: list[str] | None = None,
+    provider: str | None = None,
 ) -> None:
     load_dotenv()
 
-    model = load_model(model_type, model_id, api_base=api_base, api_key=api_key)
+    model = load_model(model_type, model_id, api_base=api_base, api_key=api_key, provider=provider)
 
     available_tools = []
     for tool_name in tools:
@@ -139,6 +153,7 @@ def main() -> None:
         args.tools,
         args.model_type,
         args.model_id,
+        provider=args.provider,
         api_base=args.api_base,
         api_key=args.api_key,
         imports=args.imports,

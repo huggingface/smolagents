@@ -28,6 +28,7 @@ from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     HfApiModel,
+    InferenceClientModel,
     LiteLLMModel,
     MessageRole,
     MLXModel,
@@ -129,10 +130,10 @@ class TestModel:
         assert parsed_args == 3
 
 
-class TestHfApiModel:
+class TestInferenceClientModel:
     def test_call_with_custom_role_conversions(self):
         custom_role_conversions = {MessageRole.USER: MessageRole.SYSTEM}
-        model = HfApiModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
+        model = InferenceClientModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
         model.client = MagicMock()
         mock_response = model.client.chat_completion.return_value
         mock_response.choices[0].message = ChatCompletionOutputMessage(role="assistant")
@@ -143,6 +144,30 @@ class TestHfApiModel:
             "role conversion should be applied"
         )
 
+    def test_init_model_with_tokens(self):
+        model = InferenceClientModel(model_id="test-model", token="abc")
+        assert model.client.token == "abc"
+
+        model = InferenceClientModel(model_id="test-model", api_key="abc")
+        assert model.client.token == "abc"
+
+        with pytest.raises(ValueError, match="Received both `token` and `api_key` arguments."):
+            InferenceClientModel(model_id="test-model", token="abc", api_key="def")
+
+    @require_run_all
+    def test_get_hfapi_message_no_tool(self):
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model(messages, stop_sequences=["great"])
+
+    @require_run_all
+    def test_get_hfapi_message_no_tool_external_provider(self):
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model(messages, stop_sequences=["great"])
+
+
+class TestHfApiModel:
     def test_init_model_with_tokens(self):
         model = HfApiModel(model_id="test-model", token="abc")
         assert model.client.token == "abc"
@@ -171,7 +196,7 @@ class TestLiteLLMModel:
     @pytest.mark.parametrize(
         "model_id, error_flag",
         [
-            ("groq/llama-3.3-70b", "Missing API Key"),
+            ("groq/llama-3.3-70b", "Invalid API Key"),
             ("cerebras/llama-3.3-70b", "The api_key client option must be set"),
             ("mistral/mistral-tiny", "The api_key client option must be set"),
         ],
@@ -390,7 +415,7 @@ def test_get_clean_message_list_flatten_messages_as_text():
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
         (AzureOpenAIServerModel, {}, ("openai.AzureOpenAI", {}), False),
-        (HfApiModel, {}, ("huggingface_hub.InferenceClient", {}), False),
+        (InferenceClientModel, {}, ("huggingface_hub.InferenceClient", {}), False),
         (LiteLLMModel, {}, None, False),
         (LiteLLMModel, {"model_id": "ollama"}, None, True),
         (LiteLLMModel, {"model_id": "groq"}, None, True),

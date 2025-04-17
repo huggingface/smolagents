@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Secure code execution
 
 [[open-in-colab]]
@@ -154,9 +139,9 @@ pip install 'smolagents[e2b]'
 We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` to the agent initialization, as follows:
 
 ```py
-from smolagents import HfApiModel, CodeAgent
+from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=HfApiModel(), tools=[], executor_type="e2b")
+agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b")
 
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
@@ -205,18 +190,18 @@ def run_code_raise_errors(sandbox, code: str, verbose: bool = False) -> str:
 # Define your agent application
 agent_code = """
 import os
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 # Initialize the agents
 agent = CodeAgent(
-    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
+    model=InferenceClientModel(token=os.getenv("HF_TOKEN"), provider="together"),
     tools=[],
     name="coder_agent",
     description="This agent takes care of your difficult algorithmic problems using code."
 )
 
 manager_agent = CodeAgent(
-    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
+    model=InferenceClientModel(token=os.getenv("HF_TOKEN"), provider="together"),
     tools=[],
     managed_agents=[agent],
 )
@@ -245,9 +230,9 @@ pip install 'smolagents[docker]'
 
 Similar to the E2B Sandbox above, to quickly get started with Docker, simply add `executor_type="docker"` to the agent initialization, like:
 ```py
-from smolagents import HfApiModel, CodeAgent
+from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=HfApiModel(), tools=[], executor_type="docker")
+agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker")
 
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
@@ -359,11 +344,11 @@ try:
     # Define your agent code
     agent_code = """
 import os
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 # Initialize the agent
 agent = CodeAgent(
-    model=HfApiModel(token=os.getenv("HF_TOKEN"), provider="together"),
+    model=InferenceClientModel(token=os.getenv("HF_TOKEN"), provider="together"),
     tools=[]
 )
 

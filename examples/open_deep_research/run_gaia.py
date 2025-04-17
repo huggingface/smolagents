@@ -163,7 +163,7 @@ def answer_single_question(example, model_id, answers_file, visual_inspection_to
     else:
         model_params["max_tokens"] = 4096
     model = LiteLLMModel(**model_params)
-    # model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=4096)
+    # model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=4096)
     document_inspection_tool = TextInspectorTool(model, 100000)
 
     agent = create_agent_team(model)

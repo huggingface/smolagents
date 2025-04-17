@@ -5,7 +5,7 @@ AGENT_DICTS = {
     "v1.9": {
         "tools": [],
         "model": {
-            "class": "HfApiModel",
+            "class": "InferenceClientModel",
             "data": {
                 "last_input_token_count": None,
                 "last_output_token_count": None,
@@ -46,7 +46,7 @@ AGENT_DICTS = {
     "v1.10": {
         "tools": [],
         "model": {
-            "class": "HfApiModel",
+            "class": "InferenceClientModel",
             "data": {
                 "last_input_token_count": None,
                 "last_output_token_count": None,

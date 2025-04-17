@@ -16,7 +16,7 @@ from smolagents import (
     AgentError,
     CodeAgent,
     GoogleSearchTool,
-    HfApiModel,
+    InferenceClientModel,
     LiteLLMModel,
     PythonInterpreterTool,
     ToolCallingAgent,
@@ -48,9 +48,9 @@ def parse_arguments():
     parser.add_argument(
         "--model-type",
         type=str,
-        default="HfApiModel",
-        choices=["LiteLLMModel", "HfApiModel"],
-        help="The model type to use (LiteLLMModel or HfApiModel)",
+        default="InferenceClientModel",
+        choices=["LiteLLMModel", "InferenceClientModel"],
+        help="The model type to use (LiteLLMModel or InferenceClientModel)",
     )
     parser.add_argument(
         "--model-id",
@@ -62,7 +62,7 @@ def parse_arguments():
         "--provider",
         type=str,
         default="hf-inference",
-        help="The provider for HfApiModel - will not be used for LiteLLMModel",
+        help="The provider for InferenceClientModel - will not be used for LiteLLMModel",
     )
     parser.add_argument(
         "--agent-action-type",
@@ -241,7 +241,7 @@ if __name__ == "__main__":
             max_completion_tokens=8192,
         )
     else:
-        model = HfApiModel(model_id=args.model_id, provider=args.provider, max_tokens=8192)
+        model = InferenceClientModel(model_id=args.model_id, provider=args.provider, max_tokens=8192)
 
     answer_questions(
         eval_ds,

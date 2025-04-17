@@ -4,7 +4,7 @@ import pytest
 
 from smolagents.cli import load_model
 from smolagents.local_python_executor import LocalPythonExecutor
-from smolagents.models import HfApiModel, LiteLLMModel, OpenAIServerModel, TransformersModel
+from smolagents.models import InferenceClientModel, LiteLLMModel, OpenAIServerModel, TransformersModel
 
 
 @pytest.fixture
@@ -47,8 +47,8 @@ def test_load_model_transformers_model():
 
 def test_load_model_hf_api_model(set_env_vars):
     with patch("huggingface_hub.InferenceClient") as huggingface_hub_InferenceClient:
-        model = load_model("HfApiModel", "test_model_id")
-    assert isinstance(model, HfApiModel)
+        model = load_model("InferenceClientModel", "test_model_id")
+    assert isinstance(model, InferenceClientModel)
     assert model.model_id == "test_model_id"
     assert huggingface_hub_InferenceClient.call_count == 1
     assert huggingface_hub_InferenceClient.call_args.kwargs["token"] == "test_hf_api_key"
@@ -65,11 +65,11 @@ def test_cli_main(capsys):
         with patch("smolagents.cli.CodeAgent") as mock_code_agent:
             from smolagents.cli import run_smolagent
 
-            run_smolagent("test_prompt", [], "HfApiModel", "test_model_id")
+            run_smolagent("test_prompt", [], "InferenceClientModel", "test_model_id", provider="hf-inference")
     # load_model
     assert len(mock_load_model.call_args_list) == 1
-    assert mock_load_model.call_args.args == ("HfApiModel", "test_model_id")
-    assert mock_load_model.call_args.kwargs == {"api_base": None, "api_key": None}
+    assert mock_load_model.call_args.args == ("InferenceClientModel", "test_model_id")
+    assert mock_load_model.call_args.kwargs == {"api_base": None, "api_key": None, "provider": "hf-inference"}
     # CodeAgent
     assert len(mock_code_agent.call_args_list) == 1
     assert mock_code_agent.call_args.args == ()
@@ -93,10 +93,10 @@ def test_vision_web_browser_main():
             with patch("smolagents.vision_web_browser.CodeAgent") as mock_code_agent:
                 from smolagents.vision_web_browser import helium_instructions, run_webagent
 
-                run_webagent("test_prompt", "HfApiModel", "test_model_id")
+                run_webagent("test_prompt", "InferenceClientModel", "test_model_id", provider="hf-inference")
     # load_model
     assert len(mock_load_model.call_args_list) == 1
-    assert mock_load_model.call_args.args == ("HfApiModel", "test_model_id")
+    assert mock_load_model.call_args.args == ("InferenceClientModel", "test_model_id")
     # CodeAgent
     assert len(mock_code_agent.call_args_list) == 1
     assert mock_code_agent.call_args.args == ()

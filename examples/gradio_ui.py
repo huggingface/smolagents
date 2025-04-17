@@ -3,7 +3,7 @@ from io import BytesIO
 import requests
 from PIL import Image
 
-from smolagents import CodeAgent, GradioUI, HfApiModel
+from smolagents import CodeAgent, GradioUI, InferenceClientModel
 
 
 def add_agent_image(memory_step, agent):
@@ -14,7 +14,7 @@ def add_agent_image(memory_step, agent):
 
 agent = CodeAgent(
     tools=[],
-    model=HfApiModel(),
+    model=InferenceClientModel(),
     verbosity_level=1,
     planning_interval=3,
     name="example_agent",

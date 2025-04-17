@@ -37,13 +37,19 @@ def parse_arguments():
         "--model-type",
         type=str,
         default="LiteLLMModel",
-        help="The model type to use (e.g., OpenAIServerModel, LiteLLMModel, TransformersModel, HfApiModel)",
+        help="The model type to use (e.g., OpenAIServerModel, LiteLLMModel, TransformersModel, InferenceClientModel)",
     )
     parser.add_argument(
         "--model-id",
         type=str,
         default="gpt-4o",
         help="The model ID to use for the specified model type",
+    )
+    parser.add_argument(
+        "--provider",
+        type=str,
+        default=None,
+        help="The inference provider to use for the model",
     )
     return parser.parse_args()
 
@@ -187,12 +193,12 @@ When you have modals or cookie banners on screen, you should get rid of them bef
 """
 
 
-def run_webagent(prompt: str, model_type: str, model_id: str) -> None:
+def run_webagent(prompt: str, model_type: str, model_id: str, provider: str) -> None:
     # Load environment variables
     load_dotenv()
 
     # Initialize the model based on the provided arguments
-    model = load_model(model_type, model_id)
+    model = load_model(model_type, model_id, provider=provider, api_base=None, api_key=None)
 
     global driver
     driver = initialize_driver()
@@ -206,7 +212,7 @@ def run_webagent(prompt: str, model_type: str, model_id: str) -> None:
 def main() -> None:
     # Parse command line arguments
     args = parse_arguments()
-    run_webagent(args.prompt, args.model_type, args.model_id)
+    run_webagent(args.prompt, args.model_type, args.model_id, args.provider)
 
 
 if __name__ == "__main__":

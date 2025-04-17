@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Agents - Guided tour
 
 [[open-in-colab]]
@@ -25,7 +10,7 @@ To initialize a minimal agent, you need at least these two arguments:
 
 - `model`, a text-generation model to power your agent - because the agent is different from a simple LLM, it is a system that uses a LLM as its engine. You can use any of these options:
     - [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
-    - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood and supports all Inference Providers on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
+    - [`InferenceClientModel`] leverages a `huggingface_hub.InferenceClient` under the hood and supports all Inference Providers on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
     - [`LiteLLMModel`] similarly lets you call 100+ different models and providers through [LiteLLM](https://docs.litellm.ai/)!
     - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
     - [`AmazonBedrockServerModel`] allows you to use Amazon Bedrock in [AWS](https://aws.amazon.com/bedrock/?nc1=h_ls).
@@ -40,14 +25,14 @@ Once you have these two arguments, `tools` and `model`,  you can create an agent
 
 Inference Providers need a `HF_TOKEN` to authenticate, but a free HF account already comes with included credits. Upgrade to PRO to raise your included credits.
 
-To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
+To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `InferenceClientModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
 
 ```python
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 model_id = "meta-llama/Llama-3.3-70B-Instruct" 
 
-model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to HfApiModel to use a default model
+model = InferenceClientModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to InferenceClientModel to use a default model
 # you can also specify a particular provider e.g. provider="together" or provider="sambanova"
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
@@ -247,7 +232,7 @@ The Python interpreter also doesn't allow imports by default outside of a safe l
 You can authorize additional imports by passing the authorized modules as a list of strings in argument `additional_authorized_imports` upon initialization of your [`CodeAgent`]:
 
 ```py
-model = HfApiModel()
+model = InferenceClientModel()
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
@@ -389,8 +374,8 @@ All these attributes will be automatically baked into the agent's system prompt 
 
 Then you can directly initialize your agent:
 ```py
-from smolagents import CodeAgent, HfApiModel
-agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
@@ -403,7 +388,7 @@ You get the following logs:
 │ Can you give me the name of the model that has the most downloads in the 'text-to-video' │
 │ task on the Hugging Face Hub?                                                            │
 │                                                                                          │
-╰─ HfApiModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
+╰─ InferenceClientModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Step 0 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ╭─ Executing this code: ───────────────────────────────────────────────────────────────────╮
 │   1 model_name = model_download_tool(task="text-to-video")                               │
@@ -441,9 +426,9 @@ Then you can pass this managed agent in the parameter managed_agents upon initia
 Here's an example of making an agent that managed a specific web search agent using our [`DuckDuckGoSearchTool`]:
 
 ```py
-from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool
+from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
 
-model = HfApiModel()
+model = InferenceClientModel()
 
 web_agent = CodeAgent(
     tools=[DuckDuckGoSearchTool()],
@@ -471,14 +456,14 @@ You can use `GradioUI` to interactively submit tasks to your agent and observe i
 from smolagents import (
     load_tool,
     CodeAgent,
-    HfApiModel,
+    InferenceClientModel,
     GradioUI
 )
 
 # Import tool from Hub
 image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
-model = HfApiModel(model_id=model_id)
+model = InferenceClientModel(model_id=model_id)
 
 # Initialize the agent with the image generation tool
 agent = CodeAgent(tools=[image_generation_tool], model=model)

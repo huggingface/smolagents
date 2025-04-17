@@ -57,9 +57,9 @@ pip install smolagents
 ```
 Then define your agent, give it the tools it needs and run it!
 ```py
-from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel
+from smolagents import CodeAgent, DuckDuckGoSearchTool, InferenceClientModel
 
-model = HfApiModel()
+model = InferenceClientModel()
 agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
@@ -77,12 +77,12 @@ agent.push_to_hub("m-ric/my_agent")
 Our library is LLM-agnostic: you could switch the example above to any inference provider.
 
 <details>
-<summary> <b>HfApiModel, gateway for all <a href="https://huggingface.co/docs/inference-providers/index">inference providers</a> supported on HF</b></summary>
+<summary> <b>InferenceClientModel, gateway for all <a href="https://huggingface.co/docs/inference-providers/index">inference providers</a> supported on HF</b></summary>
 
 ```py
-from smolagents import HfApiModel
+from smolagents import InferenceClientModel
 
-model = HfApiModel(
+model = InferenceClientModel(
     model_id="deepseek-ai/DeepSeek-R1",
     provider="together",
 )
@@ -163,7 +163,7 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`.
 `smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools.
 
 ```bash
-smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "HfApiModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
+smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
 ```
 
 Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).

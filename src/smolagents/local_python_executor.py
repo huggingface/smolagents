@@ -490,6 +490,23 @@ def evaluate_class_def(
     return new_class
 
 
+def evaluate_annassign(
+    annassign: ast.AnnAssign,
+    state: Dict[str, Any],
+    static_tools: Dict[str, Callable],
+    custom_tools: Dict[str, Callable],
+    authorized_imports: List[str],
+) -> Any:
+    # If there's a value to assign, evaluate it
+    if annassign.value:
+        value = evaluate_ast(annassign.value, state, static_tools, custom_tools, authorized_imports)
+        # Set the value for the target
+        set_value(annassign.target, value, state, static_tools, custom_tools, authorized_imports)
+        return value
+    # For declarations without values (x: int), just return None
+    return None
+
+
 def evaluate_augassign(
     expression: ast.AugAssign,
     state: Dict[str, Any],
@@ -568,17 +585,18 @@ def evaluate_boolop(
     static_tools: Dict[str, Callable],
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
-) -> bool:
-    if isinstance(node.op, ast.And):
-        for value in node.values:
-            if not evaluate_ast(value, state, static_tools, custom_tools, authorized_imports):
-                return False
-        return True
-    elif isinstance(node.op, ast.Or):
-        for value in node.values:
-            if evaluate_ast(value, state, static_tools, custom_tools, authorized_imports):
-                return True
-        return False
+) -> Any:
+    # Determine which value should trigger short-circuit based on operation type:
+    # - 'and' returns the first falsy value encountered (or the last value if all are truthy)
+    # - 'or' returns the first truthy value encountered (or the last value if all are falsy)
+    is_short_circuit_value = (lambda x: not x) if isinstance(node.op, ast.And) else (lambda x: bool(x))
+    for value in node.values:
+        result = evaluate_ast(value, state, static_tools, custom_tools, authorized_imports)
+        # Short-circuit: return immediately if the condition is met
+        if is_short_circuit_value(result):
+            return result
+    # If no short-circuit occurred, return the last evaluated value
+    return result
 
 
 def evaluate_binop(
@@ -1270,6 +1288,8 @@ def evaluate_ast(
         # Assignment -> we evaluate the assignment which should update the state
         # We return the variable assigned as it may be used to determine the final result.
         return evaluate_assign(expression, *common_params)
+    elif isinstance(expression, ast.AnnAssign):
+        return evaluate_annassign(expression, *common_params)
     elif isinstance(expression, ast.AugAssign):
         return evaluate_augassign(expression, *common_params)
     elif isinstance(expression, ast.Call):

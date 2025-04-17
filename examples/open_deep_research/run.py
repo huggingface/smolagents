@@ -19,7 +19,7 @@ from scripts.visual_qa import visualizer
 from smolagents import (
     CodeAgent,
     GoogleSearchTool,
-    # HfApiModel,
+    # InferenceClientModel,
     LiteLLMModel,
     ToolCallingAgent,
 )

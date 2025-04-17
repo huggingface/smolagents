@@ -9,14 +9,14 @@ SmolagentsInstrumentor().instrument(skip_dep_check=True)
 from smolagents import (
     CodeAgent,
     DuckDuckGoSearchTool,
-    HfApiModel,
+    InferenceClientModel,
     ToolCallingAgent,
     VisitWebpageTool,
 )
 
 
 # Then we run the agentic part!
-model = HfApiModel()
+model = InferenceClientModel()
 
 search_agent = ToolCallingAgent(
     tools=[DuckDuckGoSearchTool(), VisitWebpageTool()],
