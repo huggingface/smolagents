@@ -1273,7 +1273,7 @@ def evaluate_ast(
         static_tools (`Dict[str, Callable]`):
             Functions that may be called during the evaluation. Trying to change one of these static_tools will raise an error.
         custom_tools (`Dict[str, Callable]`):
-            Functions that may be called during the evaluation. These static_tools can be overwritten.
+            Functions that may be called during the evaluation. These custom_tools can be overwritten.
         authorized_imports (`List[str]`):
             The list of modules that can be imported by the code. By default, only a few safe modules are allowed.
             If it contains "*", it will authorize any import. Use this at your own risk!
