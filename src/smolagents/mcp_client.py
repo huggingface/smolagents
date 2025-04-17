@@ -57,6 +57,7 @@ class MCPClient:
             # use your tools here.
         finally:
             mcp_client.stop()
+        ```
     """
 
     def __init__(
