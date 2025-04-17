@@ -109,6 +109,11 @@ jobs:
           pytest ./tests/test_tool_validation.py
         if: ${{ success() || failure() }}
 
+      - name: MCP client tests
+        run: |
+          pytest ./tests/test_mcp_client.py
+        if: ${{ success() || failure() }}
+
       - name: Types tests
         run: |
           pytest ./tests/test_types.py
