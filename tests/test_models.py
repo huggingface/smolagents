@@ -32,6 +32,7 @@ from smolagents.models import (
     LiteLLMModel,
     MessageRole,
     MLXModel,
+    Model,
     OpenAIServerModel,
     TransformersModel,
     get_clean_message_list,
@@ -45,6 +46,32 @@ from .utils.markers import require_run_all
 
 
 class TestModel:
+    @pytest.mark.parametrize(
+        "model_id, stop_sequences, should_contain_stop",
+        [
+            ("regular-model", ["stop1", "stop2"], True),  # Regular model should include stop
+            ("openai/o3", ["stop1", "stop2"], False),  # o3 model should not include stop
+            ("openai/o4-mini", ["stop1", "stop2"], False),  # o4-mini model should not include stop
+            ("something/else/o3", ["stop1", "stop2"], False),  # Path ending with o3 should not include stop
+            ("something/else/o4-mini", ["stop1", "stop2"], False),  # Path ending with o4-mini should not include stop
+            ("o3", ["stop1", "stop2"], False),  # Exact o3 model should not include stop
+            ("o4-mini", ["stop1", "stop2"], False),  # Exact o4-mini model should not include stop
+            ("regular-model", None, False),  # None stop_sequences should not add stop parameter
+        ],
+    )
+    def test_prepare_completion_kwargs_stop_sequences(self, model_id, stop_sequences, should_contain_stop):
+        model = Model()
+        model.model_id = model_id
+        completion_kwargs = model._prepare_completion_kwargs(
+            messages=[{"role": "user", "content": [{"type": "text", "text": "Hello"}]}], stop_sequences=stop_sequences
+        )
+        # Verify that the stop parameter is only included when appropriate
+        if should_contain_stop:
+            assert "stop" in completion_kwargs
+            assert completion_kwargs["stop"] == stop_sequences
+        else:
+            assert "stop" not in completion_kwargs
+
     def test_get_json_schema_has_nullable_args(self):
         @tool
         def get_weather(location: str, celsius: Optional[bool] = False) -> str:
