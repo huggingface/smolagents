@@ -46,6 +46,7 @@ def test_mcp_client_try_finally_syntax(echo_server_script: str):
     finally:
         mcp_client.disconnect()
 
+
 def test_multiple_servers(echo_server_script: str):
     """Test the MCPClient with multiple servers."""
     serverparams = [
