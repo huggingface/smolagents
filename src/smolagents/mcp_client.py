@@ -59,17 +59,17 @@ class MCPClient:
 
     def __init__(
         self,
-        serverparams: StdioServerParameters | dict[str, Any] | list[StdioServerParameters | dict[str, Any]],
+        server_parameters: StdioServerParameters | dict[str, Any] | list[StdioServerParameters | dict[str, Any]],
     ):
         """Initialize the MCP Client
 
         Args:
-            serverparams (StdioServerParameters | dict[str, Any] | list[StdioServerParameters | dict[str, Any]]):
+            server_parameters (StdioServerParameters | dict[str, Any] | list[StdioServerParameters | dict[str, Any]]):
                 MCP server parameters (stdio or sse). Can be a list if you want to connect multiple MCPs at once.
 
         """
         super().__init__()
-        self._adapter = MCPAdapt(serverparams, SmolAgentsAdapter())
+        self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter())
         self._tools: list[Tool] | None = None
 
         self.connect()

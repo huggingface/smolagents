@@ -27,8 +27,8 @@ def echo_server_script():
 
 def test_mcp_client_with_syntax(echo_server_script: str):
     """Test the MCPClient with the context manager syntax."""
-    serverparams = StdioServerParameters(command="uv", args=["run", "python", "-c", echo_server_script])
-    with MCPClient(serverparams) as tools:
+    server_parameters = StdioServerParameters(command="uv", args=["run", "python", "-c", echo_server_script])
+    with MCPClient(server_parameters) as tools:
         assert len(tools) == 1
         assert tools[0].name == "echo_tool"
         assert tools[0].forward({"text": "Hello, world!"}) == "Echo: Hello, world!"
@@ -36,8 +36,8 @@ def test_mcp_client_with_syntax(echo_server_script: str):
 
 def test_mcp_client_try_finally_syntax(echo_server_script: str):
     """Test the MCPClient with the try ... finally syntax."""
-    serverparams = StdioServerParameters(command="uv", args=["run", "python", "-c", echo_server_script])
-    mcp_client = MCPClient(serverparams)
+    server_parameters = StdioServerParameters(command="uv", args=["run", "python", "-c", echo_server_script])
+    mcp_client = MCPClient(server_parameters)
     try:
         tools = mcp_client.get_tools()
         assert len(tools) == 1
@@ -49,11 +49,11 @@ def test_mcp_client_try_finally_syntax(echo_server_script: str):
 
 def test_multiple_servers(echo_server_script: str):
     """Test the MCPClient with multiple servers."""
-    serverparams = [
+    server_parameters = [
         StdioServerParameters(command="uv", args=["run", "python", "-c", echo_server_script]),
         StdioServerParameters(command="uv", args=["run", "python", "-c", echo_server_script]),
     ]
-    with MCPClient(serverparams) as tools:
+    with MCPClient(server_parameters) as tools:
         assert len(tools) == 2
         assert tools[0].name == "echo_tool"
         assert tools[1].name == "echo_tool"
