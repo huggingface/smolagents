@@ -39,6 +39,7 @@ from smolagents.models import (
     get_tool_call_from_text,
     get_tool_json_schema,
     parse_json_if_needed,
+    supports_stop_parameter,
 )
 from smolagents.tools import tool
 
@@ -487,6 +488,44 @@ def test_flatten_messages_as_text_for_all_models(
 
         model = model_class(**{"model_id": "test-model", **model_kwargs})
     assert model.flatten_messages_as_text is expected_flatten_messages_as_text, f"{model_class.__name__} failed"
+
+
+@pytest.mark.parametrize(
+    "model_id,expected",
+    [
+        # Unsupported base models
+        ("o3", False),
+        ("o4-mini", False),
+        # Unsupported versioned models
+        ("o3-2025-04-16", False),
+        ("o4-mini-2025-04-16", False),
+        # Unsupported models with path prefixes
+        ("openai/o3", False),
+        ("openai/o4-mini", False),
+        ("openai/o3-2025-04-16", False),
+        ("openai/o4-mini-2025-04-16", False),
+        # Supported models
+        ("o3-mini", True),  # Different from o3
+        ("o3-mini-2025-01-31", True),  # Different from o3
+        ("o4", True),  # Different from o4-mini
+        ("o4-turbo", True),  # Different from o4-mini
+        ("gpt-4", True),
+        ("claude-3-5-sonnet", True),
+        ("mistral-large", True),
+        # Supported models with path prefixes
+        ("openai/gpt-4", True),
+        ("anthropic/claude-3-5-sonnet", True),
+        ("mistralai/mistral-large", True),
+        # Edge cases
+        ("", True),  # Empty string doesn't match pattern
+        ("o3x", True),  # Not exactly o3
+        ("o3_mini", True),  # Not o3-mini format
+        ("prefix-o3", True),  # o3 not at start
+    ],
+)
+def test_supports_stop_parameter(model_id, expected):
+    """Test the supports_stop_parameter function with various model IDs"""
+    assert supports_stop_parameter(model_id) == expected, f"Failed for model_id: {model_id}"
 
 
 class TestGetToolCallFromText:
