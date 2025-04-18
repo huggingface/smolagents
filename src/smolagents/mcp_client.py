@@ -39,6 +39,10 @@ class MCPClient:
         `connect()` method, done during the init. If you don't use the context manager
         we strongly encourage to use "try ... finally" to ensure the connection is cleaned up.
 
+    Args:
+        server_parameters (StdioServerParameters | dict[str, Any] | list[StdioServerParameters | dict[str, Any]]):
+            MCP server parameters (stdio or sse). Can be a list if you want to connect multiple MCPs at once.
+
     Example:
         ```python
         # fully managed context manager + stdio
@@ -64,13 +68,6 @@ class MCPClient:
         self,
         server_parameters: StdioServerParameters | dict[str, Any] | list[StdioServerParameters | dict[str, Any]],
     ):
-        """Initialize the MCP Client
-
-        Args:
-            server_parameters (StdioServerParameters | dict[str, Any] | list[StdioServerParameters | dict[str, Any]]):
-                MCP server parameters (stdio or sse). Can be a list if you want to connect multiple MCPs at once.
-
-        """
         super().__init__()
         self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter())
         self._tools: list[Tool] | None = None
@@ -93,7 +90,7 @@ class MCPClient:
     def get_tools(self) -> list[Tool]:
         """The SmolAgents tools available from the MCP server.
 
-        Note: for now, this always returns the tools available at the creation of the session
+        Note: for now, this always returns the tools available at the creation of the session,
         but it will in a future release return also new tools available from the MCP server if
         any at call time.
 
@@ -101,7 +98,7 @@ class MCPClient:
             ValueError: If the MCP server tools is None (usually assuming the server is not started).
 
         Returns:
-            The SmolAgents tools available from the MCP server.
+            list[Tool]: The SmolAgents tools available from the MCP server.
         """
         if self._tools is None:
             raise ValueError(
