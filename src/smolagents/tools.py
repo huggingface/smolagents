@@ -845,7 +845,7 @@ class ToolCollection:
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
-        This method supports both SSE and Stdio MCP servers. Look at the `sever_parameters`
+        This method supports both SSE and Stdio MCP servers. Look at the `server_parameters`
         argument for more details on how to connect to an SSE or Stdio MCP server.
 
         Note: a separate thread will be spawned to run an asyncio event loop handling
