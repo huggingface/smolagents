@@ -90,9 +90,12 @@ class MCPClient:
         """Disconnect from the MCP server"""
         self._adapter.__exit__(exc_type, exc_value, exc_traceback)
 
-    @property
-    def tools(self) -> list[Tool]:
+    def get_tools(self) -> list[Tool]:
         """The SmolAgents tools available from the MCP server.
+
+        Note: for now, this always returns the tools available at the creation of the session
+        but it will in a future release return also new tools available from the MCP server if
+        any at call time.
 
         Raises:
             ValueError: If the MCP server tools is None (usually assuming the server is not started).
@@ -112,7 +115,7 @@ class MCPClient:
         Note that because of the `.connect` in the init, the mcp_client
         is already connected at this point.
         """
-        return self.tools
+        return self._tools
 
     def __exit__(
         self,
