@@ -173,7 +173,7 @@ def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
 
 
 def parse_code_blobs(text: str) -> str:
-    """Extract code blocs from the LLM's output.
+    """Extract code blocks from the LLM's output.
 
     If a valid code block is passed, it returns it directly.
 
@@ -187,6 +187,7 @@ def parse_code_blobs(text: str) -> str:
         ValueError: If no valid code block is found in the text.
     """
     pattern = r"```(?:py|python)?\s*\n(.*?)\n```"
+    text = text.split("Code:")[-1]
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)
