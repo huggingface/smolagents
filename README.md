@@ -236,6 +236,14 @@ We've created [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/age
 
 This comparison shows that open-source models can now take on the best closed models!
 
+## Security
+
+Security is a critical consideration when working with code-executing agents. Our library provides:
+- Sandboxed execution options using [E2B](https://e2b.dev/) or Docker
+- Best practices for running agent code securely
+
+For security policies, vulnerability reporting, and more information on secure agent execution, please see our [Security Policy](SECURITY.md).
+
 ## Contribute
 
 Everyone is welcome to contribute, get started with our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).

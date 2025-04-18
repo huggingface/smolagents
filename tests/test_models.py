@@ -32,12 +32,14 @@ from smolagents.models import (
     LiteLLMModel,
     MessageRole,
     MLXModel,
+    Model,
     OpenAIServerModel,
     TransformersModel,
     get_clean_message_list,
     get_tool_call_from_text,
     get_tool_json_schema,
     parse_json_if_needed,
+    supports_stop_parameter,
 )
 from smolagents.tools import tool
 
@@ -45,6 +47,32 @@ from .utils.markers import require_run_all
 
 
 class TestModel:
+    @pytest.mark.parametrize(
+        "model_id, stop_sequences, should_contain_stop",
+        [
+            ("regular-model", ["stop1", "stop2"], True),  # Regular model should include stop
+            ("openai/o3", ["stop1", "stop2"], False),  # o3 model should not include stop
+            ("openai/o4-mini", ["stop1", "stop2"], False),  # o4-mini model should not include stop
+            ("something/else/o3", ["stop1", "stop2"], False),  # Path ending with o3 should not include stop
+            ("something/else/o4-mini", ["stop1", "stop2"], False),  # Path ending with o4-mini should not include stop
+            ("o3", ["stop1", "stop2"], False),  # Exact o3 model should not include stop
+            ("o4-mini", ["stop1", "stop2"], False),  # Exact o4-mini model should not include stop
+            ("regular-model", None, False),  # None stop_sequences should not add stop parameter
+        ],
+    )
+    def test_prepare_completion_kwargs_stop_sequences(self, model_id, stop_sequences, should_contain_stop):
+        model = Model()
+        model.model_id = model_id
+        completion_kwargs = model._prepare_completion_kwargs(
+            messages=[{"role": "user", "content": [{"type": "text", "text": "Hello"}]}], stop_sequences=stop_sequences
+        )
+        # Verify that the stop parameter is only included when appropriate
+        if should_contain_stop:
+            assert "stop" in completion_kwargs
+            assert completion_kwargs["stop"] == stop_sequences
+        else:
+            assert "stop" not in completion_kwargs
+
     def test_get_json_schema_has_nullable_args(self):
         @tool
         def get_weather(location: str, celsius: Optional[bool] = False) -> str:
@@ -196,7 +224,7 @@ class TestLiteLLMModel:
     @pytest.mark.parametrize(
         "model_id, error_flag",
         [
-            ("groq/llama-3.3-70b", "Missing API Key"),
+            ("groq/llama-3.3-70b", "Invalid API Key"),
             ("cerebras/llama-3.3-70b", "The api_key client option must be set"),
             ("mistral/mistral-tiny", "The api_key client option must be set"),
         ],
@@ -460,6 +488,44 @@ def test_flatten_messages_as_text_for_all_models(
 
         model = model_class(**{"model_id": "test-model", **model_kwargs})
     assert model.flatten_messages_as_text is expected_flatten_messages_as_text, f"{model_class.__name__} failed"
+
+
+@pytest.mark.parametrize(
+    "model_id,expected",
+    [
+        # Unsupported base models
+        ("o3", False),
+        ("o4-mini", False),
+        # Unsupported versioned models
+        ("o3-2025-04-16", False),
+        ("o4-mini-2025-04-16", False),
+        # Unsupported models with path prefixes
+        ("openai/o3", False),
+        ("openai/o4-mini", False),
+        ("openai/o3-2025-04-16", False),
+        ("openai/o4-mini-2025-04-16", False),
+        # Supported models
+        ("o3-mini", True),  # Different from o3
+        ("o3-mini-2025-01-31", True),  # Different from o3
+        ("o4", True),  # Different from o4-mini
+        ("o4-turbo", True),  # Different from o4-mini
+        ("gpt-4", True),
+        ("claude-3-5-sonnet", True),
+        ("mistral-large", True),
+        # Supported models with path prefixes
+        ("openai/gpt-4", True),
+        ("anthropic/claude-3-5-sonnet", True),
+        ("mistralai/mistral-large", True),
+        # Edge cases
+        ("", True),  # Empty string doesn't match pattern
+        ("o3x", True),  # Not exactly o3
+        ("o3_mini", True),  # Not o3-mini format
+        ("prefix-o3", True),  # o3 not at start
+    ],
+)
+def test_supports_stop_parameter(model_id, expected):
+    """Test the supports_stop_parameter function with various model IDs"""
+    assert supports_stop_parameter(model_id) == expected, f"Failed for model_id: {model_id}"
 
 
 class TestGetToolCallFromText:

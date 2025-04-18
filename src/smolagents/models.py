@@ -14,6 +14,7 @@
 import json
 import logging
 import os
+import re
 import uuid
 import warnings
 from copy import deepcopy
@@ -258,6 +259,24 @@ def get_tool_call_from_text(text: str, tool_name_key: str, tool_arguments_key: s
     )
 
 
+def supports_stop_parameter(model_id: str) -> bool:
+    """
+    Check if the model supports the `stop` parameter.
+
+    Not supported with reasoning models openai/o3 and openai/o4-mini (and their versioned variants).
+
+    Args:
+        model_id (`str`): Model identifier (e.g. "openai/o3", "o4-mini-2025-04-16")
+
+    Returns:
+        bool: True if the model supports the stop parameter, False otherwise
+    """
+    model_name = model_id.split("/")[-1]
+    # o3 and o4-mini (including versioned variants, o3-2025-04-16) don't support stop parameter
+    pattern = r"^(o3[-\d]*|o4-mini[-\d]*)$"
+    return not re.match(pattern, model_name)
+
+
 class Model:
     def __init__(
         self,
@@ -307,7 +326,9 @@ class Model:
 
         # Handle specific parameters
         if stop_sequences is not None:
-            completion_kwargs["stop"] = stop_sequences
+            # Some models do not support stop parameter
+            if supports_stop_parameter(self.model_id):
+                completion_kwargs["stop"] = stop_sequences
         if grammar is not None:
             completion_kwargs["grammar"] = grammar
 
