@@ -52,7 +52,7 @@ class MCPClient:
         # manually manage the connection via the mcp_client object:
         try:
             mcp_client = MCPClient(...)
-            tools = mcp_client.tools
+            tools = mcp_client.get_tools()
 
             # use your tools here.
         finally:
