@@ -15,7 +15,6 @@
 import inspect
 import os
 import textwrap
-import unittest
 
 import pytest
 from IPython.core.interactiveshell import InteractiveShell
@@ -93,34 +92,102 @@ class SimpleTool(Tool):
 '''
 
 
-class AgentTextTests(unittest.TestCase):
-    def test_parse_code_blobs(self):
-        with pytest.raises(ValueError):
-            parse_code_blobs("Wrong blob!")
+class TestParseCodeBlobs:
+    @pytest.mark.parametrize(
+        "input_text, expected_output, should_raise",
+        [
+            # Valid cases with "Code:" marker
+            (
+                textwrap.dedent(
+                    """\
+                    Here is how to solve the problem:
+                    Code:
+                    ```py
+                    import numpy as np
+                    ```<end_code>"""
+                ),
+                "import numpy as np",
+                False,
+            ),
+            # Bare code without "Code:" marker or code block
+            ("import numpy as np", "import numpy as np", False),
+            # Code blocks in "Thought:" and "Code:" markers: only "Code:" code block should be matched
+            (
+                textwrap.dedent(
+                    """\
+                    Thought:
+                    ```
+                    # this code should not be matched
+                    invalid code
+                    ```
 
-        # Parsing mardkwon with code blobs should work
-        output = parse_code_blobs("""
-Here is how to solve the problem:
-Code:
-```py
-import numpy as np
-```<end_code>
-""")
-        assert output == "import numpy as np"
+                    Code:
+                    ```
+                    # this code should be matched
+                    print("valid code")
+                    ```"""
+                ),
+                '# this code should be matched\nprint("valid code")',
+                False,
+            ),
+            # Whitespace handling
+            (
+                textwrap.dedent(
+                    """\
+                    Code:
+                    ```py    \ncode_a\n```
+                    """
+                ),
+                "code_a",
+                False,
+            ),
+            ("```py    \ncode_a\n````", "code_a", False),
+            # Multiple code blocks after Code:
+            (
+                textwrap.dedent(
+                    """\
+                    Code:
+                    ```py
+                    def func1():
+                        pass
+                    ```
 
-        # Parsing code blobs should work
-        code_blob = "import numpy as np"
-        output = parse_code_blobs(code_blob)
-        assert output == code_blob
-
-        # Allow whitespaces after header
-        output = parse_code_blobs("```py    \ncode_a\n````")
-        assert output == "code_a"
-
-    def test_multiple_code_blobs(self):
-        test_input = "```\nFoo\n```\n\n```py\ncode_a\n````\n\n```python\ncode_b\n```"
-        result = parse_code_blobs(test_input)
-        assert result == "Foo\n\ncode_a\n\ncode_b"
+                    ```python
+                    def func2():
+                        pass
+                    ```
+                    """
+                ),
+                "def func1():\n    pass\n\ndef func2():\n    pass",
+                False,
+            ),
+            ("```\nFoo\n```\n\n```py\ncode_a\n````\n\n```python\ncode_b\n```", "Foo\n\ncode_a\n\ncode_b", False),
+            # Invalid cases
+            ("Wrong blob!", None, True),  # No code blob
+            # Code blocks before "Code:" marker should be ignored
+            (
+                textwrap.dedent(
+                    """\
+                    ```
+                    code before marker
+                    ```
+                    Code:
+                    ```
+                    code after marker
+                    ```"""
+                ),
+                "code after marker",
+                False,
+            ),
+        ],
+    )
+    def test_parse_code_blobs(self, input_text, expected_output, should_raise):
+        if should_raise:
+            with pytest.raises(ValueError):
+                parse_code_blobs(input_text)
+        else:
+            output = parse_code_blobs(input_text)
+            assert output == expected_output
 
 
 @pytest.fixture(scope="function")
