@@ -37,13 +37,7 @@ jobs:
         run: |
           uv pip install "smolagents[test] @ ."
 
-      # Run all tests separately for individual feedback
-      # Use 'if success() || failure()' so that all tests are run even if one failed
-      # See https://stackoverflow.com/a/62112985
+      # Run tests
       - name: Test with pytest
         run: |
           pytest ./tests/
-
-      # - name: Docs tests # Disabled for now (slow test + requires API keys)
-      #   run: |
-      #     pytest ./tests/test_all_docs.py

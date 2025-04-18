@@ -80,6 +80,7 @@ class DocCodeExtractor:
         return tmp_file
 
 
+# Skip: slow tests + require API keys
 @require_run_all
 class TestDocs:
     """Test case for documentation code testing."""
