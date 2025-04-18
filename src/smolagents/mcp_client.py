@@ -29,6 +29,9 @@ from typing import Any, Optional, Type
 from smolagents.tools import Tool
 
 
+__all__ = ["MCPClient"]
+
+
 class MCPClient:
     """Manages the connection to an MCP server and make its tools available to SmolAgents.
 
