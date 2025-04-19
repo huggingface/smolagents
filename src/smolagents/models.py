@@ -896,7 +896,11 @@ class LiteLLMModel(ApiModel):
 
     Parameters:
         model_id (`str`):
-            The model identifier to use on the server (e.g. "gpt-3.5-turbo").
+            The model identifier to use on the server. The format depends on the provider:
+            - Anthropic: `"anthropic/claude-3-sonnet-20240229"`
+            - Groq: `"groq/llama3-8b-8192"`
+            - OpenAI: `"gpt-3.5-turbo"`
+            - Azure OpenAI: `"azure/gpt-35-turbo-16k-deployment"` 
         api_base (`str`, *optional*):
             The base URL of the provider API to call the model.
         api_key (`str`, *optional*):
@@ -908,11 +912,27 @@ class LiteLLMModel(ApiModel):
             Defaults to `True` for models that start with "ollama", "groq", "cerebras".
         **kwargs:
             Additional keyword arguments to pass to the OpenAI API.
+
+    Example:
+        ```python
+        # Using Anthropic Claude
+        model = LiteLLMModel(
+            model_id="anthropic/claude-3-sonnet-20240229",
+            api_key="your_anthropic_api_key"
+        )
+
+        # Using Groq
+        model = LiteLLMModel(
+            model_id="groq/llama3-8b-8192",
+            api_key="your_groq_api_key"
+        )
+
+        ```
     """
 
     def __init__(
         self,
-        model_id: Optional[str] = None,
+        model_id: str,
         api_base=None,
         api_key=None,
         custom_role_conversions: dict[str, str] | None = None,
@@ -920,13 +940,9 @@ class LiteLLMModel(ApiModel):
         **kwargs,
     ):
         if not model_id:
-            warnings.warn(
-                "The 'model_id' parameter will be required in version 2.0.0. "
-                "Please update your code to pass this parameter to avoid future errors. "
-                "For now, it defaults to 'anthropic/claude-3-5-sonnet-20240620'.",
-                FutureWarning,
+            raise ValueError(
+                "The 'model_id' parameter is required. Please specify which model you want to use."
             )
-            model_id = "anthropic/claude-3-5-sonnet-20240620"
         self.api_base = api_base
         self.api_key = api_key
         flatten_messages_as_text = (
