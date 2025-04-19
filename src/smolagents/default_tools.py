@@ -80,10 +80,10 @@ class PythonInterpreterTool(Tool):
 class FinalAnswerTool(Tool):
     name = "final_answer"
     description = "Provides a final answer to the given problem."
-    inputs = {"answer": {"type": "any", "description": "The final answer to the problem"}}
-    output_type = "any"
+    inputs = {"answer": {"type": "string", "description": "The final answer to the problem"}}
+    output_type = "string"
 
-    def forward(self, answer: Any) -> Any:
+    def forward(self, answer: str) -> str:
         return answer
 
 
