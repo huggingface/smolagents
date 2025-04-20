@@ -28,11 +28,11 @@ from smolagents import Tool
 
 class RetrieverTool(Tool):
     name = "retriever"
-    description = "Uses semantic search to retrieve the parts of transformers documentation that could be most relevant to answer your query."
+    description = "Uses lexical search to retrieve the parts of transformers documentation that could be most relevant to answer your query."
     inputs = {
         "query": {
             "type": "string",
-            "description": "The query to perform. This should be semantically close to your target documents. Use the affirmative form rather than a question.",
+            "description": "The query to perform. This should be lexically close to your target documents. Use the affirmative form rather than a question.",
         }
     }
     output_type = "string"
