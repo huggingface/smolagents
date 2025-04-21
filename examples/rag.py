@@ -52,13 +52,13 @@ class RetrieverTool(Tool):
         )
 
 
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
     tools=[retriever_tool],
-    model=HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct"),
+    model=InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct"),
     max_steps=4,
     verbosity_level=2,
 )

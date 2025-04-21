@@ -3,8 +3,8 @@ from io import BytesIO
 from time import sleep
 
 import helium
+import PIL.Image
 from dotenv import load_dotenv
-from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -37,13 +37,19 @@ def parse_arguments():
         "--model-type",
         type=str,
         default="LiteLLMModel",
-        help="The model type to use (e.g., OpenAIServerModel, LiteLLMModel, TransformersModel, HfApiModel)",
+        help="The model type to use (e.g., OpenAIServerModel, LiteLLMModel, TransformersModel, InferenceClientModel)",
     )
     parser.add_argument(
         "--model-id",
         type=str,
         default="gpt-4o",
         help="The model ID to use for the specified model type",
+    )
+    parser.add_argument(
+        "--provider",
+        type=str,
+        default=None,
+        help="The inference provider to use for the model",
     )
     return parser.parse_args()
 
@@ -57,7 +63,7 @@ def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
             if isinstance(previous_memory_step, ActionStep) and previous_memory_step.step_number <= current_step - 2:
                 previous_memory_step.observations_images = None
         png_bytes = driver.get_screenshot_as_png()
-        image = Image.open(BytesIO(png_bytes))
+        image = PIL.Image.open(BytesIO(png_bytes))
         print(f"Captured a browser screenshot: {image.size} pixels")
         memory_step.observations_images = [image.copy()]  # Create a copy to ensure it persists, important!
 
@@ -187,12 +193,12 @@ When you have modals or cookie banners on screen, you should get rid of them bef
 """
 
 
-def main(prompt: str, model_type: str, model_id: str) -> None:
+def run_webagent(prompt: str, model_type: str, model_id: str, provider: str) -> None:
     # Load environment variables
     load_dotenv()
 
     # Initialize the model based on the provided arguments
-    model = load_model(model_type, model_id)
+    model = load_model(model_type, model_id, provider=provider, api_base=None, api_key=None)
 
     global driver
     driver = initialize_driver()
@@ -203,8 +209,11 @@ def main(prompt: str, model_type: str, model_id: str) -> None:
     agent.run(prompt + helium_instructions)
 
 
-if __name__ == "__main__":
+def main() -> None:
     # Parse command line arguments
     args = parse_arguments()
+    run_webagent(args.prompt, args.model_type, args.model_id, args.provider)
 
-    main(args.prompt, args.model_type, args.model_id)
+
+if __name__ == "__main__":
+    main()

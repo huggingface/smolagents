@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Agentic RAG
 
 [[open-in-colab]]
@@ -37,7 +22,7 @@ Run the line below to install required dependencies:
 ```bash
 !pip install smolagents pandas langchain langchain-community sentence-transformers datasets python-dotenv rank_bm25 --upgrade -q
 ```
-To call the HF Inference API, you will need a valid token as your environment variable `HF_TOKEN`.
+To call Inference Providers, you will need a valid token as your environment variable `HF_TOKEN`.
 We use python-dotenv to load it.
 ```py
 from dotenv import load_dotenv
@@ -127,13 +112,13 @@ The agent will need these arguments upon initialization:
 - `model`: the LLM that powers the agent.
 Our `model` must be a callable that takes as input a list of messages and returns text. It also needs to accept a stop_sequences argument that indicates when to stop its generation. For convenience, we directly use the HfEngine class provided in the package to get a LLM engine that calls Hugging Face's Inference API.
 
->[!NOTE] To use a specific model, pass it like this: `HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")`. The Inference API hosts models based on various criteria, and deployed models may be updated or replaced without prior notice. Learn more about it [here](https://huggingface.co/docs/api-inference/supported-models).
+>[!NOTE] To use a specific model, pass it like this: `InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct")`. The Inference API hosts models based on various criteria, and deployed models may be updated or replaced without prior notice. Learn more about it [here](https://huggingface.co/docs/api-inference/supported-models).
 
 ```py
-from smolagents import HfApiModel, CodeAgent
+from smolagents import InferenceClientModel, CodeAgent
 
 agent = CodeAgent(
-    tools=[retriever_tool], model=HfApiModel(), max_steps=4, verbosity_level=2
+    tools=[retriever_tool], model=InferenceClientModel(), max_steps=4, verbosity_level=2
 )
 ```
 Upon initializing the CodeAgent, it has been automatically given a default system prompt that tells the LLM engine to process step-by-step and generate tool calls as code snippets, but you could replace this prompt template with your own as needed.

@@ -397,7 +397,7 @@ class VisitTool(Tool):
     inputs = {"url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}}
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
@@ -421,6 +421,8 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
         self.browser = browser
 
     def forward(self, url: str) -> str:
+        import requests
+
         if "arxiv" in url:
             url = url.replace("abs", "pdf")
         response = requests.get(url)
@@ -452,11 +454,13 @@ class ArchiveSearchTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
     def forward(self, url, date) -> str:
+        import requests
+
         no_timestamp_url = f"https://archive.org/wayback/available?url={url}"
         archive_url = no_timestamp_url + f"&timestamp={date}"
         response = requests.get(archive_url).json()
@@ -487,7 +491,7 @@ class PageUpTool(Tool):
     inputs = {}
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
@@ -505,7 +509,7 @@ class PageDownTool(Tool):
     inputs = {}
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
@@ -526,7 +530,7 @@ class FinderTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
@@ -549,7 +553,7 @@ class FindNextTool(Tool):
     inputs = {}
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 

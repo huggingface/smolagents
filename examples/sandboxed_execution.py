@@ -1,7 +1,7 @@
-from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel
+from smolagents import CodeAgent, DuckDuckGoSearchTool, InferenceClientModel
 
 
-model = HfApiModel()
+model = InferenceClientModel()
 
 agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model, executor_type="docker")
 output = agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")

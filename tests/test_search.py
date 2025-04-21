@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
 
 from smolagents import DuckDuckGoSearchTool
 
@@ -21,8 +20,8 @@ from .test_tools import ToolTesterMixin
 from .utils.markers import require_run_all
 
 
-class DuckDuckGoSearchToolTester(unittest.TestCase, ToolTesterMixin):
-    def setUp(self):
+class TestDuckDuckGoSearchTool(ToolTesterMixin):
+    def setup_method(self):
         self.tool = DuckDuckGoSearchTool()
         self.tool.setup()
 

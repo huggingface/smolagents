@@ -1,3 +1,4 @@
+# EXAMPLE COMMAND: python examples/open_deep_research/run_gaia.py --concurrency 32 --run-name generate-traces-03-apr-noplanning --model-id gpt-4o
 import argparse
 import json
 import os
@@ -23,7 +24,6 @@ from scripts.text_web_browser import (
     FindNextTool,
     PageDownTool,
     PageUpTool,
-    SearchInformationTool,
     SimpleTextBrowser,
     VisitTool,
 )
@@ -32,39 +32,13 @@ from tqdm import tqdm
 
 from smolagents import (
     CodeAgent,
-    # HfApiModel,
+    GoogleSearchTool,
     LiteLLMModel,
     Model,
     ToolCallingAgent,
 )
 
 
-AUTHORIZED_IMPORTS = [
-    "requests",
-    "zipfile",
-    "os",
-    "pandas",
-    "numpy",
-    "sympy",
-    "json",
-    "bs4",
-    "pubchempy",
-    "xml",
-    "yahoo_finance",
-    "Bio",
-    "sklearn",
-    "scipy",
-    "pydub",
-    "io",
-    "PIL",
-    "chess",
-    "PyPDF2",
-    "pptx",
-    "torch",
-    "datetime",
-    "fractions",
-    "csv",
-]
 load_dotenv(override=True)
 login(os.getenv("HF_TOKEN"))
 
@@ -121,14 +95,14 @@ BROWSER_CONFIG = {
 os.makedirs(f"./{BROWSER_CONFIG['downloads_folder']}", exist_ok=True)
 
 
-def create_agent_hierarchy(model: Model):
+def create_agent_team(model: Model):
     text_limit = 100000
     ti_tool = TextInspectorTool(model, text_limit)
 
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
 
     WEB_TOOLS = [
-        SearchInformationTool(browser),
+        GoogleSearchTool(provider="serper"),
         VisitTool(browser),
         PageUpTool(browser),
         PageDownTool(browser),
@@ -137,6 +111,7 @@ def create_agent_hierarchy(model: Model):
         ArchiveSearchTool(browser),
         TextInspectorTool(model, text_limit),
     ]
+
     text_webbrowser_agent = ToolCallingAgent(
         model=model,
         tools=WEB_TOOLS,
@@ -161,7 +136,7 @@ def create_agent_hierarchy(model: Model):
         tools=[visualizer, ti_tool],
         max_steps=12,
         verbosity_level=2,
-        additional_authorized_imports=AUTHORIZED_IMPORTS,
+        additional_authorized_imports=["*"],
         planning_interval=4,
         managed_agents=[text_webbrowser_agent],
     )
@@ -181,20 +156,17 @@ def answer_single_question(example, model_id, answers_file, visual_inspection_to
     model_params = {
         "model_id": model_id,
         "custom_role_conversions": custom_role_conversions,
-        "max_completion_tokens": 8192,
     }
     if model_id == "o1":
         model_params["reasoning_effort"] = "high"
+        model_params["max_completion_tokens"] = 8192
+    else:
+        model_params["max_tokens"] = 4096
     model = LiteLLMModel(**model_params)
-    # model = HfApiModel(model_id="Qwen/Qwen2.5-72B-Instruct", provider="together")
-    #     "https://lnxyuvj02bpe6mam.us-east-1.aws.endpoints.huggingface.cloud",
-    #     custom_role_conversions=custom_role_conversions,
-    #     # provider="sambanova",
-    #     max_tokens=8096,
-    # )
+    # model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=4096)
     document_inspection_tool = TextInspectorTool(model, 100000)
 
-    agent = create_agent_hierarchy(model)
+    agent = create_agent_team(model)
 
     augmented_question = """You have one question to answer. It is paramount that you provide a correct answer.
 Give it all you can: I know for a fact that you have access to all the relevant tools to solve it and find the correct answer (the answer does exist). Failure or 'I cannot answer' or 'None found' will not be tolerated, success will be rewarded.
@@ -220,14 +192,14 @@ Here is the task:
         # Run agent 🚀
         final_result = agent.run(augmented_question)
 
-        agent_memory = agent.write_memory_to_messages(summary_mode=True)
+        agent_memory = agent.write_memory_to_messages()
 
         final_result = prepare_response(augmented_question, agent_memory, reformulation_model=model)
 
         output = str(final_result)
         for memory_step in agent.memory.steps:
             memory_step.model_input_messages = None
-        intermediate_steps = [str(step) for step in agent.memory.steps]
+        intermediate_steps = agent_memory
 
         # Check for parsing errors which indicate the LLM failed to follow the required format
         parsing_error = True if any(["AgentParsingError" in step for step in intermediate_steps]) else False
@@ -245,6 +217,12 @@ Here is the task:
         exception = e
         raised_exception = True
     end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    token_counts_manager = agent.monitor.get_total_token_counts()
+    token_counts_web = list(agent.managed_agents.values())[0].monitor.get_total_token_counts()
+    total_token_counts = {
+        "input": token_counts_manager["input"] + token_counts_web["input"],
+        "output": token_counts_manager["output"] + token_counts_web["output"],
+    }
     annotated_example = {
         "agent_name": model.model_id,
         "question": example["question"],
@@ -254,11 +232,12 @@ Here is the task:
         "parsing_error": parsing_error,
         "iteration_limit_exceeded": iteration_limit_exceeded,
         "agent_error": str(exception) if raised_exception else None,
-        "start_time": start_time,
-        "end_time": end_time,
         "task": example["task"],
         "task_id": example["task_id"],
         "true_answer": example["true_answer"],
+        "start_time": start_time,
+        "end_time": end_time,
+        "token_counts": total_token_counts,
     }
     append_answer(annotated_example, answers_file)
 

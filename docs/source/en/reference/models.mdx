@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Models
 
 <Tip warning={true}>
@@ -45,7 +30,7 @@ model_id = "meta-llama/Llama-3.3-70B-Instruct"
 client = InferenceClient(model=model_id)
 
 def custom_model(messages, stop_sequences=["Task"]):
-    response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1000)
+    response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1024)
     answer = response.choices[0].message
     return answer
 ```
@@ -72,24 +57,24 @@ print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], st
 
 [[autodoc]] TransformersModel
 
-### HfApiModel
+### InferenceClientModel
 
-The `HfApiModel` wraps huggingface_hub's [InferenceClient](https://huggingface.co/docs/huggingface_hub/main/en/guides/inference) for the execution of the LLM. It supports both HF's own [Inference API](https://huggingface.co/docs/api-inference/index) as well as all [Inference Providers](https://huggingface.co/blog/inference-providers) available on the Hub.
+The `HfApiModel` wraps huggingface_hub's [InferenceClient](https://huggingface.co/docs/huggingface_hub/main/en/guides/inference) for the execution of the LLM. It supports all [Inference Providers](https://huggingface.co/docs/inference-providers/index) available on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
 
 ```python
-from smolagents import HfApiModel
+from smolagents import InferenceClientModel
 
 messages = [
   {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}
 ]
 
-model = HfApiModel()
+model = InferenceClientModel(provider="novita")
 print(model(messages))
 ```
 ```text
 >>> Of course! If you change your mind, feel free to reach out. Take care!
 ```
-[[autodoc]] HfApiModel
+[[autodoc]] InferenceClientModel
 
 ### LiteLLMModel
 
@@ -148,6 +133,24 @@ model = AzureOpenAIServerModel(
 ```
 
 [[autodoc]] AzureOpenAIServerModel
+
+### AmazonBedrockServerModel
+
+`AmazonBedrockServerModel` helps you connect to Amazon Bedrock and run your agent with any available models.
+
+Below is an example setup. This class also offers additional options for customization.
+
+```py
+import os
+
+from smolagents import AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(
+    model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID"),
+)
+```
+
+[[autodoc]] AmazonBedrockServerModel
 
 ### MLXModel
 

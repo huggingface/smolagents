@@ -150,3 +150,6 @@ archive/
 savedir/
 output/
 tool_output/
+
+# Gradio runtime
+.gradio/

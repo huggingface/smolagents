@@ -111,11 +111,11 @@ def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
 Now let's create our web automation agent:
 
 ```python
-from smolagents import HfApiModel
+from smolagents import InferenceClientModel
 
 # Initialize the model
 model_id = "meta-llama/Llama-3.3-70B-Instruct"  # You can change this to your preferred model
-model = HfApiModel(model_id=model_id)
+model = InferenceClientModel(model_id=model_id)
 
 # Create the agent
 agent = CodeAgent(

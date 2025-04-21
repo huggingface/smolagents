@@ -58,6 +58,12 @@ def custom_print(*args):
     return None
 
 
+def nodunder_getattr(obj, name, default=None):
+    if name.startswith("__") and name.endswith("__"):
+        raise InterpreterError(f"Forbidden access to dunder attribute: {name}")
+    return getattr(obj, name, default)
+
+
 BASE_PYTHON_TOOLS = {
     "print": custom_print,
     "isinstance": isinstance,
@@ -105,13 +111,27 @@ BASE_PYTHON_TOOLS = {
     "iter": iter,
     "divmod": divmod,
     "callable": callable,
-    "getattr": getattr,
+    "getattr": nodunder_getattr,
     "hasattr": hasattr,
     "setattr": setattr,
     "issubclass": issubclass,
     "type": type,
     "complex": complex,
 }
+
+# Non-exhaustive list of dangerous modules that should not be imported
+DANGEROUS_MODULES = [
+    "builtins",
+    "io",
+    "multiprocessing",
+    "os",
+    "pathlib",
+    "pty",
+    "shutil",
+    "socket",
+    "subprocess",
+    "sys",
+]
 
 DANGEROUS_FUNCTIONS = [
     "builtins.compile",
@@ -202,6 +222,29 @@ def fix_final_answer_code(code: str) -> str:
     return code
 
 
+def build_import_tree(authorized_imports: List[str]) -> Dict[str, Any]:
+    tree = {}
+    for import_path in authorized_imports:
+        parts = import_path.split(".")
+        current = tree
+        for part in parts:
+            if part not in current:
+                current[part] = {}
+            current = current[part]
+    return tree
+
+
+def check_import_authorized(import_to_check: str, authorized_imports: list[str]) -> bool:
+    current_node = build_import_tree(authorized_imports)
+    for part in import_to_check.split("."):
+        if "*" in current_node:
+            return True
+        if part not in current_node:
+            return False
+        current_node = current_node[part]
+    return True
+
+
 def safer_eval(func: Callable):
     """
     Decorator to make the evaluation of a function safer by checking its return value.
@@ -222,22 +265,21 @@ def safer_eval(func: Callable):
         authorized_imports=BASE_BUILTIN_MODULES,
     ):
         result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
-        if "*" not in authorized_imports:
-            if isinstance(result, ModuleType):
-                if result.__name__ not in authorized_imports:
-                    raise InterpreterError(f"Forbidden access to module: {result.__name__}")
-            elif isinstance(result, dict) and result.get("__spec__"):
-                if result["__name__"] not in authorized_imports:
-                    raise InterpreterError(f"Forbidden access to module: {result['__name__']}")
-            elif isinstance(result, (FunctionType, BuiltinFunctionType)):
-                for qualified_function_name in DANGEROUS_FUNCTIONS:
-                    module_name, function_name = qualified_function_name.rsplit(".", 1)
-                    if (
-                        function_name not in static_tools
-                        and result.__name__ == function_name
-                        and result.__module__ == module_name
-                    ):
-                        raise InterpreterError(f"Forbidden access to function: {function_name}")
+        if isinstance(result, ModuleType):
+            if not check_import_authorized(result.__name__, authorized_imports):
+                raise InterpreterError(f"Forbidden access to module: {result.__name__}")
+        elif isinstance(result, dict) and result.get("__spec__"):
+            if not check_import_authorized(result["__name__"], authorized_imports):
+                raise InterpreterError(f"Forbidden access to module: {result['__name__']}")
+        elif isinstance(result, (FunctionType, BuiltinFunctionType)):
+            for qualified_function_name in DANGEROUS_FUNCTIONS:
+                module_name, function_name = qualified_function_name.rsplit(".", 1)
+                if (
+                    function_name not in static_tools
+                    and result.__name__ == function_name
+                    and result.__module__ == module_name
+                ):
+                    raise InterpreterError(f"Forbidden access to function: {function_name}")
         return result
 
     return _check_return
@@ -432,12 +474,37 @@ def evaluate_class_def(
                         custom_tools,
                         authorized_imports,
                     )
+        elif (
+            isinstance(stmt, ast.Expr)
+            and stmt == class_def.body[0]
+            and isinstance(stmt.value, ast.Constant)
+            and isinstance(stmt.value.value, str)
+        ):
+            # Check if it is a docstring: first statement in class body which is a string literal expression
+            class_dict["__doc__"] = stmt.value.value
         else:
             raise InterpreterError(f"Unsupported statement in class body: {stmt.__class__.__name__}")
 
     new_class = type(class_name, tuple(bases), class_dict)
     state[class_name] = new_class
     return new_class
+
+
+def evaluate_annassign(
+    annassign: ast.AnnAssign,
+    state: Dict[str, Any],
+    static_tools: Dict[str, Callable],
+    custom_tools: Dict[str, Callable],
+    authorized_imports: List[str],
+) -> Any:
+    # If there's a value to assign, evaluate it
+    if annassign.value:
+        value = evaluate_ast(annassign.value, state, static_tools, custom_tools, authorized_imports)
+        # Set the value for the target
+        set_value(annassign.target, value, state, static_tools, custom_tools, authorized_imports)
+        return value
+    # For declarations without values (x: int), just return None
+    return None
 
 
 def evaluate_augassign(
@@ -518,17 +585,18 @@ def evaluate_boolop(
     static_tools: Dict[str, Callable],
     custom_tools: Dict[str, Callable],
     authorized_imports: List[str],
-) -> bool:
-    if isinstance(node.op, ast.And):
-        for value in node.values:
-            if not evaluate_ast(value, state, static_tools, custom_tools, authorized_imports):
-                return False
-        return True
-    elif isinstance(node.op, ast.Or):
-        for value in node.values:
-            if evaluate_ast(value, state, static_tools, custom_tools, authorized_imports):
-                return True
-        return False
+) -> Any:
+    # Determine which value should trigger short-circuit based on operation type:
+    # - 'and' returns the first falsy value encountered (or the last value if all are truthy)
+    # - 'or' returns the first truthy value encountered (or the last value if all are falsy)
+    is_short_circuit_value = (lambda x: not x) if isinstance(node.op, ast.And) else (lambda x: bool(x))
+    for value in node.values:
+        result = evaluate_ast(value, state, static_tools, custom_tools, authorized_imports)
+        # Short-circuit: return immediately if the condition is met
+        if is_short_circuit_value(result):
+            return result
+    # If no short-circuit occurred, return the last evaluated value
+    return result
 
 
 def evaluate_binop(
@@ -660,7 +728,7 @@ def evaluate_call(
             func = ERRORS[func_name]
         else:
             raise InterpreterError(
-                f"It is not permitted to evaluate other functions than the provided tools or functions defined/imported in previous code (tried to execute {call.func.id})."
+                f"Forbidden function evaluation: '{call.func.id}' is not among the explicitly allowed tools or defined/imported in the preceding code"
             )
     elif isinstance(call.func, ast.Subscript):
         func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
@@ -1068,20 +1136,10 @@ def get_safe_module(raw_module, authorized_imports, visited=None):
     return safe_module
 
 
-def check_module_authorized(module_name, authorized_imports):
-    if "*" in authorized_imports:
-        return True
-    else:
-        module_path = module_name.split(".")
-        # ["A", "B", "C"] -> ["A", "A.B", "A.B.C"]
-        module_subpaths = [".".join(module_path[:i]) for i in range(1, len(module_path) + 1)]
-        return any(subpath in authorized_imports for subpath in module_subpaths)
-
-
 def evaluate_import(expression, state, authorized_imports):
     if isinstance(expression, ast.Import):
         for alias in expression.names:
-            if check_module_authorized(alias.name, authorized_imports):
+            if check_import_authorized(alias.name, authorized_imports):
                 raw_module = import_module(alias.name)
                 state[alias.asname or alias.name] = get_safe_module(raw_module, authorized_imports)
             else:
@@ -1090,7 +1148,7 @@ def evaluate_import(expression, state, authorized_imports):
                 )
         return None
     elif isinstance(expression, ast.ImportFrom):
-        if check_module_authorized(expression.module, authorized_imports):
+        if check_import_authorized(expression.module, authorized_imports):
             raw_module = __import__(expression.module, fromlist=[alias.name for alias in expression.names])
             module = get_safe_module(raw_module, authorized_imports)
             if expression.names[0].name == "*":  # Handle "from module import *"
@@ -1215,7 +1273,7 @@ def evaluate_ast(
         static_tools (`Dict[str, Callable]`):
             Functions that may be called during the evaluation. Trying to change one of these static_tools will raise an error.
         custom_tools (`Dict[str, Callable]`):
-            Functions that may be called during the evaluation. These static_tools can be overwritten.
+            Functions that may be called during the evaluation. These custom_tools can be overwritten.
         authorized_imports (`List[str]`):
             The list of modules that can be imported by the code. By default, only a few safe modules are allowed.
             If it contains "*", it will authorize any import. Use this at your own risk!
@@ -1230,6 +1288,8 @@ def evaluate_ast(
         # Assignment -> we evaluate the assignment which should update the state
         # We return the variable assigned as it may be used to determine the final result.
         return evaluate_assign(expression, *common_params)
+    elif isinstance(expression, ast.AnnAssign):
+        return evaluate_annassign(expression, *common_params)
     elif isinstance(expression, ast.AugAssign):
         return evaluate_augassign(expression, *common_params)
     elif isinstance(expression, ast.Call):
