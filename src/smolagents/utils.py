@@ -20,11 +20,13 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import keyword
 import os
 import re
 import types
 from functools import lru_cache
 from io import BytesIO
+from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, Dict, Tuple
 
@@ -103,6 +105,18 @@ class AgentMaxStepsError(AgentError):
     pass
 
 
+class AgentToolCallError(AgentExecutionError):
+    """Exception raised for errors when incorrect arguments are passed to the tool"""
+
+    pass
+
+
+class AgentToolExecutionError(AgentExecutionError):
+    """Exception raised for errors when executing a tool"""
+
+    pass
+
+
 class AgentGenerationError(AgentError):
     """Exception raised for errors in generation in the agent"""
 
@@ -143,6 +157,8 @@ def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
         json_data = json_blob[first_accolade_index : last_accolade_index + 1]
         json_data = json.loads(json_data, strict=False)
         return json_data, json_blob[:first_accolade_index]
+    except IndexError:
+        raise ValueError("The model output does not contain any JSON blob.")
     except json.JSONDecodeError as e:
         place = e.pos
         if json_blob[place - 1 : place + 2] == "},\n":
@@ -170,7 +186,7 @@ def parse_code_blobs(text: str) -> str:
     Raises:
         ValueError: If no valid code block is found in the text.
     """
-    pattern = r"```(?:py|python)?\n(.*?)\n```"
+    pattern = r"```(?:py|python)?\s*\n(.*?)\n```"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)
@@ -429,8 +445,12 @@ def make_image_url(base64_image):
     return f"data:image/png;base64,{base64_image}"
 
 
-def make_init_file(folder: str):
+def make_init_file(folder: str | Path):
     os.makedirs(folder, exist_ok=True)
     # Create __init__
     with open(os.path.join(folder, "__init__.py"), "w"):
         pass
+
+
+def is_valid_name(name: str) -> bool:
+    return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False

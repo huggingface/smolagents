@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Agents - 导览
 
 [[open-in-colab]]
@@ -31,7 +16,7 @@ rendered properly in your Markdown viewer.
 
 - `model`，一个为您的 agent 提供动力的文本生成模型 - 因为 agent 与简单的 LLM 不同，它是一个使用 LLM 作为引擎的系统。您可以使用以下任一选项：
     - [`TransformersModel`] 使用预初始化的 `transformers` 管道在本地机器上运行推理
-    - [`HfApiModel`] 在底层使用 `huggingface_hub.InferenceClient`
+    - [`InferenceClientModel`] 在底层使用 `huggingface_hub.InferenceClient`
     - [`LiteLLMModel`] 让您通过 [LiteLLM](https://docs.litellm.ai/) 调用 100+ 不同的模型！
     - [`AzureOpenAIServerModel`] 允许您使用部署在 [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service) 中的 OpenAI 模型。
     - [`MLXModel`] 可创建 [mlx-lm](https://pypi.org/project/mlx-lm/) 流水线，以便在本地机器上运行推理。
@@ -45,14 +30,14 @@ rendered properly in your Markdown viewer.
 
 Hugging Face API 可以免费使用而无需 token，但会有速率限制。
 
-要访问受限模型或使用 PRO 账户提高速率限制，您需要设置环境变量 `HF_TOKEN` 或在初始化 `HfApiModel` 时传递 `token` 变量。
+要访问受限模型或使用 PRO 账户提高速率限制，您需要设置环境变量 `HF_TOKEN` 或在初始化 `InferenceClientModel` 时传递 `token` 变量。
 
 ```python
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 model_id = "meta-llama/Llama-3.3-70B-Instruct"
 
-model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
+model = InferenceClientModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -183,7 +168,7 @@ Python 解释器默认也不允许在安全列表之外导入，所以所有最�
 ```py
 from smolagents import CodeAgent
 
-model = HfApiModel()
+model = InferenceClientModel()
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
@@ -227,7 +212,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 ### 默认工具箱
 
-`smolagents` 附带了一个用于增强 agent 的默认工具箱，您可以在初始化时通过参数 `add_base_tools = True` 将其添加到您的 agent 中：
+`smolagents` 附带了一个用于增强 agent 的默认工具箱，您可以在初始化时通过参数 `add_base_tools=True` 将其添加到您的 agent 中：
 
 - **DuckDuckGo 网页搜索**：使用 DuckDuckGo 浏览器执行网页搜索。
 - **Python 代码解释器**：在安全环境中运行 LLM 生成的 Python 代码。只有在使用 `add_base_tools=True` 初始化 [`ToolCallingAgent`] 时才会添加此工具，因为基于代码的 agent 已经可以原生执行 Python 代码
@@ -319,8 +304,8 @@ class ModelDownloadTool(Tool):
 
 然后您可以直接初始化您的 agent：
 ```py
-from smolagents import CodeAgent, HfApiModel
-agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
@@ -333,7 +318,7 @@ agent.run(
 │ Can you give me the name of the model that has the most downloads in the 'text-to-video' │
 │ task on the Hugging Face Hub?                                                            │
 │                                                                                          │
-╰─ HfApiModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
+╰─ InferenceClientModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Step 0 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ╭─ Executing this code: ───────────────────────────────────────────────────────────────────╮
 │   1 model_name = model_download_tool(task="text-to-video")                               │
@@ -370,9 +355,9 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 以下是一个使用我们的 [`DuckDuckGoSearchTool`] 制作一个管理特定网页搜索 agent 的 agent 的示例：
 
 ```py
-from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ManagedAgent
+from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool, ManagedAgent
 
-model = HfApiModel()
+model = InferenceClientModel()
 
 web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 
@@ -401,14 +386,14 @@ manager_agent.run("Who is the CEO of Hugging Face?")
 from smolagents import (
     load_tool,
     CodeAgent,
-    HfApiModel,
+    InferenceClientModel,
     GradioUI
 )
 
 # 从 Hub 导入工具
 image_generation_tool = load_tool("m-ric/text-to-image")
 
-model = HfApiModel(model_id=model_id)
+model = InferenceClientModel(model_id=model_id)
 
 # 使用图像生成工具初始化 agent
 agent = CodeAgent(tools=[image_generation_tool], model=model)

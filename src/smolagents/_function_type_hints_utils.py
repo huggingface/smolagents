@@ -32,6 +32,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Literal,
     Optional,
     Tuple,
     Union,
@@ -39,8 +40,6 @@ from typing import (
     get_origin,
     get_type_hints,
 )
-
-from huggingface_hub.utils import is_torch_available
 
 
 def get_imports(code: str) -> List[str]:
@@ -219,21 +218,25 @@ def get_json_schema(func: Callable) -> Dict:
 
 
 # Extracts the initial segment of the docstring, containing the function description
-description_re = re.compile(r"^(.*?)[\n\s]*(Args:|Returns:|Raises:|\Z)", re.DOTALL)
+description_re = re.compile(r"^(.*?)(?=\n\s*(Args:|Returns:|Raises:)|\Z)", re.DOTALL)
 # Extracts the Args: block from the docstring
 args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
 # Splits the Args: block into individual arguments
 args_split_re = re.compile(
-    r"""
-(?:^|\n)  # Match the start of the args block, or a newline
-\s*(\w+)\s*(?:\([^)]*\))?:\s*  # Capture the argument name (ignore the type) and strip spacing
-(.*?)\s*  # Capture the argument description, which can span multiple lines, and strip trailing spacing
-(?=\n\s*\w+:|\Z)  # Stop when you hit the next argument or the end of the block
-""",
+    r"(?:^|\n)"  # Match the start of the args block, or a newline
+    r"\s*(\w+)\s*(?:\([^)]*?\))?:\s*"  # Capture the argument name (ignore the type) and strip spacing
+    r"(.*?)\s*"  # Capture the argument description, which can span multiple lines, and strip trailing spacing
+    r"(?=\n\s*\w+\s*(?:\([^)]*?\))?:|\Z)",  # Stop when you hit the next argument (with or without type) or the end of the block
     re.DOTALL | re.VERBOSE,
 )
 # Extracts the Returns: block from the docstring, if present. Note that most chat templates ignore the return type/doc!
-returns_re = re.compile(r"\n\s*Returns:\n\s*(.*?)[\n\s]*(Raises:|\Z)", re.DOTALL)
+returns_re = re.compile(
+    r"\n\s*Returns:\n\s*"
+    r"(?:[^)]*?:\s*)?"  # Ignore the return type if present
+    r"(.*?)"  # Capture the return description
+    r"[\n\s]*(Raises:|\Z)",
+    re.DOTALL,
+)
 
 
 def _parse_google_format_docstring(
@@ -312,20 +315,7 @@ def _parse_type_hint(hint: str) -> Dict:
             )
 
     elif origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
-        # Recurse into each of the subtypes in the Union, except None, which is handled separately at the end
-        subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
-        if len(subtypes) == 1:
-            # A single non-null type can be expressed directly
-            return_dict = subtypes[0]
-        elif all(isinstance(subtype["type"], str) for subtype in subtypes):
-            # A union of basic types can be expressed as a list in the schema
-            return_dict = {"type": sorted([subtype["type"] for subtype in subtypes])}
-        else:
-            # A union of more complex types requires "anyOf"
-            return_dict = {"anyOf": subtypes}
-        if type(None) in args:
-            return_dict["nullable"] = True
-        return return_dict
+        return _parse_union_type(args)
 
     elif origin is list:
         if not args:
@@ -361,7 +351,31 @@ def _parse_type_hint(hint: str) -> Dict:
             out["additionalProperties"] = _parse_type_hint(args[1])
         return out
 
+    elif origin is Literal:
+        literal_types = set(type(arg) for arg in args)
+        final_type = _parse_union_type(literal_types)
+
+        # None literal value is represented by 'nullable' field set by _parse_union_type
+        final_type.update({"enum": [arg for arg in args if arg is not None]})
+        return final_type
+
     raise TypeHintParsingException("Couldn't parse this type hint, likely due to a custom class or object: ", hint)
+
+
+def _parse_union_type(args: tuple[Any, ...]) -> Dict:
+    subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
+    if len(subtypes) == 1:
+        # A single non-null type can be expressed directly
+        return_dict = subtypes[0]
+    elif all(isinstance(subtype["type"], str) for subtype in subtypes):
+        # A union of basic types can be expressed as a list in the schema
+        return_dict = {"type": sorted([subtype["type"] for subtype in subtypes])}
+    else:
+        # A union of more complex types requires "anyOf"
+        return_dict = {"anyOf": subtypes}
+    if type(None) in args:
+        return_dict["nullable"] = True
+    return return_dict
 
 
 _BASE_TYPE_MAPPING = {
@@ -382,9 +396,12 @@ def _get_json_schema_type(param_type: str) -> Dict[str, str]:
 
         if param_type == Image:
             return {"type": "image"}
-    if str(param_type) == "Tensor" and is_torch_available():
-        from torch import Tensor
+    if str(param_type) == "Tensor":
+        try:
+            from torch import Tensor
 
-        if param_type == Tensor:
-            return {"type": "audio"}
+            if param_type == Tensor:
+                return {"type": "audio"}
+        except ModuleNotFoundError:
+            pass
     return {"type": "object"}

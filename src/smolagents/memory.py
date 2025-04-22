@@ -101,6 +101,20 @@ class ActionStep(MemoryStep):
                 )
             )
 
+        if self.observations_images:
+            messages.append(
+                Message(
+                    role=MessageRole.USER,
+                    content=[
+                        {
+                            "type": "image",
+                            "image": image,
+                        }
+                        for image in self.observations_images
+                    ],
+                )
+            )
+
         if self.observations is not None:
             messages.append(
                 Message(
@@ -108,8 +122,7 @@ class ActionStep(MemoryStep):
                     content=[
                         {
                             "type": "text",
-                            "text": (f"Call id: {self.tool_calls[0].id}\n" if self.tool_calls else "")
-                            + f"Observation:\n{self.observations}",
+                            "text": f"Observation:\n{self.observations}",
                         }
                     ],
                 )
@@ -126,20 +139,6 @@ class ActionStep(MemoryStep):
                 Message(role=MessageRole.TOOL_RESPONSE, content=[{"type": "text", "text": message_content}])
             )
 
-        if self.observations_images:
-            messages.append(
-                Message(
-                    role=MessageRole.USER,
-                    content=[{"type": "text", "text": "Here are the observed images:"}]
-                    + [
-                        {
-                            "type": "image",
-                            "image": image,
-                        }
-                        for image in self.observations_images
-                    ],
-                )
-            )
         return messages
 
 
@@ -152,7 +151,11 @@ class PlanningStep(MemoryStep):
     def to_messages(self, summary_mode: bool, **kwargs) -> List[Message]:
         if summary_mode:
             return []
-        return [Message(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.plan.strip()}])]
+        return [
+            Message(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.plan.strip()}]),
+            Message(role=MessageRole.USER, content=[{"type": "text", "text": "Now proceed and carry out this plan."}]),
+            # This second message creates a role change to prevent models models from simply continuing the plan message
+        ]
 
 
 @dataclass
@@ -177,6 +180,11 @@ class SystemPromptStep(MemoryStep):
         if summary_mode:
             return []
         return [Message(role=MessageRole.SYSTEM, content=[{"type": "text", "text": self.system_prompt}])]
+
+
+@dataclass
+class FinalAnswerStep(MemoryStep):
+    final_answer: Any
 
 
 class AgentMemory:

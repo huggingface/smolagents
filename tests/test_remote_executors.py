@@ -1,9 +1,11 @@
+import io
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
 import docker
 import PIL.Image
 import pytest
+from rich.console import Console
 
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.remote_executors import DockerExecutor, E2BExecutor
@@ -35,7 +37,10 @@ class TestE2BExecutorMock:
 
 @pytest.fixture
 def docker_executor():
-    executor = DockerExecutor(additional_imports=["pillow", "numpy"], logger=AgentLogger(level=LogLevel.INFO))
+    executor = DockerExecutor(
+        additional_imports=["pillow", "numpy"],
+        logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
+    )
     yield executor
     executor.delete()
 

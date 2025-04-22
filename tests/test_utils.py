@@ -22,7 +22,7 @@ from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
 from smolagents.tools import tool
-from smolagents.utils import get_source, instance_to_source, parse_code_blobs, parse_json_blob
+from smolagents.utils import get_source, instance_to_source, is_valid_name, parse_code_blobs, parse_json_blob
 
 
 class ValidTool(Tool):
@@ -113,25 +113,14 @@ import numpy as np
         output = parse_code_blobs(code_blob)
         assert output == code_blob
 
+        # Allow whitespaces after header
+        output = parse_code_blobs("```py    \ncode_a\n````")
+        assert output == "code_a"
+
     def test_multiple_code_blobs(self):
-        test_input = """Here's a function that adds numbers:
-```python
-def add(a, b):
-    return a + b
-```
-And here's a function that multiplies them:
-```py
-def multiply(a, b):
-    return a * b
-```"""
-
-        expected_output = """def add(a, b):
-    return a + b
-
-def multiply(a, b):
-    return a * b"""
+        test_input = "```\nFoo\n```\n\n```py\ncode_a\n````\n\n```python\ncode_b\n```"
         result = parse_code_blobs(test_input)
-        assert result == expected_output
+        assert result == "Foo\n\ncode_a\n\ncode_b"
 
 
 @pytest.fixture(scope="function")
@@ -250,7 +239,6 @@ def test_e2e_class_tool_save(tmp_path):
         from tool import TestTool
 
         tool = TestTool()
-
         launch_gradio_demo(tool)
         """
     )
@@ -308,7 +296,6 @@ def test_e2e_ipython_class_tool_save(tmp_path):
         from tool import TestTool
 
         tool = TestTool()
-
         launch_gradio_demo(tool)
         """
     )
@@ -337,7 +324,7 @@ def test_e2e_function_tool_save(tmp_path):
         class SimpleTool(Tool):
             name = "test_tool"
             description = "Test tool description"
-            inputs = {"task":{"type":"string","description":"tool input"}}
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
             output_type = "string"
 
             def forward(self, task: str) -> str:
@@ -359,7 +346,6 @@ def test_e2e_function_tool_save(tmp_path):
         from tool import SimpleTool
 
         tool = SimpleTool()
-
         launch_gradio_demo(tool)
         """
     )
@@ -396,7 +382,7 @@ def test_e2e_ipython_function_tool_save(tmp_path):
         class SimpleTool(Tool):
             name = "test_tool"
             description = "Test tool description"
-            inputs = {"task":{"type":"string","description":"tool input"}}
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
             output_type = "string"
 
             def forward(self, task: str) -> str:
@@ -418,7 +404,6 @@ def test_e2e_ipython_function_tool_save(tmp_path):
         from tool import SimpleTool
 
         tool = SimpleTool()
-
         launch_gradio_demo(tool)
         """
     )
@@ -479,3 +464,34 @@ def test_parse_json_blob_with_valid_json(raw_json, expected_data, expected_blob)
 def test_parse_json_blob_with_invalid_json(raw_json):
     with pytest.raises(Exception):
         parse_json_blob(raw_json)
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Valid identifiers
+        ("valid_name", True),
+        ("ValidName", True),
+        ("valid123", True),
+        ("_private", True),
+        # Invalid identifiers
+        ("", False),
+        ("123invalid", False),
+        ("invalid-name", False),
+        ("invalid name", False),
+        ("invalid.name", False),
+        # Python keywords
+        ("if", False),
+        ("for", False),
+        ("class", False),
+        ("return", False),
+        # Non-string inputs
+        (123, False),
+        (None, False),
+        ([], False),
+        ({}, False),
+    ],
+)
+def test_is_valid_name(name, expected):
+    """Test the is_valid_name function with various inputs."""
+    assert is_valid_name(name) is expected
