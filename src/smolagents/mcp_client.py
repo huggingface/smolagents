@@ -16,7 +16,7 @@
 # limitations under the License.
 
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Optional, Type
 
 from smolagents.tools import Tool
 from smolagents.utils import _is_package_available
@@ -62,7 +62,7 @@ class MCPClient:
 
     def __init__(
         self,
-        server_parameters: Union["StdioServerParameters", dict[str, Any], list[Union["StdioServerParameters", dict[str, Any]]]],
+        server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
     ):
         if not _is_package_available("mcpadapt"):
             raise ModuleNotFoundError(
