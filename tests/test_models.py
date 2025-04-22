@@ -228,10 +228,10 @@ class TestLiteLLMRouter:
         model = LiteLLMRouter(model_id="model-group-1", model_list=model_list, flatten_messages_as_text=False)
         assert not model.flatten_messages_as_text
 
-        model = LiteLLMRouter(model_id="mdoel-group-1", model_list=model_list, flatten_messages_as_text=True)
+        model = LiteLLMRouter(model_id="model-group-1", model_list=model_list, flatten_messages_as_text=True)
         assert model.flatten_messages_as_text
 
-        model = LiteLLMRouter(model_id="mdoel-group-2", model_list=model_list, flatten_messages_as_text=True)
+        model = LiteLLMRouter(model_id="model-group-2", model_list=model_list, flatten_messages_as_text=True)
         assert model.flatten_messages_as_text
 
 
