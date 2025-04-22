@@ -122,7 +122,6 @@ class DuckDuckGoSearchTool(Tool):
         postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
         return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
 
-
 class GoogleSearchTool(Tool):
     name = "web_search"
     description = """Performs a google web search for your query then returns a string of the top search results."""
@@ -357,6 +356,98 @@ class WikipediaSearchTool(Tool):
             return f"Error fetching Wikipedia summary: {str(e)}"
 
 
+class LinkupSearchTool(Tool):
+    """LinkupSearchTool tool.
+
+    LinkupSearchTool performs web search queries using the Linkup API, which includes results from both
+    public and premium web sources. It supports two modes of search depth — standard and deep — allowing
+    for flexible information retrieval depending on the complexity of the query.
+
+    Setup:
+        Make sure your Linkup API key is exported to the environment:
+
+        .. code-block:: bash
+
+            export LINKUP_API_KEY="your-api-key"
+
+        Or just set it as a string
+
+        .. code-block:: python
+
+            LINKUP_API_KEY = "your_api_key"
+
+    Example:
+            import os
+            from smolagents import CodeAgent, InferenceClientModel, LinkupSearchTool
+            linkup_api_key = os.getenv("LINKUP_API_KEY")
+
+            agent = CodeAgent(
+                tools=[LinkupSearchTool(linkup_api_key)],
+                model=InferenceClientModel(),
+            )
+            agent.run("What was Microsoft's revenue last quarter and was it well perceived by the market?")
+
+    Key init args:
+        linkup_api_key: str = None
+            The API key for the Linkup API.
+        depth: Literal["standard", "deep"]
+            The depth of the Linkup search. Can be either "standard", for a straighforward and fast
+            search, or "deep" for a more powerful agentic workflow.
+    """
+
+    name = "search_web"
+    description = "Performs an online search using Linkup search engine and retrieves the top results as a string. This function is useful for accessing real-time information, including news, articles, and other relevant web content."
+    inputs = {
+        "query": {"type": "string", "description": "The search query to perform."},
+        "depth": {
+            "type": "string",
+            "enum": ["standard", "deep"],
+            "description": 'The depth of the search. Can be either "standard" for a straightforward and fast search, or "deep" for a more powerful agentic workflow.',
+            "nullable": True,
+        },
+    }
+
+    output_type = "any"
+
+    def __init__(self, linkup_api_key: str):
+        super().__init__()
+        try:
+            from linkup import LinkupClient
+        except ImportError as e:
+            raise ImportError(
+                "You must install package `linkup-sdk` to run this tool: for instance run `pip install linkup-sdk`."
+            ) from e
+
+        if linkup_api_key is None:
+            raise ValueError(
+                f"Missing API key. Make sure you have '{"LINKUP_API_KEY"}' in your env variables or you have passed it properly."
+            )
+
+        self.client = LinkupClient(api_key=linkup_api_key)
+
+    def forward(self, query: str, depth: str = "standard") -> Any:
+
+        if depth not in {"standard", "deep"}:
+            raise ValueError(f"Invalid depth: {depth}. Must be 'standard' or 'deep'.")
+
+        try:
+            response = self.client.search(
+                query=query,
+                depth=depth,
+                output_type = "searchResults"
+            )
+
+            results = getattr(response, "results", [{"content": "No answer provided."}])
+
+        except Exception as e:
+            return f"Error occurred during Linkup search: {str(e)}"
+
+        formatted = "\n".join(
+            f"{i}. **{doc.name or 'Untitled'}**\n URL: {doc.url or 'N/A'}\n {doc.content or ''}"
+            for i, doc in enumerate(results, start=1)
+        )
+        return f"**Search Results:**\n\n{formatted}"
+
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
@@ -409,5 +500,6 @@ __all__ = [
     "GoogleSearchTool",
     "VisitWebpageTool",
     "WikipediaSearchTool",
+    "LinkupSearchTool",
     "SpeechToTextTool",
 ]

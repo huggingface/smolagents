@@ -16,9 +16,12 @@ import unittest
 
 import pytest
 
+import os
+
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
     DuckDuckGoSearchTool,
+    LinkupSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
     VisitWebpageTool,
@@ -122,3 +125,23 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+@pytest.mark.parametrize(
+    "depth, query",
+    [
+        ("standard", "What is Linkup, the new French AI startup?"),
+        ("deep", "How is the EU responding to climate change in 2024?"),
+    ],
+)
+def test_linkup_search_tool(depth, query):
+    linkup_api_key = os.getenv("LINKUP_API_KEY")
+    if not linkup_api_key:
+        pytest.skip("LINKUP_API_KEY not set in environment variables")
+
+    tool = LinkupSearchTool(linkup_api_key=linkup_api_key)
+    result = tool.forward(query=query, depth=depth)
+    assert isinstance(result, str), "Output should be a string"
+    assert "Search Results" in result or "No answer provided." in result, (
+        "Result should contain header or fallback message"
+    )
