@@ -1497,7 +1497,7 @@ class LocalPythonExecutor(PythonExecutor):
         max_print_outputs_length: Optional[int] = None,
     ):
         self.custom_tools = {}
-        self.state = {}
+        self.state = {"__name__": "__main__"}
         self.max_print_outputs_length = max_print_outputs_length
         if max_print_outputs_length is None:
             self.max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT
