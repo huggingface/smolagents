@@ -962,7 +962,7 @@ class LiteLLMModel(ApiModel):
         )
         return self.postprocess_message(first_message, tools_to_call_from)
 
-class LiteLLMRouter(ApiModel):
+class LiteLLMRouter(LiteLLMModel):
     """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
 
     Parameters:
@@ -1037,52 +1037,25 @@ class LiteLLMRouter(ApiModel):
             model_id = "anthropic/claude-3-5-sonnet-20240620"
         self.model_id = model_id
         self.custom_role_conversions = custom_role_conversions
+        self._model_list = model_list
+        self._router_kwargs = router_kwargs
         flatten_messages_as_text = (
             flatten_messages_as_text
             if flatten_messages_as_text is not None
             else self.model_id.startswith(("ollama", "groq", "cerebras"))
         )
-        self.create_client(model_list, router_kwargs)
-        super().__init__(flatten_messages_as_text=flatten_messages_as_text, **kwargs)
+        super().__init__(model_id=model_id, flatten_messages_as_text=flatten_messages_as_text, **kwargs)
 
-    def create_client(self, model_list: List[Dict[Any, Any]], router_kwargs: Optional[Dict[Any, Any]] = None):
+    def create_client(self):
         try:
             from litellm import Router
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "Please install 'litellm' extra to use LiteLLMModel: `pip install 'smolagents[litellm]'`"
             )
-        router_kwargs = router_kwargs or {}
-        self.router: Router = Router(model_list=model_list, **router_kwargs)
-
-    def __call__(
-        self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
-        grammar: Optional[str] = None,
-        tools_to_call_from: Optional[List[Tool]] = None,
-        **kwargs,
-    ) -> ChatMessage:
-        completion_kwargs = self._prepare_completion_kwargs(
-            messages=messages,
-            stop_sequences=stop_sequences,
-            grammar=grammar,
-            tools_to_call_from=tools_to_call_from,
-            model=self.model_id,
-            convert_images_to_image_urls=True,
-            custom_role_conversions=self.custom_role_conversions,
-            **kwargs,
-        )
-
-        response = self.router.completion(**completion_kwargs)
-
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
-        first_message = ChatMessage.from_dict(
-            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
-            raw=response,
-        )
-        return self.postprocess_message(first_message, tools_to_call_from)
+        router_kwargs = self._router_kwargs or {}
+        router: Router = Router(model_list=self._model_list, **router_kwargs)
+        return router
 
 
 class InferenceClientModel(ApiModel):
