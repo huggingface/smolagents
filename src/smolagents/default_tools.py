@@ -122,6 +122,7 @@ class DuckDuckGoSearchTool(Tool):
         postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
         return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
 
+
 class GoogleSearchTool(Tool):
     name = "web_search"
     description = """Performs a google web search for your query then returns a string of the top search results."""
@@ -447,6 +448,7 @@ class LinkupSearchTool(Tool):
             for i, doc in enumerate(results, start=1)
         )
         return f"**Search Results:**\n\n{formatted}"
+
 
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
