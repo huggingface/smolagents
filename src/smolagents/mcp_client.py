@@ -21,7 +21,6 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional, Type
 
 from smolagents.tools import Tool
-from smolagents.utils import _is_package_available
 
 
 __all__ = ["MCPClient"]
@@ -66,18 +65,14 @@ class MCPClient:
         self,
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
     ):
-        if not _is_package_available("mcpadapt"):
-            raise ModuleNotFoundError(
-                "MCPClient needs optional dependencies to be installed, run `pip install smolagents[mcp]`"
-            )
         super().__init__()
-
-        from mcpadapt.core import MCPAdapt
-        from mcpadapt.smolagents_adapter import SmolAgentsAdapter
-
+        try:
+            from mcpadapt.core import MCPAdapt
+            from mcpadapt.smolagents_adapter import SmolAgentsAdapter
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError("Please install 'mcp' extra to use MCPClient: `pip install 'smolagents[mcp]'`")
         self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter())
         self._tools: list[Tool] | None = None
-
         self.connect()
 
     def connect(self):
