@@ -962,6 +962,7 @@ class LiteLLMModel(ApiModel):
         )
         return self.postprocess_message(first_message, tools_to_call_from)
 
+
 class LiteLLMRouter(LiteLLMModel):
     """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
 
@@ -1044,9 +1045,9 @@ class LiteLLMRouter(LiteLLMModel):
         )
         super().__init__(
             model_id=model_id,
-            flatten_messages_as_text=flatten_messages_as_text, 
-            client=self.create_client(model_list, router_kwargs), 
-            **kwargs
+            flatten_messages_as_text=flatten_messages_as_text,
+            client=self.create_client(model_list, router_kwargs),
+            **kwargs,
         )
 
     def create_client(self, model_list, router_kwargs):
