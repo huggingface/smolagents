@@ -408,7 +408,7 @@ class LinkupSearchTool(Tool):
         },
     }
 
-    output_type = "any"
+    output_type = "string"
 
     def __init__(self, linkup_api_key: str):
         super().__init__()
@@ -426,7 +426,7 @@ class LinkupSearchTool(Tool):
 
         self.client = LinkupClient(api_key=linkup_api_key)
 
-    def forward(self, query: str, depth: str = "standard") -> Any:
+    def forward(self, query: str, depth: str) -> Any:
 
         if depth not in {"standard", "deep"}:
             raise ValueError(f"Invalid depth: {depth}. Must be 'standard' or 'deep'.")
