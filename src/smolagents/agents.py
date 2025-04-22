@@ -62,6 +62,7 @@ from .utils import (
     AgentExecutionError,
     AgentGenerationError,
     AgentMaxStepsError,
+    AgentNoMoreToolCallError,
     AgentParsingError,
     AgentToolCallError,
     AgentToolExecutionError,
@@ -363,6 +364,10 @@ You have been provided with these additional arguments, that you can access usin
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
                 raise e
+            except AgentNoMoreToolCallError as e:
+                # No more tool calls are available, so we should stop iteration and provide final answer.
+                action_step.error = e
+                final_answer = self.provide_final_answer(task, images)
             except AgentError as e:
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
                 action_step.error = e
@@ -1027,7 +1032,7 @@ class ToolCallingAgent(MultiStepAgent):
         )
 
         if model_message.tool_calls is None or len(model_message.tool_calls) == 0:
-            raise AgentParsingError(
+            raise AgentNoMoreToolCallError(
                 "Model did not call any tools. Call `final_answer` tool to return a final answer.", self.logger
             )
 
