@@ -1682,6 +1682,10 @@ def test_check_import_authorized(module: str, authorized_imports: list[str], exp
 
 
 class TestLocalPythonExecutor:
+    def test_state_name(self):
+        executor = LocalPythonExecutor(additional_authorized_imports=[])
+        assert executor.state.get("__name__") == "__main__"
+
     @pytest.mark.parametrize(
         "code",
         [
