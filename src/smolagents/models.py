@@ -1054,7 +1054,7 @@ class LiteLLMRouterModel(LiteLLMModel):
             from litellm import Router
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
-                "Please install 'litellm' extra to use LiteLLMRouter: `pip install 'smolagents[litellm]'`"
+                "Please install 'litellm' extra to use LiteLLMRouterModel: `pip install 'smolagents[litellm]'`"
             )
         router_kwargs = router_kwargs or {}
         router: Router = Router(model_list=model_list, **router_kwargs)
