@@ -236,6 +236,22 @@ class TestLiteLLMRouterModel:
         model = LiteLLMRouterModel(model_id=model_id, model_list=model_list, flatten_messages_as_text=expected)
         assert model.flatten_messages_as_text is expected
 
+    def test_create_client(self):
+        model_list = [
+            {"model_name": "llama-3.3-70b", "litellm_params": {"model": "groq/llama-3.3-70b"}},
+            {"model_name": "llama-3.3-70b", "litellm_params": {"model": "cerebras/llama-3.3-70b"}},
+        ]
+        with patch("litellm.Router") as mock_router:
+            router_model = LiteLLMRouterModel(
+                model_id="model-group-1", model_list=model_list, router_kwargs={"routing_strategy": "simple-shuffle"}
+            )
+            # Ensure that the Router constructor was called with the expected keyword arguments
+            mock_router.assert_called_once()
+            assert mock_router.call_count == 1
+            assert mock_router.call_args.kwargs["model_list"] == model_list
+            assert mock_router.call_args.kwargs["routing_strategy"] == "simple-shuffle"
+            assert router_model.client == mock_router.return_value
+
 
 class TestOpenAIServerModel:
     def test_client_kwargs_passed_correctly(self):
