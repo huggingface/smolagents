@@ -40,7 +40,7 @@ llm_loadbalancer_model_list = [
 model = LiteLLMRouterModel(
     model_id="model-group-1",
     model_list=llm_loadbalancer_model_list,
-    router_kwargs={"routing_strategy": "simple-shuffle"},
+    client_kwargs={"routing_strategy": "simple-shuffle"},
 )
 agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 

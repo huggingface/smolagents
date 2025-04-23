@@ -977,7 +977,7 @@ class LiteLLMRouterModel(LiteLLMModel):
             Model configurations to be used for routing.
             Each configuration should include the model group name and any necessary parameters.
             For more details, refer to the [LiteLLM Routing](https://docs.litellm.ai/docs/routing#quick-start) documentation.
-        router_kwargs (`dict[str, Any]`, *optional*):
+        client_kwargs (`dict[str, Any]`, *optional*):
             Additional configuration parameters for the Router client. For more details, see the
             [LiteLLM Routing Configurations](https://docs.litellm.ai/docs/routing).
         custom_role_conversions (`dict[str, str]`, *optional*):
@@ -1017,7 +1017,7 @@ class LiteLLMRouterModel(LiteLLMModel):
     >>> model = LiteLLMRouterModel(
     ...    model_id="model-group-1",
     ...    model_list=llm_loadbalancer_model_list,
-    ...    router_kwargs={
+    ...    client_kwargs={
     ...        "routing_strategy":"simple-shuffle"
     ...    }
     >>> )
@@ -1030,14 +1030,14 @@ class LiteLLMRouterModel(LiteLLMModel):
         self,
         model_id: str,
         model_list: list[dict[str, Any]],
-        router_kwargs: Optional[dict[str, Any]] = None,
+        client_kwargs: Optional[dict[str, Any]] = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         flatten_messages_as_text: bool | None = None,
         **kwargs,
     ):
         self.client_kwargs = {
             "model_list": model_list,
-            **(router_kwargs or {}),
+            **(client_kwargs or {}),
         }
         super().__init__(
             model_id=model_id,

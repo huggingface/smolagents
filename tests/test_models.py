@@ -243,7 +243,7 @@ class TestLiteLLMRouterModel:
         ]
         with patch("litellm.Router") as mock_router:
             router_model = LiteLLMRouterModel(
-                model_id="model-group-1", model_list=model_list, router_kwargs={"routing_strategy": "simple-shuffle"}
+                model_id="model-group-1", model_list=model_list, client_kwargs={"routing_strategy": "simple-shuffle"}
             )
             # Ensure that the Router constructor was called with the expected keyword arguments
             mock_router.assert_called_once()
