@@ -94,6 +94,40 @@ print(model(messages))
 
 [[autodoc]] LiteLLMModel
 
+### LiteLLMRouterModel
+
+The `LiteLLMRouterModel` is a wrapper around the [LiteLLM Router](https://docs.litellm.ai/docs/routing) that leverages
+advanced routing strategies: load-balancing across multiple deployments, prioritizing critical requests via queueing,
+and implementing basic reliability measures such as cooldowns, fallbacks, and exponential backoff retries.
+
+```python
+from smolagents import LiteLLMRouterModel
+
+messages = [
+  {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}
+]
+
+model = LiteLLMRouterModel(
+    model_id="llama-3.3-70b",
+    model_list=[
+        {
+            "model_name": "llama-3.3-70b",
+            "litellm_params": {"model": "groq/llama-3.3-70b", "api_key": os.getenv("GROQ_API_KEY")},
+        },
+        {
+            "model_name": "llama-3.3-70b",
+            "litellm_params": {"model": "cerebras/llama-3.3-70b", "api_key": os.getenv("CEREBRAS_API_KEY")},
+        },
+    ],
+    client_kwargs={
+        "routing_strategy": "simple-shuffle",
+    },
+)
+print(model(messages))
+```
+
+[[autodoc]] LiteLLMRouterModel
+
 ### OpenAIServerModel
 
 This class lets you call any OpenAIServer compatible model.
