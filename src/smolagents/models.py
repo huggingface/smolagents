@@ -969,9 +969,9 @@ class LiteLLMRouter(LiteLLMModel):
     Parameters:
         model_id (`str`):
             The model group identifier to use from the model list (e.g. "model-group-1").
-        model_list (`list[dict[Any, Any]]`):
+        model_list (`list[dict[str, Any]]`):
             The models in the pool available. Refer to this document [LiteLLM Routing](https://docs.litellm.ai/docs/routing#quick-start)
-        router_kwargs (`dict[Any, Any]`, *optional*):
+        router_kwargs (`dict[str, Any]`, *optional*):
             Router Configuration. Default None. [LiteLLM Routing Configurations](https://docs.litellm.ai/docs/routing)
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
@@ -1022,8 +1022,8 @@ class LiteLLMRouter(LiteLLMModel):
     def __init__(
         self,
         model_id: str,
-        model_list: List[Dict[Any, Any]],
-        router_kwargs: Optional[Dict[Any, Any]] = None,
+        model_list: list[dict[str, Any]],
+        router_kwargs: Optional[dict[str, Any]] = None,
         custom_role_conversions: Optional[Dict[str, str]] = None,
         flatten_messages_as_text: bool | None = None,
         **kwargs,
