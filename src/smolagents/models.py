@@ -964,15 +964,22 @@ class LiteLLMModel(ApiModel):
 
 
 class LiteLLMRouterModel(LiteLLMModel):
-    """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
+    """Router‑based client for interacting with the [LiteLLM Python SDK Router](https://docs.litellm.ai/docs/routing).
+
+    This class provides a high-level interface for distributing requests among multiple language models using
+    the LiteLLM SDK's routing capabilities. It is responsible for initializing and configuring the router client,
+    applying custom role conversions, and managing message formatting to ensure seamless integration with various LLMs.
 
     Parameters:
         model_id (`str`):
-            The model group identifier to use from the model list (e.g. "model-group-1").
+            Identifier for the model group to use from the model list (e.g., "model-group-1").
         model_list (`list[dict[str, Any]]`):
-            The models in the pool available. Refer to this document [LiteLLM Routing](https://docs.litellm.ai/docs/routing#quick-start)
+            Model configurations to be used for routing.
+            Each configuration should include the model group name and any necessary parameters.
+            For more details, refer to the [LiteLLM Routing](https://docs.litellm.ai/docs/routing#quick-start) documentation.
         router_kwargs (`dict[str, Any]`, *optional*):
-            Router Configuration. Default None. [LiteLLM Routing Configurations](https://docs.litellm.ai/docs/routing)
+            Additional configuration parameters for the Router client. For more details, see the
+            [LiteLLM Routing Configurations](https://docs.litellm.ai/docs/routing).
         custom_role_conversions (`dict[str, str]`, *optional*):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
