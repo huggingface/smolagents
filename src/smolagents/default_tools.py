@@ -404,7 +404,6 @@ class LinkupSearchTool(Tool):
             "type": "string",
             "enum": ["standard", "deep"],
             "description": 'The depth of the search. Can be either "standard" for a straightforward and fast search, or "deep" for a more powerful agentic workflow.',
-            "nullable": True,
         },
     }
 
@@ -421,7 +420,7 @@ class LinkupSearchTool(Tool):
 
         if linkup_api_key is None:
             raise ValueError(
-                f"Missing API key. Make sure you have '{"LINKUP_API_KEY"}' in your env variables or you have passed it properly."
+                "Missing API key. Make sure you have 'LINKUP_API_KEY' in your env variables or you have passed it properly."
             )
 
         self.client = LinkupClient(api_key=linkup_api_key)
