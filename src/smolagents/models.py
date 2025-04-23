@@ -979,7 +979,7 @@ class LiteLLMRouter(LiteLLMModel):
         flatten_messages_as_text (`bool`, *optional*): Whether to flatten messages as text.
             Defaults to `True` for models that start with "ollama", "groq", "cerebras".
         **kwargs:
-            Additional keyword arguments to pass to the OpenAI API.
+            Additional keyword arguments to pass to the OpenAI Router completion method.
 
     Example:
     ```python
