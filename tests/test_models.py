@@ -222,16 +222,16 @@ class TestLiteLLMRouterModel:
     @pytest.mark.parametrize(
         "model_id, expected",
         [
-            ("model-group-1", False),
-            ("model-group-1", True),
-            ("model-group-2", True),
+            ("llama-3.3-70b", False),
+            ("llama-3.3-70b", True),
+            ("mistral-tiny", True),
         ],
     )
     def test_flatten_messages_as_text(self, model_id, expected):
         model_list = [
-            {"model_name": "model-group-1", "litellm_params": {"model": "groq/llama-3.3-70b"}},
-            {"model_name": "model-group-1", "litellm_params": {"model": "cerebras/llama-3.3-70b"}},
-            {"model_name": "model-group-2", "litellm_params": {"model": "mistral/mistral-tiny"}},
+            {"model_name": "llama-3.3-70b", "litellm_params": {"model": "groq/llama-3.3-70b"}},
+            {"model_name": "llama-3.3-70b", "litellm_params": {"model": "cerebras/llama-3.3-70b"}},
+            {"model_name": "mistral-tiny", "litellm_params": {"model": "mistral/mistral-tiny"}},
         ]
         model = LiteLLMRouterModel(model_id=model_id, model_list=model_list, flatten_messages_as_text=expected)
         assert model.flatten_messages_as_text is expected
