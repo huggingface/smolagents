@@ -969,7 +969,7 @@ class LiteLLMRouter(LiteLLMModel):
     Parameters:
         model_id (`str`):
             The model group identifier to use from the model list (e.g. "model-group-1").
-        model_list (`list[dict[Any, Any]]`)
+        model_list (`list[dict[Any, Any]]`):
             The models in the pool available. Refer to this document [LiteLLM Routing](https://docs.litellm.ai/docs/routing#quick-start)
         router_kwargs (`dict[Any, Any]`, *optional*):
             Router Configuration. Default None. [LiteLLM Routing Configurations](https://docs.litellm.ai/docs/routing)
