@@ -219,20 +219,22 @@ class TestLiteLLMModel:
 
 
 class TestLiteLLMRouter:
-    def test_passing_flatten_messages(self):
+    @pytest.mark.parametrize(
+        "model_id, expected",
+        [
+            ("model-group-1", False),
+            ("model-group-1", True),
+            ("model-group-2", True),
+        ],
+    )
+    def test_flatten_messages_as_text(self, model_id, expected):
         model_list = [
             {"model_name": "model-group-1", "litellm_params": {"model": "groq/llama-3.3-70b"}},
             {"model_name": "model-group-1", "litellm_params": {"model": "cerebras/llama-3.3-70b"}},
             {"model_name": "model-group-2", "litellm_params": {"model": "mistral/mistral-tiny"}},
         ]
-        model = LiteLLMRouter(model_id="model-group-1", model_list=model_list, flatten_messages_as_text=False)
-        assert not model.flatten_messages_as_text
-
-        model = LiteLLMRouter(model_id="model-group-1", model_list=model_list, flatten_messages_as_text=True)
-        assert model.flatten_messages_as_text
-
-        model = LiteLLMRouter(model_id="model-group-2", model_list=model_list, flatten_messages_as_text=True)
-        assert model.flatten_messages_as_text
+        model = LiteLLMRouter(model_id=model_id, model_list=model_list, flatten_messages_as_text=expected)
+        assert model.flatten_messages_as_text is expected
 
 
 class TestOpenAIServerModel:
