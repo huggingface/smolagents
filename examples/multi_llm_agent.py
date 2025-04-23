@@ -1,6 +1,6 @@
 import os
 
-from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouter
+from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouterModel
 
 
 os.environ["OPENAI_API_KEY"] = ""
@@ -37,7 +37,7 @@ llm_loadbalancer_model_list = [
 ]
 
 
-model = LiteLLMRouter(
+model = LiteLLMRouterModel(
     model_id="model-group-1",
     model_list=llm_loadbalancer_model_list,
     router_kwargs={"routing_strategy": "simple-shuffle"},

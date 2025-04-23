@@ -30,7 +30,7 @@ from smolagents.models import (
     HfApiModel,
     InferenceClientModel,
     LiteLLMModel,
-    LiteLLMRouter,
+    LiteLLMRouterModel,
     MessageRole,
     MLXModel,
     OpenAIServerModel,
@@ -218,7 +218,7 @@ class TestLiteLLMModel:
         assert model.flatten_messages_as_text
 
 
-class TestLiteLLMRouter:
+class TestLiteLLMRouterModel:
     @pytest.mark.parametrize(
         "model_id, expected",
         [
@@ -233,7 +233,7 @@ class TestLiteLLMRouter:
             {"model_name": "model-group-1", "litellm_params": {"model": "cerebras/llama-3.3-70b"}},
             {"model_name": "model-group-2", "litellm_params": {"model": "mistral/mistral-tiny"}},
         ]
-        model = LiteLLMRouter(model_id=model_id, model_list=model_list, flatten_messages_as_text=expected)
+        model = LiteLLMRouterModel(model_id=model_id, model_list=model_list, flatten_messages_as_text=expected)
         assert model.flatten_messages_as_text is expected
 
 

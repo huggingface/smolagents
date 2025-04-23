@@ -963,7 +963,7 @@ class LiteLLMModel(ApiModel):
         return self.postprocess_message(first_message, tools_to_call_from)
 
 
-class LiteLLMRouter(LiteLLMModel):
+class LiteLLMRouterModel(LiteLLMModel):
     """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
 
     Parameters:
@@ -984,7 +984,7 @@ class LiteLLMRouter(LiteLLMModel):
     Example:
     ```python
     >>> import os
-    >>> from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouter
+    >>> from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouterModel
     >>> os.environ["OPENAI_API_KEY"] = ""
     >>> os.environ["AWS_ACCESS_KEY_ID"] = ""
     >>> os.environ["AWS_SECRET_ACCESS_KEY"] = ""
@@ -1007,7 +1007,7 @@ class LiteLLMRouter(LiteLLMModel):
     ...         },
     ...     },
     >>> ]
-    >>> model = LiteLLMRouter(
+    >>> model = LiteLLMRouterModel(
     ...    model_id="model-group-1",
     ...    model_list=llm_loadbalancer_model_list,
     ...    router_kwargs={
@@ -1503,7 +1503,7 @@ __all__ = [
     "InferenceClientModel",
     "HfApiModel",
     "LiteLLMModel",
-    "LiteLLMRouter",
+    "LiteLLMRouterModel",
     "OpenAIServerModel",
     "VLLMModel",
     "AzureOpenAIServerModel",
