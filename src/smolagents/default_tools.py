@@ -383,13 +383,13 @@ class LinkupSearchTool(Tool):
             linkup_api_key = os.getenv("LINKUP_API_KEY")
 
             agent = CodeAgent(
-                tools=[LinkupSearchTool(linkup_api_key)],
+                tools=[LinkupSearchTool(linkup_api_key=linkup_api_key)],
                 model=InferenceClientModel(),
             )
-            agent.run("What was Microsoft's revenue last quarter and was it well perceived by the market?")
+            agent.run(query="What was Microsoft's revenue last quarter and was it well perceived by the market?", depth="deep")
 
     Key init args:
-        linkup_api_key: str = None
+        linkup_api_key: str
             The API key for the Linkup API.
         depth: Literal["standard", "deep"]
             The depth of the Linkup search. Can be either "standard", for a straighforward and fast
@@ -425,7 +425,7 @@ class LinkupSearchTool(Tool):
 
         self.client = LinkupClient(api_key=linkup_api_key)
 
-    def forward(self, query: str, depth: str) -> Any:
+    def forward(self, query: str, depth: str) -> str:
 
         if depth not in {"standard", "deep"}:
             raise ValueError(f"Invalid depth: {depth}. Must be 'standard' or 'deep'.")
