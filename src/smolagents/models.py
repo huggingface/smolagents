@@ -1035,30 +1035,25 @@ class LiteLLMRouterModel(LiteLLMModel):
         flatten_messages_as_text: bool | None = None,
         **kwargs,
     ):
-        self.model_id = model_id
-        self.custom_role_conversions = custom_role_conversions
-        flatten_messages_as_text = (
-            flatten_messages_as_text
-            if flatten_messages_as_text is not None
-            else self.model_id.startswith(("ollama", "groq", "cerebras"))
-        )
+        self.client_kwargs = {
+            "model_list": model_list,
+            **(router_kwargs or {}),
+        }
         super().__init__(
             model_id=model_id,
+            custom_role_conversions=custom_role_conversions,
             flatten_messages_as_text=flatten_messages_as_text,
-            client=self.create_client(model_list, router_kwargs),
             **kwargs,
         )
 
-    def create_client(self, model_list, router_kwargs):
+    def create_client(self):
         try:
             from litellm import Router
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as e:
             raise ModuleNotFoundError(
                 "Please install 'litellm' extra to use LiteLLMRouterModel: `pip install 'smolagents[litellm]'`"
-            )
-        router_kwargs = router_kwargs or {}
-        router: Router = Router(model_list=model_list, **router_kwargs)
-        return router
+            ) from e
+        return Router(**self.client_kwargs)
 
 
 class InferenceClientModel(ApiModel):
