@@ -73,7 +73,6 @@ from .utils import (
     AgentParsingError,
     AgentToolCallError,
     AgentToolExecutionError,
-    has_implemented_method,
     is_valid_name,
     make_init_file,
     parse_code_blobs,
@@ -1227,8 +1226,7 @@ class CodeAgent(MultiStepAgent):
             **kwargs,
         )
         self.stream_outputs = stream_outputs
-        can_stream = has_implemented_method(self.model, Model, "generate_stream")
-        if self.stream_outputs and not can_stream:
+        if self.stream_outputs and not hasattr(self.model, "generate_stream"):
             raise ValueError(
                 "`stream_outputs` is set to True, but the model class implements no `generate_stream` method."
             )
