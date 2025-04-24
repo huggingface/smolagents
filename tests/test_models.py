@@ -207,6 +207,14 @@ class TestInferenceClientModel:
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
+    @require_run_all
+    def test_generate_stream_error(self):
+        # Setting max_tokens to 5 to get finish_reason='length'
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=5)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        with pytest.raises(ValueError, match="No content or tool calls in event:"):
+            list(model.generate_stream(messages))
+
 
 class TestHfApiModel:
     def test_init_model_with_tokens(self):
