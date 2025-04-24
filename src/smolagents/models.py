@@ -1032,8 +1032,9 @@ class LiteLLMModel(ApiModel):
 
         response = self.client.completion(**completion_kwargs)
 
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
+        if hasattr(response, 'usage'):
+            self.last_input_token_count = response.usage.prompt_tokens if hasattr(response.usage, 'prompt_tokens') else 0
+            self.last_output_token_count = response.usage.completion_tokens if hasattr(response.usage, 'completion_tokens') else 0
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
@@ -1271,8 +1272,9 @@ class InferenceClientModel(ApiModel):
         )
         response = self.client.chat_completion(**completion_kwargs)
 
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
+        if hasattr(response, 'usage'):
+            self.last_input_token_count = response.usage.prompt_tokens if hasattr(response.usage, 'prompt_tokens') else 0
+            self.last_output_token_count = response.usage.completion_tokens if hasattr(response.usage, 'completion_tokens') else 0
         return ChatMessage.from_dict(asdict(response.choices[0].message), raw=response)
 
     def generate_stream(
@@ -1435,8 +1437,9 @@ class OpenAIServerModel(ApiModel):
             **kwargs,
         )
         response = self.client.chat.completions.create(**completion_kwargs)
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
+        if hasattr(response, 'usage'):
+            self.last_input_token_count = response.usage.prompt_tokens if hasattr(response.usage, 'prompt_tokens') else 0
+            self.last_output_token_count = response.usage.completion_tokens if hasattr(response.usage, 'completion_tokens') else 0
 
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
