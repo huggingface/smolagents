@@ -454,9 +454,3 @@ def make_init_file(folder: str | Path):
 
 def is_valid_name(name: str) -> bool:
     return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False
-
-
-def has_implemented_method(instance, parent_class, method_name: str) -> bool:
-    instance_method = getattr(instance.__class__, method_name, None)
-    parent_method = getattr(parent_class, method_name, None)
-    return instance_method is not parent_method
