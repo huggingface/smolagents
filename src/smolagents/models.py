@@ -393,9 +393,6 @@ class Model:
         """
         raise NotImplementedError("This method must be implemented in child classes")
 
-    def generate_stream(self, *args, **kwargs) -> Generator[CompletionDelta, None, None]:
-        raise NotImplementedError("This method must be implemented in child classes")
-
     def __call__(self, *args, **kwargs):
         return self.generate(*args, **kwargs)
 
