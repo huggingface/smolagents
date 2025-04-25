@@ -139,7 +139,7 @@ def parse_json_if_needed(arguments: str | dict) -> str | dict:
 
 
 @dataclass
-class CompletionDelta:
+class ChatMessageStreamDelta:
     content: str | None = None
     tool_calls: List[ChatMessageToolCall] | None = None
 
@@ -892,7 +892,7 @@ class TransformersModel(Model):
         grammar: str | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
-    ) -> Generator[CompletionDelta]:
+    ) -> Generator[ChatMessageStreamDelta]:
         generation_kwargs = self._prepare_completion_args(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -909,7 +909,7 @@ class TransformersModel(Model):
 
         # Generate with streaming
         for new_text in self.streamer:
-            yield CompletionDelta(content=new_text, tool_calls=None)
+            yield ChatMessageStreamDelta(content=new_text, tool_calls=None)
             self.last_output_token_count += 1
 
         self.last_input_token_count = count_prompt_tokens
@@ -1044,7 +1044,7 @@ class LiteLLMModel(ApiModel):
         grammar: str | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
-    ) -> Generator[CompletionDelta]:
+    ) -> Generator[ChatMessageStreamDelta]:
         if tools_to_call_from:
             raise NotImplementedError("Streaming is not yet supported for tool calling")
         completion_kwargs = self._prepare_completion_kwargs(
@@ -1063,7 +1063,7 @@ class LiteLLMModel(ApiModel):
                     if not getattr(event.choices[0], "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
                 else:
-                    yield CompletionDelta(
+                    yield ChatMessageStreamDelta(
                         content=event.choices[0].delta.content,
                     )
             if getattr(event, "usage", None):
@@ -1280,7 +1280,7 @@ class InferenceClientModel(ApiModel):
         grammar: str | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
-    ) -> Generator[CompletionDelta]:
+    ) -> Generator[ChatMessageStreamDelta]:
         if tools_to_call_from:
             raise NotImplementedError("Streaming is not yet supported for tool calling")
         completion_kwargs = self._prepare_completion_kwargs(
@@ -1301,7 +1301,7 @@ class InferenceClientModel(ApiModel):
                     if not getattr(event.choices[0], "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
                 else:
-                    yield CompletionDelta(
+                    yield ChatMessageStreamDelta(
                         content=event.choices[0].delta.content,
                     )
             if getattr(event, "usage", None):
@@ -1386,7 +1386,7 @@ class OpenAIServerModel(ApiModel):
         grammar: str | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
-    ) -> Generator[CompletionDelta]:
+    ) -> Generator[ChatMessageStreamDelta]:
         if tools_to_call_from:
             raise NotImplementedError("Streaming is not yet supported for tool calling")
         completion_kwargs = self._prepare_completion_kwargs(
@@ -1407,7 +1407,7 @@ class OpenAIServerModel(ApiModel):
                     if not getattr(event.choices[0], "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
                 else:
-                    yield CompletionDelta(
+                    yield ChatMessageStreamDelta(
                         content=event.choices[0].delta.content,
                     )
             if getattr(event, "usage", None):
