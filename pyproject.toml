@@ -93,6 +93,7 @@ test = [
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
   "Wikipedia-API>=0.8.1",
+  "linkup-sdk"
 ]
 dev = [
   "smolagents[quality,test]",
