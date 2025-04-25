@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -28,7 +28,7 @@ from .tools import PipelineTool, Tool
 @dataclass
 class PreTool:
     name: str
-    inputs: Dict[str, str]
+    inputs: dict[str, str]
     output_type: type
     task: str
     description: str
@@ -151,7 +151,7 @@ class GoogleSearchTool(Tool):
         if self.api_key is None:
             raise ValueError(f"Missing API key. Make sure you have '{api_key_env_name}' in your env variables.")
 
-    def forward(self, query: str, filter_year: Optional[int] = None) -> str:
+    def forward(self, query: str, filter_year: int | None = None) -> str:
         import requests
 
         if self.provider == "serpapi":

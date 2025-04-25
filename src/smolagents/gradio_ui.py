@@ -16,7 +16,6 @@
 import os
 import re
 import shutil
-from typing import Optional
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
@@ -169,7 +168,7 @@ def stream_to_gradio(
     task: str,
     task_images: list | None = None,
     reset_agent_memory: bool = False,
-    additional_args: Optional[dict] = None,
+    additional_args: dict | None = None,
 ):
     """Runs an agent with the given task and streams the messages from the agent as gradio ChatMessages."""
     total_input_tokens = 0

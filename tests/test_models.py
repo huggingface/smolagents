@@ -16,7 +16,6 @@ import json
 import sys
 import unittest
 from contextlib import ExitStack
-from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -76,7 +75,7 @@ class TestModel:
 
     def test_get_json_schema_has_nullable_args(self):
         @tool
-        def get_weather(location: str, celsius: Optional[bool] = False) -> str:
+        def get_weather(location: str, celsius: bool | None = False) -> str:
             """
             Get weather in the next days at given location.
             Secretly this tool does not care about the location, it hates the weather everywhere.

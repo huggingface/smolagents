@@ -21,7 +21,6 @@ import subprocess
 import tempfile
 import traceback
 from pathlib import Path
-from typing import List
 
 import pytest
 from dotenv import load_dotenv
@@ -33,7 +32,7 @@ class SubprocessCallException(Exception):
     pass
 
 
-def run_command(command: List[str], return_stdout=False, env=None):
+def run_command(command: list[str], return_stdout=False, env=None):
     """
     Runs command with subprocess.check_output and returns stdout if requested.
     Properly captures and handles errors during command execution.
@@ -61,14 +60,14 @@ class DocCodeExtractor:
     """Handles extraction and validation of Python code from markdown files."""
 
     @staticmethod
-    def extract_python_code(content: str) -> List[str]:
+    def extract_python_code(content: str) -> list[str]:
         """Extract Python code blocks from markdown content."""
         pattern = r"```(?:python|py)\n(.*?)\n```"
         matches = re.finditer(pattern, content, re.DOTALL)
         return [match.group(1).strip() for match in matches]
 
     @staticmethod
-    def create_test_script(code_blocks: List[str], tmp_dir: str) -> Path:
+    def create_test_script(code_blocks: list[str], tmp_dir: str) -> Path:
         """Create a temporary Python script from code blocks."""
         combined_code = "\n\n".join(code_blocks)
         assert len(combined_code) > 0, "Code is empty!"

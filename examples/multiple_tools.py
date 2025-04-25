@@ -1,5 +1,3 @@
-from typing import Optional
-
 import requests
 
 # from smolagents.agents import ToolCallingAgent
@@ -15,7 +13,7 @@ model = InferenceClientModel()
 
 
 @tool
-def get_weather(location: str, celsius: Optional[bool] = False) -> str:
+def get_weather(location: str, celsius: bool | None = False) -> str:
     """
     Get the current weather at the given location using the WeatherStack API.
 

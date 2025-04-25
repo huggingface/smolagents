@@ -6,7 +6,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import List
 
 import datasets
 import pandas as pd
@@ -242,7 +241,7 @@ Here is the task:
     append_answer(annotated_example, answers_file)
 
 
-def get_examples_to_answer(answers_file, eval_ds) -> List[dict]:
+def get_examples_to_answer(answers_file, eval_ds) -> list[dict]:
     print(f"Loading answers from {answers_file}...")
     try:
         done_questions = pd.read_json(answers_file, lines=True)["question"].tolist()

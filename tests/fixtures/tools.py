@@ -1,5 +1,3 @@
-from typing import Optional
-
 import pytest
 
 from smolagents.tools import Tool, tool
@@ -63,7 +61,7 @@ def optional_input_tool_class():
         }
         output_type = "string"
 
-        def forward(self, required_text: str, optional_text: Optional[str] = None) -> str:
+        def forward(self, required_text: str, optional_text: str | None = None) -> str:
             if optional_text:
                 return f"{required_text} + {optional_text}"
             return required_text
@@ -74,7 +72,7 @@ def optional_input_tool_class():
 @pytest.fixture
 def optional_input_tool_function():
     @tool
-    def optional_input_tool(required_text: str, optional_text: Optional[str] = None) -> str:
+    def optional_input_tool(required_text: str, optional_text: str | None = None) -> str:
         """
         A tool with an optional input parameter.
 

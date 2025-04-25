@@ -26,15 +26,11 @@ import inspect
 import json
 import re
 import types
+from collections.abc import Callable
 from copy import copy
 from typing import (
     Any,
-    Callable,
-    Dict,
-    List,
     Literal,
-    Optional,
-    Tuple,
     Union,
     get_args,
     get_origin,
@@ -42,7 +38,7 @@ from typing import (
 )
 
 
-def get_imports(code: str) -> List[str]:
+def get_imports(code: str) -> list[str]:
     """
     Extracts all the libraries (not relative imports) that are imported in a code.
 
@@ -80,7 +76,7 @@ class DocstringParsingException(Exception):
     """Exception raised for errors in parsing docstrings to generate JSON schemas"""
 
 
-def get_json_schema(func: Callable) -> Dict:
+def get_json_schema(func: Callable) -> dict:
     """
     This function generates a JSON schema for a given function, based on its docstring and type hints. This is
     mostly used for passing lists of tools to a chat template. The JSON schema contains the name and description of
@@ -241,7 +237,7 @@ returns_re = re.compile(
 
 def _parse_google_format_docstring(
     docstring: str,
-) -> Tuple[Optional[str], Optional[Dict], Optional[str]]:
+) -> tuple[str | None, dict | None, str | None]:
     """
     Parses a Google-style docstring to extract the function description,
     argument descriptions, and return description.
@@ -274,7 +270,7 @@ def _parse_google_format_docstring(
     return description, args_dict, returns
 
 
-def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hints: bool = True) -> Dict:
+def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hints: bool = True) -> dict:
     type_hints = get_type_hints(func)
     signature = inspect.signature(func)
 
@@ -301,7 +297,7 @@ def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hin
     return schema
 
 
-def _parse_type_hint(hint: str) -> Dict:
+def _parse_type_hint(hint: str) -> dict:
     origin = get_origin(hint)
     args = get_args(hint)
 
@@ -362,7 +358,7 @@ def _parse_type_hint(hint: str) -> Dict:
     raise TypeHintParsingException("Couldn't parse this type hint, likely due to a custom class or object: ", hint)
 
 
-def _parse_union_type(args: tuple[Any, ...]) -> Dict:
+def _parse_union_type(args: tuple[Any, ...]) -> dict:
     subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
     if len(subtypes) == 1:
         # A single non-null type can be expressed directly
@@ -388,7 +384,7 @@ _BASE_TYPE_MAPPING = {
 }
 
 
-def _get_json_schema_type(param_type: str) -> Dict[str, str]:
+def _get_json_schema_type(param_type: str) -> dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
     if str(param_type) == "Image":

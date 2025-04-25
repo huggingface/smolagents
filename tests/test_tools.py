@@ -15,7 +15,7 @@
 import inspect
 import os
 from textwrap import dedent
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal
 from unittest.mock import MagicMock, patch
 
 import mcp
@@ -226,7 +226,7 @@ class TestTool:
             inputs = {"string_input": {"type": "string", "description": "input description"}}
             output_type = "string"
 
-            def __init__(self, url: Optional[str] = "none"):
+            def __init__(self, url: str | None = "none"):
                 super().__init__(self)
                 self.url = url
 
@@ -291,7 +291,7 @@ class TestTool:
                     },
                 }
 
-                def forward(self, location: str, celsius: Optional[bool] = False) -> str:
+                def forward(self, location: str, celsius: bool | None = False) -> str:
                     return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
             GetWeatherTool()
@@ -299,7 +299,7 @@ class TestTool:
 
     def test_tool_from_decorator_optional_args(self):
         @tool
-        def get_weather(location: str, celsius: Optional[bool] = False) -> str:
+        def get_weather(location: str, celsius: bool | None = False) -> str:
             """
             Get weather in the next days at given location.
             Secretly this tool does not care about the location, it hates the weather everywhere.
@@ -329,7 +329,7 @@ class TestTool:
                 }
                 output_type = "string"
 
-                def forward(self, location: str, celsius: Optional[bool] = False) -> str:
+                def forward(self, location: str, celsius: bool | None = False) -> str:
                     return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
             GetWeatherTool()
@@ -407,7 +407,7 @@ class TestTool:
 
     def test_tool_supports_array(self):
         @tool
-        def get_weather(locations: List[str], months: Optional[Tuple[str, str]] = None) -> Dict[str, float]:
+        def get_weather(locations: list[str], months: tuple[str, str] | None = None) -> dict[str, float]:
             """
             Get weather in the next days at given locations.
 
@@ -496,7 +496,7 @@ class TestTool:
         tool = request.getfixturevalue(fixture_name)
         result = tool.to_dict()
         # Check the Optional type annotation is preserved
-        assert "optional_text: Optional[str] = None" in result["code"]
+        assert "optional_text: str | None = None" in result["code"]
         # Check that the input is marked as nullable in the code
         assert "'nullable': True" in result["code"]
 
@@ -522,7 +522,7 @@ class TestTool:
 
     def test_tool_decorator_preserves_original_function(self):
         # Define a test function with type hints and docstring
-        def test_function(items: List[str]) -> str:
+        def test_function(items: list[str]) -> str:
             """Join a list of strings.
             Args:
                 items: A list of strings to join

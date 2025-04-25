@@ -14,6 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
+
 import ast
 import inspect
 import json
@@ -23,10 +25,11 @@ import sys
 import tempfile
 import textwrap
 import types
+from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -107,7 +110,7 @@ class Tool:
 
     name: str
     description: str
-    inputs: Dict[str, Dict[str, Union[str, type, bool]]]
+    inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
 
     def __init__(self, *args, **kwargs):
@@ -327,8 +330,8 @@ class Tool:
         self,
         repo_id: str,
         commit_message: str = "Upload tool",
-        private: Optional[bool] = None,
-        token: Optional[Union[bool, str]] = None,
+        private: bool | None = None,
+        token: bool | str | None = None,
         create_pr: bool = False,
     ) -> str:
         """
@@ -363,7 +366,7 @@ class Tool:
         )
 
     @staticmethod
-    def _initialize_hub_repo(repo_id: str, token: Optional[Union[bool, str]], private: Optional[bool]) -> str:
+    def _initialize_hub_repo(repo_id: str, token: bool | str | None, private: bool | None) -> str:
         """Initialize repository on Hugging Face Hub."""
         repo_url = create_repo(
             repo_id=repo_id,
@@ -422,7 +425,7 @@ class Tool:
     def from_hub(
         cls,
         repo_id: str,
-        token: Optional[str] = None,
+        token: str | None = None,
         trust_remote_code: bool = False,
         **kwargs,
     ):
@@ -502,8 +505,8 @@ class Tool:
         space_id: str,
         name: str,
         description: str,
-        api_name: Optional[str] = None,
-        token: Optional[str] = None,
+        api_name: str | None = None,
+        token: str | None = None,
     ):
         """
         Creates a [`Tool`] from a Space given its id on the Hub.
@@ -551,8 +554,8 @@ class Tool:
                 space_id: str,
                 name: str,
                 description: str,
-                api_name: Optional[str] = None,
-                token: Optional[str] = None,
+                api_name: str | None = None,
+                token: str | None = None,
             ):
                 self.name = name
                 self.description = description
@@ -731,8 +734,8 @@ def launch_gradio_demo(tool: Tool):
 
 def load_tool(
     repo_id,
-    model_repo_id: Optional[str] = None,
-    token: Optional[str] = None,
+    model_repo_id: str | None = None,
+    token: str | None = None,
     trust_remote_code: bool = False,
     **kwargs,
 ):
@@ -795,14 +798,14 @@ class ToolCollection:
     For example and usage, see: [`ToolCollection.from_hub`] and [`ToolCollection.from_mcp`]
     """
 
-    def __init__(self, tools: List[Tool]):
+    def __init__(self, tools: list[Tool]):
         self.tools = tools
 
     @classmethod
     def from_hub(
         cls,
         collection_slug: str,
-        token: Optional[str] = None,
+        token: str | None = None,
         trust_remote_code: bool = False,
     ) -> "ToolCollection":
         """Loads a tool collection from the Hub.
@@ -841,7 +844,7 @@ class ToolCollection:
     @classmethod
     @contextmanager
     def from_mcp(
-        cls, server_parameters: Union["mcp.StdioServerParameters", dict], trust_remote_code: bool = False
+        cls, server_parameters: "mcp.StdioServerParameters" | dict, trust_remote_code: bool = False
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
@@ -1141,7 +1144,7 @@ class PipelineTool(Tool):
         return decoded_outputs
 
 
-def get_tools_definition_code(tools: Dict[str, Tool]) -> str:
+def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     tool_codes = []
     for tool in tools.values():
         validate_tool_attributes(tool.__class__, check_imports=False)
