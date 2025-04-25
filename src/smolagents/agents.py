@@ -177,7 +177,6 @@ class MultiStepAgent(ABC):
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         max_steps (`int`, default `20`): Maximum number of steps the agent can take to solve the task.
-        tool_parser (`Callable`, *optional*): Function used to parse the tool calls from the LLM output.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
