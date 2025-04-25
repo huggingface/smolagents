@@ -56,7 +56,7 @@ from .memory import (
     TaskStep,
     ToolCall,
 )
-from .models import ChatMessage, CompletionDelta, MessageRole, Model, parse_json_if_needed
+from .models import ChatMessage, MessageRole, Model, parse_json_if_needed
 from .monitoring import (
     YELLOW_HEX,
     AgentLogger,
@@ -1292,12 +1292,9 @@ class CodeAgent(MultiStepAgent):
                 output_text = ""
                 with Live("", console=self.logger.console, vertical_overflow="visible") as live:
                     for event in output_stream:
-                        if isinstance(event, CompletionDelta):
-                            if event.content is not None:
-                                output_text += event.content
-                                live.update(Markdown(output_text))
-                        elif isinstance(event, ToolCall):
-                            memory_step.tool_calls = [event]
+                        if event.content is not None:
+                            output_text += event.content
+                            live.update(Markdown(output_text))
 
                 model_output = output_text
                 chat_message = ChatMessage(role="assistant", content=model_output)
