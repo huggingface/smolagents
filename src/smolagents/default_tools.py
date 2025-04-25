@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -369,31 +369,20 @@ class LinkupSearchTool(Tool):
 
         .. code-block:: bash
 
+            pip install linkup-sdk
             export LINKUP_API_KEY="your-api-key"
 
-        Or just set it as a string
-
-        .. code-block:: python
-
-            LINKUP_API_KEY = "your_api_key"
-
     Example:
-            import os
             from smolagents import CodeAgent, InferenceClientModel, LinkupSearchTool
-            linkup_api_key = os.getenv("LINKUP_API_KEY")
 
             agent = CodeAgent(
-                tools=[LinkupSearchTool(linkup_api_key=linkup_api_key)],
+                tools=[LinkupSearchTool()],
                 model=InferenceClientModel(),
             )
             agent.run(query="What was Microsoft's revenue last quarter and was it well perceived by the market?", depth="deep")
 
-    Key init args:
-        linkup_api_key: str
-            The API key for the Linkup API.
-        depth: Literal["standard", "deep"]
-            The depth of the Linkup search. Can be either "standard", for a straighforward and fast
-            search, or "deep" for a more powerful agentic workflow.
+    Args:
+        linkup_api_key (str | None): Optional. If not provided, LinkupClient will check the LINKUP_API_KEY env variable.
     """
 
     name = "search_web"
@@ -409,7 +398,7 @@ class LinkupSearchTool(Tool):
 
     output_type = "string"
 
-    def __init__(self, linkup_api_key: str):
+    def __init__(self, linkup_api_key: str | None = None) -> None:
         super().__init__()
         try:
             from linkup import LinkupClient
@@ -418,17 +407,9 @@ class LinkupSearchTool(Tool):
                 "You must install package `linkup-sdk` to run this tool: for instance run `pip install linkup-sdk`."
             ) from e
 
-        if linkup_api_key is None:
-            raise ValueError(
-                "Missing API key. Make sure you have 'LINKUP_API_KEY' in your env variables or you have passed it properly."
-            )
-
         self.client = LinkupClient(api_key=linkup_api_key)
 
-    def forward(self, query: str, depth: str) -> str:
-
-        if depth not in {"standard", "deep"}:
-            raise ValueError(f"Invalid depth: {depth}. Must be 'standard' or 'deep'.")
+    def forward(self, query: str, depth: Literal["standard", "deep"]) -> str:
 
         try:
             response = self.client.search(
