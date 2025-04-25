@@ -17,11 +17,12 @@ import os
 import re
 import uuid
 import warnings
+from collections.abc import Generator
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Dict, Generator, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url, parse_json_blob
