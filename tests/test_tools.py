@@ -496,7 +496,7 @@ class TestTool:
         tool = request.getfixturevalue(fixture_name)
         result = tool.to_dict()
         # Check the Optional type annotation is preserved
-        assert "optional_text: Optional[str] = None" in result["code"]
+        assert "optional_text: str | None = None" in result["code"]
         # Check that the input is marked as nullable in the code
         assert "'nullable': True" in result["code"]
 
