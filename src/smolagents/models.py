@@ -891,7 +891,7 @@ class TransformersModel(Model):
         grammar: str | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
-    ) -> Generator:
+    ) -> Generator[CompletionDelta]:
         generation_kwargs = self._prepare_completion_args(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -1043,7 +1043,7 @@ class LiteLLMModel(ApiModel):
         grammar: str | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
-    ) -> Generator:
+    ) -> Generator[CompletionDelta]:
         if tools_to_call_from:
             raise NotImplementedError("Streaming is not yet supported for tool calling")
         completion_kwargs = self._prepare_completion_kwargs(
@@ -1279,7 +1279,7 @@ class InferenceClientModel(ApiModel):
         grammar: str | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
-    ) -> Generator:
+    ) -> Generator[CompletionDelta]:
         if tools_to_call_from:
             raise NotImplementedError("Streaming is not yet supported for tool calling")
         completion_kwargs = self._prepare_completion_kwargs(
@@ -1385,7 +1385,7 @@ class OpenAIServerModel(ApiModel):
         grammar: str | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
-    ) -> Generator:
+    ) -> Generator[CompletionDelta]:
         if tools_to_call_from:
             raise NotImplementedError("Streaming is not yet supported for tool calling")
         completion_kwargs = self._prepare_completion_kwargs(
