@@ -16,7 +16,7 @@
 # limitations under the License.
 import json
 from enum import IntEnum
-from typing import List, Optional
+from typing import Optional
 
 from rich import box
 from rich.console import Console, Group
@@ -167,7 +167,7 @@ class AgentLogger:
             level=level,
         )
 
-    def log_messages(self, messages: List[dict], level: LogLevel = LogLevel.DEBUG) -> None:
+    def log_messages(self, messages: list[dict], level: LogLevel = LogLevel.DEBUG) -> None:
         messages_as_string = "\n".join([json.dumps(dict(message), indent=4) for message in messages])
         self.log(
             Syntax(

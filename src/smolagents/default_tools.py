@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -28,7 +28,7 @@ from .tools import PipelineTool, Tool
 @dataclass
 class PreTool:
     name: str
-    inputs: Dict[str, str]
+    inputs: dict[str, str]
     output_type: type
     task: str
     description: str

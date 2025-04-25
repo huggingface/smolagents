@@ -14,7 +14,7 @@ import sys
 import tempfile
 import traceback
 import zipfile
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 from urllib.parse import parse_qs, quote, unquote, urlparse, urlunparse
 
 import mammoth
@@ -250,7 +250,7 @@ class YouTubeConverter(DocumentConverter):
 
         # Read the meta tags
         assert soup.title is not None and soup.title.string is not None
-        metadata: Dict[str, str] = {"title": soup.title.string}
+        metadata: dict[str, str] = {"title": soup.title.string}
         for meta in soup(["meta"]):
             for a in meta.attrs:
                 if a in ["itemprop", "property", "name"]:
@@ -328,7 +328,7 @@ class YouTubeConverter(DocumentConverter):
             text_content=webpage_text,
         )
 
-    def _get(self, metadata: Dict[str, str], keys: List[str], default: Union[str, None] = None) -> Union[str, None]:
+    def _get(self, metadata: dict[str, str], keys: list[str], default: Union[str, None] = None) -> Union[str, None]:
         for k in keys:
             if k in metadata:
                 return metadata[k]
@@ -783,7 +783,7 @@ class MarkdownConverter:
         self._mlm_client = mlm_client
         self._mlm_model = mlm_model
 
-        self._page_converters: List[DocumentConverter] = []
+        self._page_converters: list[DocumentConverter] = []
 
         # Register converters for successful browsing operations
         # Later registrations are tried first / take higher priority than earlier registrations
@@ -924,7 +924,7 @@ class MarkdownConverter:
 
         return result
 
-    def _convert(self, local_path: str, extensions: List[Union[str, None]], **kwargs) -> DocumentConverterResult:
+    def _convert(self, local_path: str, extensions: list[Union[str, None]], **kwargs) -> DocumentConverterResult:
         error_trace = ""
         for ext in extensions + [None]:  # Try last with no extension
             for converter in self._page_converters:

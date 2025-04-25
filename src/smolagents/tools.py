@@ -23,10 +23,11 @@ import sys
 import tempfile
 import textwrap
 import types
+from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -107,7 +108,7 @@ class Tool:
 
     name: str
     description: str
-    inputs: Dict[str, Dict[str, Union[str, type, bool]]]
+    inputs: dict[str, dict[str, Union[str, type, bool]]]
     output_type: str
 
     def __init__(self, *args, **kwargs):
@@ -795,7 +796,7 @@ class ToolCollection:
     For example and usage, see: [`ToolCollection.from_hub`] and [`ToolCollection.from_mcp`]
     """
 
-    def __init__(self, tools: List[Tool]):
+    def __init__(self, tools: list[Tool]):
         self.tools = tools
 
     @classmethod
@@ -1141,7 +1142,7 @@ class PipelineTool(Tool):
         return decoded_outputs
 
 
-def get_tools_definition_code(tools: Dict[str, Tool]) -> str:
+def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     tool_codes = []
     for tool in tools.values():
         validate_tool_attributes(tool.__class__, check_imports=False)

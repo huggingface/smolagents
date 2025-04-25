@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Optional, Type
+from typing import TYPE_CHECKING, Any, Optional
 
 from smolagents.tools import Tool
 
@@ -80,7 +80,7 @@ class MCPClient:
 
     def disconnect(
         self,
-        exc_type: Optional[Type[BaseException]] = None,
+        exc_type: Optional[type[BaseException]] = None,
         exc_value: Optional[BaseException] = None,
         exc_traceback: Optional[TracebackType] = None,
     ):
@@ -116,7 +116,7 @@ class MCPClient:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc_value: Optional[BaseException],
         exc_traceback: Optional[TracebackType],
     ):

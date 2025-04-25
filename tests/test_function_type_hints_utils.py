@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import pytest
 
@@ -82,7 +82,7 @@ def bad_return_func():
 
 @pytest.fixture
 def complex_types_func():
-    def process_data(items: List[str], config: Dict[str, float], point: Tuple[int, int]) -> Dict:
+    def process_data(items: list[str], config: dict[str, float], point: tuple[int, int]) -> dict:
         """
         Process some data.
 
@@ -153,7 +153,7 @@ def union_types_func():
 
 @pytest.fixture
 def nested_types_func():
-    def process_nested_data(data: List[Dict[str, Any]]) -> List[str]:
+    def process_nested_data(data: list[dict[str, Any]]) -> list[str]:
         """
         Process nested data structure.
 
@@ -205,7 +205,7 @@ def mismatched_types_func():
 
 @pytest.fixture
 def complex_docstring_types_func():
-    def process(data: Dict[str, List[int]]) -> List[Dict[str, Any]]:
+    def process(data: dict[str, list[int]]) -> list[dict[str, Any]]:
         """
         Process complex data.
 
@@ -239,7 +239,7 @@ def keywords_in_description_func():
 
 class TestGetJsonSchema:
     def test_get_json_schema_example(self):
-        def fn(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
+        def fn(x: int, y: Optional[tuple[str, str, float]] = None) -> None:
             """
             Test function
             Args:
@@ -510,5 +510,5 @@ class TestGetCode:
             ),
         ],
     )
-    def test_get_imports(self, code: str, expected: List[str]):
+    def test_get_imports(self, code: str, expected: list[str]):
         assert sorted(get_imports(code)) == sorted(expected)

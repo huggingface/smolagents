@@ -28,7 +28,7 @@ from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
@@ -83,7 +83,7 @@ class AgentError(Exception):
         self.message = message
         logger.log_error(message)
 
-    def dict(self) -> Dict[str, str]:
+    def dict(self) -> dict[str, str]:
         return {"type": self.__class__.__name__, "message": str(self.message)}
 
 
@@ -149,7 +149,7 @@ def make_json_serializable(obj: Any) -> Any:
         return str(obj)
 
 
-def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
+def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
     "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
     try:
         first_accolade_index = json_blob.find("{")

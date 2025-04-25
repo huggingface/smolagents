@@ -6,7 +6,7 @@ import pathlib
 import re
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 from urllib.parse import unquote, urljoin, urlparse
 
 import pathvalidate
@@ -28,15 +28,15 @@ class SimpleTextBrowser:
         viewport_size: Optional[int] = 1024 * 8,
         downloads_folder: Optional[Union[str, None]] = None,
         serpapi_key: Optional[Union[str, None]] = None,
-        request_kwargs: Optional[Union[Dict[str, Any], None]] = None,
+        request_kwargs: Optional[Union[dict[str, Any], None]] = None,
     ):
         self.start_page: str = start_page if start_page else "about:blank"
         self.viewport_size = viewport_size  # Applies only to the standard uri types
         self.downloads_folder = downloads_folder
-        self.history: List[Tuple[str, float]] = list()
+        self.history: list[tuple[str, float]] = list()
         self.page_title: Optional[str] = None
         self.viewport_current_page = 0
-        self.viewport_pages: List[Tuple[int, int]] = list()
+        self.viewport_pages: list[tuple[int, int]] = list()
         self.set_address(self.start_page)
         self.serpapi_key = serpapi_key
         self.request_kwargs = request_kwargs
@@ -231,7 +231,7 @@ class SimpleTextBrowser:
                     return f"You previously visited this page {round(time.time() - self.history[i][1])} seconds ago.\n"
             return ""
 
-        web_snippets: List[str] = list()
+        web_snippets: list[str] = list()
         idx = 0
         if "organic_results" in results:
             for page in results["organic_results"]:
@@ -352,7 +352,7 @@ class SimpleTextBrowser:
                 self.page_title = "Error"
                 self._set_page_content(f"## Error\n\n{str(request_exception)}")
 
-    def _state(self) -> Tuple[str, str]:
+    def _state(self) -> tuple[str, str]:
         header = f"Address: {self.address}\n"
         if self.page_title is not None:
             header += f"Title: {self.page_title}\n"

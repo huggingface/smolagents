@@ -17,11 +17,12 @@ import os
 import re
 import uuid
 import warnings
+from collections.abc import Generator
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Dict, Generator, List
+from typing import TYPE_CHECKING, Any
 
 from .tools import Tool
 from .utils import _is_package_available, encode_image_base64, make_image_url, parse_json_blob
@@ -96,7 +97,7 @@ class ChatMessageToolCall:
 class ChatMessage:
     role: str
     content: str | None = None
-    tool_calls: List[ChatMessageToolCall] | None = None
+    tool_calls: list[ChatMessageToolCall] | None = None
     raw: Any | None = None  # Stores the raw output from the API
 
     def model_dump_json(self):
@@ -140,7 +141,7 @@ def parse_json_if_needed(arguments: str | dict) -> str | dict:
 @dataclass
 class CompletionDelta:
     content: str | None = None
-    tool_calls: List[ChatMessageToolCall] | None = None
+    tool_calls: list[ChatMessageToolCall] | None = None
 
 
 class MessageRole(str, Enum):
@@ -161,7 +162,7 @@ tool_role_conversions = {
 }
 
 
-def get_tool_json_schema(tool: Tool) -> Dict:
+def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
@@ -183,7 +184,7 @@ def get_tool_json_schema(tool: Tool) -> Dict:
     }
 
 
-def remove_stop_sequences(content: str, stop_sequences: List[str]) -> str:
+def remove_stop_sequences(content: str, stop_sequences: list[str]) -> str:
     for stop_seq in stop_sequences:
         if content[-len(stop_seq) :] == stop_seq:
             content = content[: -len(stop_seq)]
@@ -358,7 +359,7 @@ class Model:
 
         return completion_kwargs
 
-    def get_token_counts(self) -> Dict[str, int]:
+    def get_token_counts(self) -> dict[str, int]:
         if self.last_input_token_count is None or self.last_output_token_count is None:
             raise ValueError("Token counts are not available")
         return {
@@ -409,7 +410,7 @@ class Model:
             tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
         return message
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """
         Converts the model into a JSON-compatible dictionary.
         """
@@ -444,7 +445,7 @@ class Model:
         return model_dictionary
 
     @classmethod
-    def from_dict(cls, model_dictionary: Dict[str, Any]) -> "Model":
+    def from_dict(cls, model_dictionary: dict[str, Any]) -> "Model":
         model_instance = cls(
             **{
                 k: v
@@ -775,11 +776,11 @@ class TransformersModel(Model):
             raise ValueError(f"Failed to load tokenizer and model for {model_id=}: {e}") from e
         super().__init__(flatten_messages_as_text=not self._is_vlm, model_id=model_id, **kwargs)
 
-    def make_stopping_criteria(self, stop_sequences: List[str], tokenizer) -> "StoppingCriteriaList":
+    def make_stopping_criteria(self, stop_sequences: list[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
 
         class StopOnStrings(StoppingCriteria):
-            def __init__(self, stop_strings: List[str], tokenizer):
+            def __init__(self, stop_strings: list[str], tokenizer):
                 self.stop_strings = stop_strings
                 self.tokenizer = tokenizer
                 self.stream = ""
@@ -1596,7 +1597,7 @@ class AmazonBedrockServerModel(ApiModel):
         custom_role_conversions: dict[str, str] | None = None,
         convert_images_to_image_urls: bool = False,
         **kwargs,
-    ) -> Dict:
+    ) -> dict:
         """
         Overrides the base method to handle Bedrock-specific configurations.
 
@@ -1648,7 +1649,7 @@ class AmazonBedrockServerModel(ApiModel):
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
     ) -> ChatMessage:
-        completion_kwargs: Dict = self._prepare_completion_kwargs(
+        completion_kwargs: dict = self._prepare_completion_kwargs(
             messages=messages,
             tools_to_call_from=tools_to_call_from,
             custom_role_conversions=self.custom_role_conversions,

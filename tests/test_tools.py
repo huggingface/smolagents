@@ -15,7 +15,7 @@
 import inspect
 import os
 from textwrap import dedent
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal, Optional
 from unittest.mock import MagicMock, patch
 
 import mcp
@@ -407,7 +407,7 @@ class TestTool:
 
     def test_tool_supports_array(self):
         @tool
-        def get_weather(locations: List[str], months: Optional[Tuple[str, str]] = None) -> Dict[str, float]:
+        def get_weather(locations: list[str], months: Optional[tuple[str, str]] = None) -> dict[str, float]:
             """
             Get weather in the next days at given locations.
 
@@ -522,7 +522,7 @@ class TestTool:
 
     def test_tool_decorator_preserves_original_function(self):
         # Define a test function with type hints and docstring
-        def test_function(items: List[str]) -> str:
+        def test_function(items: list[str]) -> str:
             """Join a list of strings.
             Args:
                 items: A list of strings to join

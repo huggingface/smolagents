@@ -24,10 +24,10 @@ import textwrap
 import time
 from abc import ABC, abstractmethod
 from collections import deque
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, TypedDict, Union
+from typing import TYPE_CHECKING, Any, Optional, TypedDict, Union
 
 import jinja2
 import yaml
@@ -84,12 +84,12 @@ from .utils import (
 logger = getLogger(__name__)
 
 
-def get_variable_names(self, template: str) -> Set[str]:
+def get_variable_names(self, template: str) -> set[str]:
     pattern = re.compile(r"\{\{([^{}]+)\}\}")
     return {match.group(1).strip() for match in pattern.finditer(template)}
 
 
-def populate_template(template: str, variables: Dict[str, Any]) -> str:
+def populate_template(template: str, variables: dict[str, Any]) -> str:
     compiled_template = Template(template, undefined=StrictUndefined)
     try:
         return compiled_template.render(**variables)
@@ -192,20 +192,20 @@ class MultiStepAgent(ABC):
 
     def __init__(
         self,
-        tools: List[Tool],
+        tools: list[Tool],
         model: Model,
         prompt_templates: Optional[PromptTemplates] = None,
         max_steps: int = 20,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
-        grammar: Optional[Dict[str, str]] = None,
-        managed_agents: Optional[List] = None,
-        step_callbacks: Optional[List[Callable]] = None,
+        grammar: Optional[dict[str, str]] = None,
+        managed_agents: Optional[list] = None,
+        step_callbacks: Optional[list[Callable]] = None,
         planning_interval: Optional[int] = None,
         name: Optional[str] = None,
         description: Optional[str] = None,
         provide_run_summary: bool = False,
-        final_answer_checks: Optional[List[Callable]] = None,
+        final_answer_checks: Optional[list[Callable]] = None,
         logger: Optional[AgentLogger] = None,
     ):
         self.agent_name = self.__class__.__name__
@@ -255,7 +255,7 @@ class MultiStepAgent(ABC):
             raise ValueError(f"Agent name '{name}' must be a valid Python identifier and not a reserved keyword.")
         return name
 
-    def _setup_managed_agents(self, managed_agents: Optional[List] = None) -> None:
+    def _setup_managed_agents(self, managed_agents: Optional[list] = None) -> None:
         """Setup managed agents with proper logging."""
         self.managed_agents = {}
         if managed_agents:
@@ -294,8 +294,8 @@ class MultiStepAgent(ABC):
         task: str,
         stream: bool = False,
         reset: bool = True,
-        images: Optional[List["PIL.Image.Image"]] = None,
-        additional_args: Optional[Dict] = None,
+        images: Optional[list["PIL.Image.Image"]] = None,
+        additional_args: Optional[dict] = None,
         max_steps: Optional[int] = None,
     ):
         """
@@ -352,7 +352,7 @@ You have been provided with these additional arguments, that you can access usin
         return deque(self._run(task=self.task, max_steps=max_steps, images=images), maxlen=1)[0].final_answer
 
     def _run(
-        self, task: str, max_steps: int, images: List["PIL.Image.Image"] | None = None
+        self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
     ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep]:
         final_answer = None
         self.step_number = 1
@@ -413,7 +413,7 @@ You have been provided with these additional arguments, that you can access usin
                 memory_step, agent=self
             )
 
-    def _handle_max_steps_reached(self, task: str, images: List["PIL.Image.Image"], step_start_time: float) -> Any:
+    def _handle_max_steps_reached(self, task: str, images: list["PIL.Image.Image"], step_start_time: float) -> Any:
         final_answer = self.provide_final_answer(task, images)
         final_memory_step = ActionStep(
             step_number=self.step_number, error=AgentMaxStepsError("Reached max steps.", self.logger)
@@ -512,7 +512,7 @@ You have been provided with these additional arguments, that you can access usin
     def write_memory_to_messages(
         self,
         summary_mode: Optional[bool] = False,
-    ) -> List[Message]:
+    ) -> list[Message]:
         """
         Reads past llm_outputs, actions, and observations or errors from the memory into a series of messages
         that can be used as input to the LLM. Adds a number of keywords (such as PLAN, error, etc) to help
@@ -527,7 +527,7 @@ You have been provided with these additional arguments, that you can access usin
         """Creates a rich tree visualization of the agent's structure."""
         self.logger.visualize_agent_tree(self)
 
-    def extract_action(self, model_output: str, split_token: str) -> Tuple[str, str]:
+    def extract_action(self, model_output: str, split_token: str) -> tuple[str, str]:
         """
         Parse action from the LLM output
 
@@ -984,8 +984,8 @@ class ToolCallingAgent(MultiStepAgent):
 
     def __init__(
         self,
-        tools: List[Tool],
-        model: Callable[[List[Dict[str, str]]], ChatMessage],
+        tools: list[Tool],
+        model: Callable[[list[dict[str, str]]], ChatMessage],
         prompt_templates: Optional[PromptTemplates] = None,
         planning_interval: Optional[int] = None,
         **kwargs,
@@ -1106,7 +1106,7 @@ class ToolCallingAgent(MultiStepAgent):
             memory_step.observations = updated_information
             return None
 
-    def _substitute_state_variables(self, arguments: Union[Dict[str, str], str]) -> Union[Dict[str, Any], str]:
+    def _substitute_state_variables(self, arguments: Union[dict[str, str], str]) -> Union[dict[str, Any], str]:
         """Replace string values in arguments with their corresponding state values if they exist."""
         if isinstance(arguments, dict):
             return {
@@ -1115,7 +1115,7 @@ class ToolCallingAgent(MultiStepAgent):
             }
         return arguments
 
-    def execute_tool_call(self, tool_name: str, arguments: Union[Dict[str, str], str]) -> Any:
+    def execute_tool_call(self, tool_name: str, arguments: Union[dict[str, str], str]) -> Any:
         """
         Execute a tool or managed agent with the provided arguments.
 
@@ -1200,14 +1200,14 @@ class CodeAgent(MultiStepAgent):
 
     def __init__(
         self,
-        tools: List[Tool],
+        tools: list[Tool],
         model: Model,
         prompt_templates: Optional[PromptTemplates] = None,
-        grammar: Optional[Dict[str, str]] = None,
-        additional_authorized_imports: Optional[List[str]] = None,
+        grammar: Optional[dict[str, str]] = None,
+        additional_authorized_imports: Optional[list[str]] = None,
         planning_interval: Optional[int] = None,
         executor_type: str | None = "local",
-        executor_kwargs: Optional[Dict[str, Any]] = None,
+        executor_kwargs: Optional[dict[str, Any]] = None,
         max_print_outputs_length: Optional[int] = None,
         stream_outputs: bool = False,
         **kwargs,
