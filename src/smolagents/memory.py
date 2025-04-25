@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, TypedDict, Union
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from smolagents.models import ChatMessage, MessageRole
 from smolagents.monitoring import AgentLogger, LogLevel
@@ -188,7 +188,7 @@ class FinalAnswerStep(MemoryStep):
 class AgentMemory:
     def __init__(self, system_prompt: str):
         self.system_prompt = SystemPromptStep(system_prompt=system_prompt)
-        self.steps: list[Union[TaskStep, ActionStep, PlanningStep]] = []
+        self.steps: list[TaskStep | ActionStep | PlanningStep] = []
 
     def reset(self):
         self.steps = []

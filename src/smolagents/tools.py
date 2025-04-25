@@ -27,7 +27,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -108,7 +108,7 @@ class Tool:
 
     name: str
     description: str
-    inputs: dict[str, dict[str, Union[str, type, bool]]]
+    inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
 
     def __init__(self, *args, **kwargs):
@@ -328,8 +328,8 @@ class Tool:
         self,
         repo_id: str,
         commit_message: str = "Upload tool",
-        private: Optional[bool] = None,
-        token: Optional[Union[bool, str]] = None,
+        private: bool | None = None,
+        token: bool | str | None = None,
         create_pr: bool = False,
     ) -> str:
         """
@@ -364,7 +364,7 @@ class Tool:
         )
 
     @staticmethod
-    def _initialize_hub_repo(repo_id: str, token: Optional[Union[bool, str]], private: Optional[bool]) -> str:
+    def _initialize_hub_repo(repo_id: str, token: bool | str | None, private: bool | None) -> str:
         """Initialize repository on Hugging Face Hub."""
         repo_url = create_repo(
             repo_id=repo_id,
@@ -423,7 +423,7 @@ class Tool:
     def from_hub(
         cls,
         repo_id: str,
-        token: Optional[str] = None,
+        token: str | None = None,
         trust_remote_code: bool = False,
         **kwargs,
     ):
@@ -503,8 +503,8 @@ class Tool:
         space_id: str,
         name: str,
         description: str,
-        api_name: Optional[str] = None,
-        token: Optional[str] = None,
+        api_name: str | None = None,
+        token: str | None = None,
     ):
         """
         Creates a [`Tool`] from a Space given its id on the Hub.
@@ -552,8 +552,8 @@ class Tool:
                 space_id: str,
                 name: str,
                 description: str,
-                api_name: Optional[str] = None,
-                token: Optional[str] = None,
+                api_name: str | None = None,
+                token: str | None = None,
             ):
                 self.name = name
                 self.description = description
@@ -732,8 +732,8 @@ def launch_gradio_demo(tool: Tool):
 
 def load_tool(
     repo_id,
-    model_repo_id: Optional[str] = None,
-    token: Optional[str] = None,
+    model_repo_id: str | None = None,
+    token: str | None = None,
     trust_remote_code: bool = False,
     **kwargs,
 ):
@@ -803,7 +803,7 @@ class ToolCollection:
     def from_hub(
         cls,
         collection_slug: str,
-        token: Optional[str] = None,
+        token: str | None = None,
         trust_remote_code: bool = False,
     ) -> "ToolCollection":
         """Loads a tool collection from the Hub.

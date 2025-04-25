@@ -31,7 +31,6 @@ from copy import copy
 from typing import (
     Any,
     Literal,
-    Optional,
     Union,
     get_args,
     get_origin,
@@ -238,7 +237,7 @@ returns_re = re.compile(
 
 def _parse_google_format_docstring(
     docstring: str,
-) -> tuple[Optional[str], Optional[dict], Optional[str]]:
+) -> tuple[str | None, dict | None, str | None]:
     """
     Parses a Google-style docstring to extract the function description,
     argument descriptions, and return description.

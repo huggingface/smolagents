@@ -4,7 +4,6 @@ import mimetypes
 import os
 import uuid
 from io import BytesIO
-from typing import Optional
 
 import PIL.Image
 import requests
@@ -117,7 +116,7 @@ class VisualQATool(Tool):
 
     client = InferenceClient("HuggingFaceM4/idefics2-8b-chatty")
 
-    def forward(self, image_path: str, question: Optional[str] = None) -> str:
+    def forward(self, image_path: str, question: str | None = None) -> str:
         output = ""
         add_note = False
         if not question:
@@ -140,7 +139,7 @@ class VisualQATool(Tool):
 
 
 @tool
-def visualizer(image_path: str, question: Optional[str] = None) -> str:
+def visualizer(image_path: str, question: str | None = None) -> str:
     """A tool that can answer questions about attached images.
 
     Args:

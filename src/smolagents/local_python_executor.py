@@ -25,7 +25,7 @@ from collections.abc import Callable, Mapping
 from functools import wraps
 from importlib import import_module
 from types import BuiltinFunctionType, FunctionType, ModuleType
-from typing import Any, Optional
+from typing import Any
 
 from .tools import Tool
 from .utils import BASE_BUILTIN_MODULES, truncate_content
@@ -1411,9 +1411,9 @@ class FinalAnswerException(Exception):
 
 def evaluate_python_code(
     code: str,
-    static_tools: Optional[dict[str, Callable]] = None,
-    custom_tools: Optional[dict[str, Callable]] = None,
-    state: Optional[dict[str, Any]] = None,
+    static_tools: dict[str, Callable] | None = None,
+    custom_tools: dict[str, Callable] | None = None,
+    state: dict[str, Any] | None = None,
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
     max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
 ):
@@ -1494,7 +1494,7 @@ class LocalPythonExecutor(PythonExecutor):
     def __init__(
         self,
         additional_authorized_imports: list[str],
-        max_print_outputs_length: Optional[int] = None,
+        max_print_outputs_length: int | None = None,
     ):
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}

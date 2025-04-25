@@ -1,5 +1,3 @@
-from typing import Optional
-
 from smolagents import Tool
 from smolagents.models import Model
 
@@ -75,7 +73,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         ]
         return self.model(messages).content
 
-    def forward(self, file_path, question: Optional[str] = None) -> str:
+    def forward(self, file_path, question: str | None = None) -> str:
         from smolagents.models import MessageRole
 
         result = self.md_converter.convert(file_path)

@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Union
+from typing import Any
 
 import pytest
 
@@ -68,7 +68,7 @@ def missing_arg_doc_func():
 def bad_return_func():
     """Function docstring with missing return description (allowed)."""
 
-    def do_nothing(x: Optional[str] = None):
+    def do_nothing(x: str | None = None):
         """
         Does nothing.
 
@@ -101,7 +101,7 @@ def complex_types_func():
 
 @pytest.fixture
 def optional_types_func():
-    def process_with_optional(required_arg: str, optional_arg: Optional[int] = None) -> str:
+    def process_with_optional(required_arg: str, optional_arg: int | None = None) -> str:
         """
         Process with optional argument.
 
@@ -136,7 +136,7 @@ def enum_choices_func():
 
 @pytest.fixture
 def union_types_func():
-    def process_union(value: Union[int, str]) -> Union[bool, str]:
+    def process_union(value: int | str) -> bool | str:
         """
         Process a value that can be either int or string.
 
@@ -239,7 +239,7 @@ def keywords_in_description_func():
 
 class TestGetJsonSchema:
     def test_get_json_schema_example(self):
-        def fn(x: int, y: Optional[tuple[str, str, float]] = None) -> None:
+        def fn(x: int, y: tuple[str, str, float] | None = None) -> None:
             """
             Test function
             Args:

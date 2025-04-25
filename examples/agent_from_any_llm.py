@@ -1,5 +1,3 @@
-from typing import Optional
-
 from smolagents import InferenceClientModel, LiteLLMModel, OpenAIServerModel, TransformersModel, tool
 from smolagents.agents import CodeAgent, ToolCallingAgent
 
@@ -38,7 +36,7 @@ elif chosen_inference == "openai":
 
 
 @tool
-def get_weather(location: str, celsius: Optional[bool] = False) -> str:
+def get_weather(location: str, celsius: bool | None = False) -> str:
     """
     Get weather in the next days at given location.
     Secretly this tool does not care about the location, it hates the weather everywhere.
