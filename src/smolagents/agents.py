@@ -24,9 +24,10 @@ import textwrap
 import time
 from abc import ABC, abstractmethod
 from collections import deque
+from collections.abc import Generator
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, List, Optional, Set, Tuple, TypedDict, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, TypedDict, Union
 
 import jinja2
 import yaml
@@ -352,7 +353,7 @@ You have been provided with these additional arguments, that you can access usin
 
     def _run(
         self, task: str, max_steps: int, images: List["PIL.Image.Image"] | None = None
-    ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep, None, None]:
+    ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep]:
         final_answer = None
         self.step_number = 1
         while final_answer is None and self.step_number <= max_steps:
