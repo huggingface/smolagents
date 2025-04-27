@@ -1060,10 +1060,8 @@ class ToolCallingAgent(MultiStepAgent):
         )
         if tool_name == "final_answer":
             if isinstance(tool_arguments, dict):
-                if "answer" in tool_arguments:
-                    answer = tool_arguments["answer"]
-                else:
-                    answer = tool_arguments
+                observation = self.execute_tool_call(tool_name, tool_arguments)
+                answer = str(observation).strip()
             else:
                 answer = tool_arguments
             if (
