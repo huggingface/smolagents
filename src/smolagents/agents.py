@@ -1060,10 +1060,10 @@ class ToolCallingAgent(MultiStepAgent):
         )
         if tool_name == "final_answer":
             if isinstance(tool_arguments, dict):
-                observation = self.execute_tool_call(tool_name, tool_arguments)
-                answer = str(observation).strip()
-            else:
-                answer = tool_arguments
+            if tool_arguments is None:
+                tool_arguments = {}
+            observation = self.execute_tool_call(tool_name, tool_arguments)
+            answer = str(observation).strip()
             if (
                 isinstance(answer, str) and answer in self.state.keys()
             ):  # if the answer is a state variable, return the value
