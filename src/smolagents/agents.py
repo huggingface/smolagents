@@ -1059,7 +1059,6 @@ class ToolCallingAgent(MultiStepAgent):
             level=LogLevel.INFO,
         )
         if tool_name == "final_answer":
-            if isinstance(tool_arguments, dict):
             if tool_arguments is None:
                 tool_arguments = {}
             observation = self.execute_tool_call(tool_name, tool_arguments)
