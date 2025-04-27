@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # अच्छे Agents का निर्माण
 
 [[open-in-colab]]
@@ -122,11 +107,11 @@ def get_weather_api(location: str, date_time: str) -> str:
 
 
 ```py
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 model_id = "meta-llama/Llama-3.3-70B-Instruct"
 
-agent = CodeAgent(tools=[], model=HfApiModel(model_id=model_id), add_base_tools=True)
+agent = CodeAgent(tools=[], model=InferenceClientModel(model_id=model_id), add_base_tools=True)
 
 agent.run(
     "Why does Mike not know many people in New York?",
@@ -412,7 +397,7 @@ This also works with the [`ToolCallingAgent`].
 हम पूरक योजना चरण के लिए एक मॉडल प्रदान करते हैं, जिसे एजेंट सामान्य क्रियाओं के चरणों के बीच नियमित रूप से चला सकता है। इस चरण में कोई टूल कॉल नहीं होती है, LLM से केवल उन तथ्यों की सूची को अपडेट करने के लिए कहा जाता है जो उसे ज्ञात हैं और इन तथ्यों के आधार पर उसे अगले कदमों के बारे में विचार करना होता है।
 
 ```py
-from smolagents import load_tool, CodeAgent, HfApiModel, DuckDuckGoSearchTool
+from smolagents import load_tool, CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -424,7 +409,7 @@ search_tool = DuckDuckGoSearchTool()
 
 agent = CodeAgent(
     tools=[search_tool],
-    model=HfApiModel(model_id="Qwen/Qwen2.5-72B-Instruct"),
+    model=InferenceClientModel(model_id="Qwen/Qwen2.5-72B-Instruct"),
     planning_interval=3 # This is where you activate planning!
 )
 

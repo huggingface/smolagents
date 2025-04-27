@@ -28,7 +28,7 @@ from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
@@ -83,7 +83,7 @@ class AgentError(Exception):
         self.message = message
         logger.log_error(message)
 
-    def dict(self) -> Dict[str, str]:
+    def dict(self) -> dict[str, str]:
         return {"type": self.__class__.__name__, "message": str(self.message)}
 
 
@@ -149,7 +149,7 @@ def make_json_serializable(obj: Any) -> Any:
         return str(obj)
 
 
-def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
+def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
     "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
     try:
         first_accolade_index = json_blob.find("{")
@@ -158,7 +158,7 @@ def parse_json_blob(json_blob: str) -> Tuple[Dict[str, str], str]:
         json_data = json.loads(json_data, strict=False)
         return json_data, json_blob[:first_accolade_index]
     except IndexError:
-        raise ValueError("The JSON blob you used is invalid")
+        raise ValueError("The model output does not contain any JSON blob.")
     except json.JSONDecodeError as e:
         place = e.pos
         if json_blob[place - 1 : place + 2] == "},\n":
@@ -186,7 +186,7 @@ def parse_code_blobs(text: str) -> str:
     Raises:
         ValueError: If no valid code block is found in the text.
     """
-    pattern = r"```(?:py|python)?\n(.*?)\n```"
+    pattern = r"```(?:py|python)?\s*\n(.*?)\n```"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)

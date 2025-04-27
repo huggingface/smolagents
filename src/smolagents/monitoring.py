@@ -16,7 +16,6 @@
 # limitations under the License.
 import json
 from enum import IntEnum
-from typing import List, Optional
 
 from rich import box
 from rich.console import Console, Group
@@ -84,11 +83,14 @@ YELLOW_HEX = "#d4b702"
 
 
 class AgentLogger:
-    def __init__(self, level: LogLevel = LogLevel.INFO):
+    def __init__(self, level: LogLevel = LogLevel.INFO, console: Console | None = None):
         self.level = level
-        self.console = Console()
+        if console is None:
+            self.console = Console()
+        else:
+            self.console = console
 
-    def log(self, *args, level: str | LogLevel = LogLevel.INFO, **kwargs) -> None:
+    def log(self, *args, level: int | str | LogLevel = LogLevel.INFO, **kwargs) -> None:
         """Logs a message to the console.
 
         Args:
@@ -102,7 +104,7 @@ class AgentLogger:
     def log_error(self, error_message: str) -> None:
         self.log(escape_code_brackets(error_message), style="bold red", level=LogLevel.ERROR)
 
-    def log_markdown(self, content: str, title: Optional[str] = None, level=LogLevel.INFO, style=YELLOW_HEX) -> None:
+    def log_markdown(self, content: str, title: str | None = None, level=LogLevel.INFO, style=YELLOW_HEX) -> None:
         markdown_content = Syntax(
             content,
             lexer="markdown",
@@ -150,7 +152,7 @@ class AgentLogger:
             level=LogLevel.INFO,
         )
 
-    def log_task(self, content: str, subtitle: str, title: Optional[str] = None, level: int = LogLevel.INFO) -> None:
+    def log_task(self, content: str, subtitle: str, title: str | None = None, level: LogLevel = LogLevel.INFO) -> None:
         self.log(
             Panel(
                 f"\n[bold]{escape_code_brackets(content)}\n",
@@ -162,7 +164,7 @@ class AgentLogger:
             level=level,
         )
 
-    def log_messages(self, messages: List) -> None:
+    def log_messages(self, messages: list[dict], level: LogLevel = LogLevel.DEBUG) -> None:
         messages_as_string = "\n".join([json.dumps(dict(message), indent=4) for message in messages])
         self.log(
             Syntax(
@@ -170,7 +172,8 @@ class AgentLogger:
                 lexer="markdown",
                 theme="github-dark",
                 word_wrap=True,
-            )
+            ),
+            level=level,
         )
 
     def visualize_agent_tree(self, agent):
@@ -189,7 +192,7 @@ class AgentLogger:
 
             return Group("🛠️ [italic #1E90FF]Tools:[/italic #1E90FF]", table)
 
-        def get_agent_headline(agent, name: Optional[str] = None):
+        def get_agent_headline(agent, name: str | None = None):
             name_headline = f"{name} | " if name else ""
             return f"[bold {YELLOW_HEX}]{name_headline}{agent.__class__.__name__} | {agent.model.model_id}"
 

@@ -16,7 +16,6 @@
 import os
 import re
 import shutil
-from typing import Optional
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
@@ -91,37 +90,44 @@ def pull_messages_from_step(
                 metadata={
                     "title": f"🛠️ Used tool {first_tool_call.name}",
                     "id": parent_id,
-                    "status": "pending",
+                    "status": "done",
                 },
             )
             yield parent_message_tool
 
-            # Nesting execution logs under the tool call if they exist
-            if hasattr(step_log, "observations") and (
-                step_log.observations is not None and step_log.observations.strip()
-            ):  # Only yield execution logs if there's actual content
-                log_content = step_log.observations.strip()
-                if log_content:
-                    log_content = re.sub(r"^Execution logs:\s*", "", log_content)
-                    yield gr.ChatMessage(
-                        role="assistant",
-                        content=f"```bash\n{log_content}\n",
-                        metadata={"title": "📝 Execution Logs", "parent_id": parent_id, "status": "done"},
-                    )
-
-            # Nesting any errors under the tool call
-            if hasattr(step_log, "error") and step_log.error is not None:
+        # Display execution logs if they exist
+        if hasattr(step_log, "observations") and (
+            step_log.observations is not None and step_log.observations.strip()
+        ):  # Only yield execution logs if there's actual content
+            log_content = step_log.observations.strip()
+            if log_content:
+                log_content = re.sub(r"^Execution logs:\s*", "", log_content)
                 yield gr.ChatMessage(
                     role="assistant",
-                    content=str(step_log.error),
-                    metadata={"title": "💥 Error", "parent_id": parent_id, "status": "done"},
+                    content=f"```bash\n{log_content}\n",
+                    metadata={"title": "📝 Execution Logs", "status": "done"},
                 )
 
-            # Update parent message metadata to done status without yielding a new message
-            parent_message_tool.metadata["status"] = "done"
+        # Display any errors
+        if hasattr(step_log, "error") and step_log.error is not None:
+            yield gr.ChatMessage(
+                role="assistant",
+                content=str(step_log.error),
+                metadata={"title": "💥 Error", "status": "done"},
+            )
+
+        # Update parent message metadata to done status without yielding a new message
+        if getattr(step_log, "observations_images", []):
+            for image in step_log.observations_images:
+                path_image = AgentImage(image).to_string()
+                yield gr.ChatMessage(
+                    role="assistant",
+                    content={"path": path_image, "mime_type": f"image/{path_image.split('.')[-1]}"},
+                    metadata={"title": "🖼️ Output Image", "status": "done"},
+                )
 
         # Handle standalone errors but not from tool calls
-        elif hasattr(step_log, "error") and step_log.error is not None:
+        if hasattr(step_log, "error") and step_log.error is not None:
             yield gr.ChatMessage(role="assistant", content=str(step_log.error), metadata={"title": "💥 Error"})
 
         yield gr.ChatMessage(role="assistant", content=get_step_footnote_content(step_log, step_number))
@@ -160,14 +166,17 @@ def pull_messages_from_step(
 def stream_to_gradio(
     agent,
     task: str,
+    task_images: list | None = None,
     reset_agent_memory: bool = False,
-    additional_args: Optional[dict] = None,
+    additional_args: dict | None = None,
 ):
     """Runs an agent with the given task and streams the messages from the agent as gradio ChatMessages."""
     total_input_tokens = 0
     total_output_tokens = 0
 
-    for step_log in agent.run(task, stream=True, reset=reset_agent_memory, additional_args=additional_args):
+    for step_log in agent.run(
+        task, images=task_images, stream=True, reset=reset_agent_memory, additional_args=additional_args
+    ):
         # Track tokens if model provides them
         if getattr(agent.model, "last_input_token_count", None) is not None:
             total_input_tokens += agent.model.last_input_token_count

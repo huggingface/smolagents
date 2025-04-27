@@ -113,25 +113,14 @@ import numpy as np
         output = parse_code_blobs(code_blob)
         assert output == code_blob
 
+        # Allow whitespaces after header
+        output = parse_code_blobs("```py    \ncode_a\n````")
+        assert output == "code_a"
+
     def test_multiple_code_blobs(self):
-        test_input = """Here's a function that adds numbers:
-```python
-def add(a, b):
-    return a + b
-```
-And here's a function that multiplies them:
-```py
-def multiply(a, b):
-    return a * b
-```"""
-
-        expected_output = """def add(a, b):
-    return a + b
-
-def multiply(a, b):
-    return a * b"""
+        test_input = "```\nFoo\n```\n\n```py\ncode_a\n````\n\n```python\ncode_b\n```"
         result = parse_code_blobs(test_input)
-        assert result == expected_output
+        assert result == "Foo\n\ncode_a\n\ncode_b"
 
 
 @pytest.fixture(scope="function")

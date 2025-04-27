@@ -16,25 +16,30 @@ import json
 import sys
 import unittest
 from contextlib import ExitStack
-from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
+from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.models import (
+    AmazonBedrockServerModel,
     AzureOpenAIServerModel,
     ChatMessage,
     ChatMessageToolCall,
     HfApiModel,
+    InferenceClientModel,
     LiteLLMModel,
+    LiteLLMRouterModel,
     MessageRole,
     MLXModel,
+    Model,
     OpenAIServerModel,
     TransformersModel,
     get_clean_message_list,
     get_tool_call_from_text,
     get_tool_json_schema,
     parse_json_if_needed,
+    supports_stop_parameter,
 )
 from smolagents.tools import tool
 
@@ -42,9 +47,35 @@ from .utils.markers import require_run_all
 
 
 class TestModel:
+    @pytest.mark.parametrize(
+        "model_id, stop_sequences, should_contain_stop",
+        [
+            ("regular-model", ["stop1", "stop2"], True),  # Regular model should include stop
+            ("openai/o3", ["stop1", "stop2"], False),  # o3 model should not include stop
+            ("openai/o4-mini", ["stop1", "stop2"], False),  # o4-mini model should not include stop
+            ("something/else/o3", ["stop1", "stop2"], False),  # Path ending with o3 should not include stop
+            ("something/else/o4-mini", ["stop1", "stop2"], False),  # Path ending with o4-mini should not include stop
+            ("o3", ["stop1", "stop2"], False),  # Exact o3 model should not include stop
+            ("o4-mini", ["stop1", "stop2"], False),  # Exact o4-mini model should not include stop
+            ("regular-model", None, False),  # None stop_sequences should not add stop parameter
+        ],
+    )
+    def test_prepare_completion_kwargs_stop_sequences(self, model_id, stop_sequences, should_contain_stop):
+        model = Model()
+        model.model_id = model_id
+        completion_kwargs = model._prepare_completion_kwargs(
+            messages=[{"role": "user", "content": [{"type": "text", "text": "Hello"}]}], stop_sequences=stop_sequences
+        )
+        # Verify that the stop parameter is only included when appropriate
+        if should_contain_stop:
+            assert "stop" in completion_kwargs
+            assert completion_kwargs["stop"] == stop_sequences
+        else:
+            assert "stop" not in completion_kwargs
+
     def test_get_json_schema_has_nullable_args(self):
         @tool
-        def get_weather(location: str, celsius: Optional[bool] = False) -> str:
+        def get_weather(location: str, celsius: bool | None = False) -> str:
             """
             Get weather in the next days at given location.
             Secretly this tool does not care about the location, it hates the weather everywhere.
@@ -82,7 +113,8 @@ class TestModel:
         # check stop_sequence capture when output has trailing chars
         assert model(messages, stop_sequences=[stop_sequence]).content == "I'm ready to help you"
 
-    def test_transformers_message_no_tool(self):
+    def test_transformers_message_no_tool(self, monkeypatch):
+        monkeypatch.setattr("huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT", 30)  # instead of 10
         model = TransformersModel(
             model_id="HuggingFaceTB/SmolLM2-135M-Instruct",
             max_new_tokens=5,
@@ -90,22 +122,35 @@ class TestModel:
             do_sample=False,
         )
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
-        output = model(messages, stop_sequences=["great"]).content
+        output = model.generate(messages, stop_sequences=["great"]).content
         assert output == "assistant\nHello"
 
-    def test_transformers_message_vl_no_tool(self, shared_datadir):
+        output = model.generate_stream(messages, stop_sequences=["great"])
+        output_str = ""
+        for el in output:
+            output_str += el.content
+        assert output_str == "assistant\nHello"
+
+    def test_transformers_message_vl_no_tool(self, shared_datadir, monkeypatch):
+        monkeypatch.setattr("huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT", 30)  # instead of 10
         import PIL.Image
 
         img = PIL.Image.open(shared_datadir / "000000039769.png")
         model = TransformersModel(
             model_id="llava-hf/llava-interleave-qwen-0.5b-hf",
-            max_new_tokens=5,
+            max_new_tokens=4,
             device_map="cpu",
             do_sample=False,
         )
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}, {"type": "image", "image": img}]}]
-        output = model(messages, stop_sequences=["great"]).content
-        assert output == "Hello! How can"
+        output = model.generate(messages, stop_sequences=["great"]).content
+        assert output == "I am"
+
+        output = model.generate_stream(messages, stop_sequences=["great"])
+        output_str = ""
+        for el in output:
+            output_str += el.content
+        assert output_str == "I am"
 
     def test_parse_json_if_needed(self):
         args = "abc"
@@ -125,11 +170,13 @@ class TestModel:
         assert parsed_args == 3
 
 
-class TestHfApiModel:
+class TestInferenceClientModel:
     def test_call_with_custom_role_conversions(self):
         custom_role_conversions = {MessageRole.USER: MessageRole.SYSTEM}
-        model = HfApiModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
+        model = InferenceClientModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
         model.client = MagicMock()
+        mock_response = model.client.chat_completion.return_value
+        mock_response.choices[0].message = ChatCompletionOutputMessage(role="assistant")
         messages = [{"role": "user", "content": "Test message"}]
         _ = model(messages)
         # Verify that the role conversion was applied
@@ -137,24 +184,73 @@ class TestHfApiModel:
             "role conversion should be applied"
         )
 
+    def test_init_model_with_tokens(self):
+        model = InferenceClientModel(model_id="test-model", token="abc")
+        assert model.client.token == "abc"
+
+        model = InferenceClientModel(model_id="test-model", api_key="abc")
+        assert model.client.token == "abc"
+
+        with pytest.raises(ValueError, match="Received both `token` and `api_key` arguments."):
+            InferenceClientModel(model_id="test-model", token="abc", api_key="def")
+
     @require_run_all
     def test_get_hfapi_message_no_tool(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
     @require_run_all
     def test_get_hfapi_message_no_tool_external_provider(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
+
+
+class TestHfApiModel:
+    def test_init_model_with_tokens(self):
+        model = HfApiModel(model_id="test-model", token="abc")
+        assert model.client.token == "abc"
+
+        model = HfApiModel(model_id="test-model", api_key="abc")
+        assert model.client.token == "abc"
+
+        with pytest.raises(ValueError) as e:
+            _ = HfApiModel(model_id="test-model", token="abc", api_key="def")
+        assert "Received both `token` and `api_key` arguments." in str(e)
+
+    @require_run_all
+    def test_get_hfapi_message_no_tool(self):
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model.generate(messages, stop_sequences=["great"])
+
+    @require_run_all
+    def test_get_hfapi_message_no_tool_external_provider(self):
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model.generate(messages, stop_sequences=["great"])
+
+    @require_run_all
+    def test_get_hfapi_message_stream_no_tool(self):
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        for el in model.generate_stream(messages, stop_sequences=["great"]):
+            assert el.content is not None
+
+    @require_run_all
+    def test_get_hfapi_message_stream_no_tool_external_provider(self):
+        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        for el in model.generate_stream(messages, stop_sequences=["great"]):
+            assert el.content is not None
 
 
 class TestLiteLLMModel:
     @pytest.mark.parametrize(
         "model_id, error_flag",
         [
-            ("groq/llama-3.3-70b", "Missing API Key"),
+            ("groq/llama-3.3-70b", "Invalid API Key"),
             ("cerebras/llama-3.3-70b", "The api_key client option must be set"),
             ("mistral/mistral-tiny", "The api_key client option must be set"),
         ],
@@ -164,7 +260,12 @@ class TestLiteLLMModel:
         messages = [{"role": "user", "content": [{"type": "text", "text": "Test message"}]}]
         with pytest.raises(Exception) as e:
             # This should raise 401 error because of missing API key, not fail for any "bad format" reason
-            model(messages)
+            model.generate(messages)
+        assert error_flag in str(e)
+        with pytest.raises(Exception) as e:
+            # This should raise 401 error because of missing API key, not fail for any "bad format" reason
+            for el in model.generate_stream(messages):
+                assert el.content is not None
         assert error_flag in str(e)
 
     def test_passing_flatten_messages(self):
@@ -173,6 +274,41 @@ class TestLiteLLMModel:
 
         model = LiteLLMModel(model_id="fal/llama-3.3-70b", flatten_messages_as_text=True)
         assert model.flatten_messages_as_text
+
+
+class TestLiteLLMRouterModel:
+    @pytest.mark.parametrize(
+        "model_id, expected",
+        [
+            ("llama-3.3-70b", False),
+            ("llama-3.3-70b", True),
+            ("mistral-tiny", True),
+        ],
+    )
+    def test_flatten_messages_as_text(self, model_id, expected):
+        model_list = [
+            {"model_name": "llama-3.3-70b", "litellm_params": {"model": "groq/llama-3.3-70b"}},
+            {"model_name": "llama-3.3-70b", "litellm_params": {"model": "cerebras/llama-3.3-70b"}},
+            {"model_name": "mistral-tiny", "litellm_params": {"model": "mistral/mistral-tiny"}},
+        ]
+        model = LiteLLMRouterModel(model_id=model_id, model_list=model_list, flatten_messages_as_text=expected)
+        assert model.flatten_messages_as_text is expected
+
+    def test_create_client(self):
+        model_list = [
+            {"model_name": "llama-3.3-70b", "litellm_params": {"model": "groq/llama-3.3-70b"}},
+            {"model_name": "llama-3.3-70b", "litellm_params": {"model": "cerebras/llama-3.3-70b"}},
+        ]
+        with patch("litellm.Router") as mock_router:
+            router_model = LiteLLMRouterModel(
+                model_id="model-group-1", model_list=model_list, client_kwargs={"routing_strategy": "simple-shuffle"}
+            )
+            # Ensure that the Router constructor was called with the expected keyword arguments
+            mock_router.assert_called_once()
+            assert mock_router.call_count == 1
+            assert mock_router.call_args.kwargs["model_list"] == model_list
+            assert mock_router.call_args.kwargs["routing_strategy"] == "simple-shuffle"
+            assert router_model.client == mock_router.return_value
 
 
 class TestOpenAIServerModel:
@@ -197,6 +333,18 @@ class TestOpenAIServerModel:
             base_url=api_base, api_key=api_key, organization=organization, project=project, max_retries=5
         )
         assert model.client == MockOpenAI.return_value
+
+
+class TestAmazonBedrockServerModel:
+    def test_client_for_bedrock(self):
+        model_id = "us.amazon.nova-pro-v1:0"
+
+        with patch("boto3.client") as MockBoto3:
+            model = AmazonBedrockServerModel(
+                model_id=model_id,
+            )
+
+        assert model.client == MockBoto3.return_value
 
 
 class TestAzureOpenAIServerModel:
@@ -354,14 +502,14 @@ def test_get_clean_message_list_flatten_messages_as_text():
     result = get_clean_message_list(messages, flatten_messages_as_text=True)
     assert len(result) == 1
     assert result[0]["role"] == "user"
-    assert result[0]["content"] == "Hello!How are you?"
+    assert result[0]["content"] == "Hello!\nHow are you?"
 
 
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
         (AzureOpenAIServerModel, {}, ("openai.AzureOpenAI", {}), False),
-        (HfApiModel, {}, ("huggingface_hub.InferenceClient", {}), False),
+        (InferenceClientModel, {}, ("huggingface_hub.InferenceClient", {}), False),
         (LiteLLMModel, {}, None, False),
         (LiteLLMModel, {"model_id": "ollama"}, None, True),
         (LiteLLMModel, {"model_id": "groq"}, None, True),
@@ -406,6 +554,44 @@ def test_flatten_messages_as_text_for_all_models(
 
         model = model_class(**{"model_id": "test-model", **model_kwargs})
     assert model.flatten_messages_as_text is expected_flatten_messages_as_text, f"{model_class.__name__} failed"
+
+
+@pytest.mark.parametrize(
+    "model_id,expected",
+    [
+        # Unsupported base models
+        ("o3", False),
+        ("o4-mini", False),
+        # Unsupported versioned models
+        ("o3-2025-04-16", False),
+        ("o4-mini-2025-04-16", False),
+        # Unsupported models with path prefixes
+        ("openai/o3", False),
+        ("openai/o4-mini", False),
+        ("openai/o3-2025-04-16", False),
+        ("openai/o4-mini-2025-04-16", False),
+        # Supported models
+        ("o3-mini", True),  # Different from o3
+        ("o3-mini-2025-01-31", True),  # Different from o3
+        ("o4", True),  # Different from o4-mini
+        ("o4-turbo", True),  # Different from o4-mini
+        ("gpt-4", True),
+        ("claude-3-5-sonnet", True),
+        ("mistral-large", True),
+        # Supported models with path prefixes
+        ("openai/gpt-4", True),
+        ("anthropic/claude-3-5-sonnet", True),
+        ("mistralai/mistral-large", True),
+        # Edge cases
+        ("", True),  # Empty string doesn't match pattern
+        ("o3x", True),  # Not exactly o3
+        ("o3_mini", True),  # Not o3-mini format
+        ("prefix-o3", True),  # o3 not at start
+    ],
+)
+def test_supports_stop_parameter(model_id, expected):
+    """Test the supports_stop_parameter function with various model IDs"""
+    assert supports_stop_parameter(model_id) == expected, f"Failed for model_id: {model_id}"
 
 
 class TestGetToolCallFromText:
