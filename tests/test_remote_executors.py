@@ -8,7 +8,7 @@ import pytest
 from rich.console import Console
 
 from smolagents.monitoring import AgentLogger, LogLevel
-from smolagents.remote_executors import DockerExecutor, E2BExecutor
+from smolagents.remote_executors import DockerExecutor, E2BExecutor, WebAssemblyExecutor
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
@@ -103,3 +103,123 @@ class TestDockerExecutor:
         client = docker.from_env()
         containers = [c.id for c in client.containers.list(all=True)]
         assert container_id not in containers, "Container should be removed"
+
+
+class TestWebAssemblyExecutorUnit:
+    def test_web_assembly_executor_instantiation(self):
+        logger = MagicMock()
+
+        # Mock subprocess.run to simulate Deno being installed
+        with (
+            patch("subprocess.run") as mock_run,
+            patch("subprocess.Popen") as mock_popen,
+            patch("requests.get") as mock_get,
+            patch("time.sleep"),
+        ):
+            # Configure mocks
+            mock_run.return_value.returncode = 0
+            mock_process = MagicMock()
+            mock_process.poll.return_value = None
+            mock_popen.return_value = mock_process
+            mock_get.return_value.status_code = 200
+
+            # Create the executor
+            executor = WebAssemblyExecutor(additional_imports=["numpy", "pandas"], logger=logger, timeout=30)
+
+            # Verify the executor was created correctly
+            assert isinstance(executor, WebAssemblyExecutor)
+            assert executor.logger == logger
+            assert executor.timeout == 30
+            assert "numpy" in executor.installed_packages
+            assert "pandas" in executor.installed_packages
+
+            # Verify Deno was checked
+            assert mock_run.call_count == 1
+            assert mock_run.call_args.args[0][0] == "deno"
+            assert mock_run.call_args.args[0][1] == "--version"
+
+            # Verify server was started
+            assert mock_popen.call_count == 1
+            assert mock_popen.call_args.args[0][0] == "deno"
+            assert mock_popen.call_args.args[0][1] == "run"
+
+            # Clean up
+            with patch("shutil.rmtree"):
+                executor.cleanup()
+
+
+@require_run_all
+class TestWebAssemblyExecutorIntegration:
+    """
+    Integration tests for WebAssemblyExecutor.
+
+    These tests require Deno to be installed on the system.
+    Skip these tests if you don't have Deno installed.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        """Setup and teardown for each test."""
+        try:
+            # Check if Deno is installed
+            import subprocess
+
+            subprocess.run(["deno", "--version"], capture_output=True, check=True)
+
+            # Create the executor
+            self.executor = WebAssemblyExecutor(
+                additional_imports=["numpy", "pandas"],
+                logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
+                timeout=60,
+            )
+            yield
+            # Clean up
+            self.executor.cleanup()
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pytest.skip("Deno is not installed, skipping integration tests")
+
+    def test_basic_execution(self):
+        """Test basic code execution."""
+        code = "a = 2 + 2; print(f'Result: {a}')"
+        _, logs, _ = self.executor(code)
+        assert "Result: 4" in logs
+
+    def test_state_persistence(self):
+        """Test that variables persist between executions."""
+        # Define a variable
+        self.executor("x = 42")
+
+        # Use the variable in a subsequent execution
+        _, logs, _ = self.executor("print(x)")
+        assert "42" in logs
+
+    def test_final_answer(self):
+        """Test returning a final answer."""
+        code = 'final_answer("This is the final answer")'
+        result, _, is_final = self.executor(code)
+        assert result == "This is the final answer"
+        assert is_final is True
+
+    def test_numpy_execution(self):
+        """Test execution with NumPy."""
+        code = """
+        import numpy as np
+        arr = np.array([1, 2, 3, 4, 5])
+        print(f"Mean: {np.mean(arr)}")
+        """
+        _, logs, _ = self.executor(code)
+        assert "Mean: 3.0" in logs
+
+    def test_error_handling(self):
+        """Test handling of Python errors."""
+        code = "1/0"  # Division by zero
+        with pytest.raises(AgentError) as excinfo:
+            self.executor(code)
+        assert "ZeroDivisionError" in str(excinfo.value)
+
+    def test_syntax_error_handling(self):
+        """Test handling of syntax errors."""
+        code = "print('Missing parenthesis"  # Missing closing parenthesis
+        with pytest.raises(AgentError) as excinfo:
+            self.executor(code)
+        assert "SyntaxError" in str(excinfo.value)
