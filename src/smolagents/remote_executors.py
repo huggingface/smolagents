@@ -33,6 +33,9 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
+__all__ = ["E2BExecutor", "DockerExecutor"]
+
+
 try:
     from dotenv import load_dotenv
 
@@ -384,4 +387,5 @@ CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGat
         self.cleanup()
 
 
-__all__ = ["E2BExecutor", "DockerExecutor"]
+class WebAssemblyExecutor(RemotePythonExecutor):
+    pass
