@@ -392,7 +392,7 @@ class LinkupSearchTool(Tool):
         "depth": {
             "type": "string",
             "enum": ["standard", "deep"],
-            "description": 'The depth of the search. Can be either "standard" for a straightforward and fast search, or "deep" for a more powerful agentic workflow.',
+            "description": "The search depth to perform. Use 'standard' for straightforward queries with likely direct answers (e.g., facts, definitions, simple explanations). Use 'deep' for: 1) complex queries requiring comprehensive analysis or information synthesis, 2) queries containing uncommon terms, specialized jargon, or abbreviations that may need additional context, or 3) questions likely requiring up-to-date or specialized web search results to answer effectively.",
         },
     }
 
