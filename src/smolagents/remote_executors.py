@@ -563,8 +563,8 @@ class WebAssemblyExecutor(RemotePythonExecutor):
                     self.installed_packages.append(package)
         tool_definition_code = get_tools_definition_code(tools)
         # TODO: Run it now or later, preceding code?
-        execution = self.run_code_raise_errors(tool_definition_code)
-        self.logger.log(execution[1])
+        _, execution_logs = self.run_code_raise_errors(tool_definition_code)
+        self.logger.log(execution_logs)
 
     def cleanup(self):
         """Clean up resources used by the executor."""
