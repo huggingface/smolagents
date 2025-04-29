@@ -663,18 +663,17 @@ class WebAssemblyExecutor(RemotePythonExecutor):
               if (packages && packages.length > 0) {
                 const pyodide = await pyodidePromise;
                 //await pyodide.loadPackagesFromImports(code);
+                await pyodide.loadPackage("micropip");
+                const micropip = pyodide.pyimport("micropip");
                 for (const pkg of packages) {
                   try {
-                    await pyodide.loadPackage(pkg);
+                    // await pyodide.loadPackage(pkg);
+                    await micropip.install(pkg);
                   } catch (e) {
                     console.error(`Failed to load package ${pkg}: ${e.message}`);
                   }
                 }
-              } else {
-                console.log("Skipping package loading block. Packages:", packages); // Added log for else case
               }
-              //const pyodide = await pyodidePromise;
-              //await pyodide.loadPackage("numpy");
 
               const result = await executePythonCode(code, returnFinalAnswer);
               return new Response(JSON.stringify(result), {
