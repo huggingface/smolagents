@@ -431,7 +431,9 @@ class WebAssemblyExecutor(RemotePythonExecutor):
         if deno_permissions is None:
             # TODO: Set minimal permissions
             self.deno_permissions = [
-                "--allow-net=cdn.jsdelivr.net,0.0.0.0:8000",  # allow fetch pyodide packages & server
+                # --allow-net=cdn.jsdelivr.net,0.0.0.0:8000;
+                # --allow-net=pypi.org,files.pythonhosted.org;  # allow fetch pyodide packages from PyPI
+                "--allow-net",  # allow fetch pyodide packages & server
                 "--allow-read",  # grant read access for pyodide packages
                 "--allow-write",  # grant write access for pyodide packages
             ]
