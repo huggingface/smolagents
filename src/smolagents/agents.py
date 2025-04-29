@@ -27,7 +27,7 @@ from collections import deque
 from collections.abc import Callable, Generator
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 import jinja2
 import yaml
@@ -64,7 +64,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor
+from .remote_executors import DockerExecutor, E2BExecutor, WebAssemblyExecutor
 from .tools import Tool
 from .utils import (
     AgentError,
@@ -1190,7 +1190,7 @@ class CodeAgent(MultiStepAgent):
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
-        executor_type (`str`, default `"local"`): Which executor type to use between `"local"`, `"e2b"`, or `"docker"`.
+        executor_type (`Literal["local", "e2b", "docker", "wasm"]`, default `"local"`): Type of code executor.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
@@ -1205,7 +1205,7 @@ class CodeAgent(MultiStepAgent):
         grammar: dict[str, str] | None = None,
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
-        executor_type: str | None = "local",
+        executor_type: Literal["local", "e2b", "docker", "wasm"] = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
@@ -1235,26 +1235,29 @@ class CodeAgent(MultiStepAgent):
                 "Caution: you set an authorization for all imports, meaning your agent can decide to import any package it deems necessary. This might raise issues if the package is not installed in your environment.",
                 level=LogLevel.INFO,
             )
-        self.executor_type = executor_type or "local"
-        self.executor_kwargs = executor_kwargs or {}
+        if executor_type not in {"local", "e2b", "docker", "wasm"}:
+            raise ValueError(f"Unsupported executor type: {executor_type}")
+        self.executor_type = executor_type
+        self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
         self.python_executor = self.create_python_executor()
 
     def create_python_executor(self) -> PythonExecutor:
-        match self.executor_type:
-            case "e2b" | "docker":
-                if self.managed_agents:
-                    raise Exception("Managed agents are not yet supported with remote code execution.")
-                if self.executor_type == "e2b":
-                    return E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
-                else:
-                    return DockerExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
-            case "local":
-                return LocalPythonExecutor(
-                    self.additional_authorized_imports,
-                    max_print_outputs_length=self.max_print_outputs_length,
-                )
-            case _:  # if applicable
-                raise ValueError(f"Unsupported executor type: {self.executor_type}")
+        if self.executor_type == "local":
+            return LocalPythonExecutor(
+                self.additional_authorized_imports,
+                max_print_outputs_length=self.max_print_outputs_length,
+            )
+        else:
+            if self.managed_agents:
+                raise Exception("Managed agents are not yet supported with remote code execution.")
+            remote_executors = {
+                "e2b": E2BExecutor,
+                "docker": DockerExecutor,
+                "wasm": WebAssemblyExecutor,
+            }
+            return remote_executors[self.executor_type](
+                self.additional_authorized_imports, self.logger, **self.executor_kwargs
+            )
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
