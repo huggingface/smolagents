@@ -53,19 +53,23 @@ class RemotePythonExecutor(PythonExecutor):
         raise NotImplementedError
 
     def send_tools(self, tools: dict[str, Tool]):
+        code = ""
+        # Install tool packages
+        packages_to_install = {
+            pkg
+            for tool in tools.values()
+            for pkg in tool.to_dict()["requirements"]
+            if pkg not in self.installed_packages
+        }
+        if packages_to_install:
+            self.installed_packages.extend(packages_to_install)
+            code += f"!pip install {' '.join(packages_to_install)}\n"
+        # Get tool definitions
         tool_definition_code = get_tools_definition_code(tools)
-
-        packages_to_install = set()
-        for tool in tools.values():
-            for package in tool.to_dict()["requirements"]:
-                if package not in self.installed_packages:
-                    packages_to_install.add(package)
-                    self.installed_packages.append(package)
-
-        execution = self.run_code_raise_errors(
-            f"!pip install {' '.join(packages_to_install)}\n" + tool_definition_code
-        )
-        self.logger.log(execution[1])
+        code += tool_definition_code
+        if code:
+            execution = self.run_code_raise_errors(code)
+            self.logger.log(execution[1])
 
     def send_variables(self, variables: dict):
         """
