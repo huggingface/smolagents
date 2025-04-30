@@ -58,7 +58,7 @@ class RemotePythonExecutor(PythonExecutor):
         packages_to_install = set()
         for tool in tools.values():
             for package in tool.to_dict()["requirements"]:
-                if package not in self.installed_packages:
+                if package not in self.installed_packages + ["smolagents"]:
                     packages_to_install.add(package)
                     self.installed_packages.append(package)
 
@@ -86,9 +86,9 @@ locals().update(vars_dict)
         return output[0], output[1], is_final_answer
 
     def install_packages(self, additional_imports: list[str]):
-        additional_imports = additional_imports + ["smolagents"]
-        _, execution_logs = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
-        self.logger.log(execution_logs)
+        if additional_imports:
+            _, execution_logs = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
+            self.logger.log(execution_logs)
         return additional_imports
 
 
