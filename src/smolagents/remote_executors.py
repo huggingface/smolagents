@@ -217,14 +217,18 @@ class DockerExecutor(RemotePythonExecutor):
                 dockerfile_path = Path(__file__).parent / "Dockerfile"
                 if not dockerfile_path.exists():
                     with open(dockerfile_path, "w") as f:
-                        f.write("""FROM python:3.12-slim
+                        f.write(
+                            dedent(
+                                """\
+                                FROM python:3.12-slim
 
-RUN pip install jupyter_kernel_gateway requests numpy pandas
-RUN pip install jupyter_client notebook
+                                RUN pip install jupyter_kernel_gateway jupyter_client
 
-EXPOSE 8888
-CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
-""")
+                                EXPOSE 8888
+                                CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
+                                """
+                            )
+                        )
                 _, build_logs = self.client.images.build(
                     path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
                 )
