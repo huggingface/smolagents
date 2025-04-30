@@ -17,7 +17,6 @@ dependencies = [
   "rich>=13.9.4",
   "jinja2>=3.1.4",
   "pillow>=11.0.0",
-  "markdownify>=0.14.1",
   "duckduckgo-search>=6.3.7",
   "python-dotenv"
 ]
@@ -93,6 +92,7 @@ test = [
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
   "Wikipedia-API>=0.8.1",
+  "markdownify>=0.14.1",  # VisitWebpageTool
 ]
 dev = [
   "smolagents[quality,test]",
