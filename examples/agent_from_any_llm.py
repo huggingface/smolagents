@@ -1,10 +1,11 @@
 from smolagents import InferenceClientModel, LiteLLMModel, OpenAIServerModel, TransformersModel, tool
 from smolagents.agents import CodeAgent, ToolCallingAgent
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 # Choose which inference type to use!
 
-available_inferences = ["hf_api", "hf_api_provider", "transformers", "ollama", "litellm", "openai"]
+available_inferences = ["hf_api", "hf_api_provider", "transformers", "local_dir", "ollama", "litellm", "openai"]
 chosen_inference = "hf_api_provider"
 
 print(f"Chose model: '{chosen_inference}'")
@@ -34,6 +35,9 @@ elif chosen_inference == "openai":
     # For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-latest'
     model = OpenAIServerModel(model_id="gpt-4o")
 
+elif chosen_inference == "local_dir":
+     # update this with your local model directory
+    model = TransformersModel(model_id="path/to/model")
 
 @tool
 def get_weather(location: str, celsius: bool | None = False) -> str:
