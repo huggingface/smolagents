@@ -4,8 +4,8 @@ from smolagents.agents import CodeAgent, ToolCallingAgent
 
 # Choose which inference type to use!
 
-available_inferences = ["hf_api", "hf_api_provider", "transformers", "ollama", "litellm", "openai"]
-chosen_inference = "hf_api_provider"
+available_inferences = ["hf_api", "hf_api_provider", "transformers", "ollama", "litellm", "openai", "local_dir"]
+chosen_inference = "hf_api_provider"  # Change this to one of the available options
 
 print(f"Chose model: '{chosen_inference}'")
 
@@ -34,6 +34,10 @@ elif chosen_inference == "openai":
     # For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-latest'
     model = OpenAIServerModel(model_id="gpt-4o")
 
+elif chosen_inference == "local_dir":
+    # update this with your local model directory, cloned from HuggingFace or other source
+    local_model_dir = "local/model/path" 
+    model = TransformersModel(model_id=local_model_dir)
 
 @tool
 def get_weather(location: str, celsius: bool | None = False) -> str:
