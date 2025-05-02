@@ -8,10 +8,20 @@ import pytest
 from rich.console import Console
 
 from smolagents.monitoring import AgentLogger, LogLevel
-from smolagents.remote_executors import DockerExecutor, E2BExecutor
+from smolagents.remote_executors import DockerExecutor, E2BExecutor, RemotePythonExecutor
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
+
+
+class TestRemotePythonExecutor:
+    def test_send_tools_empty_tools(self, monkeypatch):
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
+        executor.run_code_raise_errors = MagicMock()
+        executor.send_tools({})
+        assert executor.run_code_raise_errors.call_count == 1
+        # No new packages should be installed
+        assert "!pip install" not in executor.run_code_raise_errors.call_args.args[0]
 
 
 class TestE2BExecutorMock:

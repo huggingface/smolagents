@@ -58,9 +58,10 @@ from smolagents import CodeAgent, InferenceClientModel
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
     tools=[retriever_tool],
-    model=InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct"),
+    model=InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"),
     max_steps=4,
     verbosity_level=2,
+    stream_outputs=True,
 )
 
 agent_output = agent.run("For a transformers model training, which is slower, the forward or the backward pass?")
