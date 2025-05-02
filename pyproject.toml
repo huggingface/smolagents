@@ -51,7 +51,7 @@ litellm = [
 ]
 mcp = [
   "mcpadapt>=0.0.19",  # Security fix
-  "mcp",
+  "mcp<1.7.0",  # Hotfix for GH-1284
 ]
 mlx-lm = [
   "mlx-lm"
