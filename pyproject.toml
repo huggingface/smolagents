@@ -65,6 +65,7 @@ telemetry = [
 ]
 toolkit = [
   "duckduckgo-search>=6.3.7",  # DuckDuckGoSearchTool
+  "markdownify>=0.14.1",  # VisitWebpageTool
 ]
 transformers = [
   "accelerate",
@@ -94,7 +95,6 @@ test = [
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
   "Wikipedia-API>=0.8.1",
-  "markdownify>=0.14.1",  # VisitWebpageTool
 ]
 dev = [
   "smolagents[quality,test]",
