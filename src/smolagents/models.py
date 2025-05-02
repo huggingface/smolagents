@@ -1447,6 +1447,28 @@ class OpenAIServerModel(ApiModel):
         )
 
 
+class GeminiModel(OpenAIServerModel):
+    def __init__(
+        self,
+        model_id: str,
+        api_key: Optional[str] = None,
+        client_kwargs: Optional[Dict[str, Any]] = None,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ):
+        if importlib.util.find_spec("openai") is None:
+            raise ModuleNotFoundError(
+                "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
+            )
+        client_kwargs = client_kwargs or {}
+        super().__init__(
+            model_id=model_id,
+            api_key=api_key,
+            api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
+            custom_role_conversions=custom_role_conversions,
+            **kwargs,
+        )
+
 class AzureOpenAIServerModel(OpenAIServerModel):
     """This model connects to an Azure OpenAI deployment.
 
