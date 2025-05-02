@@ -52,6 +52,6 @@ agent = ToolCallingAgent(tools=[get_weather], model=model, verbosity_level=2)
 
 print("ToolCallingAgent:", agent.run("What's the weather like in Paris?"))
 
-agent = CodeAgent(tools=[get_weather], model=model, verbosity_level=2)
+agent = CodeAgent(tools=[get_weather], model=model, verbosity_level=2, stream_outputs=True)
 
 print("CodeAgent:", agent.run("What's the weather like in Paris?"))

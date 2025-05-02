@@ -17,9 +17,9 @@ import os
 import tempfile
 import unittest
 import uuid
+from collections.abc import Generator
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -620,8 +620,8 @@ class MockAgent:
 
 
 class DummyMultiStepAgent(MultiStepAgent):
-    def step(self, memory_step: ActionStep) -> None | Any:
-        return super().step(memory_step)
+    def step(self, memory_step: ActionStep) -> Generator[None]:
+        yield None
 
     def initialize_system_prompt(self):
         pass
@@ -682,7 +682,7 @@ class TestMultiStepAgent:
         fake_model.last_input_token_count = 10
         fake_model.last_output_token_count = 20
         max_steps = 2
-        agent = DummyMultiStepAgent(tools=[], model=fake_model, max_steps=max_steps)
+        agent = CodeAgent(tools=[], model=fake_model, max_steps=max_steps)
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
         assert agent.step_number == 0, "step_number should be initialized to 0"
         agent.run("Test task")
@@ -719,7 +719,8 @@ class TestMultiStepAgent:
             model=fake_model,
         )
         task = "Test task"
-        planning_step = agent._generate_planning_step(task, is_first_step=(step == 1), step=step)
+
+        planning_step = list(agent._generate_planning_step(task, is_first_step=(step == 1), step=step))[-1]
         expected_message_texts = {
             "INITIAL_PLAN_USER_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["initial_plan"],
@@ -764,8 +765,8 @@ class TestMultiStepAgent:
             for content, expected_content in zip(message["content"], expected_message["content"]):
                 assert content == expected_content
         # Test calls to model
-        assert len(fake_model.call_args_list) == 1
-        for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
+        assert len(fake_model.generate.call_args_list) == 1
+        for call_args, expected_messages in zip(fake_model.generate.call_args_list, expected_messages_list):
             assert len(call_args.args) == 1
             messages = call_args.args[0]
             assert isinstance(messages, list)

@@ -16,10 +16,12 @@
 import os
 import re
 import shutil
+from pathlib import Path
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
 from smolagents.memory import ActionStep, FinalAnswerStep, MemoryStep
+from smolagents.models import ChatMessageStreamDelta
 from smolagents.utils import _is_package_available
 
 
@@ -36,10 +38,14 @@ def get_step_footnote_content(step_log: MemoryStep, step_name: str) -> str:
     return step_footnote_content
 
 
-def pull_messages_from_step(
-    step_log: MemoryStep,
-):
-    """Extract ChatMessage objects from agent steps with proper nesting"""
+def pull_messages_from_step(step_log: MemoryStep, skip_model_outputs: bool = False):
+    """Extract ChatMessage objects from agent steps with proper nesting.
+
+    Args:
+        step_log: The step log to display as gr.ChatMessage objects.
+        skip_model_outputs: If True, skip the model outputs when creating the gr.ChatMessage objects:
+            This is used for instance when streaming model outputs have already been displayed.
+    """
     if not _is_package_available("gradio"):
         raise ModuleNotFoundError(
             "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
@@ -49,24 +55,23 @@ def pull_messages_from_step(
     if isinstance(step_log, ActionStep):
         # Output the step number
         step_number = f"Step {step_log.step_number}" if step_log.step_number is not None else "Step"
-        yield gr.ChatMessage(role="assistant", content=f"**{step_number}**")
 
         # First yield the thought/reasoning from the LLM
-        if hasattr(step_log, "model_output") and step_log.model_output is not None:
-            # Clean up the LLM output
+        if not skip_model_outputs:
+            yield gr.ChatMessage(role="assistant", content=f"**{step_number}**", metadata={"status": "done"})
+        elif skip_model_outputs and hasattr(step_log, "model_output") and step_log.model_output is not None:
             model_output = step_log.model_output.strip()
             # Remove any trailing <end_code> and extra backticks, handling multiple possible formats
             model_output = re.sub(r"```\s*<end_code>", "```", model_output)  # handles ```<end_code>
             model_output = re.sub(r"<end_code>\s*```", "```", model_output)  # handles <end_code>```
             model_output = re.sub(r"```\s*\n\s*<end_code>", "```", model_output)  # handles ```\n<end_code>
             model_output = model_output.strip()
-            yield gr.ChatMessage(role="assistant", content=model_output)
+            yield gr.ChatMessage(role="assistant", content=model_output, metadata={"status": "done"})
 
         # For tool calls, create a parent message
         if hasattr(step_log, "tool_calls") and step_log.tool_calls is not None:
             first_tool_call = step_log.tool_calls[0]
             used_code = first_tool_call.name == "python_interpreter"
-            parent_id = f"call_{len(step_log.tool_calls)}"
 
             # Tool call becomes the parent message with timing info
             # First we will handle arguments based on type
@@ -89,7 +94,6 @@ def pull_messages_from_step(
                 content=content,
                 metadata={
                     "title": f"🛠️ Used tool {first_tool_call.name}",
-                    "id": parent_id,
                     "status": "done",
                 },
             )
@@ -128,15 +132,21 @@ def pull_messages_from_step(
 
         # Handle standalone errors but not from tool calls
         if hasattr(step_log, "error") and step_log.error is not None:
-            yield gr.ChatMessage(role="assistant", content=str(step_log.error), metadata={"title": "💥 Error"})
+            yield gr.ChatMessage(
+                role="assistant", content=str(step_log.error), metadata={"title": "💥 Error", "status": "done"}
+            )
 
-        yield gr.ChatMessage(role="assistant", content=get_step_footnote_content(step_log, step_number))
+        yield gr.ChatMessage(
+            role="assistant", content=get_step_footnote_content(step_log, step_number), metadata={"status": "done"}
+        )
         yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
 
     elif isinstance(step_log, PlanningStep):
-        yield gr.ChatMessage(role="assistant", content="**Planning step**")
-        yield gr.ChatMessage(role="assistant", content=step_log.plan)
-        yield gr.ChatMessage(role="assistant", content=get_step_footnote_content(step_log, "Planning step"))
+        yield gr.ChatMessage(role="assistant", content="**Planning step**", metadata={"status": "done"})
+        yield gr.ChatMessage(role="assistant", content=step_log.plan, metadata={"status": "done"})
+        yield gr.ChatMessage(
+            role="assistant", content=get_step_footnote_content(step_log, "Planning step"), metadata={"status": "done"}
+        )
         yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
 
     elif isinstance(step_log, FinalAnswerStep):
@@ -145,19 +155,24 @@ def pull_messages_from_step(
             yield gr.ChatMessage(
                 role="assistant",
                 content=f"**Final answer:**\n{final_answer.to_string()}\n",
+                metadata={"status": "done"},
             )
         elif isinstance(final_answer, AgentImage):
             yield gr.ChatMessage(
                 role="assistant",
                 content={"path": final_answer.to_string(), "mime_type": "image/png"},
+                metadata={"status": "done"},
             )
         elif isinstance(final_answer, AgentAudio):
             yield gr.ChatMessage(
                 role="assistant",
                 content={"path": final_answer.to_string(), "mime_type": "audio/wav"},
+                metadata={"status": "done"},
             )
         else:
-            yield gr.ChatMessage(role="assistant", content=f"**Final answer:** {str(final_answer)}")
+            yield gr.ChatMessage(
+                role="assistant", content=f"**Final answer:** {str(final_answer)}", metadata={"status": "done"}
+            )
 
     else:
         raise ValueError(f"Unsupported step type: {type(step_log)}")
@@ -174,6 +189,13 @@ def stream_to_gradio(
     total_input_tokens = 0
     total_output_tokens = 0
 
+    if not _is_package_available("gradio"):
+        raise ModuleNotFoundError(
+            "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
+        )
+
+    intermediate_text = ""
+
     for step_log in agent.run(
         task, images=task_images, stream=True, reset=reset_agent_memory, additional_args=additional_args
     ):
@@ -185,10 +207,17 @@ def stream_to_gradio(
                 step_log.input_token_count = agent.model.last_input_token_count
                 step_log.output_token_count = agent.model.last_output_token_count
 
-        for message in pull_messages_from_step(
-            step_log,
-        ):
-            yield message
+        if isinstance(step_log, MemoryStep):
+            intermediate_text = ""
+            for message in pull_messages_from_step(
+                step_log,
+                # If we're streaming model outputs, no need to display them twice
+                skip_model_outputs=getattr(agent, "stream_outputs", False),
+            ):
+                yield message
+        elif isinstance(step_log, ChatMessageStreamDelta):
+            intermediate_text += step_log.content or ""
+            yield intermediate_text
 
 
 class GradioUI:
@@ -200,12 +229,12 @@ class GradioUI:
                 "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
             )
         self.agent = agent
-        self.file_upload_folder = file_upload_folder
+        self.file_upload_folder = Path(file_upload_folder) if file_upload_folder is not None else None
         self.name = getattr(agent, "name") or "Agent interface"
         self.description = getattr(agent, "description", None)
         if self.file_upload_folder is not None:
-            if not os.path.exists(file_upload_folder):
-                os.mkdir(file_upload_folder)
+            if not self.file_upload_folder.exists():
+                self.file_upload_folder.mkdir(parents=True, exist_ok=True)
 
     def interact_with_agent(self, prompt, messages, session_state):
         import gradio as gr
@@ -215,11 +244,22 @@ class GradioUI:
             session_state["agent"] = self.agent
 
         try:
-            messages.append(gr.ChatMessage(role="user", content=prompt))
+            messages.append(gr.ChatMessage(role="user", content=prompt, metadata={"status": "done"}))
             yield messages
 
             for msg in stream_to_gradio(session_state["agent"], task=prompt, reset_agent_memory=False):
-                messages.append(msg)
+                if isinstance(msg, gr.ChatMessage):
+                    messages.append(msg)
+                elif isinstance(msg, str):  # Then it's only a completion delta
+                    try:
+                        if messages[-1].metadata["status"] == "pending":
+                            messages[-1].content = msg
+                        else:
+                            messages.append(
+                                gr.ChatMessage(role="assistant", content=msg, metadata={"status": "pending"})
+                            )
+                    except Exception as e:
+                        raise e
                 yield messages
 
             yield messages
@@ -309,12 +349,9 @@ class GradioUI:
                         [upload_status, file_uploads_log],
                     )
 
-                gr.HTML("<br><br><h4><center>Powered by:</center></h4>")
-                with gr.Row():
-                    gr.HTML("""<div style="display: flex; align-items: center; gap: 8px; font-family: system-ui, -apple-system, sans-serif;">
-            <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png" style="width: 32px; height: 32px; object-fit: contain;" alt="logo">
-            <a target="_blank" href="https://github.com/huggingface/smolagents"><b>huggingface/smolagents</b></a>
-            </div>""")
+                gr.HTML(
+                    "<br><br><h4><center>Powered by <a target='_blank' href='https://github.com/huggingface/smolagents'><b>smolagents</b></a></center></h4>"
+                )
 
             # Main chat interface
             chatbot = gr.Chatbot(

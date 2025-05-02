@@ -52,3 +52,13 @@ Then you're good to go! Run the run.py script, as in:
 ```bash
 python run.py --model-id "o1" "Your question here!"
 ```
+
+## Full reproducibility of results
+
+The data used in our submissions to GAIA was augmented in this way:
+ -  For each single-page .pdf or .xls file, it was opened in a file reader (MacOS Sonoma Numbers or Preview), and a ".png" screenshot was taken and added to the folder.
+- Then for any file used in a question, the file loading system checks if there is a ".png" extension version of the file, and loads it instead of the original if it exists.
+
+This process was done manually but could be automatized.
+
+After processing, the annotated was uploaded to a [new dataset](https://huggingface.co/datasets/smolagents/GAIA-annotated). You need to request access (granted instantly).
