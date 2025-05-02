@@ -64,6 +64,9 @@ telemetry = [
   "opentelemetry-exporter-otlp",
   "openinference-instrumentation-smolagents>=0.1.4"
 ]
+toolkit = [
+  "duckduckgo-search>=6.3.7",  # DuckDuckGoSearchTool
+]
 transformers = [
   "accelerate",
   "transformers>=4.0.0",
@@ -78,7 +81,7 @@ vllm = [
   "torch"
 ]
 all = [
-  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,openai,telemetry,transformers,vision,bedrock]",
+  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,openai,telemetry,toolkit,transformers,vision,bedrock]",
 ]
 quality = [
   "ruff>=0.9.0",
@@ -92,7 +95,6 @@ test = [
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
   "Wikipedia-API>=0.8.1",
-  "duckduckgo-search>=6.3.7",  # DuckDuckGoSearchTool
 ]
 dev = [
   "smolagents[quality,test]",
