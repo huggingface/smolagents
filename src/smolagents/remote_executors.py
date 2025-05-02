@@ -53,7 +53,6 @@ class RemotePythonExecutor(PythonExecutor):
         raise NotImplementedError
 
     def send_tools(self, tools: dict[str, Tool]):
-        code = ""
         # Install tool packages
         packages_to_install = {
             pkg
@@ -62,11 +61,9 @@ class RemotePythonExecutor(PythonExecutor):
             if pkg not in self.installed_packages + ["smolagents"]
         }
         if packages_to_install:
-            self.installed_packages.extend(packages_to_install)
-            code += f"!pip install {' '.join(packages_to_install)}\n"
+            self.installed_packages += self.install_packages(list(packages_to_install))
         # Get tool definitions
-        tool_definition_code = get_tools_definition_code(tools)
-        code += tool_definition_code
+        code = get_tools_definition_code(tools)
         if code:
             execution = self.run_code_raise_errors(code)
             self.logger.log(execution[1])
