@@ -235,7 +235,7 @@ class VisitWebpageTool(Tool):
             from markdownify import markdownify
             from requests.exceptions import RequestException
 
-            from smolagents.utils import truncate_content
+            from smolagents.common_utils.truncate_content import truncate_content
         except ImportError as e:
             raise ImportError(
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
