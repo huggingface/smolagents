@@ -27,15 +27,16 @@ from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallDefinition,
+    Model,
 )
 
 
-class FakeLLMModel:
+class FakeLLMModel(Model):
     def __init__(self):
         self.last_input_token_count = 10
         self.last_output_token_count = 20
 
-    def __call__(self, prompt, tools_to_call_from=None, **kwargs):
+    def generate(self, prompt, tools_to_call_from=None, **kwargs):
         if tools_to_call_from is not None:
             return ChatMessage(
                 role="assistant",
@@ -84,12 +85,12 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(agent.monitor.total_output_token_count, 20)
 
     def test_code_agent_metrics_max_steps(self):
-        class FakeLLMModelMalformedAnswer:
+        class FakeLLMModelMalformedAnswer(Model):
             def __init__(self):
                 self.last_input_token_count = 10
                 self.last_output_token_count = 20
 
-            def __call__(self, prompt, **kwargs):
+            def generate(self, prompt, **kwargs):
                 return ChatMessage(role="assistant", content="Malformed answer")
 
         agent = CodeAgent(
@@ -104,12 +105,12 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(agent.monitor.total_output_token_count, 40)
 
     def test_code_agent_metrics_generation_error(self):
-        class FakeLLMModelGenerationException:
+        class FakeLLMModelGenerationException(Model):
             def __init__(self):
                 self.last_input_token_count = 10
                 self.last_output_token_count = 20
 
-            def __call__(self, prompt, **kwargs):
+            def generate(self, prompt, **kwargs):
                 self.last_input_token_count = 10
                 self.last_output_token_count = 0
                 raise Exception("Cannot generate")
@@ -136,7 +137,7 @@ class MonitoringTester(unittest.TestCase):
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 11)
+        self.assertEqual(len(outputs), 10)
         plan_message = outputs[1]
         self.assertEqual(plan_message.role, "assistant")
         self.assertIn("Code:", plan_message.content)
@@ -168,12 +169,13 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(final_message.content["mime_type"], "image/png")
 
     def test_streaming_with_agent_error(self):
-        def dummy_model(prompt, **kwargs):
-            return ChatMessage(role="assistant", content="Malformed call")
+        class DummyModel(Model):
+            def generate(self, prompt, **kwargs):
+                return ChatMessage(role="assistant", content="Malformed call")
 
         agent = CodeAgent(
             tools=[],
-            model=dummy_model,
+            model=DummyModel(),
             max_steps=1,
         )
 

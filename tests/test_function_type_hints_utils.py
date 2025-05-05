@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import pytest
 
@@ -68,7 +68,7 @@ def missing_arg_doc_func():
 def bad_return_func():
     """Function docstring with missing return description (allowed)."""
 
-    def do_nothing(x: Optional[str] = None):
+    def do_nothing(x: str | None = None):
         """
         Does nothing.
 
@@ -82,7 +82,7 @@ def bad_return_func():
 
 @pytest.fixture
 def complex_types_func():
-    def process_data(items: List[str], config: Dict[str, float], point: Tuple[int, int]) -> Dict:
+    def process_data(items: list[str], config: dict[str, float], point: tuple[int, int]) -> dict:
         """
         Process some data.
 
@@ -101,7 +101,7 @@ def complex_types_func():
 
 @pytest.fixture
 def optional_types_func():
-    def process_with_optional(required_arg: str, optional_arg: Optional[int] = None) -> str:
+    def process_with_optional(required_arg: str, optional_arg: int | None = None) -> str:
         """
         Process with optional argument.
 
@@ -136,7 +136,7 @@ def enum_choices_func():
 
 @pytest.fixture
 def union_types_func():
-    def process_union(value: Union[int, str]) -> Union[bool, str]:
+    def process_union(value: int | str) -> bool | str:
         """
         Process a value that can be either int or string.
 
@@ -153,7 +153,7 @@ def union_types_func():
 
 @pytest.fixture
 def nested_types_func():
-    def process_nested_data(data: List[Dict[str, Any]]) -> List[str]:
+    def process_nested_data(data: list[dict[str, Any]]) -> list[str]:
         """
         Process nested data structure.
 
@@ -205,7 +205,7 @@ def mismatched_types_func():
 
 @pytest.fixture
 def complex_docstring_types_func():
-    def process(data: Dict[str, List[int]]) -> List[Dict[str, Any]]:
+    def process(data: dict[str, list[int]]) -> list[dict[str, Any]]:
         """
         Process complex data.
 
@@ -220,9 +220,26 @@ def complex_docstring_types_func():
     return process
 
 
+@pytest.fixture
+def keywords_in_description_func():
+    def process(value: str) -> str:
+        """
+        Function with Args: or Returns: keywords in its description.
+
+        Args:
+            value: A string value.
+
+        Returns:
+            str: Processed value.
+        """
+        return value.upper()
+
+    return process
+
+
 class TestGetJsonSchema:
     def test_get_json_schema_example(self):
-        def fn(x: int, y: Optional[Tuple[str, str, float]] = None) -> None:
+        def fn(x: int, y: tuple[str, str, float] | None = None) -> None:
             """
             Test function
             Args:
@@ -366,8 +383,8 @@ class TestGetJsonSchema:
         return_prop = schema["function"]["return"]
         # Check union in parameter
         assert len(value_prop["type"]) == 2
-        # Check union in return type
-        assert len(return_prop["type"]) == 2
+        # Check union in return type: should be converted to "any"
+        assert return_prop["type"] == "any"
 
     def test_nested_types(self, nested_types_func):
         """Test schema generation for nested complex types."""
@@ -430,6 +447,10 @@ class TestGetJsonSchema:
         first_param_name = list(schema["function"]["parameters"]["properties"].keys())[0]
         assert schema["function"]["parameters"]["properties"][first_param_name]["description"] == expected_description
 
+    def test_with_special_words_in_description_func(self, keywords_in_description_func):
+        schema = get_json_schema(keywords_in_description_func)
+        assert schema["function"]["description"] == "Function with Args: or Returns: keywords in its description."
+
 
 class TestGetCode:
     @pytest.mark.parametrize(
@@ -489,5 +510,5 @@ class TestGetCode:
             ),
         ],
     )
-    def test_get_imports(self, code: str, expected: List[str]):
+    def test_get_imports(self, code: str, expected: list[str]):
         assert sorted(get_imports(code)) == sorted(expected)

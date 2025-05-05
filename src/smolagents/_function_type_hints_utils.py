@@ -26,14 +26,11 @@ import inspect
 import json
 import re
 import types
+from collections.abc import Callable
 from copy import copy
 from typing import (
     Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
+    Literal,
     Union,
     get_args,
     get_origin,
@@ -41,7 +38,25 @@ from typing import (
 )
 
 
-def get_imports(code: str) -> List[str]:
+IMPORT_TO_PACKAGE_MAPPING = {
+    "wikipediaapi": "wikipedia-api",
+}
+
+
+def get_package_name(import_name: str) -> str:
+    """
+    Return the package name for a given import name.
+
+    Args:
+        import_name (`str`): Import name to get the package name for.
+
+    Returns:
+        `str`: Package name for the given import name.
+    """
+    return IMPORT_TO_PACKAGE_MAPPING.get(import_name, import_name)
+
+
+def get_imports(code: str) -> list[str]:
     """
     Extracts all the libraries (not relative imports) that are imported in a code.
 
@@ -68,7 +83,7 @@ def get_imports(code: str) -> List[str]:
     imports += re.findall(r"^\s*from\s+(\S+)\s+import", code, flags=re.MULTILINE)
     # Only keep the top-level module
     imports = [imp.split(".")[0] for imp in imports if not imp.startswith(".")]
-    return list(set(imports))
+    return [get_package_name(import_name) for import_name in set(imports)]
 
 
 class TypeHintParsingException(Exception):
@@ -79,7 +94,7 @@ class DocstringParsingException(Exception):
     """Exception raised for errors in parsing docstrings to generate JSON schemas"""
 
 
-def get_json_schema(func: Callable) -> Dict:
+def get_json_schema(func: Callable) -> dict:
     """
     This function generates a JSON schema for a given function, based on its docstring and type hints. This is
     mostly used for passing lists of tools to a chat template. The JSON schema contains the name and description of
@@ -217,7 +232,7 @@ def get_json_schema(func: Callable) -> Dict:
 
 
 # Extracts the initial segment of the docstring, containing the function description
-description_re = re.compile(r"^(.*?)[\n\s]*(Args:|Returns:|Raises:|\Z)", re.DOTALL)
+description_re = re.compile(r"^(.*?)(?=\n\s*(Args:|Returns:|Raises:)|\Z)", re.DOTALL)
 # Extracts the Args: block from the docstring
 args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
 # Splits the Args: block into individual arguments
@@ -240,7 +255,7 @@ returns_re = re.compile(
 
 def _parse_google_format_docstring(
     docstring: str,
-) -> Tuple[Optional[str], Optional[Dict], Optional[str]]:
+) -> tuple[str | None, dict | None, str | None]:
     """
     Parses a Google-style docstring to extract the function description,
     argument descriptions, and return description.
@@ -273,7 +288,7 @@ def _parse_google_format_docstring(
     return description, args_dict, returns
 
 
-def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hints: bool = True) -> Dict:
+def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hints: bool = True) -> dict:
     type_hints = get_type_hints(func)
     signature = inspect.signature(func)
 
@@ -293,6 +308,14 @@ def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hin
         else:
             properties[param_name]["nullable"] = True
 
+    # Return: multi‐type union -> treat as any
+    if (
+        "return" in properties
+        and (return_type := properties["return"].get("type"))
+        and not isinstance(return_type, str)
+    ):
+        properties["return"]["type"] = "any"
+
     schema = {"type": "object", "properties": properties}
     if required:
         schema["required"] = required
@@ -300,7 +323,7 @@ def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hin
     return schema
 
 
-def _parse_type_hint(hint: str) -> Dict:
+def _parse_type_hint(hint: str) -> dict:
     origin = get_origin(hint)
     args = get_args(hint)
 
@@ -314,20 +337,7 @@ def _parse_type_hint(hint: str) -> Dict:
             )
 
     elif origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
-        # Recurse into each of the subtypes in the Union, except None, which is handled separately at the end
-        subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
-        if len(subtypes) == 1:
-            # A single non-null type can be expressed directly
-            return_dict = subtypes[0]
-        elif all(isinstance(subtype["type"], str) for subtype in subtypes):
-            # A union of basic types can be expressed as a list in the schema
-            return_dict = {"type": sorted([subtype["type"] for subtype in subtypes])}
-        else:
-            # A union of more complex types requires "anyOf"
-            return_dict = {"anyOf": subtypes}
-        if type(None) in args:
-            return_dict["nullable"] = True
-        return return_dict
+        return _parse_union_type(args)
 
     elif origin is list:
         if not args:
@@ -363,7 +373,31 @@ def _parse_type_hint(hint: str) -> Dict:
             out["additionalProperties"] = _parse_type_hint(args[1])
         return out
 
+    elif origin is Literal:
+        literal_types = set(type(arg) for arg in args)
+        final_type = _parse_union_type(literal_types)
+
+        # None literal value is represented by 'nullable' field set by _parse_union_type
+        final_type.update({"enum": [arg for arg in args if arg is not None]})
+        return final_type
+
     raise TypeHintParsingException("Couldn't parse this type hint, likely due to a custom class or object: ", hint)
+
+
+def _parse_union_type(args: tuple[Any, ...]) -> dict:
+    subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
+    if len(subtypes) == 1:
+        # A single non-null type can be expressed directly
+        return_dict = subtypes[0]
+    elif all(isinstance(subtype["type"], str) for subtype in subtypes):
+        # A union of basic types can be expressed as a list in the schema
+        return_dict = {"type": sorted([subtype["type"] for subtype in subtypes])}
+    else:
+        # A union of more complex types requires "anyOf"
+        return_dict = {"anyOf": subtypes}
+    if type(None) in args:
+        return_dict["nullable"] = True
+    return return_dict
 
 
 _BASE_TYPE_MAPPING = {
@@ -376,7 +410,7 @@ _BASE_TYPE_MAPPING = {
 }
 
 
-def _get_json_schema_type(param_type: str) -> Dict[str, str]:
+def _get_json_schema_type(param_type: str) -> dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
     if str(param_type) == "Image":

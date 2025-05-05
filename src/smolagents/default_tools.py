@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -28,7 +28,7 @@ from .tools import PipelineTool, Tool
 @dataclass
 class PreTool:
     name: str
-    inputs: Dict[str, str]
+    inputs: dict[str, str]
     output_type: type
     task: str
     description: str
@@ -151,7 +151,7 @@ class GoogleSearchTool(Tool):
         if self.api_key is None:
             raise ValueError(f"Missing API key. Make sure you have '{api_key_env_name}' in your env variables.")
 
-    def forward(self, query: str, filter_year: Optional[int] = None) -> str:
+    def forward(self, query: str, filter_year: int | None = None) -> str:
         import requests
 
         if self.provider == "serpapi":
@@ -227,6 +227,15 @@ class VisitWebpageTool(Tool):
         super().__init__()
         self.max_output_length = max_output_length
 
+    def _truncate_content(self, content: str, max_length: int) -> str:
+        if len(content) <= max_length:
+            return content
+        return (
+            content[: max_length // 2]
+            + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
+            + content[-max_length // 2 :]
+        )
+
     def forward(self, url: str) -> str:
         try:
             import re
@@ -234,8 +243,6 @@ class VisitWebpageTool(Tool):
             import requests
             from markdownify import markdownify
             from requests.exceptions import RequestException
-
-            from smolagents.utils import truncate_content
         except ImportError as e:
             raise ImportError(
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
@@ -251,7 +258,7 @@ class VisitWebpageTool(Tool):
             # Remove multiple line breaks
             markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
 
-            return truncate_content(markdown_content, self.max_output_length)
+            return self._truncate_content(markdown_content, self.max_output_length)
 
         except requests.exceptions.Timeout:
             return "The request timed out. Please try again later or check the URL."
@@ -273,7 +280,7 @@ class WikipediaSearchTool(Tool):
         extract_format (str): Defines the output format. Can be `"WIKI"` or `"HTML"`.
 
     Example:
-        >>> from smolagents import CodeAgent, HfApiModel, WikipediaSearchTool
+        >>> from smolagents import CodeAgent, InferenceClientModel, WikipediaSearchTool
         >>> agent = CodeAgent(
         >>>     tools=[
         >>>            WikipediaSearchTool(
@@ -283,7 +290,7 @@ class WikipediaSearchTool(Tool):
         >>>                extract_format="WIKI",
         >>>            )
         >>>        ],
-        >>>     model=HfApiModel(),
+        >>>     model=InferenceClientModel(),
         >>> )
         >>> agent.run("Python_(programming_language)")
     """

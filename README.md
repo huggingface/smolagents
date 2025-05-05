@@ -26,7 +26,7 @@ limitations under the License.
 <h3 align="center">
   <div style="display:flex;flex-direction:row;">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/smolagents.png" alt="Hugging Face mascot as James Bond" width=400px>
-    <p>A smol library to build great agents!</p>
+    <p>Agents that think in code!</p>
   </div>
 </h3>
 
@@ -36,13 +36,13 @@ limitations under the License.
 
 🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/) or via Docker.
 
-🤗 **Hub integrations**: you can [share/pull tools to/from the Hub](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_hub), and more is to come!
+🤗 **Hub integrations**: you can [share/pull tools or agents to/from the Hub](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_hub) for instant sharing of the most efficient agents!
 
 🌐 **Model-agnostic**: smolagents supports any LLM. It can be a local `transformers` or `ollama` model, one of [many providers on the Hub](https://huggingface.co/blog/inference-providers), or any model from OpenAI, Anthropic and many others via our [LiteLLM](https://www.litellm.ai/) integration.
 
 👁️ **Modality-agnostic**: Agents support text, vision, video, even audio inputs! Cf [this tutorial](https://huggingface.co/docs/smolagents/examples/web_browser) for vision.
 
-🛠️ **Tool-agnostic**: you can use tools from [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), [Anthropic's MCP](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), you can even use a [Hub Space](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space) as a tool.
+🛠️ **Tool-agnostic**: you can use tools from [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), [MCP](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), you can even use a [Hub Space](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space) as a tool.
 
 Full documentation can be found [here](https://huggingface.co/docs/smolagents/index).
 
@@ -51,15 +51,15 @@ Full documentation can be found [here](https://huggingface.co/docs/smolagents/in
 
 ## Quick demo
 
-First install the package.
+First install the package with a default set of tools:
 ```bash
-pip install smolagents
+pip install smolagents[toolkit]
 ```
 Then define your agent, give it the tools it needs and run it!
 ```py
-from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel
+from smolagents import CodeAgent, DuckDuckGoSearchTool, InferenceClientModel
 
-model = HfApiModel()
+model = InferenceClientModel()
 agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
 
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
@@ -67,7 +67,7 @@ agent.run("How many seconds would it take for a leopard at full speed to run thr
 
 https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884
 
-You can even share your agent to hub:
+You can even share your agent to the Hub, as a Space repository:
 ```py
 agent.push_to_hub("m-ric/my_agent")
 
@@ -77,12 +77,12 @@ agent.push_to_hub("m-ric/my_agent")
 Our library is LLM-agnostic: you could switch the example above to any inference provider.
 
 <details>
-<summary> <b>HfApiModel, gateway for 4 inference providers</b></summary>
+<summary> <b>InferenceClientModel, gateway for all <a href="https://huggingface.co/docs/inference-providers/index">inference providers</a> supported on HF</b></summary>
 
 ```py
-from smolagents import HfApiModel
+from smolagents import InferenceClientModel
 
-model = HfApiModel(
+model = InferenceClientModel(
     model_id="deepseek-ai/DeepSeek-R1",
     provider="together",
 )
@@ -143,6 +143,18 @@ model = AzureOpenAIServerModel(
 )
 ```
 </details>
+<details>
+<summary> <b>Amazon Bedrock models</b></summary>
+
+```py
+import os
+from smolagents import AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(
+    model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID") 
+)
+```
+</details>
 
 ## CLI
 
@@ -151,7 +163,7 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`.
 `smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools.
 
 ```bash
-smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "HfApiModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
+smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
 ```
 
 Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
@@ -223,6 +235,14 @@ We've created [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/age
 </p>
 
 This comparison shows that open-source models can now take on the best closed models!
+
+## Security
+
+Security is a critical consideration when working with code-executing agents. Our library provides:
+- Sandboxed execution options using [E2B](https://e2b.dev/) or Docker
+- Best practices for running agent code securely
+
+For security policies, vulnerability reporting, and more information on secure agent execution, please see our [Security Policy](SECURITY.md).
 
 ## Contribute
 
