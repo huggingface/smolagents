@@ -290,6 +290,14 @@ def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hin
         else:
             properties[param_name]["nullable"] = True
 
+    # Return: multi‐type union -> treat as any
+    if (
+        "return" in properties
+        and (return_type := properties["return"].get("type"))
+        and not isinstance(return_type, str)
+    ):
+        properties["return"]["type"] = "any"
+
     schema = {"type": "object", "properties": properties}
     if required:
         schema["required"] = required
