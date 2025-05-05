@@ -551,6 +551,20 @@ class TestTool:
         # Original function should not have 'self' parameter
         assert "self" not in original_signature.parameters
 
+    def test_tool_with_union_type_return(self):
+        @tool
+        def union_type_return_tool_function(param: int) -> str | bool:
+            """
+            Tool with output union type.
+
+            Args:
+                param: Input parameter.
+            """
+            return str(param) if param > 0 else False
+
+        assert isinstance(union_type_return_tool_function, Tool)
+        assert union_type_return_tool_function.output_type == "any"
+
 
 @pytest.fixture
 def mock_server_parameters():
