@@ -169,7 +169,22 @@ system_prompt: |-
   {%- endif %}
 
   Here are the rules you should always follow to solve your task:
-  1. Always provide a 'Thought:' sequence, and a 'Code:\n```py' sequence ending with '```<end_code>' sequence, else you will fail.
+  1. ⚠️ CRITICAL: Always provide a 'Thought:' sequence, and a 'Code:\n```py' sequence ending with '```<end_code>' sequence, else you will fail.
+     IMPORTANT: The format must be EXACTLY:
+
+     Thought: Your reasoning here
+     Code:
+     ```py
+     your_python_code_here()
+     ```<end_code>
+    
+    - Do NOT use ```python or any other format - ONLY use ```py followed by your code and then ```<end_code>
+    - Even if you have no code to run you still must include the python code block:
+      - Thought: I have no code to run
+      - Code:
+        ```py
+        final_answer("")
+        ```<end_code>
   2. Use only variables that you have defined!
   3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wiki({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wiki(query="What is the place where James Bond lives?")'.
   4. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
