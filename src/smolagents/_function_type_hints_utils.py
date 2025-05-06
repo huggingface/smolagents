@@ -38,6 +38,24 @@ from typing import (
 )
 
 
+IMPORT_TO_PACKAGE_MAPPING = {
+    "wikipediaapi": "wikipedia-api",
+}
+
+
+def get_package_name(import_name: str) -> str:
+    """
+    Return the package name for a given import name.
+
+    Args:
+        import_name (`str`): Import name to get the package name for.
+
+    Returns:
+        `str`: Package name for the given import name.
+    """
+    return IMPORT_TO_PACKAGE_MAPPING.get(import_name, import_name)
+
+
 def get_imports(code: str) -> list[str]:
     """
     Extracts all the libraries (not relative imports) that are imported in a code.
@@ -65,7 +83,7 @@ def get_imports(code: str) -> list[str]:
     imports += re.findall(r"^\s*from\s+(\S+)\s+import", code, flags=re.MULTILINE)
     # Only keep the top-level module
     imports = [imp.split(".")[0] for imp in imports if not imp.startswith(".")]
-    return list(set(imports))
+    return [get_package_name(import_name) for import_name in set(imports)]
 
 
 class TypeHintParsingException(Exception):
@@ -289,6 +307,14 @@ def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hin
             required.append(param_name)
         else:
             properties[param_name]["nullable"] = True
+
+    # Return: multi‐type union -> treat as any
+    if (
+        "return" in properties
+        and (return_type := properties["return"].get("type"))
+        and not isinstance(return_type, str)
+    ):
+        properties["return"]["type"] = "any"
 
     schema = {"type": "object", "properties": properties}
     if required:

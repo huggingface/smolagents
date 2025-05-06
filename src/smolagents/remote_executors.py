@@ -53,19 +53,20 @@ class RemotePythonExecutor(PythonExecutor):
         raise NotImplementedError
 
     def send_tools(self, tools: dict[str, Tool]):
-        tool_definition_code = get_tools_definition_code(tools)
-
-        packages_to_install = set()
-        for tool in tools.values():
-            for package in tool.to_dict()["requirements"]:
-                if package not in self.installed_packages:
-                    packages_to_install.add(package)
-                    self.installed_packages.append(package)
-
-        execution = self.run_code_raise_errors(
-            f"!pip install {' '.join(packages_to_install)}\n" + tool_definition_code
-        )
-        self.logger.log(execution[1])
+        # Install tool packages
+        packages_to_install = {
+            pkg
+            for tool in tools.values()
+            for pkg in tool.to_dict()["requirements"]
+            if pkg not in self.installed_packages + ["smolagents"]
+        }
+        if packages_to_install:
+            self.installed_packages += self.install_packages(list(packages_to_install))
+        # Get tool definitions
+        code = get_tools_definition_code(tools)
+        if code:
+            execution = self.run_code_raise_errors(code)
+            self.logger.log(execution[1])
 
     def send_variables(self, variables: dict):
         """
@@ -86,9 +87,9 @@ locals().update(vars_dict)
         return output[0], output[1], is_final_answer
 
     def install_packages(self, additional_imports: list[str]):
-        additional_imports = additional_imports + ["smolagents"]
-        _, execution_logs = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
-        self.logger.log(execution_logs)
+        if additional_imports:
+            _, execution_logs = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
+            self.logger.log(execution_logs)
         return additional_imports
 
 
@@ -217,14 +218,18 @@ class DockerExecutor(RemotePythonExecutor):
                 dockerfile_path = Path(__file__).parent / "Dockerfile"
                 if not dockerfile_path.exists():
                     with open(dockerfile_path, "w") as f:
-                        f.write("""FROM python:3.12-slim
+                        f.write(
+                            dedent(
+                                """\
+                                FROM python:3.12-slim
 
-RUN pip install jupyter_kernel_gateway requests numpy pandas
-RUN pip install jupyter_client notebook
+                                RUN pip install jupyter_kernel_gateway jupyter_client
 
-EXPOSE 8888
-CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
-""")
+                                EXPOSE 8888
+                                CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
+                                """
+                            )
+                        )
                 _, build_logs = self.client.images.build(
                     path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
                 )
