@@ -59,7 +59,6 @@ class RemotePythonExecutor(PythonExecutor):
         raise NotImplementedError
 
     def send_tools(self, tools: dict[str, Tool]):
-        code = ""
         # Install tool packages
         packages_to_install = {
             pkg
@@ -68,11 +67,9 @@ class RemotePythonExecutor(PythonExecutor):
             if pkg not in self.installed_packages + ["smolagents"]
         }
         if packages_to_install:
-            self.installed_packages.extend(packages_to_install)
-            code += f"!pip install {' '.join(packages_to_install)}\n"
+            self.installed_packages += self.install_packages(list(packages_to_install))
         # Get tool definitions
-        tool_definition_code = get_tools_definition_code(tools)
-        code += tool_definition_code
+        code = get_tools_definition_code(tools)
         if code:
             execution = self.run_code_raise_errors(code)
             self.logger.log(execution[1])
@@ -227,14 +224,18 @@ class DockerExecutor(RemotePythonExecutor):
                 dockerfile_path = Path(__file__).parent / "Dockerfile"
                 if not dockerfile_path.exists():
                     with open(dockerfile_path, "w") as f:
-                        f.write("""FROM python:3.12-slim
+                        f.write(
+                            dedent(
+                                """\
+                                FROM python:3.12-slim
 
-RUN pip install jupyter_kernel_gateway requests numpy pandas
-RUN pip install jupyter_client notebook
+                                RUN pip install jupyter_kernel_gateway jupyter_client
 
-EXPOSE 8888
-CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
-""")
+                                EXPOSE 8888
+                                CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
+                                """
+                            )
+                        )
                 _, build_logs = self.client.images.build(
                     path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
                 )

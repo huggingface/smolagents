@@ -383,8 +383,8 @@ class TestGetJsonSchema:
         return_prop = schema["function"]["return"]
         # Check union in parameter
         assert len(value_prop["type"]) == 2
-        # Check union in return type
-        assert len(return_prop["type"]) == 2
+        # Check union in return type: should be converted to "any"
+        assert return_prop["type"] == "any"
 
     def test_nested_types(self, nested_types_func):
         """Test schema generation for nested complex types."""

@@ -2,6 +2,8 @@
   sections:
   - local: index
     title: 🤗 Agents
+  - local: installation
+    title: Installation
   - local: guided_tour
     title: Guided tour
 - title: Tutorials
