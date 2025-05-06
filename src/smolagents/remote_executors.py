@@ -563,23 +563,6 @@ class WebAssemblyExecutor(RemotePythonExecutor):
         self.logger.log(f"Adding packages to load: {', '.join(additional_imports)}", level=LogLevel.INFO)
         return additional_imports
 
-    def send_tools(self, tools: dict[str, Tool]):
-        # Install tool packages
-        packages_to_install = {
-            pkg
-            for tool in tools.values()
-            for pkg in tool.to_dict()["requirements"]
-            if pkg not in self.installed_packages + ["smolagents"]
-        }
-        if packages_to_install:
-            self.installed_packages += self.install_packages(list(packages_to_install))
-        # Get tool definitions
-        code = get_tools_definition_code(tools)
-        if code:
-            # TODO: Run it now or later, preceding code?
-            execution = self.run_code_raise_errors(code)
-            self.logger.log(execution[1])
-
     def cleanup(self):
         """Clean up resources used by the executor."""
         if hasattr(self, "server_process") and self.server_process:
