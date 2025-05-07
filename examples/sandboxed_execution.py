@@ -1,4 +1,4 @@
-from smolagents import CodeAgent, SimpleWebSearchTool, InferenceClientModel
+from smolagents import CodeAgent, InferenceClientModel, SimpleWebSearchTool
 
 
 model = InferenceClientModel()

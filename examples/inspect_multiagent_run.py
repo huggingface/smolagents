@@ -8,8 +8,8 @@ SmolagentsInstrumentor().instrument(skip_dep_check=True)
 
 from smolagents import (
     CodeAgent,
-    SimpleWebSearchTool,
     InferenceClientModel,
+    SimpleWebSearchTool,
     ToolCallingAgent,
     VisitWebpageTool,
 )

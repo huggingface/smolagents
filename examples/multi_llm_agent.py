@@ -1,6 +1,6 @@
 import os
 
-from smolagents import CodeAgent, SimpleWebSearchTool, LiteLLMRouterModel
+from smolagents import CodeAgent, LiteLLMRouterModel, SimpleWebSearchTool
 
 
 # Make sure to setup the necessary environment variables!
