@@ -1507,6 +1507,7 @@ class LocalPythonExecutor(PythonExecutor):
         additional_python_functions (`dict[str, Callable]`, *optional*):
             Additional Python functions to be added to the executor.
     """
+
     def __init__(
         self,
         additional_authorized_imports: list[str],
