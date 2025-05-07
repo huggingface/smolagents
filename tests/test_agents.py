@@ -1155,7 +1155,7 @@ class TestCodeAgent:
         model.last_input_token_count = 10
         model.last_output_token_count = 5
         agent = CodeAgent(tools=[], model=model)
-        agent.python_executor.send_tools({"open": open})
+        agent.python_executor.additional_python_functions = {"open": open}
         agent.run("Test run")
         assert "open" in agent.python_executor.static_tools
 
