@@ -493,6 +493,7 @@ __all__ = [
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
+    "SimpleWebSearchTool",
     "DuckDuckGoSearchTool",
     "GoogleSearchTool",
     "VisitWebpageTool",
