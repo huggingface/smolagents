@@ -57,10 +57,10 @@ pip install smolagents[toolkit]
 ```
 Then define your agent, give it the tools it needs and run it!
 ```py
-from smolagents import CodeAgent, SimpleWebSearchTool, InferenceClientModel
+from smolagents import CodeAgent, WebSearchTool, InferenceClientModel
 
 model = InferenceClientModel()
-agent = CodeAgent(tools=[SimpleWebSearchTool()], model=model)
+agent = CodeAgent(tools=[WebSearchTool()], model=model)
 
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
 ```

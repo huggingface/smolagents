@@ -9,9 +9,9 @@ SmolagentsInstrumentor().instrument(skip_dep_check=True)
 from smolagents import (
     CodeAgent,
     InferenceClientModel,
-    SimpleWebSearchTool,
     ToolCallingAgent,
     VisitWebpageTool,
+    WebSearchTool,
 )
 
 
@@ -19,7 +19,7 @@ from smolagents import (
 model = InferenceClientModel()
 
 search_agent = ToolCallingAgent(
-    tools=[SimpleWebSearchTool(), VisitWebpageTool()],
+    tools=[WebSearchTool(), VisitWebpageTool()],
     model=model,
     name="search_agent",
     description="This is an agent that can do web search.",

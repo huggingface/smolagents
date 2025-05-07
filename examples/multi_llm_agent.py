@@ -1,6 +1,6 @@
 import os
 
-from smolagents import CodeAgent, LiteLLMRouterModel, SimpleWebSearchTool
+from smolagents import CodeAgent, LiteLLMRouterModel, WebSearchTool
 
 
 # Make sure to setup the necessary environment variables!
@@ -39,6 +39,6 @@ model = LiteLLMRouterModel(
     model_list=llm_loadbalancer_model_list,
     client_kwargs={"routing_strategy": "simple-shuffle"},
 )
-agent = CodeAgent(tools=[SimpleWebSearchTool()], model=model, stream_outputs=True)
+agent = CodeAgent(tools=[WebSearchTool()], model=model, stream_outputs=True)
 
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")

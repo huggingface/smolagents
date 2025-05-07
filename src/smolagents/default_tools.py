@@ -210,7 +210,7 @@ class GoogleSearchTool(Tool):
         return "## Search Results\n" + "\n\n".join(web_snippets)
 
 
-class SimpleWebSearchTool(Tool):
+class WebSearchTool(Tool):
     name = "web_search"
     description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, links, and descriptions."
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
@@ -493,7 +493,7 @@ __all__ = [
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
-    "SimpleWebSearchTool",
+    "WebSearchTool",
     "DuckDuckGoSearchTool",
     "GoogleSearchTool",
     "VisitWebpageTool",
