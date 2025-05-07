@@ -291,9 +291,9 @@ You can manually use a tool by calling it with its arguments.
 
 ```python
 # !pip install smolagents[toolkit]
-from smolagents import DuckDuckGoSearchTool
+from smolagents import SimpleWebSearchTool
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = SimpleWebSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 
@@ -424,15 +424,15 @@ You can easily build hierarchical multi-agent systems with `smolagents`.
 To do so, just ensure your agent has `name` and`description` attributes, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
 Then you can pass this managed agent in the parameter managed_agents upon initialization of the manager agent.
 
-Here's an example of making an agent that managed a specific web search agent using our [`DuckDuckGoSearchTool`]:
+Here's an example of making an agent that managed a specific web search agent using our native [`SimpleWebSearchTool`]:
 
 ```py
-from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
+from smolagents import CodeAgent, InferenceClientModel, SimpleWebSearchTool
 
 model = InferenceClientModel()
 
 web_agent = CodeAgent(
-    tools=[DuckDuckGoSearchTool()],
+    tools=[SimpleWebSearchTool()],
     model=model,
     name="web_search",
     description="Runs web searches for you. Give it your query as an argument."

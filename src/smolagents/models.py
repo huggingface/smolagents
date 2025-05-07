@@ -1099,7 +1099,7 @@ class LiteLLMRouterModel(LiteLLMModel):
     Example:
     ```python
     >>> import os
-    >>> from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouterModel
+    >>> from smolagents import CodeAgent, SimpleWebSearchTool, LiteLLMRouterModel
     >>> os.environ["OPENAI_API_KEY"] = ""
     >>> os.environ["AWS_ACCESS_KEY_ID"] = ""
     >>> os.environ["AWS_SECRET_ACCESS_KEY"] = ""
@@ -1129,7 +1129,7 @@ class LiteLLMRouterModel(LiteLLMModel):
     ...        "routing_strategy":"simple-shuffle"
     ...    }
     >>> )
-    >>> agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
+    >>> agent = CodeAgent(tools=[SimpleWebSearchTool()], model=model)
     >>> agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
     ```
     """
