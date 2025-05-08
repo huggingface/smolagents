@@ -42,7 +42,7 @@ e2b = [
   "python-dotenv>=1.0.1",
 ]
 gradio = [
-  "gradio>=5.13.2",
+  "gradio>=5.14.0",  # Sidebar component GH-797
 ]
 litellm = [
   "litellm>=1.60.2",
