@@ -19,7 +19,11 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from smolagents.gradio_ui import GradioUI
+import pytest
+
+from smolagents.gradio_ui import GradioUI, stream_to_gradio
+from smolagents.memory import ActionStep
+from smolagents.models import ChatMessageStreamDelta
 
 
 class GradioUITester(unittest.TestCase):
@@ -123,3 +127,84 @@ class GradioUITester(unittest.TestCase):
 
             self.assertIn("File uploaded:", textbox.value)
             self.assertEqual(len(uploads_log), 1)
+
+
+class TestStreamToGradio:
+    """Tests for the stream_to_gradio function."""
+
+    @patch("smolagents.gradio_ui.pull_messages_from_step")
+    def test_stream_to_gradio_memory_step(self, mock_pull_messages):
+        """Test streaming a memory step"""
+        # Create mock agent and memory step
+        mock_agent = Mock()
+        mock_agent.run = Mock(return_value=[Mock(spec=ActionStep)])
+        mock_agent.model = Mock()
+        mock_agent.model.last_input_token_count = 100
+        mock_agent.model.last_output_token_count = 200
+        # Mock the pull_messages_from_step function to return some messages
+        mock_message = Mock()
+        mock_pull_messages.return_value = [mock_message]
+        # Call stream_to_gradio
+        result = list(stream_to_gradio(mock_agent, "test task"))
+        # Verify that pull_messages_from_step was called and the message was yielded
+        mock_pull_messages.assert_called_once()
+        assert result == [mock_message]
+
+    def test_stream_to_gradio_stream_delta(self):
+        """Test streaming a ChatMessageStreamDelta"""
+        # Create mock agent and stream delta
+        mock_agent = Mock()
+        mock_delta = ChatMessageStreamDelta(content="Hello")
+        mock_agent.run = Mock(return_value=[mock_delta])
+        mock_agent.model = Mock()
+        mock_agent.model.last_input_token_count = 100
+        mock_agent.model.last_output_token_count = 200
+        # Call stream_to_gradio
+        result = list(stream_to_gradio(mock_agent, "test task"))
+        # Verify that the content was yielded
+        assert result == ["Hello"]
+
+    def test_stream_to_gradio_multiple_deltas(self):
+        """Test streaming multiple ChatMessageStreamDeltas"""
+        # Create mock agent and stream deltas
+        mock_agent = Mock()
+        mock_delta1 = ChatMessageStreamDelta(content="Hello")
+        mock_delta2 = ChatMessageStreamDelta(content=" world")
+        mock_agent.run = Mock(return_value=[mock_delta1, mock_delta2])
+        mock_agent.model = Mock()
+        mock_agent.model.last_input_token_count = 100
+        mock_agent.model.last_output_token_count = 200
+        # Call stream_to_gradio
+        result = list(stream_to_gradio(mock_agent, "test task"))
+        # Verify that the content was accumulated and yielded
+        assert result == ["Hello", "Hello world"]
+
+    @pytest.mark.parametrize(
+        "task,task_images,reset_memory,additional_args",
+        [
+            ("simple task", None, False, None),
+            ("task with images", ["image1.png", "image2.png"], False, None),
+            ("task with reset", None, True, None),
+            ("task with args", None, False, {"arg1": "value1"}),
+            ("complex task", ["image.png"], True, {"arg1": "value1", "arg2": "value2"}),
+        ],
+    )
+    def test_stream_to_gradio_parameters(self, task, task_images, reset_memory, additional_args):
+        """Test that stream_to_gradio passes parameters correctly to agent.run"""
+        # Create mock agent
+        mock_agent = Mock()
+        mock_agent.run = Mock(return_value=[])
+        # Call stream_to_gradio
+        list(
+            stream_to_gradio(
+                mock_agent,
+                task=task,
+                task_images=task_images,
+                reset_agent_memory=reset_memory,
+                additional_args=additional_args,
+            )
+        )
+        # Verify that agent.run was called with the right parameters
+        mock_agent.run.assert_called_once_with(
+            task, images=task_images, stream=True, reset=reset_memory, additional_args=additional_args
+        )
