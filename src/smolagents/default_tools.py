@@ -216,15 +216,24 @@ class WebSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results=10):
+    def __init__(self, max_results: int = 10, engine: str = "duckduckgo"):
         super().__init__()
         self.max_results = max_results
+        self.engine = engine
 
     def forward(self, query: str) -> str:
-        results = self.search_duckduckgo(query)
+        results = self.search(query)
         if len(results) == 0:
             raise Exception("No results found! Try a less restrictive/shorter query.")
         return self.parse_results(results)
+
+    def search(self, query: str) -> list:
+        if self.engine == "duckduckgo":
+            return self.search_duckduckgo(query)
+        elif self.engine == "bing":
+            return self.search_bing(query)
+        else:
+            raise ValueError(f"Unsupported engine: {self.engine}")
 
     def parse_results(self, results: list) -> str:
         return "## Search Results\n\n" + "\n\n".join(
@@ -289,6 +298,28 @@ class WebSearchTool(Tool):
                     self.current["link"] = "https://" + data.strip()
 
         return SimpleResultParser()
+
+    def search_bing(self, query: str) -> list:
+        import xml.etree.ElementTree as ET
+
+        import requests
+
+        response = requests.get(
+            "https://www.bing.com/search",
+            params={"q": query, "format": "rss"},
+        )
+        response.raise_for_status()
+        root = ET.fromstring(response.text)
+        items = root.findall(".//item")
+        results = [
+            {
+                "title": item.findtext("title"),
+                "link": item.findtext("link"),
+                "description": item.findtext("description"),
+            }
+            for item in items[: self.max_results]
+        ]
+        return results
 
 
 class VisitWebpageTool(Tool):
