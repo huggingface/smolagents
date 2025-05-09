@@ -453,8 +453,9 @@ You have been provided with these additional arguments, that you can access usin
             if self.stream_outputs and hasattr(self.model, "generate_stream"):
                 plan_message_content = ""
                 for completion_delta in self.model.generate_stream(input_messages, stop_sequences=["<end_plan>"]):  # type: ignore
-                    plan_message_content += completion_delta.content
-                    yield completion_delta
+                    if completion_delta.content is not None:
+                        plan_message_content += completion_delta.content
+                        yield completion_delta
             else:
                 plan_message_content = self.model.generate(input_messages, stop_sequences=["<end_plan>"]).content
             plan = textwrap.dedent(
@@ -496,8 +497,9 @@ You have been provided with these additional arguments, that you can access usin
             if self.stream_outputs and hasattr(self.model, "generate_stream"):
                 plan_message_content = ""
                 for completion_delta in self.model.generate_stream(input_messages, stop_sequences=["<end_plan>"]):  # type: ignore
-                    plan_message_content += completion_delta.content
-                    yield completion_delta
+                    if completion_delta.content is not None:
+                        plan_message_content += completion_delta.content
+                        yield completion_delta
             else:
                 plan_message_content = self.model.generate(input_messages, stop_sequences=["<end_plan>"]).content
             plan = textwrap.dedent(
