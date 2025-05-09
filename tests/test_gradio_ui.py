@@ -227,13 +227,18 @@ class TestPullMessagesFromStep:
         step.input_token_count = 100
         step.output_token_count = 50
         messages = list(pull_messages_from_step(step))
-        assert len(messages) == 4  # step number, logs, footnote, divider
-        assert messages[0].content == "**Step 1**"
-        assert "execution logs" in messages[1].content
-        assert "Input tokens: 100" in messages[2].content
-        assert "Output tokens: 50" in messages[2].content
-        assert "Duration: 2.5" in messages[2].content
-        assert messages[3].content == "-----"
+        assert len(messages) == 5  # step number, model_output, logs, footnote, divider
+        for message, expected_content in zip(
+            messages,
+            [
+                "**Step 1**",
+                "This is the model output",
+                "execution logs",
+                "Input tokens: 100 | Output tokens: 50 | Duration: 2.5",
+                "-----",
+            ],
+        ):
+            assert expected_content in message.content
 
     def test_action_step_with_tool_calls(self):
         """Test ActionStep with tool calls."""
