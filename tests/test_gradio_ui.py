@@ -21,8 +21,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from smolagents.gradio_ui import GradioUI, stream_to_gradio
-from smolagents.memory import ActionStep
+from smolagents.agent_types import AgentAudio, AgentImage, AgentText
+from smolagents.gradio_ui import GradioUI, pull_messages_from_step, stream_to_gradio
+from smolagents.memory import ActionStep, FinalAnswerStep, PlanningStep, ToolCall
 from smolagents.models import ChatMessageStreamDelta
 
 
@@ -208,3 +209,146 @@ class TestStreamToGradio:
         mock_agent.run.assert_called_once_with(
             task, images=task_images, stream=True, reset=reset_memory, additional_args=additional_args
         )
+
+
+class TestPullMessagesFromStep:
+    def test_action_step_basic(
+        self,
+    ):
+        """Test basic ActionStep processing."""
+        step = ActionStep(
+            step_number=1,
+            model_output="This is the model output",
+            observations="Some execution logs",
+            error=None,
+            duration=2.5,
+        )
+        # Set in stream_to_gradio:
+        step.input_token_count = 100
+        step.output_token_count = 50
+        messages = list(pull_messages_from_step(step))
+        assert len(messages) == 4  # step number, logs, footnote, divider
+        assert messages[0].content == "**Step 1**"
+        assert "execution logs" in messages[1].content
+        assert "Input tokens: 100" in messages[2].content
+        assert "Output tokens: 50" in messages[2].content
+        assert "Duration: 2.5" in messages[2].content
+        assert messages[3].content == "-----"
+
+    def test_action_step_with_tool_calls(self):
+        """Test ActionStep with tool calls."""
+        step = ActionStep(
+            step_number=2,
+            tool_calls=[ToolCall(name="test_tool", arguments={"answer": "Test answer"}, id="tool_call_1")],
+            observations="Tool execution logs",
+            duration=1.5,
+        )
+        messages = list(pull_messages_from_step(step))
+        assert len(messages) == 5  # step, tool call, logs, footnote, divider
+        assert messages[1].content == "Test answer"
+        assert "Used tool test_tool" in messages[1].metadata["title"]
+
+    @pytest.mark.parametrize(
+        "tool_name, args, expected",
+        [
+            ("python_interpreter", "print('Hello')", "```python\nprint('Hello')\n```"),
+            ("regular_tool", {"key": "value"}, "{'key': 'value'}"),
+            ("string_args_tool", "simple string", "simple string"),
+        ],
+    )
+    def test_action_step_tool_call_formats(self, tool_name, args, expected):
+        """Test different formats of tool calls."""
+        tool_call = Mock()
+        tool_call.name = tool_name
+        tool_call.arguments = args
+        step = ActionStep(step_number=1, tool_calls=[tool_call], duration=1.5)
+        messages = list(pull_messages_from_step(step))
+        tool_message = next(
+            msg
+            for msg in messages
+            if msg.role == "assistant" and msg.metadata and msg.metadata.get("title", "").startswith("🛠️")
+        )
+        # For the Python interpreter, check that code is properly formatted
+        if tool_name == "python_interpreter":
+            assert "```python" in tool_message.content
+        else:
+            assert expected in tool_message.content
+
+    def test_action_step_with_error(self):
+        """Test ActionStep with error."""
+        step = ActionStep(step_number=3, error="This is an error message", duration=1.0)
+        messages = list(pull_messages_from_step(step))
+        error_message = next((m for m in messages if "error" in str(m.content).lower()), None)
+        assert error_message is not None
+        assert "This is an error message" in error_message.content
+
+    def test_action_step_with_images(self):
+        """Test ActionStep with observation images."""
+        step = ActionStep(step_number=4, observations_images=["image1.png", "image2.jpg"], duration=1.0)
+        with patch("smolagents.gradio_ui.AgentImage") as mock_agent_image:
+            mock_agent_image.return_value.to_string.side_effect = lambda: "path/to/image.png"
+            messages = list(pull_messages_from_step(step))
+            image_messages = [m for m in messages if "image" in str(m).lower()]
+            assert len(image_messages) == 2
+            assert "path/to/image.png" in str(image_messages[0])
+
+    def test_planning_step(self):
+        """Test PlanningStep processing."""
+        step = PlanningStep(
+            plan="1. First step\n2. Second step", model_input_messages=Mock(), model_output_message=Mock()
+        )
+        # Set in stream_to_gradio:
+        step.input_token_count = 80
+        step.output_token_count = 30
+        messages = list(pull_messages_from_step(step))
+        assert len(messages) == 4  # header, plan, footnote, divider
+        assert messages[0].content == "**Planning step**"
+        assert messages[1].content == "1. First step\n2. Second step"
+        assert "Input tokens: 80" in messages[2].content
+
+    @pytest.mark.parametrize(
+        "answer_type, answer_value, expected_content",
+        [
+            (AgentText, "This is a text answer", "**Final answer:**\nThis is a text answer\n"),
+            (lambda: "Plain string", "Plain string", "**Final answer:** Plain string"),
+        ],
+    )
+    def test_final_answer_step(self, answer_type, answer_value, expected_content):
+        """Test FinalAnswerStep with different answer types."""
+        try:
+            final_answer = answer_type()
+        except TypeError:
+            with patch.object(answer_type, "to_string", return_value=answer_value):
+                final_answer = answer_type(answer_value)
+        step = FinalAnswerStep(final_answer=final_answer)
+        messages = list(pull_messages_from_step(step))
+        assert len(messages) == 1
+        assert messages[0].content == expected_content
+
+    def test_final_answer_step_image(self):
+        """Test FinalAnswerStep with image answer."""
+        with patch.object(AgentImage, "to_string", return_value="path/to/image.png"):
+            step = FinalAnswerStep(final_answer=AgentImage("path/to/image.png"))
+            messages = list(pull_messages_from_step(step))
+            assert len(messages) == 1
+            assert messages[0].content["path"] == "path/to/image.png"
+            assert messages[0].content["mime_type"] == "image/png"
+
+    def test_final_answer_step_audio(self):
+        """Test FinalAnswerStep with audio answer."""
+        with patch.object(AgentAudio, "to_string", return_value="path/to/audio.wav"):
+            step = FinalAnswerStep(final_answer=AgentAudio("path/to/audio.wav"))
+            messages = list(pull_messages_from_step(step))
+            assert len(messages) == 1
+            assert messages[0].content["path"] == "path/to/audio.wav"
+            assert messages[0].content["mime_type"] == "audio/wav"
+
+    def test_unsupported_step_type(self):
+        """Test handling of unsupported step types."""
+
+        class UnsupportedStep(Mock):
+            pass
+
+        step = UnsupportedStep()
+        with pytest.raises(ValueError, match="Unsupported step type"):
+            list(pull_messages_from_step(step))
