@@ -186,23 +186,16 @@ def stream_to_gradio(
     additional_args: dict | None = None,
 ):
     """Runs an agent with the given task and streams the messages from the agent as gradio ChatMessages."""
-    total_input_tokens = 0
-    total_output_tokens = 0
-
     if not _is_package_available("gradio"):
         raise ModuleNotFoundError(
             "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
         )
-
     intermediate_text = ""
-
     for step_log in agent.run(
         task, images=task_images, stream=True, reset=reset_agent_memory, additional_args=additional_args
     ):
         # Track tokens if model provides them
         if getattr(agent.model, "last_input_token_count", None) is not None:
-            total_input_tokens += agent.model.last_input_token_count
-            total_output_tokens += agent.model.last_output_token_count
             if isinstance(step_log, (ActionStep, PlanningStep)):
                 step_log.input_token_count = agent.model.last_input_token_count
                 step_log.output_token_count = agent.model.last_output_token_count
