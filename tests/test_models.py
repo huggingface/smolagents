@@ -19,7 +19,12 @@ from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 import pytest
-from huggingface_hub import ChatCompletionOutputMessage
+from huggingface_hub import (
+    ChatCompletionOutputMessage,
+    ChatCompletionStreamOutput,
+    ChatCompletionStreamOutputChoice,
+    ChatCompletionStreamOutputDelta,
+)
 
 from smolagents.models import (
     AmazonBedrockServerModel,
@@ -205,6 +210,40 @@ class TestInferenceClientModel:
         model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
+
+    @require_run_all
+    def test_generate_stream_error(self):
+        # Setting max_tokens to 5 to get finish_reason='length'
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=5)
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        with pytest.raises(ValueError, match="No content or tool calls in event:"):
+            list(model.generate_stream(messages))
+
+    def test_generate_stream_error_with_mock_client(self):
+        # Setting max_tokens to 5 to get finish_reason='length'
+        model = InferenceClientModel(model_id="test-model", max_tokens=5)
+        model.client = MagicMock()
+        # Mock the response to simulate finish_reason='length'
+        model.client.chat.completions.create.return_value = [
+            ChatCompletionStreamOutput(
+                choices=[
+                    ChatCompletionStreamOutputChoice(
+                        delta=ChatCompletionStreamOutputDelta(role="assistant", content=" I", tool_calls=None),
+                        index=0,
+                        finish_reason="length",
+                        logprobs=None,
+                    )
+                ],
+                created=1,
+                id="",
+                model="test-model",
+                system_fingerprint="3.2.1-sha-4d28897",
+                usage=None,
+            )
+        ]
+        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        with pytest.raises(ValueError, match="No content or tool calls in event:"):
+            list(model.generate_stream(messages))
 
 
 class TestHfApiModel:
