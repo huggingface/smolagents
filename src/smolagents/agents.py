@@ -264,7 +264,9 @@ class MultiStepAgent(ABC):
             self.managed_agents = {agent.name: agent for agent in managed_agents}
 
     def _setup_tools(self, tools, add_base_tools):
-        assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
+        invalid_tools = [tool for tool in tools if not isinstance(tool, Tool)]
+        if invalid_tools:
+            raise ValueError(f"The following tools are not instances of Tool (or a subclass): {invalid_tools}")
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(
