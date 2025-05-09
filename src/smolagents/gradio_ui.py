@@ -95,11 +95,11 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
 
     # Output the step number
     step_number = f"Step {step_log.step_number}" if step_log.step_number is not None else "Step"
-
-    # First yield the thought/reasoning from the LLM
     if not skip_model_outputs:
         yield gr.ChatMessage(role="assistant", content=f"**{step_number}**", metadata={"status": "done"})
-    elif skip_model_outputs and getattr(step_log, "model_output", ""):
+
+    # First yield the thought/reasoning from the LLM
+    if not skip_model_outputs and getattr(step_log, "model_output", ""):
         model_output = _clean_model_output(step_log.model_output)
         yield gr.ChatMessage(role="assistant", content=model_output, metadata={"status": "done"})
 
