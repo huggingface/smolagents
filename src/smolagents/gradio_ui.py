@@ -29,7 +29,7 @@ def get_step_footnote_content(step_log: MemoryStep, step_name: str) -> str:
     """Get a footnote string for a step log with duration and token information"""
     step_footnote = f"**{step_name}**"
     if hasattr(step_log, "input_token_count") and hasattr(step_log, "output_token_count"):
-        token_str = f" | Input tokens:{step_log.input_token_count:,} | Output tokens: {step_log.output_token_count:,}"
+        token_str = f" | Input tokens: {step_log.input_token_count:,} | Output tokens: {step_log.output_token_count:,}"
         step_footnote += token_str
     if hasattr(step_log, "duration"):
         step_duration = f" | Duration: {round(float(step_log.duration), 2)}" if step_log.duration else None
