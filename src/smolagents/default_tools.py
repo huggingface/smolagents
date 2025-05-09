@@ -290,6 +290,28 @@ class WebSearchTool(Tool):
 
         return SimpleResultParser()
 
+    def search_bing(self, query: str) -> list:
+        import xml.etree.ElementTree as ET
+
+        import requests
+
+        response = requests.get(
+            "https://www.bing.com/search",
+            params={"q": query, "format": "rss"},
+        )
+        response.raise_for_status()
+        root = ET.fromstring(response.text)
+        items = root.findall(".//item")
+        results = [
+            {
+                "title": item.findtext("title"),
+                "link": item.findtext("link"),
+                "description": item.findtext("description"),
+            }
+            for item in items[: self.max_results]
+        ]
+        return results
+
 
 class VisitWebpageTool(Tool):
     name = "visit_webpage"
