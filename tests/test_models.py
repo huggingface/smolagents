@@ -206,41 +206,16 @@ class TestInferenceClientModel:
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         model(messages, stop_sequences=["great"])
 
-
-class TestHfApiModel:
-    def test_init_model_with_tokens(self):
-        model = HfApiModel(model_id="test-model", token="abc")
-        assert model.client.token == "abc"
-
-        model = HfApiModel(model_id="test-model", api_key="abc")
-        assert model.client.token == "abc"
-
-        with pytest.raises(ValueError) as e:
-            _ = HfApiModel(model_id="test-model", token="abc", api_key="def")
-        assert "Received both `token` and `api_key` arguments." in str(e)
-
-    @require_run_all
-    def test_get_hfapi_message_no_tool(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
-        model.generate(messages, stop_sequences=["great"])
-
-    @require_run_all
-    def test_get_hfapi_message_no_tool_external_provider(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
-        model.generate(messages, stop_sequences=["great"])
-
     @require_run_all
     def test_get_hfapi_message_stream_no_tool(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         for el in model.generate_stream(messages, stop_sequences=["great"]):
             assert el.content is not None
 
     @require_run_all
     def test_get_hfapi_message_stream_no_tool_external_provider(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
         for el in model.generate_stream(messages, stop_sequences=["great"]):
             assert el.content is not None
