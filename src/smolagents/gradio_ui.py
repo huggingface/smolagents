@@ -142,8 +142,9 @@ def pull_messages_from_step(step_log: MemoryStep, skip_model_outputs: bool = Fal
         yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
 
     elif isinstance(step_log, PlanningStep):
-        yield gr.ChatMessage(role="assistant", content="**Planning step**", metadata={"status": "done"})
-        yield gr.ChatMessage(role="assistant", content=step_log.plan, metadata={"status": "done"})
+        if not skip_model_outputs:
+            yield gr.ChatMessage(role="assistant", content="**Planning step**", metadata={"status": "done"})
+            yield gr.ChatMessage(role="assistant", content=step_log.plan, metadata={"status": "done"})
         yield gr.ChatMessage(
             role="assistant", content=get_step_footnote_content(step_log, "Planning step"), metadata={"status": "done"}
         )
