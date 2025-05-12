@@ -221,6 +221,21 @@ class TestInferenceClientModel:
             assert el.content is not None
 
 
+class TestHfApiModel:
+    def test_deprecation_warning(self):
+        """Test that HfApiModel raises a deprecation warning when instantiated."""
+        # Should raise FutureWarning with specific message
+        with pytest.warns(
+            FutureWarning,
+            match="HfApiModel was renamed to InferenceClientModel in version 1.14.0 and will be removed in 1.17.0.",
+        ):
+            model = HfApiModel(model_id="test-model")
+        # Verify it returns an instance of InferenceClientModel
+        assert isinstance(model, InferenceClientModel)
+        # Verify the model_id was properly passed through
+        assert model.model_id == "test-model"
+
+
 class TestLiteLLMModel:
     @pytest.mark.parametrize(
         "model_id, error_flag",
