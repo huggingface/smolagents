@@ -1318,7 +1318,7 @@ class HfApiModel(InferenceClientModel):
     def __new__(cls, *args, **kwargs):
         warnings.warn(
             "HfApiModel has been renamed to InferenceClientModel to more closely follow the name of the underlying Inference library.",
-            DeprecationWarning,
+            FutureWarning,
         )
         return super().__new__(cls)
 
