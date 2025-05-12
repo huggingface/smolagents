@@ -60,12 +60,12 @@ Then define your agent, give it the tools it needs and run it!
 from smolagents import CodeAgent, WebSearchTool, InferenceClientModel
 
 model = InferenceClientModel()
-agent = CodeAgent(tools=[WebSearchTool()], model=model)
+agent = CodeAgent(tools=[WebSearchTool()], model=model, stream_outputs=True)
 
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
 ```
 
-https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884
+https://github.com/user-attachments/assets/84b149b4-246c-40c9-a48d-ba013b08e600
 
 You can even share your agent to the Hub, as a Space repository:
 ```py
