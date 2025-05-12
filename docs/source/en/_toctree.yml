@@ -34,6 +34,8 @@
     title: Orchestrate a multi-agent system
   - local: examples/web_browser
     title: Build a web browser agent using vision models
+  - local: examples/using_different_models
+    title: Using different models
 - title: Reference
   sections:
   - local: reference/agents

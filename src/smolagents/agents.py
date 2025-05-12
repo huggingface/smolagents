@@ -1095,16 +1095,16 @@ class ToolCallingAgent(MultiStepAgent):
                     answer = tool_arguments
             else:
                 answer = tool_arguments
-            if (
-                isinstance(answer, str) and answer in self.state.keys()
-            ):  # if the answer is a state variable, return the value
+            if isinstance(answer, str) and answer in self.state.keys():
+                # if the answer is a state variable, return the value
+                # State variables are not JSON-serializable (AgentImage, AgentAudio) so can't be passed as arguments to execute_tool_call
                 final_answer = self.state[answer]
                 self.logger.log(
                     f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'.",
                     level=LogLevel.INFO,
                 )
             else:
-                final_answer = answer
+                final_answer = self.execute_tool_call("final_answer", {"answer": answer})
                 self.logger.log(
                     Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
                     level=LogLevel.INFO,

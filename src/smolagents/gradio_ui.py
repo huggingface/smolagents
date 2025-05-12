@@ -55,11 +55,11 @@ def pull_messages_from_step(step_log: MemoryStep, skip_model_outputs: bool = Fal
     if isinstance(step_log, ActionStep):
         # Output the step number
         step_number = f"Step {step_log.step_number}" if step_log.step_number is not None else "Step"
-
-        # First yield the thought/reasoning from the LLM
         if not skip_model_outputs:
             yield gr.ChatMessage(role="assistant", content=f"**{step_number}**", metadata={"status": "done"})
-        elif skip_model_outputs and hasattr(step_log, "model_output") and step_log.model_output is not None:
+
+        # First yield the thought/reasoning from the LLM
+        if not skip_model_outputs and hasattr(step_log, "model_output") and step_log.model_output is not None:
             model_output = step_log.model_output.strip()
             # Remove any trailing <end_code> and extra backticks, handling multiple possible formats
             model_output = re.sub(r"```\s*<end_code>", "```", model_output)  # handles ```<end_code>

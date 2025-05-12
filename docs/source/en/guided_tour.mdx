@@ -291,9 +291,9 @@ You can manually use a tool by calling it with its arguments.
 
 ```python
 # !pip install smolagents[toolkit]
-from smolagents import DuckDuckGoSearchTool
+from smolagents import WebSearchTool
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = WebSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 
@@ -340,7 +340,7 @@ def model_download_tool(task: str) -> str:
 The function needs:
 - A clear name. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
 - Type hints on both inputs and output
-- A description, that includes an 'Args:' part where each argument is described (without a type indication this time, it will be pulled from the type hint). Same as for the tool name, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
+- A description, that includes an 'Args:' part where each argument is described (without a type indication this time, it will be pulled from the type hint). Same as for the tool name, this description is an instruction manual for the LLM powering your agent, so do not neglect it.
 
 All these elements will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
 
@@ -365,7 +365,7 @@ class ModelDownloadTool(Tool):
 
 The subclass needs the following attributes:
 - A clear `name`. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
-- A `description`. Same as for the `name`, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
+- A `description`. Same as for the `name`, this description is an instruction manual for the LLM powering your agent, so do not neglect it.
 - Input types and descriptions
 - Output type
 All these attributes will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
@@ -424,15 +424,15 @@ You can easily build hierarchical multi-agent systems with `smolagents`.
 To do so, just ensure your agent has `name` and`description` attributes, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
 Then you can pass this managed agent in the parameter managed_agents upon initialization of the manager agent.
 
-Here's an example of making an agent that managed a specific web search agent using our [`DuckDuckGoSearchTool`]:
+Here's an example of making an agent that managed a specific web search agent using our native [`WebSearchTool`]:
 
 ```py
-from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
+from smolagents import CodeAgent, InferenceClientModel, WebSearchTool
 
 model = InferenceClientModel()
 
 web_agent = CodeAgent(
-    tools=[DuckDuckGoSearchTool()],
+    tools=[WebSearchTool()],
     model=model,
     name="web_search",
     description="Runs web searches for you. Give it your query as an argument."

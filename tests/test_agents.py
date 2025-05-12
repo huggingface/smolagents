@@ -15,7 +15,6 @@
 import io
 import os
 import tempfile
-import unittest
 import uuid
 from collections.abc import Generator
 from contextlib import nullcontext as does_not_raise
@@ -963,7 +962,7 @@ class TestMultiStepAgent:
         assert agent.max_steps == 30
 
 
-class TestToolCallingAgent(unittest.TestCase):
+class TestToolCallingAgent:
     @patch("huggingface_hub.InferenceClient")
     def test_toolcalling_agent_api(self, mock_inference_client):
         mock_client = mock_inference_client.return_value
@@ -1039,6 +1038,57 @@ class TestToolCallingAgent(unittest.TestCase):
         assert "The JSON blob you used is invalid" in agent.memory.steps[1].error.message
         assert "Error while parsing" in capture.get()
         assert len(agent.memory.steps) == 4
+
+    def test_change_tools_after_init(self):
+        from smolagents import tool
+
+        @tool
+        def fake_tool_1() -> str:
+            """Fake tool"""
+            return "1"
+
+        @tool
+        def fake_tool_2() -> str:
+            """Fake tool"""
+            return "2"
+
+        class FakeCodeModel(Model):
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None):
+                if len(messages) < 3:
+                    return ChatMessage(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_0",
+                                type="function",
+                                function=ChatMessageToolCallDefinition(name="fake_tool_1", arguments={}),
+                            )
+                        ],
+                    )
+                else:
+                    tool_result = messages[-1]["content"][0]["text"].removeprefix("Observation:\n")
+                    return ChatMessage(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_1",
+                                type="function",
+                                function=ChatMessageToolCallDefinition(
+                                    name="final_answer", arguments={"answer": tool_result}
+                                ),
+                            )
+                        ],
+                    )
+
+        agent = ToolCallingAgent(tools=[fake_tool_1], model=FakeCodeModel())
+
+        agent.tools["final_answer"] = CustomFinalAnswerTool()
+        agent.tools["fake_tool_1"] = fake_tool_2
+
+        answer = agent.run("Fake task.")
+        assert answer == "2CUSTOM"
 
 
 class TestCodeAgent:
@@ -1149,6 +1199,15 @@ class TestCodeAgent:
 
         answer = agent.run("Fake task.")
         assert answer == "2CUSTOM"
+
+    def test_local_python_executor_with_custom_functions(self):
+        model = MagicMock()
+        model.last_input_token_count = 10
+        model.last_output_token_count = 5
+        agent = CodeAgent(tools=[], model=model)
+        agent.python_executor.additional_functions = {"open": open}
+        agent.run("Test run")
+        assert "open" in agent.python_executor.static_tools
 
     @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10"])
     def test_from_folder(self, agent_dict_version, get_agent_dict):

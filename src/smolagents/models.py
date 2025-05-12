@@ -1099,7 +1099,7 @@ class LiteLLMRouterModel(LiteLLMModel):
     Example:
     ```python
     >>> import os
-    >>> from smolagents import CodeAgent, DuckDuckGoSearchTool, LiteLLMRouterModel
+    >>> from smolagents import CodeAgent, WebSearchTool, LiteLLMRouterModel
     >>> os.environ["OPENAI_API_KEY"] = ""
     >>> os.environ["AWS_ACCESS_KEY_ID"] = ""
     >>> os.environ["AWS_SECRET_ACCESS_KEY"] = ""
@@ -1129,7 +1129,7 @@ class LiteLLMRouterModel(LiteLLMModel):
     ...        "routing_strategy":"simple-shuffle"
     ...    }
     >>> )
-    >>> agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
+    >>> agent = CodeAgent(tools=[WebSearchTool()], model=model)
     >>> agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
     ```
     """
@@ -1317,8 +1317,8 @@ class InferenceClientModel(ApiModel):
 class HfApiModel(InferenceClientModel):
     def __new__(cls, *args, **kwargs):
         warnings.warn(
-            "HfApiModel has been renamed to InferenceClientModel to more closely follow the name of the underlying Inference library.",
-            DeprecationWarning,
+            "HfApiModel was renamed to InferenceClientModel in version 1.14.0 and will be removed in 1.17.0.",
+            FutureWarning,
         )
         return super().__new__(cls)
 

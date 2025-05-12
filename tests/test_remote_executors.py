@@ -7,6 +7,7 @@ import PIL.Image
 import pytest
 from rich.console import Console
 
+from smolagents.default_tools import WikipediaSearchTool
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.remote_executors import DockerExecutor, E2BExecutor, RemotePythonExecutor
 from smolagents.utils import AgentError
@@ -15,13 +16,22 @@ from .utils.markers import require_run_all
 
 
 class TestRemotePythonExecutor:
-    def test_send_tools_empty_tools(self, monkeypatch):
+    def test_send_tools_empty_tools(self):
         executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
         executor.run_code_raise_errors = MagicMock()
         executor.send_tools({})
         assert executor.run_code_raise_errors.call_count == 1
         # No new packages should be installed
         assert "!pip install" not in executor.run_code_raise_errors.call_args.args[0]
+
+    @require_run_all
+    def test_send_tools_with_default_wikipedia_search_tool(self):
+        tool = WikipediaSearchTool()
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
+        executor.run_code_raise_errors = MagicMock()
+        executor.send_tools({"wikipedia_search": tool})
+        assert executor.run_code_raise_errors.call_count == 1
+        assert "!pip install wikipedia-api" in executor.run_code_raise_errors.call_args.args[0]
 
 
 class TestE2BExecutorMock:

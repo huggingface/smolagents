@@ -9,7 +9,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
-from smolagents import CodeAgent, DuckDuckGoSearchTool, tool
+from smolagents import CodeAgent, WebSearchTool, tool
 from smolagents.agents import ActionStep
 from smolagents.cli import load_model
 
@@ -120,7 +120,7 @@ def initialize_driver():
 def initialize_agent(model):
     """Initialize the CodeAgent with the specified model."""
     return CodeAgent(
-        tools=[DuckDuckGoSearchTool(), go_back, close_popups, search_item_ctrl_f],
+        tools=[WebSearchTool(), go_back, close_popups, search_item_ctrl_f],
         model=model,
         additional_authorized_imports=["helium"],
         step_callbacks=[save_screenshot],

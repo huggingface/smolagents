@@ -221,9 +221,9 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 您可以通过调用 [`load_tool`] 函数和要执行的任务手动使用工具。
 
 ```python
-from smolagents import DuckDuckGoSearchTool
+from smolagents import WebSearchTool
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = WebSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 
@@ -352,14 +352,14 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 
 为此，将 agent 封装在 [`ManagedAgent`] 对象中。此对象需要参数 `agent`、`name` 和 `description`，这些参数将嵌入到管理 agent 的系统提示中，以让它知道如何调用此托管 agent，就像我们对工具所做的那样。
 
-以下是一个使用我们的 [`DuckDuckGoSearchTool`] 制作一个管理特定网页搜索 agent 的 agent 的示例：
+以下是一个使用我们的 [`WebSearchTool`] 制作一个管理特定网页搜索 agent 的 agent 的示例：
 
 ```py
-from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool, ManagedAgent
+from smolagents import CodeAgent, InferenceClientModel, WebSearchTool, ManagedAgent
 
 model = InferenceClientModel()
 
-web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
+web_agent = CodeAgent(tools=[WebSearchTool()], model=model)
 
 managed_web_agent = ManagedAgent(
     agent=web_agent,

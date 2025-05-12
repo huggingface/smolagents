@@ -25,7 +25,7 @@ Let's set up this system.
 Run the line below to install the required dependencies:
 
 ```py
-!pip install markdownify smolagents[toolkit] --upgrade -q
+!pip install smolagents[toolkit] --upgrade -q
 ```
 
 Let's login to HF in order to call Inference Providers:
@@ -46,9 +46,9 @@ model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
 
 ## 🔍 Create a web search tool
 
-For web browsing, we can already use our pre-existing [`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools.py#L151-L176) tool to provide a Google search equivalent.
+For web browsing, we can already use our native [`WebSearchTool`] tool to provide a Google search equivalent.
 
-But then we will also need to be able to peak into the page found by the `DuckDuckGoSearchTool`.
+But then we will also need to be able to peak into the page found by the `WebSearchTool`.
 To do so, we could import the library's built-in `VisitWebpageTool`, but we will build it again to see how it's done.
 
 So let's create our `VisitWebpageTool` tool from scratch using `markdownify`.
@@ -109,14 +109,14 @@ from smolagents import (
     CodeAgent,
     ToolCallingAgent,
     InferenceClientModel,
-    DuckDuckGoSearchTool,
+    WebSearchTool,
     LiteLLMModel,
 )
 
 model = InferenceClientModel(model_id=model_id)
 
 web_agent = ToolCallingAgent(
-    tools=[DuckDuckGoSearchTool(), visit_webpage],
+    tools=[WebSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
     name="web_search_agent",

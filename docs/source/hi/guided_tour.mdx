@@ -152,9 +152,9 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 आप मैन्युअल रूप से एक टूल का उपयोग उसके आर्ग्यूमेंट्स के साथ कॉल करके कर सकते हैं।
 
 ```python
-from smolagents import DuckDuckGoSearchTool
+from smolagents import WebSearchTool
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = WebSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 
@@ -283,14 +283,14 @@ Microsoft के फ्रेमवर्क [Autogen](https://huggingface.co/pa
 
 ऐसा करने के लिए, एजेंट को [`ManagedAgent`] ऑब्जेक्ट में समाहित करें। यह ऑब्जेक्ट `agent`, `name`, और एक `description` जैसे तर्कों की आवश्यकता होती है, जो फिर मैनेजर एजेंट की सिस्टम प्रॉम्प्ट में एम्बेड किया जाता है  
 
-यहां एक एजेंट बनाने का उदाहरण दिया गया है जो हमारे [`DuckDuckGoSearchTool`] का उपयोग करके एक विशिष्ट वेब खोज एजेंट को प्रबंधित करता है।
+यहां एक एजेंट बनाने का उदाहरण दिया गया है जो हमारे [`WebSearchTool`] का उपयोग करके एक विशिष्ट वेब खोज एजेंट को प्रबंधित करता है।
 
 ```py
-from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool, ManagedAgent
+from smolagents import CodeAgent, InferenceClientModel, WebSearchTool, ManagedAgent
 
 model = InferenceClientModel()
 
-web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
+web_agent = CodeAgent(tools=[WebSearchTool()], model=model)
 
 managed_web_agent = ManagedAgent(
     agent=web_agent,
