@@ -53,6 +53,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+MAX_EXECUTION_TIME_SECONDS = 10
 
 
 def custom_print(*args):
@@ -1451,6 +1452,7 @@ class FinalAnswerException(Exception):
         self.value = value
 
 
+@timeout(MAX_EXECUTION_TIME_SECONDS)
 def evaluate_python_code(
     code: str,
     static_tools: dict[str, Callable] | None = None,
