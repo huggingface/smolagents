@@ -297,7 +297,8 @@ class TestPullMessagesFromStep:
             assert len(image_messages) == 2
             assert "path/to/image.png" in str(image_messages[0])
 
-    def test_planning_step(self):
+    @pytest.mark.parametrize("skip_model_outputs, expected_messages_length", [(False, 4), (True, 2)])
+    def test_planning_step(self, skip_model_outputs, expected_messages_length):
         """Test PlanningStep processing."""
         step = PlanningStep(
             plan="1. First step\n2. Second step", model_input_messages=Mock(), model_output_message=Mock()
@@ -305,11 +306,16 @@ class TestPullMessagesFromStep:
         # Set in stream_to_gradio:
         step.input_token_count = 80
         step.output_token_count = 30
-        messages = list(pull_messages_from_step(step))
-        assert len(messages) == 4  # header, plan, footnote, divider
-        assert messages[0].content == "**Planning step**"
-        assert messages[1].content == "1. First step\n2. Second step"
-        assert "Input tokens: 80" in messages[2].content
+        messages = list(pull_messages_from_step(step, skip_model_outputs=skip_model_outputs))
+        assert len(messages) == expected_messages_length  # [header, plan,] footnote, divider
+        expected_contents = [
+            "**Planning step**",
+            "1. First step\n2. Second step",
+            "Input tokens: 80 | Output tokens: 30",
+            "-----",
+        ]
+        for message, expected_content in zip(messages, expected_contents[-expected_messages_length:]):
+            assert expected_content in message.content
 
     @pytest.mark.parametrize(
         "answer_type, answer_value, expected_content",
