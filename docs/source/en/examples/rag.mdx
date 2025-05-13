@@ -2,72 +2,108 @@
 
 [[open-in-colab]]
 
-Retrieval-Augmented-Generation (RAG) is “using an LLM to answer a user query, but basing the answer on information retrieved from a knowledge base”. It has many advantages over using a vanilla or fine-tuned LLM: to name a few, it allows to ground the answer on true facts and reduce confabulations, it allows to provide the LLM with domain-specific knowledge, and it allows fine-grained control of access to information from the knowledge base.
+## Introduction to Retrieval-Augmented Generation (RAG)
 
-But vanilla RAG has limitations, most importantly these two:
-- It performs only one retrieval step: if the results are bad, the generation in turn will be bad.
-- Semantic similarity is computed with the user query as a reference, which might be suboptimal: for instance, the user query will often be a question and the document containing the true answer will be in affirmative voice, so its similarity score will be downgraded compared to other source documents in the interrogative form, leading to a risk of missing the relevant information.
+Retrieval-Augmented Generation (RAG) combines the power of large language models with external knowledge retrieval to produce more accurate, factual, and contextually relevant responses. At its core, RAG is about "using an LLM to answer a user query, but basing the answer on information retrieved from a knowledge base."
 
-We can alleviate these problems by making a RAG agent: very simply, an agent armed with a retriever tool!
+### Why Use RAG?
 
-This agent will: ✅ Formulate the query itself and ✅ Critique to re-retrieve if needed.
+RAG offers several significant advantages over using vanilla or fine-tuned LLMs:
 
-So it should naively recover some advanced RAG techniques!
-- Instead of directly using the user query as the reference in semantic search, the agent formulates itself a reference sentence that can be closer to the targeted documents, as in [HyDE](https://huggingface.co/papers/2212.10496).
-The agent can use the generated snippets and re-retrieve if needed, as in [Self-Query](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/).
+1. **Factual Grounding**: Reduces hallucinations by anchoring responses in retrieved facts
+2. **Domain Specialization**: Provides domain-specific knowledge without model retraining
+3. **Knowledge Recency**: Allows access to information beyond the model's training cutoff
+4. **Transparency**: Enables citation of sources for generated content
+5. **Control**: Offers fine-grained control over what information the model can access
 
-Let's build this system. 🛠️
+### Limitations of Traditional RAG
 
-Run the line below to install required dependencies:
+Despite its benefits, traditional RAG approaches face several challenges:
+
+- **Single Retrieval Step**: If the initial retrieval results are poor, the final generation will suffer
+- **Query-Document Mismatch**: User queries (often questions) may not match well with documents containing answers (often statements)
+- **Limited Reasoning**: Simple RAG pipelines don't allow for multi-step reasoning or query refinement
+- **Context Window Constraints**: Retrieved documents must fit within the model's context window
+
+## Agentic RAG: A More Powerful Approach
+
+We can overcome these limitations by implementing an **Agentic RAG** system - essentially an agent equipped with retrieval capabilities. This approach transforms RAG from a rigid pipeline into an interactive, reasoning-driven process.
+
+### Key Benefits of Agentic RAG
+
+An agent with retrieval tools can:
+
+1. ✅ **Formulate optimized queries**: The agent can transform user questions into retrieval-friendly queries
+2. ✅ **Perform multiple retrievals**: The agent can retrieve information iteratively as needed
+3. ✅ **Reason over retrieved content**: The agent can analyze, synthesize, and draw conclusions from multiple sources
+4. ✅ **Self-critique and refine**: The agent can evaluate retrieval results and adjust its approach
+
+This approach naturally implements advanced RAG techniques:
+- **Hypothetical Document Embedding (HyDE)**: Instead of using the user query directly, the agent formulates retrieval-optimized queries ([paper reference](https://huggingface.co/papers/2212.10496))
+- **Self-Query Refinement**: The agent can analyze initial results and perform follow-up retrievals with refined queries ([technique reference](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/))
+
+## Building an Agentic RAG System
+
+Let's build a complete Agentic RAG system step by step. We'll create an agent that can answer questions about the Hugging Face Transformers library by retrieving information from its documentation.
+
+You can follow along with the code snippets below, or check out the full example in the smolagents GitHub repository: [examples/rag.py](https://github.com/huggingface/smolagents/blob/main/examples/rag.py).
+
+### Step 1: Install Required Dependencies
+
+First, we need to install the necessary packages:
+
 ```bash
-!pip install smolagents pandas langchain langchain-community sentence-transformers datasets python-dotenv rank_bm25 --upgrade -q
+pip install smolagents pandas langchain langchain-community sentence-transformers datasets python-dotenv rank_bm25 --upgrade
 ```
-To call Inference Providers, you will need a valid token as your environment variable `HF_TOKEN`.
-We use python-dotenv to load it.
-```py
+
+If you plan to use Hugging Face's Inference API, you'll need to set up your API token:
+
+```python
+# Load environment variables (including HF_TOKEN)
 from dotenv import load_dotenv
 load_dotenv()
 ```
 
-We first load a knowledge base on which we want to perform RAG: this dataset is a compilation of the documentation pages for many Hugging Face libraries, stored as markdown. We will keep only the documentation for the `transformers` library.
+### Step 2: Prepare the Knowledge Base
 
-Then prepare the knowledge base by processing the dataset and storing it into a vector database to be used by the retriever.
+We'll use a dataset containing Hugging Face documentation and prepare it for retrieval:
 
-We use [LangChain](https://python.langchain.com/docs/introduction/) for its excellent vector database utilities.
-
-```py
+```python
 import datasets
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.retrievers import BM25Retriever
 
+# Load the Hugging Face documentation dataset
 knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
+
+# Filter to include only Transformers documentation
 knowledge_base = knowledge_base.filter(lambda row: row["source"].startswith("huggingface/transformers"))
 
+# Convert dataset entries to Document objects with metadata
 source_docs = [
     Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]})
     for doc in knowledge_base
 ]
 
+# Split documents into smaller chunks for better retrieval
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50,
+    chunk_size=500,  # Characters per chunk
+    chunk_overlap=50,  # Overlap between chunks to maintain context
     add_start_index=True,
     strip_whitespace=True,
-    separators=["\n\n", "\n", ".", " ", ""],
+    separators=["\n\n", "\n", ".", " ", ""],  # Priority order for splitting
 )
 docs_processed = text_splitter.split_documents(source_docs)
+
+print(f"Knowledge base prepared with {len(docs_processed)} document chunks")
 ```
 
-Now the documents are ready.
+### Step 3: Create a Retriever Tool
 
-So let’s build our agentic RAG system!
+Now we'll create a custom tool that our agent can use to retrieve information from the knowledge base:
 
-👉 We only need a RetrieverTool that our agent can leverage to retrieve information from the knowledge base.
-
-Since we need to add a vectordb as an attribute of the tool, we cannot simply use the simple tool constructor with a `@tool` decorator: so we will follow the advanced setup highlighted in the [tools tutorial](../tutorials/tools).
-
-```py
+```python
 from smolagents import Tool
 
 class RetrieverTool(Tool):
@@ -83,16 +119,19 @@ class RetrieverTool(Tool):
 
     def __init__(self, docs, **kwargs):
         super().__init__(**kwargs)
+        # Initialize the retriever with our processed documents
         self.retriever = BM25Retriever.from_documents(
-            docs, k=10
+            docs, k=10  # Return top 10 most relevant documents
         )
 
     def forward(self, query: str) -> str:
+        """Execute the retrieval based on the provided query."""
         assert isinstance(query, str), "Your search query must be a string"
 
-        docs = self.retriever.invoke(
-            query,
-        )
+        # Retrieve relevant documents
+        docs = self.retriever.invoke(query)
+
+        # Format the retrieved documents for readability
         return "\nRetrieved documents:\n" + "".join(
             [
                 f"\n\n===== Document {str(i)} =====\n" + doc.page_content
@@ -100,37 +139,68 @@ class RetrieverTool(Tool):
             ]
         )
 
+# Initialize our retriever tool with the processed documents
 retriever_tool = RetrieverTool(docs_processed)
 ```
-We have used BM25, a classic retrieval method, because it's lightning fast to setup.
-To improve retrieval accuracy, you could use replace BM25 with semantic search using vector representations for documents: thus you can head to the [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard) to select a good embedding model.
 
-Now it’s straightforward to create an agent that leverages this `retriever_tool`!
+> [!TIP]
+> We're using BM25, a lexical retrieval method, for simplicity and speed. For production systems, you might want to use semantic search with embeddings for better retrieval quality. Check the [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard) for high-quality embedding models.
 
-The agent will need these arguments upon initialization:
-- `tools`: a list of tools that the agent will be able to call.
-- `model`: the LLM that powers the agent.
-Our `model` must be a callable that takes as input a list of messages and returns text. It also needs to accept a stop_sequences argument that indicates when to stop its generation. For convenience, we directly use the HfEngine class provided in the package to get a LLM engine that calls Hugging Face's Inference API.
+### Step 4: Create an Advanced Retrieval Agent
 
->[!NOTE] To use a specific model, pass it like this: `InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct")`. The Inference API hosts models based on various criteria, and deployed models may be updated or replaced without prior notice. Learn more about it [here](https://huggingface.co/docs/api-inference/supported-models).
+Now we'll create an agent that can use our retriever tool to answer questions:
 
-```py
+```python
 from smolagents import InferenceClientModel, CodeAgent
 
+# Initialize the agent with our retriever tool
 agent = CodeAgent(
-    tools=[retriever_tool], model=InferenceClientModel(), max_steps=4, verbosity_level=2
+    tools=[retriever_tool],  # List of tools available to the agent
+    model=InferenceClientModel(),  # Default model "Qwen/Qwen2.5-Coder-32B-Instruct"
+    max_steps=4,  # Limit the number of reasoning steps
+    verbosity_level=2,  # Show detailed agent reasoning
 )
+
+# To use a specific model, you can specify it like this:
+# model=InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
 ```
-Upon initializing the CodeAgent, it has been automatically given a default system prompt that tells the LLM engine to process step-by-step and generate tool calls as code snippets, but you could replace this prompt template with your own as needed.
 
-Then when its `.run()` method is launched, the agent takes care of calling the LLM engine, and executing the tool calls, all in a loop that ends only when tool `final_answer` is called with the final answer as its argument.
+> [!TIP]
+> The Inference API hosts models based on various criteria, and deployed models may be updated or replaced without prior notice. Learn more about it [here](https://huggingface.co/docs/api-inference/supported-models).
 
-```py
-agent_output = agent.run("For a transformers model training, which is slower, the forward or the backward pass?")
+### Step 5: Run the Agent to Answer Questions
 
-print("Final output:")
+Let's use our agent to answer a question about Transformers:
+
+```python
+# Ask a question that requires retrieving information
+question = "For a transformers model training, which is slower, the forward or the backward pass?"
+
+# Run the agent to get an answer
+agent_output = agent.run(question)
+
+# Display the final answer
+print("\nFinal answer:")
 print(agent_output)
 ```
 
+## Practical Applications of Agentic RAG
 
+Agentic RAG systems can be applied to various use cases:
 
+1. **Technical Documentation Assistance**: Help users navigate complex technical documentation
+2. **Research Paper Analysis**: Extract and synthesize information from scientific papers
+3. **Legal Document Review**: Find relevant precedents and clauses in legal documents
+4. **Customer Support**: Answer questions based on product documentation and knowledge bases
+5. **Educational Tutoring**: Provide explanations based on textbooks and learning materials
+
+## Conclusion
+
+Agentic RAG represents a significant advancement over traditional RAG pipelines. By combining the reasoning capabilities of LLM agents with the factual grounding of retrieval systems, we can build more powerful, flexible, and accurate information systems.
+
+The approach we've demonstrated:
+- Overcomes the limitations of single-step retrieval
+- Enables more natural interactions with knowledge bases
+- Provides a framework for continuous improvement through self-critique and query refinement
+
+As you build your own Agentic RAG systems, consider experimenting with different retrieval methods, agent architectures, and knowledge sources to find the optimal configuration for your specific use case.
