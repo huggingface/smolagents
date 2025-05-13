@@ -21,6 +21,7 @@ Router Pattern Example: Directing tasks to specialized agents based on task type
 
 from smolagents import CodeAgent, InferenceClientModel, WebSearchTool
 
+
 # Create specialized agents
 # - math_agent
 math_agent = CodeAgent(
