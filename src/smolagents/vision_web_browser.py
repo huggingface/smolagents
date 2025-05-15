@@ -51,6 +51,18 @@ def parse_arguments():
         default=None,
         help="The inference provider to use for the model",
     )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="The API key to use for the model",
+    )
+    parser.add_argument(
+        "--api-base",
+        type=str,
+        default=None,
+        help="The API base to use for the model",
+    )
     return parser.parse_args()
 
 
@@ -193,12 +205,12 @@ When you have modals or cookie banners on screen, you should get rid of them bef
 """
 
 
-def run_webagent(prompt: str, model_type: str, model_id: str, provider: str) -> None:
+def run_webagent(prompt: str, model_type: str, model_id: str, provider: str, api_base: str, api_key: str) -> None:
     # Load environment variables
     load_dotenv()
 
     # Initialize the model based on the provided arguments
-    model = load_model(model_type, model_id, provider=provider, api_base=None, api_key=None)
+    model = load_model(model_type, model_id, provider=provider, api_base=api_base, api_key=api_key)
 
     global driver
     driver = initialize_driver()
@@ -212,7 +224,7 @@ def run_webagent(prompt: str, model_type: str, model_id: str, provider: str) -> 
 def main() -> None:
     # Parse command line arguments
     args = parse_arguments()
-    run_webagent(args.prompt, args.model_type, args.model_id, args.provider)
+    run_webagent(args.prompt, args.model_type, args.model_id, args.provider, args.api_base, args.api_key)
 
 
 if __name__ == "__main__":
