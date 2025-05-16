@@ -48,19 +48,16 @@ def parse_arguments():
     parser.add_argument(
         "--provider",
         type=str,
-        default=None,
         help="The inference provider to use for the model",
     )
     parser.add_argument(
         "--api-key",
         type=str,
-        default=None,
         help="The API key to use for the model",
     )
     parser.add_argument(
         "--api-base",
         type=str,
-        default=None,
         help="The API base to use for the model",
     )
     return parser.parse_args()
