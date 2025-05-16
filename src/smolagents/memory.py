@@ -49,19 +49,31 @@ class MemoryStep:
 
 
 @dataclass
+class Usage:
+    input_tokens: int
+    output_tokens: int
+
+
+@dataclass
+class Timing:
+    start_time: float
+    end_time: float | None = None
+    duration: float | None = None
+
+
+@dataclass
 class ActionStep(MemoryStep):
     model_input_messages: list[Message] | None = None
     tool_calls: list[ToolCall] | None = None
-    start_time: float | None = None
-    end_time: float | None = None
+    timing: Timing | None = None
     step_number: int | None = None
     error: AgentError | None = None
-    duration: float | None = None
     model_output_message: ChatMessage | None = None
     model_output: str | None = None
     observations: str | None = None
     observations_images: list["PIL.Image.Image"] | None = None
     action_output: Any = None
+    usage: Usage | None = None
 
     def dict(self):
         # We overwrite the method to parse the tool_calls and action_output manually
@@ -145,6 +157,8 @@ class PlanningStep(MemoryStep):
     model_input_messages: list[Message]
     model_output_message: ChatMessage
     plan: str
+    timing: Timing | None = None
+    usage: Usage | None = None
 
     def to_messages(self, summary_mode: bool = False) -> list[Message]:
         if summary_mode:

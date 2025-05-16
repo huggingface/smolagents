@@ -186,3 +186,22 @@ class MonitoringTester(unittest.TestCase):
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("Malformed call", final_message.content)
+
+    def test_run_return_full_results(self):
+        agent = CodeAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_results=True,
+        )
+
+        result = agent.run("Fake task")
+
+        from smolagents import RunResult
+
+        self.assertIsInstance(result, RunResult)
+        self.assertEqual(result.result, "This is the final answer.")
+        self.assertEqual(result.state, "success")
+        self.assertEqual(result.token_usage, {"input": 10, "output": 20})
+        self.assertIsInstance(result.messages, list)
+        self.assertGreater(result.duration, 0)
