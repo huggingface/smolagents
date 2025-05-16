@@ -1204,8 +1204,7 @@ class TestCodeAgent:
         model = MagicMock()
         model.last_input_token_count = 10
         model.last_output_token_count = 5
-        agent = CodeAgent(tools=[], model=model)
-        agent.python_executor.additional_functions = {"open": open}
+        agent = CodeAgent(tools=[], model=model, executor_kwargs={"additional_functions": {"open": open}})
         agent.run("Test run")
         assert "open" in agent.python_executor.static_tools
 
@@ -1261,7 +1260,7 @@ class TestCodeAgent:
             "description": "Test code agent description",
             "authorized_imports": ["pandas", "numpy"],
             "executor_type": "local",
-            "executor_kwargs": {"max_workers": 2},
+            "executor_kwargs": {"max_print_outputs_length": 10_000},
             "max_print_outputs_length": 1000,
         }
 
@@ -1274,7 +1273,7 @@ class TestCodeAgent:
         assert agent.model == mock_model_instance
         assert agent.additional_authorized_imports == ["pandas", "numpy"]
         assert agent.executor_type == "local"
-        assert agent.executor_kwargs == {"max_workers": 2}
+        assert agent.executor_kwargs == {"max_print_outputs_length": 10_000}
         assert agent.max_print_outputs_length == 1000
 
         # Test with missing optional parameters
@@ -1292,10 +1291,12 @@ class TestCodeAgent:
         # Test overriding with kwargs
         with patch("smolagents.models.InferenceClientModel"):
             agent = CodeAgent.from_dict(
-                agent_dict, additional_authorized_imports=["matplotlib"], executor_kwargs={"max_workers": 4}
+                agent_dict,
+                additional_authorized_imports=["matplotlib"],
+                executor_kwargs={"max_print_outputs_length": 5_000},
             )
         assert agent.additional_authorized_imports == ["matplotlib"]
-        assert agent.executor_kwargs == {"max_workers": 4}
+        assert agent.executor_kwargs == {"max_print_outputs_length": 5_000}
 
 
 class TestMultiAgents:
@@ -1317,7 +1318,7 @@ class TestMultiAgents:
             managed_agents=[web_agent, code_agent],
             max_print_outputs_length=1000,
             executor_type="local",
-            executor_kwargs={"max_workers": 2},
+            executor_kwargs={"max_print_outputs_length": 10_000},
         )
         agent.save(tmp_path)
 
@@ -1356,7 +1357,7 @@ class TestMultiAgents:
         assert set(agent2.authorized_imports) == set(["pandas", "datetime"] + BASE_BUILTIN_MODULES)
         assert agent2.max_print_outputs_length == 1000
         assert agent2.executor_type == "local"
-        assert agent2.executor_kwargs == {"max_workers": 2}
+        assert agent2.executor_kwargs == {"max_print_outputs_length": 10_000}
         assert (
             agent2.managed_agents["web_agent"].tools["web_search"].max_results == 10
         )  # For now tool init parameters are forgotten

@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ast
+import time
 import types
 import unittest
 from contextlib import nullcontext as does_not_raise
@@ -28,6 +29,7 @@ from smolagents.default_tools import BASE_PYTHON_TOOLS, FinalAnswerTool
 from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_MODULES,
+    ExecutionTimeoutError,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -39,6 +41,7 @@ from smolagents.local_python_executor import (
     evaluate_subscript,
     fix_final_answer_code,
     get_safe_module,
+    timeout,
 )
 
 
@@ -1662,6 +1665,25 @@ class TestPrintContainer:
         pc = PrintContainer()
         pc.append("Hello")
         assert len(pc) == 5
+
+
+class TestTimeout:
+    def test_timeout_completes_within_limit(self):
+        @timeout(2)
+        def short_task():
+            time.sleep(0.1)
+            return "completed"
+
+        assert short_task() == "completed"
+
+    def test_timeout_raises_error_when_exceeded(self):
+        @timeout(1)
+        def long_task():
+            time.sleep(2)
+            return "should not complete"
+
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            long_task()
 
 
 @pytest.mark.parametrize(

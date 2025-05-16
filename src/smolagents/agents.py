@@ -1281,7 +1281,7 @@ class CodeAgent(MultiStepAgent):
             case "local":
                 return LocalPythonExecutor(
                     self.additional_authorized_imports,
-                    max_print_outputs_length=self.max_print_outputs_length,
+                    **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
                 )
             case _:  # if applicable
                 raise ValueError(f"Unsupported executor type: {self.executor_type}")

@@ -21,6 +21,7 @@ import inspect
 import logging
 import math
 import re
+import signal
 from collections.abc import Callable, Mapping
 from functools import wraps
 from importlib import import_module
@@ -52,6 +53,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+MAX_EXECUTION_TIME_SECONDS = 10
 
 
 def custom_print(*args):
@@ -183,6 +185,47 @@ class ContinueException(Exception):
 class ReturnException(Exception):
     def __init__(self, value):
         self.value = value
+
+
+class ExecutionTimeoutError(Exception):
+    pass
+
+
+def timeout(timeout_period):
+    """
+    Limit the execution time of code execution.
+
+    Args:
+        timeout_period (`int`): Mximum time in seconds allowed for code execution.
+
+    Raises:
+        ExecutionTimeoutError: If the code execution exceeds the timeout period.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            def handler(signum, frame):
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_period} seconds"
+                )
+                # raise TimeoutError(f"Function {func.__name__} timed out after {timeout_period} seconds")
+
+            # Set the signal handler and alarm
+            old_handler = signal.signal(signal.SIGALRM, handler)
+            signal.alarm(timeout_period)
+            # Call the function
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                # Reset the alarm and handler
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+            return result
+
+        return wrapper
+
+    return decorator
 
 
 def get_iterable(obj):
@@ -1409,6 +1452,7 @@ class FinalAnswerException(Exception):
         self.value = value
 
 
+@timeout(MAX_EXECUTION_TIME_SECONDS)
 def evaluate_python_code(
     code: str,
     static_tools: dict[str, Callable] | None = None,
