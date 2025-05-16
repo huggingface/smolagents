@@ -205,7 +205,9 @@ When you have modals or cookie banners on screen, you should get rid of them bef
 """
 
 
-def run_webagent(prompt: str, model_type: str, model_id: str, provider: str, api_base: str, api_key: str) -> None:
+def run_webagent(
+    prompt: str, model_type: str, model_id: str, provider: str, api_base: str | None = None, api_key: str | None = None
+) -> None:
     # Load environment variables
     load_dotenv()
 
