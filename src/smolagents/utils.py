@@ -331,7 +331,7 @@ def instance_to_source(instance, base_cls=None):
 
     # Add methods
     methods = {
-        name: func
+        name: getattr(cls, name, None)
         for name, func in cls.__dict__.items()
         if callable(func)
         and (
