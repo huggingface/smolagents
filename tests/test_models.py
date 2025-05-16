@@ -32,6 +32,7 @@ from smolagents.models import (
     LiteLLMRouterModel,
     MessageRole,
     MLXModel,
+    MLXVLMModel,
     Model,
     OpenAIServerModel,
     TransformersModel,
@@ -151,6 +152,23 @@ class TestModel:
         for el in output:
             output_str += el.content
         assert output_str == "I am"
+
+    def test_mlx_vlm_message_no_tool(self, shared_datadir):
+        import PIL.Image
+
+        img = PIL.Image.open(shared_datadir / "000000039769.png")
+        model = MLXVLMModel(
+            model_id="mlx-community/SmolVLM-256M-Instruct-8bit",
+            max_tokens=10,
+        )
+        messages = [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Describe this image"}, {"type": "image", "image": img}],
+            }
+        ]
+        output = model(messages).content
+        assert "Two cats" in output
 
     def test_parse_json_if_needed(self):
         args = "abc"
