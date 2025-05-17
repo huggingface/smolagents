@@ -1053,6 +1053,8 @@ class LiteLLMModel(ApiModel):
             grammar=grammar,
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
+            api_base=self.api_base,
+            api_key=self.api_key,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
             **kwargs,
