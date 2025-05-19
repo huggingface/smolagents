@@ -704,8 +704,8 @@ def launch_gradio_demo(tool: Tool):
         "image": gr.Image,
         "audio": gr.Audio,
         "string": gr.Textbox,
-        "integer": gr.Textbox,
-        "number": gr.Textbox,
+        "integer": gr.Number,
+        "number": gr.Number,
     }
 
     def tool_forward(*args, **kwargs):
