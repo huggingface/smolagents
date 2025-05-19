@@ -1059,8 +1059,10 @@ class LiteLLMModel(ApiModel):
         )
         for event in self.client.completion(**completion_kwargs, stream=True, stream_options={"include_usage": True}):
             if event.choices:
-                if event.choices[0].delta is None:
-                    if not getattr(event.choices[0], "finish_reason", None):
+                if event.choices[0].delta is None or event.choices[0].delta.content is None:
+                    if getattr(event.choices[0], "finish_reason", None):
+                        break # Stop straming if a finish reason is provided
+                    else:
                         raise ValueError(f"No content or tool calls in event: {event}")
                 else:
                     yield ChatMessageStreamDelta(
