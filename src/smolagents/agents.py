@@ -452,9 +452,13 @@ You have been provided with these additional arguments, that you can access usin
             ]
             if self.stream_outputs and hasattr(self.model, "generate_stream"):
                 plan_message_content = ""
-                for completion_delta in self.model.generate_stream(input_messages, stop_sequences=["<end_plan>"]):  # type: ignore
-                    plan_message_content += completion_delta.content
-                    yield completion_delta
+                output_stream = self.model.generate_stream(input_messages, stop_sequences=["<end_plan>"])  # type: ignore
+                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
+                    for event in output_stream:
+                        if event.content is not None:
+                            plan_message_content += event.content
+                            live.update(Markdown(plan_message_content))
+                        yield event
             else:
                 plan_message_content = self.model.generate(input_messages, stop_sequences=["<end_plan>"]).content
             plan = textwrap.dedent(
