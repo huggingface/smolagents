@@ -270,6 +270,8 @@ class Model:
         self.last_input_token_count: int | None = None
         self.last_output_token_count: int | None = None
         self.model_id: str | None = model_id
+        self.total_input_token_count: int = 0
+        self.total_output_token_count: int = 0
 
     def _prepare_completion_kwargs(
         self,
@@ -329,8 +331,10 @@ class Model:
         if self.last_input_token_count is None or self.last_output_token_count is None:
             raise ValueError("Token counts are not available")
         return {
-            "input_token_count": self.last_input_token_count,
-            "output_token_count": self.last_output_token_count,
+            "last_input_token_count": self.last_input_token_count,
+            "last_output_token_count": self.last_output_token_count,
+            "total_input_token_count": self.total_input_token_count,
+            "total_output_token_count": self.total_output_token_count,
         }
 
     def generate(
@@ -362,6 +366,18 @@ class Model:
 
     def __call__(self, *args, **kwargs):
         return self.generate(*args, **kwargs)
+        
+    def update_token_counts(self, input_tokens: int, output_tokens: int):
+        """Update the total token counts for input and output tokens.
+
+        Parameters:
+            input_tokens (`int`): The number of input tokens.
+            output_tokens (`int`): The number of output tokens.
+        """
+        self.last_input_token_count = input_tokens
+        self.last_output_token_count = output_tokens
+        self.total_input_token_count += input_tokens
+        self.total_output_token_count += output_tokens
 
     def parse_tool_calls(self, message: ChatMessage) -> ChatMessage:
         """Sometimes APIs do not return the tool call as a specific object, so we need to parse it."""
@@ -384,6 +400,8 @@ class Model:
             **self.kwargs,
             "last_input_token_count": self.last_input_token_count,
             "last_output_token_count": self.last_output_token_count,
+            "total_input_token_count": self.total_input_token_count,
+            "total_output_token_count": self.total_output_token_count,
             "model_id": self.model_id,
         }
         for attribute in [
@@ -421,6 +439,8 @@ class Model:
         )
         model_instance.last_input_token_count = model_dictionary.pop("last_input_token_count", None)
         model_instance.last_output_token_count = model_dictionary.pop("last_output_token_count", None)
+        model_instance.total_input_token_count = model_dictionary.pop("total_input_token_count", 0)
+        model_instance.total_output_token_count = model_dictionary.pop("total_output_token_count", 0)
         return model_instance
 
 
@@ -520,8 +540,12 @@ class VLLMModel(Model):
             sampling_params=sampling_params,
         )
         output_text = out[0].outputs[0].text
-        self.last_input_token_count = len(out[0].prompt_token_ids)
-        self.last_output_token_count = len(out[0].outputs[0].token_ids)
+
+        super().update_token_counts(
+            input_tokens=len(out[0].prompt_token_ids),
+            output_tokens=len(out[0].outputs[0].token_ids),
+        )
+    
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=output_text,
@@ -617,15 +641,19 @@ class MLXModel(Model):
             add_generation_prompt=True,
         )
 
-        self.last_input_token_count = len(prompt_ids)
-        self.last_output_token_count = 0
         text = ""
+        output_tokens = 0
         for response in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
-            self.last_output_token_count += 1
+            output_tokens += 1
             text += response.text
             if any((stop_index := text.rfind(stop)) != -1 for stop in stops):
                 text = text[:stop_index]
                 break
+
+        super().update_token_counts(
+            input_tokens=len(prompt_ids),
+            output_tokens=output_tokens,
+        )
 
         return ChatMessage(
             role=MessageRole.ASSISTANT, content=text, raw={"out": text, "completion_kwargs": completion_kwargs}
@@ -836,9 +864,11 @@ class TransformersModel(Model):
             output_text = self.processor.decode(generated_tokens, skip_special_tokens=True)
         else:
             output_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
-        self.last_input_token_count = count_prompt_tokens
-        self.last_output_token_count = len(generated_tokens)
 
+        super().update_token_counts(
+            input_tokens=count_prompt_tokens,
+            output_tokens=len(generated_tokens),
+        )
         if stop_sequences is not None:
             output_text = remove_stop_sequences(output_text, stop_sequences)
 
@@ -878,7 +908,12 @@ class TransformersModel(Model):
             yield ChatMessageStreamDelta(content=new_text, tool_calls=None)
             self.last_output_token_count += 1
 
-        self.last_input_token_count = count_prompt_tokens
+        super().update_token_counts(
+            input_tokens=count_prompt_tokens,
+            output_tokens=self.last_output_token_count,
+        )
+
+
         thread.join()
 
 
@@ -996,8 +1031,11 @@ class LiteLLMModel(ApiModel):
 
         response = self.client.completion(**completion_kwargs)
 
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
+        super().update_token_counts(
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+        )
+
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
@@ -1034,6 +1072,11 @@ class LiteLLMModel(ApiModel):
             if getattr(event, "usage", None):
                 self.last_input_token_count = event.usage.prompt_tokens
                 self.last_output_token_count = event.usage.completion_tokens
+
+        super().update_token_counts(
+            input_tokens=self.last_input_token_count,
+            output_tokens=self.last_output_token_count,
+        )
 
 
 class LiteLLMRouterModel(LiteLLMModel):
@@ -1245,8 +1288,11 @@ class InferenceClientModel(ApiModel):
         )
         response = self.client.chat_completion(**completion_kwargs)
 
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
+        super().update_token_counts(
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+        )
+
         return ChatMessage.from_dict(asdict(response.choices[0].message), raw=response)
 
     def generate_stream(
@@ -1284,6 +1330,10 @@ class InferenceClientModel(ApiModel):
                 self.last_input_token_count = event.usage.prompt_tokens
                 self.last_output_token_count = event.usage.completion_tokens
 
+        super().update_token_counts(
+            input_tokens=self.last_input_token_count,
+            output_tokens=self.last_output_token_count,
+        )
 
 class HfApiModel(InferenceClientModel):
     def __new__(cls, *args, **kwargs):
@@ -1390,6 +1440,11 @@ class OpenAIServerModel(ApiModel):
                 self.last_input_token_count = event.usage.prompt_tokens
                 self.last_output_token_count = event.usage.completion_tokens
 
+        super().update_token_counts(
+            input_tokens=self.last_input_token_count,
+            output_tokens=self.last_output_token_count,
+        )
+
     def generate(
         self,
         messages: list[dict[str, str | list[dict]]],
@@ -1409,8 +1464,11 @@ class OpenAIServerModel(ApiModel):
             **kwargs,
         )
         response = self.client.chat.completions.create(**completion_kwargs)
-        self.last_input_token_count = response.usage.prompt_tokens
-        self.last_output_token_count = response.usage.completion_tokens
+
+        super().update_token_counts(
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+        )
 
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
@@ -1636,9 +1694,10 @@ class AmazonBedrockServerModel(ApiModel):
         # self.client is created in ApiModel class
         response = self.client.converse(**completion_kwargs)
 
-        # Get usage
-        self.last_input_token_count = response["usage"]["inputTokens"]
-        self.last_output_token_count = response["usage"]["outputTokens"]
+        super().update_token_counts(
+            input_tokens=response["usage"]["inputTokens"],
+            output_tokens=response["usage"]["outputTokens"],
+        )
 
         # Get first message
         response["output"]["message"]["content"] = response["output"]["message"]["content"][0]["text"]

@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, List
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -130,7 +130,13 @@ class GoogleSearchTool(Tool):
         "query": {"type": "string", "description": "The search query to perform."},
         "filter_year": {
             "type": "integer",
-            "description": "Optionally restrict results to a certain year",
+            "description": "Optional. Filter on one full year (e.g. 2023). Leave None to not filter. Year must be in the format YYYY.",
+            "nullable": True,
+        },
+        "n_results": {
+            "type": "integer",
+            "description": "The number of results to return.",
+            "default": 50,
             "nullable": True,
         },
     }
@@ -150,8 +156,9 @@ class GoogleSearchTool(Tool):
         self.api_key = os.getenv(api_key_env_name)
         if self.api_key is None:
             raise ValueError(f"Missing API key. Make sure you have '{api_key_env_name}' in your env variables.")
+        
 
-    def forward(self, query: str, filter_year: int | None = None) -> str:
+    def forward(self, query: str, filter_year: int | None = None, n_results: int = 50) -> str:
         import requests
 
         if self.provider == "serpapi":
@@ -166,6 +173,7 @@ class GoogleSearchTool(Tool):
             params = {
                 "q": query,
                 "api_key": self.api_key,
+                "num": n_results,
             }
             base_url = "https://google.serper.dev/search"
         if filter_year is not None:
