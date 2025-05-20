@@ -501,6 +501,8 @@ def evaluate_class_def(
                         custom_tools,
                         authorized_imports,
                     )
+        elif isinstance(stmt, ast.Pass):
+            pass
         elif (
             isinstance(stmt, ast.Expr)
             and stmt == class_def.body[0]
