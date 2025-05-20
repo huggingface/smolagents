@@ -782,7 +782,8 @@ counts_list = [1, 2, 3]
 counts_list += [4, 5, 6]
 
 class Counter:
-    self.count = 0
+    def __init__(self):
+        self.count = 0
 
 a = Counter()
 a.count += 1
