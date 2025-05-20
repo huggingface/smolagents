@@ -1116,6 +1116,19 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
+    def test_evaluate_class_def_with_pass(self):
+        code = dedent("""
+            class TestClass:
+                pass
+
+            instance = TestClass()
+            instance.attr = "value"
+            result = instance.attr
+        """)
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert result == "value"
+
     def test_evaluate_class_def_with_ann_assign_name(self):
         """
         Test evaluate_class_def function when stmt is an instance of ast.AnnAssign with ast.Name target.
