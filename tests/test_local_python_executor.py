@@ -117,6 +117,28 @@ class PythonInterpreterTester(unittest.TestCase):
         assert result == 42
         assert state["instance"].__doc__ == "A class with a value."
 
+    def test_evaluate_class_def_with_assign_attribute_target(self):
+        """
+        Test evaluate_class_def function when stmt is an instance of ast.Assign with ast.Attribute target.
+        """
+        code = dedent("""
+        class TestSubClass:
+            attr1 = 1
+        class TestClass:
+            data = TestSubClass()
+            data.attr1 = "value1"
+            data.attr2 = "value2"
+        result = (TestClass.data.attr1, TestClass.data.attr2)
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert result == ("value1", "value2")
+        assert isinstance(state["TestClass"], type)
+        assert state["TestClass"].data.attr1 == "value1"
+        assert state["TestClass"].data.attr2 == "value2"
+
     def test_evaluate_constant(self):
         code = "x = 3"
         state = {}
