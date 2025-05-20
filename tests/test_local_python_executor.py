@@ -15,7 +15,6 @@
 
 import ast
 import types
-import unittest
 from contextlib import nullcontext as does_not_raise
 from textwrap import dedent
 from unittest.mock import patch
@@ -47,12 +46,11 @@ def add_two(x):
     return x + 2
 
 
-class PythonInterpreterTester(unittest.TestCase):
+class TestEvaluatePythonCode:
     def assertDictEqualNoPrint(self, dict1, dict2):
-        return self.assertDictEqual(
-            {k: v for k, v in dict1.items() if k != "_print_outputs"},
-            {k: v for k, v in dict2.items() if k != "_print_outputs"},
-        )
+        assert {k: v for k, v in dict1.items() if k != "_print_outputs"} == {
+            k: v for k, v in dict2.items() if k != "_print_outputs"
+        }
 
     def test_evaluate_assign(self):
         code = "x = 3"
@@ -128,7 +126,7 @@ class PythonInterpreterTester(unittest.TestCase):
         code = "test_dict = {'x': x, 'y': add_two(x)}"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
-        self.assertDictEqual(result, {"x": 3, "y": 5})
+        assert result == {"x": 3, "y": 5}
         self.assertDictEqualNoPrint(
             state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": {"counter": 7}}
         )
@@ -192,7 +190,7 @@ class PythonInterpreterTester(unittest.TestCase):
         code = "test_list = [x, add_two(x)]"
         state = {"x": 3}
         result, _ = evaluate_python_code(code, {"add_two": add_two}, state=state)
-        self.assertListEqual(result, [3, 5])
+        assert result == [3, 5]
         self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": {"counter": 5}})
 
     def test_evaluate_name(self):
@@ -1009,43 +1007,6 @@ shift_intervals
         assert "SyntaxError" in str(e)
         assert "     ^" in str(e)
 
-    def test_fix_final_answer_code(self):
-        test_cases = [
-            (
-                "final_answer = 3.21\nfinal_answer(final_answer)",
-                "final_answer_variable = 3.21\nfinal_answer(final_answer_variable)",
-            ),
-            (
-                "x = final_answer(5)\nfinal_answer = x + 1\nfinal_answer(final_answer)",
-                "x = final_answer(5)\nfinal_answer_variable = x + 1\nfinal_answer(final_answer_variable)",
-            ),
-            (
-                "def func():\n    final_answer = 42\n    return final_answer(final_answer)",
-                "def func():\n    final_answer_variable = 42\n    return final_answer(final_answer_variable)",
-            ),
-            (
-                "final_answer(5)  # Should not change function calls",
-                "final_answer(5)  # Should not change function calls",
-            ),
-            (
-                "obj.final_answer = 5  # Should not change object attributes",
-                "obj.final_answer = 5  # Should not change object attributes",
-            ),
-            (
-                "final_answer=3.21;final_answer(final_answer)",
-                "final_answer_variable=3.21;final_answer(final_answer_variable)",
-            ),
-        ]
-
-        for i, (input_code, expected) in enumerate(test_cases, 1):
-            result = fix_final_answer_code(input_code)
-            assert result == expected, f"""
-    Test case {i} failed:
-    Input:    {input_code}
-    Expected: {expected}
-    Got:      {result}
-    """
-
     def test_close_matches_subscript(self):
         code = 'capitals = {"Czech Republic": "Prague", "Monaco": "Monaco", "Bhutan": "Thimphu"};capitals["Butan"]'
         with pytest.raises(Exception) as e:
@@ -1098,494 +1059,494 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         code = "import sklearn"
         evaluate_python_code(code, authorized_imports=["sklearn"])
 
-    def test_function_def_recovers_source_code(self):
-        executor = LocalPythonExecutor([])
+    def test_evaluate_annassign(self):
+        code = dedent("""\
+            # Basic annotated assignment
+            x: int = 42
 
-        executor.send_tools({"final_answer": FinalAnswerTool()})
+            # Type annotations with expressions
+            y: float = x / 2
 
-        res, _, _ = executor(
-            dedent(
-                """
-                def target_function():
-                    return "Hello world"
+            # Type annotation without assignment
+            z: list
 
-                final_answer(target_function)
-                """
-            )
-        )
-        assert res.__name__ == "target_function"
-        assert res.__source__ == "def target_function():\n    return 'Hello world'"
+            # Type annotation with complex value
+            names: list = ["Alice", "Bob", "Charlie"]
 
+            # Type hint shouldn't restrict values at runtime
+            s: str = 123  # Would be a type error in static checking, but valid at runtime
 
-def test_evaluate_annassign():
-    code = dedent("""\
-        # Basic annotated assignment
-        x: int = 42
+            # Access the values
+            result = (x, y, names, s)
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["x"] == 42
+        assert state["y"] == 21.0
+        assert "z" not in state  # z should be not be defined
+        assert state["names"] == ["Alice", "Bob", "Charlie"]
+        assert state["s"] == 123  # Type hints don't restrict at runtime
+        assert state["result"] == (42, 21.0, ["Alice", "Bob", "Charlie"], 123)
 
-        # Type annotations with expressions
-        y: float = x / 2
-
-        # Type annotation without assignment
-        z: list
-
-        # Type annotation with complex value
-        names: list = ["Alice", "Bob", "Charlie"]
-
-        # Type hint shouldn't restrict values at runtime
-        s: str = 123  # Would be a type error in static checking, but valid at runtime
-
-        # Access the values
-        result = (x, y, names, s)
-    """)
-    state = {}
-    evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
-    assert state["x"] == 42
-    assert state["y"] == 21.0
-    assert "z" not in state  # z should be not be defined
-    assert state["names"] == ["Alice", "Bob", "Charlie"]
-    assert state["s"] == 123  # Type hints don't restrict at runtime
-    assert state["result"] == (42, 21.0, ["Alice", "Bob", "Charlie"], 123)
-
-
-@pytest.mark.parametrize(
-    "code, expected_result",
-    [
-        (
-            dedent("""\
-                x = 1
-                x += 2
-            """),
-            3,
-        ),
-        (
-            dedent("""\
-                x = "a"
-                x += "b"
-            """),
-            "ab",
-        ),
-        (
-            dedent("""\
-                class Custom:
-                    def __init__(self, value):
-                        self.value = value
-                    def __iadd__(self, other):
-                        self.value += other * 10
-                        return self
-
-                x = Custom(1)
-                x += 2
-                x.value
-            """),
-            21,
-        ),
-    ],
-)
-def test_evaluate_augassign(code, expected_result):
-    state = {}
-    result, _ = evaluate_python_code(code, {}, state=state)
-    assert result == expected_result
-
-
-@pytest.mark.parametrize(
-    "operator, expected_result",
-    [
-        ("+=", 7),
-        ("-=", 3),
-        ("*=", 10),
-        ("/=", 2.5),
-        ("//=", 2),
-        ("%=", 1),
-        ("**=", 25),
-        ("&=", 0),
-        ("|=", 7),
-        ("^=", 7),
-        (">>=", 1),
-        ("<<=", 20),
-    ],
-)
-def test_evaluate_augassign_number(operator, expected_result):
-    code = dedent("""\
-        x = 5
-        x {operator} 2
-    """).format(operator=operator)
-    state = {}
-    result, _ = evaluate_python_code(code, {}, state=state)
-    assert result == expected_result
-
-
-@pytest.mark.parametrize(
-    "operator, expected_result",
-    [
-        ("+=", 7),
-        ("-=", 3),
-        ("*=", 10),
-        ("/=", 2.5),
-        ("//=", 2),
-        ("%=", 1),
-        ("**=", 25),
-        ("&=", 0),
-        ("|=", 7),
-        ("^=", 7),
-        (">>=", 1),
-        ("<<=", 20),
-    ],
-)
-def test_evaluate_augassign_custom(operator, expected_result):
-    operator_names = {
-        "+=": "iadd",
-        "-=": "isub",
-        "*=": "imul",
-        "/=": "itruediv",
-        "//=": "ifloordiv",
-        "%=": "imod",
-        "**=": "ipow",
-        "&=": "iand",
-        "|=": "ior",
-        "^=": "ixor",
-        ">>=": "irshift",
-        "<<=": "ilshift",
-    }
-    code = dedent("""\
-        class Custom:
-            def __init__(self, value):
-                self.value = value
-            def __{operator_name}__(self, other):
-                self.value {operator} other
-                return self
-
-        x = Custom(5)
-        x {operator} 2
-        x.value
-    """).format(operator=operator, operator_name=operator_names[operator])
-    state = {}
-    result, _ = evaluate_python_code(code, {}, state=state)
-    assert result == expected_result
-
-
-@pytest.mark.parametrize(
-    "code, expected_error_message",
-    [
-        (
-            dedent("""\
-                x = 5
-                del x
-                x
-            """),
-            "The variable `x` is not defined",
-        ),
-        (
-            dedent("""\
-                x = [1, 2, 3]
-                del x[2]
-                x[2]
-            """),
-            "IndexError: list index out of range",
-        ),
-        (
-            dedent("""\
-                x = {"key": "value"}
-                del x["key"]
-                x["key"]
-            """),
-            "Could not index {} with 'key'",
-        ),
-        (
-            dedent("""\
-                del x
-            """),
-            "Cannot delete name 'x': name is not defined",
-        ),
-    ],
-)
-def test_evaluate_python_code_with_evaluate_delete(code, expected_error_message):
-    state = {}
-    with pytest.raises(InterpreterError) as exception_info:
-        evaluate_python_code(code, {}, state=state)
-    assert expected_error_message in str(exception_info.value)
-
-
-@pytest.mark.parametrize("a", [1, 0])
-@pytest.mark.parametrize("b", [2, 0])
-@pytest.mark.parametrize("c", [3, 0])
-def test_evaluate_boolop_and(a, b, c):
-    boolop_ast = ast.parse("a and b and c").body[0].value
-    state = {"a": a, "b": b, "c": c}
-    result = evaluate_boolop(boolop_ast, state, {}, {}, [])
-    assert result == (a and b and c)
-
-
-@pytest.mark.parametrize("a", [1, 0])
-@pytest.mark.parametrize("b", [2, 0])
-@pytest.mark.parametrize("c", [3, 0])
-def test_evaluate_boolop_or(a, b, c):
-    boolop_ast = ast.parse("a or b or c").body[0].value
-    state = {"a": a, "b": b, "c": c}
-    result = evaluate_boolop(boolop_ast, state, {}, {}, [])
-    assert result == (a or b or c)
-
-
-@pytest.mark.parametrize(
-    "code, state, expectation",
-    [
-        ("del x", {"x": 1}, {}),
-        ("del x[1]", {"x": [1, 2, 3]}, {"x": [1, 3]}),
-        ("del x['key']", {"x": {"key": "value"}}, {"x": {}}),
-        ("del x", {}, InterpreterError("Cannot delete name 'x': name is not defined")),
-    ],
-)
-def test_evaluate_delete(code, state, expectation):
-    delete_node = ast.parse(code).body[0]
-    if isinstance(expectation, Exception):
-        with pytest.raises(type(expectation)) as exception_info:
-            evaluate_delete(delete_node, state, {}, {}, [])
-        assert str(expectation) in str(exception_info.value)
-    else:
-        evaluate_delete(delete_node, state, {}, {}, [])
-        _ = state.pop("_operations_count", None)
-        assert state == expectation
-
-
-@pytest.mark.parametrize(
-    "condition, state, expected_result",
-    [
-        ("a == b", {"a": 1, "b": 1}, True),
-        ("a == b", {"a": 1, "b": 2}, False),
-        ("a != b", {"a": 1, "b": 1}, False),
-        ("a != b", {"a": 1, "b": 2}, True),
-        ("a < b", {"a": 1, "b": 1}, False),
-        ("a < b", {"a": 1, "b": 2}, True),
-        ("a < b", {"a": 2, "b": 1}, False),
-        ("a <= b", {"a": 1, "b": 1}, True),
-        ("a <= b", {"a": 1, "b": 2}, True),
-        ("a <= b", {"a": 2, "b": 1}, False),
-        ("a > b", {"a": 1, "b": 1}, False),
-        ("a > b", {"a": 1, "b": 2}, False),
-        ("a > b", {"a": 2, "b": 1}, True),
-        ("a >= b", {"a": 1, "b": 1}, True),
-        ("a >= b", {"a": 1, "b": 2}, False),
-        ("a >= b", {"a": 2, "b": 1}, True),
-        ("a is b", {"a": 1, "b": 1}, True),
-        ("a is b", {"a": 1, "b": 2}, False),
-        ("a is not b", {"a": 1, "b": 1}, False),
-        ("a is not b", {"a": 1, "b": 2}, True),
-        ("a in b", {"a": 1, "b": [1, 2, 3]}, True),
-        ("a in b", {"a": 4, "b": [1, 2, 3]}, False),
-        ("a not in b", {"a": 1, "b": [1, 2, 3]}, False),
-        ("a not in b", {"a": 4, "b": [1, 2, 3]}, True),
-        # Chained conditions:
-        ("a == b == c", {"a": 1, "b": 1, "c": 1}, True),
-        ("a == b == c", {"a": 1, "b": 2, "c": 1}, False),
-        ("a == b < c", {"a": 2, "b": 2, "c": 2}, False),
-        ("a == b < c", {"a": 0, "b": 0, "c": 1}, True),
-    ],
-)
-def test_evaluate_condition(condition, state, expected_result):
-    condition_ast = ast.parse(condition, mode="eval").body
-    result = evaluate_condition(condition_ast, state, {}, {}, [])
-    assert result == expected_result
-
-
-@pytest.mark.parametrize(
-    "condition, state, expected_result",
-    [
-        ("a == b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, True, False])),
-        ("a != b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, False, True])),
-        ("a < b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, False, False])),
-        ("a <= b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, True, False])),
-        ("a > b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, False, True])),
-        ("a >= b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, True, True])),
-        (
-            "a == b",
-            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [1, 2], "y": [3, 5]})},
-            pd.DataFrame({"x": [True, True], "y": [True, False]}),
-        ),
-        (
-            "a != b",
-            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [1, 2], "y": [3, 5]})},
-            pd.DataFrame({"x": [False, False], "y": [False, True]}),
-        ),
-        (
-            "a < b",
-            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
-            pd.DataFrame({"x": [True, False], "y": [False, False]}),
-        ),
-        (
-            "a <= b",
-            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
-            pd.DataFrame({"x": [True, True], "y": [False, False]}),
-        ),
-        (
-            "a > b",
-            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
-            pd.DataFrame({"x": [False, False], "y": [True, True]}),
-        ),
-        (
-            "a >= b",
-            {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
-            pd.DataFrame({"x": [False, True], "y": [True, True]}),
-        ),
-    ],
-)
-def test_evaluate_condition_with_pandas(condition, state, expected_result):
-    condition_ast = ast.parse(condition, mode="eval").body
-    result = evaluate_condition(condition_ast, state, {}, {}, [])
-    if isinstance(result, pd.Series):
-        pd.testing.assert_series_equal(result, expected_result)
-    else:
-        pd.testing.assert_frame_equal(result, expected_result)
-
-
-@pytest.mark.parametrize(
-    "condition, state, expected_exception",
-    [
-        # Chained conditions:
-        (
-            "a == b == c",
-            {
-                "a": pd.Series([1, 2, 3]),
-                "b": pd.Series([2, 2, 2]),
-                "c": pd.Series([3, 3, 3]),
-            },
-            ValueError(
-                "The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+    @pytest.mark.parametrize(
+        "code, expected_result",
+        [
+            (
+                dedent("""\
+                    x = 1
+                    x += 2
+                """),
+                3,
             ),
-        ),
-        (
-            "a == b == c",
-            {
-                "a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
-                "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]}),
-                "c": pd.DataFrame({"x": [3, 3], "y": [3, 3]}),
-            },
-            ValueError(
-                "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+            (
+                dedent("""\
+                    x = "a"
+                    x += "b"
+                """),
+                "ab",
             ),
-        ),
-    ],
-)
-def test_evaluate_condition_with_pandas_exceptions(condition, state, expected_exception):
-    condition_ast = ast.parse(condition, mode="eval").body
-    with pytest.raises(type(expected_exception)) as exception_info:
-        _ = evaluate_condition(condition_ast, state, {}, {}, [])
-    assert str(expected_exception) in str(exception_info.value)
+            (
+                dedent("""\
+                    class Custom:
+                        def __init__(self, value):
+                            self.value = value
+                        def __iadd__(self, other):
+                            self.value += other * 10
+                            return self
 
-
-@pytest.mark.parametrize(
-    "subscript, state, expected_result",
-    [
-        ("dct[1]", {"dct": {1: 11, 2: 22}}, 11),
-        ("dct[2]", {"dct": {1: "a", 2: "b"}}, "b"),
-        ("dct['b']", {"dct": {"a": 1, "b": 2}}, 2),
-        ("dct['a']", {"dct": {"a": "aa", "b": "bb"}}, "aa"),
-        ("dct[1, 2]", {"dct": {(1, 2): 3}}, 3),  # tuple-index
-        ("dct['a']['b']", {"dct": {"a": {"b": 1}}}, 1),  # nested
-        ("lst[0]", {"lst": [1, 2, 3]}, 1),
-        ("lst[-1]", {"lst": [1, 2, 3]}, 3),
-        ("lst[1:3]", {"lst": [1, 2, 3, 4]}, [2, 3]),
-        ("lst[:]", {"lst": [1, 2, 3]}, [1, 2, 3]),
-        ("lst[::2]", {"lst": [1, 2, 3, 4]}, [1, 3]),
-        ("lst[::-1]", {"lst": [1, 2, 3]}, [3, 2, 1]),
-        ("tup[1]", {"tup": (1, 2, 3)}, 2),
-        ("tup[-1]", {"tup": (1, 2, 3)}, 3),
-        ("tup[1:3]", {"tup": (1, 2, 3, 4)}, (2, 3)),
-        ("tup[:]", {"tup": (1, 2, 3)}, (1, 2, 3)),
-        ("tup[::2]", {"tup": (1, 2, 3, 4)}, (1, 3)),
-        ("tup[::-1]", {"tup": (1, 2, 3)}, (3, 2, 1)),
-        ("st[1]", {"str": "abc"}, "b"),
-        ("st[-1]", {"str": "abc"}, "c"),
-        ("st[1:3]", {"str": "abcd"}, "bc"),
-        ("st[:]", {"str": "abc"}, "abc"),
-        ("st[::2]", {"str": "abcd"}, "ac"),
-        ("st[::-1]", {"str": "abc"}, "cba"),
-        ("arr[1]", {"arr": np.array([1, 2, 3])}, 2),
-        ("arr[1:3]", {"arr": np.array([1, 2, 3, 4])}, np.array([2, 3])),
-        ("arr[:]", {"arr": np.array([1, 2, 3])}, np.array([1, 2, 3])),
-        ("arr[::2]", {"arr": np.array([1, 2, 3, 4])}, np.array([1, 3])),
-        ("arr[::-1]", {"arr": np.array([1, 2, 3])}, np.array([3, 2, 1])),
-        ("arr[1, 2]", {"arr": np.array([[1, 2, 3], [4, 5, 6]])}, 6),
-        ("ser[1]", {"ser": pd.Series([1, 2, 3])}, 2),
-        ("ser.loc[1]", {"ser": pd.Series([1, 2, 3])}, 2),
-        ("ser.loc[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 3),
-        ("ser.iloc[1]", {"ser": pd.Series([1, 2, 3])}, 2),
-        ("ser.iloc[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 2),
-        ("ser.at[1]", {"ser": pd.Series([1, 2, 3])}, 2),
-        ("ser.at[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 3),
-        ("ser.iat[1]", {"ser": pd.Series([1, 2, 3])}, 2),
-        ("ser.iat[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 2),
-        ("ser[1:3]", {"ser": pd.Series([1, 2, 3, 4])}, pd.Series([2, 3], index=[1, 2])),
-        ("ser[:]", {"ser": pd.Series([1, 2, 3])}, pd.Series([1, 2, 3])),
-        ("ser[::2]", {"ser": pd.Series([1, 2, 3, 4])}, pd.Series([1, 3], index=[0, 2])),
-        ("ser[::-1]", {"ser": pd.Series([1, 2, 3])}, pd.Series([3, 2, 1], index=[2, 1, 0])),
-        ("df['y'][1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
-        ("df['y'][5]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 3),
-        ("df.loc[1, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
-        ("df.loc[5, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 3),
-        ("df.iloc[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
-        ("df.iloc[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 4),
-        ("df.at[1, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
-        ("df.at[5, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 3),
-        ("df.iat[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
-        ("df.iat[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 4),
-    ],
-)
-def test_evaluate_subscript(subscript, state, expected_result):
-    subscript_ast = ast.parse(subscript).body[0].value
-    result = evaluate_subscript(subscript_ast, state, {}, {}, [])
-    try:
+                    x = Custom(1)
+                    x += 2
+                    x.value
+                """),
+                21,
+            ),
+        ],
+    )
+    def test_evaluate_augassign(self, code, expected_result):
+        state = {}
+        result, _ = evaluate_python_code(code, {}, state=state)
         assert result == expected_result
-    except ValueError:
-        assert (result == expected_result).all()
+
+    @pytest.mark.parametrize(
+        "operator, expected_result",
+        [
+            ("+=", 7),
+            ("-=", 3),
+            ("*=", 10),
+            ("/=", 2.5),
+            ("//=", 2),
+            ("%=", 1),
+            ("**=", 25),
+            ("&=", 0),
+            ("|=", 7),
+            ("^=", 7),
+            (">>=", 1),
+            ("<<=", 20),
+        ],
+    )
+    def test_evaluate_augassign_number(self, operator, expected_result):
+        code = dedent("""\
+            x = 5
+            x {operator} 2
+        """).format(operator=operator)
+        state = {}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "operator, expected_result",
+        [
+            ("+=", 7),
+            ("-=", 3),
+            ("*=", 10),
+            ("/=", 2.5),
+            ("//=", 2),
+            ("%=", 1),
+            ("**=", 25),
+            ("&=", 0),
+            ("|=", 7),
+            ("^=", 7),
+            (">>=", 1),
+            ("<<=", 20),
+        ],
+    )
+    def test_evaluate_augassign_custom(self, operator, expected_result):
+        operator_names = {
+            "+=": "iadd",
+            "-=": "isub",
+            "*=": "imul",
+            "/=": "itruediv",
+            "//=": "ifloordiv",
+            "%=": "imod",
+            "**=": "ipow",
+            "&=": "iand",
+            "|=": "ior",
+            "^=": "ixor",
+            ">>=": "irshift",
+            "<<=": "ilshift",
+        }
+        code = dedent("""\
+            class Custom:
+                def __init__(self, value):
+                    self.value = value
+                def __{operator_name}__(self, other):
+                    self.value {operator} other
+                    return self
+
+            x = Custom(5)
+            x {operator} 2
+            x.value
+        """).format(operator=operator, operator_name=operator_names[operator])
+        state = {}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "code, expected_error_message",
+        [
+            (
+                dedent("""\
+                    x = 5
+                    del x
+                    x
+                """),
+                "The variable `x` is not defined",
+            ),
+            (
+                dedent("""\
+                    x = [1, 2, 3]
+                    del x[2]
+                    x[2]
+                """),
+                "IndexError: list index out of range",
+            ),
+            (
+                dedent("""\
+                    x = {"key": "value"}
+                    del x["key"]
+                    x["key"]
+                """),
+                "Could not index {} with 'key'",
+            ),
+            (
+                dedent("""\
+                    del x
+                """),
+                "Cannot delete name 'x': name is not defined",
+            ),
+        ],
+    )
+    def test_evaluate_delete(self, code, expected_error_message):
+        state = {}
+        with pytest.raises(InterpreterError) as exception_info:
+            evaluate_python_code(code, {}, state=state)
+        assert expected_error_message in str(exception_info.value)
+
+    def test_non_standard_comparisons(self):
+        code = dedent("""\
+            class NonStdEqualsResult:
+                def __init__(self, left:object, right:object):
+                    self._left = left
+                    self._right = right
+                def __str__(self) -> str:
+                    return f'{self._left} == {self._right}'
+
+            class NonStdComparisonClass:
+                def __init__(self, value: str ):
+                    self._value = value
+                def __str__(self):
+                    return self._value
+                def __eq__(self, other):
+                    return NonStdEqualsResult(self, other)
+            a = NonStdComparisonClass("a")
+            b = NonStdComparisonClass("b")
+            result = a == b
+            """)
+        result, _ = evaluate_python_code(code, state={})
+        assert not isinstance(result, bool)
+        assert str(result) == "a == b"
 
 
-@pytest.mark.parametrize(
-    "subscript, state, expected_error_message",
-    [
-        ("dct['a']", {"dct": {}}, "KeyError: 'a'"),
-        ("dct[0]", {"dct": {}}, "KeyError: 0"),
-        ("dct['c']", {"dct": {"a": 1, "b": 2}}, "KeyError: 'c'"),
-        ("dct[1, 2, 3]", {"dct": {(1, 2): 3}}, "KeyError: (1, 2, 3)"),
-        ("lst[0]", {"lst": []}, "IndexError: list index out of range"),
-        ("lst[3]", {"lst": [1, 2, 3]}, "IndexError: list index out of range"),
-        ("lst[-4]", {"lst": [1, 2, 3]}, "IndexError: list index out of range"),
-        ("value[0]", {"value": 1}, "TypeError: 'int' object is not subscriptable"),
-    ],
-)
-def test_evaluate_subscript_error(subscript, state, expected_error_message):
-    subscript_ast = ast.parse(subscript).body[0].value
-    with pytest.raises(InterpreterError, match="Could not index") as exception_info:
-        _ = evaluate_subscript(subscript_ast, state, {}, {}, [])
-    assert expected_error_message in str(exception_info.value)
+class TestEvaluateBoolop:
+    @pytest.mark.parametrize("a", [1, 0])
+    @pytest.mark.parametrize("b", [2, 0])
+    @pytest.mark.parametrize("c", [3, 0])
+    def test_evaluate_boolop_and(self, a, b, c):
+        boolop_ast = ast.parse("a and b and c").body[0].value
+        state = {"a": a, "b": b, "c": c}
+        result = evaluate_boolop(boolop_ast, state, {}, {}, [])
+        assert result == (a and b and c)
+
+    @pytest.mark.parametrize("a", [1, 0])
+    @pytest.mark.parametrize("b", [2, 0])
+    @pytest.mark.parametrize("c", [3, 0])
+    def test_evaluate_boolop_or(self, a, b, c):
+        boolop_ast = ast.parse("a or b or c").body[0].value
+        state = {"a": a, "b": b, "c": c}
+        result = evaluate_boolop(boolop_ast, state, {}, {}, [])
+        assert result == (a or b or c)
 
 
-@pytest.mark.parametrize(
-    "subscriptable_class, expectation",
-    [
-        (True, 20),
-        (False, InterpreterError("TypeError: 'Custom' object is not subscriptable")),
-    ],
-)
-def test_evaluate_subscript_with_custom_class(subscriptable_class, expectation):
-    if subscriptable_class:
+class TestEvaluateDelete:
+    @pytest.mark.parametrize(
+        "code, state, expectation",
+        [
+            ("del x", {"x": 1}, {}),
+            ("del x[1]", {"x": [1, 2, 3]}, {"x": [1, 3]}),
+            ("del x['key']", {"x": {"key": "value"}}, {"x": {}}),
+            ("del x", {}, InterpreterError("Cannot delete name 'x': name is not defined")),
+        ],
+    )
+    def test_evaluate_delete(self, code, state, expectation):
+        delete_node = ast.parse(code).body[0]
+        if isinstance(expectation, Exception):
+            with pytest.raises(type(expectation)) as exception_info:
+                evaluate_delete(delete_node, state, {}, {}, [])
+            assert str(expectation) in str(exception_info.value)
+        else:
+            evaluate_delete(delete_node, state, {}, {}, [])
+            _ = state.pop("_operations_count", None)
+            assert state == expectation
 
-        class Custom:
-            def __getitem__(self, key):
-                return key * 10
-    else:
 
-        class Custom:
-            pass
+class TestEvaluateCondition:
+    @pytest.mark.parametrize(
+        "condition, state, expected_result",
+        [
+            ("a == b", {"a": 1, "b": 1}, True),
+            ("a == b", {"a": 1, "b": 2}, False),
+            ("a != b", {"a": 1, "b": 1}, False),
+            ("a != b", {"a": 1, "b": 2}, True),
+            ("a < b", {"a": 1, "b": 1}, False),
+            ("a < b", {"a": 1, "b": 2}, True),
+            ("a < b", {"a": 2, "b": 1}, False),
+            ("a <= b", {"a": 1, "b": 1}, True),
+            ("a <= b", {"a": 1, "b": 2}, True),
+            ("a <= b", {"a": 2, "b": 1}, False),
+            ("a > b", {"a": 1, "b": 1}, False),
+            ("a > b", {"a": 1, "b": 2}, False),
+            ("a > b", {"a": 2, "b": 1}, True),
+            ("a >= b", {"a": 1, "b": 1}, True),
+            ("a >= b", {"a": 1, "b": 2}, False),
+            ("a >= b", {"a": 2, "b": 1}, True),
+            ("a is b", {"a": 1, "b": 1}, True),
+            ("a is b", {"a": 1, "b": 2}, False),
+            ("a is not b", {"a": 1, "b": 1}, False),
+            ("a is not b", {"a": 1, "b": 2}, True),
+            ("a in b", {"a": 1, "b": [1, 2, 3]}, True),
+            ("a in b", {"a": 4, "b": [1, 2, 3]}, False),
+            ("a not in b", {"a": 1, "b": [1, 2, 3]}, False),
+            ("a not in b", {"a": 4, "b": [1, 2, 3]}, True),
+            # Chained conditions:
+            ("a == b == c", {"a": 1, "b": 1, "c": 1}, True),
+            ("a == b == c", {"a": 1, "b": 2, "c": 1}, False),
+            ("a == b < c", {"a": 2, "b": 2, "c": 2}, False),
+            ("a == b < c", {"a": 0, "b": 0, "c": 1}, True),
+        ],
+    )
+    def test_evaluate_condition(self, condition, state, expected_result):
+        condition_ast = ast.parse(condition, mode="eval").body
+        result = evaluate_condition(condition_ast, state, {}, {}, [])
+        assert result == expected_result
 
-    state = {"obj": Custom()}
-    subscript = "obj[2]"
-    subscript_ast = ast.parse(subscript).body[0].value
-    if isinstance(expectation, Exception):
-        with pytest.raises(type(expectation), match="Could not index") as exception_info:
-            evaluate_subscript(subscript_ast, state, {}, {}, [])
-        assert "TypeError: 'Custom' object is not subscriptable" in str(exception_info.value)
-    else:
+    @pytest.mark.parametrize(
+        "condition, state, expected_result",
+        [
+            ("a == b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, True, False])),
+            ("a != b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, False, True])),
+            ("a < b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, False, False])),
+            ("a <= b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([True, True, False])),
+            ("a > b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, False, True])),
+            ("a >= b", {"a": pd.Series([1, 2, 3]), "b": pd.Series([2, 2, 2])}, pd.Series([False, True, True])),
+            (
+                "a == b",
+                {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [1, 2], "y": [3, 5]})},
+                pd.DataFrame({"x": [True, True], "y": [True, False]}),
+            ),
+            (
+                "a != b",
+                {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [1, 2], "y": [3, 5]})},
+                pd.DataFrame({"x": [False, False], "y": [False, True]}),
+            ),
+            (
+                "a < b",
+                {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+                pd.DataFrame({"x": [True, False], "y": [False, False]}),
+            ),
+            (
+                "a <= b",
+                {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+                pd.DataFrame({"x": [True, True], "y": [False, False]}),
+            ),
+            (
+                "a > b",
+                {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+                pd.DataFrame({"x": [False, False], "y": [True, True]}),
+            ),
+            (
+                "a >= b",
+                {"a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]})},
+                pd.DataFrame({"x": [False, True], "y": [True, True]}),
+            ),
+        ],
+    )
+    def test_evaluate_condition_with_pandas(self, condition, state, expected_result):
+        condition_ast = ast.parse(condition, mode="eval").body
+        result = evaluate_condition(condition_ast, state, {}, {}, [])
+        if isinstance(result, pd.Series):
+            pd.testing.assert_series_equal(result, expected_result)
+        else:
+            pd.testing.assert_frame_equal(result, expected_result)
+
+    @pytest.mark.parametrize(
+        "condition, state, expected_exception",
+        [
+            # Chained conditions:
+            (
+                "a == b == c",
+                {
+                    "a": pd.Series([1, 2, 3]),
+                    "b": pd.Series([2, 2, 2]),
+                    "c": pd.Series([3, 3, 3]),
+                },
+                ValueError(
+                    "The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+                ),
+            ),
+            (
+                "a == b == c",
+                {
+                    "a": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+                    "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]}),
+                    "c": pd.DataFrame({"x": [3, 3], "y": [3, 3]}),
+                },
+                ValueError(
+                    "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+                ),
+            ),
+        ],
+    )
+    def test_evaluate_condition_with_pandas_exceptions(self, condition, state, expected_exception):
+        condition_ast = ast.parse(condition, mode="eval").body
+        with pytest.raises(type(expected_exception)) as exception_info:
+            _ = evaluate_condition(condition_ast, state, {}, {}, [])
+        assert str(expected_exception) in str(exception_info.value)
+
+
+class TestEvaluateSubscript:
+    @pytest.mark.parametrize(
+        "subscript, state, expected_result",
+        [
+            ("dct[1]", {"dct": {1: 11, 2: 22}}, 11),
+            ("dct[2]", {"dct": {1: "a", 2: "b"}}, "b"),
+            ("dct['b']", {"dct": {"a": 1, "b": 2}}, 2),
+            ("dct['a']", {"dct": {"a": "aa", "b": "bb"}}, "aa"),
+            ("dct[1, 2]", {"dct": {(1, 2): 3}}, 3),  # tuple-index
+            ("dct['a']['b']", {"dct": {"a": {"b": 1}}}, 1),  # nested
+            ("lst[0]", {"lst": [1, 2, 3]}, 1),
+            ("lst[-1]", {"lst": [1, 2, 3]}, 3),
+            ("lst[1:3]", {"lst": [1, 2, 3, 4]}, [2, 3]),
+            ("lst[:]", {"lst": [1, 2, 3]}, [1, 2, 3]),
+            ("lst[::2]", {"lst": [1, 2, 3, 4]}, [1, 3]),
+            ("lst[::-1]", {"lst": [1, 2, 3]}, [3, 2, 1]),
+            ("tup[1]", {"tup": (1, 2, 3)}, 2),
+            ("tup[-1]", {"tup": (1, 2, 3)}, 3),
+            ("tup[1:3]", {"tup": (1, 2, 3, 4)}, (2, 3)),
+            ("tup[:]", {"tup": (1, 2, 3)}, (1, 2, 3)),
+            ("tup[::2]", {"tup": (1, 2, 3, 4)}, (1, 3)),
+            ("tup[::-1]", {"tup": (1, 2, 3)}, (3, 2, 1)),
+            ("st[1]", {"str": "abc"}, "b"),
+            ("st[-1]", {"str": "abc"}, "c"),
+            ("st[1:3]", {"str": "abcd"}, "bc"),
+            ("st[:]", {"str": "abc"}, "abc"),
+            ("st[::2]", {"str": "abcd"}, "ac"),
+            ("st[::-1]", {"str": "abc"}, "cba"),
+            ("arr[1]", {"arr": np.array([1, 2, 3])}, 2),
+            ("arr[1:3]", {"arr": np.array([1, 2, 3, 4])}, np.array([2, 3])),
+            ("arr[:]", {"arr": np.array([1, 2, 3])}, np.array([1, 2, 3])),
+            ("arr[::2]", {"arr": np.array([1, 2, 3, 4])}, np.array([1, 3])),
+            ("arr[::-1]", {"arr": np.array([1, 2, 3])}, np.array([3, 2, 1])),
+            ("arr[1, 2]", {"arr": np.array([[1, 2, 3], [4, 5, 6]])}, 6),
+            ("ser[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+            ("ser.loc[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+            ("ser.loc[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 3),
+            ("ser.iloc[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+            ("ser.iloc[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 2),
+            ("ser.at[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+            ("ser.at[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 3),
+            ("ser.iat[1]", {"ser": pd.Series([1, 2, 3])}, 2),
+            ("ser.iat[1]", {"ser": pd.Series([1, 2, 3], index=[2, 3, 1])}, 2),
+            ("ser[1:3]", {"ser": pd.Series([1, 2, 3, 4])}, pd.Series([2, 3], index=[1, 2])),
+            ("ser[:]", {"ser": pd.Series([1, 2, 3])}, pd.Series([1, 2, 3])),
+            ("ser[::2]", {"ser": pd.Series([1, 2, 3, 4])}, pd.Series([1, 3], index=[0, 2])),
+            ("ser[::-1]", {"ser": pd.Series([1, 2, 3])}, pd.Series([3, 2, 1], index=[2, 1, 0])),
+            ("df['y'][1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+            ("df['y'][5]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 3),
+            ("df.loc[1, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+            ("df.loc[5, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 3),
+            ("df.iloc[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+            ("df.iloc[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 4),
+            ("df.at[1, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+            ("df.at[5, 'y']", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 3),
+            ("df.iat[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]})}, 4),
+            ("df.iat[1, 1]", {"df": pd.DataFrame({"x": [1, 2], "y": [3, 4]}, index=[5, 6])}, 4),
+        ],
+    )
+    def test_evaluate_subscript(self, subscript, state, expected_result):
+        subscript_ast = ast.parse(subscript).body[0].value
         result = evaluate_subscript(subscript_ast, state, {}, {}, [])
-        assert result == expectation
+        try:
+            assert result == expected_result
+        except ValueError:
+            assert (result == expected_result).all()
+
+    @pytest.mark.parametrize(
+        "subscript, state, expected_error_message",
+        [
+            ("dct['a']", {"dct": {}}, "KeyError: 'a'"),
+            ("dct[0]", {"dct": {}}, "KeyError: 0"),
+            ("dct['c']", {"dct": {"a": 1, "b": 2}}, "KeyError: 'c'"),
+            ("dct[1, 2, 3]", {"dct": {(1, 2): 3}}, "KeyError: (1, 2, 3)"),
+            ("lst[0]", {"lst": []}, "IndexError: list index out of range"),
+            ("lst[3]", {"lst": [1, 2, 3]}, "IndexError: list index out of range"),
+            ("lst[-4]", {"lst": [1, 2, 3]}, "IndexError: list index out of range"),
+            ("value[0]", {"value": 1}, "TypeError: 'int' object is not subscriptable"),
+        ],
+    )
+    def test_evaluate_subscript_error(self, subscript, state, expected_error_message):
+        subscript_ast = ast.parse(subscript).body[0].value
+        with pytest.raises(InterpreterError, match="Could not index") as exception_info:
+            _ = evaluate_subscript(subscript_ast, state, {}, {}, [])
+        assert expected_error_message in str(exception_info.value)
+
+    @pytest.mark.parametrize(
+        "subscriptable_class, expectation",
+        [
+            (True, 20),
+            (False, InterpreterError("TypeError: 'Custom' object is not subscriptable")),
+        ],
+    )
+    def test_evaluate_subscript_with_custom_class(self, subscriptable_class, expectation):
+        if subscriptable_class:
+
+            class Custom:
+                def __getitem__(self, key):
+                    return key * 10
+        else:
+
+            class Custom:
+                pass
+
+        state = {"obj": Custom()}
+        subscript = "obj[2]"
+        subscript_ast = ast.parse(subscript).body[0].value
+        if isinstance(expectation, Exception):
+            with pytest.raises(type(expectation), match="Could not index") as exception_info:
+                evaluate_subscript(subscript_ast, state, {}, {}, [])
+            assert "TypeError: 'Custom' object is not subscriptable" in str(exception_info.value)
+        else:
+            result = evaluate_subscript(subscript_ast, state, {}, {}, [])
+            assert result == expectation
 
 
 def test_get_safe_module_handle_lazy_imports():
@@ -1606,31 +1567,6 @@ def test_get_safe_module_handle_lazy_imports():
     safe_module = get_safe_module(fake_module, authorized_imports=set())
     assert not hasattr(safe_module, "lazy_attribute")
     assert getattr(safe_module, "non_lazy_attribute") == "ok"
-
-
-def test_non_standard_comparisons():
-    code = dedent("""\
-        class NonStdEqualsResult:
-            def __init__(self, left:object, right:object):
-                self._left = left
-                self._right = right
-            def __str__(self) -> str:
-                return f'{self._left} == {self._right}'
-
-        class NonStdComparisonClass:
-            def __init__(self, value: str ):
-                self._value = value
-            def __str__(self):
-                return self._value
-            def __eq__(self, other):
-                return NonStdEqualsResult(self, other)
-        a = NonStdComparisonClass("a")
-        b = NonStdComparisonClass("b")
-        result = a == b
-        """)
-    result, _ = evaluate_python_code(code, state={})
-    assert not isinstance(result, bool)
-    assert str(result) == "a == b"
 
 
 class TestPrintContainer:
@@ -1662,6 +1598,44 @@ class TestPrintContainer:
         pc = PrintContainer()
         pc.append("Hello")
         assert len(pc) == 5
+
+
+def test_fix_final_answer_code():
+    test_cases = [
+        (
+            "final_answer = 3.21\nfinal_answer(final_answer)",
+            "final_answer_variable = 3.21\nfinal_answer(final_answer_variable)",
+        ),
+        (
+            "x = final_answer(5)\nfinal_answer = x + 1\nfinal_answer(final_answer)",
+            "x = final_answer(5)\nfinal_answer_variable = x + 1\nfinal_answer(final_answer_variable)",
+        ),
+        (
+            "def func():\n    final_answer = 42\n    return final_answer(final_answer)",
+            "def func():\n    final_answer_variable = 42\n    return final_answer(final_answer_variable)",
+        ),
+        (
+            "final_answer(5)  # Should not change function calls",
+            "final_answer(5)  # Should not change function calls",
+        ),
+        (
+            "obj.final_answer = 5  # Should not change object attributes",
+            "obj.final_answer = 5  # Should not change object attributes",
+        ),
+        (
+            "final_answer=3.21;final_answer(final_answer)",
+            "final_answer_variable=3.21;final_answer(final_answer_variable)",
+        ),
+    ]
+
+    for i, (input_code, expected) in enumerate(test_cases, 1):
+        result = fix_final_answer_code(input_code)
+        assert result == expected, f"""
+Test case {i} failed:
+Input:    {input_code}
+Expected: {expected}
+Got:      {result}
+"""
 
 
 @pytest.mark.parametrize(
@@ -1735,6 +1709,22 @@ class TestLocalPythonExecutor:
         executor = LocalPythonExecutor([])
         with pytest.raises(InterpreterError, match=".*Cannot unpack tuple of wrong size"):
             executor(code)
+
+    def test_function_def_recovers_source_code(self):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({"final_answer": FinalAnswerTool()})
+        res, _, _ = executor(
+            dedent(
+                """
+                def target_function():
+                    return "Hello world"
+
+                final_answer(target_function)
+                """
+            )
+        )
+        assert res.__name__ == "target_function"
+        assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
 
 class TestLocalPythonExecutorSecurity:
