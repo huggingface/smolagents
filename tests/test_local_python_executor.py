@@ -1116,6 +1116,84 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
+    def test_evaluate_class_def_with_ann_assign_name(self):
+        """
+        Test evaluate_class_def function when stmt is an instance of ast.AnnAssign with ast.Name target.
+
+        This test verifies that annotated assignments within a class definition are correctly evaluated.
+        """
+        code = dedent("""
+            class TestClass:
+                x: int = 5
+                y: str = "test"
+
+            instance = TestClass()
+            result = (instance.x, instance.y)
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert result == (5, "test")
+        assert isinstance(state["TestClass"], type)
+        assert state["TestClass"].__annotations__ == {"x": int, "y": str}
+        assert state["TestClass"].x == 5
+        assert state["TestClass"].y == "test"
+        assert isinstance(state["instance"], state["TestClass"])
+        assert state["instance"].x == 5
+        assert state["instance"].y == "test"
+
+    def test_evaluate_class_def_with_ann_assign_attribute(self):
+        """
+        Test evaluate_class_def function when stmt is an instance of ast.AnnAssign with ast.Attribute target.
+
+        This test ensures that class attributes using attribute notation are correctly handled.
+        """
+        code = dedent("""
+        class TestSubClass:
+            attr = 1
+        class TestClass:
+            data: TestSubClass = TestSubClass()
+            data.attr: str = "value"
+
+        result = TestClass.data.attr
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert result == "value"
+        assert isinstance(state["TestClass"], type)
+        assert state["TestClass"].__annotations__.keys() == {"data"}
+        assert isinstance(state["TestClass"].__annotations__["data"], type)
+        assert state["TestClass"].__annotations__["data"].__name__ == "TestSubClass"
+        assert state["TestClass"].data.attr == "value"
+
+    def test_evaluate_class_def_with_ann_assign_subscript(self):
+        """
+        Test evaluate_class_def function when stmt is an instance of ast.AnnAssign with ast.Subscript target.
+
+        This test ensures that class attributes using subscript notation are correctly handled.
+        """
+        code = dedent("""
+        class TestClass:
+            key_data: dict = {}
+            key_data["key"]: str = "value"
+            index_data: list = [10, 20, 30]
+            index_data[0:2]: list[str] = ["a", "b"]
+
+        result = (TestClass.key_data['key'], TestClass.index_data[1:])
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert result == ("value", ["b", 30])
+        assert isinstance(state["TestClass"], type)
+        assert state["TestClass"].__annotations__ == {"key_data": dict, "index_data": list}
+        assert state["TestClass"].key_data == {"key": "value"}
+        assert state["TestClass"].index_data == ["a", "b", 30]
+
 
 def test_evaluate_annassign():
     code = dedent("""\
