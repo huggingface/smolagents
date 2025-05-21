@@ -484,23 +484,13 @@ def evaluate_class_def(
             else:
                 raise InterpreterError(f"Unsupported AnnAssign target in class body: {type(target).__name__}")
         elif isinstance(stmt, ast.Assign):
+            value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
             for target in stmt.targets:
                 if isinstance(target, ast.Name):
-                    class_dict[target.id] = evaluate_ast(
-                        stmt.value,
-                        state,
-                        static_tools,
-                        custom_tools,
-                        authorized_imports,
-                    )
+                    class_dict[target.id] = value
                 elif isinstance(target, ast.Attribute):
-                    class_dict[target.attr] = evaluate_ast(
-                        stmt.value,
-                        state,
-                        static_tools,
-                        custom_tools,
-                        authorized_imports,
-                    )
+                    obj = evaluate_ast(target.value, class_dict, static_tools, custom_tools, authorized_imports)
+                    setattr(obj, target.attr, value)
         elif isinstance(stmt, ast.Pass):
             pass
         elif (

@@ -21,20 +21,17 @@ from typing import Generator
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
-from smolagents.memory import ActionStep, FinalAnswerStep, MemoryStep
+from smolagents.memory import ActionStep, FinalAnswerStep
 from smolagents.models import ChatMessageStreamDelta
 from smolagents.utils import _is_package_available
 
 
-def get_step_footnote_content(step_log: MemoryStep, step_name: str) -> str:
+def get_step_footnote_content(step_log: ActionStep | PlanningStep, step_name: str) -> str:
     """Get a footnote string for a step log with duration and token information"""
     step_footnote = f"**{step_name}**"
-    if hasattr(step_log, "input_token_count") and hasattr(step_log, "output_token_count"):
-        token_str = f" | Input tokens: {step_log.input_token_count:,} | Output tokens: {step_log.output_token_count:,}"
-        step_footnote += token_str
-    if hasattr(step_log, "duration"):
-        step_duration = f" | Duration: {round(float(step_log.duration), 2)}" if step_log.duration else None
-        step_footnote += step_duration
+    if step_log.token_usage is not None:
+        step_footnote += f" | Input tokens: {step_log.token_usage.input_tokens:,} | Output tokens: {step_log.token_usage.output_tokens:,}"
+    step_footnote += f" | Duration: {round(float(step_log.timing.duration), 2)}s" if step_log.timing.duration else ""
     step_footnote_content = f"""<span style="color: #bbbbc2; font-size: 12px;">{step_footnote}</span> """
     return step_footnote_content
 
@@ -94,7 +91,7 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
     import gradio as gr
 
     # Output the step number
-    step_number = f"Step {step_log.step_number}" if step_log.step_number is not None else "Step"
+    step_number = f"Step {step_log.step_number}"
     if not skip_model_outputs:
         yield gr.ChatMessage(role="assistant", content=f"**{step_number}**", metadata={"status": "done"})
 
@@ -197,7 +194,7 @@ def _process_final_answer_step(step_log: FinalAnswerStep) -> Generator:
     """
     import gradio as gr
 
-    final_answer = step_log.final_answer
+    final_answer = step_log.output
     if isinstance(final_answer, AgentText):
         yield gr.ChatMessage(
             role="assistant",
@@ -222,8 +219,8 @@ def _process_final_answer_step(step_log: FinalAnswerStep) -> Generator:
         )
 
 
-def pull_messages_from_step(step_log: MemoryStep, skip_model_outputs: bool = False):
-    """Extract ChatMessage objects from agent steps with proper nesting.
+def pull_messages_from_step(step_log: ActionStep | PlanningStep | FinalAnswerStep, skip_model_outputs: bool = False):
+    """Extract Gradio ChatMessage objects from agent steps with proper nesting.
 
     Args:
         step_log: The step log to display as gr.ChatMessage objects.
@@ -250,32 +247,27 @@ def stream_to_gradio(
     task_images: list | None = None,
     reset_agent_memory: bool = False,
     additional_args: dict | None = None,
-):
+) -> Generator:
     """Runs an agent with the given task and streams the messages from the agent as gradio ChatMessages."""
     if not _is_package_available("gradio"):
         raise ModuleNotFoundError(
             "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
         )
     intermediate_text = ""
-    for step_log in agent.run(
+
+    for event in agent.run(
         task, images=task_images, stream=True, reset=reset_agent_memory, additional_args=additional_args
     ):
-        # Track tokens if model provides them
-        if getattr(agent.model, "last_input_token_count", None) is not None:
-            if isinstance(step_log, (ActionStep, PlanningStep)):
-                step_log.input_token_count = agent.model.last_input_token_count
-                step_log.output_token_count = agent.model.last_output_token_count
-
-        if isinstance(step_log, MemoryStep):
+        if isinstance(event, ActionStep | PlanningStep | FinalAnswerStep):
             intermediate_text = ""
             for message in pull_messages_from_step(
-                step_log,
+                event,
                 # If we're streaming model outputs, no need to display them twice
                 skip_model_outputs=getattr(agent, "stream_outputs", False),
             ):
                 yield message
-        elif isinstance(step_log, ChatMessageStreamDelta):
-            intermediate_text += step_log.content or ""
+        elif isinstance(event, ChatMessageStreamDelta):
+            intermediate_text += event.content or ""
             yield intermediate_text
 
 
@@ -308,24 +300,20 @@ class GradioUI:
 
             for msg in stream_to_gradio(session_state["agent"], task=prompt, reset_agent_memory=False):
                 if isinstance(msg, gr.ChatMessage):
+                    messages[-1].metadata["status"] = "done"
                     messages.append(msg)
                 elif isinstance(msg, str):  # Then it's only a completion delta
-                    try:
-                        if messages[-1].metadata["status"] == "pending":
-                            messages[-1].content = msg
-                        else:
-                            messages.append(
-                                gr.ChatMessage(role="assistant", content=msg, metadata={"status": "pending"})
-                            )
-                    except Exception as e:
-                        raise e
+                    msg = msg.replace("<", r"\<").replace(">", r"\>")  # HTML tags seem to break Gradio Chatbot
+                    if messages[-1].metadata["status"] == "pending":
+                        messages[-1].content = msg
+                    else:
+                        messages.append(gr.ChatMessage(role="assistant", content=msg, metadata={"status": "pending"}))
                 yield messages
 
             yield messages
         except Exception as e:
-            print(f"Error in interaction: {str(e)}")
-            messages.append(gr.ChatMessage(role="assistant", content=f"Error: {str(e)}"))
             yield messages
+            raise gr.Error(f"Error in interaction: {str(e)}")
 
     def upload_file(self, file, file_uploads_log, allowed_file_types=None):
         """
