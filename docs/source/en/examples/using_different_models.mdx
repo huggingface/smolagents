@@ -41,9 +41,9 @@ from smolagents import OpenAIServerModel
 
 model = OpenAIServerModel(
     model_id="gemini-2.0-flash",
-    api_key=GEMINI_API_KEY,
     # Google Gemini OpenAI-compatible API base URL
     api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
+    api_key=GEMINI_API_KEY,
 )
 ```
 
@@ -69,8 +69,8 @@ from smolagents import OpenAIServerModel
 model = OpenAIServerModel(
     # You can use any model ID available on OpenRouter
     model_id="openai/gpt-4o",
-    api_key=OPENROUTER_API_KEY,
     # OpenRouter API base URL
     api_base="https://openrouter.ai/api/v1",
+    api_key=OPENROUTER_API_KEY,
 )
 ```
