@@ -237,6 +237,42 @@ def parse_code_blobs(text: str) -> str:
     )
 
 
+def parse_code_from_json_string(text: str) -> str:
+    """
+    Parser for JSON-like string to extract the 'code' field.
+    Assumes the structure is somewhat like: ... "thought": "...", ... "code": "..." ...
+    The 'thought' field is disregarded since its not needed for action step.
+    Args:
+        text (`str`): The text to parse.
+    Returns:
+        `str`: The parsed code.
+    """
+
+    code_match = re.search(r'"code"\s*:\s*"(.*?)"(?=\s*}\s*$|\s*,\s*")', text, re.DOTALL)
+    if code_match:
+        try:
+            code_action = code_match.group(1)
+            code_action = code_action.encode("utf-8").decode("unicode_escape")
+            ast.parse(code_action)
+        except SyntaxError as e:
+            error_line = e.text.strip() if e.text else ""
+            error_offset = e.offset if e.offset is not None else 0
+            pointer = " " * (error_offset - 1) + "^" if error_offset > 0 else ""
+            raise ValueError(
+                f"The Python code in the 'code' field has a syntax error: {e.msg}\n"
+                f"Problematic code snippet (line {e.lineno}):\n"
+                f"{error_line}\n"
+                f"{pointer}\n"
+                f"Full code passed:\n{code_action}"
+            )
+    else:
+        raise ValueError(
+            "The JSON output does not contain a 'code' field. Make sure to include a 'code' field in the JSON output."
+        )
+
+    return code_action
+
+
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
 
 

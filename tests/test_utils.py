@@ -22,7 +22,14 @@ from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
 from smolagents.tools import tool
-from smolagents.utils import get_source, instance_to_source, is_valid_name, parse_code_blobs, parse_json_blob
+from smolagents.utils import (
+    get_source,
+    instance_to_source,
+    is_valid_name,
+    parse_code_blobs,
+    parse_code_from_json_string,
+    parse_json_blob,
+)
 
 
 class ValidTool(Tool):
@@ -495,3 +502,25 @@ def test_parse_json_blob_with_invalid_json(raw_json):
 def test_is_valid_name(name, expected):
     """Test the is_valid_name function with various inputs."""
     assert is_valid_name(name) is expected
+
+
+def test_parse_code_from_json_string_with_preceding_text():
+    text = """<think>
+This is some preceding text.
+</think>
+{"thought": "Some thought.", "code": "print('Hello, world!')"}"""
+    expected_code = "print('Hello, world!')"
+    assert parse_code_from_json_string(text) == expected_code
+
+
+def test_parse_code_from_json_string_with_escaped_characters():
+    text = '{"thought": "Testing escaped characters.", "code": "print(\\"Hello,\\\\nworld!\\")"}'
+    expected_code = 'print("Hello,\\nworld!")'
+    assert parse_code_from_json_string(text) == expected_code
+
+
+def test_parse_code_from_json_string_with_syntax_error():
+    text = '{"thought": "Testing syntax error.", "code": "print(\'Hello, world!)\'"}'  # Missing closing parenthesis
+    with pytest.raises(ValueError) as excinfo:
+        parse_code_from_json_string(text)
+    assert "The Python code in the 'code' field has a syntax error" in str(excinfo.value)
