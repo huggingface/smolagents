@@ -636,7 +636,7 @@ class WebAssemblyExecutor(RemotePythonExecutor):
               }
             } else {
               // Just run the code without expecting a final answer
-              result = pyodide.runPython(code);
+              result = await pyodide.runPythonAsync(code);
             }
 
             // Get captured stdout
