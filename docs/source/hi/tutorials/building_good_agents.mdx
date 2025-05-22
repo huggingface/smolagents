@@ -397,7 +397,7 @@ This also works with the [`ToolCallingAgent`].
 हम पूरक योजना चरण के लिए एक मॉडल प्रदान करते हैं, जिसे एजेंट सामान्य क्रियाओं के चरणों के बीच नियमित रूप से चला सकता है। इस चरण में कोई टूल कॉल नहीं होती है, LLM से केवल उन तथ्यों की सूची को अपडेट करने के लिए कहा जाता है जो उसे ज्ञात हैं और इन तथ्यों के आधार पर उसे अगले कदमों के बारे में विचार करना होता है।
 
 ```py
-from smolagents import load_tool, CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
+from smolagents import load_tool, CodeAgent, InferenceClientModel, WebSearchTool
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -405,7 +405,7 @@ load_dotenv()
 # Import tool from Hub
 image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = WebSearchTool()
 
 agent = CodeAgent(
     tools=[search_tool],

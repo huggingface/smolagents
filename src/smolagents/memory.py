@@ -3,7 +3,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from smolagents.models import ChatMessage, MessageRole
-from smolagents.monitoring import AgentLogger, LogLevel
+from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.utils import AgentError, make_json_serializable
 
 
@@ -50,30 +50,28 @@ class MemoryStep:
 
 @dataclass
 class ActionStep(MemoryStep):
+    step_number: int
+    timing: Timing
     model_input_messages: list[Message] | None = None
     tool_calls: list[ToolCall] | None = None
-    start_time: float | None = None
-    end_time: float | None = None
-    step_number: int | None = None
     error: AgentError | None = None
-    duration: float | None = None
     model_output_message: ChatMessage | None = None
     model_output: str | None = None
     observations: str | None = None
     observations_images: list["PIL.Image.Image"] | None = None
     action_output: Any = None
+    token_usage: TokenUsage | None = None
 
     def dict(self):
         # We overwrite the method to parse the tool_calls and action_output manually
         return {
             "model_input_messages": self.model_input_messages,
             "tool_calls": [tc.dict() for tc in self.tool_calls] if self.tool_calls else [],
-            "start_time": self.start_time,
-            "end_time": self.end_time,
+            "timing": self.timing.dict(),
+            "token_usage": asdict(self.token_usage) if self.token_usage else None,
             "step": self.step_number,
             "error": self.error.dict() if self.error else None,
-            "duration": self.duration,
-            "model_output_message": self.model_output_message,
+            "model_output_message": self.model_output_message.dict() if self.model_output_message else None,
             "model_output": self.model_output,
             "observations": self.observations,
             "action_output": make_json_serializable(self.action_output),
@@ -145,6 +143,8 @@ class PlanningStep(MemoryStep):
     model_input_messages: list[Message]
     model_output_message: ChatMessage
     plan: str
+    timing: Timing
+    token_usage: TokenUsage | None = None
 
     def to_messages(self, summary_mode: bool = False) -> list[Message]:
         if summary_mode:
@@ -182,7 +182,7 @@ class SystemPromptStep(MemoryStep):
 
 @dataclass
 class FinalAnswerStep(MemoryStep):
-    final_answer: Any
+    output: Any
 
 
 class AgentMemory:

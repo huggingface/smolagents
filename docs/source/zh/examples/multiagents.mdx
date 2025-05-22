@@ -50,8 +50,8 @@ model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
 ## 🔍 创建网络搜索工具
 
 虽然我们可以使用已经存在的
-[`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools.py#L151-L176)
-工具作为谷歌搜索的平替进行网页浏览，然后我们也需要能够查看`DuckDuckGoSearchTool`找到的页面。为此，我
+[`WebSearchTool`]
+工具作为谷歌搜索的平替进行网页浏览，然后我们也需要能够查看`WebSearchTool`找到的页面。为此，我
 们可以直接导入库的内置
 `VisitWebpageTool`。但是我们将重新构建它以了解其工作原理。
 
@@ -114,14 +114,14 @@ from smolagents import (
     ToolCallingAgent,
     InferenceClientModel,
     ManagedAgent,
-    DuckDuckGoSearchTool,
+    WebSearchTool,
     LiteLLMModel,
 )
 
 model = InferenceClientModel(model_id=model_id)
 
 web_agent = ToolCallingAgent(
-    tools=[DuckDuckGoSearchTool(), visit_webpage],
+    tools=[WebSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
     name="search",

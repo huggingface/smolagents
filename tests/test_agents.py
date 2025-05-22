@@ -15,7 +15,6 @@
 import io
 import os
 import tempfile
-import unittest
 import uuid
 from collections.abc import Generator
 from contextlib import nullcontext as does_not_raise
@@ -572,9 +571,11 @@ nested_answer()
         assert agent.memory.steps[0].task == task
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
         step_memory_dict = agent.memory.get_succinct_steps()[1]
-        assert step_memory_dict["model_output_message"].tool_calls[0].function.name == "weather_api"
-        assert step_memory_dict["model_output_message"].raw["completion_kwargs"]["max_new_tokens"] == 100
+        assert step_memory_dict["model_output_message"]["tool_calls"][0]["function"]["name"] == "weather_api"
+        assert step_memory_dict["model_output_message"]["raw"]["completion_kwargs"]["max_new_tokens"] == 100
         assert "model_input_messages" in agent.memory.get_full_steps()[1]
+        assert step_memory_dict["token_usage"]["total_tokens"] > 100
+        assert step_memory_dict["timing"]["duration"] > 0.1
 
     def test_final_answer_checks(self):
         def check_always_fails(final_answer, agent_memory):
@@ -679,8 +680,13 @@ class TestMultiStepAgent:
 
     def test_step_number(self):
         fake_model = MagicMock()
-        fake_model.last_input_token_count = 10
-        fake_model.last_output_token_count = 20
+        fake_model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="Model output.",
+            tool_calls=None,
+            raw="Model output.",
+            token_usage=None,
+        )
         max_steps = 2
         agent = CodeAgent(tools=[], model=fake_model, max_steps=max_steps)
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
@@ -813,13 +819,19 @@ class TestMultiStepAgent:
     )
     def test_provide_final_answer(self, images, expected_messages_list):
         fake_model = MagicMock()
-        fake_model.return_value.content = "Final answer."
+        fake_model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="Final answer.",
+            tool_calls=None,
+            raw="Final answer.",
+            token_usage=None,
+        )
         agent = CodeAgent(
             tools=[],
             model=fake_model,
         )
         task = "Test task"
-        final_answer = agent.provide_final_answer(task, images=images)
+        final_answer = agent.provide_final_answer(task, images=images).content
         expected_message_texts = {
             "FINAL_ANSWER_SYSTEM_PROMPT": agent.prompt_templates["final_answer"]["pre_messages"],
             "FINAL_ANSWER_USER_PROMPT": populate_template(
@@ -833,8 +845,8 @@ class TestMultiStepAgent:
                         expected_content["text"] = expected_message_texts[expected_content["text"]]
         assert final_answer == "Final answer."
         # Test calls to model
-        assert len(fake_model.call_args_list) == 1
-        for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
+        assert len(fake_model.generate.call_args_list) == 1
+        for call_args, expected_messages in zip(fake_model.generate.call_args_list, expected_messages_list):
             assert len(call_args.args) == 1
             messages = call_args.args[0]
             assert isinstance(messages, list)
@@ -852,8 +864,13 @@ class TestMultiStepAgent:
 
     def test_interrupt(self):
         fake_model = MagicMock()
-        fake_model.return_value.content = "Model output."
-        fake_model.last_input_token_count = None
+        fake_model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="Model output.",
+            tool_calls=None,
+            raw="Model output.",
+            token_usage=None,
+        )
 
         def interrupt_callback(memory_step, agent):
             agent.interrupt()
@@ -963,7 +980,7 @@ class TestMultiStepAgent:
         assert agent.max_steps == 30
 
 
-class TestToolCallingAgent(unittest.TestCase):
+class TestToolCallingAgent:
     @patch("huggingface_hub.InferenceClient")
     def test_toolcalling_agent_api(self, mock_inference_client):
         mock_client = mock_inference_client.return_value
@@ -1039,6 +1056,57 @@ class TestToolCallingAgent(unittest.TestCase):
         assert "The JSON blob you used is invalid" in agent.memory.steps[1].error.message
         assert "Error while parsing" in capture.get()
         assert len(agent.memory.steps) == 4
+
+    def test_change_tools_after_init(self):
+        from smolagents import tool
+
+        @tool
+        def fake_tool_1() -> str:
+            """Fake tool"""
+            return "1"
+
+        @tool
+        def fake_tool_2() -> str:
+            """Fake tool"""
+            return "2"
+
+        class FakeCodeModel(Model):
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None):
+                if len(messages) < 3:
+                    return ChatMessage(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_0",
+                                type="function",
+                                function=ChatMessageToolCallDefinition(name="fake_tool_1", arguments={}),
+                            )
+                        ],
+                    )
+                else:
+                    tool_result = messages[-1]["content"][0]["text"].removeprefix("Observation:\n")
+                    return ChatMessage(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_1",
+                                type="function",
+                                function=ChatMessageToolCallDefinition(
+                                    name="final_answer", arguments={"answer": tool_result}
+                                ),
+                            )
+                        ],
+                    )
+
+        agent = ToolCallingAgent(tools=[fake_tool_1], model=FakeCodeModel())
+
+        agent.tools["final_answer"] = CustomFinalAnswerTool()
+        agent.tools["fake_tool_1"] = fake_tool_2
+
+        answer = agent.run("Fake task.")
+        assert answer == "2CUSTOM"
 
 
 class TestCodeAgent:
@@ -1150,6 +1218,19 @@ class TestCodeAgent:
         answer = agent.run("Fake task.")
         assert answer == "2CUSTOM"
 
+    def test_local_python_executor_with_custom_functions(self):
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=None,
+            raw="",
+            token_usage=None,
+        )
+        agent = CodeAgent(tools=[], model=model, executor_kwargs={"additional_functions": {"open": open}})
+        agent.run("Test run")
+        assert "open" in agent.python_executor.static_tools
+
     @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10"])
     def test_from_folder(self, agent_dict_version, get_agent_dict):
         agent_dict = get_agent_dict(agent_dict_version)
@@ -1202,7 +1283,7 @@ class TestCodeAgent:
             "description": "Test code agent description",
             "authorized_imports": ["pandas", "numpy"],
             "executor_type": "local",
-            "executor_kwargs": {"max_workers": 2},
+            "executor_kwargs": {"max_print_outputs_length": 10_000},
             "max_print_outputs_length": 1000,
         }
 
@@ -1215,7 +1296,7 @@ class TestCodeAgent:
         assert agent.model == mock_model_instance
         assert agent.additional_authorized_imports == ["pandas", "numpy"]
         assert agent.executor_type == "local"
-        assert agent.executor_kwargs == {"max_workers": 2}
+        assert agent.executor_kwargs == {"max_print_outputs_length": 10_000}
         assert agent.max_print_outputs_length == 1000
 
         # Test with missing optional parameters
@@ -1233,10 +1314,12 @@ class TestCodeAgent:
         # Test overriding with kwargs
         with patch("smolagents.models.InferenceClientModel"):
             agent = CodeAgent.from_dict(
-                agent_dict, additional_authorized_imports=["matplotlib"], executor_kwargs={"max_workers": 4}
+                agent_dict,
+                additional_authorized_imports=["matplotlib"],
+                executor_kwargs={"max_print_outputs_length": 5_000},
             )
         assert agent.additional_authorized_imports == ["matplotlib"]
-        assert agent.executor_kwargs == {"max_workers": 4}
+        assert agent.executor_kwargs == {"max_print_outputs_length": 5_000}
 
 
 class TestMultiAgents:
@@ -1258,7 +1341,7 @@ class TestMultiAgents:
             managed_agents=[web_agent, code_agent],
             max_print_outputs_length=1000,
             executor_type="local",
-            executor_kwargs={"max_workers": 2},
+            executor_kwargs={"max_print_outputs_length": 10_000},
         )
         agent.save(tmp_path)
 
@@ -1297,7 +1380,7 @@ class TestMultiAgents:
         assert set(agent2.authorized_imports) == set(["pandas", "datetime"] + BASE_BUILTIN_MODULES)
         assert agent2.max_print_outputs_length == 1000
         assert agent2.executor_type == "local"
-        assert agent2.executor_kwargs == {"max_workers": 2}
+        assert agent2.executor_kwargs == {"max_print_outputs_length": 10_000}
         assert (
             agent2.managed_agents["web_agent"].tools["web_search"].max_results == 10
         )  # For now tool init parameters are forgotten

@@ -83,7 +83,7 @@ Then you should pass this function in the `step_callbacks` argument upon initial
 
 ```py
 CodeAgent(
-    tools=[DuckDuckGoSearchTool(), go_back, close_popups, search_item_ctrl_f],
+    tools=[WebSearchTool(), go_back, close_popups, search_item_ctrl_f],
     model=model,
     additional_authorized_imports=["helium"],
     step_callbacks=[update_screenshot],

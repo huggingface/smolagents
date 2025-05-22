@@ -56,7 +56,7 @@ SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
 from smolagents import (
     CodeAgent,
     ToolCallingAgent,
-    DuckDuckGoSearchTool,
+    WebSearchTool,
     VisitWebpageTool,
     InferenceClientModel,
 )
@@ -64,7 +64,7 @@ from smolagents import (
 model = InferenceClientModel()
 
 managed_agent = ToolCallingAgent(
-    tools=[DuckDuckGoSearchTool(), VisitWebpageTool()],
+    tools=[WebSearchTool(), VisitWebpageTool()],
     model=model,
     name="managed_agent",
     description="This is an agent that can do web search.",

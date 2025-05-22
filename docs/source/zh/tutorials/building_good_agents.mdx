@@ -395,7 +395,7 @@ agent.prompt_templates["system_prompt"] = agent.prompt_templates["system_prompt"
 我们提供了一个用于补充规划步骤的模型，agent 可以在正常操作步骤之间定期运行。在此步骤中，没有工具调用，LLM 只是被要求更新它知道的事实列表，并根据这些事实反推它应该采取的下一步。
 
 ```py
-from smolagents import load_tool, CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
+from smolagents import load_tool, CodeAgent, InferenceClientModel, WebSearchTool
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -403,7 +403,7 @@ load_dotenv()
 # 从 Hub 导入工具
 image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = WebSearchTool()
 
 agent = CodeAgent(
     tools=[search_tool],

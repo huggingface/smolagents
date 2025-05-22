@@ -397,7 +397,7 @@ This also works with the [`ToolCallingAgent`].
 We provide a model for a supplementary planning step, that an agent can run regularly in-between normal action steps. In this step, there is no tool call, the LLM is simply asked to update a list of facts it knows and to reflect on what steps it should take next based on those facts.
 
 ```py
-from smolagents import load_tool, CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
+from smolagents import load_tool, CodeAgent, InferenceClientModel, WebSearchTool
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -405,7 +405,7 @@ load_dotenv()
 # Import tool from Hub
 image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = WebSearchTool()
 
 agent = CodeAgent(
     tools=[search_tool, image_generation_tool],

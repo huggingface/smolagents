@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.15.0.dev0"
+version = "1.17.0.dev0"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" },
@@ -12,12 +12,11 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "huggingface-hub>=0.30.0",
+  "huggingface-hub>=0.31.2",
   "requests>=2.32.3",
   "rich>=13.9.4",
   "jinja2>=3.1.4",
   "pillow>=10.0.1",  # Security fix for CVE-2023-4863: https://pillow.readthedocs.io/en/stable/releasenotes/10.0.1.html
-  "markdownify>=0.14.1",
   "python-dotenv"
 ]
 
@@ -43,7 +42,7 @@ e2b = [
   "python-dotenv>=1.0.1",
 ]
 gradio = [
-  "gradio>=5.13.2",
+  "gradio>=5.14.0",  # Sidebar component GH-797
 ]
 litellm = [
   "litellm>=1.60.2",
@@ -66,6 +65,7 @@ telemetry = [
 ]
 toolkit = [
   "duckduckgo-search>=6.3.7",  # DuckDuckGoSearchTool
+  "markdownify>=0.14.1",  # VisitWebpageTool
 ]
 transformers = [
   "accelerate",
