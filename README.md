@@ -114,6 +114,18 @@ model = OpenAIServerModel(
     api_key=os.environ["TOGETHER_API_KEY"], # Switch to the API key for the server you're targeting.
 )
 ```
+
+```py
+import os
+from smolagents import OpenAIServerModel
+
+model = OpenAIServerModel(
+    model_id="openai/gpt-4o",
+    api_base="https://openrouter.ai/api/v1", # Leave this blank to query OpenAI servers.
+    api_key=os.environ["OPENROUTER_API_KEY"], # Switch to the API key for the server you're targeting.
+)
+```
+
 </details>
 <details>
 <summary> <b>Local `transformers` model</b></summary>
