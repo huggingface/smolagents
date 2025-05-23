@@ -201,6 +201,32 @@ def safer_eval(func: Callable):
     return _check_return
 
 
+def safer_func(
+    func: Callable,
+    static_tools: dict[str, Callable] = BASE_PYTHON_TOOLS,
+    authorized_imports: list[str] = BASE_BUILTIN_MODULES,
+):
+    """
+    Decorator to enhance the security of a function call by checking its return value.
+
+    Args:
+        func (Callable): Function to be made safer.
+        static_tools (dict[str, Callable]): Dictionary of static tools.
+        authorized_imports (list[str]): List of authorized imports.
+
+    Returns:
+        Callable: Safer function with return value check.
+    """
+
+    @wraps(func)
+    def _check_return(*args, **kwargs):
+        result = func(*args, **kwargs)
+        check_safer_result(result, static_tools, authorized_imports)
+        return result
+
+    return _check_return
+
+
 class PrintContainer:
     def __init__(self):
         self.value = ""
