@@ -326,8 +326,6 @@ def check_import_authorized(import_to_check: str, authorized_imports: list[str])
     return True
 
 
-
-
 def evaluate_attribute(
     expression: ast.Attribute,
     state: dict[str, Any],
