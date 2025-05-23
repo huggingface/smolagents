@@ -867,7 +867,7 @@ def evaluate_name(
     if name.id in state:
         return state[name.id]
     elif name.id in static_tools:
-        return static_tools[name.id]
+        return safer_func(static_tools[name.id], static_tools=static_tools, authorized_imports=authorized_imports)
     elif name.id in custom_tools:
         return custom_tools[name.id]
     elif name.id in ERRORS:
