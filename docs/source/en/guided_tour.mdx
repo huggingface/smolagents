@@ -223,7 +223,7 @@ agent.run("Could you give me the 118th number in the Fibonacci sequence?")
 
 #### CodeAgent and ToolCallingAgent
 
-The [`CodeAgent`] is our default agent. It will write and execute python code snippets at each step.
+`smolagents` comes with two agent classes: [`CodeAgent`] and [`ToolCallingAgent`]. `CodeAgent` is the default and writes Python code snippets that are then executed, while `ToolCallingAgent` outputs JSON tool calls. Both share the same interface so you can pick whichever style you prefer.
 
 By default, the execution is done in your local environment.
 This should be safe because the only functions that can be called are the tools you provided (especially if it's only tools by Hugging Face) and a set of predefined safe functions like `print` or functions from the `math` module, so you're already limited in what can be executed.

@@ -215,7 +215,7 @@ Especially, since code execution can be a security concern (arbitrary code execu
   - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
   - a sandboxed environment using [E2B](https://e2b.dev/) or Docker (removes the risk to your own system).
 
-On top of this [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) class, we still support the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) that writes actions as JSON/text blobs. But we recommend always using `CodeAgent`.
+Alongside [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent), we also provide the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) which writes actions as JSON/text blobs. You can pick whichever style best suits your use case.
 
 ## How smol is this library?
 
