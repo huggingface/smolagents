@@ -145,6 +145,16 @@ DANGEROUS_FUNCTIONS = [
     "posix.system",
 ]
 
+def local_python_executor_allow_all():
+    """ This function allows all imports and functions to be executed locally. 
+    BE CAREFUL - Only allow all in an isolated and crontolled environment.
+    USE IT AT YOUR OWN RISK."""
+    global DANGEROUS_MODULES
+    global DANGEROUS_FUNCTIONS
+    global BASE_PYTHON_TOOLS
+    DANGEROUS_MODULES = []
+    DANGEROUS_FUNCTIONS = []
+    BASE_PYTHON_TOOLS["open"]=open
 
 class PrintContainer:
     def __init__(self):
