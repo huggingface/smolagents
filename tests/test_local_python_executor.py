@@ -2075,6 +2075,7 @@ class TestLocalPythonExecutorSecurity:
                 ["threading"],
                 InterpreterError("Forbidden access to module: sys"),
             ),
+            ("import warnings; warnings.sys", ["warnings"], InterpreterError("Forbidden access to module: sys")),
             # Allowed
             ("import pandas; pandas.io", ["pandas", "pandas.io"], None),
         ],
@@ -2086,6 +2087,55 @@ class TestLocalPythonExecutorSecurity:
             if isinstance(expected_error, Exception)
             else does_not_raise()
         ):
+            executor(code)
+
+    @pytest.mark.parametrize(
+        "code, additional_authorized_imports, expected_error",
+        [
+            # Using filter with functools.partial
+            (
+                dedent(
+                    """
+                    import functools
+                    import warnings
+                    list(filter(functools.partial(getattr, warnings), ["sys"]))
+                    """
+                ),
+                ["warnings", "functools"],
+                InterpreterError("Forbidden access to module: sys"),
+            ),
+            # Using map
+            (
+                dedent(
+                    """
+                    import warnings
+                    list(map(getattr, [warnings], ["sys"]))
+                    """
+                ),
+                ["warnings"],
+                InterpreterError("Forbidden access to module: sys"),
+            ),
+            # Using map with functools.partial
+            (
+                dedent(
+                    """
+                    import functools
+                    import warnings
+                    list(map(functools.partial(getattr, warnings), ["sys"]))
+                    """
+                ),
+                ["warnings", "functools"],
+                InterpreterError("Forbidden access to module: sys"),
+            ),
+        ],
+    )
+    def test_vulnerability_via_submodules_through_indirect_attribute_access(
+        self, code, additional_authorized_imports, expected_error
+    ):
+        # warnings.sys
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        executor.send_tools({})
+        with pytest.raises(type(expected_error), match=f".*{expected_error}"):
             executor(code)
 
     @pytest.mark.parametrize(
