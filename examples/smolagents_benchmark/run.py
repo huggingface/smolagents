@@ -22,7 +22,6 @@ from smolagents import (
     ToolCallingAgent,
     VisitWebpageTool,
 )
-from smolagents.agents import ActionStep
 
 
 load_dotenv()
@@ -80,7 +79,7 @@ def parse_arguments():
     parser.add_argument(
         "--push-answers-to-hub",
         action="store_true",
-        default=False,
+        default=True,
         help="Push the answers to the hub",
     )
     parser.add_argument(
@@ -113,8 +112,15 @@ def serialize_agent_error(obj):
 def append_answer(entry: dict, jsonl_file: str) -> None:
     jsonl_file = Path(jsonl_file)
     jsonl_file.parent.mkdir(parents=True, exist_ok=True)
+
+    def convert_to_serializable(obj):
+        if hasattr(obj, "dict"):
+            return obj.dict()
+        else:
+            raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
     with APPEND_ANSWER_LOCK, open(jsonl_file, "a", encoding="utf-8") as fp:
-        fp.write(json.dumps(entry) + "\n")
+        fp.write(json.dumps(entry, default=convert_to_serializable) + "\n")
     assert os.path.exists(jsonl_file), "File not found!"
 
 
@@ -153,11 +159,7 @@ def answer_single_question(example, model, answers_file, action_type):
             # Run agent 🚀
             answer = str(agent.run(augmented_question))
             token_counts = agent.monitor.get_total_token_counts()
-            # Remove memory from logs to make them more compact.
-            for step in agent.memory.steps:
-                if isinstance(step, ActionStep):
-                    step.agent_memory = None
-            intermediate_steps = str(agent.memory.steps)
+            intermediate_steps = [dict(message) for message in agent.write_memory_to_messages()]
 
         end_time = time.time()
     except Exception as e:

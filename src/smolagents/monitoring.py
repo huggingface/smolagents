@@ -46,6 +46,13 @@ class TokenUsage:
     def __post_init__(self):
         self.total_tokens = self.input_tokens + self.output_tokens
 
+    def dict(self):
+        return {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "total_tokens": self.total_tokens,
+        }
+
 
 @dataclass
 class Timing:

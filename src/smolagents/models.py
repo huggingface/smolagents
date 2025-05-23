@@ -1301,7 +1301,7 @@ class InferenceClientModel(ApiModel):
             messages=messages,
             stop_sequences=stop_sequences,
             tools_to_call_from=tools_to_call_from,
-            response_format=response_format,
+            # response_format=response_format,
             convert_images_to_image_urls=True,
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
