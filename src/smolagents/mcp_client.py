@@ -57,7 +57,7 @@ class MCPClient:
 
             # use your tools here.
         finally:
-            mcp_client.stop()
+            mcp_client.disconnect()
         ```
     """
 
