@@ -1221,9 +1221,11 @@ class ToolCallingAgent(MultiStepAgent):
             level=LogLevel.INFO,
         )
         if tool_name == "final_answer":
+            tool_keywords = dict()
             if isinstance(tool_arguments, dict):
+                tool_keywords = tool_arguments.copy()
                 if "answer" in tool_arguments:
-                    answer = tool_arguments["answer"]
+                    answer = tool_keywords.pop("answer")
                 else:
                     answer = tool_arguments
             else:
@@ -1237,7 +1239,7 @@ class ToolCallingAgent(MultiStepAgent):
                     level=LogLevel.INFO,
                 )
             else:
-                final_answer = self.execute_tool_call("final_answer", {"answer": answer})
+                final_answer = self.execute_tool_call("final_answer", {"answer": answer, **tool_keywords}) # Allow arbitrary keywords
                 self.logger.log(
                     Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
                     level=LogLevel.INFO,
