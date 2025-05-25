@@ -1477,8 +1477,8 @@ def evaluate_python_code(
     if "final_answer" in static_tools:
         previous_final_answer = static_tools["final_answer"]
 
-        def final_answer(answer):  # Using 'answer' as the argument like in the original function
-            raise FinalAnswerException(previous_final_answer(answer))
+        def final_answer(*args, **kwargs):  # Allow arbitrary arguments to be passed
+            raise FinalAnswerException(previous_final_answer(*args, **kwargs))
 
         static_tools["final_answer"] = final_answer
 
