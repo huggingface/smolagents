@@ -39,7 +39,21 @@ class MCPClient:
 
     Args:
         server_parameters (StdioServerParameters | dict[str, Any] | list[StdioServerParameters | dict[str, Any]]):
-            MCP server parameters (stdio or sse). Can be a list if you want to connect multiple MCPs at once.
+            Configuration parameters to connect to the MCP server. Can be a list if you want to connect multiple MCPs at once.
+
+            - An instance of `mcp.StdioServerParameters` for connecting a Stdio MCP server via standard input/output using a subprocess.
+
+            - A `dict` with at least:
+              - "url": URL of the server.
+              - "transport": Transport protocol to use, one of:
+                - "streamable-http": (recommended) Streamable HTTP transport.
+                - "sse": Legacy HTTP+SSE transport (deprecated).
+              If "transport" is omitted, the legacy "sse" transport is assumed (a deprecation warning will be issued).
+
+            <Deprecated version="1.17.0">
+            The HTTP+SSE transport is deprecated and future behavior will default to the Streamable HTTP transport.
+            Please pass explicitly the "transport" key.
+            </Deprecated>
 
     Example:
         ```python
@@ -47,8 +61,8 @@ class MCPClient:
         with MCPClient(...) as tools:
             # tools are now available
 
-        # context manager + sse
-        with MCPClient({"url": "http://localhost:8000/sse"}) as tools:
+        # context manager + Streamable HTTP transport:
+        with MCPClient({"url": "http://localhost:8000/mcp", "transport": "streamable-http"}) as tools:
             # tools are now available
 
         # manually manage the connection via the mcp_client object:

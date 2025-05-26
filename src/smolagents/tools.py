@@ -849,16 +849,29 @@ class ToolCollection:
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
-        This method supports both SSE and Stdio MCP servers. Look at the `server_parameters`
-        argument for more details on how to connect to an SSE or Stdio MCP server.
+        This method supports Stdio, Streamable HTTP, and legacy HTTP+SSE MCP servers. Look at the `server_parameters`
+        argument for more details on how to connect to each MCP server.
 
         Note: a separate thread will be spawned to run an asyncio event loop handling
         the MCP server.
 
         Args:
             server_parameters (`mcp.StdioServerParameters` or `dict`):
-                The server parameters to use to connect to the MCP server. If a dict is
-                provided, it is assumed to be the parameters of `mcp.client.sse.sse_client`.
+                Configuration parameters to connect to the MCP server. This can be:
+
+                - An instance of `mcp.StdioServerParameters` for connecting a Stdio MCP server via standard input/output using a subprocess.
+
+                - A `dict` with at least:
+                  - "url": URL of the server.
+                  - "transport": Transport protocol to use, one of:
+                    - "streamable-http": (recommended) Streamable HTTP transport.
+                    - "sse": Legacy HTTP+SSE transport (deprecated).
+                  If "transport" is omitted, the legacy "sse" transport is assumed (a deprecation warning will be issued).
+
+                <Deprecated version="1.17.0">
+                The HTTP+SSE transport is deprecated and future behavior will default to the Streamable HTTP transport.
+                Please pass explicitly the "transport" key.
+                </Deprecated>
             trust_remote_code (`bool`, *optional*, defaults to `False`):
                 Whether to trust the execution of code from tools defined on the MCP server.
                 This option should only be set to `True` if you trust the MCP server,
@@ -885,9 +898,9 @@ class ToolCollection:
         >>>     agent.run("Please find a remedy for hangover.")
         ```
 
-        Example with an SSE MCP server:
+        Example with a Streamable HTTP MCP server:
         ```py
-        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True) as tool_collection:
+        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
