@@ -102,7 +102,7 @@ model = LiteLLMModel(
 ```
 </details>
 <details>
-<summary> <b>OpenAI-compatible servers</b></summary>
+<summary> <b>OpenAI-compatible servers: Together AI</b></summary>
 
 ```py
 import os
@@ -114,6 +114,9 @@ model = OpenAIServerModel(
     api_key=os.environ["TOGETHER_API_KEY"], # Switch to the API key for the server you're targeting.
 )
 ```
+</details>
+<details>
+<summary> <b>OpenAI-compatible servers: OpenRouter</b></summary>
 
 ```py
 import os
