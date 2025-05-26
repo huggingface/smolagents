@@ -761,7 +761,7 @@ except ValueError as e:
         code = "type_a = float(2); type_b = str; type_c = int"
         state = {}
         result, is_final_answer = evaluate_python_code(code, {"float": float, "str": str, "int": int}, state=state)
-        # Result is wrapped in safer_func
+        # Result is wrapped by safer_func
         assert result.__wrapped__ is int
 
     def test_tuple_id(self):
@@ -1134,7 +1134,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         assert result == (5, "test")
         assert isinstance(state["TestClass"], type)
-        # Values are wrapped in safer_func
+        # Values are wrapped by safer_func
         annotations = {key: value.__wrapped__ for key, value in state["TestClass"].__annotations__.items()}
         assert annotations == {"x": int, "y": str}
         assert state["TestClass"].x == 5
@@ -1190,7 +1190,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         assert result == ("value", ["b", 30])
         assert isinstance(state["TestClass"], type)
-        # Values are wrapped in safer_func
+        # Values are wrapped by safer_func
         annotations = {key: value.__wrapped__ for key, value in state["TestClass"].__annotations__.items()}
         assert annotations == {"key_data": dict, "index_data": list}
         assert state["TestClass"].key_data == {"key": "value"}
