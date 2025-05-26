@@ -645,7 +645,7 @@ class TestToolCollection:
 
         try:
             with ToolCollection.from_mcp(
-                {"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True
+                {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}, trust_remote_code=True
             ) as tool_collection:
                 assert len(tool_collection.tools) == 1, "Expected 1 tool"
                 assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
