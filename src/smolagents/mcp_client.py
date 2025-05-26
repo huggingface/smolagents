@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
@@ -70,6 +71,21 @@ class MCPClient:
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
         except ModuleNotFoundError:
             raise ModuleNotFoundError("Please install 'mcp' extra to use MCPClient: `pip install 'smolagents[mcp]'`")
+        if isinstance(server_parameters, dict):
+            transport = server_parameters.get("transport")
+            if transport is None:
+                warnings.warn(
+                    "Passing a dict as server_parameters without specifying the 'transport' key is deprecated. "
+                    "For now, it defaults to the legacy 'sse' (HTTP+SSE) transport, but this default will change "
+                    "to 'streamable-http' in version 1.20. Please add the 'transport' key explicitly. ",
+                    FutureWarning,
+                )
+                transport = "sse"
+                server_parameters["transport"] = transport
+            if transport not in {"sse", "streamable-http"}:
+                raise ValueError(
+                    f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
+                )
         self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter())
         self._tools: list[Tool] | None = None
         self.connect()

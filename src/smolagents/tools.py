@@ -25,6 +25,7 @@ import sys
 import tempfile
 import textwrap
 import types
+import warnings
 from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
@@ -891,11 +892,6 @@ class ToolCollection:
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
-        if not trust_remote_code:
-            raise ValueError(
-                "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
-                "as it will execute code on your local machine: pass `trust_remote_code=True`."
-            )
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
@@ -903,7 +899,26 @@ class ToolCollection:
             raise ImportError(
                 """Please install 'mcp' extra to use ToolCollection.from_mcp: `pip install "smolagents[mcp]"`."""
             )
-
+        if isinstance(server_parameters, dict):
+            transport = server_parameters.get("transport")
+            if transport is None:
+                warnings.warn(
+                    "Passing a dict as server_parameters without specifying the 'transport' key is deprecated. "
+                    "For now, it defaults to the legacy 'sse' (HTTP+SSE) transport, but this default will change "
+                    "to 'streamable-http' in version 1.20. Please add the 'transport' key explicitly. ",
+                    FutureWarning,
+                )
+                transport = "sse"
+                server_parameters["transport"] = transport
+            if transport not in {"sse", "streamable-http"}:
+                raise ValueError(
+                    f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
+                )
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
+                "as it will execute code on your local machine: pass `trust_remote_code=True`."
+            )
         with MCPAdapt(server_parameters, SmolAgentsAdapter()) as tools:
             yield cls(tools)
 
