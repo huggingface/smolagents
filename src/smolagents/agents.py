@@ -1357,6 +1357,7 @@ class CodeAgent(MultiStepAgent):
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
         use_structured_outputs_internally (`bool`, default `False`): Whether to use structured generation at each action step: improves performance for many models.
+            <Added version="1.17.0"/>
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
             <Deprecated version="1.17.0">
             Parameter `grammar` is deprecated and will be removed in version 1.20.
