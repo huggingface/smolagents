@@ -73,6 +73,46 @@ class TestModel:
         else:
             assert "stop" not in completion_kwargs
 
+    @pytest.mark.parametrize(
+        "with_tools, tool_choice, expected_result",
+        [
+            # Default behavior: With tools but no explicit tool_choice, should default to "required"
+            (True, ..., {"has_tool_choice": True, "value": "required"}),
+            # Custom value: With tools and explicit tool_choice="auto"
+            (True, "auto", {"has_tool_choice": True, "value": "auto"}),
+            # Tool name as string
+            (True, "valid_tool_function", {"has_tool_choice": True, "value": "valid_tool_function"}),
+            # Tool choice as dictionary
+            (
+                True,
+                {"type": "function", "function": {"name": "valid_tool_function"}},
+                {"has_tool_choice": True, "value": {"type": "function", "function": {"name": "valid_tool_function"}}},
+            ),
+            # With tools but explicit None tool_choice: should exclude tool_choice
+            (True, None, {"has_tool_choice": False, "value": None}),
+            # Without tools: tool_choice should never be included
+            (False, "required", {"has_tool_choice": False, "value": None}),
+            (False, "auto", {"has_tool_choice": False, "value": None}),
+            (False, None, {"has_tool_choice": False, "value": None}),
+            (False, ..., {"has_tool_choice": False, "value": None}),
+        ],
+    )
+    def test_prepare_completion_kwargs_tool_choice(self, with_tools, tool_choice, expected_result, example_tool):
+        model = Model()
+        kwargs = {"messages": [{"role": "user", "content": [{"type": "text", "text": "Hello"}]}]}
+        if with_tools:
+            kwargs["tools_to_call_from"] = [example_tool]
+        if tool_choice is not ...:
+            kwargs["tool_choice"] = tool_choice
+
+        completion_kwargs = model._prepare_completion_kwargs(**kwargs)
+
+        if expected_result["has_tool_choice"]:
+            assert "tool_choice" in completion_kwargs
+            assert completion_kwargs["tool_choice"] == expected_result["value"]
+        else:
+            assert "tool_choice" not in completion_kwargs
+
     def test_get_json_schema_has_nullable_args(self):
         @tool
         def get_weather(location: str, celsius: bool | None = False) -> str:
