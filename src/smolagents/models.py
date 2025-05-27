@@ -323,6 +323,7 @@ class Model:
         tools_to_call_from: list[Tool] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
         convert_images_to_image_urls: bool = False,
+        tool_choice: str | dict | None = "required",  # Configurable tool_choice parameter
         **kwargs,
     ) -> dict[str, Any]:
         """
@@ -357,12 +358,12 @@ class Model:
 
         # Handle tools parameter
         if tools_to_call_from:
-            completion_kwargs.update(
-                {
-                    "tools": [get_tool_json_schema(tool) for tool in tools_to_call_from],
-                    "tool_choice": "required",
-                }
-            )
+            tools_config = {
+                "tools": [get_tool_json_schema(tool) for tool in tools_to_call_from],
+            }
+            if tool_choice is not None:
+                tools_config["tool_choice"] = tool_choice
+            completion_kwargs.update(tools_config)
 
         # Finally, use the passed-in kwargs to override all settings
         completion_kwargs.update(kwargs)
