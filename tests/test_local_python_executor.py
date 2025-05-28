@@ -1052,7 +1052,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
     def test_final_answer_accepts_kwarg_answer(self):
         code = "final_answer(answer=2)"
-        result, _ = evaluate_python_code(code, {"final_answer": (lambda x: 2 * x)}, state={})
+        result, _ = evaluate_python_code(code, {"final_answer": (lambda answer: 2 * answer)}, state={})
         assert result == 4
 
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
