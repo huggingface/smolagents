@@ -1221,15 +1221,11 @@ class ToolCallingAgent(MultiStepAgent):
             level=LogLevel.INFO,
         )
         if tool_name == "final_answer":
-            tool_keywords = dict()
-            if isinstance(tool_arguments, dict):
-                tool_keywords = tool_arguments.copy()
-                if "answer" in tool_arguments:
-                    answer = tool_keywords.pop("answer")
-                else:
-                    answer = tool_arguments
-            else:
-                answer = tool_arguments
+            answer = (
+                tool_arguments["answer"]
+                if isinstance(tool_arguments, dict) and "answer" in tool_arguments
+                else tool_arguments
+            )
             if isinstance(answer, str) and answer in self.state.keys():
                 # if the answer is a state variable, return the value
                 # State variables are not JSON-serializable (AgentImage, AgentAudio) so can't be passed as arguments to execute_tool_call
@@ -1240,7 +1236,7 @@ class ToolCallingAgent(MultiStepAgent):
                 )
             else:
                 # Allow arbitrary keywords
-                final_answer = self.execute_tool_call("final_answer", {"answer": answer, **tool_keywords})
+                final_answer = self.execute_tool_call("final_answer", tool_arguments)
                 self.logger.log(
                     Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
                     level=LogLevel.INFO,
