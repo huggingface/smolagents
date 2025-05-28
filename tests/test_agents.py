@@ -1123,6 +1123,34 @@ class TestToolCallingAgent:
         answer = agent.run("Fake task.")
         assert answer == "2CUSTOM"
 
+    def test_custom_final_answer_with_custom_inputs(self):
+        class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
+            inputs = {
+                "answer1": {"type": "string", "description": "First part of the answer."},
+                "answer2": {"type": "string", "description": "Second part of the answer."},
+            }
+
+            def forward(self, answer1: str, answer2: str) -> str:
+                return answer1 + "CUSTOM" + answer2
+
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role="assistant",
+            content=None,
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_0",
+                    type="function",
+                    function=ChatMessageToolCallDefinition(
+                        name="final_answer", arguments={"answer1": "1", "answer2": "2"}
+                    ),
+                )
+            ],
+        )
+        agent = ToolCallingAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
+        answer = agent.run("Fake task.")
+        assert answer == "1CUSTOM2"
+
 
 class TestCodeAgent:
     @pytest.mark.filterwarnings("ignore")  # Ignore FutureWarning for deprecated grammar parameter
@@ -1371,6 +1399,24 @@ class TestCodeAgent:
             )
         assert agent.additional_authorized_imports == ["matplotlib"]
         assert agent.executor_kwargs == {"max_print_outputs_length": 5_000}
+
+    def test_custom_final_answer_with_custom_inputs(self):
+        class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
+            inputs = {
+                "answer1": {"type": "string", "description": "First part of the answer."},
+                "answer2": {"type": "string", "description": "Second part of the answer."},
+            }
+
+            def forward(self, answer1: str, answer2: str) -> str:
+                return answer1 + "CUSTOM" + answer2
+
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role="assistant", content="Code:\n```py\nfinal_answer(answer1='1', answer2='2')\n```"
+        )
+        agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
+        answer = agent.run("Fake task.")
+        assert answer == "1CUSTOM2"
 
 
 class TestMultiAgents:
