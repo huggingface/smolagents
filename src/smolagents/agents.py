@@ -1239,7 +1239,8 @@ class ToolCallingAgent(MultiStepAgent):
                     level=LogLevel.INFO,
                 )
             else:
-                final_answer = self.execute_tool_call("final_answer", {"answer": answer, **tool_keywords}) # Allow arbitrary keywords
+                # Allow arbitrary keywords
+                final_answer = self.execute_tool_call("final_answer", {"answer": answer, **tool_keywords})
                 self.logger.log(
                     Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
                     level=LogLevel.INFO,
