@@ -884,24 +884,27 @@ class ToolCollection:
 
         Example with a Stdio MCP server:
         ```py
-        >>> from smolagents import ToolCollection, CodeAgent
+        >>> import os
+        >>> from smolagents import ToolCollection, CodeAgent, InferenceClientModel
         >>> from mcp import StdioServerParameters
 
+        >>> model = InferenceClientModel()
+
         >>> server_parameters = StdioServerParameters(
-        >>>     command="uv",
+        >>>     command="uvx",
         >>>     args=["--quiet", "pubmedmcp@0.1.3"],
         >>>     env={"UV_PYTHON": "3.12", **os.environ},
         >>> )
 
         >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
-        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
 
         Example with a Streamable HTTP MCP server:
         ```py
         >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
-        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
