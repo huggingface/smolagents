@@ -14,12 +14,15 @@
 # limitations under the License.
 
 
+import json
+
 import numpy as np
 import PIL.Image
 import pytest
+from pydantic import BaseModel, ValidationError
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.default_tools import FinalAnswerTool
+from smolagents.default_tools import FinalAnswerTool, PydanticFinalAnswerTool
 
 from .test_tools import ToolTesterMixin
 from .utils.markers import require_torch
@@ -54,3 +57,57 @@ class TestFinalAnswerTool(ToolTesterMixin):
             "image": {"answer": PIL.Image.open(shared_datadir / "000000039769.png").resize((512, 512))},
             "audio": {"answer": torch.Tensor(np.ones(3000))},
         }
+
+
+class TestPydanticFinalAnswerTool(ToolTesterMixin):
+    def setup_method(self):
+        class TestModel(BaseModel):
+            name: str
+            age: int
+            is_active: bool = True
+
+        self.output_model = TestModel
+        self.tool = PydanticFinalAnswerTool(output_model=self.output_model)
+        self.valid_dict = {"name": "John", "age": 30, "is_active": True}
+        self.valid_str = '{"name": "John", "age": 30, "is_active": true}'
+
+    def test_agent_type_output(self):
+        result = self.tool(self.valid_dict)
+        assert isinstance(result, self.output_model)
+        assert result.name == "John"
+        assert result.age == 30
+        assert result.is_active is True
+
+    def test_valid_str_input(self):
+        result = self.tool(self.valid_str)
+        assert isinstance(result, self.output_model)
+        assert result.name == "John"
+        assert result.age == 30
+        assert result.is_active is True
+
+    def test_invalid_dict_input(self):
+        invalid_dict = {"name": "John", "age": "not_an_integer"}
+        with pytest.raises(ValidationError) as exc_info:
+            self.tool(invalid_dict)
+        assert "age" in str(exc_info.value)
+
+    def test_invalid_str_input(self):
+        invalid_str = '{"name": "John", "age": 30, "is_active": true'
+        with pytest.raises(json.JSONDecodeError):
+            self.tool(invalid_str)
+
+    def test_invalid_type_input(self):
+        with pytest.raises(AssertionError) as exc_info:
+            self.tool(123)
+        assert "The answer must be a dictionary" in str(exc_info.value)
+
+    def test_missing_required_field(self):
+        invalid_dict = {"name": "John"}
+        with pytest.raises(ValidationError) as exc_info:
+            self.tool(invalid_dict)
+        assert "age" in str(exc_info.value)
+
+    def test_optional_field_default(self):
+        minimal_dict = {"name": "John", "age": 30}
+        result = self.tool(minimal_dict)
+        assert result.is_active is True

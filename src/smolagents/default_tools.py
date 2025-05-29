@@ -14,8 +14,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 from dataclasses import dataclass
 from typing import Any
+
+from pydantic import BaseModel
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -85,6 +88,26 @@ class FinalAnswerTool(Tool):
 
     def forward(self, answer: Any) -> Any:
         return answer
+
+
+class PydanticFinalAnswerTool(Tool):
+    name = "final_answer"
+    inputs = {"answer": {"type": "any", "description": "The final answer to the problem"}}
+    output_type = "any"
+
+    def __init__(self, output_model: BaseModel):
+        super().__init__()
+        self.output_model = output_model
+        schema = self.output_model.model_json_schema()
+        self.description = f"Provides a final answer to the given problem. The answer must be a valid dictionary (or a string that can be parsed as a dictionary) with the following Pydantic like schema: {schema}."
+
+    def forward(self, answer: Any) -> Any:
+        if isinstance(answer, str):
+            answer = json.loads(answer)
+        assert isinstance(answer, dict), "The answer must be a dictionary"
+
+        # Validate the answer, will raise a ValidationError if the answer is not a valid output_model and the agent will correct its answer
+        return self.output_model(**answer)
 
 
 class UserInputTool(Tool):

@@ -34,6 +34,7 @@ import jinja2
 import yaml
 from huggingface_hub import create_repo, metadata_update, snapshot_download, upload_folder
 from jinja2 import StrictUndefined, Template
+from pydantic import BaseModel
 from rich.console import Group
 from rich.live import Live
 from rich.markdown import Markdown
@@ -46,7 +47,7 @@ if TYPE_CHECKING:
     import PIL.Image
 
 from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
-from .default_tools import TOOL_MAPPING, FinalAnswerTool
+from .default_tools import TOOL_MAPPING, FinalAnswerTool, PydanticFinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import (
     ActionStep,
@@ -225,6 +226,7 @@ class MultiStepAgent(ABC):
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
         provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
         final_answer_checks (`list`, *optional*): List of Callables to run before returning a final answer for checking validity.
+        output_model (`BaseModel`, *optional*): Pydantic model to parse the agent's output.
     """
 
     def __init__(
@@ -245,6 +247,7 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
+        output_model: BaseModel | None = None,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -278,7 +281,7 @@ class MultiStepAgent(ABC):
         self.return_full_result = return_full_result
 
         self._setup_managed_agents(managed_agents)
-        self._setup_tools(tools, add_base_tools)
+        self._setup_tools(tools, add_base_tools, output_model)
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
         self.system_prompt = self.initialize_system_prompt()
@@ -309,7 +312,7 @@ class MultiStepAgent(ABC):
             )
             self.managed_agents = {agent.name: agent for agent in managed_agents}
 
-    def _setup_tools(self, tools, add_base_tools):
+    def _setup_tools(self, tools, add_base_tools, output_model: BaseModel | None = None):
         assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
@@ -320,7 +323,10 @@ class MultiStepAgent(ABC):
                     if name != "python_interpreter" or self.__class__.__name__ == "ToolCallingAgent"
                 }
             )
-        self.tools.setdefault("final_answer", FinalAnswerTool())
+        if output_model is not None:
+            self.tools.setdefault("final_answer", PydanticFinalAnswerTool(output_model))
+        else:
+            self.tools.setdefault("final_answer", FinalAnswerTool())
 
     def _validate_tools_and_managed_agents(self, tools, managed_agents):
         tool_and_managed_agent_names = [tool.name for tool in tools]
@@ -1140,6 +1146,7 @@ class ToolCallingAgent(MultiStepAgent):
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
+        output_model (`BaseModel`, *optional*): Pydantic model to parse the agent's output.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1149,6 +1156,7 @@ class ToolCallingAgent(MultiStepAgent):
         model: Callable[[list[dict[str, str]]], ChatMessage],
         prompt_templates: PromptTemplates | None = None,
         planning_interval: int | None = None,
+        output_model: BaseModel | None = None,
         **kwargs,
     ):
         prompt_templates = prompt_templates or yaml.safe_load(
@@ -1159,6 +1167,7 @@ class ToolCallingAgent(MultiStepAgent):
             model=model,
             prompt_templates=prompt_templates,
             planning_interval=planning_interval,
+            output_model=output_model,
             **kwargs,
         )
 
@@ -1378,6 +1387,7 @@ class CodeAgent(MultiStepAgent):
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
         grammar: dict[str, str] | None = None,
+        output_model: BaseModel | None = None,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
@@ -1400,6 +1410,7 @@ class CodeAgent(MultiStepAgent):
             prompt_templates=prompt_templates,
             grammar=grammar,
             planning_interval=planning_interval,
+            output_model=output_model,
             **kwargs,
         )
         self.stream_outputs = stream_outputs
