@@ -14,6 +14,7 @@
 # limitations under the License.
 import io
 import os
+import re
 import tempfile
 import uuid
 import warnings
@@ -667,6 +668,35 @@ class TestMultiStepAgent:
         with warnings.catch_warnings():
             warnings.simplefilter("error")  # Turn warnings into errors
             SimpleAgent(tools=[], model=MagicMock(), grammar=None, verbosity_level=LogLevel.DEBUG)
+
+    def test_system_prompt_property(self):
+        """Test that system_prompt property is read-only and calls initialize_system_prompt."""
+
+        class SimpleAgent(MultiStepAgent):
+            def initialize_system_prompt(self) -> str:
+                return "Test system prompt"
+
+            def step(self, memory_step: ActionStep) -> Generator[None]:
+                yield None
+
+        # Create a simple agent with mocked model
+        model = MagicMock()
+        agent = SimpleAgent(tools=[], model=model)
+
+        # Test reading the property works and calls initialize_system_prompt
+        assert agent.system_prompt == "Test system prompt"
+
+        # Test setting the property raises AttributeError with correct message
+        with pytest.raises(
+            AttributeError,
+            match=re.escape(
+                """The 'system_prompt' property is read-only. Use 'self.prompt_templates["system_prompt"]' instead."""
+            ),
+        ):
+            agent.system_prompt = "New system prompt"
+
+        # assert "read-only" in str(exc_info.value)
+        # assert "Use 'self.prompt_templates[\"system_prompt\"]' instead" in str(exc_info.value)
 
     def test_logs_display_thoughts_even_if_error(self):
         class FakeJsonModelNoCall(Model):

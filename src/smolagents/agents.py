@@ -281,7 +281,6 @@ class MultiStepAgent(ABC):
         self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
-        self.system_prompt = self.initialize_system_prompt()
         self.task: str | None = None
         self.memory = AgentMemory(self.system_prompt)
 
@@ -294,6 +293,16 @@ class MultiStepAgent(ABC):
         self.step_callbacks = step_callbacks if step_callbacks is not None else []
         self.step_callbacks.append(self.monitor.update_metrics)
         self.stream_outputs = False
+
+    @property
+    def system_prompt(self) -> str:
+        return self.initialize_system_prompt()
+
+    @system_prompt.setter
+    def system_prompt(self, value: str):
+        raise AttributeError(
+            """The 'system_prompt' property is read-only. Use 'self.prompt_templates["system_prompt"]' instead."""
+        )
 
     def _validate_name(self, name: str | None) -> str | None:
         if name is not None and not is_valid_name(name):
@@ -372,7 +381,6 @@ class MultiStepAgent(ABC):
 You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
 {str(additional_args)}."""
 
-        self.system_prompt = self.initialize_system_prompt()
         self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
         if reset:
             self.memory.reset()
