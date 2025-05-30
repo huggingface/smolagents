@@ -41,7 +41,12 @@ from smolagents.agents import (
     ToolCallingAgent,
     populate_template,
 )
-from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.default_tools import (
+    DuckDuckGoSearchTool,
+    FinalAnswerTool,
+    PythonInterpreterTool,
+    VisitWebpageTool,
+)
 from smolagents.memory import ActionStep, PlanningStep
 from smolagents.models import (
     ChatMessage,
@@ -577,6 +582,24 @@ nested_answer()
         assert "model_input_messages" in agent.memory.get_full_steps()[1]
         assert step_memory_dict["token_usage"]["total_tokens"] > 100
         assert step_memory_dict["timing"]["duration"] > 0.1
+
+        # Does not work with HuggingFaceTB/SmolLM2-360M-Instruct but works with a stronger model.
+        """
+        from pydantic import BaseModel
+
+        class TestModel(BaseModel):
+            result: int
+
+        agent = ToolCallingAgent(model=model, tools=[], max_steps=2, verbosity_level=10, output_model=TestModel)
+        result = agent.run("What is 6*7 ?")
+        assert isinstance(result, TestModel)
+        assert result.result == 42, f"Got {result}"
+
+        agent = CodeAgent(model=model, tools=[], max_steps=2, verbosity_level=10, output_model=TestModel)
+        result = agent.run("What is 6*7 ?")
+        assert isinstance(result, TestModel)
+        assert result.result == 42, f"Got {result}"
+        """
 
     def test_final_answer_checks(self):
         def check_always_fails(final_answer, agent_memory):
@@ -1151,6 +1174,110 @@ class TestToolCallingAgent:
         answer = agent.run("Fake task.")
         assert answer == "1CUSTOM2"
 
+    def test_pydantic_final_answer(self):
+        from pydantic import BaseModel
+
+        class TestModel(BaseModel):
+            text: str
+            result: int
+            is_active: bool = True
+
+        class FakeToolCallModel(Model):
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                if len(messages) < 3:
+                    # First call: Calculate and return structured result
+                    return ChatMessage(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_0",
+                                type="function",
+                                function=ChatMessageToolCallDefinition(
+                                    name="python_interpreter",
+                                    arguments={"code": "2 * 3.6452"},
+                                ),
+                            )
+                        ],
+                    )
+                else:
+                    # Second call: Return final answer in structured format
+                    return ChatMessage(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_1",
+                                type="function",
+                                function=ChatMessageToolCallDefinition(
+                                    name="final_answer",
+                                    arguments={"answer": {"text": "Calculation Result", "result": 7}},
+                                ),
+                            )
+                        ],
+                    )
+
+        # Test successful calculation and structured output
+        agent = ToolCallingAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeToolCallModel(),
+            max_steps=2,
+            output_model=TestModel,
+        )
+        result = agent.run("Calculate 2 * 3.6452 and return in structured format")
+        assert isinstance(result, TestModel)
+        assert result.text == "Calculation Result"
+        assert result.result == 7
+        assert result.is_active is True  # Default value
+
+        # Test error handling with structured output
+        class FakeToolCallModelError(Model):
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                if len(messages) < 3:
+                    # First call: Try to divide by zero
+                    return ChatMessage(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_0",
+                                type="function",
+                                function=ChatMessageToolCallDefinition(
+                                    name="python_interpreter",
+                                    arguments={"code": "1/0"},
+                                ),
+                            )
+                        ],
+                    )
+                else:
+                    # Second call: Return error in structured format
+                    return ChatMessage(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_1",
+                                type="function",
+                                function=ChatMessageToolCallDefinition(
+                                    name="final_answer",
+                                    arguments={"answer": {"text": "Error", "result": -1}},
+                                ),
+                            )
+                        ],
+                    )
+
+        agent = ToolCallingAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeToolCallModelError(),
+            max_steps=2,
+            output_model=TestModel,
+        )
+        result = agent.run("Try to divide by zero and return error in structured format")
+        assert isinstance(result, TestModel)
+        assert result.text == "Error"
+        assert result.result == -1
+        assert result.is_active is True  # Default value
+
 
 class TestCodeAgent:
     @pytest.mark.filterwarnings("ignore")  # Ignore FutureWarning for deprecated grammar parameter
@@ -1417,6 +1544,70 @@ class TestCodeAgent:
         agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
         answer = agent.run("Fake task.")
         assert answer == "1CUSTOM2"
+
+    def test_pydantic_final_answer(self):
+        from pydantic import BaseModel
+
+        class TestModel(BaseModel):
+            text: str
+            result: int
+            is_active: bool = True
+
+        class FakeCodeModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role="assistant",
+                    content="""
+Thought: I need to calculate something and return it in a structured format.
+Code:
+```py
+result = 2 * 3.6452
+final_answer({"answer": {"text": "Calculation Result", "result": int(result)}})
+```<end_code>
+""",
+                )
+
+        # Test successful calculation and structured output
+        agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModel(),
+            max_steps=2,
+            output_model=TestModel,
+        )
+        result = agent.run("Calculate 2 * 3.6452 and return in structured format")
+        assert isinstance(result, TestModel)
+        assert result.text == "Calculation Result"
+        assert result.result == 7  # int(2 * 3.6452)
+        assert result.is_active is True  # Default value
+
+        class FakeCodeModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role="assistant",
+                    content="""
+Thought: I need to return an error in a structured format.
+Code:
+```py
+try:
+    result = 1/0
+except Exception as e:
+    final_answer({"answer": {"text": "Error", "result": -1}})
+```<end_code>
+""",
+                )
+
+        # Test error handling with structured output
+        agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModel(),
+            output_model=TestModel,
+            max_steps=2,
+        )
+        result = agent.run("Try to divide by zero and return error in structured format")
+        assert isinstance(result, TestModel)
+        assert result.text == "Error"
+        assert result.result == -1
+        assert result.is_active is True  # Default value
 
 
 class TestMultiAgents:

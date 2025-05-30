@@ -17,6 +17,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from pydantic import BaseModel
+
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
     BASE_PYTHON_TOOLS,
@@ -85,6 +87,27 @@ class FinalAnswerTool(Tool):
 
     def forward(self, answer: Any) -> Any:
         return answer
+
+
+class PydanticFinalAnswerTool(Tool):
+    name = "final_answer"
+    output_type = "any"
+
+    def __init__(self, output_model: BaseModel):
+        self.output_model = output_model
+        schema = self.output_model.model_json_schema()["properties"]
+        self.final_schema = {
+            key: f"Instead of this string. Put a value of the type {value['type']}" for key, value in schema.items()
+        }
+
+        self.inputs = {"answer": {"type": "object", "description": "The final answer to the problem"}}
+        self.description = f"""The argument of final_answer is a dictionary: {{"answer": {self.final_schema}}}"""
+        super().__init__()
+
+    def forward(self, answer: dict) -> Any:
+        assert isinstance(answer, dict), f"The answer must be a dictionary: {{'answer': {self.final_schema}}}"
+        # Validate the answer, will raise a ValidationError if the answer is not a valid output_model and the agent will correct its answer
+        return self.output_model(**answer)
 
 
 class UserInputTool(Tool):
@@ -523,6 +546,7 @@ TOOL_MAPPING = {
 __all__ = [
     "PythonInterpreterTool",
     "FinalAnswerTool",
+    "PydanticFinalAnswerTool",
     "UserInputTool",
     "WebSearchTool",
     "DuckDuckGoSearchTool",
