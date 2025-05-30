@@ -351,22 +351,35 @@ class VisitWebpageTool(Tool):
     def forward(self, url: str) -> str:
         try:
             import re
-
+            import os
+            import tempfile
+            
             import requests
-            from markdownify import markdownify
+            from markitdown import MarkItDown
             from requests.exceptions import RequestException
+
+            md = MarkItDown()
+            
         except ImportError as e:
             raise ImportError(
-                "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
+                "You must install packages `markitdown` and `requests` to run this tool: for instance run `pip install markitdown[all] requests`."
             ) from e
         try:
             # Send a GET request to the URL with a 20-second timeout
             response = requests.get(url, timeout=20)
             response.raise_for_status()  # Raise an exception for bad status codes
 
-            # Convert the HTML content to Markdown
-            markdown_content = markdownify(response.text).strip()
+            # Save Content from requested url temporarily 
+            with tempfile.NamedTemporaryFile(mode="wb", delete=False) as temp_file:
+                temp_file.write(response.content)
+                temp_file_path = temp_file.name
 
+            # Convert content to markdown
+            markdown_content = md.convert_local(temp_file_path).text_content.strip()
+    
+            # Remove the temporary file
+            os.remove(temp_file_path)
+    
             # Remove multiple line breaks
             markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
 
@@ -511,12 +524,62 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+class FileReaderTool(Tool):
+    name = "file_reader"
+    description = "Reads a file. Supports various file formats."
+    inputs = {
+        "file_path": {
+            "type": "string",
+            "description": "The path to the file to read.",
+        }
+    }
+    output_type = "string"
+
+    def __init__(self, max_output_length: int = 40000):
+        super().__init__()
+        self.max_output_length = max_output_length
+
+    def _truncate_content(self, content: str, max_length: int) -> str:
+        if len(content) <= max_length:
+            return content
+        return (
+            content[: max_length // 2]
+            + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
+            + content[-max_length // 2 :]
+        )
+
+    def forward(self, file_path: str) -> str:
+        try:
+            from markitdown import MarkItDown
+        except ImportError as e:
+            raise ImportError(
+                "You must install package `markitdown` to run this tool: for instance run `pip install markitdown[all]`."
+            ) from e
+
+        try:
+            md = MarkItDown()
+            # Convert file content to markdown
+            markdown_content = md.convert_local(file_path).text_content.strip()
+            
+            # Remove multiple line breaks
+            import re
+            markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
+
+            return self._truncate_content(markdown_content, self.max_output_length)
+
+        except FileNotFoundError:
+            return f"Error: File not found at path '{file_path}'"
+        except Exception as e:
+            return f"An unexpected error occurred while reading the file: {str(e)}"
+
+
 TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
         PythonInterpreterTool,
         DuckDuckGoSearchTool,
         VisitWebpageTool,
+        FileReaderTool,
     ]
 }
 
@@ -530,4 +593,5 @@ __all__ = [
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
+    "FileReaderTool",
 ]
