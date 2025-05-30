@@ -279,9 +279,10 @@ class MultiStepAgent(ABC):
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks
         self.return_full_result = return_full_result
+        self.output_model = output_model
 
         self._setup_managed_agents(managed_agents)
-        self._setup_tools(tools, add_base_tools, output_model)
+        self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
         self.system_prompt = self.initialize_system_prompt()
@@ -312,7 +313,7 @@ class MultiStepAgent(ABC):
             )
             self.managed_agents = {agent.name: agent for agent in managed_agents}
 
-    def _setup_tools(self, tools, add_base_tools, output_model: BaseModel | None = None):
+    def _setup_tools(self, tools, add_base_tools):
         assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
@@ -323,8 +324,8 @@ class MultiStepAgent(ABC):
                     if name != "python_interpreter" or self.__class__.__name__ == "ToolCallingAgent"
                 }
             )
-        if output_model is not None:
-            self.tools.setdefault("final_answer", PydanticFinalAnswerTool(output_model))
+        if self.output_model is not None:
+            self.tools.setdefault("final_answer", PydanticFinalAnswerTool(self.output_model))
         else:
             self.tools.setdefault("final_answer", FinalAnswerTool())
 
@@ -494,7 +495,7 @@ You have been provided with these additional arguments, that you can access usin
         if final_answer is None and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task, images)
             yield action_step
-        yield FinalAnswerStep(handle_agent_output_types(final_answer))
+        yield FinalAnswerStep(handle_agent_output_types(final_answer, output_model=self.output_model))
 
     def _execute_step(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | FinalOutput]:
         self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)

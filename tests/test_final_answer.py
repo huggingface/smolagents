@@ -14,8 +14,6 @@
 # limitations under the License.
 
 
-import json
-
 import numpy as np
 import PIL.Image
 import pytest
@@ -68,8 +66,7 @@ class TestPydanticFinalAnswerTool(ToolTesterMixin):
 
         self.output_model = TestModel
         self.tool = PydanticFinalAnswerTool(output_model=self.output_model)
-        self.valid_dict = {"name": "John", "age": 30, "is_active": True}
-        self.valid_str = '{"name": "John", "age": 30, "is_active": true}'
+        self.valid_dict = {"answer": {"name": "John", "age": 30, "is_active": True}}
 
     def test_agent_type_output(self):
         result = self.tool(self.valid_dict)
@@ -78,23 +75,11 @@ class TestPydanticFinalAnswerTool(ToolTesterMixin):
         assert result.age == 30
         assert result.is_active is True
 
-    def test_valid_str_input(self):
-        result = self.tool(self.valid_str)
-        assert isinstance(result, self.output_model)
-        assert result.name == "John"
-        assert result.age == 30
-        assert result.is_active is True
-
     def test_invalid_dict_input(self):
-        invalid_dict = {"name": "John", "age": "not_an_integer"}
+        invalid_dict = {"answer": {"name": "John", "age": "not_an_integer"}}
         with pytest.raises(ValidationError) as exc_info:
-            self.tool(invalid_dict)
+            self.tool(**invalid_dict)
         assert "age" in str(exc_info.value)
-
-    def test_invalid_str_input(self):
-        invalid_str = '{"name": "John", "age": 30, "is_active": true'
-        with pytest.raises(json.JSONDecodeError):
-            self.tool(invalid_str)
 
     def test_invalid_type_input(self):
         with pytest.raises(AssertionError) as exc_info:
@@ -102,12 +87,12 @@ class TestPydanticFinalAnswerTool(ToolTesterMixin):
         assert "The answer must be a dictionary" in str(exc_info.value)
 
     def test_missing_required_field(self):
-        invalid_dict = {"name": "John"}
+        invalid_dict = {"answer": {"name": "John"}}
         with pytest.raises(ValidationError) as exc_info:
-            self.tool(invalid_dict)
+            self.tool(**invalid_dict)
         assert "age" in str(exc_info.value)
 
     def test_optional_field_default(self):
-        minimal_dict = {"name": "John", "age": 30}
-        result = self.tool(minimal_dict)
+        minimal_dict = {"answer": {"name": "John", "age": 30}}
+        result = self.tool(**minimal_dict)
         assert result.is_active is True

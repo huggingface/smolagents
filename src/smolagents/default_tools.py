@@ -14,7 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -92,20 +91,21 @@ class FinalAnswerTool(Tool):
 
 class PydanticFinalAnswerTool(Tool):
     name = "final_answer"
-    inputs = {"answer": {"type": "any", "description": "The final answer to the problem"}}
     output_type = "any"
 
     def __init__(self, output_model: BaseModel):
-        super().__init__()
         self.output_model = output_model
-        schema = self.output_model.model_json_schema()
-        self.description = f"Provides a final answer to the given problem. The answer must be a valid dictionary (or a string that can be parsed as a dictionary) with the following Pydantic like schema: {schema}."
+        schema = self.output_model.model_json_schema()["properties"]
+        self.final_schema = {
+            key: f"Instead of this string. Put a value of the type {value['type']}" for key, value in schema.items()
+        }
 
-    def forward(self, answer: Any) -> Any:
-        if isinstance(answer, str):
-            answer = json.loads(answer)
-        assert isinstance(answer, dict), "The answer must be a dictionary"
+        self.inputs = {"answer": {"type": "object", "description": "The final answer to the problem"}}
+        self.description = f"""The argument of final_answer is a dictionary: {{"answer": {self.final_schema}}}"""
+        super().__init__()
 
+    def forward(self, answer: dict) -> Any:
+        assert isinstance(answer, dict), f"The answer must be a dictionary: {{'answer': {self.final_schema}}}"
         # Validate the answer, will raise a ValidationError if the answer is not a valid output_model and the agent will correct its answer
         return self.output_model(**answer)
 
@@ -546,6 +546,7 @@ TOOL_MAPPING = {
 __all__ = [
     "PythonInterpreterTool",
     "FinalAnswerTool",
+    "PydanticFinalAnswerTool",
     "UserInputTool",
     "WebSearchTool",
     "DuckDuckGoSearchTool",

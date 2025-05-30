@@ -21,6 +21,7 @@ from io import BytesIO
 
 import PIL.Image
 import requests
+from pydantic import BaseModel
 
 from .utils import _is_package_available
 
@@ -259,7 +260,13 @@ def handle_agent_input_types(*args, **kwargs):
     return args, kwargs
 
 
-def handle_agent_output_types(output, output_type=None):
+def handle_agent_output_types(output, output_type=None, output_model: BaseModel | None = None):
+    if output_model is not None:
+        assert isinstance(output, output_model), (
+            f"Output must be a {output_model.__name__}. Got {type(output)}={output}."
+        )
+        return output
+
     if output_type in _AGENT_TYPE_MAPPING:
         # If the class has defined outputs, we can map directly according to the class definition
         decoded_outputs = _AGENT_TYPE_MAPPING[output_type](output)
