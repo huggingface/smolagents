@@ -1043,8 +1043,8 @@ class LiteLLMModel(ApiModel):
 
         response = self.client.completion(**completion_kwargs)
 
-        self._last_input_token_count = response.usage.prompt_tokens if response.usage is not None else 0
-        self._last_output_token_count = response.usage.completion_tokens if response.usage is not None else 0
+        self._last_input_token_count = response.usage.prompt_tokens
+        self._last_output_token_count = response.usage.completion_tokens
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
@@ -1467,8 +1467,8 @@ class OpenAIServerModel(ApiModel):
                 else:
                     yield ChatMessageStreamDelta(content=event.choices[0].delta.content)
             if event.usage:
-                self._last_input_token_count = event.usage.prompt_tokens
-                self._last_output_token_count = event.usage.completion_tokens
+                self._last_input_token_count = event.usage.prompt_tokens if response.usage is not None else 0
+                self._last_output_token_count = event.usage.completion_tokens if response.usage is not None else 0
                 yield ChatMessageStreamDelta(
                     content="",
                     token_usage=TokenUsage(
