@@ -61,7 +61,7 @@ system_prompt: |-
   Thought: I need to find and read the 1979 interview of Stanislaus Ulam with Martin Sherwin.
   Code:
   ```py
-  pages = search(query="1979 interview Stanislaus Ulam Martin Sherwin physicists Einstein")
+  pages = web_search(query="1979 interview Stanislaus Ulam Martin Sherwin physicists Einstein")
   print(pages)
   ```<end_code>
   Observation:
@@ -70,7 +70,7 @@ system_prompt: |-
   Thought: The query was maybe too restrictive and did not find any results. Let's try again with a broader query.
   Code:
   ```py
-  pages = search(query="1979 interview Stanislaus Ulam")
+  pages = web_search(query="1979 interview Stanislaus Ulam")
   print(pages)
   ```<end_code>
   Observation:
@@ -104,11 +104,11 @@ system_prompt: |-
   ---
   Task: "Which city has the highest population: Guangzhou or Shanghai?"
 
-  Thought: I need to get the populations for both cities and compare them: I will use the tool `search` to get the population of both cities.
+  Thought: I need to get the populations for both cities and compare them: I will use the tool `web_search` to get the population of both cities.
   Code:
   ```py
   for city in ["Guangzhou", "Shanghai"]:
-      print(f"Population {city}:", search(f"{city} population")
+      print(f"Population {city}:", web_search(f"{city} population")
   ```<end_code>
   Observation:
   Population Guangzhou: ['Guangzhou has a population of 15 million inhabitants as of 2021.']
@@ -123,10 +123,10 @@ system_prompt: |-
   ---
   Task: "What is the current age of the pope, raised to the power 0.36?"
 
-  Thought: I will use the tool `wiki` to get the age of the pope, and confirm that with a web search.
+  Thought: I will use the tool `wikipedia_search` to get the age of the pope, and confirm that with a web search.
   Code:
   ```py
-  pope_age_wiki = wiki(query="current pope age")
+  pope_age_wiki = wikipedia_search(query="current pope age")
   print("Pope age as per wikipedia:", pope_age_wiki)
   pope_age_search = web_search(query="current pope age")
   print("Pope age as per google search:", pope_age_search)
@@ -171,8 +171,8 @@ system_prompt: |-
   Here are the rules you should always follow to solve your task:
   1. Always provide a 'Thought:' sequence, and a 'Code:\n```py' sequence ending with '```<end_code>' sequence, else you will fail.
   2. Use only variables that you have defined!
-  3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wiki({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wiki(query="What is the place where James Bond lives?")'.
-  4. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
+  3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wikipedia_search({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wikipedia_search(query="What is the place where James Bond lives?")'.
+  4. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to web_search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
   5. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
   6. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
   7. Never create any notional variables in our code, as having these in your logs will derail you from the true variables.
