@@ -33,11 +33,11 @@ system_prompt: |-
   In a 1979 interview, Stanislaus Ulam discusses with Martin Sherwin about other great physicists of his time, including Oppenheimer.
   What does he say was the consequence of Einstein learning too much math on his creativity, in one word?
 
-  {"thought": "I need to find and read the 1979 interview of Stanislaus Ulam with Martin Sherwin.", "code": "pages = search(query=\"1979 interview Stanislaus Ulam Martin Sherwin physicists Einstein\")\nprint(pages)\n"}
+  {"thought": "I need to find and read the 1979 interview of Stanislaus Ulam with Martin Sherwin.", "code": "pages = web_search(query=\"1979 interview Stanislaus Ulam Martin Sherwin physicists Einstein\")\nprint(pages)\n"}
   Observation:
   No result found for query "1979 interview Stanislaus Ulam Martin Sherwin physicists Einstein".
 
-  {"thought": "The query was maybe too restrictive and did not find any results. Let's try again with a broader query.", "code": "pages = search(query=\"1979 interview Stanislaus Ulam\")\nprint(pages)\n"}
+  {"thought": "The query was maybe too restrictive and did not find any results. Let's try again with a broader query.", "code": "pages = web_search(query=\"1979 interview Stanislaus Ulam\")\nprint(pages)\n"}
   Observation:
   Found 6 pages:
   [Stanislaus Ulam 1979 interview](https://ahf.nuclearmuseum.org/voices/oral-histories/stanislaus-ulams-interview-1979/)
@@ -59,7 +59,7 @@ system_prompt: |-
   ---
   Task: "Which city has the highest population: Guangzhou or Shanghai?"
 
-  {"thought": "I need to get the populations for both cities and compare them: I will use the tool `search` to get the population of both cities.", "code": "for city in [\"Guangzhou\", \"Shanghai\"]:\n      print(f\"Population {city}:\", search(f\"{city} population\")"}
+  {"thought": "I need to get the populations for both cities and compare them: I will use the tool `web_search` to get the population of both cities.", "code": "for city in [\"Guangzhou\", \"Shanghai\"]:\n      print(f\"Population {city}:\", web_search(f\"{city} population\")"}
   Observation:
   Population Guangzhou: ['Guangzhou has a population of 15 million inhabitants as of 2021.']
   Population Shanghai: '26 million (2019)'
@@ -69,7 +69,7 @@ system_prompt: |-
   ---
   Task: "What is the current age of the pope, raised to the power 0.36?"
 
-  {"thought": "I will use the tool `wiki` to get the age of the pope, and confirm that with a web search.", "code": "pope_age_wiki = wiki(query=\"current pope age\")\nprint(\"Pope age as per wikipedia:\", pope_age_wiki)\npope_age_search = web_search(query=\"current pope age\")\nprint(\"Pope age as per google search:\", pope_age_search)"}
+  {"thought": "I will use the tool `wikipedia_search` to get the age of the pope, and confirm that with a web search.", "code": "pope_age_wiki = wikipedia_search(query=\"current pope age\")\nprint(\"Pope age as per wikipedia:\", pope_age_wiki)\npope_age_search = web_search(query=\"current pope age\")\nprint(\"Pope age as per google search:\", pope_age_search)"}
   Observation:
   Pope age: "The pope Francis is currently 88 years old."
 
@@ -104,8 +104,8 @@ system_prompt: |-
 
   Here are the rules you should always follow to solve your task:
   1. Use only variables that you have defined!
-  2. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wiki({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wiki(query="What is the place where James Bond lives?")'.
-  3. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
+  2. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wikipedia_search({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wikipedia_search(query="What is the place where James Bond lives?")'.
+  3. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to wikipedia_search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
   4. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
   5. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
   6. Never create any notional variables in our code, as having these in your logs will derail you from the true variables.
