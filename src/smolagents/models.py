@@ -603,25 +603,21 @@ class MLXModel(Model):
     def __init__(
         self,
         model_id: str,
-        tool_name_key: str = "name",
-        tool_arguments_key: str = "arguments",
         trust_remote_code: bool = False,
         **kwargs,
     ):
-        super().__init__(
-            flatten_messages_as_text=True, model_id=model_id, **kwargs
-        )  # mlx-lm doesn't support vision models
+        # mlx-lm doesn't support vision models
+        super().__init__(flatten_messages_as_text=True, model_id=model_id, **kwargs)
         if not _is_package_available("mlx_lm"):
             raise ModuleNotFoundError(
                 "Please install 'mlx-lm' extra to use 'MLXModel': `pip install 'smolagents[mlx-lm]'`"
             )
         import mlx_lm  # type: ignore
 
-        self.model_id = model_id
-        self.model, self.tokenizer = mlx_lm.load(model_id, tokenizer_config={"trust_remote_code": trust_remote_code})
+        self.model, self.tokenizer = mlx_lm.load(
+            self.model_id, tokenizer_config={"trust_remote_code": trust_remote_code}
+        )
         self.stream_generate = mlx_lm.stream_generate
-        self.tool_name_key = tool_name_key
-        self.tool_arguments_key = tool_arguments_key
         self.is_vlm = False  # mlx-lm doesn't support vision models
 
     def generate(
