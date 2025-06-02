@@ -4,7 +4,7 @@
 
 In this guided visit, you will learn how to build an agent, how to run it, and how to customize it to make it work better for your use-case.
 
-### Building your agent
+## Building your agent
 
 To initialize a minimal agent, you need at least these two arguments:
 
@@ -140,7 +140,7 @@ agent.run(
 
 The `AmazonBedrockServerModel` class provides native integration with Amazon Bedrock, allowing for direct API calls and comprehensive configuration.
 
-#### Basic Usage
+Basic Usage:
 
 ```python
 # !pip install smolagents[aws_sdk]
@@ -154,7 +154,7 @@ agent.run(
 )
 ```
 
-#### Advanced Configuration
+Advanced Configuration:
 
 ```python
 import boto3
@@ -192,7 +192,7 @@ agent.run(
 )
 ```
 
-#### Using LiteLLMModel
+Using LiteLLMModel:
 
 Alternatively, you can use `LiteLLMModel` with Bedrock models:
 
@@ -300,7 +300,7 @@ agent = ToolCallingAgent(tools=[], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
-### Inspecting an agent run
+## Inspecting an agent run
 
 Here are a few useful attributes to inspect what happened after a run:
 - `agent.logs` stores the fine-grained logs of the agent. At every step of the agent's run, everything gets stored in a dictionary that then is appended to `agent.logs`.
