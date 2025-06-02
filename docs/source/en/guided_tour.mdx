@@ -221,7 +221,46 @@ agent.run("Could you give me the 118th number in the Fibonacci sequence?")
 </hfoption>
 </hfoptions>
 
-#### CodeAgent and ToolCallingAgent
+## Advanced agent configuration
+
+### Customizing agent termination conditions
+
+By default, an agent continues running until it calls the `final_answer` function or reaches the maximum number of steps.
+The `final_answer_checks` parameter gives you more control over when and how an agent terminates its execution:
+
+```python
+from smolagents import CodeAgent, InferenceClientModel
+
+# Define a custom final answer check function
+def is_integer(final_answer: str, agent_memory=None) -> bool:
+    """Return True if final_answer is an integer."""
+    try:
+        int(final_answer)
+        return True
+    except ValueError:
+        return False
+
+# Initialize agent with custom final answer check
+agent = CodeAgent(
+    tools=[],
+    model=InferenceClientModel(),
+    final_answer_checks=[is_integer]
+)
+
+agent.run("Calculate the least common multiple of 3 and 7")
+```
+
+The `final_answer_checks` parameter accepts a list of functions that each:
+- Take the agent's final_answer string the agent's memory as parameters
+- Return a boolean indicating whether the final_answer is valid (True) or not (False)
+
+If any function returns `False`, the agent will log the error message and continue the run.
+This validation mechanism enables:
+- Enforcing output format requirements (e.g., ensuring numeric answers for math problems)
+- Implementing domain-specific validation rules
+- Creating more robust agents that validate their own outputs
+
+## CodeAgent and ToolCallingAgent
 
 `smolagents` comes with two agent classes: [`CodeAgent`] and [`ToolCallingAgent`]. `CodeAgent` is the default and writes Python code snippets that are then executed, while `ToolCallingAgent` outputs JSON tool calls. Both share the same interface so you can pick whichever style you prefer.
 
