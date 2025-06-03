@@ -185,7 +185,7 @@ def test_get_source_ipython_errors_type_error():
     "tool, expected_tool_source", [(ValidTool(), VALID_TOOL_SOURCE), (valid_tool_function, VALID_TOOL_FUNCTION_SOURCE)]
 )
 def test_instance_to_source(tool, expected_tool_source):
-    tool_source = tool.instance_to_source()
+    tool_source = tool.to_source()
     assert tool_source == expected_tool_source
 
 

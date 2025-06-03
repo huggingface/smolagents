@@ -284,7 +284,7 @@ class Tool:
 
             validate_tool_attributes(self.__class__)
 
-            tool_code = "from typing import Any, Optional\n" + self.instance_to_source()
+            tool_code = "from typing import Any, Optional\n" + self.to_source()
 
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
@@ -696,7 +696,7 @@ class Tool:
 
         return LangChainToolWrapper(langchain_tool)
 
-    def instance_to_source(self):
+    def to_source(self):
         """Convert an instance to its class source code representation."""
         cls = self.__class__
         class_name = cls.__name__
@@ -1272,7 +1272,7 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     tool_codes = []
     for tool in tools.values():
         validate_tool_attributes(tool.__class__, check_imports=False)
-        tool_code = tool.instance_to_source()
+        tool_code = tool.to_source()
         tool_code = tool_code.replace("from smolagents.tools import Tool", "")
         tool_code += f"\n\n{tool.name} = {tool.__class__.__name__}()\n"
         tool_codes.append(tool_code)
