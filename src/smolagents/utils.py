@@ -331,7 +331,7 @@ def instance_to_source(instance, base_cls=None):
 
     # Add methods
     methods = {
-        name: getattr(cls, name, None)
+        name: func.__wrapped__ if hasattr(func, "__wrapped__") else func
         for name, func in cls.__dict__.items()
         if callable(func)
         and (
