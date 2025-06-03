@@ -21,7 +21,7 @@ import pytest
 from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
-from smolagents.tools import instance_to_source, tool
+from smolagents.tools import tool
 from smolagents.utils import get_source, is_valid_name, parse_code_blobs, parse_json_blob
 
 
@@ -185,7 +185,7 @@ def test_get_source_ipython_errors_type_error():
     "tool, expected_tool_source", [(ValidTool(), VALID_TOOL_SOURCE), (valid_tool_function, VALID_TOOL_FUNCTION_SOURCE)]
 )
 def test_instance_to_source(tool, expected_tool_source):
-    tool_source = instance_to_source(tool)
+    tool_source = tool.instance_to_source()
     assert tool_source == expected_tool_source
 
 
