@@ -284,7 +284,7 @@ class Tool:
 
             validate_tool_attributes(self.__class__)
 
-            tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
+            tool_code = "from typing import Any, Optional\n" + instance_to_source(self)
 
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
@@ -1189,7 +1189,7 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     tool_codes = []
     for tool in tools.values():
         validate_tool_attributes(tool.__class__, check_imports=False)
-        tool_code = instance_to_source(tool, base_cls=Tool)
+        tool_code = instance_to_source(tool)
         tool_code = tool_code.replace("from smolagents.tools import Tool", "")
         tool_code += f"\n\n{tool.name} = {tool.__class__.__name__}()\n"
         tool_codes.append(tool_code)
@@ -1211,7 +1211,7 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     return tool_definition_code
 
 
-def instance_to_source(instance, base_cls=None):
+def instance_to_source(instance, base_cls=Tool):
     """Convert an instance to its class source code representation."""
     cls = instance.__class__
     class_name = cls.__name__
