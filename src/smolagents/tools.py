@@ -696,7 +696,7 @@ class Tool:
 
         return LangChainToolWrapper(langchain_tool)
 
-    def to_source(self):
+    def to_source(self, import_smolagents: bool = True) -> str:
         """Convert an instance to its class source code representation."""
         cls = self.__class__
         class_name = cls.__name__
@@ -765,7 +765,8 @@ class Tool:
         final_lines = []
 
         # Add base class import if needed
-        final_lines.append("from smolagents.tools import Tool")
+        if import_smolagents:
+            final_lines.append("from smolagents.tools import Tool")
 
         # Add discovered imports
         for package in required_imports:
@@ -1272,8 +1273,7 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     tool_codes = []
     for tool in tools.values():
         validate_tool_attributes(tool.__class__, check_imports=False)
-        tool_code = tool.to_source()
-        tool_code = tool_code.replace("from smolagents.tools import Tool", "")
+        tool_code = tool.to_source(import_smolagents=False)
         tool_code += f"\n\n{tool.name} = {tool.__class__.__name__}()\n"
         tool_codes.append(tool_code)
 
