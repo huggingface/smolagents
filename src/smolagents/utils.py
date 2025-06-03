@@ -338,8 +338,7 @@ def instance_to_source(instance, base_cls=None):
             not base_cls
             or not hasattr(base_cls, name)
             or (
-                isinstance(func, staticmethod)
-                or isinstance(func, classmethod)
+                isinstance(func, (staticmethod, classmethod))
                 or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code)
             )
         )
