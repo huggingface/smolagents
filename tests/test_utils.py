@@ -21,8 +21,8 @@ import pytest
 from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
-from smolagents.tools import tool
-from smolagents.utils import get_source, instance_to_source, is_valid_name, parse_code_blobs, parse_json_blob
+from smolagents.tools import instance_to_source, tool
+from smolagents.utils import get_source, is_valid_name, parse_code_blobs, parse_json_blob
 
 
 class ValidTool(Tool):

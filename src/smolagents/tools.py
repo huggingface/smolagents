@@ -49,11 +49,21 @@ from ._function_type_hints_utils import (
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source, is_valid_name
+from .utils import BASE_BUILTIN_MODULES, ImportFinder, _is_package_available, get_source, is_valid_name
 
 
 if TYPE_CHECKING:
     import mcp
+
+
+__all__ = [
+    "AUTHORIZED_TYPES",
+    "Tool",
+    "tool",
+    "load_tool",
+    "launch_gradio_demo",
+    "ToolCollection",
+]
 
 
 logger = logging.getLogger(__name__)
@@ -1201,11 +1211,91 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     return tool_definition_code
 
 
-__all__ = [
-    "AUTHORIZED_TYPES",
-    "Tool",
-    "tool",
-    "load_tool",
-    "launch_gradio_demo",
-    "ToolCollection",
-]
+def instance_to_source(instance, base_cls=None):
+    """Convert an instance to its class source code representation."""
+    cls = instance.__class__
+    class_name = cls.__name__
+
+    # Start building class lines
+    class_lines = []
+    if base_cls:
+        class_lines.append(f"class {class_name}({base_cls.__name__}):")
+    else:
+        class_lines.append(f"class {class_name}:")
+
+    # Add docstring if it exists and differs from base
+    if cls.__doc__ and (not base_cls or cls.__doc__ != base_cls.__doc__):
+        class_lines.append(f'    """{cls.__doc__}"""')
+
+    # Add class-level attributes
+    class_attrs = {
+        name: value
+        for name, value in cls.__dict__.items()
+        if not name.startswith("__")
+        and not callable(value)
+        and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
+    }
+
+    for name, value in class_attrs.items():
+        if isinstance(value, str):
+            # multiline value
+            if "\n" in value:
+                escaped_value = value.replace('"""', r"\"\"\"")  # Escape triple quotes
+                class_lines.append(f'    {name} = """{escaped_value}"""')
+            else:
+                class_lines.append(f"    {name} = {json.dumps(value)}")
+        else:
+            class_lines.append(f"    {name} = {repr(value)}")
+
+    if class_attrs:
+        class_lines.append("")
+
+    # Add methods
+    methods = {
+        name: func.__wrapped__ if hasattr(func, "__wrapped__") else func
+        for name, func in cls.__dict__.items()
+        if callable(func)
+        and (
+            not base_cls
+            or not hasattr(base_cls, name)
+            or (
+                isinstance(func, (staticmethod, classmethod))
+                or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code)
+            )
+        )
+    }
+
+    for name, method in methods.items():
+        method_source = get_source(method)
+        # Clean up the indentation
+        method_lines = method_source.split("\n")
+        first_line = method_lines[0]
+        indent = len(first_line) - len(first_line.lstrip())
+        method_lines = [line[indent:] for line in method_lines]
+        method_source = "\n".join(["    " + line if line.strip() else line for line in method_lines])
+        class_lines.append(method_source)
+        class_lines.append("")
+
+    # Find required imports using ImportFinder
+    import_finder = ImportFinder()
+    import_finder.visit(ast.parse("\n".join(class_lines)))
+    required_imports = import_finder.packages
+
+    # Build final code with imports
+    final_lines = []
+
+    # Add base class import if needed
+    if base_cls:
+        final_lines.append(f"from {base_cls.__module__} import {base_cls.__name__}")
+
+    # Add discovered imports
+    for package in required_imports:
+        final_lines.append(f"import {package}")
+
+    if final_lines:  # Add empty line after imports
+        final_lines.append("")
+
+    # Add the class code
+    final_lines.extend(class_lines)
+
+    return "\n".join(final_lines)
