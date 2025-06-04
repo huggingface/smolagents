@@ -357,6 +357,9 @@ class GradioUI:
             gr.Button(interactive=False),
         )
 
+    def clear_memory(self):
+        self.agent.memory.reset()
+
     def launch(self, share: bool = True, **kwargs):
         self.create_app().launch(debug=True, share=share, **kwargs)
 
@@ -417,6 +420,9 @@ class GradioUI:
                     {"left": r"\(", "right": r"\)", "display": False},
                 ],
             )
+
+            # Clear the agent memory also
+            chatbot.clear(self.clear_memory)
 
             # Set up event handlers
             text_input.submit(
