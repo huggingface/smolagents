@@ -434,16 +434,21 @@ class WebAssemblyExecutor(RemotePythonExecutor):
 
         # Default minimal permissions needed
         if deno_permissions is None:
-            # TODO: Set minimal permissions
-            self.deno_permissions = [
-                # --allow-net=cdn.jsdelivr.net,0.0.0.0:8000;
-                # --allow-net=pypi.org,files.pythonhosted.org;  # allow fetch pyodide packages from PyPI
-                "--allow-net",  # allow fetch pyodide packages & server
-                "--allow-read",  # grant read access for pyodide packages
-                "--allow-write",  # grant write access for pyodide packages
+            # Use minimal permissions for Deno execution
+            home_dir = os.getenv("HOME")
+            deno_permissions = [
+                "allow-net="
+                + ",".join(
+                    [
+                        "0.0.0.0:8000",  # allow requests to the local server
+                        "cdn.jsdelivr.net:443",  # allow loading pyodide packages
+                        "pypi.org:443,files.pythonhosted.org:443",  # allow pyodide install packages from PyPI
+                    ]
+                ),
+                f"allow-read={home_dir}/.cache/deno",
+                f"allow-write={home_dir}/.cache/deno",
             ]
-        else:
-            self.deno_permissions = [f"--{perm}" for perm in deno_permissions]
+        self.deno_permissions = [f"--{perm}" for perm in deno_permissions]
 
         # Create the Deno JavaScript runner file
         self._create_deno_runner()
