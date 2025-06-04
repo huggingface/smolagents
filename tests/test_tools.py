@@ -618,6 +618,43 @@ class TestToolCollection:
             assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
             assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
 
+    def test_integration_from_mcp_with_streamable_http(self):
+        import subprocess
+        import time
+
+        # define the most simple mcp server with one tool that echoes the input text
+        mcp_server_script = dedent("""\
+            from mcp.server.fastmcp import FastMCP
+
+            mcp = FastMCP("Echo Server", host="127.0.0.1", port=8000)
+
+            @mcp.tool()
+            def echo_tool(text: str) -> str:
+                return text
+
+            mcp.run(transport="streamable-http")
+        """).strip()
+
+        # start the SSE mcp server in a subprocess
+        server_process = subprocess.Popen(
+            ["python", "-c", mcp_server_script],
+        )
+
+        # wait for the server to start
+        time.sleep(1)
+
+        try:
+            with ToolCollection.from_mcp(
+                {"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True
+            ) as tool_collection:
+                assert len(tool_collection.tools) == 1, "Expected 1 tool"
+                assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
+                assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
+        finally:
+            # clean up the process when test is done
+            server_process.kill()
+            server_process.wait()
+
     def test_integration_from_mcp_with_sse(self):
         import subprocess
         import time
@@ -645,7 +682,7 @@ class TestToolCollection:
 
         try:
             with ToolCollection.from_mcp(
-                {"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True
+                {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}, trust_remote_code=True
             ) as tool_collection:
                 assert len(tool_collection.tools) == 1, "Expected 1 tool"
                 assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"

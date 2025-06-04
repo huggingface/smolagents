@@ -129,7 +129,7 @@ Note that we gave this agent attributes `name` and `description`, mandatory attr
 
 Then we create a manager agent, and upon initialization we pass our managed agent to it in its `managed_agents` argument.
 
-Since this agent is the one tasked with the planning and thinking, advanced reasoning will be beneficial, so a `CodeAgent` will be the best choice.
+Since this agent is the one tasked with the planning and thinking, advanced reasoning will be beneficial, so a `CodeAgent` will work well.
 
 Also, we want to ask a question that involves the current year and does additional data calculations: so let us add `additional_authorized_imports=["time", "numpy", "pandas"]`, just in case the agent needs these packages.
 

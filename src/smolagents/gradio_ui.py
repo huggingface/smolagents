@@ -410,6 +410,12 @@ class GradioUI:
                 ),
                 resizeable=True,
                 scale=1,
+                latex_delimiters=[
+                    {"left": r"$$", "right": r"$$", "display": True},
+                    {"left": r"$", "right": r"$", "display": False},
+                    {"left": r"\[", "right": r"\]", "display": True},
+                    {"left": r"\(", "right": r"\)", "display": False},
+                ],
             )
 
             # Set up event handlers

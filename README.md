@@ -42,7 +42,7 @@ limitations under the License.
 
 👁️ **Modality-agnostic**: Agents support text, vision, video, even audio inputs! Cf [this tutorial](https://huggingface.co/docs/smolagents/examples/web_browser) for vision.
 
-🛠️ **Tool-agnostic**: you can use tools from [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), [MCP](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), you can even use a [Hub Space](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space) as a tool.
+🛠️ **Tool-agnostic**: you can use tools from any [MCP server](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), from [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), you can even use a [Hub Space](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space) as a tool.
 
 Full documentation can be found [here](https://huggingface.co/docs/smolagents/index).
 
@@ -102,7 +102,7 @@ model = LiteLLMModel(
 ```
 </details>
 <details>
-<summary> <b>OpenAI-compatible servers</b></summary>
+<summary> <b>OpenAI-compatible servers: Together AI</b></summary>
 
 ```py
 import os
@@ -114,6 +114,21 @@ model = OpenAIServerModel(
     api_key=os.environ["TOGETHER_API_KEY"], # Switch to the API key for the server you're targeting.
 )
 ```
+</details>
+<details>
+<summary> <b>OpenAI-compatible servers: OpenRouter</b></summary>
+
+```py
+import os
+from smolagents import OpenAIServerModel
+
+model = OpenAIServerModel(
+    model_id="openai/gpt-4o",
+    api_base="https://openrouter.ai/api/v1", # Leave this blank to query OpenAI servers.
+    api_key=os.environ["OPENROUTER_API_KEY"], # Switch to the API key for the server you're targeting.
+)
+```
+
 </details>
 <details>
 <summary> <b>Local `transformers` model</b></summary>
@@ -215,7 +230,7 @@ Especially, since code execution can be a security concern (arbitrary code execu
   - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
   - a sandboxed environment using [E2B](https://e2b.dev/) or Docker (removes the risk to your own system).
 
-On top of this [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) class, we still support the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) that writes actions as JSON/text blobs. But we recommend always using `CodeAgent`.
+Alongside [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent), we also provide the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) which writes actions as JSON/text blobs. You can pick whichever style best suits your use case.
 
 ## How smol is this library?
 

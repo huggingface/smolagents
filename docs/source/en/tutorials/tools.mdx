@@ -7,13 +7,6 @@ Here, we're going to see advanced tool usage.
 > [!TIP]
 > If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
 
-- [Tools](#tools)
-    - [What is a tool, and how to build one?](#what-is-a-tool-and-how-to-build-one)
-    - [Share your tool to the Hub](#share-your-tool-to-the-hub)
-    - [Import a Space as a tool](#import-a-space-as-a-tool)
-    - [Use LangChain tools](#use-langchain-tools)
-    - [Manage your agent's toolbox](#manage-your-agents-toolbox)
-    - [Use a collection of tools](#use-a-collection-of-tools)
 
 ### What is a tool, and how to build one?
 
@@ -94,6 +87,91 @@ model_download_tool = load_tool(
     trust_remote_code=True
 )
 ```
+
+### Use tools from an MCP server
+
+Our `MCPClient` allows you to load tools from an MCP server, and gives you full control over the connection and tool management:
+
+For stdio-based MCP servers:
+```python
+from smolagents import MCPClient, CodeAgent
+from mcp import StdioServerParameters
+import os
+
+server_parameters = StdioServerParameters(
+    command="uvx",  # Using uvx ensures dependencies are available
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+with MCPClient(server_parameters) as tools:
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    agent.run("Please find the latest research on COVID-19 treatment.")
+```
+
+For Streamable HTTP-based MCP servers:
+```python
+from smolagents import MCPClient, CodeAgent
+
+with MCPClient({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}) as tools:
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
+
+You can also manually manage the connection lifecycle with the try...finally pattern:
+
+```python
+from smolagents import MCPClient, CodeAgent
+from mcp import StdioServerParameters
+import os
+
+# Initialize server parameters
+server_parameters = StdioServerParameters(
+    command="uvx",
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+# Manually manage the connection
+try:
+    mcp_client = MCPClient(server_parameters)
+    tools = mcp_client.get_tools()
+
+    # Use the tools with your agent
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    result = agent.run("What are the recent therapeutic approaches for Alzheimer's disease?")
+
+    # Process the result as needed
+    print(f"Agent response: {result}")
+finally:
+    # Always ensure the connection is properly closed
+    mcp_client.disconnect()
+```
+
+You can also connect to multiple MCP servers at once by passing a list of server parameters:
+```python
+from smolagents import MCPClient, CodeAgent
+from mcp import StdioServerParameters
+import os
+
+server_params1 = StdioServerParameters(
+    command="uvx",
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+server_params2 = {"url": "http://127.0.0.1:8000/sse"}
+
+with MCPClient([server_params1, server_params2]) as tools:
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    agent.run("Please analyze the latest research and suggest remedies for headaches.")
+```
+
+> [!WARNING]
+> **Security Warning:** Using MCP servers comes with security risks:
+> - **Trust is essential:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments. Malicious servers can execute harmful code on your machine.
+> - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
+> - **Streamable HTTP-based MCP servers** while the remote MCP servers will not be able to execute code on your machine, still proceed with caution.
 
 ### Import a Space as a tool
 
@@ -191,6 +269,42 @@ agent.run(
 
 You can leverage tool collections by using [`ToolCollection`]. It supports loading either a collection from the Hub or an MCP server tools.
 
+
+#### Tool Collection from any MCP server
+
+Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
+
+The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
+
+> [!WARNING]
+> **Security Warning:** The same security warnings mentioned for `MCPClient` apply when using `MCPClient` directly.
+
+
+For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
+```py
+from smolagents import ToolCollection, CodeAgent
+from mcp import StdioServerParameters
+
+server_parameters = StdioServerParameters(
+    command="uvx",
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], model=model, add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
+
+For Streamable HTTP-based MCP servers, simply pass a dict with parameters to `mcp.client.streamable_http.streamablehttp_client` and add the key `transport` with the value `"streamable-http"`:
+```py
+from smolagents import ToolCollection, CodeAgent
+
+with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
+
 #### Tool Collection from a collection in the Hub
 
 You can leverage it with the slug of the collection you want to use.
@@ -210,123 +324,3 @@ agent.run("Please draw me a picture of rivers and lakes.")
 
 To speed up the start, tools are loaded only if called by the agent.
 
-#### Tool Collection from any MCP server
-
-Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
-
-> [!WARNING]
-> **Security Warning:** Using MCP servers comes with security risks:
-> - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
-> - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
-> - **SSE-based MCP servers** while the remote MCP servers will not be able to execute code on your machine, still proceed with caution.
->
-> Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
-
-The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
-
-For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
-```py
-from smolagents import ToolCollection, CodeAgent
-from mcp import StdioServerParameters
-
-server_parameters = StdioServerParameters(
-    command="uvx",
-    args=["--quiet", "pubmedmcp@0.1.3"],
-    env={"UV_PYTHON": "3.12", **os.environ},
-)
-
-with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
-    agent = CodeAgent(tools=[*tool_collection.tools], model=model, add_base_tools=True)
-    agent.run("Please find a remedy for hangover.")
-```
-
-For SSE-based MCP servers, simply pass a dict with parameters to `mcp.client.sse.sse_client`:
-```py
-from smolagents import ToolCollection, CodeAgent
-
-with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True) as tool_collection:
-    agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
-    agent.run("Please find a remedy for hangover.")
-```
-
-### Use MCP tools with MCPClient directly
-
-You can also work with MCP tools by using the `MCPClient` directly, which gives you more control over the connection and tool management:
-
-For stdio-based MCP servers:
-```python
-from smolagents import MCPClient, CodeAgent
-from mcp import StdioServerParameters
-import os
-
-server_parameters = StdioServerParameters(
-    command="uvx",  # Using uvx ensures dependencies are available
-    args=["--quiet", "pubmedmcp@0.1.3"],
-    env={"UV_PYTHON": "3.12", **os.environ},
-)
-
-with MCPClient(server_parameters) as tools:
-    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
-    agent.run("Please find the latest research on COVID-19 treatment.")
-```
-
-For SSE-based MCP servers:
-```python
-from smolagents import MCPClient, CodeAgent
-
-with MCPClient({"url": "http://127.0.0.1:8000/sse"}) as tools:
-    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
-    agent.run("Please find a remedy for hangover.")
-```
-
-You can also manually manage the connection lifecycle with the try...finally pattern:
-
-```python
-from smolagents import MCPClient, CodeAgent
-from mcp import StdioServerParameters
-import os
-
-# Initialize server parameters
-server_parameters = StdioServerParameters(
-    command="uvx",
-    args=["--quiet", "pubmedmcp@0.1.3"],
-    env={"UV_PYTHON": "3.12", **os.environ},
-)
-
-# Manually manage the connection
-try:
-    mcp_client = MCPClient(server_parameters)
-    tools = mcp_client.get_tools()
-
-    # Use the tools with your agent
-    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
-    result = agent.run("What are the recent therapeutic approaches for Alzheimer's disease?")
-
-    # Process the result as needed
-    print(f"Agent response: {result}")
-finally:
-    # Always ensure the connection is properly closed
-    mcp_client.disconnect()
-```
-
-You can also connect to multiple MCP servers at once by passing a list of server parameters:
-```python
-from smolagents import MCPClient, CodeAgent
-from mcp import StdioServerParameters
-import os
-
-server_params1 = StdioServerParameters(
-    command="uvx",
-    args=["--quiet", "pubmedmcp@0.1.3"],
-    env={"UV_PYTHON": "3.12", **os.environ},
-)
-
-server_params2 = {"url": "http://127.0.0.1:8000/sse"}
-
-with MCPClient([server_params1, server_params2]) as tools:
-    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
-    agent.run("Please analyze the latest research and suggest remedies for headaches.")
-```
-
-> [!WARNING]
-> **Security Warning:** The same security warnings mentioned for `ToolCollection.from_mcp` apply when using `MCPClient` directly.

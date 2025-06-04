@@ -40,9 +40,9 @@ Here is a video overview of how that works:
     />
 </div>
 
-We implement two versions of agents: 
-- [`CodeAgent`] is the preferred type of agent: it generates its tool calls as blobs of code.
-- [`ToolCallingAgent`] generates tool calls as a JSON in its output, as is commonly done in agentic frameworks. We incorporate this option because it can be useful in some narrow cases where you can do fine with only one tool call per step: for instance, for web browsing, you need to wait after each action on the page to monitor how the page changes.
+We implement two versions of agents:
+- [`CodeAgent`] generates its tool calls as Python code snippets.
+- [`ToolCallingAgent`] writes its tool calls as JSON, as is common in many frameworks. Depending on your needs, either approach can be used. For instance, web browsing often requires waiting after each page interaction, so JSON tool calls can fit well.
 
 > [!TIP]
 > Read [Open-source LLMs as LangChain Agents](https://huggingface.co/blog/open-source-llms-as-agents) blog post to learn more about multi-step agents.

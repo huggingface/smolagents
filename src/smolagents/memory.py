@@ -210,10 +210,9 @@ class AgentMemory:
                 Careful: will increase log length exponentially. Use only for debugging.
         """
         logger.console.log("Replaying the agent's steps:")
+        logger.log_markdown(title="System prompt", content=self.system_prompt.system_prompt, level=LogLevel.ERROR)
         for step in self.steps:
-            if isinstance(step, SystemPromptStep) and detailed:
-                logger.log_markdown(title="System prompt", content=step.system_prompt, level=LogLevel.ERROR)
-            elif isinstance(step, TaskStep):
+            if isinstance(step, TaskStep):
                 logger.log_task(step.task, "", level=LogLevel.ERROR)
             elif isinstance(step, ActionStep):
                 logger.log_rule(f"Step {step.step_number}", level=LogLevel.ERROR)

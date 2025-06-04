@@ -761,7 +761,8 @@ except ValueError as e:
         code = "type_a = float(2); type_b = str; type_c = int"
         state = {}
         result, is_final_answer = evaluate_python_code(code, {"float": float, "str": str, "int": int}, state=state)
-        assert result is int
+        # Result is wrapped by safer_func
+        assert result.__wrapped__ is int
 
     def test_tuple_id(self):
         code = """
@@ -1052,7 +1053,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
     def test_final_answer_accepts_kwarg_answer(self):
         code = "final_answer(answer=2)"
-        result, _ = evaluate_python_code(code, {"final_answer": (lambda x: 2 * x)}, state={})
+        result, _ = evaluate_python_code(code, {"final_answer": (lambda answer: 2 * answer)}, state={})
         assert result == 4
 
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
@@ -1133,7 +1134,9 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         assert result == (5, "test")
         assert isinstance(state["TestClass"], type)
-        assert state["TestClass"].__annotations__ == {"x": int, "y": str}
+        # Values are wrapped by safer_func
+        annotations = {key: value.__wrapped__ for key, value in state["TestClass"].__annotations__.items()}
+        assert annotations == {"x": int, "y": str}
         assert state["TestClass"].x == 5
         assert state["TestClass"].y == "test"
         assert isinstance(state["instance"], state["TestClass"])
@@ -1187,7 +1190,9 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         assert result == ("value", ["b", 30])
         assert isinstance(state["TestClass"], type)
-        assert state["TestClass"].__annotations__ == {"key_data": dict, "index_data": list}
+        # Values are wrapped by safer_func
+        annotations = {key: value.__wrapped__ for key, value in state["TestClass"].__annotations__.items()}
+        assert annotations == {"key_data": dict, "index_data": list}
         assert state["TestClass"].key_data == {"key": "value"}
         assert state["TestClass"].index_data == ["a", "b", 30]
 
@@ -2075,6 +2080,7 @@ class TestLocalPythonExecutorSecurity:
                 ["threading"],
                 InterpreterError("Forbidden access to module: sys"),
             ),
+            ("import warnings; warnings.sys", ["warnings"], InterpreterError("Forbidden access to module: sys")),
             # Allowed
             ("import pandas; pandas.io", ["pandas", "pandas.io"], None),
         ],
@@ -2086,6 +2092,55 @@ class TestLocalPythonExecutorSecurity:
             if isinstance(expected_error, Exception)
             else does_not_raise()
         ):
+            executor(code)
+
+    @pytest.mark.parametrize(
+        "code, additional_authorized_imports, expected_error",
+        [
+            # Using filter with functools.partial
+            (
+                dedent(
+                    """
+                    import functools
+                    import warnings
+                    list(filter(functools.partial(getattr, warnings), ["sys"]))
+                    """
+                ),
+                ["warnings", "functools"],
+                InterpreterError("Forbidden access to module: sys"),
+            ),
+            # Using map
+            (
+                dedent(
+                    """
+                    import warnings
+                    list(map(getattr, [warnings], ["sys"]))
+                    """
+                ),
+                ["warnings"],
+                InterpreterError("Forbidden access to module: sys"),
+            ),
+            # Using map with functools.partial
+            (
+                dedent(
+                    """
+                    import functools
+                    import warnings
+                    list(map(functools.partial(getattr, warnings), ["sys"]))
+                    """
+                ),
+                ["warnings", "functools"],
+                InterpreterError("Forbidden access to module: sys"),
+            ),
+        ],
+    )
+    def test_vulnerability_via_submodules_through_indirect_attribute_access(
+        self, code, additional_authorized_imports, expected_error
+    ):
+        # warnings.sys
+        executor = LocalPythonExecutor(additional_authorized_imports)
+        executor.send_tools({})
+        with pytest.raises(type(expected_error), match=f".*{expected_error}"):
             executor(code)
 
     @pytest.mark.parametrize(

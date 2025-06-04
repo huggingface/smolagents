@@ -3,7 +3,13 @@ from textwrap import dedent
 
 import pytest
 
-from smolagents.default_tools import DuckDuckGoSearchTool, GoogleSearchTool, SpeechToTextTool, VisitWebpageTool
+from smolagents.default_tools import (
+    DuckDuckGoSearchTool,
+    GoogleSearchTool,
+    SpeechToTextTool,
+    VisitWebpageTool,
+    WebSearchTool,
+)
 from smolagents.tool_validation import MethodChecker, validate_tool_attributes
 from smolagents.tools import Tool, tool
 
@@ -11,7 +17,9 @@ from smolagents.tools import Tool, tool
 UNDEFINED_VARIABLE = "undefined_variable"
 
 
-@pytest.mark.parametrize("tool_class", [DuckDuckGoSearchTool, GoogleSearchTool, SpeechToTextTool, VisitWebpageTool])
+@pytest.mark.parametrize(
+    "tool_class", [DuckDuckGoSearchTool, GoogleSearchTool, SpeechToTextTool, VisitWebpageTool, WebSearchTool]
+)
 def test_validate_tool_attributes_with_default_tools(tool_class):
     assert validate_tool_attributes(tool_class) is None, f"failed for {tool_class.name} tool"
 
