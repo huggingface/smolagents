@@ -1256,6 +1256,7 @@ class ToolCallingAgent(MultiStepAgent):
             # Record model output
             memory_step.model_output_message = chat_message
             memory_step.model_output = model_output
+            memory_step.token_usage = chat_message.token_usage
         except Exception as e:
             raise AgentGenerationError(f"Error while generating output:\n{e}", self.logger) from e
 
@@ -1275,7 +1276,6 @@ class ToolCallingAgent(MultiStepAgent):
         tool_arguments = tool_call.function.arguments
         memory_step.model_output = str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}")
         memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
-        memory_step.token_usage = chat_message.token_usage
 
         # Execute
         self.logger.log(
