@@ -25,6 +25,7 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
@@ -1270,68 +1271,101 @@ class ToolCallingAgent(MultiStepAgent):
                 tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
         yield from self.process_tool_calls(chat_message, memory_step)
 
-    def process_tool_calls(self, chat_message, memory_step):
+    def process_tool_calls(self, chat_message: ChatMessage, memory_step: ActionStep):
+        """Process tool calls from the model output and update agent memory.
+
+        Args:
+            chat_message (`ChatMessage`): Chat message containing tool calls from the model.
+            memory_step (`ActionStep)`: Memory ActionStep to update with results.
+
+        Yields:
+            `FinalOutput`: The final output of tool execution.
+        """
         model_outputs = []
         tool_calls = []
         observations = []
+
+        final_answer_call = None
+        parallel_calls = []
         for tool_call in chat_message.tool_calls:
-            tool_name, tool_call_id = tool_call.function.name, tool_call.id
+            tool_name = tool_call.function.name
             tool_arguments = tool_call.function.arguments
             model_outputs.append(str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}"))
-            tool_calls.append(ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id))
+            tool_calls.append(ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call.id))
+            # Track final_answer separately, add others to parallel processing list
+            if tool_name == "final_answer":
+                final_answer_call = (tool_name, tool_arguments)
+                break  # Stop: final answer reached, no further tool calls
+            else:
+                parallel_calls.append((tool_name, tool_arguments))
 
-            # Execute
+        # Helper function to process a single tool call
+        def process_single_tool_call(call_info):
+            tool_name, tool_arguments = call_info
             self.logger.log(
                 Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
                 level=LogLevel.INFO,
             )
-            if tool_name == "final_answer":
-                answer = (
-                    tool_arguments["answer"]
-                    if isinstance(tool_arguments, dict) and "answer" in tool_arguments
-                    else tool_arguments
-                )
-                if isinstance(answer, str) and answer in self.state.keys():
-                    # if the answer is a state variable, return the value
-                    # State variables are not JSON-serializable (AgentImage, AgentAudio) so can't be passed as arguments to execute_tool_call
-                    final_answer = self.state[answer]
-                    self.logger.log(
-                        f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'.",
-                        level=LogLevel.INFO,
-                    )
-                else:
-                    # Allow arbitrary keywords
-                    final_answer = self.execute_tool_call("final_answer", tool_arguments)
-                    self.logger.log(
-                        Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
-                        level=LogLevel.INFO,
-                    )
-
-                memory_step.action_output = final_answer
-                yield FinalOutput(output=final_answer)
-                break  # Stop the generator: final answer reached, no further tool calls
+            if tool_arguments is None:
+                tool_arguments = {}
+            tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
+            tool_call_result_type = type(tool_call_result)
+            if tool_call_result_type in [AgentImage, AgentAudio]:
+                if tool_call_result_type == AgentImage:
+                    observation_name = "image.png"
+                elif tool_call_result_type == AgentAudio:
+                    observation_name = "audio.mp3"
+                # TODO: tool_call_result naming could allow for different names of same type
+                self.state[observation_name] = tool_call_result
+                observation = f"Stored '{observation_name}' in memory."
             else:
-                if tool_arguments is None:
-                    tool_arguments = {}
-                observation = self.execute_tool_call(tool_name, tool_arguments)
-                observation_type = type(observation)
-                if observation_type in [AgentImage, AgentAudio]:
-                    if observation_type == AgentImage:
-                        observation_name = "image.png"
-                    elif observation_type == AgentAudio:
-                        observation_name = "audio.mp3"
-                    # TODO: observation naming could allow for different names of same type
+                observation = str(tool_call_result).strip()
+            self.logger.log(
+                f"Observations: {observation.replace('[', '|')}",  # escape potential rich-tag-like components
+                level=LogLevel.INFO,
+            )
+            return observation
 
-                    self.state[observation_name] = observation
-                    updated_information = f"Stored '{observation_name}' in memory."
-                else:
-                    updated_information = str(observation).strip()
+        # Process non-final-answer tool calls in parallel
+        if parallel_calls:
+            with ThreadPoolExecutor() as executor:
+                futures = [executor.submit(process_single_tool_call, call_info) for call_info in parallel_calls]
+
+                for future in as_completed(futures):
+                    observations.append(future.result())
+                    yield FinalOutput(output=None)
+
+        # Process final_answer call if present
+        if final_answer_call:
+            tool_name, tool_arguments = final_answer_call
+            self.logger.log(
+                Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
+                level=LogLevel.INFO,
+            )
+            answer = (
+                tool_arguments["answer"]
+                if isinstance(tool_arguments, dict) and "answer" in tool_arguments
+                else tool_arguments
+            )
+            if isinstance(answer, str) and answer in self.state.keys():
+                # if the answer is a state variable, return the value
+                # State variables are not JSON-serializable (AgentImage, AgentAudio) so can't be passed as arguments to execute_tool_call
+                final_answer = self.state[answer]
                 self.logger.log(
-                    f"Observations: {updated_information.replace('[', '|')}",  # escape potential rich-tag-like components
+                    f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'.",
                     level=LogLevel.INFO,
                 )
-                observations.append(updated_information)
-                yield FinalOutput(output=None)
+            else:
+                # Allow arbitrary keywords
+                final_answer = self.execute_tool_call("final_answer", tool_arguments)
+                self.logger.log(
+                    Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
+                    level=LogLevel.INFO,
+                )
+            memory_step.action_output = final_answer
+            yield FinalOutput(output=final_answer)
+
+        # Update memory step with all results
         if model_outputs:
             memory_step.model_output = "\n".join(model_outputs)
         if tool_calls:
