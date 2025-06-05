@@ -1267,6 +1267,9 @@ class ToolCallingAgent(MultiStepAgent):
         else:
             for tool_call in chat_message.tool_calls:
                 tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+        yield from self.process_tool_calls(chat_message, memory_step)
+
+    def process_tool_calls(self, chat_message, memory_step):
         tool_call = chat_message.tool_calls[0]  # type: ignore
         tool_name, tool_call_id = tool_call.function.name, tool_call.id
         tool_arguments = tool_call.function.arguments
