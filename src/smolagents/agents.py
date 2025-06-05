@@ -1271,63 +1271,65 @@ class ToolCallingAgent(MultiStepAgent):
         yield from self.process_tool_calls(chat_message, memory_step)
 
     def process_tool_calls(self, chat_message, memory_step):
-        tool_call = chat_message.tool_calls[0]  # type: ignore
-        tool_name, tool_call_id = tool_call.function.name, tool_call.id
-        tool_arguments = tool_call.function.arguments
-        memory_step.model_output = str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}")
-        memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
+        for tool_call in chat_message.tool_calls:
+            tool_name, tool_call_id = tool_call.function.name, tool_call.id
+            tool_arguments = tool_call.function.arguments
+            # TODO: this is overwritten: create a list, then join with "\n"
+            memory_step.model_output = str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}")
+            memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
 
-        # Execute
-        self.logger.log(
-            Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
-            level=LogLevel.INFO,
-        )
-        if tool_name == "final_answer":
-            answer = (
-                tool_arguments["answer"]
-                if isinstance(tool_arguments, dict) and "answer" in tool_arguments
-                else tool_arguments
-            )
-            if isinstance(answer, str) and answer in self.state.keys():
-                # if the answer is a state variable, return the value
-                # State variables are not JSON-serializable (AgentImage, AgentAudio) so can't be passed as arguments to execute_tool_call
-                final_answer = self.state[answer]
-                self.logger.log(
-                    f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'.",
-                    level=LogLevel.INFO,
-                )
-            else:
-                # Allow arbitrary keywords
-                final_answer = self.execute_tool_call("final_answer", tool_arguments)
-                self.logger.log(
-                    Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
-                    level=LogLevel.INFO,
-                )
 
-            memory_step.action_output = final_answer
-            yield FinalOutput(output=final_answer)
-        else:
-            if tool_arguments is None:
-                tool_arguments = {}
-            observation = self.execute_tool_call(tool_name, tool_arguments)
-            observation_type = type(observation)
-            if observation_type in [AgentImage, AgentAudio]:
-                if observation_type == AgentImage:
-                    observation_name = "image.png"
-                elif observation_type == AgentAudio:
-                    observation_name = "audio.mp3"
-                # TODO: observation naming could allow for different names of same type
-
-                self.state[observation_name] = observation
-                updated_information = f"Stored '{observation_name}' in memory."
-            else:
-                updated_information = str(observation).strip()
+            # Execute
             self.logger.log(
-                f"Observations: {updated_information.replace('[', '|')}",  # escape potential rich-tag-like components
+                Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
                 level=LogLevel.INFO,
             )
-            memory_step.observations = updated_information
-            yield FinalOutput(output=None)
+            if tool_name == "final_answer":
+                answer = (
+                    tool_arguments["answer"]
+                    if isinstance(tool_arguments, dict) and "answer" in tool_arguments
+                    else tool_arguments
+                )
+                if isinstance(answer, str) and answer in self.state.keys():
+                    # if the answer is a state variable, return the value
+                    # State variables are not JSON-serializable (AgentImage, AgentAudio) so can't be passed as arguments to execute_tool_call
+                    final_answer = self.state[answer]
+                    self.logger.log(
+                        f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'.",
+                        level=LogLevel.INFO,
+                    )
+                else:
+                    # Allow arbitrary keywords
+                    final_answer = self.execute_tool_call("final_answer", tool_arguments)
+                    self.logger.log(
+                        Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
+                        level=LogLevel.INFO,
+                    )
+
+                memory_step.action_output = final_answer
+                yield FinalOutput(output=final_answer)
+            else:
+                if tool_arguments is None:
+                    tool_arguments = {}
+                observation = self.execute_tool_call(tool_name, tool_arguments)
+                observation_type = type(observation)
+                if observation_type in [AgentImage, AgentAudio]:
+                    if observation_type == AgentImage:
+                        observation_name = "image.png"
+                    elif observation_type == AgentAudio:
+                        observation_name = "audio.mp3"
+                    # TODO: observation naming could allow for different names of same type
+
+                    self.state[observation_name] = observation
+                    updated_information = f"Stored '{observation_name}' in memory."
+                else:
+                    updated_information = str(observation).strip()
+                self.logger.log(
+                    f"Observations: {updated_information.replace('[', '|')}",  # escape potential rich-tag-like components
+                    level=LogLevel.INFO,
+                )
+                memory_step.observations = updated_information
+                yield FinalOutput(output=None)
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
