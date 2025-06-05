@@ -1309,7 +1309,7 @@ class ToolCallingAgent(MultiStepAgent):
 
                 memory_step.action_output = final_answer
                 yield FinalOutput(output=final_answer)
-                return  # Stop the generator: final answer reached, no further tool calls
+                break  # Stop the generator: final answer reached, no further tool calls
             else:
                 if tool_arguments is None:
                     tool_arguments = {}
