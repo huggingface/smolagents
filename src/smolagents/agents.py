@@ -1271,13 +1271,14 @@ class ToolCallingAgent(MultiStepAgent):
         yield from self.process_tool_calls(chat_message, memory_step)
 
     def process_tool_calls(self, chat_message, memory_step):
+        model_outputs = []
+        tool_calls = []
+        observations = []
         for tool_call in chat_message.tool_calls:
             tool_name, tool_call_id = tool_call.function.name, tool_call.id
             tool_arguments = tool_call.function.arguments
-            # TODO: this is overwritten: create a list, then join with "\n"
-            memory_step.model_output = str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}")
-            memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
-
+            model_outputs.append(str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}"))
+            tool_calls.append(ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id))
 
             # Execute
             self.logger.log(
@@ -1328,8 +1329,14 @@ class ToolCallingAgent(MultiStepAgent):
                     f"Observations: {updated_information.replace('[', '|')}",  # escape potential rich-tag-like components
                     level=LogLevel.INFO,
                 )
-                memory_step.observations = updated_information
+                observations.append(updated_information)
                 yield FinalOutput(output=None)
+        if model_outputs:
+            memory_step.model_output = "\n".join(model_outputs)
+        if tool_calls:
+            memory_step.tool_calls = tool_calls
+        if observations:
+            memory_step.observations = "\n".join(observations)
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
