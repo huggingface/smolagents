@@ -45,7 +45,13 @@ from smolagents.agents import (
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
-from smolagents.memory import ActionStep, PlanningStep
+from smolagents.memory import (
+    ActionStep,
+    Message,
+    PlanningStep,
+    TaskStep,
+    Timing,
+)
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -55,7 +61,7 @@ from smolagents.models import (
     Model,
     TransformersModel,
 )
-from smolagents.monitoring import AgentLogger, LogLevel
+from smolagents.monitoring import AgentLogger, LogLevel, TokenUsage
 from smolagents.tools import Tool, tool
 from smolagents.utils import BASE_BUILTIN_MODULES, AgentExecutionError, AgentGenerationError, AgentToolCallError
 
@@ -215,6 +221,13 @@ final_answer(7.2904)
 ```<end_code>
 """,
             )
+class FakeCodeModelPlanning(Model):
+    def generate(self, messages, stop_sequences=None):
+        return ChatMessage(
+            role="assistant",
+            content= "llm plan",
+            token_usage=TokenUsage(input_tokens=10, output_tokens=10),
+        )
 
 
 class FakeCodeModelError(Model):
@@ -622,6 +635,30 @@ nested_answer()
             agent.run("Dummy task.")
         assert len(agent.memory.steps) == 2
         assert "Generation failed" in str(e)
+
+    def test_planning_step_with_injected_memory(self):
+        """Test that planning step uses update plan prompts when memory is injected before run."""
+        agent = CodeAgent(tools=[], planning_interval=1, model=FakeCodeModelPlanning())
+        task = "Continuous task"
+
+        # Inject memory before run
+        previous_step = TaskStep(task="Previous user request")
+        agent.memory.steps.append(previous_step)
+
+        # Run the agent
+        agent.run(task, reset=False)
+
+        # Verify that the planning step used update plan prompts
+        planning_steps = [step for step in agent.memory.steps if isinstance(step, PlanningStep)]
+        assert len(planning_steps) > 0
+
+        # Check that the planning step's model input messages contain the injected memory
+        planning_step = planning_steps[0]
+        assert len(planning_step.model_input_messages) == 3  # system message + memory messages + user message
+        assert planning_step.model_input_messages[0]["role"] == "system"
+        assert task in planning_step.model_input_messages[0]["content"][0]["text"]
+        assert planning_step.model_input_messages[1]["role"] == "user"
+        assert "Previous user request" in planning_step.model_input_messages[1]["content"][0]["text"]
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
@@ -1528,7 +1565,8 @@ class TestCodeAgent:
 
         model = MagicMock()
         model.generate.return_value = ChatMessage(
-            role="assistant", content="Code:\n```py\nfinal_answer(answer1='1', answer2='2')\n```"
+            role="assistant",
+            content="Code:\n```py\nfinal_answer(answer1='1', answer2='2')\n```"
         )
         agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
         answer = agent.run("Fake task.")
