@@ -536,18 +536,12 @@ class VLLMModel(Model):
         tools = completion_kwargs.pop("tools", None)
         completion_kwargs.pop("tool_choice", None)
 
-        if tools_to_call_from is not None:
-            prompt = self.tokenizer.apply_chat_template(
-                messages,
-                tools=tools,
-                add_generation_prompt=True,
-                tokenize=False,
-            )
-        else:
-            prompt = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-            )
+        prompt = self.tokenizer.apply_chat_template(
+            messages,
+            tools=tools,
+            add_generation_prompt=True,
+            tokenize=False,
+        )
 
         sampling_params = SamplingParams(
             n=kwargs.get("n", 1),
@@ -846,7 +840,7 @@ class TransformersModel(Model):
             messages,  # type: ignore
             tools=[get_tool_json_schema(tool) for tool in tools_to_call_from] if tools_to_call_from else None,
             return_tensors="pt",
-            add_generation_prompt=True if tools_to_call_from else False,
+            add_generation_prompt=True,
             tokenize=True,
             return_dict=True,
         )
