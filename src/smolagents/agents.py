@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     import PIL.Image
 
 from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
-from .default_tools import TOOL_MAPPING, FinalAnswerTool
+from .default_tools import TOOL_MAPPING, FinalAnswerTool, ManagedAgentTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import (
     ActionStep,
@@ -1203,12 +1203,14 @@ class ToolCallingAgent(MultiStepAgent):
         # Add new step in logs
         memory_step.model_input_messages = input_messages
 
+        available_tools = self.assemble_final_tool_list()
+
         try:
             if self.stream_outputs and hasattr(self.model, "generate_stream"):
                 output_stream = self.model.generate_stream(
                     input_messages,
                     stop_sequences=["Observation:", "Calling tools:"],
-                    tools_to_call_from=list(self.tools.values()),
+                    tools_to_call_from=available_tools,
                 )
 
                 model_output = ""
@@ -1243,7 +1245,7 @@ class ToolCallingAgent(MultiStepAgent):
                 chat_message: ChatMessage = self.model.generate(
                     input_messages,
                     stop_sequences=["Observation:", "Calling tools:"],
-                    tools_to_call_from=list(self.tools.values()),
+                    tools_to_call_from=available_tools,
                 )
 
                 model_output = chat_message.content
@@ -1398,6 +1400,16 @@ class ToolCallingAgent(MultiStepAgent):
                     "Please try again or use another tool"
                 )
             raise AgentToolExecutionError(error_msg, self.logger) from e
+
+    def assemble_final_tool_list(self) -> list[Tool]:
+        # identify all tools available to the agent
+        available_tools = list(self.tools.values())
+
+        # if the agent has managed agents, add them to the list as tools
+        if self.managed_agents is not None and len(self.managed_agents) > 0:
+            available_tools += [ManagedAgentTool(agent) for agent in self.managed_agents.values()]
+
+        return available_tools
 
 
 class CodeAgent(MultiStepAgent):

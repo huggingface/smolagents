@@ -569,6 +569,28 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+class ManagedAgentTool(Tool):
+    inputs = {
+        "task": {"type": "string", "description": "a very detailed description of the task the agent needs to perform"}
+    }
+    output_type = "string"
+
+    def __init__(self, agent=None):
+        if agent is None:
+            raise ValueError("ManagedAgentTool requires an agent to delegate tasks to.")
+        self.agent = agent
+        self.name = getattr(self.agent, "name", self.agent.__class__.__name__)
+        self.description = getattr(
+            self.agent,
+            "description",
+            f"Delegates a task to the '{self.agent.name}' agent who is responsible for: {self.agent.description}.",
+        )
+        super().__init__()
+
+    def forward(self, task: Any) -> Any:
+        return task
+
+
 TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
