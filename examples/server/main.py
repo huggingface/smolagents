@@ -13,7 +13,6 @@ agent = CodeAgent(
 
 
 async def homepage(request):
-    print("Serving homepage")
     return HTMLResponse(
         r"""
 <!DOCTYPE html>
@@ -126,7 +125,6 @@ async def homepage(request):
         }
 
         async function sendMessage() {
-            console.log("sendMessage function called");
             const message = messageInput.value.trim();
             if (!message) return;
 
@@ -184,7 +182,6 @@ async def homepage(request):
 
 
 async def chat(request):
-    print("Serving chat")
     data = await request.body()
     message = data.decode("utf-8")
     # Run in a thread to avoid blocking the event loop
