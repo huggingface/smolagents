@@ -461,7 +461,7 @@ You have been provided with these additional arguments, that you can access usin
                 planning_start_time = time.time()
                 planning_step = None
                 for element in self._generate_planning_step(
-                    task, is_first_step=(self.step_number == 1), step=self.step_number
+                    task, is_first_step=(len(self.memory.steps) == 1), step=self.step_number
                 ):
                     yield element
                     planning_step = element
