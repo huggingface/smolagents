@@ -163,14 +163,14 @@ class TestModel:
             do_sample=False,
         )
         messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
-        output = model.generate(messages, stop_sequences=["great"]).content
-        assert output == "assistant\nHello"
+        output = model.generate(messages).content
+        assert output == "Hello! I'm here"
 
         output = model.generate_stream(messages, stop_sequences=["great"])
         output_str = ""
         for el in output:
             output_str += el.content
-        assert output_str == "assistant\nHello"
+        assert output_str == "Hello! I'm here"
 
     def test_transformers_message_vl_no_tool(self, shared_datadir, monkeypatch):
         monkeypatch.setattr("huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT", 30)  # instead of 10
@@ -183,15 +183,17 @@ class TestModel:
             device_map="cpu",
             do_sample=False,
         )
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}, {"type": "image", "image": img}]}]
-        output = model.generate(messages, stop_sequences=["great"]).content
-        assert output == "I am"
+        messages = [
+            {"role": "user", "content": [{"type": "text", "text": "What is this?"}, {"type": "image", "image": img}]}
+        ]
+        output = model.generate(messages).content
+        assert output == "This is a very"
 
         output = model.generate_stream(messages, stop_sequences=["great"])
         output_str = ""
         for el in output:
             output_str += el.content
-        assert output_str == "I am"
+        assert output_str == "This is a very"
 
     def test_parse_json_if_needed(self):
         args = "abc"
