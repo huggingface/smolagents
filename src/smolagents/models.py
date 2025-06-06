@@ -828,6 +828,7 @@ class TransformersModel(Model):
 
         messages = completion_kwargs.pop("messages")
         stop_sequences = completion_kwargs.pop("stop", None)
+        tools = completion_kwargs.pop("tools", None)
 
         max_new_tokens = (
             kwargs.get("max_new_tokens")
@@ -837,8 +838,8 @@ class TransformersModel(Model):
             or 1024
         )
         prompt_tensor = (self.processor if hasattr(self, "processor") else self.tokenizer).apply_chat_template(
-            messages,  # type: ignore
-            tools=[get_tool_json_schema(tool) for tool in tools_to_call_from] if tools_to_call_from else None,
+            messages,
+            tools=tools,
             return_tensors="pt",
             add_generation_prompt=True,
             tokenize=True,
