@@ -1154,6 +1154,9 @@ class ToolCallingAgent(MultiStepAgent):
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
+        max_tool_threads (`int`, *optional*): Maximum number of threads for parallel tool calls.
+            Higher values increase concurrency but resource usage as well.
+            Defaults to `ThreadPoolExecutor`'s default.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1164,6 +1167,7 @@ class ToolCallingAgent(MultiStepAgent):
         prompt_templates: PromptTemplates | None = None,
         planning_interval: int | None = None,
         stream_outputs: bool = False,
+        max_tool_threads: int | None = None,
         **kwargs,
     ):
         prompt_templates = prompt_templates or yaml.safe_load(
@@ -1176,13 +1180,14 @@ class ToolCallingAgent(MultiStepAgent):
             planning_interval=planning_interval,
             **kwargs,
         )
-
         # Streaming setup
         self.stream_outputs = stream_outputs
         if self.stream_outputs and not hasattr(self.model, "generate_stream"):
             raise ValueError(
                 "`stream_outputs` is set to True, but the model class implements no `generate_stream` method."
             )
+        # Tool calling setup
+        self.max_tool_threads = max_tool_threads
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
@@ -1333,8 +1338,8 @@ class ToolCallingAgent(MultiStepAgent):
                 observations.append(process_single_tool_call(parallel_calls[0]))
                 yield FinalOutput(output=None)
             else:
-                # Use ThreadPoolExecutor to process multiple tool calls in parallel
-                with ThreadPoolExecutor() as executor:
+                # If multiple tool calls, process them in parallel
+                with ThreadPoolExecutor(self.max_tool_threads) as executor:
                     futures = [executor.submit(process_single_tool_call, call_info) for call_info in parallel_calls]
                     for future in as_completed(futures):
                         observations.append(future.result())
