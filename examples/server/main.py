@@ -3,13 +3,26 @@ from starlette.applications import Starlette
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 
-from smolagents import CodeAgent, InferenceClientModel
+from smolagents import CodeAgent, InferenceClientModel, MCPClient
 
 
+# Create an MCP client to connect to the MCP server
+mcp_server_parameters = {
+    "url": "https://evalstate-hf-mcp-server.hf.space/mcp",
+    "transport": "streamable-http",
+}
+mcp_client = MCPClient(server_parameters=mcp_server_parameters)
+
+# Create a CodeAgent with a specific model and the tools from the MCP client
 agent = CodeAgent(
     model=InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"),
-    tools=[],
+    tools=mcp_client.get_tools(),
 )
+
+
+# Define the shutdown handler to disconnect the MCP client
+async def shutdown():
+    mcp_client.disconnect()
 
 
 async def homepage(request):
@@ -195,4 +208,5 @@ app = Starlette(
         Route("/", homepage),
         Route("/chat", chat, methods=["POST"]),
     ],
+    on_shutdown=[shutdown],  # Register the shutdown handler: disconnect the MCP client
 )
