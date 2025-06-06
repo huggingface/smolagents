@@ -1328,12 +1328,17 @@ class ToolCallingAgent(MultiStepAgent):
 
         # Process non-final-answer tool calls in parallel
         if parallel_calls:
-            with ThreadPoolExecutor() as executor:
-                futures = [executor.submit(process_single_tool_call, call_info) for call_info in parallel_calls]
-
-                for future in as_completed(futures):
-                    observations.append(future.result())
-                    yield FinalOutput(output=None)
+            if len(parallel_calls) == 1:
+                # If there's only one call, process it directly
+                observations.append(process_single_tool_call(parallel_calls[0]))
+                yield FinalOutput(output=None)
+            else:
+                # Use ThreadPoolExecutor to process multiple tool calls in parallel
+                with ThreadPoolExecutor() as executor:
+                    futures = [executor.submit(process_single_tool_call, call_info) for call_info in parallel_calls]
+                    for future in as_completed(futures):
+                        observations.append(future.result())
+                        yield FinalOutput(output=None)
 
         # Process final_answer call if present
         if final_answer_call:
