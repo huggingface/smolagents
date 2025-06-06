@@ -47,10 +47,8 @@ from smolagents.agents import (
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import (
     ActionStep,
-    Message,
     PlanningStep,
     TaskStep,
-    Timing,
 )
 from smolagents.models import (
     ChatMessage,
@@ -221,11 +219,13 @@ final_answer(7.2904)
 ```<end_code>
 """,
             )
+
+
 class FakeCodeModelPlanning(Model):
     def generate(self, messages, stop_sequences=None):
         return ChatMessage(
             role="assistant",
-            content= "llm plan",
+            content="llm plan",
             token_usage=TokenUsage(input_tokens=10, output_tokens=10),
         )
 
@@ -1565,8 +1565,7 @@ class TestCodeAgent:
 
         model = MagicMock()
         model.generate.return_value = ChatMessage(
-            role="assistant",
-            content="Code:\n```py\nfinal_answer(answer1='1', answer2='2')\n```"
+            role="assistant", content="Code:\n```py\nfinal_answer(answer1='1', answer2='2')\n```"
         )
         agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
         answer = agent.run("Fake task.")
