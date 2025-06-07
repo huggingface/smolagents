@@ -195,11 +195,13 @@ async def homepage(request):
 
 
 async def chat(request):
-    data = await request.body()
-    message = data.decode("utf-8")
+    data = await request.json()
+    message = data.get("message", "").strip()
     # Run in a thread to avoid blocking the event loop
     result = await to_thread.run_sync(agent.run, message)
-    return JSONResponse({"reply": result})
+    # Format the result if it's a complex data structure
+    reply = str(result)
+    return JSONResponse({"reply": reply})
 
 
 app = Starlette(
