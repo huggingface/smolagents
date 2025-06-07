@@ -274,13 +274,14 @@ def stream_to_gradio(
 class GradioUI:
     """A one-line interface to launch your agent in Gradio"""
 
-    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None):
+    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None, reset_agent_memory: bool = False):
         if not _is_package_available("gradio"):
             raise ModuleNotFoundError(
                 "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
             )
         self.agent = agent
         self.file_upload_folder = Path(file_upload_folder) if file_upload_folder is not None else None
+        self.reset_agent_memory = reset_agent_memory
         self.name = getattr(agent, "name") or "Agent interface"
         self.description = getattr(agent, "description", None)
         if self.file_upload_folder is not None:
@@ -298,7 +299,7 @@ class GradioUI:
             messages.append(gr.ChatMessage(role="user", content=prompt, metadata={"status": "done"}))
             yield messages
 
-            for msg in stream_to_gradio(session_state["agent"], task=prompt, reset_agent_memory=False):
+            for msg in stream_to_gradio(session_state["agent"], task=prompt, reset_agent_memory=self.reset_agent_memory):
                 if isinstance(msg, gr.ChatMessage):
                     messages[-1].metadata["status"] = "done"
                     messages.append(msg)
