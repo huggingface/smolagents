@@ -233,7 +233,8 @@ class DockerExecutor(RemotePythonExecutor):
                 _, build_logs = self.client.images.build(
                     path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
                 )
-                self.logger.log(build_logs, level=LogLevel.DEBUG)
+                build_logs = "".join([x.get("stream", "") for x in build_logs])
+                self.logger.log(build_logs.rstrip(), level=LogLevel.DEBUG)
 
             self.logger.log(f"Starting container on {host}:{port}...", level=LogLevel.INFO)
             # Create base container parameters
