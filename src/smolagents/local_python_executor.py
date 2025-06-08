@@ -1547,7 +1547,9 @@ def evaluate_python_code(
 
 
 class PythonExecutor:
-    pass
+    def cleanup(self):
+        """Clean up resources used by the executor."""
+        pass
 
 
 class LocalPythonExecutor(PythonExecutor):
