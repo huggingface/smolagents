@@ -4,7 +4,7 @@
 
 In this guided visit, you will learn how to build an agent, how to run it, and how to customize it to make it work better for your use-case.
 
-### Building your agent
+## Building your agent
 
 To initialize a minimal agent, you need at least these two arguments:
 
@@ -140,7 +140,7 @@ agent.run(
 
 The `AmazonBedrockServerModel` class provides native integration with Amazon Bedrock, allowing for direct API calls and comprehensive configuration.
 
-#### Basic Usage
+Basic Usage:
 
 ```python
 # !pip install smolagents[aws_sdk]
@@ -154,7 +154,7 @@ agent.run(
 )
 ```
 
-#### Advanced Configuration
+Advanced Configuration:
 
 ```python
 import boto3
@@ -192,7 +192,7 @@ agent.run(
 )
 ```
 
-#### Using LiteLLMModel
+Using LiteLLMModel:
 
 Alternatively, you can use `LiteLLMModel` with Bedrock models:
 
@@ -221,9 +221,48 @@ agent.run("Could you give me the 118th number in the Fibonacci sequence?")
 </hfoption>
 </hfoptions>
 
-#### CodeAgent and ToolCallingAgent
+## Advanced agent configuration
 
-The [`CodeAgent`] is our default agent. It will write and execute python code snippets at each step.
+### Customizing agent termination conditions
+
+By default, an agent continues running until it calls the `final_answer` function or reaches the maximum number of steps.
+The `final_answer_checks` parameter gives you more control over when and how an agent terminates its execution:
+
+```python
+from smolagents import CodeAgent, InferenceClientModel
+
+# Define a custom final answer check function
+def is_integer(final_answer: str, agent_memory=None) -> bool:
+    """Return True if final_answer is an integer."""
+    try:
+        int(final_answer)
+        return True
+    except ValueError:
+        return False
+
+# Initialize agent with custom final answer check
+agent = CodeAgent(
+    tools=[],
+    model=InferenceClientModel(),
+    final_answer_checks=[is_integer]
+)
+
+agent.run("Calculate the least common multiple of 3 and 7")
+```
+
+The `final_answer_checks` parameter accepts a list of functions that each:
+- Take the agent's final_answer string the agent's memory as parameters
+- Return a boolean indicating whether the final_answer is valid (True) or not (False)
+
+If any function returns `False`, the agent will log the error message and continue the run.
+This validation mechanism enables:
+- Enforcing output format requirements (e.g., ensuring numeric answers for math problems)
+- Implementing domain-specific validation rules
+- Creating more robust agents that validate their own outputs
+
+## CodeAgent and ToolCallingAgent
+
+`smolagents` comes with two agent classes: [`CodeAgent`] and [`ToolCallingAgent`]. `CodeAgent` is the default and writes Python code snippets that are then executed, while `ToolCallingAgent` outputs JSON tool calls. Both share the same interface so you can pick whichever style you prefer.
 
 By default, the execution is done in your local environment.
 This should be safe because the only functions that can be called are the tools you provided (especially if it's only tools by Hugging Face) and a set of predefined safe functions like `print` or functions from the `math` module, so you're already limited in what can be executed.
@@ -261,7 +300,7 @@ agent = ToolCallingAgent(tools=[], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
-### Inspecting an agent run
+## Inspecting an agent run
 
 Here are a few useful attributes to inspect what happened after a run:
 - `agent.logs` stores the fine-grained logs of the agent. At every step of the agent's run, everything gets stored in a dictionary that then is appended to `agent.logs`.

@@ -25,6 +25,7 @@ from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.gradio_ui import GradioUI, pull_messages_from_step, stream_to_gradio
 from smolagents.memory import ActionStep, FinalAnswerStep, PlanningStep, ToolCall
 from smolagents.models import ChatMessageStreamDelta
+from smolagents.monitoring import Timing, TokenUsage
 
 
 class GradioUITester(unittest.TestCase):
@@ -221,11 +222,9 @@ class TestPullMessagesFromStep:
             model_output="This is the model output",
             observations="Some execution logs",
             error=None,
-            duration=2.5,
+            timing=Timing(start_time=1.0, end_time=3.5),
+            token_usage=TokenUsage(input_tokens=100, output_tokens=50),
         )
-        # Set in stream_to_gradio:
-        step.input_token_count = 100
-        step.output_token_count = 50
         messages = list(pull_messages_from_step(step))
         assert len(messages) == 5  # step number, model_output, logs, footnote, divider
         for message, expected_content in zip(
@@ -246,7 +245,8 @@ class TestPullMessagesFromStep:
             step_number=2,
             tool_calls=[ToolCall(name="test_tool", arguments={"answer": "Test answer"}, id="tool_call_1")],
             observations="Tool execution logs",
-            duration=1.5,
+            timing=Timing(start_time=1.0, end_time=2.5),
+            token_usage=TokenUsage(input_tokens=100, output_tokens=50),
         )
         messages = list(pull_messages_from_step(step))
         assert len(messages) == 5  # step, tool call, logs, footnote, divider
@@ -266,7 +266,12 @@ class TestPullMessagesFromStep:
         tool_call = Mock()
         tool_call.name = tool_name
         tool_call.arguments = args
-        step = ActionStep(step_number=1, tool_calls=[tool_call], duration=1.5)
+        step = ActionStep(
+            step_number=1,
+            tool_calls=[tool_call],
+            timing=Timing(start_time=1.0, end_time=2.5),
+            token_usage=TokenUsage(input_tokens=100, output_tokens=50),
+        )
         messages = list(pull_messages_from_step(step))
         tool_message = next(
             msg
@@ -281,7 +286,12 @@ class TestPullMessagesFromStep:
 
     def test_action_step_with_error(self):
         """Test ActionStep with error."""
-        step = ActionStep(step_number=3, error="This is an error message", duration=1.0)
+        step = ActionStep(
+            step_number=3,
+            error="This is an error message",
+            timing=Timing(start_time=1.0, end_time=2.0),
+            token_usage=TokenUsage(input_tokens=100, output_tokens=200),
+        )
         messages = list(pull_messages_from_step(step))
         error_message = next((m for m in messages if "error" in str(m.content).lower()), None)
         assert error_message is not None
@@ -289,7 +299,12 @@ class TestPullMessagesFromStep:
 
     def test_action_step_with_images(self):
         """Test ActionStep with observation images."""
-        step = ActionStep(step_number=4, observations_images=["image1.png", "image2.jpg"], duration=1.0)
+        step = ActionStep(
+            step_number=4,
+            observations_images=["image1.png", "image2.jpg"],
+            token_usage=TokenUsage(input_tokens=100, output_tokens=200),
+            timing=Timing(start_time=1.0, end_time=2.0),
+        )
         with patch("smolagents.gradio_ui.AgentImage") as mock_agent_image:
             mock_agent_image.return_value.to_string.side_effect = lambda: "path/to/image.png"
             messages = list(pull_messages_from_step(step))
@@ -297,25 +312,32 @@ class TestPullMessagesFromStep:
             assert len(image_messages) == 2
             assert "path/to/image.png" in str(image_messages[0])
 
-    @pytest.mark.parametrize("skip_model_outputs, expected_messages_length", [(False, 4), (True, 2)])
-    def test_planning_step(self, skip_model_outputs, expected_messages_length):
+    @pytest.mark.parametrize(
+        "skip_model_outputs, expected_messages_length, token_usage",
+        [(False, 4, TokenUsage(input_tokens=80, output_tokens=30)), (True, 2, None)],
+    )
+    def test_planning_step(self, skip_model_outputs, expected_messages_length, token_usage):
         """Test PlanningStep processing."""
         step = PlanningStep(
-            plan="1. First step\n2. Second step", model_input_messages=Mock(), model_output_message=Mock()
+            plan="1. First step\n2. Second step",
+            model_input_messages=Mock(),
+            model_output_message=Mock(),
+            token_usage=token_usage,
+            timing=Timing(start_time=1.0, end_time=2.0),
         )
-        # Set in stream_to_gradio:
-        step.input_token_count = 80
-        step.output_token_count = 30
         messages = list(pull_messages_from_step(step, skip_model_outputs=skip_model_outputs))
         assert len(messages) == expected_messages_length  # [header, plan,] footnote, divider
         expected_contents = [
             "**Planning step**",
             "1. First step\n2. Second step",
-            "Input tokens: 80 | Output tokens: 30",
+            "Input tokens: 80 | Output tokens: 30" if token_usage else "",
             "-----",
         ]
         for message, expected_content in zip(messages, expected_contents[-expected_messages_length:]):
             assert expected_content in message.content
+
+        if not token_usage:
+            assert "Input tokens: 80 | Output tokens: 30" not in message.content
 
     @pytest.mark.parametrize(
         "answer_type, answer_value, expected_content",
@@ -331,7 +353,9 @@ class TestPullMessagesFromStep:
         except TypeError:
             with patch.object(answer_type, "to_string", return_value=answer_value):
                 final_answer = answer_type(answer_value)
-        step = FinalAnswerStep(final_answer=final_answer)
+        step = FinalAnswerStep(
+            output=final_answer,
+        )
         messages = list(pull_messages_from_step(step))
         assert len(messages) == 1
         assert messages[0].content == expected_content
@@ -339,7 +363,7 @@ class TestPullMessagesFromStep:
     def test_final_answer_step_image(self):
         """Test FinalAnswerStep with image answer."""
         with patch.object(AgentImage, "to_string", return_value="path/to/image.png"):
-            step = FinalAnswerStep(final_answer=AgentImage("path/to/image.png"))
+            step = FinalAnswerStep(output=AgentImage("path/to/image.png"))
             messages = list(pull_messages_from_step(step))
             assert len(messages) == 1
             assert messages[0].content["path"] == "path/to/image.png"
@@ -348,7 +372,7 @@ class TestPullMessagesFromStep:
     def test_final_answer_step_audio(self):
         """Test FinalAnswerStep with audio answer."""
         with patch.object(AgentAudio, "to_string", return_value="path/to/audio.wav"):
-            step = FinalAnswerStep(final_answer=AgentAudio("path/to/audio.wav"))
+            step = FinalAnswerStep(output=AgentAudio("path/to/audio.wav"))
             messages = list(pull_messages_from_step(step))
             assert len(messages) == 1
             assert messages[0].content["path"] == "path/to/audio.wav"

@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
@@ -38,7 +39,21 @@ class MCPClient:
 
     Args:
         server_parameters (StdioServerParameters | dict[str, Any] | list[StdioServerParameters | dict[str, Any]]):
-            MCP server parameters (stdio or sse). Can be a list if you want to connect multiple MCPs at once.
+            Configuration parameters to connect to the MCP server. Can be a list if you want to connect multiple MCPs at once.
+
+            - An instance of `mcp.StdioServerParameters` for connecting a Stdio MCP server via standard input/output using a subprocess.
+
+            - A `dict` with at least:
+              - "url": URL of the server.
+              - "transport": Transport protocol to use, one of:
+                - "streamable-http": (recommended) Streamable HTTP transport.
+                - "sse": Legacy HTTP+SSE transport (deprecated).
+              If "transport" is omitted, the legacy "sse" transport is assumed (a deprecation warning will be issued).
+
+            <Deprecated version="1.17.0">
+            The HTTP+SSE transport is deprecated and future behavior will default to the Streamable HTTP transport.
+            Please pass explicitly the "transport" key.
+            </Deprecated>
 
     Example:
         ```python
@@ -46,8 +61,8 @@ class MCPClient:
         with MCPClient(...) as tools:
             # tools are now available
 
-        # context manager + sse
-        with MCPClient({"url": "http://localhost:8000/sse"}) as tools:
+        # context manager + Streamable HTTP transport:
+        with MCPClient({"url": "http://localhost:8000/mcp", "transport": "streamable-http"}) as tools:
             # tools are now available
 
         # manually manage the connection via the mcp_client object:
@@ -57,7 +72,7 @@ class MCPClient:
 
             # use your tools here.
         finally:
-            mcp_client.stop()
+            mcp_client.disconnect()
         ```
     """
 
@@ -70,6 +85,21 @@ class MCPClient:
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
         except ModuleNotFoundError:
             raise ModuleNotFoundError("Please install 'mcp' extra to use MCPClient: `pip install 'smolagents[mcp]'`")
+        if isinstance(server_parameters, dict):
+            transport = server_parameters.get("transport")
+            if transport is None:
+                warnings.warn(
+                    "Passing a dict as server_parameters without specifying the 'transport' key is deprecated. "
+                    "For now, it defaults to the legacy 'sse' (HTTP+SSE) transport, but this default will change "
+                    "to 'streamable-http' in version 1.20. Please add the 'transport' key explicitly. ",
+                    FutureWarning,
+                )
+                transport = "sse"
+                server_parameters["transport"] = transport
+            if transport not in {"sse", "streamable-http"}:
+                raise ValueError(
+                    f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
+                )
         self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter())
         self._tools: list[Tool] | None = None
         self.connect()

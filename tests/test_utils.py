@@ -82,8 +82,7 @@ class SimpleTool(Tool):
     def __init__(self):
         self.is_initialized = True
 
-    @tool
-    def valid_tool_function(input: str) -> str:
+    def forward(self, input: str) -> str:
         """A valid tool function.
 
         Args:

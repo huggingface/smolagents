@@ -25,6 +25,7 @@ import sys
 import tempfile
 import textwrap
 import types
+import warnings
 from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
@@ -848,16 +849,29 @@ class ToolCollection:
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
-        This method supports both SSE and Stdio MCP servers. Look at the `server_parameters`
-        argument for more details on how to connect to an SSE or Stdio MCP server.
+        This method supports Stdio, Streamable HTTP, and legacy HTTP+SSE MCP servers. Look at the `server_parameters`
+        argument for more details on how to connect to each MCP server.
 
         Note: a separate thread will be spawned to run an asyncio event loop handling
         the MCP server.
 
         Args:
             server_parameters (`mcp.StdioServerParameters` or `dict`):
-                The server parameters to use to connect to the MCP server. If a dict is
-                provided, it is assumed to be the parameters of `mcp.client.sse.sse_client`.
+                Configuration parameters to connect to the MCP server. This can be:
+
+                - An instance of `mcp.StdioServerParameters` for connecting a Stdio MCP server via standard input/output using a subprocess.
+
+                - A `dict` with at least:
+                  - "url": URL of the server.
+                  - "transport": Transport protocol to use, one of:
+                    - "streamable-http": (recommended) Streamable HTTP transport.
+                    - "sse": Legacy HTTP+SSE transport (deprecated).
+                  If "transport" is omitted, the legacy "sse" transport is assumed (a deprecation warning will be issued).
+
+                <Deprecated version="1.17.0">
+                The HTTP+SSE transport is deprecated and future behavior will default to the Streamable HTTP transport.
+                Please pass explicitly the "transport" key.
+                </Deprecated>
             trust_remote_code (`bool`, *optional*, defaults to `False`):
                 Whether to trust the execution of code from tools defined on the MCP server.
                 This option should only be set to `True` if you trust the MCP server,
@@ -870,32 +884,30 @@ class ToolCollection:
 
         Example with a Stdio MCP server:
         ```py
-        >>> from smolagents import ToolCollection, CodeAgent
+        >>> import os
+        >>> from smolagents import ToolCollection, CodeAgent, InferenceClientModel
         >>> from mcp import StdioServerParameters
 
+        >>> model = InferenceClientModel()
+
         >>> server_parameters = StdioServerParameters(
-        >>>     command="uv",
+        >>>     command="uvx",
         >>>     args=["--quiet", "pubmedmcp@0.1.3"],
         >>>     env={"UV_PYTHON": "3.12", **os.environ},
         >>> )
 
         >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
-        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
 
-        Example with an SSE MCP server:
+        Example with a Streamable HTTP MCP server:
         ```py
-        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True) as tool_collection:
-        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
-        if not trust_remote_code:
-            raise ValueError(
-                "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
-                "as it will execute code on your local machine: pass `trust_remote_code=True`."
-            )
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
@@ -903,7 +915,26 @@ class ToolCollection:
             raise ImportError(
                 """Please install 'mcp' extra to use ToolCollection.from_mcp: `pip install "smolagents[mcp]"`."""
             )
-
+        if isinstance(server_parameters, dict):
+            transport = server_parameters.get("transport")
+            if transport is None:
+                warnings.warn(
+                    "Passing a dict as server_parameters without specifying the 'transport' key is deprecated. "
+                    "For now, it defaults to the legacy 'sse' (HTTP+SSE) transport, but this default will change "
+                    "to 'streamable-http' in version 1.20. Please add the 'transport' key explicitly. ",
+                    FutureWarning,
+                )
+                transport = "sse"
+                server_parameters["transport"] = transport
+            if transport not in {"sse", "streamable-http"}:
+                raise ValueError(
+                    f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
+                )
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
+                "as it will execute code on your local machine: pass `trust_remote_code=True`."
+            )
         with MCPAdapt(server_parameters, SmolAgentsAdapter()) as tools:
             yield cls(tools)
 

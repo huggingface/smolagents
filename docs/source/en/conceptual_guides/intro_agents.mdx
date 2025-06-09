@@ -1,6 +1,6 @@
 # Introduction to Agents
 
-## 🤔 What are agents?
+## 🤔 What are agents?
 
 Any efficient system using AI will need to provide LLMs some kind of access to the real world: for instance the possibility to call a search tool to get external information, or to act on certain programs in order to solve a task. In other words, LLMs should have ***agency***. Agentic programs are the gateway to the outside world for LLMs.
 
@@ -88,9 +88,10 @@ All these elements need tight coupling to make a well-functioning system. That's
 
 In a multi-step agent, at each step, the LLM can write an action, in the form of some calls to external tools. A common format (used by Anthropic, OpenAI, and many others) for writing these actions is generally different shades of "writing actions as a JSON of tools names and arguments to use, which you then parse to know which tool to execute and with which arguments".
 
-[Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the tool calling LLMs in code is much better.
+[Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the LLMs actions written as code snippets is a more natural and flexible way of writing them.
 
-The reason for this simply that *we crafted our code languages specifically to be the best possible way to express actions performed by a computer*. If JSON snippets were a better expression, JSON would be the top programming language and programming would be hell on earth.
+The reason for this simply that *we crafted our code languages specifically to express the actions performed by a computer*.
+In other words, our agent is going to write programs in order to solve the user's issues : do you think their programming will be easier in blocks of Python or JSON?
 
 The figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030), illustrates some advantages of writing actions in code:
 

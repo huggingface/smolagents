@@ -14,11 +14,15 @@
 # limitations under the License.
 import io
 import os
+import re
 import tempfile
 import uuid
+import warnings
 from collections.abc import Generator
 from contextlib import nullcontext as does_not_raise
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -56,6 +60,29 @@ from smolagents.tools import Tool, tool
 from smolagents.utils import BASE_BUILTIN_MODULES, AgentExecutionError, AgentGenerationError, AgentToolCallError
 
 
+@dataclass
+class ChoiceDeltaToolCallFunction:
+    arguments: Optional[str] = None
+    name: Optional[str] = None
+
+
+@dataclass
+class ChoiceDeltaToolCall:
+    index: Optional[int] = None
+    id: Optional[str] = None
+    function: Optional[ChoiceDeltaToolCallFunction] = None
+    type: Optional[str] = None
+
+
+@dataclass
+class ChoiceDelta:
+    content: Optional[str] = None
+    function_call: Optional[str] = None
+    refusal: Optional[str] = None
+    role: Optional[str] = None
+    tool_calls: Optional[list] = None
+
+
 def get_new_path(suffix="") -> str:
     directory = tempfile.mkdtemp()
     return os.path.join(directory, str(uuid.uuid4()) + suffix)
@@ -69,7 +96,7 @@ def agent_logger():
 
 
 class FakeToolCallModel(Model):
-    def generate(self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None):
+    def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
         if len(messages) < 3:
             return ChatMessage(
                 role="assistant",
@@ -99,7 +126,7 @@ class FakeToolCallModel(Model):
 
 
 class FakeToolCallModelImage(Model):
-    def generate(self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None):
+    def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
         if len(messages) < 3:
             return ChatMessage(
                 role="assistant",
@@ -130,7 +157,7 @@ class FakeToolCallModelImage(Model):
 
 
 class FakeToolCallModelVL(Model):
-    def generate(self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None):
+    def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
         if len(messages) < 3:
             return ChatMessage(
                 role="assistant",
@@ -164,7 +191,7 @@ class FakeToolCallModelVL(Model):
 
 
 class FakeCodeModel(Model):
-    def generate(self, messages, stop_sequences=None, grammar=None):
+    def generate(self, messages, stop_sequences=None):
         prompt = str(messages)
         if "special_marker" not in prompt:
             return ChatMessage(
@@ -299,7 +326,7 @@ final_answer(res)
 
 
 class FakeCodeModelSingleStep(Model):
-    def generate(self, messages, stop_sequences=None, grammar=None):
+    def generate(self, messages, stop_sequences=None):
         return ChatMessage(
             role="assistant",
             content="""
@@ -314,7 +341,7 @@ final_answer(result)
 
 
 class FakeCodeModelNoReturn(Model):
-    def generate(self, messages, stop_sequences=None, grammar=None):
+    def generate(self, messages, stop_sequences=None):
         return ChatMessage(
             role="assistant",
             content="""
@@ -529,7 +556,7 @@ class TestAgent:
 
     def test_code_nontrivial_final_answer_works(self):
         class FakeCodeModelFinalAnswer(Model):
-            def generate(self, messages, stop_sequences=None, grammar=None):
+            def generate(self, messages, stop_sequences=None):
                 return ChatMessage(
                     role="assistant",
                     content="""Code:
@@ -571,9 +598,11 @@ nested_answer()
         assert agent.memory.steps[0].task == task
         assert agent.memory.steps[1].tool_calls[0].name == "weather_api"
         step_memory_dict = agent.memory.get_succinct_steps()[1]
-        assert step_memory_dict["model_output_message"].tool_calls[0].function.name == "weather_api"
-        assert step_memory_dict["model_output_message"].raw["completion_kwargs"]["max_new_tokens"] == 100
+        assert step_memory_dict["model_output_message"]["tool_calls"][0]["function"]["name"] == "weather_api"
+        assert step_memory_dict["model_output_message"]["raw"]["completion_kwargs"]["max_new_tokens"] == 100
         assert "model_input_messages" in agent.memory.get_full_steps()[1]
+        assert step_memory_dict["token_usage"]["total_tokens"] > 100
+        assert step_memory_dict["timing"]["duration"] > 0.1
 
     def test_final_answer_checks(self):
         def check_always_fails(final_answer, agent_memory):
@@ -585,7 +614,7 @@ nested_answer()
 
     def test_generation_errors_are_raised(self):
         class FakeCodeModel(Model):
-            def generate(self, messages, stop_sequences=None, grammar=None):
+            def generate(self, messages, stop_sequences=None):
                 assert False, "Generation failed"
 
         agent = CodeAgent(model=FakeCodeModel(), tools=[])
@@ -649,6 +678,51 @@ class TestMultiStepAgent:
         assert "final_answer" in agent.tools
         assert isinstance(agent.tools["final_answer"], expected_final_answer_tool)
 
+    def test_instantiation_with_deprecated_grammar(self):
+        class SimpleAgent(MultiStepAgent):
+            def initialize_system_prompt(self) -> str:
+                return "Test system prompt"
+
+        # Test with a non-None grammar parameter
+        with pytest.warns(
+            FutureWarning, match="Parameter 'grammar' is deprecated and will be removed in version 1.20."
+        ):
+            SimpleAgent(tools=[], model=MagicMock(), grammar={"format": "json"}, verbosity_level=LogLevel.DEBUG)
+
+        # Verify no warning when grammar is None
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # Turn warnings into errors
+            SimpleAgent(tools=[], model=MagicMock(), grammar=None, verbosity_level=LogLevel.DEBUG)
+
+    def test_system_prompt_property(self):
+        """Test that system_prompt property is read-only and calls initialize_system_prompt."""
+
+        class SimpleAgent(MultiStepAgent):
+            def initialize_system_prompt(self) -> str:
+                return "Test system prompt"
+
+            def step(self, memory_step: ActionStep) -> Generator[None]:
+                yield None
+
+        # Create a simple agent with mocked model
+        model = MagicMock()
+        agent = SimpleAgent(tools=[], model=model)
+
+        # Test reading the property works and calls initialize_system_prompt
+        assert agent.system_prompt == "Test system prompt"
+
+        # Test setting the property raises AttributeError with correct message
+        with pytest.raises(
+            AttributeError,
+            match=re.escape(
+                """The 'system_prompt' property is read-only. Use 'self.prompt_templates["system_prompt"]' instead."""
+            ),
+        ):
+            agent.system_prompt = "New system prompt"
+
+        # assert "read-only" in str(exc_info.value)
+        # assert "Use 'self.prompt_templates[\"system_prompt\"]' instead" in str(exc_info.value)
+
     def test_logs_display_thoughts_even_if_error(self):
         class FakeJsonModelNoCall(Model):
             def generate(self, messages, stop_sequences=None, tools_to_call_from=None):
@@ -678,8 +752,13 @@ class TestMultiStepAgent:
 
     def test_step_number(self):
         fake_model = MagicMock()
-        fake_model.last_input_token_count = 10
-        fake_model.last_output_token_count = 20
+        fake_model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="Model output.",
+            tool_calls=None,
+            raw="Model output.",
+            token_usage=None,
+        )
         max_steps = 2
         agent = CodeAgent(tools=[], model=fake_model, max_steps=max_steps)
         assert hasattr(agent, "step_number"), "step_number attribute should be defined"
@@ -812,13 +891,19 @@ class TestMultiStepAgent:
     )
     def test_provide_final_answer(self, images, expected_messages_list):
         fake_model = MagicMock()
-        fake_model.return_value.content = "Final answer."
+        fake_model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="Final answer.",
+            tool_calls=None,
+            raw="Final answer.",
+            token_usage=None,
+        )
         agent = CodeAgent(
             tools=[],
             model=fake_model,
         )
         task = "Test task"
-        final_answer = agent.provide_final_answer(task, images=images)
+        final_answer = agent.provide_final_answer(task, images=images).content
         expected_message_texts = {
             "FINAL_ANSWER_SYSTEM_PROMPT": agent.prompt_templates["final_answer"]["pre_messages"],
             "FINAL_ANSWER_USER_PROMPT": populate_template(
@@ -832,8 +917,8 @@ class TestMultiStepAgent:
                         expected_content["text"] = expected_message_texts[expected_content["text"]]
         assert final_answer == "Final answer."
         # Test calls to model
-        assert len(fake_model.call_args_list) == 1
-        for call_args, expected_messages in zip(fake_model.call_args_list, expected_messages_list):
+        assert len(fake_model.generate.call_args_list) == 1
+        for call_args, expected_messages in zip(fake_model.generate.call_args_list, expected_messages_list):
             assert len(call_args.args) == 1
             messages = call_args.args[0]
             assert isinstance(messages, list)
@@ -851,8 +936,13 @@ class TestMultiStepAgent:
 
     def test_interrupt(self):
         fake_model = MagicMock()
-        fake_model.return_value.content = "Model output."
-        fake_model.last_input_token_count = None
+        fake_model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="Model output.",
+            tool_calls=None,
+            raw="Model output.",
+            token_usage=None,
+        )
 
         def interrupt_callback(memory_step, agent):
             agent.interrupt()
@@ -926,7 +1016,6 @@ class TestMultiStepAgent:
             "prompt_templates": EMPTY_PROMPT_TEMPLATES,
             "max_steps": 15,
             "verbosity_level": 2,
-            "grammar": {"test": "grammar"},
             "planning_interval": 3,
             "name": "test_agent",
             "description": "Test agent description",
@@ -942,7 +1031,6 @@ class TestMultiStepAgent:
         assert mock_model_class.from_dict.call_args.args[0] == {"model_id": "test/model"}
         assert agent.max_steps == 15
         assert agent.logger.level == 2
-        assert agent.grammar == {"test": "grammar"}
         assert agent.planning_interval == 3
         assert agent.name == "test_agent"
         assert agent.description == "Test agent description"
@@ -953,7 +1041,6 @@ class TestMultiStepAgent:
         assert agent.tools["valid_tool_function"].inputs == {
             "input": {"type": "string", "description": "Input string."}
         }
-        assert agent.tools["valid_tool_function"].output_type == "string"
         assert agent.tools["valid_tool_function"]("test") == "TEST"
 
         # Test overriding with kwargs
@@ -1014,6 +1101,94 @@ class TestToolCallingAgent:
         assert agent.memory.steps[1].tool_calls[0].arguments == {"location": "Paris", "date": "today"}
         assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
 
+    @patch("openai.OpenAI")
+    def test_toolcalling_agent_stream_outputs_multiple_tool_calls(self, mock_openai_client):
+        """Test that ToolCallingAgent with stream_outputs=True returns the first final_answer when multiple are called."""
+        mock_client = mock_openai_client.return_value
+        from smolagents import OpenAIServerModel
+
+        # Mock streaming response with multiple final_answer calls
+        mock_deltas = [
+            ChoiceDelta(role="assistant"),
+            ChoiceDelta(
+                tool_calls=[
+                    ChoiceDeltaToolCall(
+                        index=0,
+                        id="call_1",
+                        function=ChoiceDeltaToolCallFunction(name="final_answer"),
+                        type="function",
+                    )
+                ]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=0, function=ChoiceDeltaToolCallFunction(arguments='{"an'))]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=0, function=ChoiceDeltaToolCallFunction(arguments='swer"'))]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=0, function=ChoiceDeltaToolCallFunction(arguments=': "out'))]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=0, function=ChoiceDeltaToolCallFunction(arguments="put1"))]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=0, function=ChoiceDeltaToolCallFunction(arguments='"}'))]
+            ),
+            ChoiceDelta(
+                tool_calls=[
+                    ChoiceDeltaToolCall(
+                        index=1,
+                        id="call_2",
+                        function=ChoiceDeltaToolCallFunction(name="final_answer"),
+                        type="function",
+                    )
+                ]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=1, function=ChoiceDeltaToolCallFunction(arguments='{"an'))]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=1, function=ChoiceDeltaToolCallFunction(arguments='swer"'))]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=1, function=ChoiceDeltaToolCallFunction(arguments=': "out'))]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=1, function=ChoiceDeltaToolCallFunction(arguments="put2"))]
+            ),
+            ChoiceDelta(
+                tool_calls=[ChoiceDeltaToolCall(index=1, function=ChoiceDeltaToolCallFunction(arguments='"}'))]
+            ),
+        ]
+
+        class MockChoice:
+            def __init__(self, delta):
+                self.delta = delta
+
+        class MockChunk:
+            def __init__(self, delta):
+                self.choices = [MockChoice(delta)]
+                self.usage = None
+
+        mock_client.chat.completions.create.return_value = (MockChunk(delta) for delta in mock_deltas)
+
+        # Mock usage for non-streaming fallback
+        mock_usage = MagicMock()
+        mock_usage.prompt_tokens = 10
+        mock_usage.completion_tokens = 20
+
+        model = OpenAIServerModel(model_id="fakemodel")
+
+        agent = ToolCallingAgent(model=model, tools=[], max_steps=1, stream_outputs=True)
+        result = agent.run("Make 2 calls to final answer: return both 'output1' and 'output2'")
+        assert len(agent.memory.steps[-1].model_output_message.tool_calls) == 2
+        assert agent.memory.steps[-1].model_output_message.tool_calls[0].function.name == "final_answer"
+        assert agent.memory.steps[-1].model_output_message.tool_calls[1].function.name == "final_answer"
+
+        # The agent should return the first final_answer result
+        assert result == "output1"
+
     @patch("huggingface_hub.InferenceClient")
     def test_toolcalling_agent_api_misformatted_output(self, mock_inference_client):
         """Test that even misformatted json blobs don't interrupt the run for a ToolCallingAgent."""
@@ -1053,36 +1228,10 @@ class TestToolCallingAgent:
             return "2"
 
         class FakeCodeModel(Model):
-            def generate(self, messages, tools_to_call_from=None, stop_sequences=None, grammar=None):
-                if len(messages) < 3:
-                    return ChatMessage(
-                        role="assistant",
-                        content="",
-                        tool_calls=[
-                            ChatMessageToolCall(
-                                id="call_0",
-                                type="function",
-                                function=ChatMessageToolCallDefinition(name="fake_tool_1", arguments={}),
-                            )
-                        ],
-                    )
-                else:
-                    tool_result = messages[-1]["content"][0]["text"].removeprefix("Observation:\n")
-                    return ChatMessage(
-                        role="assistant",
-                        content="",
-                        tool_calls=[
-                            ChatMessageToolCall(
-                                id="call_1",
-                                type="function",
-                                function=ChatMessageToolCallDefinition(
-                                    name="final_answer", arguments={"answer": tool_result}
-                                ),
-                            )
-                        ],
-                    )
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(role="assistant", content="Code:\n```py\nfinal_answer(fake_tool_1())\n```")
 
-        agent = ToolCallingAgent(tools=[fake_tool_1], model=FakeCodeModel())
+        agent = CodeAgent(tools=[fake_tool_1], model=FakeCodeModel())
 
         agent.tools["final_answer"] = CustomFinalAnswerTool()
         agent.tools["fake_tool_1"] = fake_tool_2
@@ -1090,8 +1239,73 @@ class TestToolCallingAgent:
         answer = agent.run("Fake task.")
         assert answer == "2CUSTOM"
 
+    def test_custom_final_answer_with_custom_inputs(self):
+        class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
+            inputs = {
+                "answer1": {"type": "string", "description": "First part of the answer."},
+                "answer2": {"type": "string", "description": "Second part of the answer."},
+            }
+
+            def forward(self, answer1: str, answer2: str) -> str:
+                return answer1 + "CUSTOM" + answer2
+
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role="assistant",
+            content=None,
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_0",
+                    type="function",
+                    function=ChatMessageToolCallDefinition(
+                        name="final_answer", arguments={"answer1": "1", "answer2": "2"}
+                    ),
+                )
+            ],
+        )
+        agent = ToolCallingAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
+        answer = agent.run("Fake task.")
+        assert answer == "1CUSTOM2"
+
 
 class TestCodeAgent:
+    @pytest.mark.filterwarnings("ignore")  # Ignore FutureWarning for deprecated grammar parameter
+    def test_init_with_incompatible_grammar_and_use_structured_outputs_internally(self):
+        # Test that using both parameters raises ValueError with correct message
+        with pytest.raises(
+            ValueError, match="You cannot use 'grammar' and 'use_structured_outputs_internally' at the same time."
+        ):
+            CodeAgent(
+                tools=[],
+                model=MagicMock(),
+                grammar={"format": "json"},
+                use_structured_outputs_internally=True,
+                verbosity_level=LogLevel.DEBUG,
+            )
+
+        # Verify no error when only one option is used
+        # Only grammar
+        agent_with_grammar = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            grammar={"format": "json"},
+            use_structured_outputs_internally=False,
+            verbosity_level=LogLevel.DEBUG,
+        )
+        assert agent_with_grammar.grammar is not None
+        assert agent_with_grammar._use_structured_outputs_internally is False
+
+        # Only structured output
+        agent_with_structured = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            grammar=None,
+            use_structured_outputs_internally=True,
+            verbosity_level=LogLevel.DEBUG,
+        )
+        assert agent_with_structured.grammar is None
+        assert agent_with_structured._use_structured_outputs_internally is True
+
     @pytest.mark.parametrize("provide_run_summary", [False, True])
     def test_call_with_provide_run_summary(self, provide_run_summary):
         agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
@@ -1112,7 +1326,7 @@ class TestCodeAgent:
 
     def test_errors_logging(self):
         class FakeCodeModel(Model):
-            def generate(self, messages, stop_sequences=None, grammar=None):
+            def generate(self, messages, stop_sequences=None):
                 return ChatMessage(role="assistant", content="Code:\n```py\nsecret=3;['1', '2'][secret]\n```")
 
         agent = CodeAgent(tools=[], model=FakeCodeModel(), verbosity_level=1)
@@ -1189,7 +1403,7 @@ class TestCodeAgent:
             return "2"
 
         class FakeCodeModel(Model):
-            def generate(self, messages, stop_sequences=None, grammar=None):
+            def generate(self, messages, stop_sequences=None):
                 return ChatMessage(role="assistant", content="Code:\n```py\nfinal_answer(fake_tool_1())\n```")
 
         agent = CodeAgent(tools=[fake_tool_1], model=FakeCodeModel())
@@ -1202,10 +1416,14 @@ class TestCodeAgent:
 
     def test_local_python_executor_with_custom_functions(self):
         model = MagicMock()
-        model.last_input_token_count = 10
-        model.last_output_token_count = 5
-        agent = CodeAgent(tools=[], model=model)
-        agent.python_executor.additional_functions = {"open": open}
+        model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=None,
+            raw="",
+            token_usage=None,
+        )
+        agent = CodeAgent(tools=[], model=model, executor_kwargs={"additional_functions": {"open": open}})
         agent.run("Test run")
         assert "open" in agent.python_executor.static_tools
 
@@ -1226,7 +1444,6 @@ class TestCodeAgent:
         assert agent.description == "dummy description"
         assert agent.max_steps == 10
         assert agent.planning_interval == 2
-        assert agent.grammar is None
         assert agent.additional_authorized_imports == ["pandas"]
         assert "pandas" in agent.authorized_imports
         assert agent.executor_type == "local"
@@ -1255,13 +1472,13 @@ class TestCodeAgent:
             "prompt_templates": EMPTY_PROMPT_TEMPLATES,
             "max_steps": 15,
             "verbosity_level": 2,
-            "grammar": None,
+            "use_structured_output": False,
             "planning_interval": 3,
             "name": "test_code_agent",
             "description": "Test code agent description",
             "authorized_imports": ["pandas", "numpy"],
             "executor_type": "local",
-            "executor_kwargs": {"max_workers": 2},
+            "executor_kwargs": {"max_print_outputs_length": 10_000},
             "max_print_outputs_length": 1000,
         }
 
@@ -1274,7 +1491,7 @@ class TestCodeAgent:
         assert agent.model == mock_model_instance
         assert agent.additional_authorized_imports == ["pandas", "numpy"]
         assert agent.executor_type == "local"
-        assert agent.executor_kwargs == {"max_workers": 2}
+        assert agent.executor_kwargs == {"max_print_outputs_length": 10_000}
         assert agent.max_print_outputs_length == 1000
 
         # Test with missing optional parameters
@@ -1292,10 +1509,30 @@ class TestCodeAgent:
         # Test overriding with kwargs
         with patch("smolagents.models.InferenceClientModel"):
             agent = CodeAgent.from_dict(
-                agent_dict, additional_authorized_imports=["matplotlib"], executor_kwargs={"max_workers": 4}
+                agent_dict,
+                additional_authorized_imports=["matplotlib"],
+                executor_kwargs={"max_print_outputs_length": 5_000},
             )
         assert agent.additional_authorized_imports == ["matplotlib"]
-        assert agent.executor_kwargs == {"max_workers": 4}
+        assert agent.executor_kwargs == {"max_print_outputs_length": 5_000}
+
+    def test_custom_final_answer_with_custom_inputs(self):
+        class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
+            inputs = {
+                "answer1": {"type": "string", "description": "First part of the answer."},
+                "answer2": {"type": "string", "description": "Second part of the answer."},
+            }
+
+            def forward(self, answer1: str, answer2: str) -> str:
+                return answer1 + "CUSTOM" + answer2
+
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role="assistant", content="Code:\n```py\nfinal_answer(answer1='1', answer2='2')\n```"
+        )
+        agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
+        answer = agent.run("Fake task.")
+        assert answer == "1CUSTOM2"
 
 
 class TestMultiAgents:
@@ -1317,7 +1554,7 @@ class TestMultiAgents:
             managed_agents=[web_agent, code_agent],
             max_print_outputs_length=1000,
             executor_type="local",
-            executor_kwargs={"max_workers": 2},
+            executor_kwargs={"max_print_outputs_length": 10_000},
         )
         agent.save(tmp_path)
 
@@ -1356,7 +1593,7 @@ class TestMultiAgents:
         assert set(agent2.authorized_imports) == set(["pandas", "datetime"] + BASE_BUILTIN_MODULES)
         assert agent2.max_print_outputs_length == 1000
         assert agent2.executor_type == "local"
-        assert agent2.executor_kwargs == {"max_workers": 2}
+        assert agent2.executor_kwargs == {"max_print_outputs_length": 10_000}
         assert (
             agent2.managed_agents["web_agent"].tools["web_search"].max_results == 10
         )  # For now tool init parameters are forgotten
@@ -1370,7 +1607,6 @@ class TestMultiAgents:
                 self,
                 messages,
                 stop_sequences=None,
-                grammar=None,
                 tools_to_call_from=None,
             ):
                 if tools_to_call_from is not None:
@@ -1439,7 +1675,6 @@ final_answer("Final report.")
                 messages,
                 tools_to_call_from=None,
                 stop_sequences=None,
-                grammar=None,
             ):
                 return ChatMessage(
                     role="assistant",
