@@ -114,7 +114,7 @@ Now let's create our web automation agent:
 from smolagents import InferenceClientModel
 
 # Initialize the model
-model_id = "meta-llama/Llama-3.3-70B-Instruct"  # You can change this to your preferred model
+model_id = "Qwen/Qwen2-VL-72B-Instruct"  # You can change this to your preferred VLM model
 model = InferenceClientModel(model_id=model_id)
 
 # Create the agent
