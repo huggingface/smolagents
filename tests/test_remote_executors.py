@@ -45,7 +45,6 @@ class TestE2BExecutorMock:
             )
         assert isinstance(executor, E2BExecutor)
         assert executor.logger == logger
-        assert executor.final_answer_pattern.pattern == r"^final_answer\((.*)\)$"
         assert executor.sandbox == mock_sandbox.return_value
         assert mock_sandbox.call_count == 1
         assert mock_sandbox.call_args.kwargs == {

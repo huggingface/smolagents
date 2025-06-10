@@ -17,7 +17,6 @@
 import base64
 import json
 import pickle
-import re
 import time
 from io import BytesIO
 from pathlib import Path
@@ -27,6 +26,7 @@ from typing import Any
 import PIL.Image
 import requests
 
+from .default_tools import FinalAnswerTool
 from .local_python_executor import PythonExecutor
 from .monitoring import LogLevel
 from .tools import Tool, get_tools_definition_code
@@ -42,14 +42,19 @@ except ModuleNotFoundError:
 
 
 class RemotePythonExecutor(PythonExecutor):
+    FINAL_ANSWER_EXCEPTION = "FinalAnswerException"
+
     def __init__(self, additional_imports: list[str], logger):
         self.additional_imports = additional_imports
         self.logger = logger
         self.logger.log("Initializing executor, hold on...")
-        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$", re.M)
         self.installed_packages = []
 
-    def run_code_raise_errors(self, code: str, return_final_answer: bool = False) -> tuple[Any, str]:
+    def run_code_raise_errors(self, code: str) -> tuple[Any, str, bool]:
+        """
+        Execute code, return the result and output, also determining if
+        the result is the final answer.
+        """
         raise NotImplementedError
 
     def send_tools(self, tools: dict[str, Tool]):
@@ -81,16 +86,47 @@ locals().update(vars_dict)
         self.run_code_raise_errors(code)
 
     def __call__(self, code_action: str) -> tuple[Any, str, bool]:
-        """Check if code is a final answer and run it accordingly"""
-        is_final_answer = bool(self.final_answer_pattern.search(code_action))
-        output = self.run_code_raise_errors(code_action, return_final_answer=is_final_answer)
-        return output[0], output[1], is_final_answer
+        """Run the code and determine if it is the final answer."""
+        return self.run_code_raise_errors(code_action)
 
     def install_packages(self, additional_imports: list[str]):
         if additional_imports:
-            _, execution_logs = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
+            _, execution_logs, _ = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
             self.logger.log(execution_logs)
         return additional_imports
+
+    def _install_final_answer_exception():
+        """
+        Replace the final answer tool's forward method to make it raise a
+        FinalAnswerException when called. For remote executors that support
+        catching exceptions and passing them to the client, raising an
+        exception provides a mechanism for detecting when the final answer
+        tool has been called and for getting the answer itself. Note that
+        this modifies the final answer tool _class_ and not just an instance
+        of that class, so call _uninstall_final_answer_exception if you need
+        to restore the original forward method.
+        """
+        original_forward = FinalAnswerTool.forward
+
+        def forward(self, answer: Any) -> Any:
+            import base64
+            import pickle
+
+            class FinalAnswerException(Exception):
+                def __init__(self, value):
+                    self.value = value
+
+            raise FinalAnswerException(base64.b64encode(pickle.dumps(answer)).decode())
+
+        FinalAnswerTool.forward = forward
+        return original_forward
+
+    def _uninstall_final_answer_exception(original_forward):
+        """
+        Restore the original forward method of the final answer tool,
+        undoing what _install_final_answer_exception did.
+        """
+        FinalAnswerTool.forward = original_forward
 
 
 class E2BExecutor(RemotePythonExecutor):
@@ -115,21 +151,34 @@ class E2BExecutor(RemotePythonExecutor):
         self.installed_packages = self.install_packages(additional_imports)
         self.logger.log("E2B is running", level=LogLevel.INFO)
 
-    def run_code_raise_errors(self, code: str, return_final_answer: bool = False) -> tuple[Any, str]:
+    def send_tools(self, tools: dict[str, Tool]):
+        # Install the final answer exception since the E2BExecutor relies
+        # on it for detecting the final answer.
+        original_forward = RemotePythonExecutor._install_final_answer_exception()
+        super().send_tools(tools)
+        RemotePythonExecutor._uninstall_final_answer_exception(original_forward)
+
+    def run_code_raise_errors(self, code: str) -> tuple[Any, str, bool]:
         execution = self.sandbox.run_code(
             code,
         )
+        final_answer = None
         if execution.error:
-            execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
-            logs = execution_logs
-            logs += "Executing code yielded an error:"
-            logs += execution.error.name + "\n"
-            logs += execution.error.value
-            logs += execution.error.traceback
-            raise AgentError(logs, self.logger)
+            if execution.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
+                final_answer = pickle.loads(base64.b64decode(execution.error.value))
+            else:
+                execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
+                logs = execution_logs
+                logs += "Executing code yielded an error:"
+                logs += execution.error.name + "\n"
+                logs += execution.error.value
+                logs += execution.error.traceback
+                raise AgentError(logs, self.logger)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
+        if final_answer is not None:
+            return final_answer, execution_logs, True
         if not execution.results:
-            return None, execution_logs
+            return None, execution_logs, False
         else:
             for result in execution.results:
                 if result.is_main_result:
@@ -151,10 +200,8 @@ class E2BExecutor(RemotePythonExecutor):
                         "text",
                     ]:
                         if getattr(result, attribute_name) is not None:
-                            return getattr(result, attribute_name), execution_logs
-            if return_final_answer:
-                raise AgentError("No main result returned by executor!", self.logger)
-            return None, execution_logs
+                            return getattr(result, attribute_name), execution_logs, False
+            return None, execution_logs, False
 
 
 class DockerExecutor(RemotePythonExecutor):
@@ -287,31 +334,22 @@ class DockerExecutor(RemotePythonExecutor):
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
-    def run_code_raise_errors(self, code_action: str, return_final_answer: bool = False) -> tuple[Any, str]:
-        """
-        Execute code and return result based on whether it's a final answer.
-        """
-        try:
-            if return_final_answer:
-                match = self.final_answer_pattern.search(code_action)
-                if match:
-                    pre_final_answer_code = self.final_answer_pattern.sub("", code_action)
-                    result_expr = match.group(1)
-                    wrapped_code = pre_final_answer_code + dedent(f"""
-                        import pickle, base64
-                        _result = {result_expr}
-                        print("RESULT_PICKLE:" + base64.b64encode(pickle.dumps(_result)).decode())
-                        """)
-            else:
-                wrapped_code = code_action
+    def send_tools(self, tools: dict[str, Tool]):
+        # Install the final answer exception since the DockerExecutor relies
+        # on it for detecting the final answer.
+        original_forward = RemotePythonExecutor._install_final_answer_exception()
+        super().send_tools(tools)
+        RemotePythonExecutor._uninstall_final_answer_exception(original_forward)
 
+    def run_code_raise_errors(self, code_action: str) -> tuple[Any, str, bool]:
+        try:
             # Send execute request
-            msg_id = self._send_execute_request(wrapped_code)
+            msg_id = self._send_execute_request(code_action)
 
             # Collect output and results
             outputs = []
             result = None
-            waiting_for_idle = False
+            is_final_answer = False
 
             while True:
                 msg = json.loads(self.ws.recv())
@@ -324,20 +362,20 @@ class DockerExecutor(RemotePythonExecutor):
 
                 if msg_type == "stream":
                     text = msg["content"]["text"]
-                    if return_final_answer and text.startswith("RESULT_PICKLE:"):
-                        pickle_data = text[len("RESULT_PICKLE:") :].strip()
-                        result = pickle.loads(base64.b64decode(pickle_data))
-                        waiting_for_idle = True
-                    else:
-                        outputs.append(text)
+                    outputs.append(text)
+                elif msg_type == "execute_result":
+                    result = msg["content"]["data"].get("text/plain", None)
                 elif msg_type == "error":
-                    traceback = msg["content"].get("traceback", [])
-                    raise AgentError("\n".join(traceback), self.logger)
+                    if msg["content"].get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
+                        result = pickle.loads(base64.b64decode(msg["content"].get("evalue", "")))
+                        is_final_answer = True
+                    else:
+                        traceback = msg["content"].get("traceback", [])
+                        raise AgentError("\n".join(traceback), self.logger)
                 elif msg_type == "status" and msg["content"]["execution_state"] == "idle":
-                    if not return_final_answer or waiting_for_idle:
-                        break
+                    break
 
-            return result, "".join(outputs)
+            return result, "".join(outputs), is_final_answer
 
         except Exception as e:
             self.logger.log_error(f"Code execution failed: {e}")
