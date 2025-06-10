@@ -4,17 +4,27 @@
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/license_to_call.png" width=100%/>
 </div>
 
-This library is the simplest framework out there to build powerful agents! By the way, wtf are "agents"? We provide our definition [in this page](conceptual_guides/intro_agents), where you'll also find tips for when to use them or not (spoilers: you'll often be better off without agents).
+## What is smolagents?
 
-This library offers:
+`smolagents` is an open-source Python library designed to make it extremely easy to build and run agents using just a few lines of code.
 
-✨ **Simplicity**: the logic for agents fits in ~thousand lines of code. We kept abstractions to their minimal shape above raw code!
+Key features of `smolagents` include:
 
-🌐 **Support for any LLM**: it supports models hosted on the Hub loaded in their `transformers` version or through [Inference providers](https://huggingface.co/docs/inference-providers/index): Cerebras, Cohere, Fal, Fireworks, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, etc. It also supports models from OpenAI, Anthropic... it's really easy to power an agent with any LLM.
+✨ **Simplicity**: The logic for agents fits in ~thousand lines of code. We kept abstractions to their minimal shape above raw code!
 
-🧑‍💻 **First-class support for Code Agents**, i.e. agents that write their actions in code (as opposed to "agents being used to write code"), [read more here](tutorials/secure_code_execution).
+🧑‍💻 **First-class support for Code Agents**: [`CodeAgent`](reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code") to invoke tools or perform computations, enabling natural composability (function nesting, loops, conditionals). To make it secure, we support [executing in sandboxed environment](tutorials/secure_code_execution) via [E2B](https://e2b.dev/) or via Docker.
 
-🤗 **Hub integrations**: you can share and load Gradio Spaces as tools to/from the Hub, and more is to come!
+📡 **Common Tool-Calling Agent Support**: In addition to CodeAgents, [`ToolCallingAgent`](reference/agents#smolagents.ToolCallingAgent) supports usual JSON/text-based tool-calling for scenarios where that paradigm is preferred.
+
+🤗 **Hub integrations**: Seamlessly share and load agents and tools to/from the Hub as Gradio Spaces.
+
+🌐 **Model-Agnostic**: Easily integrate any large language model (LLM), whether it's hosted on the Hub via [Inference providers](https://huggingface.co/docs/inference-providers/index), accessed via APIs such as OpenAI, Anthropic directly, or many others via LiteLLM integration, or run locally using Transformers or Ollama. Powering an agent with your preferred LLM is straightforward and flexible.
+
+👁️ **Modality-agnostic**: Beyond text, agents can handle vision, video, and audio inputs, broadening the range of possible applications. Check out [this tutorial](examples/web_browser) for vision.
+
+🛠️ **Tool-agnostic**: You can use tools from any [MCP server](reference/tools#smolagents.ToolCollection.from_mcp), from [LangChain]reference/tools#smolagents.Tool.from_langchain), you can even use a [Hub Space](reference/tools#smolagents.Tool.from_space) as a tool.
+
+💻 **CLI Tools**: Comes with command-line utilities (smolagent, webagent) for quickly running agents without writing boilerplate code.
 
 <div class="mt-10">
   <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-y-4 md:gap-x-5">
