@@ -3,7 +3,7 @@
   - local: index
     title: Introduction
   - local: installation
-    title: Installation
+    title: Installation options
   - local: guided_tour
     title: Guided tour
 - title: Tutorials
