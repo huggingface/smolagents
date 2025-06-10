@@ -1843,6 +1843,139 @@ class AmazonBedrockServerModel(ApiModel):
         )
 
 
+class VllmModel(Model):
+    """A class that uses the vLLM library for fast and efficient language model inference.
+
+    This model leverages the vLLM engine to provide significantly faster inference speeds compared to traditional Transformers-based models, especially for long sequences and high throughput scenarios. It's designed for serving language models with high performance and efficiency.
+
+    > [!TIP]
+    > You must have `vllm` installed on your machine to use this model. Please run `pip install 'vllm'` if it's not the case.
+
+    Parameters:
+        model_id (`str`):
+            The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
+        tensor_parallel_size (`Optional[int]`, defaults to `1`):
+            The number of GPUs to use for tensor parallelism.  Increasing this value can improve inference speed but requires more GPU memory.
+        gpu_memory_utilization (`Optional[float]`, defaults to `0.75`):
+            The fraction of GPU memory to reserve for the model. Lower values can help fit larger models or increase concurrency, but might slightly reduce performance.
+        torch_dtype (`Optional[str]`, defaults to `None`):
+            The torch data type to use for the model.  Can be 'half', 'bfloat16', or 'float16' for reduced memory usage and potentially faster inference on compatible GPUs. If `None`, the default data type of the model will be used.
+        quantization (`Optional[str]`, defaults to `None`):
+            The quantization method to use.  Options include 'awq', 'gptq', and potentially others supported by vLLM. Quantization reduces memory footprint and can speed up inference, but might slightly impact model accuracy.
+        max_tokens (`Optional[int]`, defaults to `8196`):
+            The maximum number of tokens the model can generate in a single response. This acts as a default and can be overridden in the `__call__` method.
+        trust_remote_code (`Optional[bool]`, defaults to `False`):
+            Whether to trust remote code when loading the model. Set to `True` if you are loading a model from a remote repository that requires executing custom code. Use with caution.
+        custom_role_conversions (`Optional[Dict[str, str]]`, defaults to `None`):
+            A dictionary to map standard message roles ('user', 'assistant', 'system') to roles expected by the specific model. This is useful for adapting to models with non-standard role names.
+        **kwargs:
+            Additional keyword arguments that will be passed directly to the `vllm.SamplingParams` class during text generation. This allows fine-grained control over the sampling process, such as temperature, top_p, etc.
+
+    Raises:
+        ModuleNotFoundError:
+            If the `vllm` library is not installed.
+
+    Example:
+    ```python
+    >>> engine = VllmModel(
+    ...     model_id="mistralai/Mistral-7B-Instruct-v0.2",
+    ...     tensor_parallel_size=2, # Use 2 GPUs for inference
+    ...     max_tokens=2048,
+    ...     temperature=0.7,
+    ... )
+    >>> messages = [{"role": "user", "content": "Who is x."}]
+    >>> response = engine(messages)
+    >>> print(response)
+    # <ChatMessage role='assistant' content='...' ...>
+    ```
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        tensor_parallel_size: Optional[int] = 1,
+        gpu_memory_utilization: Optional[float] = 0.75,
+        torch_dtype: Optional[str] = None,
+        quantization: Optional[str] = None,
+        max_tokens: Optional[int] = 8196,
+        trust_remote_code: Optional[bool] = False,
+        custom_role_conversions: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ):
+        try:
+            from vllm import LLM, SamplingParams
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install the 'vllm' extra to use VllmModel: `pip install 'vllm'`"
+            ) from None
+
+        super().__init__(**kwargs)
+        self.model_id = model_id
+        self.max_tokens = max_tokens
+        self.llm = LLM(
+            model=self.model_id,
+            trust_remote_code=trust_remote_code,
+            tensor_parallel_size=tensor_parallel_size,
+            quantization=quantization,
+            gpu_memory_utilization=gpu_memory_utilization,
+        )
+        self.custom_role_conversions = custom_role_conversions
+
+    def __call__(
+        self,
+        messages: List[Dict[str, Any]],
+        stop_sequences: Optional[List[str]] = None,
+        grammar: Optional[str] = None,
+        tools_to_call_from: Optional[List[Tool]] = None,
+        **kwargs,
+    ) -> ChatMessage:
+        # Prepare the completion kwargs using the parent Model method.
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=grammar,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+        # Remove the 'stop' and 'model' parameter because vllm.LLM.chat() doesn't support it.
+        if "stop" in completion_kwargs:
+            del completion_kwargs["stop"]
+
+        if "model" in completion_kwargs:
+            del completion_kwargs["model"]
+
+        # Prepare sampling parameters
+        try:
+            from vllm import SamplingParams
+            sampling_params = SamplingParams(**kwargs) if kwargs else SamplingParams(
+                temperature=0.6,
+                top_p=0.8,
+                repetition_penalty=1.05,
+                max_tokens=self.max_tokens
+            )
+        except Exception:
+            sampling_params = None
+        # Generate response using the vllm chat method.
+        response = self.llm.chat(**completion_kwargs, sampling_params=sampling_params)
+        #self.last_input_token_count = response.usage.prompt_tokens
+        #elf.last_output_token_count = response.usage.completion_tokens
+        try:
+            message = ChatMessage.from_dict(
+                response[0].outputs[0].text.model_dump(include={"role", "content", "tool_calls"})
+            )
+        except Exception:
+            message = ChatMessage(
+                role="assistant",
+                content=response[0].outputs[0].text,
+                raw=response
+            )
+        message.raw = response
+        if tools_to_call_from is not None:
+            return parse_tool_args_if_needed(message)
+        return message
 __all__ = [
     "MessageRole",
     "tool_role_conversions",
