@@ -49,11 +49,21 @@ from ._function_type_hints_utils import (
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source, is_valid_name
+from .utils import BASE_BUILTIN_MODULES, ImportFinder, _is_package_available, get_source, is_valid_name
 
 
 if TYPE_CHECKING:
     import mcp
+
+
+__all__ = [
+    "AUTHORIZED_TYPES",
+    "Tool",
+    "tool",
+    "load_tool",
+    "launch_gradio_demo",
+    "ToolCollection",
+]
 
 
 logger = logging.getLogger(__name__)
@@ -274,7 +284,7 @@ class Tool:
 
             validate_tool_attributes(self.__class__)
 
-            tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
+            tool_code = "from typing import Any, Optional\n" + self.to_source()
 
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
@@ -685,6 +695,90 @@ class Tool:
                 return self.langchain_tool.run(tool_input)
 
         return LangChainToolWrapper(langchain_tool)
+
+    def to_source(self, import_smolagents: bool = True) -> str:
+        """Convert an instance to its class source code representation."""
+        cls = self.__class__
+        class_name = cls.__name__
+
+        # Start building class lines
+        class_lines = [f"class {class_name}(Tool):"]
+
+        # Add docstring if it exists and differs from base
+        if cls.__doc__ and (cls.__doc__ != Tool.__doc__):
+            class_lines.append(f'    """{cls.__doc__}"""')
+
+        # Add class-level attributes
+        class_attrs = {
+            name: value
+            for name, value in cls.__dict__.items()
+            if not name.startswith("__")
+            and not callable(value)
+            and not (hasattr(Tool, name) and getattr(Tool, name) == value)
+        }
+
+        for name, value in class_attrs.items():
+            if isinstance(value, str):
+                # multiline value
+                if "\n" in value:
+                    escaped_value = value.replace('"""', r"\"\"\"")  # Escape triple quotes
+                    class_lines.append(f'    {name} = """{escaped_value}"""')
+                else:
+                    class_lines.append(f"    {name} = {json.dumps(value)}")
+            else:
+                class_lines.append(f"    {name} = {repr(value)}")
+
+        if class_attrs:
+            class_lines.append("")
+
+        # Add methods
+        methods = {
+            name: func.__wrapped__ if hasattr(func, "__wrapped__") else func
+            for name, func in cls.__dict__.items()
+            if callable(func)
+            and (
+                not hasattr(Tool, name)
+                or (
+                    isinstance(func, (staticmethod, classmethod))
+                    or (getattr(Tool, name).__code__.co_code != func.__code__.co_code)
+                )
+            )
+        }
+
+        for name, method in methods.items():
+            method_source = get_source(method)
+            # Clean up the indentation
+            method_lines = method_source.split("\n")
+            first_line = method_lines[0]
+            indent = len(first_line) - len(first_line.lstrip())
+            method_lines = [line[indent:] for line in method_lines]
+            method_source = "\n".join(["    " + line if line.strip() else line for line in method_lines])
+            class_lines.append(method_source)
+            class_lines.append("")
+
+        # Find required imports using ImportFinder
+        import_finder = ImportFinder()
+        import_finder.visit(ast.parse("\n".join(class_lines)))
+        required_imports = import_finder.packages
+
+        # Build final code with imports
+        final_lines = []
+
+        # Add base class import if needed
+        if import_smolagents:
+            final_lines.append("from smolagents.tools import Tool")
+
+        # Add discovered imports
+        for package in required_imports:
+            final_lines.append(f"import {package}")
+
+        if final_lines:  # Add empty line after imports
+            final_lines.append("")
+
+        # Add the class code
+        final_lines.extend(class_lines)
+
+        return "\n".join(final_lines)
 
 
 def launch_gradio_demo(tool: Tool):
@@ -1179,8 +1273,7 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     tool_codes = []
     for tool in tools.values():
         validate_tool_attributes(tool.__class__, check_imports=False)
-        tool_code = instance_to_source(tool, base_cls=Tool)
-        tool_code = tool_code.replace("from smolagents.tools import Tool", "")
+        tool_code = tool.to_source(import_smolagents=False)
         tool_code += f"\n\n{tool.name} = {tool.__class__.__name__}()\n"
         tool_codes.append(tool_code)
 
@@ -1199,13 +1292,3 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     )
     tool_definition_code += "\n\n".join(tool_codes)
     return tool_definition_code
-
-
-__all__ = [
-    "AUTHORIZED_TYPES",
-    "Tool",
-    "tool",
-    "load_tool",
-    "launch_gradio_demo",
-    "ToolCollection",
-]
