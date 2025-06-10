@@ -2,8 +2,6 @@
   sections:
   - local: index
     title: Introduction
-  - local: quickstart
-    title: Quickstart
   - local: installation
     title: Installation
   - local: guided_tour
