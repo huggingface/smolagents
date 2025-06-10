@@ -78,6 +78,7 @@ from .monitoring import (
 from .remote_executors import DockerExecutor, E2BExecutor
 from .tools import Tool
 from .utils import (
+    _CODE_PARSE_REGEX,
     AgentError,
     AgentExecutionError,
     AgentGenerationError,
@@ -1494,6 +1495,7 @@ class CodeAgent(MultiStepAgent):
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
         grammar: dict[str, str] | None = None,
+        code_parse_regex: str = _CODE_PARSE_REGEX,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
@@ -1510,6 +1512,14 @@ class CodeAgent(MultiStepAgent):
             )
         if grammar and use_structured_outputs_internally:
             raise ValueError("You cannot use 'grammar' and 'use_structured_outputs_internally' at the same time.")
+
+        self.code_parse_regex = code_parse_regex
+        if self.code_parse_regex != _CODE_PARSE_REGEX:
+            self.logger.log(
+                "You changed the code_parse_regex variable. "
+                "Make sure to update the prompts in src/smolagents/prompts/code_agent.yaml to match your new regex pattern.",
+                level=LogLevel.INFO,
+            )
         super().__init__(
             tools=tools,
             model=model,
@@ -1636,9 +1646,11 @@ class CodeAgent(MultiStepAgent):
         try:
             if self._use_structured_outputs_internally:
                 code_action = json.loads(output_text)["code"]
-                code_action = extract_code_from_text(code_action) or code_action
+                code_action = (
+                    extract_code_from_text(code_action, code_parse_regex=self.code_parse_regex) or code_action
+                )
             else:
-                code_action = parse_code_blobs(output_text)
+                code_action = parse_code_blobs(output_text, code_parse_regex=self.code_parse_regex)
             code_action = fix_final_answer_code(code_action)
         except Exception as e:
             error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
