@@ -462,7 +462,7 @@ You have been provided with these additional arguments, that you can access usin
                 planning_start_time = time.time()
                 planning_step = None
                 for element in self._generate_planning_step(
-                    task, is_first_step=(self.step_number == 1), step=self.step_number
+                    task, is_first_step=(len(self.memory.steps) == 1), step=self.step_number
                 ):
                     yield element
                     planning_step = element
@@ -617,7 +617,8 @@ You have been provided with these additional arguments, that you can access usin
                     }
                 ],
             }
-            input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
+            # remove last message from memory_messages because it is the current task
+            input_messages = [plan_update_pre] + memory_messages[:-1] + [plan_update_post]
             if self.stream_outputs and hasattr(self.model, "generate_stream"):
                 plan_message_content = ""
                 input_tokens, output_tokens = 0, 0
