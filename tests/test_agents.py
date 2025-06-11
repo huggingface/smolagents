@@ -61,7 +61,13 @@ from smolagents.models import (
 )
 from smolagents.monitoring import AgentLogger, LogLevel, TokenUsage
 from smolagents.tools import Tool, tool
-from smolagents.utils import BASE_BUILTIN_MODULES, AgentExecutionError, AgentGenerationError, AgentToolCallError
+from smolagents.utils import (
+    BASE_BUILTIN_MODULES,
+    AgentExecutionError,
+    AgentGenerationError,
+    AgentToolCallError,
+    AgentToolExecutionError,
+)
 
 
 @dataclass
@@ -1303,6 +1309,125 @@ class TestToolCallingAgent:
         agent = ToolCallingAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
         answer = agent.run("Fake task.")
         assert answer == "1CUSTOM2"
+
+    @pytest.mark.parametrize(
+        "test_case",
+        [
+            # Case 0: Single valid tool call
+            {
+                "tool_calls": [
+                    ChatMessageToolCall(
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"input": "test_value"}),
+                    )
+                ],
+                "expected_model_output": "Called Tool: 'test_tool' with arguments: {'input': 'test_value'}",
+                "expected_observations": "Processed: test_value",
+                "expected_final_outputs": [None],
+                "expected_error": None,
+            },
+            # Case 1: Multiple tool calls
+            {
+                "tool_calls": [
+                    ChatMessageToolCall(
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"input": "value1"}),
+                    ),
+                    ChatMessageToolCall(
+                        id="call_2",
+                        type="function",
+                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"input": "value2"}),
+                    ),
+                ],
+                "expected_model_output": "Called Tool: 'test_tool' with arguments: {'input': 'value1'}\nCalled Tool: 'test_tool' with arguments: {'input': 'value2'}",
+                "expected_observations": "Processed: value1\nProcessed: value2",
+                "expected_final_outputs": [None, None],
+                "expected_error": None,
+            },
+            # Case 2: Invalid tool name
+            {
+                "tool_calls": [
+                    ChatMessageToolCall(
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallDefinition(name="nonexistent_tool", arguments={"input": "test"}),
+                    )
+                ],
+                "expected_error": AgentToolExecutionError,
+            },
+            # Case 3: Tool execution error
+            {
+                "tool_calls": [
+                    ChatMessageToolCall(
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"input": "error"}),
+                    )
+                ],
+                "expected_error": AgentToolExecutionError,
+            },
+            # Case 4: Empty tool calls list
+            {
+                "tool_calls": [],
+                "expected_model_output": None,
+                "expected_observations": None,
+                "expected_final_outputs": [],
+                "expected_error": None,
+            },
+            # Case 5: Final answer call
+            {
+                "tool_calls": [
+                    ChatMessageToolCall(
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallDefinition(
+                            name="final_answer", arguments={"answer": "This is the final answer"}
+                        ),
+                    )
+                ],
+                "expected_model_output": "Called Tool: 'final_answer' with arguments: {'answer': 'This is the final answer'}",
+                "expected_observations": None,
+                "expected_final_outputs": ["This is the final answer"],
+                "expected_error": None,
+            },
+            # Case 6: Invalid arguments
+            {
+                "tool_calls": [
+                    ChatMessageToolCall(
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"wrong_param": "value"}),
+                    )
+                ],
+                "expected_error": AgentToolCallError,
+            },
+        ],
+    )
+    def test_process_tool_calls(self, test_case, test_tool):
+        # Create a ToolCallingAgent instance with the test tool
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock())
+        # Create chat message with the specified tool calls for process_tool_calls
+        chat_message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=test_case["tool_calls"])
+        # Create a memory step for process_tool_calls
+        memory_step = ActionStep(step_number=10, timing="mock_timing")
+
+        # Process tool calls
+        if test_case["expected_error"]:
+            with pytest.raises(test_case["expected_error"]):
+                list(agent.process_tool_calls(chat_message, memory_step))
+        else:
+            final_outputs = list(agent.process_tool_calls(chat_message, memory_step))
+            assert memory_step.model_output == test_case["expected_model_output"]
+            assert memory_step.observations == test_case["expected_observations"]
+            assert [final_output.output for final_output in final_outputs] == test_case["expected_final_outputs"]
+            # Verify memory step tool calls were updated correctly
+            if test_case["tool_calls"]:
+                assert memory_step.tool_calls == [
+                    ToolCall(name=tool_call.function.name, arguments=tool_call.function.arguments, id=tool_call.id)
+                    for tool_call in test_case["tool_calls"]
+                ]
 
 
 class TestCodeAgent:

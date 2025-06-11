@@ -1,4 +1,4 @@
-# Installation Guide
+# Installation Options
 
 The `smolagents` library can be installed using pip. Here are the different installation methods and options available.
 
