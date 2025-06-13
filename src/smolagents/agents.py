@@ -229,6 +229,7 @@ class MultiStepAgent(ABC):
             Each function should:
             - Take the final answer and the agent's memory as arguments.
             - Return a boolean indicating whether the final answer is valid.
+        max_images (`int`, *optional*): Maximum number of images to retain in the agent's memory. If `-1`, there is no limit.
     """
 
     def __init__(
@@ -249,6 +250,7 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
+        max_images: int = -1,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -286,7 +288,7 @@ class MultiStepAgent(ABC):
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
         self.task: str | None = None
-        self.memory = AgentMemory(self.system_prompt)
+        self.memory = AgentMemory(self.system_prompt, max_images=max_images)
 
         if logger is None:
             self.logger = AgentLogger(level=verbosity_level)
@@ -396,7 +398,7 @@ You have been provided with these additional arguments, that you can access usin
             level=LogLevel.INFO,
             title=self.name if hasattr(self, "name") else None,
         )
-        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+        self.memory.append(TaskStep(task=self.task, task_images=images))
 
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
@@ -467,7 +469,7 @@ You have been provided with these additional arguments, that you can access usin
                     yield element
                     planning_step = element
                 assert isinstance(planning_step, PlanningStep)  # Last yielded element should be a PlanningStep
-                self.memory.steps.append(planning_step)
+                self.memory.append(planning_step)
                 planning_end_time = time.time()
                 planning_step.timing = Timing(
                     start_time=planning_start_time,
@@ -493,7 +495,7 @@ You have been provided with these additional arguments, that you can access usin
                 action_step.error = e
             finally:
                 self._finalize_step(action_step)
-                self.memory.steps.append(action_step)
+                self.memory.append(action_step)
                 yield action_step
                 self.step_number += 1
 
@@ -540,7 +542,7 @@ You have been provided with these additional arguments, that you can access usin
         )
         final_memory_step.action_output = final_answer.content
         self._finalize_step(final_memory_step)
-        self.memory.steps.append(final_memory_step)
+        self.memory.append(final_memory_step)
         return final_answer.content
 
     def _generate_planning_step(
@@ -1157,6 +1159,7 @@ class ToolCallingAgent(MultiStepAgent):
         max_tool_threads (`int`, *optional*): Maximum number of threads for parallel tool calls.
             Higher values increase concurrency but resource usage as well.
             Defaults to `ThreadPoolExecutor`'s default.
+        max_images (`int`, *optional*): Maximum number of images to retain in the agent's memory. If `-1`, there is no limit.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1168,6 +1171,7 @@ class ToolCallingAgent(MultiStepAgent):
         planning_interval: int | None = None,
         stream_outputs: bool = False,
         max_tool_threads: int | None = None,
+        max_images: int = -1,
         **kwargs,
     ):
         prompt_templates = prompt_templates or yaml.safe_load(
@@ -1178,6 +1182,7 @@ class ToolCallingAgent(MultiStepAgent):
             model=model,
             prompt_templates=prompt_templates,
             planning_interval=planning_interval,
+            max_images=max_images,
             **kwargs,
         )
         # Streaming setup
@@ -1478,6 +1483,7 @@ class CodeAgent(MultiStepAgent):
             <Deprecated version="1.17.0">
             Parameter `grammar` is deprecated and will be removed in version 1.20.
             </Deprecated>
+        max_images (`int`, *optional*): Maximum number of images to retain in the agent's memory. If `-1`, there is no limit.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1494,6 +1500,7 @@ class CodeAgent(MultiStepAgent):
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
         grammar: dict[str, str] | None = None,
+        max_images: int = -1,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
@@ -1516,6 +1523,7 @@ class CodeAgent(MultiStepAgent):
             prompt_templates=prompt_templates,
             grammar=grammar,
             planning_interval=planning_interval,
+            max_images=max_images,
             **kwargs,
         )
         self.stream_outputs = stream_outputs
