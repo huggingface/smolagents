@@ -223,7 +223,7 @@ planning:
 
     {%- if managed_agents and managed_agents.values() | list %}
     You can also give tasks to team members.
-    Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'task'.
+    Calling a team member works the same as for calling a tool: simply, pass it your task as the argument 'task'. You can also pass other arguments such as useful variables under argument 'additional_args'.
     Given that this team member is a real human, you should be very verbose in your task, it should be a long string providing informations as detailed as necessary.
     Here is a list of the team members that you can call:
     ```python
@@ -285,7 +285,7 @@ planning:
 
     {%- if managed_agents and managed_agents.values() | list %}
     You can also give tasks to team members.
-    Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'task'.
+    Calling a team member works the same as for calling a tool: simply, pass it your task as the argument 'task'. You can also pass other arguments such as useful variables under argument 'additional_args'.
     Given that this team member is a real human, you should be very verbose in your task, it should be a long string providing informations as detailed as necessary.
     Here is a list of the team members that you can call:
     ```python
