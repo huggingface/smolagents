@@ -209,29 +209,27 @@ def parse_code_blobs(text: str) -> str:
         raise ValueError(
             dedent(
                 f"""
-                Your code snippet is invalid, because the regex pattern ```(?:py|python)?\\s*\\n(.*?)\\n``` was not found in it.
+                Your code snippet is invalid, because the regex pattern <code>(.*?)</code> was not found in it.
                 Here is your code snippet:
                 {text}
                 It seems like you're trying to return the final answer, you can do it as follows:
-                Code:
-                ```py
+                <code>
                 final_answer("YOUR FINAL ANSWER HERE")
-                ```<end_code>
+                </code>
                 """
             ).strip()
         )
     raise ValueError(
         dedent(
             f"""
-            Your code snippet is invalid, because the regex pattern ```(?:py|python)?\\s*\\n(.*?)\\n``` was not found in it.
+            Your code snippet is invalid, because the regex pattern <code>(.*?)</code> was not found in it.
             Here is your code snippet:
             {text}
             Make sure to include code with the correct pattern, for instance:
             Thoughts: Your thoughts
-            Code:
-            ```py
+            <code>
             # Your python code here
-            ```<end_code>
+            </code>
             """
         ).strip()
     )

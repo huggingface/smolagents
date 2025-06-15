@@ -212,6 +212,7 @@ class MultiStepAgent(ABC):
         tools (`list[Tool]`): [`Tool`]s that the agent can use.
         model (`Callable[[list[dict[str, str]]], ChatMessage]`): Model that will generate the agent's actions.
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
+        instructions (`str`, *optional*): Custom instructions for the agent, will be inserted in the system prompt.
         max_steps (`int`, default `20`): Maximum number of steps the agent can take to solve the task.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
@@ -236,6 +237,7 @@ class MultiStepAgent(ABC):
         tools: list[Tool],
         model: Model,
         prompt_templates: PromptTemplates | None = None,
+        instructions: str | None = None,
         max_steps: int = 20,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
@@ -280,7 +282,7 @@ class MultiStepAgent(ABC):
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks
         self.return_full_result = return_full_result
-
+        self.instructions = instructions
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
@@ -1192,7 +1194,11 @@ class ToolCallingAgent(MultiStepAgent):
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
             self.prompt_templates["system_prompt"],
-            variables={"tools": self.tools, "managed_agents": self.managed_agents},
+            variables={
+                "tools": self.tools,
+                "managed_agents": self.managed_agents,
+                "custom_instructions": self.instructions,
+            },
         )
         return system_prompt
 
@@ -1560,6 +1566,7 @@ class CodeAgent(MultiStepAgent):
                     if "*" in self.authorized_imports
                     else str(self.authorized_imports)
                 ),
+                "custom_instructions": self.instructions,
             },
         )
         return system_prompt

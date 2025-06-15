@@ -102,6 +102,11 @@ system_prompt: |-
   ```
   {%- endif %}
 
+  {%- if custom_instructions %}
+  Here are custom instructions:
+  {{custom_instructions}}
+  {%- endif %}
+
   Here are the rules you should always follow to solve your task:
   1. Use only variables that you have defined!
   2. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wikipedia_search({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wikipedia_search(query="What is the place where James Bond lives?")'.

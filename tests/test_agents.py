@@ -1056,6 +1056,11 @@ class TestMultiStepAgent:
 
 
 class TestToolCallingAgent:
+    def test_toolcalling_agent_instructions(self):
+        agent = ToolCallingAgent(tools=[], model=MagicMock(), instructions="Test instructions")
+        assert agent.instructions == "Test instructions"
+        assert "Test instructions" in agent.system_prompt
+
     @patch("huggingface_hub.InferenceClient")
     def test_toolcalling_agent_api(self, mock_inference_client):
         mock_client = mock_inference_client.return_value
@@ -1394,6 +1399,17 @@ class TestToolCallingAgent:
 
 
 class TestCodeAgent:
+    def test_code_agent_instructions(self):
+        agent = CodeAgent(tools=[], model=MagicMock(), instructions="Test instructions")
+        assert agent.instructions == "Test instructions"
+        assert "Test instructions" in agent.system_prompt
+
+        agent = CodeAgent(
+            tools=[], model=MagicMock(), instructions="Test instructions", use_structured_outputs_internally=True
+        )
+        assert agent.instructions == "Test instructions"
+        assert "Test instructions" in agent.system_prompt
+
     @pytest.mark.filterwarnings("ignore")  # Ignore FutureWarning for deprecated grammar parameter
     def test_init_with_incompatible_grammar_and_use_structured_outputs_internally(self):
         # Test that using both parameters raises ValueError with correct message
@@ -1435,7 +1451,6 @@ class TestCodeAgent:
     def test_call_with_provide_run_summary(self, provide_run_summary):
         agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
         assert agent.provide_run_summary is provide_run_summary
-        agent.managed_agent_prompt = "Task: {task}"
         agent.name = "test_agent"
         agent.run = MagicMock(return_value="Test output")
         agent.write_memory_to_messages = MagicMock(return_value=[{"content": "Test summary"}])
