@@ -509,7 +509,7 @@ You have been provided with these additional arguments, that you can access usin
                 yield el
             elif isinstance(el, FinalOutput):
                 final_answer = el.output
-                if self.final_answer_checks:
+                if self.final_answer_checks and final_answer is not None:
                     self._validate_final_answer(final_answer)
                 yield final_answer
 
