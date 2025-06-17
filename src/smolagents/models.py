@@ -536,18 +536,12 @@ class VLLMModel(Model):
         tools = completion_kwargs.pop("tools", None)
         completion_kwargs.pop("tool_choice", None)
 
-        if tools_to_call_from is not None:
-            prompt = self.tokenizer.apply_chat_template(
-                messages,
-                tools=tools,
-                add_generation_prompt=True,
-                tokenize=False,
-            )
-        else:
-            prompt = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-            )
+        prompt = self.tokenizer.apply_chat_template(
+            messages,
+            tools=tools,
+            add_generation_prompt=True,
+            tokenize=False,
+        )
 
         sampling_params = SamplingParams(
             n=kwargs.get("n", 1),
@@ -589,8 +583,12 @@ class MLXModel(Model):
             The key, which can usually be found in the model's chat template, for retrieving a tool name.
         tool_arguments_key (str):
             The key, which can usually be found in the model's chat template, for retrieving tool arguments.
-        trust_remote_code (bool):
+        trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
+        load_kwargs (dict[str, Any], *optional*):
+            Additional keyword arguments to pass to the `mlx.lm.load` method when loading the model and tokenizer.
+        apply_chat_template_kwargs (dict, *optional*):
+            Additional keyword arguments to pass to the `apply_chat_template` method of the tokenizer.
         kwargs (dict, *optional*):
             Any additional keyword arguments that you want to use in model.generate(), for instance `max_tokens`.
 
@@ -617,25 +615,26 @@ class MLXModel(Model):
     def __init__(
         self,
         model_id: str,
-        tool_name_key: str = "name",
-        tool_arguments_key: str = "arguments",
         trust_remote_code: bool = False,
+        load_kwargs: dict[str, Any] | None = None,
+        apply_chat_template_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
-        super().__init__(
-            flatten_messages_as_text=True, model_id=model_id, **kwargs
-        )  # mlx-lm doesn't support vision models
         if not _is_package_available("mlx_lm"):
             raise ModuleNotFoundError(
                 "Please install 'mlx-lm' extra to use 'MLXModel': `pip install 'smolagents[mlx-lm]'`"
             )
-        import mlx_lm  # type: ignore
+        import mlx_lm
 
-        self.model_id = model_id
-        self.model, self.tokenizer = mlx_lm.load(model_id, tokenizer_config={"trust_remote_code": trust_remote_code})
+        self.load_kwargs = load_kwargs or {}
+        self.load_kwargs.setdefault("tokenizer_config", {}).setdefault("trust_remote_code", trust_remote_code)
+        self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
+        self.apply_chat_template_kwargs.setdefault("add_generation_prompt", True)
+        # mlx-lm doesn't support vision models: flatten_messages_as_text=True
+        super().__init__(model_id=model_id, flatten_messages_as_text=True, **kwargs)
+
+        self.model, self.tokenizer = mlx_lm.load(self.model_id, **self.load_kwargs)
         self.stream_generate = mlx_lm.stream_generate
-        self.tool_name_key = tool_name_key
-        self.tool_arguments_key = tool_arguments_key
         self.is_vlm = False  # mlx-lm doesn't support vision models
 
     def generate(
@@ -659,11 +658,7 @@ class MLXModel(Model):
         tools = completion_kwargs.pop("tools", None)
         completion_kwargs.pop("tool_choice", None)
 
-        prompt_ids = self.tokenizer.apply_chat_template(
-            messages,
-            tools=tools,
-            add_generation_prompt=True,
-        )
+        prompt_ids = self.tokenizer.apply_chat_template(messages, tools=tools, **self.apply_chat_template_kwargs)
 
         output_tokens = 0
         text = ""
@@ -833,6 +828,7 @@ class TransformersModel(Model):
 
         messages = completion_kwargs.pop("messages")
         stop_sequences = completion_kwargs.pop("stop", None)
+        tools = completion_kwargs.pop("tools", None)
 
         max_new_tokens = (
             kwargs.get("max_new_tokens")
@@ -842,10 +838,10 @@ class TransformersModel(Model):
             or 1024
         )
         prompt_tensor = (self.processor if hasattr(self, "processor") else self.tokenizer).apply_chat_template(
-            messages,  # type: ignore
-            tools=[get_tool_json_schema(tool) for tool in tools_to_call_from] if tools_to_call_from else None,
+            messages,
+            tools=tools,
             return_tensors="pt",
-            add_generation_prompt=True if tools_to_call_from else False,
+            add_generation_prompt=True,
             tokenize=True,
             return_dict=True,
         )

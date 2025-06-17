@@ -25,6 +25,7 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
@@ -461,7 +462,7 @@ You have been provided with these additional arguments, that you can access usin
                 planning_start_time = time.time()
                 planning_step = None
                 for element in self._generate_planning_step(
-                    task, is_first_step=(self.step_number == 1), step=self.step_number
+                    task, is_first_step=(len(self.memory.steps) == 1), step=self.step_number
                 ):
                     yield element
                     planning_step = element
@@ -616,7 +617,8 @@ You have been provided with these additional arguments, that you can access usin
                     }
                 ],
             }
-            input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
+            # remove last message from memory_messages because it is the current task
+            input_messages = [plan_update_pre] + memory_messages[:-1] + [plan_update_post]
             if self.stream_outputs and hasattr(self.model, "generate_stream"):
                 plan_message_content = ""
                 input_tokens, output_tokens = 0, 0
@@ -1153,6 +1155,9 @@ class ToolCallingAgent(MultiStepAgent):
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
+        max_tool_threads (`int`, *optional*): Maximum number of threads for parallel tool calls.
+            Higher values increase concurrency but resource usage as well.
+            Defaults to `ThreadPoolExecutor`'s default.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1163,6 +1168,7 @@ class ToolCallingAgent(MultiStepAgent):
         prompt_templates: PromptTemplates | None = None,
         planning_interval: int | None = None,
         stream_outputs: bool = False,
+        max_tool_threads: int | None = None,
         **kwargs,
     ):
         prompt_templates = prompt_templates or yaml.safe_load(
@@ -1175,13 +1181,14 @@ class ToolCallingAgent(MultiStepAgent):
             planning_interval=planning_interval,
             **kwargs,
         )
-
         # Streaming setup
         self.stream_outputs = stream_outputs
         if self.stream_outputs and not hasattr(self.model, "generate_stream"):
             raise ValueError(
                 "`stream_outputs` is set to True, but the model class implements no `generate_stream` method."
             )
+        # Tool calling setup
+        self.max_tool_threads = max_tool_threads
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
@@ -1256,6 +1263,7 @@ class ToolCallingAgent(MultiStepAgent):
             # Record model output
             memory_step.model_output_message = chat_message
             memory_step.model_output = model_output
+            memory_step.token_usage = chat_message.token_usage
         except Exception as e:
             raise AgentGenerationError(f"Error while generating output:\n{e}", self.logger) from e
 
@@ -1267,19 +1275,84 @@ class ToolCallingAgent(MultiStepAgent):
         else:
             for tool_call in chat_message.tool_calls:
                 tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
-        tool_call = chat_message.tool_calls[0]  # type: ignore
-        tool_name, tool_call_id = tool_call.function.name, tool_call.id
-        tool_arguments = tool_call.function.arguments
-        memory_step.model_output = str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}")
-        memory_step.tool_calls = [ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call_id)]
-        memory_step.token_usage = chat_message.token_usage
+        yield from self.process_tool_calls(chat_message, memory_step)
 
-        # Execute
-        self.logger.log(
-            Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
-            level=LogLevel.INFO,
-        )
-        if tool_name == "final_answer":
+    def process_tool_calls(self, chat_message: ChatMessage, memory_step: ActionStep):
+        """Process tool calls from the model output and update agent memory.
+
+        Args:
+            chat_message (`ChatMessage`): Chat message containing tool calls from the model.
+            memory_step (`ActionStep)`: Memory ActionStep to update with results.
+
+        Yields:
+            `FinalOutput`: The final output of tool execution.
+        """
+        model_outputs = []
+        tool_calls = []
+        observations = []
+
+        final_answer_call = None
+        parallel_calls = []
+        for tool_call in chat_message.tool_calls:
+            tool_name = tool_call.function.name
+            tool_arguments = tool_call.function.arguments
+            model_outputs.append(str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}"))
+            tool_calls.append(ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call.id))
+            # Track final_answer separately, add others to parallel processing list
+            if tool_name == "final_answer":
+                final_answer_call = (tool_name, tool_arguments)
+                break  # Stop: final answer reached, no further tool calls
+            else:
+                parallel_calls.append((tool_name, tool_arguments))
+
+        # Helper function to process a single tool call
+        def process_single_tool_call(call_info):
+            tool_name, tool_arguments = call_info
+            self.logger.log(
+                Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
+                level=LogLevel.INFO,
+            )
+            if tool_arguments is None:
+                tool_arguments = {}
+            tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
+            tool_call_result_type = type(tool_call_result)
+            if tool_call_result_type in [AgentImage, AgentAudio]:
+                if tool_call_result_type == AgentImage:
+                    observation_name = "image.png"
+                elif tool_call_result_type == AgentAudio:
+                    observation_name = "audio.mp3"
+                # TODO: tool_call_result naming could allow for different names of same type
+                self.state[observation_name] = tool_call_result
+                observation = f"Stored '{observation_name}' in memory."
+            else:
+                observation = str(tool_call_result).strip()
+            self.logger.log(
+                f"Observations: {observation.replace('[', '|')}",  # escape potential rich-tag-like components
+                level=LogLevel.INFO,
+            )
+            return observation
+
+        # Process non-final-answer tool calls in parallel
+        if parallel_calls:
+            if len(parallel_calls) == 1:
+                # If there's only one call, process it directly
+                observations.append(process_single_tool_call(parallel_calls[0]))
+                yield FinalOutput(output=None)
+            else:
+                # If multiple tool calls, process them in parallel
+                with ThreadPoolExecutor(self.max_tool_threads) as executor:
+                    futures = [executor.submit(process_single_tool_call, call_info) for call_info in parallel_calls]
+                    for future in as_completed(futures):
+                        observations.append(future.result())
+                        yield FinalOutput(output=None)
+
+        # Process final_answer call if present
+        if final_answer_call:
+            tool_name, tool_arguments = final_answer_call
+            self.logger.log(
+                Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
+                level=LogLevel.INFO,
+            )
             answer = (
                 tool_arguments["answer"]
                 if isinstance(tool_arguments, dict) and "answer" in tool_arguments
@@ -1300,31 +1373,16 @@ class ToolCallingAgent(MultiStepAgent):
                     Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
                     level=LogLevel.INFO,
                 )
-
             memory_step.action_output = final_answer
             yield FinalOutput(output=final_answer)
-        else:
-            if tool_arguments is None:
-                tool_arguments = {}
-            observation = self.execute_tool_call(tool_name, tool_arguments)
-            observation_type = type(observation)
-            if observation_type in [AgentImage, AgentAudio]:
-                if observation_type == AgentImage:
-                    observation_name = "image.png"
-                elif observation_type == AgentAudio:
-                    observation_name = "audio.mp3"
-                # TODO: observation naming could allow for different names of same type
 
-                self.state[observation_name] = observation
-                updated_information = f"Stored '{observation_name}' in memory."
-            else:
-                updated_information = str(observation).strip()
-            self.logger.log(
-                f"Observations: {updated_information.replace('[', '|')}",  # escape potential rich-tag-like components
-                level=LogLevel.INFO,
-            )
-            memory_step.observations = updated_information
-            yield FinalOutput(output=None)
+        # Update memory step with all results
+        if model_outputs:
+            memory_step.model_output = "\n".join(model_outputs)
+        if tool_calls:
+            memory_step.tool_calls = tool_calls
+        if observations:
+            memory_step.observations = "\n".join(observations)
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
