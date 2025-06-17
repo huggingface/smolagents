@@ -46,7 +46,7 @@ class RemotePythonExecutor(PythonExecutor):
         self.additional_imports = additional_imports
         self.logger = logger
         self.logger.log("Initializing executor, hold on...")
-        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$", re.M)
+        self.final_answer_pattern = re.compile(r"^final_answer\((.*)\)$", re.M | re.S)
         self.installed_packages = []
 
     def run_code_raise_errors(self, code: str, return_final_answer: bool = False) -> tuple[Any, str]:
