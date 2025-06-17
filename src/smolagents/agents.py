@@ -473,6 +473,7 @@ You have been provided with these additional arguments, that you can access usin
                     start_time=planning_start_time,
                     end_time=planning_end_time,
                 )
+                self._finalize_step(planning_step)
 
             # Start action step!
             action_step_start_time = time.time()
