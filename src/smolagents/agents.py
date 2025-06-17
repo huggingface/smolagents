@@ -467,13 +467,13 @@ You have been provided with these additional arguments, that you can access usin
                     yield element
                     planning_step = element
                 assert isinstance(planning_step, PlanningStep)  # Last yielded element should be a PlanningStep
-                self.memory.steps.append(planning_step)
                 planning_end_time = time.time()
                 planning_step.timing = Timing(
                     start_time=planning_start_time,
                     end_time=planning_end_time,
                 )
                 self._finalize_step(planning_step)
+                self.memory.steps.append(planning_step)
 
             # Start action step!
             action_step_start_time = time.time()
