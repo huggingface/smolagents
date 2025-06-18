@@ -61,6 +61,8 @@ BASE_BUILTIN_MODULES = [
     "unicodedata",
 ]
 
+_CODE_PARSE_REGEX = r"```(?:py|python)?\s*\n(.*?)\n```"
+
 
 def escape_code_brackets(text: str) -> str:
     """Escapes square brackets in code segments while preserving Rich styling tags."""
@@ -172,16 +174,16 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
         )
 
 
-def extract_code_from_text(text: str) -> str | None:
+def extract_code_from_text(text: str, code_parse_regex: str = _CODE_PARSE_REGEX) -> str | None:
     """Extract code from the LLM's output."""
-    pattern = r"```(?:py|python)?\s*\n(.*?)\n```"
+    pattern = code_parse_regex
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)
     return None
 
 
-def parse_code_blobs(text: str) -> str:
+def parse_code_blobs(text: str, code_parse_regex: str = _CODE_PARSE_REGEX) -> str:
     """Extract code blocs from the LLM's output.
 
     If a valid code block is passed, it returns it directly.
@@ -195,7 +197,7 @@ def parse_code_blobs(text: str) -> str:
     Raises:
         ValueError: If no valid code block is found in the text.
     """
-    matches = extract_code_from_text(text)
+    matches = extract_code_from_text(text, code_parse_regex=code_parse_regex)
     if matches:
         return matches
     # Maybe the LLM outputted a code blob directly
