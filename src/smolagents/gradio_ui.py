@@ -299,7 +299,9 @@ class GradioUI:
             messages.append(gr.ChatMessage(role="user", content=prompt, metadata={"status": "done"}))
             yield messages
 
-            for msg in stream_to_gradio(session_state["agent"], task=prompt, reset_agent_memory=self.reset_agent_memory):
+            for msg in stream_to_gradio(
+                session_state["agent"], task=prompt, reset_agent_memory=self.reset_agent_memory
+            ):
                 if isinstance(msg, gr.ChatMessage):
                     messages[-1].metadata["status"] = "done"
                     messages.append(msg)
