@@ -222,6 +222,9 @@ class MultiStepAgent(ABC):
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
+        state (`dict[str, Any]`, *optional*): Dictionary of variables that can be used in prompt templates
+            or called in a python executed environment.
+            They can be accessed using the keys as variables, the value is a value of any type.
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
         provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
@@ -243,6 +246,7 @@ class MultiStepAgent(ABC):
         managed_agents: list | None = None,
         step_callbacks: list[Callable] | None = None,
         planning_interval: int | None = None,
+        state: dict[str, Any] | None = None,
         name: str | None = None,
         description: str | None = None,
         provide_run_summary: bool = False,
@@ -274,7 +278,7 @@ class MultiStepAgent(ABC):
             )
         self.grammar = grammar
         self.planning_interval = planning_interval
-        self.state: dict[str, Any] = {}
+        self.state = state if state is not None else {}
         self.name = self._validate_name(name)
         self.description = description
         self.provide_run_summary = provide_run_summary
@@ -556,7 +560,12 @@ You have been provided with these additional arguments, that you can access usin
                             "type": "text",
                             "text": populate_template(
                                 self.prompt_templates["planning"]["initial_plan"],
-                                variables={"task": task, "tools": self.tools, "managed_agents": self.managed_agents},
+                                variables={
+                                    "task": task,
+                                    "tools": self.tools,
+                                    "managed_agents": self.managed_agents,
+                                    "state": self.state,
+                                },
                             ),
                         }
                     ],
@@ -612,6 +621,7 @@ You have been provided with these additional arguments, that you can access usin
                                 "tools": self.tools,
                                 "managed_agents": self.managed_agents,
                                 "remaining_steps": (self.max_steps - step),
+                                "state": self.state,
                             },
                         ),
                     }
@@ -955,6 +965,7 @@ You have been provided with these additional arguments, that you can access usin
             "verbosity_level": int(self.logger.level),
             "grammar": self.grammar,
             "planning_interval": self.planning_interval,
+            "state": self.state,
             "name": self.name,
             "description": self.description,
             "requirements": sorted(requirements),
@@ -994,6 +1005,7 @@ You have been provided with these additional arguments, that you can access usin
             "verbosity_level": agent_dict.get("verbosity_level"),
             "grammar": agent_dict.get("grammar"),
             "planning_interval": agent_dict.get("planning_interval"),
+            "state": agent_dict.get("state"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
         }
@@ -1193,7 +1205,7 @@ class ToolCallingAgent(MultiStepAgent):
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
             self.prompt_templates["system_prompt"],
-            variables={"tools": self.tools, "managed_agents": self.managed_agents},
+            variables={"tools": self.tools, "managed_agents": self.managed_agents, "state": self.state},
         )
         return system_prompt
 
@@ -1561,6 +1573,7 @@ class CodeAgent(MultiStepAgent):
                     if "*" in self.authorized_imports
                     else str(self.authorized_imports)
                 ),
+                "state": self.state,
             },
         )
         return system_prompt
