@@ -1196,6 +1196,11 @@ class ToolCallingAgent(MultiStepAgent):
         # Tool calling setup
         self.max_tool_threads = max_tool_threads
 
+    @property
+    def tools_and_managed_agents(self):
+        """Returns a combined list of tools and managed agents."""
+        return list(self.tools.values()) + list(self.managed_agents.values())
+
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
             self.prompt_templates["system_prompt"],
@@ -1225,7 +1230,7 @@ class ToolCallingAgent(MultiStepAgent):
                 output_stream = self.model.generate_stream(
                     input_messages,
                     stop_sequences=["Observation:", "Calling tools:"],
-                    tools_to_call_from=list(self.tools.values()) + list(self.managed_agents.values()),
+                    tools_to_call_from=self.tools_and_managed_agents,
                 )
 
                 model_output = ""
@@ -1260,7 +1265,7 @@ class ToolCallingAgent(MultiStepAgent):
                 chat_message: ChatMessage = self.model.generate(
                     input_messages,
                     stop_sequences=["Observation:", "Calling tools:"],
-                    tools_to_call_from=list(self.tools.values()) + list(self.managed_agents.values()),
+                    tools_to_call_from=self.tools_and_managed_agents,
                 )
 
                 model_output = chat_message.content
