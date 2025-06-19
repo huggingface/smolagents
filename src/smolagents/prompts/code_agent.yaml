@@ -145,7 +145,7 @@ system_prompt: |-
 
   {%- if managed_agents and managed_agents.values() | list %}
   You can also give tasks to team members.
-  Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'task'.
+  Calling a team member works similarly to calling a tool: provide the task as the 'task' argument. You can also include any relevant variables or context using the 'additional_args' argument.
   Given that this team member is a real human, you should be very verbose in your task, it should be a long string providing informations as detailed as necessary.
   Here is a list of the team members that you can call:
   ```python
