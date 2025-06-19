@@ -329,8 +329,8 @@ Above example were using notional tools that might not exist for you. On top of 
 
 {%- if managed_agents and managed_agents.values() | list %}
 You can also give tasks to team members.
-Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'task', a long string explaining your task.
-Given that this team member is a real human, you should be very verbose in your task.
+Calling a team member works similarly to calling a tool: provide the task description as the 'task' argument. Since this team member is a real human, be as detailed and verbose as necessary in your task description.
+You can also include any relevant variables or context using the 'additional_args' argument.
 Here is a list of the team members that you can call:
 {%- for agent in managed_agents.values() %}
 - {{ agent.name }}: {{ agent.description }}
@@ -368,8 +368,8 @@ So while you can overwrite this system prompt template by passing your custom pr
   ```
   {%- if managed_agents and managed_agents.values() | list %}
   You can also give tasks to team members.
-  Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'task', a long string explaining your task.
-  Given that this team member is a real human, you should be very verbose in your task.
+  Calling a team member works similarly to calling a tool: provide the task description as the 'task' argument. Since this team member is a real human, be as detailed and verbose as necessary in your task description.
+  You can also include any relevant variables or context using the 'additional_args' argument.
   Here is a list of the team members that you can call:
   {%- for agent in managed_agents.values() %}
   - {{ agent.name }}: {{ agent.description }}
