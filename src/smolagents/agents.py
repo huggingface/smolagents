@@ -323,6 +323,10 @@ class MultiStepAgent(ABC):
                 "All managed agents need both a name and a description!"
             )
             self.managed_agents = {agent.name: agent for agent in managed_agents}
+            # Ensure managed agents can be called as tools by the model: set their inputs and output_type
+            for agent in self.managed_agents.values():
+                agent.inputs = {"task": {"type": "string", "description": "Long detailed description of the task."}}
+                agent.output_type = "string"
 
     def _setup_tools(self, tools, add_base_tools):
         assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
@@ -1221,7 +1225,7 @@ class ToolCallingAgent(MultiStepAgent):
                 output_stream = self.model.generate_stream(
                     input_messages,
                     stop_sequences=["Observation:", "Calling tools:"],
-                    tools_to_call_from=list(self.tools.values()),
+                    tools_to_call_from=list(self.tools.values()) + list(self.managed_agents.values()),
                 )
 
                 model_output = ""
@@ -1256,7 +1260,7 @@ class ToolCallingAgent(MultiStepAgent):
                 chat_message: ChatMessage = self.model.generate(
                     input_messages,
                     stop_sequences=["Observation:", "Calling tools:"],
-                    tools_to_call_from=list(self.tools.values()),
+                    tools_to_call_from=list(self.tools.values()) + list(self.managed_agents.values()),
                 )
 
                 model_output = chat_message.content
