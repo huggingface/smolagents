@@ -515,6 +515,8 @@ You have been provided with these additional arguments, that you can access usin
                 if self.final_answer_checks:
                     self._validate_final_answer(final_answer)
                 yield final_answer
+            else:
+                yield
 
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
@@ -1343,14 +1345,14 @@ class ToolCallingAgent(MultiStepAgent):
             if len(parallel_calls) == 1:
                 # If there's only one call, process it directly
                 observations.append(process_single_tool_call(parallel_calls[0]))
-                yield FinalOutput(output=None)
+                yield
             else:
                 # If multiple tool calls, process them in parallel
                 with ThreadPoolExecutor(self.max_tool_threads) as executor:
                     futures = [executor.submit(process_single_tool_call, call_info) for call_info in parallel_calls]
                     for future in as_completed(futures):
                         observations.append(future.result())
-                        yield FinalOutput(output=None)
+                        yield
 
         # Process final_answer call if present
         if final_answer_call:
@@ -1702,7 +1704,7 @@ class CodeAgent(MultiStepAgent):
         ]
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
         memory_step.action_output = output
-        yield FinalOutput(output=output if is_final_answer else None)
+        yield FinalOutput(output=output) if is_final_answer else None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the agent to a dictionary representation.
