@@ -103,6 +103,8 @@ system_prompt: |-
   Here is a list of the team members that you can call:
   {%- for agent in managed_agents.values() %}
   - {{ agent.name }}: {{ agent.description }}
+      Takes inputs: {{agent.inputs}}
+      Returns an output of type: {{agent.output_type}}
   {%- endfor %}
   {%- endif %}
 
