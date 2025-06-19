@@ -1086,6 +1086,33 @@ class TestToolCallingAgent:
         assert agent.instructions == "Test instructions"
         assert "Test instructions" in agent.system_prompt
 
+    def test_toolcalling_agent_passes_both_tools_and_managed_agents(self, test_tool):
+        """Test that both tools and managed agents are passed to the model."""
+        managed_agent = MagicMock()
+        managed_agent.name = "managed_agent"
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_0",
+                    type="function",
+                    function=ChatMessageToolCallDefinition(name="test_tool", arguments={"input": "test_value"}),
+                )
+            ],
+        )
+        agent = ToolCallingAgent(tools=[test_tool], managed_agents=[managed_agent], model=model)
+        # Run the agent one step to trigger the model call
+        next(agent.run("Test task", stream=True))
+        # Check that the model was called with both tools and managed agents:
+        # - Get all tool_to_call_from names passed to the model
+        tools_to_call_from_names = [tool.name for tool in model.generate.call_args.kwargs["tools_to_call_from"]]
+        # - Verify both regular tools and managed agents are included
+        assert "test_tool" in tools_to_call_from_names  # The regular tool
+        assert "managed_agent" in tools_to_call_from_names  # The managed agent
+        assert "final_answer" in tools_to_call_from_names  # The final_answer tool (added by default)
+
     @patch("huggingface_hub.InferenceClient")
     def test_toolcalling_agent_api(self, mock_inference_client):
         mock_client = mock_inference_client.return_value
