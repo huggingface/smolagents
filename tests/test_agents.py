@@ -39,6 +39,7 @@ from smolagents.agents import (
     AgentError,
     AgentMaxStepsError,
     CodeAgent,
+    FinalOutput,
     MultiStepAgent,
     ToolCall,
     ToolCallingAgent,
@@ -1382,7 +1383,7 @@ class TestToolCallingAgent:
                 ],
                 "expected_model_output": "Called Tool: 'final_answer' with arguments: {'answer': 'This is the final answer'}",
                 "expected_observations": None,
-                "expected_final_outputs": ["This is the final answer"],
+                "expected_final_outputs": [FinalOutput("This is the final answer")],
                 "expected_error": None,
             },
             # Case 6: Invalid arguments
@@ -1414,7 +1415,7 @@ class TestToolCallingAgent:
             final_outputs = list(agent.process_tool_calls(chat_message, memory_step))
             assert memory_step.model_output == test_case["expected_model_output"]
             assert memory_step.observations == test_case["expected_observations"]
-            assert [final_output.output for final_output in final_outputs] == test_case["expected_final_outputs"]
+            assert final_outputs == test_case["expected_final_outputs"]
             # Verify memory step tool calls were updated correctly
             if test_case["tool_calls"]:
                 assert memory_step.tool_calls == [
