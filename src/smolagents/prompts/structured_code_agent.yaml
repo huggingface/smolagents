@@ -96,11 +96,12 @@ system_prompt: |-
   Here is a list of the team members that you can call:
   ```python
   {%- for agent in managed_agents.values() %}
-  def {{ agent.name }}(task: str) -> str:
+  def {{ agent.name }}(task: str, additional_args: dict[str, Any]) -> str:
       """{{ agent.description }}
 
       Args:
           task: Long detailed description of the task.
+          additional_args: Dictionary of extra inputs to pass to the managed agent, e.g. images, dataframes, or any other contextual data it may need.
       """
   {% endfor %}
   ```
@@ -169,8 +170,13 @@ planning:
     Here is a list of the team members that you can call:
     ```python
     {%- for agent in managed_agents.values() %}
-    def {{ agent.name }}("Your query goes here.") -> str:
-        """{{ agent.description }}"""
+    def {{ agent.name }}(task: str, additional_args: dict[str, Any]) -> str:
+        """{{ agent.description }}
+
+        Args:
+            task: Long detailed description of the task.
+            additional_args: Dictionary of extra inputs to pass to the managed agent, e.g. images, dataframes, or any other contextual data it may need.
+        """
     {% endfor %}
     ```
     {%- endif %}
@@ -231,8 +237,13 @@ planning:
     Here is a list of the team members that you can call:
     ```python
     {%- for agent in managed_agents.values() %}
-    def {{ agent.name }}("Your query goes here.") -> str:
-        """{{ agent.description }}"""
+    def {{ agent.name }}(task: str, additional_args: dict[str, Any]) -> str:
+        """{{ agent.description }}
+
+        Args:
+            task: Long detailed description of the task.
+            additional_args: Dictionary of extra inputs to pass to the managed agent, e.g. images, dataframes, or any other contextual data it may need.
+        """
     {% endfor %}
     ```
     {%- endif %}
