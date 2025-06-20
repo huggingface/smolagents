@@ -96,8 +96,12 @@ system_prompt: |-
   Here is a list of the team members that you can call:
   ```python
   {%- for agent in managed_agents.values() %}
-  def {{ agent.name }}("Your query goes here.") -> str:
-      """{{ agent.description }}"""
+  def {{ agent.name }}(task: str) -> str:
+      """{{ agent.description }}
+
+      Args:
+          task: Long detailed description of the task.
+      """
   {% endfor %}
   ```
   {%- endif %}

@@ -22,7 +22,7 @@ from typing import Generator
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
 from smolagents.memory import ActionStep, FinalAnswerStep
-from smolagents.models import ChatMessageStreamDelta
+from smolagents.models import ChatMessageStreamDelta, agglomerate_stream_deltas
 from smolagents.utils import _is_package_available
 
 
@@ -249,30 +249,59 @@ def stream_to_gradio(
     additional_args: dict | None = None,
 ) -> Generator:
     """Runs an agent with the given task and streams the messages from the agent as gradio ChatMessages."""
+
     if not _is_package_available("gradio"):
         raise ModuleNotFoundError(
             "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
         )
-    intermediate_text = ""
-
+    accumulated_events: list[ChatMessageStreamDelta] = []
     for event in agent.run(
         task, images=task_images, stream=True, reset=reset_agent_memory, additional_args=additional_args
     ):
         if isinstance(event, ActionStep | PlanningStep | FinalAnswerStep):
-            intermediate_text = ""
             for message in pull_messages_from_step(
                 event,
                 # If we're streaming model outputs, no need to display them twice
                 skip_model_outputs=getattr(agent, "stream_outputs", False),
             ):
                 yield message
+            accumulated_events = []
         elif isinstance(event, ChatMessageStreamDelta):
-            intermediate_text += event.content or ""
-            yield intermediate_text
+            accumulated_events.append(event)
+            text = agglomerate_stream_deltas(accumulated_events).render_as_markdown()
+            yield text
 
 
 class GradioUI:
-    """A one-line interface to launch your agent in Gradio"""
+    """
+    Gradio interface for interacting with a [`MultiStepAgent`].
+
+    This class provides a web interface to interact with the agent in real-time, allowing users to submit prompts, upload files, and receive responses in a chat-like format.
+    It  can reset the agent's memory at the start of each interaction if desired.
+    It supports file uploads, which are saved to a specified folder.
+    It uses the [`gradio.Chatbot`] component to display the conversation history.
+    This class requires the `gradio` extra to be installed: `smolagents[gradio]`.
+
+    Args:
+        agent ([`MultiStepAgent`]): The agent to interact with.
+        file_upload_folder (`str`, *optional*): The folder where uploaded files will be saved.
+            If not provided, file uploads are disabled.
+        reset_agent_memory (`bool`, *optional*, defaults to `False`): Whether to reset the agent's memory at the start of each interaction.
+            If `True`, the agent will not remember previous interactions.
+
+    Raises:
+        ModuleNotFoundError: If the `gradio` extra is not installed.
+
+    Example:
+        ```python
+        from smolagents import CodeAgent, GradioUI, InferenceClientModel
+
+        model = InferenceClientModel(model_id="meta-llama/Meta-Llama-3.1-8B-Instruct")
+        agent = CodeAgent(tools=[], model=model)
+        gradio_ui = GradioUI(agent, file_upload_folder="uploads", reset_agent_memory=True)
+        gradio_ui.launch()
+        ```
+    """
 
     def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None, reset_agent_memory: bool = False):
         if not _is_package_available("gradio"):
@@ -320,7 +349,15 @@ class GradioUI:
 
     def upload_file(self, file, file_uploads_log, allowed_file_types=None):
         """
-        Handle file uploads, default allowed types are .pdf, .docx, and .txt
+        Upload a file and add it to the list of uploaded files in the session state.
+
+        The file is saved to the `self.file_upload_folder` folder.
+        If the file type is not allowed, it returns a message indicating the disallowed file type.
+
+        Args:
+            file (`gradio.File`): The uploaded file.
+            file_uploads_log (`list`): A list to log uploaded files.
+            allowed_file_types (`list`, *optional*): List of allowed file extensions. Defaults to [".pdf", ".docx", ".txt"].
         """
         import gradio as gr
 
@@ -361,6 +398,13 @@ class GradioUI:
         )
 
     def launch(self, share: bool = True, **kwargs):
+        """
+        Launch the Gradio app with the agent interface.
+
+        Args:
+            share (`bool`, defaults to `True`): Whether to share the app publicly.
+            **kwargs: Additional keyword arguments to pass to the Gradio launch method.
+        """
         self.create_app().launch(debug=True, share=share, **kwargs)
 
     def create_app(self):
