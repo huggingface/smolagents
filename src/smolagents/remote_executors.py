@@ -233,8 +233,10 @@ class DockerExecutor(RemotePythonExecutor):
                 _, build_logs = self.client.images.build(
                     path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
                 )
-                build_logs = "".join([x.get("stream", "") for x in build_logs])
-                self.logger.log(build_logs.rstrip(), level=LogLevel.DEBUG)
+                for log_chunk in build_logs:
+                    # Only log non-empty messages
+                    if log_message := log_chunk.get("stream", "").rstrip():
+                        self.logger.log(log_message, level=LogLevel.DEBUG)
 
             self.logger.log(f"Starting container on {host}:{port}...", level=LogLevel.INFO)
             # Create base container parameters
