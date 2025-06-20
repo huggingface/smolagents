@@ -676,14 +676,16 @@ nested_answer()
         assert plan_update_post["role"] == "user"
 
         second_planning_step = planning_steps[1]
-        assert len(second_planning_step.model_input_messages) == 4  # pre-update plan system message + 3 memory message + post-update plan user message
+        assert len(second_planning_step.model_input_messages) == 6  # pre-update plan system message + 2 tasks + tool call + tool response+ post-update plan user message
         plan_update_pre = second_planning_step.model_input_messages[0]
         assert plan_update_pre["role"] == "system"
         assert task in plan_update_pre["content"][0]["text"]
-        memory_messages = second_planning_step.model_input_messages[1:3]
-        assert len(memory_messages) >=2
-        assert "Previous user request" in memory_messages[0]["content"][0]["text"]
-        assert "action_marker" in memory_messages[1]["content"][0]["text"]
+        memory_messages = second_planning_step.model_input_messages
+        assert len(memory_messages) >2
+        # check all user tasks and action are present
+        assert "Previous user request" in memory_messages[1]["content"][0]["text"]
+        assert "Continuous task" in memory_messages[2]["content"][0]["text"]
+        assert "tools" in memory_messages[3]["content"][0]["text"]
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
