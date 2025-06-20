@@ -326,7 +326,13 @@ class MultiStepAgent(ABC):
             self.managed_agents = {agent.name: agent for agent in managed_agents}
             # Ensure managed agents can be called as tools by the model: set their inputs and output_type
             for agent in self.managed_agents.values():
-                agent.inputs = {"task": {"type": "string", "description": "Long detailed description of the task."}}
+                agent.inputs = {
+                    "task": {"type": "string", "description": "Long detailed description of the task."},
+                    "additional_args": {
+                        "type": "object",
+                        "description": "Dictionary of extra inputs to pass to the managed agent, e.g. images, dataframes, or any other contextual data it may need.",
+                    },
+                }
                 agent.output_type = "string"
 
     def _setup_tools(self, tools, add_base_tools):
