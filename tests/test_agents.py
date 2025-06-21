@@ -228,11 +228,29 @@ final_answer(7.2904)
 
 class FakeCodeModelPlanning(Model):
     def generate(self, messages, stop_sequences=None):
-        return ChatMessage(
-            role="assistant",
-            content="llm plan",
-            token_usage=TokenUsage(input_tokens=10, output_tokens=10),
-        )
+        prompt = str(messages)
+        if "planning_marker" not in prompt:
+            return ChatMessage(
+                role="assistant",
+                content="llm plan update planning_marker",
+                token_usage=TokenUsage(input_tokens=10, output_tokens=10),
+            )
+        elif "action_marker" not in prompt:
+            return ChatMessage(
+                role="assistant",
+                content="""
+Thought: I should multiply 2 by 3.6452. action_marker
+<code>
+result = 2**3.6452
+</code>
+""",
+                token_usage=TokenUsage(input_tokens=10, output_tokens=10))
+        else:
+            return ChatMessage(
+                role="assistant",
+                content="llm plan again",
+                token_usage=TokenUsage(input_tokens=10, output_tokens=10),
+            )
 
 
 class FakeCodeModelError(Model):
@@ -647,7 +665,7 @@ nested_answer()
 
     def test_planning_step_with_injected_memory(self):
         """Test that planning step uses update plan prompts when memory is injected before run."""
-        agent = CodeAgent(tools=[], planning_interval=1, model=FakeCodeModelPlanning())
+        agent = CodeAgent(tools=[], planning_interval=1, model=FakeCodeModelPlanning(), max_steps = 4)
         task = "Continuous task"
 
         # Inject memory before run
@@ -655,21 +673,34 @@ nested_answer()
         agent.memory.steps.append(previous_step)
 
         # Run the agent
-        agent.run(task, reset=False, max_steps=2)
+        agent.run(task, reset=False)
 
         # Verify that the planning step used update plan prompts
         planning_steps = [step for step in agent.memory.steps if isinstance(step, PlanningStep)]
-        assert len(planning_steps) > 0
+        assert len(planning_steps) > 2
 
         # Check that the planning step's model input messages contain the injected memory
-        update_plan_step = planning_steps[0]
-        assert (
-            len(update_plan_step.model_input_messages) == 3
-        )  # system message + memory messages (1 task message, the latest one is removed) + user message
-        assert update_plan_step.model_input_messages[0].role == "system"
-        assert task in update_plan_step.model_input_messages[0].content[0]["text"]
-        assert update_plan_step.model_input_messages[1].role == "user"
-        assert "Previous user request" in update_plan_step.model_input_messages[1].content[0]["text"]
+        planning_step = planning_steps[0]
+        assert len(planning_step.model_input_messages) == 4  # pre-update plan system message + 2 memory message + post-update plan user message
+        plan_update_pre = planning_step.model_input_messages[0]
+        assert plan_update_pre.role == "system"
+        assert task in plan_update_pre.content[0]["text"]
+        memory_message = planning_step.model_input_messages[1]
+        assert "Previous user request" in memory_message.content[0]["text"]
+        plan_update_post = planning_step.model_input_messages[3]
+        assert plan_update_post.role == "user"
+
+        second_planning_step = planning_steps[1]
+        assert len(second_planning_step.model_input_messages) == 6  # pre-update plan system message + 2 tasks + tool call + tool response+ post-update plan user message
+        plan_update_pre = second_planning_step.model_input_messages[0]
+        assert plan_update_pre.role == "system"
+        assert task in plan_update_pre.content[0]["text"]
+        memory_messages = second_planning_step.model_input_messages
+        assert len(memory_messages) >2
+        # check all user tasks and action are present
+        assert "Previous user request" in memory_messages[1].content[0]["text"]
+        assert "Continuous task" in memory_messages[2].content[0]["text"]
+        assert "tools" in memory_messages[3].content[0]["text"]
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
@@ -1745,7 +1776,8 @@ class TestCodeAgent:
 
         model = MagicMock()
         model.generate.return_value = ChatMessage(
-            role="assistant", content="<code>\nfinal_answer(answer1='1', answer2='2')\n</code>"
+            role="assistant",
+            content="<code>\nfinal_answer(answer1='1', answer2='2')\n</code>"
         )
         agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
         answer = agent.run("Fake task.")

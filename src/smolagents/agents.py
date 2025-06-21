@@ -570,7 +570,7 @@ You have been provided with these additional arguments, that you can access usin
         self._finalize_step(final_memory_step)
         self.memory.steps.append(final_memory_step)
         return final_answer.content
-
+    
     def _generate_planning_step(
         self, task, is_first_step: bool, step: int
     ) -> Generator[ChatMessageStreamDelta | PlanningStep]:
@@ -649,8 +649,8 @@ You have been provided with these additional arguments, that you can access usin
                     }
                 ],
             )
-            # remove last message from memory_messages because it is the current task
-            input_messages = [plan_update_pre] + memory_messages[:-1] + [plan_update_post]
+            
+            input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
             if self.stream_outputs and hasattr(self.model, "generate_stream"):
                 plan_message_content = ""
                 input_tokens, output_tokens = 0, 0
