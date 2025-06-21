@@ -33,6 +33,17 @@ class TestRemotePythonExecutor:
         assert executor.run_code_raise_errors.call_count == 1
         assert "!pip install wikipedia-api" in executor.run_code_raise_errors.call_args.args[0]
 
+    def test_multiline_final_answer(self):
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
+        code_action = dedent('''
+            final_answer("""This is
+            a multiline
+            final answer""")
+        ''')
+        match = executor.final_answer_pattern.search(code_action)
+        assert match is not None
+        assert "This is\na multiline\nfinal answer" in match.group(1)
+
 
 class TestE2BExecutorMock:
     def test_e2b_executor_instantiation(self):
