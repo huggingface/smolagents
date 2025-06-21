@@ -488,6 +488,33 @@ class Model:
         """
         raise NotImplementedError("This method must be implemented in child classes")
 
+    def generate_stream(
+        self,
+        messages: list[ChatMessage],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> Generator[ChatMessageStreamDelta]:
+        """Process the input messages and return the model's response in streaming mode.
+
+        Parameters:
+            messages (`list[dict[str, str | list[dict]]] | list[ChatMessage]`):
+                A list of message dictionaries to be processed. Each dictionary should have the structure `{"role": "user/system", "content": "message content"}`.
+            stop_sequences (`List[str]`, *optional*):
+                A list of strings that will stop the generation if encountered in the model's output.
+            response_format (`dict[str, str]`, *optional*):
+                The response format to use in the model's response.
+            tools_to_call_from (`List[Tool]`, *optional*):
+                A list of tools that the model can use to generate responses.
+            **kwargs:
+                Additional keyword arguments to be passed to the underlying model.
+
+        Returns:
+            `ChatMessage`: A chat message object containing the model's response.
+        """
+        raise NotImplementedError("This method must be implemented in child classes")
+
     def __call__(self, *args, **kwargs):
         return self.generate(*args, **kwargs)
 
