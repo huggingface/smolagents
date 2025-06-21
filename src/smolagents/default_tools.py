@@ -542,7 +542,7 @@ class SpeechToTextTool(PipelineTool):
 
         cls.pre_processor_class = WhisperProcessor
         cls.model_class = WhisperForConditionalGeneration
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls)
 
     def encode(self, audio):
         from .agent_types import AgentAudio
