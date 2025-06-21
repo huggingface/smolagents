@@ -143,7 +143,8 @@ from smolagents import InferenceClientModel, CodeAgent
 
 agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b")
 
-agent.run("Can you give me the 100th Fibonacci number?")
+with agent:
+    agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
 This solution send the agent state to the server at the start of each `agent.run()`.
@@ -158,6 +159,9 @@ This is illustrated in the figure below.
 
 However, since any call to a [managed agent](../examples/multiagents) would require model calls, since we do not transfer secrets to the remote sandbox, the model call would lack credentials.
 Hence this solution does not work (yet) with more complicated multi-agent setups.
+
+> [!TIP]
+> Using a context manager for the agent, like the `with` statement above, ensures immediate cleanup of the E2B sandbox when the agent has finished its task. If you prefer not to use a context manager, you may also call the agent's `cleanup` method directly.
 
 #### Running your agent in E2B: multi-agents
 
@@ -234,8 +238,12 @@ from smolagents import InferenceClientModel, CodeAgent
 
 agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker")
 
-agent.run("Can you give me the 100th Fibonacci number?")
+with agent:
+    agent.run("Can you give me the 100th Fibonacci number?")
 ```
+
+> [!TIP]
+> As for the E2B Sandbox above, using a context manager for the agent ensures cleanup of the Docker container when the agent has finished its task. An alternative approach is to call the agent's `cleanup` method directly.
 
 #### Advanced docker usage
 
