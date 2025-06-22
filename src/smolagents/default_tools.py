@@ -535,10 +535,7 @@ class SpeechToTextTool(PipelineTool):
     output_type = "string"
 
     def __new__(cls, *args, **kwargs):
-        from transformers.models.whisper import (
-            WhisperForConditionalGeneration,
-            WhisperProcessor,
-        )
+        from transformers.models.whisper import WhisperForConditionalGeneration, WhisperProcessor
 
         cls.pre_processor_class = WhisperProcessor
         cls.model_class = WhisperForConditionalGeneration
