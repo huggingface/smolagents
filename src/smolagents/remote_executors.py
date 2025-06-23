@@ -157,6 +157,7 @@ class E2BExecutor(RemotePythonExecutor):
             return None, execution_logs
 
     def cleanup(self):
+        """Clean up the E2B sandbox and resources."""
         try:
             if hasattr(self, "sandbox"):
                 self.logger.log("Shutting down sandbox...", level=LogLevel.INFO)
@@ -384,6 +385,7 @@ class DockerExecutor(RemotePythonExecutor):
         return msg_id
 
     def cleanup(self):
+        """Clean up the Docker container and resources."""
         try:
             if hasattr(self, "container"):
                 self.logger.log(f"Stopping and removing container {self.container.short_id}...", level=LogLevel.INFO)
