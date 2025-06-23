@@ -147,6 +147,9 @@ with agent:
     agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
+> [!TIP]
+> Using a context manager for the agent, like the `with` statement above, ensures immediate cleanup of the E2B sandbox when the agent has finished its task. If you prefer not to use a context manager, you may also call the agent's `cleanup` method directly.
+
 This solution send the agent state to the server at the start of each `agent.run()`.
 Then the models are called from the local environment, but the generated code will be sent to the sandbox for execution, and only the output will be returned.
 
@@ -156,12 +159,8 @@ This is illustrated in the figure below.
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png" alt="sandboxed code execution" width=60% max-width=500px>
 </p>
 
-
 However, since any call to a [managed agent](../examples/multiagents) would require model calls, since we do not transfer secrets to the remote sandbox, the model call would lack credentials.
 Hence this solution does not work (yet) with more complicated multi-agent setups.
-
-> [!TIP]
-> Using a context manager for the agent, like the `with` statement above, ensures immediate cleanup of the E2B sandbox when the agent has finished its task. If you prefer not to use a context manager, you may also call the agent's `cleanup` method directly.
 
 #### Running your agent in E2B: multi-agents
 
@@ -233,6 +232,7 @@ pip install 'smolagents[docker]'
 #### Running your agent in Docker: quick start
 
 Similar to the E2B Sandbox above, to quickly get started with Docker, simply add `executor_type="docker"` to the agent initialization, like:
+
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
