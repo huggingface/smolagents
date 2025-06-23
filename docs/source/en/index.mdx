@@ -28,6 +28,8 @@ Key features of `smolagents` include:
 
 ## Quickstart
 
+[[open-in-colab]]
+
 Get started with smolagents in just a few minutes! This guide will show you how to create and run your first agent.
 
 ### Installation
