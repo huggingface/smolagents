@@ -187,27 +187,45 @@ class FinalAnswerStep(MemoryStep):
 
 
 class AgentMemory:
+    """Memory for the agent, containing the system prompt and all steps taken by the agent.
+
+    This class is used to store the agent's steps, including tasks, actions, and planning steps.
+    It allows for resetting the memory, retrieving succinct or full step information, and replaying the agent's steps.
+
+    Args:
+        system_prompt (`str`): System prompt for the agent, which sets the context and instructions for the agent's behavior.
+
+    Attributes:
+        system_prompt (`SystemPromptStep`): System prompt step for the agent.
+        steps (`list[TaskStep | ActionStep | PlanningStep]`): List of steps taken by the agent, which can include tasks, actions, and planning steps.
+    """
+
     def __init__(self, system_prompt: str):
-        self.system_prompt = SystemPromptStep(system_prompt=system_prompt)
+        self.system_prompt: SystemPromptStep = SystemPromptStep(system_prompt=system_prompt)
         self.steps: list[TaskStep | ActionStep | PlanningStep] = []
 
     def reset(self):
+        """Reset the agent's memory, clearing all steps and keeping the system prompt."""
         self.steps = []
 
     def get_succinct_steps(self) -> list[dict]:
+        """Return a succinct representation of the agent's steps, excluding model input messages."""
         return [
             {key: value for key, value in step.dict().items() if key != "model_input_messages"} for step in self.steps
         ]
 
     def get_full_steps(self) -> list[dict]:
+        """Return a full representation of the agent's steps, including model input messages."""
+        if len(self.steps) == 0:
+            return []
         return [step.dict() for step in self.steps]
 
     def replay(self, logger: AgentLogger, detailed: bool = False):
         """Prints a pretty replay of the agent's steps.
 
         Args:
-            logger (AgentLogger): The logger to print replay logs to.
-            detailed (bool, optional): If True, also displays the memory at each step. Defaults to False.
+            logger (`AgentLogger`): The logger to print replay logs to.
+            detailed (`bool`, default `False`): If True, also displays the memory at each step. Defaults to False.
                 Careful: will increase log length exponentially. Use only for debugging.
         """
         logger.console.log("Replaying the agent's steps:")
