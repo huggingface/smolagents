@@ -42,20 +42,25 @@ from smolagents.agents import (
     MultiStepAgent,
     ToolCall,
     ToolCallingAgent,
+    ToolOutput,
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
-from smolagents.memory import ActionStep, PlanningStep
+from smolagents.memory import (
+    ActionStep,
+    PlanningStep,
+    TaskStep,
+)
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
-    ChatMessageToolCallDefinition,
+    ChatMessageToolCallFunction,
     InferenceClientModel,
     MessageRole,
     Model,
     TransformersModel,
 )
-from smolagents.monitoring import AgentLogger, LogLevel
+from smolagents.monitoring import AgentLogger, LogLevel, TokenUsage
 from smolagents.tools import Tool, tool
 from smolagents.utils import (
     BASE_BUILTIN_MODULES,
@@ -111,7 +116,7 @@ class FakeToolCallModel(Model):
                     ChatMessageToolCall(
                         id="call_0",
                         type="function",
-                        function=ChatMessageToolCallDefinition(
+                        function=ChatMessageToolCallFunction(
                             name="python_interpreter", arguments={"code": "2*3.6452"}
                         ),
                     )
@@ -125,7 +130,7 @@ class FakeToolCallModel(Model):
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="final_answer", arguments={"answer": "7.2904"}),
+                        function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "7.2904"}),
                     )
                 ],
             )
@@ -141,7 +146,7 @@ class FakeToolCallModelImage(Model):
                     ChatMessageToolCall(
                         id="call_0",
                         type="function",
-                        function=ChatMessageToolCallDefinition(
+                        function=ChatMessageToolCallFunction(
                             name="fake_image_generation_tool",
                             arguments={"prompt": "An image of a cat"},
                         ),
@@ -156,7 +161,7 @@ class FakeToolCallModelImage(Model):
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="final_answer", arguments="image.png"),
+                        function=ChatMessageToolCallFunction(name="final_answer", arguments="image.png"),
                     )
                 ],
             )
@@ -172,7 +177,7 @@ class FakeToolCallModelVL(Model):
                     ChatMessageToolCall(
                         id="call_0",
                         type="function",
-                        function=ChatMessageToolCallDefinition(
+                        function=ChatMessageToolCallFunction(
                             name="fake_image_understanding_tool",
                             arguments={
                                 "prompt": "What is in this image?",
@@ -190,7 +195,7 @@ class FakeToolCallModelVL(Model):
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="final_answer", arguments="The image is a cat."),
+                        function=ChatMessageToolCallFunction(name="final_answer", arguments="The image is a cat."),
                     )
                 ],
             )
@@ -204,10 +209,9 @@ class FakeCodeModel(Model):
                 role="assistant",
                 content="""
 Thought: I should multiply 2 by 3.6452. special_marker
-Code:
-```py
+<code>
 result = 2**3.6452
-```<end_code>
+</code>
 """,
             )
         else:  # We're at step 2
@@ -215,12 +219,20 @@ result = 2**3.6452
                 role="assistant",
                 content="""
 Thought: I can now answer the initial question
-Code:
-```py
+<code>
 final_answer(7.2904)
-```<end_code>
+</code>
 """,
             )
+
+
+class FakeCodeModelPlanning(Model):
+    def generate(self, messages, stop_sequences=None):
+        return ChatMessage(
+            role="assistant",
+            content="llm plan",
+            token_usage=TokenUsage(input_tokens=10, output_tokens=10),
+        )
 
 
 class FakeCodeModelError(Model):
@@ -231,14 +243,13 @@ class FakeCodeModelError(Model):
                 role="assistant",
                 content="""
 Thought: I should multiply 2 by 3.6452. special_marker
-Code:
-```py
+<code>
 print("Flag!")
 def error_function():
     raise ValueError("error")
 
 error_function()
-```<end_code>
+</code>
 """,
             )
         else:  # We're at step 2
@@ -246,10 +257,9 @@ error_function()
                 role="assistant",
                 content="""
 Thought: I faced an error in the previous step.
-Code:
-```py
+<code>
 final_answer("got an error")
-```<end_code>
+</code>
 """,
             )
 
@@ -262,13 +272,12 @@ class FakeCodeModelSyntaxError(Model):
                 role="assistant",
                 content="""
 Thought: I should multiply 2 by 3.6452. special_marker
-Code:
-```py
+<code>
 a = 2
 b = a * 2
     print("Failing due to unexpected indent")
 print("Ok, calculation done!")
-```<end_code>
+</code>
 """,
             )
         else:  # We're at step 2
@@ -276,10 +285,9 @@ print("Ok, calculation done!")
                 role="assistant",
                 content="""
 Thought: I can now answer the initial question
-Code:
-```py
+<code>
 final_answer("got an error")
-```<end_code>
+</code>
 """,
             )
 
@@ -290,11 +298,10 @@ class FakeCodeModelImport(Model):
             role="assistant",
             content="""
 Thought: I can answer the question
-Code:
-```py
+<code>
 import numpy as np
 final_answer("got an error")
-```<end_code>
+</code>
 """,
         )
 
@@ -307,13 +314,12 @@ class FakeCodeModelFunctionDef(Model):
                 role="assistant",
                 content="""
 Thought: Let's define the function. special_marker
-Code:
-```py
+<code>
 import numpy as np
 
 def moving_average(x, w):
     return np.convolve(x, np.ones(w), 'valid') / w
-```<end_code>
+</code>
     """,
             )
         else:  # We're at step 2
@@ -321,12 +327,11 @@ def moving_average(x, w):
                 role="assistant",
                 content="""
 Thought: I can now answer the initial question
-Code:
-```py
+<code>
 x, w = [0, 1, 2, 3, 4, 5], 2
 res = moving_average(x, w)
 final_answer(res)
-```<end_code>
+</code>
 """,
             )
 
@@ -337,8 +342,7 @@ class FakeCodeModelSingleStep(Model):
             role="assistant",
             content="""
 Thought: I should multiply 2 by 3.6452. special_marker
-Code:
-```py
+<code>
 result = python_interpreter(code="2*3.6452")
 final_answer(result)
 ```
@@ -352,8 +356,7 @@ class FakeCodeModelNoReturn(Model):
             role="assistant",
             content="""
 Thought: I should multiply 2 by 3.6452. special_marker
-Code:
-```py
+<code>
 result = python_interpreter(code="2*3.6452")
 print(result)
 ```
@@ -548,7 +551,7 @@ class TestAgent:
 
         assert "New run" in str_output
         assert 'final_answer("got' in str_output
-        assert "```<end_code>" in str_output
+        assert "</code>" in str_output
 
         agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeToolCallModel(), verbosity_level=0)
         agent.logger = agent_logger
@@ -565,13 +568,12 @@ class TestAgent:
             def generate(self, messages, stop_sequences=None):
                 return ChatMessage(
                     role="assistant",
-                    content="""Code:
-```py
+                    content="""<code>
 def nested_answer():
     final_answer("Correct!")
 
 nested_answer()
-```<end_code>""",
+</code>""",
                 )
 
         agent = CodeAgent(tools=[], model=FakeCodeModelFinalAnswer())
@@ -611,12 +613,26 @@ nested_answer()
         assert step_memory_dict["timing"]["duration"] > 0.1
 
     def test_final_answer_checks(self):
+        error_string = "failed with error"
+
         def check_always_fails(final_answer, agent_memory):
             assert False, "Error raised in check"
 
         agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_always_fails])
         agent.run("Dummy task.")
+        assert error_string in str(agent.write_memory_to_messages())
         assert "Error raised in check" in str(agent.write_memory_to_messages())
+
+        agent = CodeAgent(
+            model=FakeCodeModel(),
+            tools=[],
+            final_answer_checks=[lambda x, y: x == 7.2904],
+            verbosity_level=1000,
+        )
+        output = agent.run("Dummy task.")
+        assert output == 7.2904  # Check that output is correct
+        assert len([step for step in agent.memory.steps if isinstance(step, ActionStep)]) == 2
+        assert error_string not in str(agent.write_memory_to_messages())
 
     def test_generation_errors_are_raised(self):
         class FakeCodeModel(Model):
@@ -628,6 +644,32 @@ nested_answer()
             agent.run("Dummy task.")
         assert len(agent.memory.steps) == 2
         assert "Generation failed" in str(e)
+
+    def test_planning_step_with_injected_memory(self):
+        """Test that planning step uses update plan prompts when memory is injected before run."""
+        agent = CodeAgent(tools=[], planning_interval=1, model=FakeCodeModelPlanning())
+        task = "Continuous task"
+
+        # Inject memory before run
+        previous_step = TaskStep(task="Previous user request")
+        agent.memory.steps.append(previous_step)
+
+        # Run the agent
+        agent.run(task, reset=False, max_steps=2)
+
+        # Verify that the planning step used update plan prompts
+        planning_steps = [step for step in agent.memory.steps if isinstance(step, PlanningStep)]
+        assert len(planning_steps) > 0
+
+        # Check that the planning step's model input messages contain the injected memory
+        update_plan_step = planning_steps[0]
+        assert (
+            len(update_plan_step.model_input_messages) == 3
+        )  # system message + memory messages (1 task message, the latest one is removed) + user message
+        assert update_plan_step.model_input_messages[0].role == "system"
+        assert task in update_plan_step.model_input_messages[0].content[0]["text"]
+        assert update_plan_step.model_input_messages[1].role == "user"
+        assert "Previous user request" in update_plan_step.model_input_messages[1].content[0]["text"]
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
@@ -779,18 +821,25 @@ class TestMultiStepAgent:
             (
                 1,
                 [
-                    [{"role": MessageRole.USER, "content": [{"type": "text", "text": "INITIAL_PLAN_USER_PROMPT"}]}],
+                    [
+                        ChatMessage(
+                            role=MessageRole.USER, content=[{"type": "text", "text": "INITIAL_PLAN_USER_PROMPT"}]
+                        ),
+                    ],
                 ],
             ),
             (
                 2,
                 [
                     [
-                        {
-                            "role": MessageRole.SYSTEM,
-                            "content": [{"type": "text", "text": "UPDATE_PLAN_SYSTEM_PROMPT"}],
-                        },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "UPDATE_PLAN_USER_PROMPT"}]},
+                        ChatMessage(
+                            role=MessageRole.SYSTEM,
+                            content=[{"type": "text", "text": "UPDATE_PLAN_SYSTEM_PROMPT"}],
+                        ),
+                        ChatMessage(
+                            role=MessageRole.USER,
+                            content=[{"type": "text", "text": "UPDATE_PLAN_USER_PROMPT"}],
+                        ),
                     ],
                 ],
             ),
@@ -831,22 +880,18 @@ class TestMultiStepAgent:
         }
         for expected_messages in expected_messages_list:
             for expected_message in expected_messages:
-                for expected_content in expected_message["content"]:
-                    expected_content["text"] = expected_message_texts[expected_content["text"]]
+                expected_message.content[0]["text"] = expected_message_texts[expected_message.content[0]["text"]]
         assert isinstance(planning_step, PlanningStep)
         expected_model_input_messages = expected_messages_list[0]
         model_input_messages = planning_step.model_input_messages
         assert isinstance(model_input_messages, list)
         assert len(model_input_messages) == len(expected_model_input_messages)  # 2
         for message, expected_message in zip(model_input_messages, expected_model_input_messages):
-            assert isinstance(message, dict)
-            assert "role" in message
-            assert "content" in message
-            assert message["role"] in MessageRole.__members__.values()
-            assert message["role"] == expected_message["role"]
-            assert isinstance(message["content"], list)
-            assert len(message["content"]) == 1
-            for content, expected_content in zip(message["content"], expected_message["content"]):
+            assert isinstance(message, ChatMessage)
+            assert message.role in MessageRole.__members__.values()
+            assert message.role == expected_message.role
+            assert isinstance(message.content, list)
+            for content, expected_content in zip(message.content, expected_message.content):
                 assert content == expected_content
         # Test calls to model
         assert len(fake_model.generate.call_args_list) == 1
@@ -856,14 +901,11 @@ class TestMultiStepAgent:
             assert isinstance(messages, list)
             assert len(messages) == len(expected_messages)
             for message, expected_message in zip(messages, expected_messages):
-                assert isinstance(message, dict)
-                assert "role" in message
-                assert "content" in message
-                assert message["role"] in MessageRole.__members__.values()
-                assert message["role"] == expected_message["role"]
-                assert isinstance(message["content"], list)
-                assert len(message["content"]) == 1
-                for content, expected_content in zip(message["content"], expected_message["content"]):
+                assert isinstance(message, ChatMessage)
+                assert message.role in MessageRole.__members__.values()
+                assert message.role == expected_message.role
+                assert isinstance(message.content, list)
+                for content, expected_content in zip(message.content, expected_message.content):
                     assert content == expected_content
 
     @pytest.mark.parametrize(
@@ -873,11 +915,14 @@ class TestMultiStepAgent:
                 None,
                 [
                     [
-                        {
-                            "role": MessageRole.SYSTEM,
-                            "content": [{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
-                        },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}]},
+                        ChatMessage(
+                            role=MessageRole.SYSTEM,
+                            content=[{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
+                        ),
+                        ChatMessage(
+                            role=MessageRole.USER,
+                            content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                        ),
                     ]
                 ],
             ),
@@ -885,11 +930,17 @@ class TestMultiStepAgent:
                 ["image1.png"],
                 [
                     [
-                        {
-                            "role": MessageRole.SYSTEM,
-                            "content": [{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}, {"type": "image"}],
-                        },
-                        {"role": MessageRole.USER, "content": [{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}]},
+                        ChatMessage(
+                            role=MessageRole.SYSTEM,
+                            content=[
+                                {"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"},
+                                {"type": "image", "image": "image1.png"},
+                            ],
+                        ),
+                        ChatMessage(
+                            role=MessageRole.USER,
+                            content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                        ),
                     ]
                 ],
             ),
@@ -918,7 +969,7 @@ class TestMultiStepAgent:
         }
         for expected_messages in expected_messages_list:
             for expected_message in expected_messages:
-                for expected_content in expected_message["content"]:
+                for expected_content in expected_message.content:
                     if "text" in expected_content:
                         expected_content["text"] = expected_message_texts[expected_content["text"]]
         assert final_answer == "Final answer."
@@ -930,14 +981,11 @@ class TestMultiStepAgent:
             assert isinstance(messages, list)
             assert len(messages) == len(expected_messages)
             for message, expected_message in zip(messages, expected_messages):
-                assert isinstance(message, dict)
-                assert "role" in message
-                assert "content" in message
-                assert message["role"] in MessageRole.__members__.values()
-                assert message["role"] == expected_message["role"]
-                assert isinstance(message["content"], list)
-                assert len(message["content"]) == len(expected_message["content"])
-                for content, expected_content in zip(message["content"], expected_message["content"]):
+                assert isinstance(message, ChatMessage)
+                assert message.role in MessageRole.__members__.values()
+                assert message.role == expected_message.role
+                assert isinstance(message.content, list)
+                for content, expected_content in zip(message.content, expected_message.content):
                     assert content == expected_content
 
     def test_interrupt(self):
@@ -1056,6 +1104,38 @@ class TestMultiStepAgent:
 
 
 class TestToolCallingAgent:
+    def test_toolcalling_agent_instructions(self):
+        agent = ToolCallingAgent(tools=[], model=MagicMock(), instructions="Test instructions")
+        assert agent.instructions == "Test instructions"
+        assert "Test instructions" in agent.system_prompt
+
+    def test_toolcalling_agent_passes_both_tools_and_managed_agents(self, test_tool):
+        """Test that both tools and managed agents are passed to the model."""
+        managed_agent = MagicMock()
+        managed_agent.name = "managed_agent"
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_0",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "test_value"}),
+                )
+            ],
+        )
+        agent = ToolCallingAgent(tools=[test_tool], managed_agents=[managed_agent], model=model)
+        # Run the agent one step to trigger the model call
+        next(agent.run("Test task", stream=True))
+        # Check that the model was called with both tools and managed agents:
+        # - Get all tool_to_call_from names passed to the model
+        tools_to_call_from_names = [tool.name for tool in model.generate.call_args.kwargs["tools_to_call_from"]]
+        # - Verify both regular tools and managed agents are included
+        assert "test_tool" in tools_to_call_from_names  # The regular tool
+        assert "managed_agent" in tools_to_call_from_names  # The managed agent
+        assert "final_answer" in tools_to_call_from_names  # The final_answer tool (added by default)
+
     @patch("huggingface_hub.InferenceClient")
     def test_toolcalling_agent_api(self, mock_inference_client):
         mock_client = mock_inference_client.return_value
@@ -1186,7 +1266,7 @@ class TestToolCallingAgent:
 
         model = OpenAIServerModel(model_id="fakemodel")
 
-        agent = ToolCallingAgent(model=model, tools=[], max_steps=1, stream_outputs=True)
+        agent = ToolCallingAgent(model=model, tools=[], max_steps=1, stream_outputs=True, verbosity_level=100)
         result = agent.run("Make 2 calls to final answer: return both 'output1' and 'output2'")
         assert len(agent.memory.steps[-1].model_output_message.tool_calls) == 2
         assert agent.memory.steps[-1].model_output_message.tool_calls[0].function.name == "final_answer"
@@ -1235,7 +1315,7 @@ class TestToolCallingAgent:
 
         class FakeCodeModel(Model):
             def generate(self, messages, stop_sequences=None):
-                return ChatMessage(role="assistant", content="Code:\n```py\nfinal_answer(fake_tool_1())\n```")
+                return ChatMessage(role="assistant", content="<code>\nfinal_answer(fake_tool_1())\n</code>")
 
         agent = CodeAgent(tools=[fake_tool_1], model=FakeCodeModel())
 
@@ -1263,7 +1343,7 @@ class TestToolCallingAgent:
                 ChatMessageToolCall(
                     id="call_0",
                     type="function",
-                    function=ChatMessageToolCallDefinition(
+                    function=ChatMessageToolCallFunction(
                         name="final_answer", arguments={"answer1": "1", "answer2": "2"}
                     ),
                 )
@@ -1282,7 +1362,7 @@ class TestToolCallingAgent:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"input": "test_value"}),
+                        function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "test_value"}),
                     )
                 ],
                 "expected_model_output": "Called Tool: 'test_tool' with arguments: {'input': 'test_value'}",
@@ -1296,12 +1376,12 @@ class TestToolCallingAgent:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"input": "value1"}),
+                        function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value1"}),
                     ),
                     ChatMessageToolCall(
                         id="call_2",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"input": "value2"}),
+                        function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value2"}),
                     ),
                 ],
                 "expected_model_output": "Called Tool: 'test_tool' with arguments: {'input': 'value1'}\nCalled Tool: 'test_tool' with arguments: {'input': 'value2'}",
@@ -1315,7 +1395,7 @@ class TestToolCallingAgent:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="nonexistent_tool", arguments={"input": "test"}),
+                        function=ChatMessageToolCallFunction(name="nonexistent_tool", arguments={"input": "test"}),
                     )
                 ],
                 "expected_error": AgentToolExecutionError,
@@ -1326,7 +1406,7 @@ class TestToolCallingAgent:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"input": "error"}),
+                        function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "error"}),
                     )
                 ],
                 "expected_error": AgentToolExecutionError,
@@ -1345,7 +1425,7 @@ class TestToolCallingAgent:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(
+                        function=ChatMessageToolCallFunction(
                             name="final_answer", arguments={"answer": "This is the final answer"}
                         ),
                     )
@@ -1361,7 +1441,7 @@ class TestToolCallingAgent:
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="test_tool", arguments={"wrong_param": "value"}),
+                        function=ChatMessageToolCallFunction(name="test_tool", arguments={"wrong_param": "value"}),
                     )
                 ],
                 "expected_error": AgentToolCallError,
@@ -1384,7 +1464,9 @@ class TestToolCallingAgent:
             final_outputs = list(agent.process_tool_calls(chat_message, memory_step))
             assert memory_step.model_output == test_case["expected_model_output"]
             assert memory_step.observations == test_case["expected_observations"]
-            assert [final_output.output for final_output in final_outputs] == test_case["expected_final_outputs"]
+            assert [
+                final_output.output for final_output in final_outputs if isinstance(final_output, ToolOutput)
+            ] == test_case["expected_final_outputs"]
             # Verify memory step tool calls were updated correctly
             if test_case["tool_calls"]:
                 assert memory_step.tool_calls == [
@@ -1394,6 +1476,17 @@ class TestToolCallingAgent:
 
 
 class TestCodeAgent:
+    def test_code_agent_instructions(self):
+        agent = CodeAgent(tools=[], model=MagicMock(), instructions="Test instructions")
+        assert agent.instructions == "Test instructions"
+        assert "Test instructions" in agent.system_prompt
+
+        agent = CodeAgent(
+            tools=[], model=MagicMock(), instructions="Test instructions", use_structured_outputs_internally=True
+        )
+        assert agent.instructions == "Test instructions"
+        assert "Test instructions" in agent.system_prompt
+
     @pytest.mark.filterwarnings("ignore")  # Ignore FutureWarning for deprecated grammar parameter
     def test_init_with_incompatible_grammar_and_use_structured_outputs_internally(self):
         # Test that using both parameters raises ValueError with correct message
@@ -1435,7 +1528,6 @@ class TestCodeAgent:
     def test_call_with_provide_run_summary(self, provide_run_summary):
         agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
         assert agent.provide_run_summary is provide_run_summary
-        agent.managed_agent_prompt = "Task: {task}"
         agent.name = "test_agent"
         agent.run = MagicMock(return_value="Test output")
         agent.write_memory_to_messages = MagicMock(return_value=[{"content": "Test summary"}])
@@ -1452,7 +1544,7 @@ class TestCodeAgent:
     def test_errors_logging(self):
         class FakeCodeModel(Model):
             def generate(self, messages, stop_sequences=None):
-                return ChatMessage(role="assistant", content="Code:\n```py\nsecret=3;['1', '2'][secret]\n```")
+                return ChatMessage(role="assistant", content="<code>\nsecret=3;['1', '2'][secret]\n</code>")
 
         agent = CodeAgent(tools=[], model=FakeCodeModel(), verbosity_level=1)
 
@@ -1529,7 +1621,7 @@ class TestCodeAgent:
 
         class FakeCodeModel(Model):
             def generate(self, messages, stop_sequences=None):
-                return ChatMessage(role="assistant", content="Code:\n```py\nfinal_answer(fake_tool_1())\n```")
+                return ChatMessage(role="assistant", content="<code>\nfinal_answer(fake_tool_1())\n</code>")
 
         agent = CodeAgent(tools=[fake_tool_1], model=FakeCodeModel())
 
@@ -1653,7 +1745,7 @@ class TestCodeAgent:
 
         model = MagicMock()
         model.generate.return_value = ChatMessage(
-            role="assistant", content="Code:\n```py\nfinal_answer(answer1='1', answer2='2')\n```"
+            role="assistant", content="<code>\nfinal_answer(answer1='1', answer2='2')\n</code>"
         )
         agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
         answer = agent.run("Fake task.")
@@ -1743,7 +1835,7 @@ class TestMultiAgents:
                                 ChatMessageToolCall(
                                     id="call_0",
                                     type="function",
-                                    function=ChatMessageToolCallDefinition(
+                                    function=ChatMessageToolCallFunction(
                                         name="search_agent",
                                         arguments="Who is the current US president?",
                                     ),
@@ -1759,7 +1851,7 @@ class TestMultiAgents:
                                 ChatMessageToolCall(
                                     id="call_0",
                                     type="function",
-                                    function=ChatMessageToolCallDefinition(
+                                    function=ChatMessageToolCallFunction(
                                         name="final_answer", arguments="Final report."
                                     ),
                                 )
@@ -1771,10 +1863,9 @@ class TestMultiAgents:
                             role="assistant",
                             content="""
 Thought: Let's call our search agent.
-Code:
-```py
+<code>
 result = search_agent("Who is the current US president?")
-```<end_code>
+</code>
 """,
                         )
                     else:
@@ -1783,10 +1874,9 @@ result = search_agent("Who is the current US president?")
                             role="assistant",
                             content="""
 Thought: Let's return the report.
-Code:
-```py
+<code>
 final_answer("Final report.")
-```<end_code>
+</code>
 """,
                         )
 
@@ -1808,7 +1898,7 @@ final_answer("Final report.")
                         ChatMessageToolCall(
                             id="call_0",
                             type="function",
-                            function=ChatMessageToolCallDefinition(
+                            function=ChatMessageToolCallFunction(
                                 name="final_answer",
                                 arguments="Report on the current US president",
                             ),

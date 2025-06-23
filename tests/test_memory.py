@@ -1,4 +1,5 @@
 import pytest
+from PIL import Image
 
 from smolagents.agents import ToolCall
 from smolagents.memory import (
@@ -6,7 +7,6 @@ from smolagents.memory import (
     AgentMemory,
     ChatMessage,
     MemoryStep,
-    Message,
     MessageRole,
     PlanningStep,
     SystemPromptStep,
@@ -40,7 +40,7 @@ class TestMemoryStep:
 
 def test_action_step_dict():
     action_step = ActionStep(
-        model_input_messages=[Message(role=MessageRole.USER, content="Hello")],
+        model_input_messages=[ChatMessage(role=MessageRole.USER, content="Hello")],
         tool_calls=[
             ToolCall(id="id", name="get_weather", arguments={"location": "Paris"}),
         ],
@@ -50,14 +50,14 @@ def test_action_step_dict():
         model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content="Hi"),
         model_output="Hi",
         observations="This is a nice observation",
-        observations_images=["image1.png"],
+        observations_images=[Image.new("RGB", (100, 100))],
         action_output="Output",
         token_usage=TokenUsage(input_tokens=10, output_tokens=20),
     )
     action_step_dict = action_step.dict()
     # Check each key individually for better test failure messages
     assert "model_input_messages" in action_step_dict
-    assert action_step_dict["model_input_messages"] == [Message(role=MessageRole.USER, content="Hello")]
+    assert action_step_dict["model_input_messages"] == [ChatMessage(role=MessageRole.USER, content="Hello")]
 
     assert "tool_calls" in action_step_dict
     assert len(action_step_dict["tool_calls"]) == 1
@@ -76,8 +76,8 @@ def test_action_step_dict():
     assert "token_usage" in action_step_dict
     assert action_step_dict["token_usage"] == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
 
-    assert "step" in action_step_dict
-    assert action_step_dict["step"] == 1
+    assert "step_number" in action_step_dict
+    assert action_step_dict["step_number"] == 1
 
     assert "error" in action_step_dict
     assert action_step_dict["error"] is None
@@ -97,13 +97,15 @@ def test_action_step_dict():
     assert "observations" in action_step_dict
     assert action_step_dict["observations"] == "This is a nice observation"
 
+    assert "observations_images" in action_step_dict
+
     assert "action_output" in action_step_dict
     assert action_step_dict["action_output"] == "Output"
 
 
 def test_action_step_to_messages():
     action_step = ActionStep(
-        model_input_messages=[Message(role=MessageRole.USER, content="Hello")],
+        model_input_messages=[ChatMessage(role=MessageRole.USER, content="Hello")],
         tool_calls=[
             ToolCall(id="id", name="get_weather", arguments={"location": "Paris"}),
         ],
@@ -113,43 +115,32 @@ def test_action_step_to_messages():
         model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content="Hi"),
         model_output="Hi",
         observations="This is a nice observation",
-        observations_images=["image1.png"],
+        observations_images=[Image.new("RGB", (100, 100))],
         action_output="Output",
         token_usage=TokenUsage(input_tokens=10, output_tokens=20),
     )
     messages = action_step.to_messages()
     assert len(messages) == 4
     for message in messages:
-        assert isinstance(message, dict)
-        assert "role" in message
-        assert "content" in message
-        assert isinstance(message["role"], MessageRole)
-        assert isinstance(message["content"], list)
+        assert isinstance(message, ChatMessage)
     assistant_message = messages[0]
-    assert assistant_message["role"] == MessageRole.ASSISTANT
-    assert len(assistant_message["content"]) == 1
-    for content in assistant_message["content"]:
-        assert isinstance(content, dict)
-        assert "type" in content
-        assert "text" in content
+    assert assistant_message.role == MessageRole.ASSISTANT
+    assert len(assistant_message.content) == 1
+    assert assistant_message.content[0]["type"] == "text"
+    assert assistant_message.content[0]["text"] == "Hi"
     message = messages[1]
-    assert message["role"] == MessageRole.TOOL_CALL
+    assert message.role == MessageRole.TOOL_CALL
 
-    assert len(message["content"]) == 1
-    text_content = message["content"][0]
-    assert isinstance(text_content, dict)
-    assert "type" in text_content
-    assert "text" in text_content
+    assert len(message.content) == 1
+    assert message.content[0]["type"] == "text"
+    assert "Calling tools:" in message.content[0]["text"]
 
     image_message = messages[2]
-    image_content = image_message["content"][0]
-    assert isinstance(image_content, dict)
-    assert "type" in image_content
-    assert "image" in image_content
+    assert image_message.content[0]["type"] == "image"  # type: ignore
 
     observation_message = messages[3]
-    assert observation_message["role"] == MessageRole.TOOL_RESPONSE
-    assert "Observation:\nThis is a nice observation" in observation_message["content"][0]["text"]
+    assert observation_message.role == MessageRole.TOOL_RESPONSE
+    assert "Observation:\nThis is a nice observation" in observation_message.content[0]["text"]
 
 
 def test_action_step_to_messages_no_tool_calls_with_observations():
@@ -169,13 +160,13 @@ def test_action_step_to_messages_no_tool_calls_with_observations():
     messages = action_step.to_messages()
     assert len(messages) == 1
     observation_message = messages[0]
-    assert observation_message["role"] == MessageRole.TOOL_RESPONSE
-    assert "Observation:\nThis is an observation." in observation_message["content"][0]["text"]
+    assert observation_message.role == MessageRole.TOOL_RESPONSE
+    assert "Observation:\nThis is an observation." in observation_message.content[0]["text"]
 
 
 def test_planning_step_to_messages():
     planning_step = PlanningStep(
-        model_input_messages=[Message(role=MessageRole.USER, content="Hello")],
+        model_input_messages=[ChatMessage(role=MessageRole.USER, content="Hello")],
         model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content="Plan"),
         plan="This is a plan.",
         timing=Timing(start_time=0.0, end_time=1.0),
@@ -183,36 +174,31 @@ def test_planning_step_to_messages():
     messages = planning_step.to_messages(summary_mode=False)
     assert len(messages) == 2
     for message in messages:
-        assert isinstance(message, dict)
-        assert "role" in message
-        assert "content" in message
-        assert isinstance(message["content"], list)
-        assert len(message["content"]) == 1
-        for content in message["content"]:
+        assert isinstance(message, ChatMessage)
+        assert isinstance(message.content, list)
+        assert len(message.content) == 1
+        for content in message.content:
             assert isinstance(content, dict)
             assert "type" in content
             assert "text" in content
-    assert messages[0]["role"] == MessageRole.ASSISTANT
-    assert messages[1]["role"] == MessageRole.USER
+    assert messages[0].role == MessageRole.ASSISTANT
+    assert messages[1].role == MessageRole.USER
 
 
 def test_task_step_to_messages():
-    task_step = TaskStep(task="This is a task.", task_images=["task_image1.png"])
+    task_step = TaskStep(task="This is a task.", task_images=[Image.new("RGB", (100, 100))])
     messages = task_step.to_messages(summary_mode=False)
     assert len(messages) == 1
     for message in messages:
-        assert isinstance(message, dict)
-        assert "role" in message
-        assert "content" in message
-        assert isinstance(message["role"], MessageRole)
-        assert message["role"] == MessageRole.USER
-        assert isinstance(message["content"], list)
-        assert len(message["content"]) == 2
-        text_content = message["content"][0]
+        assert isinstance(message, ChatMessage)
+        assert message.role == MessageRole.USER
+        assert isinstance(message.content, list)
+        assert len(message.content) == 2
+        text_content = message.content[0]
         assert isinstance(text_content, dict)
         assert "type" in text_content
         assert "text" in text_content
-        for image_content in message["content"][1:]:
+        for image_content in message.content[1:]:
             assert isinstance(image_content, dict)
             assert "type" in image_content
             assert "image" in image_content
@@ -223,14 +209,11 @@ def test_system_prompt_step_to_messages():
     messages = system_prompt_step.to_messages(summary_mode=False)
     assert len(messages) == 1
     for message in messages:
-        assert isinstance(message, dict)
-        assert "role" in message
-        assert "content" in message
-        assert isinstance(message["role"], MessageRole)
-        assert message["role"] == MessageRole.SYSTEM
-        assert isinstance(message["content"], list)
-        assert len(message["content"]) == 1
-        for content in message["content"]:
+        assert isinstance(message, ChatMessage)
+        assert message.role == MessageRole.SYSTEM
+        assert isinstance(message.content, list)
+        assert len(message.content) == 1
+        for content in message.content:
             assert isinstance(content, dict)
             assert "type" in content
             assert "text" in content
