@@ -156,6 +156,17 @@ class E2BExecutor(RemotePythonExecutor):
                 raise AgentError("No main result returned by executor!", self.logger)
             return None, execution_logs
 
+    def cleanup(self):
+        """Clean up the E2B sandbox and resources."""
+        try:
+            if hasattr(self, "sandbox"):
+                self.logger.log("Shutting down sandbox...", level=LogLevel.INFO)
+                self.sandbox.kill()
+                self.logger.log("Sandbox cleanup completed", level=LogLevel.INFO)
+                del self.sandbox
+        except Exception as e:
+            self.logger.log_error(f"Error during cleanup: {e}")
+
 
 class DockerExecutor(RemotePythonExecutor):
     """
@@ -377,13 +388,14 @@ class DockerExecutor(RemotePythonExecutor):
         return msg_id
 
     def cleanup(self):
-        """Clean up resources."""
+        """Clean up the Docker container and resources."""
         try:
             if hasattr(self, "container"):
                 self.logger.log(f"Stopping and removing container {self.container.short_id}...", level=LogLevel.INFO)
                 self.container.stop()
                 self.container.remove()
                 self.logger.log("Container cleanup completed", level=LogLevel.INFO)
+                del self.container
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
 
