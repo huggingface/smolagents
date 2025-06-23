@@ -196,8 +196,8 @@ class AgentMemory:
         system_prompt (`str`): System prompt for the agent, which sets the context and instructions for the agent's behavior.
 
     **Attributes**:
-        system_prompt (`SystemPromptStep`): System prompt step for the agent.
-        steps (`list[TaskStep | ActionStep | PlanningStep]`): List of steps taken by the agent, which can include tasks, actions, and planning steps.
+        - **system_prompt** (`SystemPromptStep`) -- System prompt step for the agent.
+        - **steps** (`list[TaskStep | ActionStep | PlanningStep]`) -- List of steps taken by the agent, which can include tasks, actions, and planning steps.
     """
 
     def __init__(self, system_prompt: str):
