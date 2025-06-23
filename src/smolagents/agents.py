@@ -1557,6 +1557,17 @@ class CodeAgent(MultiStepAgent):
         self.executor_kwargs = executor_kwargs or {}
         self.python_executor = self.create_python_executor()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.cleanup()
+
+    def cleanup(self):
+        """Clean up resources used by the agent, such as the remote Python executor."""
+        if hasattr(self.python_executor, "cleanup"):
+            self.python_executor.cleanup()
+
     def create_python_executor(self) -> PythonExecutor:
         match self.executor_type:
             case "e2b" | "docker":
