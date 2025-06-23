@@ -1863,6 +1863,16 @@ class TestLocalPythonExecutor:
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
+    @pytest.mark.parametrize(
+        "code, expected_result",
+        [("isinstance(5, int)", True), ("isinstance('foo', str)", True), ("isinstance(5, str)", False)],
+    )
+    def test_isinstance_builtin_type(self, code, expected_result):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        result, _, _ = executor(code)
+        assert result is expected_result
+
 
 class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
