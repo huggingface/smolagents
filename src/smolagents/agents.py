@@ -643,7 +643,6 @@ You have been provided with these additional arguments, that you can access usin
                     }
                 ],
             )
-
             input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
             if self.stream_outputs and hasattr(self.model, "generate_stream"):
                 plan_message_content = ""
