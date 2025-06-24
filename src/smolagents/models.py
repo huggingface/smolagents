@@ -89,9 +89,21 @@ class ChatMessageToolCall:
         return f"Call: {self.id}: Calling {str(self.function.name)} with arguments: {str(self.function.arguments)}"
 
 
+class MessageRole(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+    TOOL_CALL = "tool-call"
+    TOOL_RESPONSE = "tool-response"
+
+    @classmethod
+    def roles(cls):
+        return [r.value for r in cls]
+
+
 @dataclass
 class ChatMessage:
-    role: str
+    role: MessageRole
     content: str | list[dict[str, Any]] | None = None
     tool_calls: list[ChatMessageToolCall] | None = None
     raw: Any | None = None  # Stores the raw output from the API
@@ -158,18 +170,6 @@ class ChatMessageStreamDelta:
     content: str | None = None
     tool_calls: list[ChatMessageToolCallStreamDelta] | None = None
     token_usage: TokenUsage | None = None
-
-
-class MessageRole(str, Enum):
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
-    TOOL_CALL = "tool-call"
-    TOOL_RESPONSE = "tool-response"
-
-    @classmethod
-    def roles(cls):
-        return [r.value for r in cls]
 
 
 def agglomerate_stream_deltas(

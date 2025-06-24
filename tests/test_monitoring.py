@@ -28,6 +28,7 @@ from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
+    MessageRole,
     Model,
     TokenUsage,
 )
@@ -40,7 +41,7 @@ class FakeLLMModel(Model):
     def generate(self, prompt, tools_to_call_from=None, **kwargs):
         if tools_to_call_from is not None:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="",
                 tool_calls=[
                     ChatMessageToolCall(
@@ -53,7 +54,7 @@ class FakeLLMModel(Model):
             )
         else:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""<code>
 final_answer('This is the final answer.')
 </code>""",
@@ -89,7 +90,7 @@ class MonitoringTester(unittest.TestCase):
         class FakeLLMModelMalformedAnswer(Model):
             def generate(self, prompt, **kwargs):
                 return ChatMessage(
-                    role="assistant",
+                    role=MessageRole.ASSISTANT,
                     content="Malformed answer",
                     token_usage=TokenUsage(input_tokens=10, output_tokens=20),
                 )
@@ -164,7 +165,7 @@ class MonitoringTester(unittest.TestCase):
     def test_streaming_with_agent_error(self):
         class DummyModel(Model):
             def generate(self, prompt, **kwargs):
-                return ChatMessage(role="assistant", content="Malformed call")
+                return ChatMessage(role=MessageRole.ASSISTANT, content="Malformed call")
 
         agent = CodeAgent(
             tools=[],

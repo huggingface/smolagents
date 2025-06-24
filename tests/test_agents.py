@@ -111,7 +111,7 @@ class FakeToolCallModel(Model):
     def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
         if len(messages) < 3:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="",
                 tool_calls=[
                     ChatMessageToolCall(
@@ -125,7 +125,7 @@ class FakeToolCallModel(Model):
             )
         else:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="",
                 tool_calls=[
                     ChatMessageToolCall(
@@ -141,7 +141,7 @@ class FakeToolCallModelImage(Model):
     def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
         if len(messages) < 3:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="",
                 tool_calls=[
                     ChatMessageToolCall(
@@ -156,7 +156,7 @@ class FakeToolCallModelImage(Model):
             )
         else:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="",
                 tool_calls=[
                     ChatMessageToolCall(
@@ -172,7 +172,7 @@ class FakeToolCallModelVL(Model):
     def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
         if len(messages) < 3:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="",
                 tool_calls=[
                     ChatMessageToolCall(
@@ -190,7 +190,7 @@ class FakeToolCallModelVL(Model):
             )
         else:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="",
                 tool_calls=[
                     ChatMessageToolCall(
@@ -207,7 +207,7 @@ class FakeCodeModel(Model):
         prompt = str(messages)
         if "special_marker" not in prompt:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""
 Thought: I should multiply 2 by 3.6452. special_marker
 <code>
@@ -217,7 +217,7 @@ result = 2**3.6452
             )
         else:  # We're at step 2
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""
 Thought: I can now answer the initial question
 <code>
@@ -232,13 +232,13 @@ class FakeCodeModelPlanning(Model):
         prompt = str(messages)
         if "planning_marker" not in prompt:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="llm plan update planning_marker",
                 token_usage=TokenUsage(input_tokens=10, output_tokens=10),
             )
         elif "action_marker" not in prompt:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""
 Thought: I should multiply 2 by 3.6452. action_marker
 <code>
@@ -249,7 +249,7 @@ result = 2**3.6452
             )
         else:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="llm plan again",
                 token_usage=TokenUsage(input_tokens=10, output_tokens=10),
             )
@@ -260,7 +260,7 @@ class FakeCodeModelError(Model):
         prompt = str(messages)
         if "special_marker" not in prompt:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""
 Thought: I should multiply 2 by 3.6452. special_marker
 <code>
@@ -274,7 +274,7 @@ error_function()
             )
         else:  # We're at step 2
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""
 Thought: I faced an error in the previous step.
 <code>
@@ -289,7 +289,7 @@ class FakeCodeModelSyntaxError(Model):
         prompt = str(messages)
         if "special_marker" not in prompt:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""
 Thought: I should multiply 2 by 3.6452. special_marker
 <code>
@@ -302,7 +302,7 @@ print("Ok, calculation done!")
             )
         else:  # We're at step 2
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""
 Thought: I can now answer the initial question
 <code>
@@ -315,7 +315,7 @@ final_answer("got an error")
 class FakeCodeModelImport(Model):
     def generate(self, messages, stop_sequences=None):
         return ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content="""
 Thought: I can answer the question
 <code>
@@ -331,7 +331,7 @@ class FakeCodeModelFunctionDef(Model):
         prompt = str(messages)
         if "special_marker" not in prompt:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""
 Thought: Let's define the function. special_marker
 <code>
@@ -344,7 +344,7 @@ def moving_average(x, w):
             )
         else:  # We're at step 2
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="""
 Thought: I can now answer the initial question
 <code>
@@ -359,7 +359,7 @@ final_answer(res)
 class FakeCodeModelSingleStep(Model):
     def generate(self, messages, stop_sequences=None):
         return ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content="""
 Thought: I should multiply 2 by 3.6452. special_marker
 <code>
@@ -373,7 +373,7 @@ final_answer(result)
 class FakeCodeModelNoReturn(Model):
     def generate(self, messages, stop_sequences=None):
         return ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content="""
 Thought: I should multiply 2 by 3.6452. special_marker
 <code>
@@ -587,7 +587,7 @@ class TestAgent:
         class FakeCodeModelFinalAnswer(Model):
             def generate(self, messages, stop_sequences=None):
                 return ChatMessage(
-                    role="assistant",
+                    role=MessageRole.ASSISTANT,
                     content="""<code>
 def nested_answer():
     final_answer("Correct!")
@@ -842,7 +842,7 @@ class TestMultiStepAgent:
         class FakeJsonModelNoCall(Model):
             def generate(self, messages, stop_sequences=None, tools_to_call_from=None):
                 return ChatMessage(
-                    role="assistant",
+                    role=MessageRole.ASSISTANT,
                     content="""I don't want to call tools today""",
                     tool_calls=None,
                     raw="""I don't want to call tools today""",
@@ -856,7 +856,7 @@ class TestMultiStepAgent:
         class FakeCodeModelNoCall(Model):
             def generate(self, messages, stop_sequences=None):
                 return ChatMessage(
-                    role="assistant",
+                    role=MessageRole.ASSISTANT,
                     content="""I don't want to write an action today""",
                 )
 
@@ -868,7 +868,7 @@ class TestMultiStepAgent:
     def test_step_number(self):
         fake_model = MagicMock()
         fake_model.generate.return_value = ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content="Model output.",
             tool_calls=None,
             raw="Model output.",
@@ -1016,7 +1016,7 @@ class TestMultiStepAgent:
     def test_provide_final_answer(self, images, expected_messages_list):
         fake_model = MagicMock()
         fake_model.generate.return_value = ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content="Final answer.",
             tool_calls=None,
             raw="Final answer.",
@@ -1058,7 +1058,7 @@ class TestMultiStepAgent:
     def test_interrupt(self):
         fake_model = MagicMock()
         fake_model.generate.return_value = ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content="Model output.",
             tool_calls=None,
             raw="Model output.",
@@ -1182,7 +1182,7 @@ class TestToolCallingAgent:
         managed_agent.name = "managed_agent"
         model = MagicMock()
         model.generate.return_value = ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content="",
             tool_calls=[
                 ChatMessageToolCall(
@@ -1208,7 +1208,8 @@ class TestToolCallingAgent:
         mock_client = mock_inference_client.return_value
         mock_response = mock_client.chat_completion.return_value
         mock_response.choices[0].message = ChatCompletionOutputMessage(
-            role="assistant", content='{"name": "weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+            role=MessageRole.ASSISTANT,
+            content='{"name": "weather_api", "arguments": {"location": "Paris", "date": "today"}}',
         )
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 20
@@ -1235,7 +1236,7 @@ class TestToolCallingAgent:
         assert agent.memory.steps[1].observations == "The weather in Paris on date:today is sunny."
 
         mock_response.choices[0].message = ChatCompletionOutputMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content=None,
             tool_calls=[
                 ChatCompletionOutputToolCall(
@@ -1262,7 +1263,7 @@ class TestToolCallingAgent:
 
         # Mock streaming response with multiple final_answer calls
         mock_deltas = [
-            ChoiceDelta(role="assistant"),
+            ChoiceDelta(role=MessageRole.ASSISTANT),
             ChoiceDelta(
                 tool_calls=[
                     ChoiceDeltaToolCall(
@@ -1348,7 +1349,8 @@ class TestToolCallingAgent:
         mock_client = mock_inference_client.return_value
         mock_response = mock_client.chat_completion.return_value
         mock_response.choices[0].message = ChatCompletionOutputMessage(
-            role="assistant", content='{"name": weather_api", "arguments": {"location": "Paris", "date": "today"}}'
+            role=MessageRole.ASSISTANT,
+            content='{"name": weather_api", "arguments": {"location": "Paris", "date": "today"}}',
         )
 
         mock_response.usage.prompt_tokens = 10
@@ -1382,7 +1384,7 @@ class TestToolCallingAgent:
 
         class FakeCodeModel(Model):
             def generate(self, messages, stop_sequences=None):
-                return ChatMessage(role="assistant", content="<code>\nfinal_answer(fake_tool_1())\n</code>")
+                return ChatMessage(role=MessageRole.ASSISTANT, content="<code>\nfinal_answer(fake_tool_1())\n</code>")
 
         agent = CodeAgent(tools=[fake_tool_1], model=FakeCodeModel())
 
@@ -1404,7 +1406,7 @@ class TestToolCallingAgent:
 
         model = MagicMock()
         model.generate.return_value = ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content=None,
             tool_calls=[
                 ChatMessageToolCall(
@@ -1611,7 +1613,7 @@ class TestCodeAgent:
     def test_errors_logging(self):
         class FakeCodeModel(Model):
             def generate(self, messages, stop_sequences=None):
-                return ChatMessage(role="assistant", content="<code>\nsecret=3;['1', '2'][secret]\n</code>")
+                return ChatMessage(role=MessageRole.ASSISTANT, content="<code>\nsecret=3;['1', '2'][secret]\n</code>")
 
         agent = CodeAgent(tools=[], model=FakeCodeModel(), verbosity_level=1)
 
@@ -1693,7 +1695,7 @@ print("Ok, calculation done!")""")
 
         class FakeCodeModel(Model):
             def generate(self, messages, stop_sequences=None):
-                return ChatMessage(role="assistant", content="<code>\nfinal_answer(fake_tool_1())\n</code>")
+                return ChatMessage(role=MessageRole.ASSISTANT, content="<code>\nfinal_answer(fake_tool_1())\n</code>")
 
         agent = CodeAgent(tools=[fake_tool_1], model=FakeCodeModel())
 
@@ -1706,7 +1708,7 @@ print("Ok, calculation done!")""")
     def test_local_python_executor_with_custom_functions(self):
         model = MagicMock()
         model.generate.return_value = ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content="",
             tool_calls=None,
             raw="",
@@ -1817,7 +1819,7 @@ print("Ok, calculation done!")""")
 
         model = MagicMock()
         model.generate.return_value = ChatMessage(
-            role="assistant", content="<code>\nfinal_answer(answer1='1', answer2='2')\n</code>"
+            role=MessageRole.ASSISTANT, content="<code>\nfinal_answer(answer1='1', answer2='2')\n</code>"
         )
         agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
         answer = agent.run("Fake task.")
@@ -1901,7 +1903,7 @@ class TestMultiAgents:
                 if tools_to_call_from is not None:
                     if len(messages) < 3:
                         return ChatMessage(
-                            role="assistant",
+                            role=MessageRole.ASSISTANT,
                             content="",
                             tool_calls=[
                                 ChatMessageToolCall(
@@ -1917,7 +1919,7 @@ class TestMultiAgents:
                     else:
                         assert "Report on the current US president" in str(messages)
                         return ChatMessage(
-                            role="assistant",
+                            role=MessageRole.ASSISTANT,
                             content="",
                             tool_calls=[
                                 ChatMessageToolCall(
@@ -1932,7 +1934,7 @@ class TestMultiAgents:
                 else:
                     if len(messages) < 3:
                         return ChatMessage(
-                            role="assistant",
+                            role=MessageRole.ASSISTANT,
                             content="""
 Thought: Let's call our search agent.
 <code>
@@ -1943,7 +1945,7 @@ result = search_agent("Who is the current US president?")
                     else:
                         assert "Report on the current US president" in str(messages)
                         return ChatMessage(
-                            role="assistant",
+                            role=MessageRole.ASSISTANT,
                             content="""
 Thought: Let's return the report.
 <code>
@@ -1964,7 +1966,7 @@ final_answer("Final report.")
                 stop_sequences=None,
             ):
                 return ChatMessage(
-                    role="assistant",
+                    role=MessageRole.ASSISTANT,
                     content="Here is the secret content: FLAG1",
                     tool_calls=[
                         ChatMessageToolCall(
