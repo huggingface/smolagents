@@ -547,10 +547,12 @@ class SpeechToTextTool(PipelineTool):
         whisper_samplerate = 16_000
 
         audio = AgentAudio(audio).to_raw()
-        return self.pre_processor(audio, sampling_rate=whisper_samplerate, return_tensors="pt")
+        return self.pre_processor(
+            audio, sampling_rate=whisper_samplerate, return_tensors="pt", return_attention_mask=True
+        )
 
     def forward(self, inputs):
-        return self.model.generate(inputs["input_features"])
+        return self.model.generate(**inputs)
 
     def decode(self, outputs):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
