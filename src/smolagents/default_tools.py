@@ -578,7 +578,7 @@ class SpeechToTextTool(PipelineTool):
             audio = _resample(audio, original_samplerate=agent_audio.samplerate, target_samplerate=whisper_samplerate)
 
         return self.pre_processor(
-            audio, sampling_rate=whisper_samplerate, return_tensors="pt", return_attention_mask=True
+            audio, sampling_rate=whisper_samplerate, return_tensors="pt", return_attention_mask=True, truncation=False
         )
 
     def forward(self, inputs):
@@ -586,7 +586,7 @@ class SpeechToTextTool(PipelineTool):
         if self.language is not None:
             forced_decoder_ids = self.pre_processor.get_decoder_prompt_ids(language=self.language, task="transcribe")
 
-        return self.model.generate(**inputs, forced_decoder_ids=forced_decoder_ids)
+        return self.model.generate(**inputs, return_timestamps=True, forced_decoder_ids=forced_decoder_ids)
 
     def decode(self, outputs):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
