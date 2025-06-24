@@ -244,7 +244,8 @@ Thought: I should multiply 2 by 3.6452. action_marker
 result = 2**3.6452
 </code>
 """,
-                token_usage=TokenUsage(input_tokens=10, output_tokens=10))
+                token_usage=TokenUsage(input_tokens=10, output_tokens=10),
+            )
         else:
             return ChatMessage(
                 role="assistant",
@@ -665,7 +666,7 @@ nested_answer()
 
     def test_planning_step_with_injected_memory(self):
         """Test that planning step uses update plan prompts when memory is injected before run."""
-        agent = CodeAgent(tools=[], planning_interval=1, model=FakeCodeModelPlanning(), max_steps = 4)
+        agent = CodeAgent(tools=[], planning_interval=1, model=FakeCodeModelPlanning(), max_steps=4)
         task = "Continuous task"
 
         # Inject memory before run
@@ -681,7 +682,9 @@ nested_answer()
 
         # Check that the planning step's model input messages contain the injected memory
         planning_step = planning_steps[0]
-        assert len(planning_step.model_input_messages) == 4  # pre-update plan system message + 2 memory message + post-update plan user message
+        assert (
+            len(planning_step.model_input_messages) == 4
+        )  # pre-update plan system message + 2 memory message + post-update plan user message
         plan_update_pre = planning_step.model_input_messages[0]
         assert plan_update_pre.role == "system"
         assert task in plan_update_pre.content[0]["text"]
@@ -691,12 +694,14 @@ nested_answer()
         assert plan_update_post.role == "user"
 
         second_planning_step = planning_steps[1]
-        assert len(second_planning_step.model_input_messages) == 6  # pre-update plan system message + 2 tasks + tool call + tool response+ post-update plan user message
+        assert (
+            len(second_planning_step.model_input_messages) == 6
+        )  # pre-update plan system message + 2 tasks + tool call + tool response+ post-update plan user message
         plan_update_pre = second_planning_step.model_input_messages[0]
         assert plan_update_pre.role == "system"
         assert task in plan_update_pre.content[0]["text"]
         memory_messages = second_planning_step.model_input_messages
-        assert len(memory_messages) >2
+        assert len(memory_messages) > 2
         # check all user tasks and action are present
         assert "Previous user request" in memory_messages[1].content[0]["text"]
         assert "Continuous task" in memory_messages[2].content[0]["text"]
@@ -1776,8 +1781,7 @@ class TestCodeAgent:
 
         model = MagicMock()
         model.generate.return_value = ChatMessage(
-            role="assistant",
-            content="<code>\nfinal_answer(answer1='1', answer2='2')\n</code>"
+            role="assistant", content="<code>\nfinal_answer(answer1='1', answer2='2')\n</code>"
         )
         agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
         answer = agent.run("Fake task.")
