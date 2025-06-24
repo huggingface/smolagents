@@ -553,11 +553,30 @@ class SpeechToTextTool(PipelineTool):
         self.language = language
 
     def encode(self, audio):
+        from scipy import signal
+        from torch import Tensor, from_numpy
+
         from .agent_types import AgentAudio
+
+        def _resample(raw_audio_tensor: Tensor, original_samplerate: int, target_samplerate) -> Tensor:
+            raw_audio_np = raw_audio_tensor.numpy()
+
+            duration = raw_audio_np.shape[-1] / original_samplerate
+            target_len = int(duration * target_samplerate)
+
+            resampled_raw_audio_np = signal.resample(raw_audio_np, target_len)
+            resampled_raw_audio_tensor = from_numpy(resampled_raw_audio_np.astype("float32"))
+
+            return resampled_raw_audio_tensor
 
         whisper_samplerate = 16_000
 
-        audio = AgentAudio(audio).to_raw()
+        agent_audio = AgentAudio(audio)
+        audio = agent_audio.to_raw()
+
+        if agent_audio.samplerate != whisper_samplerate:
+            audio = _resample(audio, original_samplerate=agent_audio.samplerate, target_samplerate=whisper_samplerate)
+
         return self.pre_processor(
             audio, sampling_rate=whisper_samplerate, return_tensors="pt", return_attention_mask=True
         )
