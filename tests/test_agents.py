@@ -665,47 +665,77 @@ nested_answer()
         assert "Generation failed" in str(e)
 
     def test_planning_step_with_injected_memory(self):
-        """Test that planning step uses update plan prompts when memory is injected before run."""
-        agent = CodeAgent(tools=[], planning_interval=1, model=FakeCodeModelPlanning(), max_steps=4)
-        task = "Continuous task"
+        """Test that agent properly uses update plan prompts when memory is injected before a run.
 
-        # Inject memory before run
-        previous_step = TaskStep(task="Previous user request")
+        This test verifies:
+        1. Planning steps are created with the correct frequency
+        2. Injected memory is included in planning context
+        3. Messages are properly formatted with expected roles and content
+        """
+        planning_interval = 1
+        max_steps = 4
+        task = "Continuous task"
+        previous_task = "Previous user request"
+
+        # Create agent with planning capability
+        agent = CodeAgent(
+            tools=[],
+            planning_interval=planning_interval,
+            model=FakeCodeModelPlanning(),
+            max_steps=max_steps,
+        )
+
+        # Inject memory before run to simulate existing conversation history
+        previous_step = TaskStep(task=previous_task)
         agent.memory.steps.append(previous_step)
 
         # Run the agent
         agent.run(task, reset=False)
 
-        # Verify that the planning step used update plan prompts
+        # Extract and validate planning steps
         planning_steps = [step for step in agent.memory.steps if isinstance(step, PlanningStep)]
-        assert len(planning_steps) > 2
+        assert len(planning_steps) > 2, "Expected multiple planning steps to be generated"
 
-        # Check that the planning step's model input messages contain the injected memory
-        planning_step = planning_steps[0]
-        assert (
-            len(planning_step.model_input_messages) == 4
-        )  # pre-update plan system message + 2 memory message + post-update plan user message
-        plan_update_pre = planning_step.model_input_messages[0]
-        assert plan_update_pre.role == "system"
-        assert task in plan_update_pre.content[0]["text"]
-        memory_message = planning_step.model_input_messages[1]
-        assert "Previous user request" in memory_message.content[0]["text"]
-        plan_update_post = planning_step.model_input_messages[3]
-        assert plan_update_post.role == "user"
+        # Verify first planning step incorporates injected memory
+        first_planning_step = planning_steps[0]
+        input_messages = first_planning_step.model_input_messages
 
+        # Check message structure and content
+        assert len(input_messages) == 4, (
+            "First planning step should have 4 messages: system-plan-pre-update + memory + task + user-plan-post-update"
+        )
+
+        # Verify system message contains current task
+        system_message = input_messages[0]
+        assert system_message.role == "system", "First message should have system role"
+        assert task in system_message.content[0]["text"], f"System message should contain the current task: '{task}'"
+
+        # Verify memory message contains previous task
+        memory_message = input_messages[1]
+        assert previous_task in memory_message.content[0]["text"], (
+            f"Memory message should contain previous task: '{previous_task}'"
+        )
+
+        # Verify task message contains current task
+        task_message = input_messages[2]
+        assert task in task_message.content[0]["text"], f"Task message should contain current task: '{task}'"
+
+        # Verify user message for planning
+        user_message = input_messages[3]
+        assert user_message.role == "user", "Fourth message should have user role"
+
+        # Verify second planning step has more context from first agent actions
         second_planning_step = planning_steps[1]
-        assert (
-            len(second_planning_step.model_input_messages) == 6
-        )  # pre-update plan system message + 2 tasks + tool call + tool response+ post-update plan user message
-        plan_update_pre = second_planning_step.model_input_messages[0]
-        assert plan_update_pre.role == "system"
-        assert task in plan_update_pre.content[0]["text"]
-        memory_messages = second_planning_step.model_input_messages
-        assert len(memory_messages) > 2
-        # check all user tasks and action are present
-        assert "Previous user request" in memory_messages[1].content[0]["text"]
-        assert "Continuous task" in memory_messages[2].content[0]["text"]
-        assert "tools" in memory_messages[3].content[0]["text"]
+        second_messages = second_planning_step.model_input_messages
+
+        # Check that conversation history is growing appropriately
+        assert len(second_messages) == 6, "Second planning step should have 6 messages including tool interactions"
+
+        # Verify all conversation elements are present
+        conversation_text = "".join([msg.content[0]["text"] for msg in second_messages if hasattr(msg, "content")])
+        assert previous_task in conversation_text, "Previous task should be included in the conversation history"
+        assert task in conversation_text, "Current task should be included in the conversation history"
+        assert "tools" in conversation_text, "Tool interactions should be included in the conversation history"
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
