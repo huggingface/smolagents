@@ -541,6 +541,17 @@ class SpeechToTextTool(PipelineTool):
         cls.model_class = WhisperForConditionalGeneration
         return super().__new__(cls)
 
+    def __init__(self, language: str | None = None, *args, **kwargs):
+        """
+        language:
+            - If the audio language is known a-priori, it can be provided
+            - The format can be either language name (ex. 'english') or langage code (ex. 'en')
+            - See supported languages here: https://github.com/openai/whisper/blob/main/whisper/tokenizer.py
+            - If not provided, the model will default to language auto detection (which increase inference time)
+        """
+        super().__init__(*args, **kwargs)
+        self.language = language
+
     def encode(self, audio):
         from .agent_types import AgentAudio
 
@@ -552,7 +563,11 @@ class SpeechToTextTool(PipelineTool):
         )
 
     def forward(self, inputs):
-        return self.model.generate(**inputs)
+        forced_decoder_ids = None
+        if self.language is not None:
+            forced_decoder_ids = self.pre_processor.get_decoder_prompt_ids(language=self.language, task="transcribe")
+
+        return self.model.generate(**inputs, forced_decoder_ids=forced_decoder_ids)
 
     def decode(self, outputs):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
