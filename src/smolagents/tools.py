@@ -32,6 +32,7 @@ from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+import asyncio
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -243,10 +244,77 @@ class Tool(BaseTool):
 
         if sanitize_inputs_outputs:
             args, kwargs = handle_agent_input_types(*args, **kwargs)
-        outputs = self.forward(*args, **kwargs)
+        
+        # Check if forward method is async
+        if inspect.iscoroutinefunction(self.forward):
+            # If we're calling an async tool from sync context, run it in a new event loop
+            try:
+                # Check if there's already a running event loop
+                loop = asyncio.get_running_loop()
+                if loop.is_running():
+                    # We're in an async context, but __call__ is sync
+                    # Create a new thread with its own event loop to run the async function
+                    import concurrent.futures
+                    import threading
+                    
+                    def run_async_in_thread():
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            return new_loop.run_until_complete(self.forward(*args, **kwargs))
+                        finally:
+                            new_loop.close()
+                    
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_async_in_thread)
+                        outputs = future.result()
+                else:
+                    # There's a loop but it's not running, use run_until_complete
+                    outputs = loop.run_until_complete(self.forward(*args, **kwargs))
+            except RuntimeError as e:
+                if "no running event loop" in str(e) or "no current event loop" in str(e):
+                    # No event loop at all, create one and run the coroutine
+                    outputs = asyncio.run(self.forward(*args, **kwargs))
+                else:
+                    # Some other RuntimeError
+                    raise e
+        else:
+            outputs = self.forward(*args, **kwargs)
+            
         if sanitize_inputs_outputs:
             outputs = handle_agent_output_types(outputs, self.output_type)
         return outputs
+
+    async def acall(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
+        """Async version of __call__ for handling async tools."""
+        if not self.is_initialized:
+            self.setup()
+
+        # Handle the arguments might be passed as a single dictionary
+        if len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], dict):
+            potential_kwargs = args[0]
+
+            # If the dictionary keys match our input parameters, convert it to kwargs
+            if all(key in self.inputs for key in potential_kwargs):
+                args = ()
+                kwargs = potential_kwargs
+
+        if sanitize_inputs_outputs:
+            args, kwargs = handle_agent_input_types(*args, **kwargs)
+        
+        # Check if forward method is async
+        if inspect.iscoroutinefunction(self.forward):
+            outputs = await self.forward(*args, **kwargs)
+        else:
+            outputs = self.forward(*args, **kwargs)
+            
+        if sanitize_inputs_outputs:
+            outputs = handle_agent_output_types(outputs, self.output_type)
+        return outputs
+
+    def is_async(self) -> bool:
+        """Check if this tool uses async forward method."""
+        return inspect.iscoroutinefunction(self.forward)
 
     def setup(self):
         """
