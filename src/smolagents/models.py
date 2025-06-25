@@ -1497,8 +1497,9 @@ class OpenAIServerModel(ApiModel):
         )
         response = self.client.chat.completions.create(**completion_kwargs)
 
-        self._last_input_token_count = response.usage.prompt_tokens if response.usage is not None else 0
-        self._last_output_token_count = response.usage.completion_tokens if response.usage is not None else 0
+        # Reported that `response.usage` can be None in some cases when using OpenRouter: see GH-1401
+        self._last_input_token_count = getattr(response.usage, "prompt_tokens", 0)
+        self._last_output_token_count = getattr(response.usage, "completion_tokens", 0)
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
