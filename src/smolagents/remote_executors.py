@@ -95,7 +95,7 @@ locals().update(vars_dict)
             self.logger.log(execution_logs)
         return additional_imports
 
-    def _install_final_answer_exception():
+    def _install_final_answer_exception(self):
         """
         Replace the final answer tool's forward method to make it raise a
         FinalAnswerException when called. For remote executors that support
@@ -121,7 +121,7 @@ locals().update(vars_dict)
         FinalAnswerTool.forward = forward
         return original_forward
 
-    def _uninstall_final_answer_exception(original_forward):
+    def _uninstall_final_answer_exception(self, original_forward):
         """
         Restore the original forward method of the final answer tool,
         undoing what _install_final_answer_exception did.
@@ -154,9 +154,9 @@ class E2BExecutor(RemotePythonExecutor):
     def send_tools(self, tools: dict[str, Tool]):
         # Install the final answer exception since the E2BExecutor relies
         # on it for detecting the final answer.
-        original_forward = RemotePythonExecutor._install_final_answer_exception()
+        original_forward = self._install_final_answer_exception()
         super().send_tools(tools)
-        RemotePythonExecutor._uninstall_final_answer_exception(original_forward)
+        self._uninstall_final_answer_exception(original_forward)
 
     def run_code_raise_errors(self, code: str) -> tuple[Any, str, bool]:
         execution = self.sandbox.run_code(
@@ -351,9 +351,9 @@ class DockerExecutor(RemotePythonExecutor):
     def send_tools(self, tools: dict[str, Tool]):
         # Install the final answer exception since the DockerExecutor relies
         # on it for detecting the final answer.
-        original_forward = RemotePythonExecutor._install_final_answer_exception()
+        original_forward = self._install_final_answer_exception()
         super().send_tools(tools)
-        RemotePythonExecutor._uninstall_final_answer_exception(original_forward)
+        self._uninstall_final_answer_exception(original_forward)
 
     def run_code_raise_errors(self, code_action: str) -> tuple[Any, str, bool]:
         try:
