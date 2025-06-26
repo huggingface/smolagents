@@ -41,6 +41,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
+import asyncio
 
 
 if TYPE_CHECKING:
@@ -1268,144 +1269,97 @@ class ToolCallingAgent(MultiStepAgent):
                         )
                         yield event
                 chat_message = agglomerate_stream_deltas(chat_message_stream_deltas)
+                memory_step.model_output_message = chat_message
+                output_text = chat_message.content
             else:
                 chat_message: ChatMessage = self.model.generate(
                     input_messages,
                     stop_sequences=["Observation:", "Calling tools:"],
                     tools_to_call_from=self.tools_and_managed_agents,
                 )
-
+                memory_step.model_output_message = chat_message
+                output_text = chat_message.content
                 self.logger.log_markdown(
-                    content=chat_message.content if chat_message.content else str(chat_message.raw),
+                    content=output_text,
                     title="Output message of the LLM:",
                     level=LogLevel.DEBUG,
                 )
 
-            # Record model output
-            memory_step.model_output_message = chat_message
-            memory_step.model_output = chat_message.content
+            # This adds <end_code> sequence to the history.
+            # This will nudge ulterior LLM calls to finish with <end_code>, thus efficiently stopping generation.
+            if output_text and output_text.strip().endswith("```"):
+                output_text += "<end_code>"
+                memory_step.model_output_message.content = output_text
+
             memory_step.token_usage = chat_message.token_usage
+            memory_step.model_output = output_text
         except Exception as e:
-            raise AgentGenerationError(f"Error while generating output:\n{e}", self.logger) from e
+            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
 
-        if chat_message.tool_calls is None or len(chat_message.tool_calls) == 0:
-            try:
-                chat_message = self.model.parse_tool_calls(chat_message)
-            except Exception as e:
-                raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
-        else:
-            for tool_call in chat_message.tool_calls:
-                tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
-        yield from self.process_tool_calls(chat_message, memory_step)
-
-    def process_tool_calls(self, chat_message: ChatMessage, memory_step: ActionStep) -> Generator[StreamEvent]:
-        """Process tool calls from the model output and update agent memory.
-
-        Args:
-            chat_message (`ChatMessage`): Chat message containing tool calls from the model.
-            memory_step (`ActionStep)`: Memory ActionStep to update with results.
-
-        Yields:
-            `ActionOutput`: The final output of tool execution.
-        """
-        model_outputs = []
-        tool_calls = []
-        observations = []
-
-        final_answer_call = None
-        parallel_calls = []
-        assert chat_message.tool_calls is not None
-        for tool_call in chat_message.tool_calls:
-            yield tool_call
-            tool_name = tool_call.function.name
-            tool_arguments = tool_call.function.arguments
-            model_outputs.append(str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}"))
-            tool_calls.append(ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call.id))
-            # Track final_answer separately, add others to parallel processing list
-            if tool_name == "final_answer":
-                final_answer_call = (tool_name, tool_arguments)
-                break  # Stop: final answer reached, no further tool calls
+        ### Parse output ###
+        try:
+            if self._use_structured_outputs_internally:
+                code_action = json.loads(output_text)["code"]
+                code_action = extract_code_from_text(code_action) or code_action
             else:
-                parallel_calls.append((tool_name, tool_arguments))
+                code_action = parse_code_blobs(output_text)
+            code_action = fix_final_answer_code(code_action)
+            memory_step.code_action = code_action
+        except Exception as e:
+            error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
+            raise AgentParsingError(error_msg, self.logger)
 
-        # Helper function to process a single tool call
-        def process_single_tool_call(call_info):
-            tool_name, tool_arguments = call_info
-            self.logger.log(
-                Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
-                level=LogLevel.INFO,
+        memory_step.tool_calls = [
+            ToolCall(
+                name="python_interpreter",
+                arguments=code_action,
+                id=f"call_{len(self.memory.steps)}",
             )
-            if tool_arguments is None:
-                tool_arguments = {}
-            tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
-            tool_call_result_type = type(tool_call_result)
-            if tool_call_result_type in [AgentImage, AgentAudio]:
-                if tool_call_result_type == AgentImage:
-                    observation_name = "image.png"
-                elif tool_call_result_type == AgentAudio:
-                    observation_name = "audio.mp3"
-                # TODO: tool_call_result naming could allow for different names of same type
-                self.state[observation_name] = tool_call_result
-                observation = f"Stored '{observation_name}' in memory."
-            else:
-                observation = str(tool_call_result).strip()
-            self.logger.log(
-                f"Observations: {observation.replace('[', '|')}",  # escape potential rich-tag-like components
-                level=LogLevel.INFO,
-            )
-            return observation
+        ]
 
-        # Process tool calls in parallel
-        if parallel_calls:
-            if len(parallel_calls) == 1:
-                # If there's only one call, process it directly
-                observations.append(process_single_tool_call(parallel_calls[0]))
-                yield ToolOutput(output=None, is_final_answer=False)
-            else:
-                # If multiple tool calls, process them in parallel
-                with ThreadPoolExecutor(self.max_tool_threads) as executor:
-                    futures = [executor.submit(process_single_tool_call, call_info) for call_info in parallel_calls]
-                    for future in as_completed(futures):
-                        observations.append(future.result())
-                        yield ToolOutput(output=None, is_final_answer=False)
-
-        # Process final_answer call if present
-        if final_answer_call:
-            tool_name, tool_arguments = final_answer_call
-            self.logger.log(
-                Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
-                level=LogLevel.INFO,
-            )
-            answer = (
-                tool_arguments["answer"]
-                if isinstance(tool_arguments, dict) and "answer" in tool_arguments
-                else tool_arguments
-            )
-            if isinstance(answer, str) and answer in self.state.keys():
-                # if the answer is a state variable, return the value
-                # State variables are not JSON-serializable (AgentImage, AgentAudio) so can't be passed as arguments to execute_tool_call
-                final_answer = self.state[answer]
+        ### Execute action ###
+        self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
+        is_final_answer = False
+        try:
+            output, execution_logs, is_final_answer = self.python_executor(code_action)
+            execution_outputs_console = []
+            if len(execution_logs) > 0:
+                execution_outputs_console += [
+                    Text("Execution logs:", style="bold"),
+                    Text(execution_logs),
+                ]
+            observation = "Execution logs:\n" + execution_logs
+        except Exception as e:
+            if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
+                execution_logs = str(self.python_executor.state["_print_outputs"])
+                if len(execution_logs) > 0:
+                    execution_outputs_console = [
+                        Text("Execution logs:", style="bold"),
+                        Text(execution_logs),
+                    ]
+                    memory_step.observations = "Execution logs:\n" + execution_logs
+                    self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
+            error_msg = str(e)
+            if "Import of " in error_msg and " is not allowed" in error_msg:
                 self.logger.log(
-                    f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'.",
+                    "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
                     level=LogLevel.INFO,
                 )
-            else:
-                # Allow arbitrary keywords
-                final_answer = self.execute_tool_call("final_answer", tool_arguments)
-                self.logger.log(
-                    Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
-                    level=LogLevel.INFO,
-                )
-            memory_step.action_output = final_answer
-            yield ToolOutput(output=final_answer, is_final_answer=True)
+            raise AgentExecutionError(error_msg, self.logger)
 
-        # Update memory step with all results
-        if model_outputs:
-            memory_step.model_output = "\n".join(model_outputs)
-        if tool_calls:
-            memory_step.tool_calls = tool_calls
-        if observations:
-            memory_step.observations = "\n".join(observations)
+        truncated_output = truncate_content(str(output))
+        observation += "Last output from code snippet:\n" + truncated_output
+        memory_step.observations = observation
+
+        execution_outputs_console += [
+            Text(
+                f"{('Out - Final answer' if is_final_answer else 'Out')}: {truncated_output}",
+                style=(f"bold {YELLOW_HEX}" if is_final_answer else ""),
+            ),
+        ]
+        self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
+        memory_step.action_output = output
+        yield ToolOutput(output=output, is_final_answer=is_final_answer)
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
@@ -1439,13 +1393,135 @@ class ToolCallingAgent(MultiStepAgent):
         is_managed_agent = tool_name in self.managed_agents
 
         try:
-            # Call tool with appropriate arguments
-            if isinstance(arguments, dict):
-                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
-            elif isinstance(arguments, str):
-                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+            # Check if tool is async and handle appropriately
+            if hasattr(tool, 'is_async') and tool.is_async():
+                # Handle async tool
+                if isinstance(arguments, dict):
+                    if is_managed_agent:
+                        coro = tool(**arguments)
+                    else:
+                        coro = tool.acall(**arguments, sanitize_inputs_outputs=True)
+                elif isinstance(arguments, str):
+                    if is_managed_agent:
+                        coro = tool(arguments)
+                    else:
+                        coro = tool.acall(arguments, sanitize_inputs_outputs=True)
+                else:
+                    raise TypeError(f"Unsupported arguments type: {type(arguments)}")
+                
+                # Run the coroutine
+                try:
+                    loop = asyncio.get_running_loop()
+                    # We're in an async context, but this method is sync
+                    # We need to handle this differently - for now we'll use asyncio.run_coroutine_threadsafe
+                    import concurrent.futures
+                    import threading
+                    
+                    # Create a new event loop in a thread
+                    def run_in_thread():
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            return new_loop.run_until_complete(coro)
+                        finally:
+                            new_loop.close()
+                    
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_in_thread)
+                        return future.result()
+                        
+                except RuntimeError as e:
+                    if "no running event loop" in str(e):
+                        # No event loop running, we can use asyncio.run
+                        return asyncio.run(coro)
+                    else:
+                        raise e
             else:
-                raise TypeError(f"Unsupported arguments type: {type(arguments)}")
+                # Handle sync tool (existing code)
+                if isinstance(arguments, dict):
+                    return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+                elif isinstance(arguments, str):
+                    return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+                else:
+                    raise TypeError(f"Unsupported arguments type: {type(arguments)}")
+
+        except TypeError as e:
+            # Handle invalid arguments
+            description = getattr(tool, "description", "No description")
+            if is_managed_agent:
+                error_msg = (
+                    f"Invalid request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "You should call this team member with a valid request.\n"
+                    f"Team member description: {description}"
+                )
+            else:
+                error_msg = (
+                    f"Invalid call to tool '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "You should call this tool with correct input arguments.\n"
+                    f"Expected inputs: {json.dumps(tool.inputs)}\n"
+                    f"Returns output type: {tool.output_type}\n"
+                    f"Tool description: '{description}'"
+                )
+            raise AgentToolCallError(error_msg, self.logger) from e
+
+        except Exception as e:
+            # Handle execution errors
+            if is_managed_agent:
+                error_msg = (
+                    f"Error executing request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    "Please try again or request to another team member"
+                )
+            else:
+                error_msg = (
+                    f"Error executing tool '{tool_name}' with arguments {json.dumps(arguments)}: {type(e).__name__}: {e}\n"
+                    "Please try again or use another tool"
+                )
+            raise AgentToolExecutionError(error_msg, self.logger) from e
+
+    async def aexecute_tool_call(self, tool_name: str, arguments: dict[str, str] | str) -> Any:
+        """
+        Async version of execute_tool_call for handling async tools in async contexts.
+
+        Args:
+            tool_name (`str`): Name of the tool or managed agent to execute.
+            arguments (dict[str, str] | str): Arguments passed to the tool call.
+        """
+        # Check if the tool exists
+        available_tools = {**self.tools, **self.managed_agents}
+        if tool_name not in available_tools:
+            raise AgentToolExecutionError(
+                f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
+            )
+
+        # Get the tool and substitute state variables in arguments
+        tool = available_tools[tool_name]
+        arguments = self._substitute_state_variables(arguments)
+        is_managed_agent = tool_name in self.managed_agents
+
+        try:
+            # Call tool with appropriate arguments
+            if hasattr(tool, 'is_async') and tool.is_async():
+                # Handle async tool
+                if isinstance(arguments, dict):
+                    if is_managed_agent:
+                        return await tool(**arguments)
+                    else:
+                        return await tool.acall(**arguments, sanitize_inputs_outputs=True)
+                elif isinstance(arguments, str):
+                    if is_managed_agent:
+                        return await tool(arguments)
+                    else:
+                        return await tool.acall(arguments, sanitize_inputs_outputs=True)
+                else:
+                    raise TypeError(f"Unsupported arguments type: {type(arguments)}")
+            else:
+                # Handle sync tool
+                if isinstance(arguments, dict):
+                    return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+                elif isinstance(arguments, str):
+                    return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+                else:
+                    raise TypeError(f"Unsupported arguments type: {type(arguments)}")
 
         except TypeError as e:
             # Handle invalid arguments
