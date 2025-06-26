@@ -81,6 +81,73 @@ class ToolTesterMixin:
         return _create_inputs
 
 
+class ValidTool(Tool):
+    name = "valid_tool"
+    description = "A valid tool"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+    simple_attr = "string"
+    dict_attr = {"key": "value"}
+
+    def __init__(self, optional_param="default"):
+        super().__init__()
+        self.param = optional_param
+
+    def forward(self, input: str) -> str:
+        return input.upper()
+
+
+@tool
+def valid_tool_function(input: str) -> str:
+    """A valid tool function.
+
+    Args:
+        input (str): Input string.
+    """
+    return input.upper()
+
+
+VALID_TOOL_SOURCE = """\
+from smolagents.tools import Tool
+
+class ValidTool(Tool):
+    name = "valid_tool"
+    description = "A valid tool"
+    inputs = {'input': {'type': 'string', 'description': 'input'}}
+    output_type = "string"
+    simple_attr = "string"
+    dict_attr = {'key': 'value'}
+
+    def __init__(self, optional_param="default"):
+        super().__init__()
+        self.param = optional_param
+
+    def forward(self, input: str) -> str:
+        return input.upper()
+"""
+
+VALID_TOOL_FUNCTION_SOURCE = '''\
+from smolagents.tools import Tool
+
+class SimpleTool(Tool):
+    name = "valid_tool_function"
+    description = "A valid tool function."
+    inputs = {'input': {'type': 'string', 'description': 'Input string.'}}
+    output_type = "string"
+
+    def __init__(self):
+        self.is_initialized = True
+
+    def forward(self, input: str) -> str:
+        """A valid tool function.
+
+        Args:
+            input (str): Input string.
+        """
+        return input.upper()
+'''
+
+
 class TestTool:
     def test_tool_init_with_decorator(self):
         @tool
@@ -564,6 +631,14 @@ class TestTool:
 
         assert isinstance(union_type_return_tool_function, Tool)
         assert union_type_return_tool_function.output_type == "any"
+
+    @pytest.mark.parametrize(
+        "tool, expected_tool_source",
+        [(ValidTool(), VALID_TOOL_SOURCE), (valid_tool_function, VALID_TOOL_FUNCTION_SOURCE)],
+    )
+    def test_to_source(self, tool, expected_tool_source):
+        tool_source = tool.to_source()
+        assert tool_source == expected_tool_source
 
 
 @pytest.fixture
