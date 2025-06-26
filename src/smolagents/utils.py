@@ -68,7 +68,9 @@ def escape_code_brackets(text: str) -> str:
     def replace_bracketed_content(match):
         content = match.group(1)
         cleaned = re.sub(
-            r"bold|red|green|blue|yellow|magenta|cyan|white|black|italic|dim|\s|#[0-9a-fA-F]{6}", "", content
+            r"bold|red|green|blue|yellow|magenta|cyan|white|black|italic|dim|\s|#[0-9a-fA-F]{6}",
+            "",
+            content,
         )
         return f"\\[{content}\\]" if cleaned.strip() else f"[{content}]"
 
@@ -173,8 +175,9 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
 
 
 def extract_code_from_text(text: str) -> str | None:
-    """Extract code from the LLM's output."""
-    pattern = r"<code>(.*?)</code>"
+    """Extract code from markdown code blocks in the LLM's output."""
+    # Pattern to match markdown code blocks with optional language specifier
+    pattern = r"```(?:python|py)?\n(.*?)\n```"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)
@@ -182,7 +185,7 @@ def extract_code_from_text(text: str) -> str | None:
 
 
 def parse_code_blobs(text: str) -> str:
-    """Extract code blocs from the LLM's output.
+    """Extract code blocks from the LLM's output.
 
     If a valid code block is passed, it returns it directly.
 
@@ -209,27 +212,27 @@ def parse_code_blobs(text: str) -> str:
         raise ValueError(
             dedent(
                 f"""
-                Your code snippet is invalid, because the regex pattern <code>(.*?)</code> was not found in it.
+                Your code snippet is invalid, because no markdown code block was found in it.
                 Here is your code snippet:
                 {text}
                 It seems like you're trying to return the final answer, you can do it as follows:
-                <code>
+                ```python
                 final_answer("YOUR FINAL ANSWER HERE")
-                </code>
+                ```
                 """
             ).strip()
         )
     raise ValueError(
         dedent(
             f"""
-            Your code snippet is invalid, because the regex pattern <code>(.*?)</code> was not found in it.
+            Your code snippet is invalid, because no markdown code block was found in it.
             Here is your code snippet:
             {text}
-            Make sure to include code with the correct pattern, for instance:
+            Make sure to include code with the correct markdown format, for instance:
             Thoughts: Your thoughts
-            <code>
+            ```python
             # Your python code here
-            </code>
+            ```
             """
         ).strip()
     )
