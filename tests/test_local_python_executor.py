@@ -761,8 +761,9 @@ except ValueError as e:
         code = "type_a = float(2); type_b = str; type_c = int"
         state = {}
         result, is_final_answer = evaluate_python_code(code, {"float": float, "str": str, "int": int}, state=state)
-        # Result is wrapped by safer_func
-        assert result.__wrapped__ is int
+        # Type objects are not wrapped by safer_func
+        assert not hasattr(result, "__wrapped__")
+        assert result is int
 
     def test_tuple_id(self):
         code = """
@@ -1134,9 +1135,10 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         assert result == (5, "test")
         assert isinstance(state["TestClass"], type)
-        # Values are wrapped by safer_func
-        annotations = {key: value.__wrapped__ for key, value in state["TestClass"].__annotations__.items()}
-        assert annotations == {"x": int, "y": str}
+        # Type objects are not wrapped by safer_func
+        for value in state["TestClass"].__annotations__.values():
+            assert not hasattr(value, "__wrapped__")
+        assert state["TestClass"].__annotations__ == {"x": int, "y": str}
         assert state["TestClass"].x == 5
         assert state["TestClass"].y == "test"
         assert isinstance(state["instance"], state["TestClass"])
@@ -1190,9 +1192,10 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         assert result == ("value", ["b", 30])
         assert isinstance(state["TestClass"], type)
-        # Values are wrapped by safer_func
-        annotations = {key: value.__wrapped__ for key, value in state["TestClass"].__annotations__.items()}
-        assert annotations == {"key_data": dict, "index_data": list}
+        # Type objects are not wrapped by safer_func
+        for value in state["TestClass"].__annotations__.values():
+            assert not hasattr(value, "__wrapped__")
+        assert state["TestClass"].__annotations__ == {"key_data": dict, "index_data": list}
         assert state["TestClass"].key_data == {"key": "value"}
         assert state["TestClass"].index_data == ["a", "b", 30]
 
@@ -1862,6 +1865,16 @@ class TestLocalPythonExecutor:
         )
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
+
+    @pytest.mark.parametrize(
+        "code, expected_result",
+        [("isinstance(5, int)", True), ("isinstance('foo', str)", True), ("isinstance(5, str)", False)],
+    )
+    def test_isinstance_builtin_type(self, code, expected_result):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        result, _, _ = executor(code)
+        assert result is expected_result
 
 
 class TestLocalPythonExecutorSecurity:

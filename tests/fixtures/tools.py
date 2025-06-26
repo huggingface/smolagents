@@ -4,6 +4,22 @@ from smolagents.tools import Tool, tool
 
 
 @pytest.fixture
+def test_tool():
+    class TestTool(Tool):
+        name = "test_tool"
+        description = "A test tool"
+        inputs = {"input": {"type": "string", "description": "Input value"}}
+        output_type = "string"
+
+        def forward(self, input):
+            if input == "error":
+                raise ValueError("Tool execution error")
+            return f"Processed: {input}"
+
+    return TestTool()
+
+
+@pytest.fixture
 def example_tool():
     @tool
     def valid_tool_function(input: str) -> str:

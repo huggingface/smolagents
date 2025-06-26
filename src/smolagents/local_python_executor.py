@@ -217,6 +217,9 @@ def safer_func(
     Returns:
         Callable: Safer function with return value check.
     """
+    # If the function is a type, return it directly without wrapping
+    if isinstance(func, type):
+        return func
 
     @wraps(func)
     def _check_return(*args, **kwargs):

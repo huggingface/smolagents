@@ -33,8 +33,19 @@ class TestRemotePythonExecutor:
         assert executor.run_code_raise_errors.call_count == 1
         assert "!pip install wikipedia-api" in executor.run_code_raise_errors.call_args.args[0]
 
+    def test_multiline_final_answer(self):
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
+        code_action = dedent('''
+            final_answer("""This is
+            a multiline
+            final answer""")
+        ''')
+        match = executor.final_answer_pattern.search(code_action)
+        assert match is not None
+        assert "This is\na multiline\nfinal answer" in match.group(1)
 
-class TestE2BExecutorMock:
+
+class TestE2BExecutorUnit:
     def test_e2b_executor_instantiation(self):
         logger = MagicMock()
         with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
@@ -53,6 +64,23 @@ class TestE2BExecutorMock:
             "timeout": 60,
         }
 
+    def test_cleanup(self):
+        """Test that the cleanup method properly shuts down the sandbox"""
+        logger = MagicMock()
+        with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
+            # Setup mock
+            mock_sandbox.return_value.kill = MagicMock()
+
+            # Create executor
+            executor = E2BExecutor(additional_imports=[], logger=logger, api_key="dummy-api-key")
+
+            # Call cleanup
+            executor.cleanup()
+
+            # Verify sandbox was killed
+            mock_sandbox.return_value.kill.assert_called_once()
+            assert logger.log.call_count >= 2  # Should log start and completion messages
+
 
 @pytest.fixture
 def docker_executor():
@@ -65,7 +93,7 @@ def docker_executor():
 
 
 @require_run_all
-class TestDockerExecutor:
+class TestDockerExecutorIntegration:
     @pytest.fixture(autouse=True)
     def set_executor(self, docker_executor):
         self.executor = docker_executor
@@ -122,3 +150,34 @@ class TestDockerExecutor:
         client = docker.from_env()
         containers = [c.id for c in client.containers.list(all=True)]
         assert container_id not in containers, "Container should be removed"
+
+
+class TestDockerExecutorUnit:
+    def test_cleanup(self):
+        """Test that cleanup properly stops and removes the container"""
+        logger = MagicMock()
+        with (
+            patch("docker.from_env") as mock_docker_client,
+            patch("requests.post") as mock_post,
+            patch("websocket.create_connection"),
+        ):
+            # Setup mocks
+            mock_container = MagicMock()
+            mock_container.status = "running"
+            mock_container.short_id = "test123"
+
+            mock_docker_client.return_value.containers.run.return_value = mock_container
+            mock_docker_client.return_value.images.get.return_value = MagicMock()
+
+            mock_post.return_value.status_code = 201
+            mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
+
+            # Create executor
+            executor = DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+
+            # Call cleanup
+            executor.cleanup()
+
+            # Verify container was stopped and removed
+            mock_container.stop.assert_called_once()
+            mock_container.remove.assert_called_once()

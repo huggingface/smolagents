@@ -158,25 +158,24 @@ Thus it cannot access the image again except by leveraging the path that was log
 
 The first step to debugging your agent is thus "Use a more powerful LLM". Alternatives like `Qwen2/5-72B-Instruct` wouldn't have made that mistake.
 
-### 2. Provide more guidance / more information
+### 2. Provide more information or specific instructions
 
 You can also use less powerful models, provided you guide them more effectively.
 
 Put yourself in the shoes of your model: if you were the model solving the task, would you struggle with the information available to you (from the system prompt + task formulation + tool description) ?
 
-Would you need some added clarifications?
+Would you need detailed instructions?
 
-To provide extra information, we do not recommend to change the system prompt right away: the default system prompt has many adjustments that you do not want to mess up except if you understand the prompt very well.
-Better ways to guide your LLM engine are:
-- If it's about the task to solve: add all these details to the task. The task could be 100s of pages long.
-- If it's about how to use tools: the description attribute of your tools.
+- If the instruction is to always be given to the agent (as we generally understand a system prompt to work): you can pass it as a string under argument `instructions` upon agent initialization.
+- If it's about a specific task to solve: add all these details to the task. The task could be very long, like dozens of pages.
+- If it's about how to use specific tools: include it in the `description` attribute of these tools.
 
 
-### 3. Change the system prompt (generally not advised)
+### 3. Change the prompt templates (generally not advised)
 
-If above clarifications are not sufficient, you can change the system prompt.
+If above clarifications are not sufficient, you can change the agent's prompt templates.
 
-Let's see how it works. For example, let us check the default system prompt for the [`CodeAgent`] (below version is shortened by skipping zero-shot examples).
+Let's see how it works. For example, let us check the default prompt templates for the [`CodeAgent`] (below version is shortened by skipping zero-shot examples).
 
 ```python
 print(agent.prompt_templates["system_prompt"])
@@ -198,29 +197,26 @@ Here are a few examples using notional tools:
 Task: "Generate an image of the oldest person in this document."
 
 Thought: I will proceed step by step and use the following tools: `document_qa` to find the oldest person in the document, then `image_generator` to generate an image according to the answer.
-Code:
-```py
+<code>
 answer = document_qa(document=document, question="Who is the oldest person mentioned?")
 print(answer)
-```<end_code>
+</code>
 Observation: "The oldest person in the document is John Doe, a 55 year old lumberjack living in Newfoundland."
 
 Thought: I will now generate an image showcasing the oldest person.
-Code:
-```py
+<code>
 image = image_generator("A portrait of John Doe, a 55-year-old man living in Canada.")
 final_answer(image)
-```<end_code>
+</code>
 
 ---
 Task: "What is the result of the following operation: 5 + 3 + 1294.678?"
 
 Thought: I will use python code to compute the result of the operation and then return the final answer using the `final_answer` tool
-Code:
-```py
+<code>
 result = 5 + 3 + 1294.678
 final_answer(result)
-```<end_code>
+</code>
 
 ---
 Task:
@@ -229,13 +225,12 @@ You have been provided with these additional arguments, that you can access usin
 {'question': 'Quel est l'animal sur l'image?', 'image': 'path/to/image.jpg'}"
 
 Thought: I will use the following tools: `translator` to translate the question into English and then `image_qa` to answer the question on the input image.
-Code:
-```py
+<code>
 translated_question = translator(question=question, src_lang="French", tgt_lang="English")
 print(f"The translated question is {translated_question}.")
 answer = image_qa(image=image, question=translated_question)
 final_answer(f"The answer is {answer}")
-```<end_code>
+</code>
 
 ---
 Task:
@@ -334,8 +329,8 @@ Above example were using notional tools that might not exist for you. On top of 
 
 {%- if managed_agents and managed_agents.values() | list %}
 You can also give tasks to team members.
-Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'task', a long string explaining your task.
-Given that this team member is a real human, you should be very verbose in your task.
+Calling a team member works similarly to calling a tool: provide the task description as the 'task' argument. Since this team member is a real human, be as detailed and verbose as necessary in your task description.
+You can also include any relevant variables or context using the 'additional_args' argument.
 Here is a list of the team members that you can call:
 {%- for agent in managed_agents.values() %}
 - {{ agent.name }}: {{ agent.description }}
@@ -373,8 +368,8 @@ So while you can overwrite this system prompt template by passing your custom pr
   ```
   {%- if managed_agents and managed_agents.values() | list %}
   You can also give tasks to team members.
-  Calling a team member works the same as for calling a tool: simply, the only argument you can give in the call is 'task', a long string explaining your task.
-  Given that this team member is a real human, you should be very verbose in your task.
+  Calling a team member works similarly to calling a tool: provide the task description as the 'task' argument. Since this team member is a real human, be as detailed and verbose as necessary in your task description.
+  You can also include any relevant variables or context using the 'additional_args' argument.
   Here is a list of the team members that you can call:
   {%- for agent in managed_agents.values() %}
   - {{ agent.name }}: {{ agent.description }}
@@ -390,6 +385,11 @@ agent.prompt_templates["system_prompt"] = agent.prompt_templates["system_prompt"
 ```
 
 This also works with the [`ToolCallingAgent`].
+
+But generally it's just simpler to pass argument `instructions` upon agent initalization, like:
+```py
+agent = CodeAgent(tools=[], model=InferenceClientModel(model_id=model_id), instructions="Always talk like a 5 year old.")
+```
 
 
 ### 4. Extra planning

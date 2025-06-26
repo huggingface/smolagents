@@ -216,28 +216,16 @@ class ApiWebSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, endpoint: str = "", api_key: str = "", api_key_name: str = ""):
+    def __init__(
+        self, endpoint: str = "", api_key: str = "", api_key_name: str = "", headers: dict = None, params: dict = None
+    ):
         import os
 
         super().__init__()
-        self.endpoint = endpoint
+        self.endpoint = endpoint or "https://api.search.brave.com/res/v1/web/search"
         self.api_key = api_key or os.getenv(api_key_name)
-
-    @property
-    def endpoint(self):
-        return self._endpoint
-
-    @endpoint.setter
-    def endpoint(self, value):
-        self._endpoint = value or "https://api.search.brave.com/res/v1/web/search"
-
-    @property
-    def headers(self):
-        return {"X-Subscription-Token": self.api_key}
-
-    @property
-    def params(self):
-        return {"count": 10}
+        self.headers = headers or {"X-Subscription-Token": self.api_key}
+        self.params = params or {"count": 10}
 
     def forward(self, query: str) -> str:
         import requests
@@ -547,14 +535,11 @@ class SpeechToTextTool(PipelineTool):
     output_type = "string"
 
     def __new__(cls, *args, **kwargs):
-        from transformers.models.whisper import (
-            WhisperForConditionalGeneration,
-            WhisperProcessor,
-        )
+        from transformers.models.whisper import WhisperForConditionalGeneration, WhisperProcessor
 
         cls.pre_processor_class = WhisperProcessor
         cls.model_class = WhisperForConditionalGeneration
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls)
 
     def encode(self, audio):
         from .agent_types import AgentAudio
