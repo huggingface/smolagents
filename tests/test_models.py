@@ -291,9 +291,9 @@ class TestInferenceClientModel:
         messages = [ChatMessage(role=MessageRole.USER, content="Test message")]
         _ = model(messages)
         # Verify that the role conversion was applied
-        assert model.client.chat_completion.call_args.kwargs["messages"][0]["role"] == "system", (
-            "role conversion should be applied"
-        )
+        assert (
+            model.client.chat_completion.call_args.kwargs["messages"][0].role == "system"
+        ), "role conversion should be applied"
 
     def test_init_model_with_tokens(self):
         model = InferenceClientModel(model_id="test-model", token="abc")
