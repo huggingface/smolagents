@@ -122,8 +122,42 @@ class TestE2BExecutorIntegration:
     def test_final_answer_patterns(self, code_action, expected_result):
         self.executor.send_tools({"final_answer": FinalAnswerTool()})
         result, logs, final_answer = self.executor(code_action)
-        assert result == expected_result
         assert final_answer is True
+        assert result == expected_result
+
+    def test_custom_final_answer(self):
+        class CustomFinalAnswerTool(FinalAnswerTool):
+            def forward(self, answer: str) -> str:
+                return "CUSTOM" + answer
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerTool()})
+        code_action = dedent("""
+            final_answer(answer="_answer")
+        """)
+        result, logs, final_answer = self.executor(code_action)
+        assert final_answer is True
+        assert result == "CUSTOM_answer"
+
+    def test_custom_final_answer_with_custom_inputs(self):
+        class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
+            inputs = {
+                "answer1": {"type": "string", "description": "First part of the answer."},
+                "answer2": {"type": "string", "description": "Second part of the answer."},
+            }
+
+            def forward(self, answer1: str, answer2: str) -> str:
+                return answer1 + "CUSTOM" + answer2
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerToolWithCustomInputs()})
+        code_action = dedent("""
+            final_answer(
+                answer1="answer1_",
+                answer2="_answer2"
+            )
+        """)
+        result, logs, final_answer = self.executor(code_action)
+        assert final_answer is True
+        assert result == "answer1_CUSTOM_answer2"
 
 
 @pytest.fixture
@@ -230,8 +264,42 @@ class TestDockerExecutorIntegration:
     def test_final_answer_patterns(self, code_action, expected_result):
         self.executor.send_tools({"final_answer": FinalAnswerTool()})
         result, logs, final_answer = self.executor(code_action)
-        assert result == expected_result
         assert final_answer is True
+        assert result == expected_result
+
+    def test_custom_final_answer(self):
+        class CustomFinalAnswerTool(FinalAnswerTool):
+            def forward(self, answer: str) -> str:
+                return "CUSTOM" + answer
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerTool()})
+        code_action = dedent("""
+            final_answer(answer="_answer")
+        """)
+        result, logs, final_answer = self.executor(code_action)
+        assert final_answer is True
+        assert result == "CUSTOM_answer"
+
+    def test_custom_final_answer_with_custom_inputs(self):
+        class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
+            inputs = {
+                "answer1": {"type": "string", "description": "First part of the answer."},
+                "answer2": {"type": "string", "description": "Second part of the answer."},
+            }
+
+            def forward(self, answer1: str, answer2: str) -> str:
+                return answer1 + "CUSTOM" + answer2
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerToolWithCustomInputs()})
+        code_action = dedent("""
+            final_answer(
+                answer1="answer1_",
+                answer2="_answer2"
+            )
+        """)
+        result, logs, final_answer = self.executor(code_action)
+        assert final_answer is True
+        assert result == "answer1_CUSTOM_answer2"
 
 
 class TestDockerExecutorUnit:
