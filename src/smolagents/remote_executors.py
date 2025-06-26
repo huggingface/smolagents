@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import inspect
 import json
 import pickle
 import time
@@ -58,6 +59,8 @@ class RemotePythonExecutor(PythonExecutor):
         raise NotImplementedError
 
     def send_tools(self, tools: dict[str, Tool]):
+        if "final_answer" in tools:
+            self._patch_final_answer_with_exception(tools["final_answer"])
         # Install tool packages
         packages_to_install = {
             pkg
@@ -95,20 +98,26 @@ locals().update(vars_dict)
             self.logger.log(execution_logs)
         return additional_imports
 
-    def _install_final_answer_exception(self):
-        """
-        Replace the final answer tool's forward method to make it raise a
-        FinalAnswerException when called. For remote executors that support
-        catching exceptions and passing them to the client, raising an
-        exception provides a mechanism for detecting when the final answer
-        tool has been called and for getting the answer itself. Note that
-        this modifies the final answer tool _class_ and not just an instance
-        of that class, so call _uninstall_final_answer_exception if you need
-        to restore the original forward method.
-        """
-        original_forward = FinalAnswerTool.forward
+    def _patch_final_answer_with_exception(self, final_answer_tool: FinalAnswerTool):
+        """Patch the FinalAnswerTool to raise an exception.
 
-        def forward(self, answer: Any) -> Any:
+        This is necessary because the remote executors
+        rely on the FinalAnswerTool to detect the final answer.
+        It modifies the `forward` method of the FinalAnswerTool to raise
+        a `FinalAnswerException` with the final answer as a pickled value.
+        This allows the executor to catch this exception and return the final answer.
+
+        Args:
+            final_answer_tool (`FinalAnswerTool`): FinalAnswerTool instance to patch.
+        """
+
+        # Create a new class that inherits from the original FinalAnswerTool
+        class _FinalAnswerTool(final_answer_tool.__class__):
+            pass
+
+        # Add a new forward method that raises the FinalAnswerException
+        # - Define the new forward method function
+        def forward(self, *args, **kwargs) -> Any:
             import base64
             import pickle
 
@@ -116,17 +125,23 @@ locals().update(vars_dict)
                 def __init__(self, value):
                     self.value = value
 
-            raise FinalAnswerException(base64.b64encode(pickle.dumps(answer)).decode())
+            raise FinalAnswerException(base64.b64encode(pickle.dumps(self._forward(*args, **kwargs))).decode())
 
-        FinalAnswerTool.forward = forward
-        return original_forward
+        # - Set the new forward method function to the _FinalAnswerTool class
+        _FinalAnswerTool.forward = forward
 
-    def _uninstall_final_answer_exception(self, original_forward):
-        """
-        Restore the original forward method of the final answer tool,
-        undoing what _install_final_answer_exception did.
-        """
-        FinalAnswerTool.forward = original_forward
+        # Rename the original forward method to _forward
+        # - Get the original forward method function from the final_answer_tool instance
+        original_forward_function = final_answer_tool.forward.__func__
+        # - Set the new _forward method function to the _FinalAnswerTool class
+        _FinalAnswerTool._forward = original_forward_function
+        # - Update the source code of the new forward method to match the original but with the new name
+        _FinalAnswerTool._forward.__source__ = inspect.getsource(original_forward_function).replace(
+            "def forward(", "def _forward("
+        )
+
+        # Set the new class as the class of the final_answer_tool instance
+        final_answer_tool.__class__ = _FinalAnswerTool
 
 
 class E2BExecutor(RemotePythonExecutor):
@@ -150,13 +165,6 @@ class E2BExecutor(RemotePythonExecutor):
         self.sandbox = Sandbox(**kwargs)
         self.installed_packages = self.install_packages(additional_imports)
         self.logger.log("E2B is running", level=LogLevel.INFO)
-
-    def send_tools(self, tools: dict[str, Tool]):
-        # Install the final answer exception since the E2BExecutor relies
-        # on it for detecting the final answer.
-        original_forward = self._install_final_answer_exception()
-        super().send_tools(tools)
-        self._uninstall_final_answer_exception(original_forward)
 
     def run_code_raise_errors(self, code: str) -> tuple[Any, str, bool]:
         execution = self.sandbox.run_code(
@@ -347,13 +355,6 @@ class DockerExecutor(RemotePythonExecutor):
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
-
-    def send_tools(self, tools: dict[str, Tool]):
-        # Install the final answer exception since the DockerExecutor relies
-        # on it for detecting the final answer.
-        original_forward = self._install_final_answer_exception()
-        super().send_tools(tools)
-        self._uninstall_final_answer_exception(original_forward)
 
     def run_code_raise_errors(self, code_action: str) -> tuple[Any, str, bool]:
         try:
