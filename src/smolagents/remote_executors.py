@@ -167,49 +167,57 @@ class E2BExecutor(RemotePythonExecutor):
         self.logger.log("E2B is running", level=LogLevel.INFO)
 
     def run_code_raise_errors(self, code: str) -> tuple[Any, str, bool]:
-        execution = self.sandbox.run_code(
-            code,
-        )
-        final_answer = None
+        execution = self.sandbox.run_code(code)
+        execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
+
+        # Handle errors
         if execution.error:
+            # Check if the error is a FinalAnswerException
             if execution.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
                 final_answer = pickle.loads(base64.b64decode(execution.error.value))
-            else:
-                execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
-                logs = execution_logs
-                logs += "Executing code yielded an error:"
-                logs += execution.error.name + "\n"
-                logs += execution.error.value
-                logs += execution.error.traceback
-                raise AgentError(logs, self.logger)
-        execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
-        if final_answer is not None:
-            return final_answer, execution_logs, True
+                return final_answer, execution_logs, True
+
+            # Construct error message
+            error_message = (
+                f"{execution_logs}\n"
+                f"Executing code yielded an error:\n"
+                f"{execution.error.name}\n"
+                f"{execution.error.value}\n"
+                f"{execution.error.traceback}"
+            )
+            raise AgentError(error_message, self.logger)
+
+        # Handle results
         if not execution.results:
             return None, execution_logs, False
-        else:
-            for result in execution.results:
-                if result.is_main_result:
-                    for attribute_name in ["jpeg", "png"]:
-                        if getattr(result, attribute_name) is not None:
-                            image_output = getattr(result, attribute_name)
-                            decoded_bytes = base64.b64decode(image_output.encode("utf-8"))
-                            return PIL.Image.open(BytesIO(decoded_bytes)), execution_logs
-                    for attribute_name in [
-                        "chart",
-                        "data",
-                        "html",
-                        "javascript",
-                        "json",
-                        "latex",
-                        "markdown",
-                        "pdf",
-                        "svg",
-                        "text",
-                    ]:
-                        if getattr(result, attribute_name) is not None:
-                            return getattr(result, attribute_name), execution_logs, False
-            return None, execution_logs, False
+
+        for result in execution.results:
+            if not result.is_main_result:
+                continue
+            # Handle image outputs
+            for attribute_name in ["jpeg", "png"]:
+                img_data = getattr(result, attribute_name, None)
+                if img_data is not None:
+                    decoded_bytes = base64.b64decode(img_data.encode("utf-8"))
+                    return PIL.Image.open(BytesIO(decoded_bytes)), execution_logs, False
+            # Handle other data formats
+            for attribute_name in [
+                "chart",
+                "data",
+                "html",
+                "javascript",
+                "json",
+                "latex",
+                "markdown",
+                "pdf",
+                "svg",
+                "text",
+            ]:
+                data = getattr(result, attribute_name, None)
+                if data is not None:
+                    return data, execution_logs, False
+        # If no main result found, return None
+        return None, execution_logs, False
 
     def cleanup(self):
         """Clean up the E2B sandbox and resources."""
@@ -368,26 +376,23 @@ class DockerExecutor(RemotePythonExecutor):
 
             while True:
                 msg = json.loads(self.ws.recv())
-                msg_type = msg.get("msg_type", "")
                 parent_msg_id = msg.get("parent_header", {}).get("msg_id")
-
-                # Only process messages related to our execute request
+                # Skip unrelated messages
                 if parent_msg_id != msg_id:
                     continue
-
+                msg_type = msg.get("msg_type", "")
+                msg_content = msg.get("content", {})
                 if msg_type == "stream":
-                    text = msg["content"]["text"]
-                    outputs.append(text)
+                    outputs.append(msg_content["text"])
                 elif msg_type == "execute_result":
-                    result = msg["content"]["data"].get("text/plain", None)
+                    result = msg_content["data"].get("text/plain", None)
                 elif msg_type == "error":
-                    if msg["content"].get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                        result = pickle.loads(base64.b64decode(msg["content"].get("evalue", "")))
+                    if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
+                        result = pickle.loads(base64.b64decode(msg_content.get("evalue", "")))
                         is_final_answer = True
                     else:
-                        traceback = msg["content"].get("traceback", [])
-                        raise AgentError("\n".join(traceback), self.logger)
-                elif msg_type == "status" and msg["content"]["execution_state"] == "idle":
+                        raise AgentError("\n".join(msg_content.get("traceback", [])), self.logger)
+                elif msg_type == "status" and msg_content["execution_state"] == "idle":
                     break
 
             return result, "".join(outputs), is_final_answer
