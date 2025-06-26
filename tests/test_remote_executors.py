@@ -203,10 +203,12 @@ class TestDockerExecutorIntegration:
         [
             (
                 dedent("""
-            text = "Text containing final_answer(5)"
+            text = '''Text containing
+            final_answer(5)
+            '''
             final_answer(text)
         """),
-                "Text containing final_answer(5)",
+                "Text containing\nfinal_answer(5)\n",
             ),
             (
                 dedent("""
