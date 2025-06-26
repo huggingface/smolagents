@@ -33,17 +33,6 @@ class TestRemotePythonExecutor:
         assert executor.run_code_raise_errors.call_count == 1
         assert "!pip install wikipedia-api" in executor.run_code_raise_errors.call_args.args[0]
 
-    def test_multiline_final_answer(self):
-        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
-        code_action = dedent('''
-            final_answer("""This is
-            a multiline
-            final answer""")
-        ''')
-        match = executor.final_answer_pattern.search(code_action)
-        assert match is not None
-        assert "This is\na multiline\nfinal answer" in match.group(1)
-
 
 class TestE2BExecutorUnit:
     def test_e2b_executor_instantiation(self):
@@ -102,22 +91,30 @@ class TestE2BExecutorIntegration:
         "code_action, expected_result",
         [
             (
+                dedent('''
+                    final_answer("""This is
+                    a multiline
+                    final answer""")
+                '''),
+                "This is\na multiline\nfinal answer",
+            ),
+            (
                 dedent("""
-            text = '''Text containing
-            final_answer(5)
-            '''
-            final_answer(text)
-        """),
+                    text = '''Text containing
+                    final_answer(5)
+                    '''
+                    final_answer(text)
+                """),
                 "Text containing\nfinal_answer(5)\n",
             ),
             (
                 dedent("""
-            num = 2
-            if num == 1:
-                final_answer("One")
-            elif num == 2:
-                final_answer("Two")
-        """),
+                    num = 2
+                    if num == 1:
+                        final_answer("One")
+                    elif num == 2:
+                        final_answer("Two")
+                """),
                 "Two",
             ),
         ],
@@ -202,22 +199,30 @@ class TestDockerExecutorIntegration:
         "code_action, expected_result",
         [
             (
+                dedent('''
+                    final_answer("""This is
+                    a multiline
+                    final answer""")
+                '''),
+                "This is\na multiline\nfinal answer",
+            ),
+            (
                 dedent("""
-            text = '''Text containing
-            final_answer(5)
-            '''
-            final_answer(text)
-        """),
+                    text = '''Text containing
+                    final_answer(5)
+                    '''
+                    final_answer(text)
+                """),
                 "Text containing\nfinal_answer(5)\n",
             ),
             (
                 dedent("""
-            num = 2
-            if num == 1:
-                final_answer("One")
-            elif num == 2:
-                final_answer("Two")
-        """),
+                    num = 2
+                    if num == 1:
+                        final_answer("One")
+                    elif num == 2:
+                        final_answer("Two")
+                """),
                 "Two",
             ),
         ],
