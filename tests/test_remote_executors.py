@@ -7,7 +7,7 @@ import PIL.Image
 import pytest
 from rich.console import Console
 
-from smolagents.default_tools import WikipediaSearchTool
+from smolagents.default_tools import FinalAnswerTool, WikipediaSearchTool
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.remote_executors import DockerExecutor, E2BExecutor, RemotePythonExecutor
 from smolagents.utils import AgentError
@@ -83,6 +83,53 @@ class TestE2BExecutorUnit:
 
 
 @pytest.fixture
+def e2b_executor():
+    executor = E2BExecutor(
+        additional_imports=["pillow", "numpy"],
+        logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
+    )
+    yield executor
+    executor.cleanup()
+
+
+@require_run_all
+class TestE2BExecutorIntegration:
+    @pytest.fixture(autouse=True)
+    def set_executor(self, e2b_executor):
+        self.executor = e2b_executor
+
+    @pytest.mark.parametrize(
+        "code_action, expected_result",
+        [
+            (
+                dedent("""
+            text = '''Text containing
+            final_answer(5)
+            '''
+            final_answer(text)
+        """),
+                "Text containing\nfinal_answer(5)\n",
+            ),
+            (
+                dedent("""
+            num = 2
+            if num == 1:
+                final_answer("One")
+            elif num == 2:
+                final_answer("Two")
+        """),
+                "Two",
+            ),
+        ],
+    )
+    def test_final_answer_patterns(self, code_action, expected_result):
+        self.executor.send_tools({"final_answer": FinalAnswerTool()})
+        result, logs, final_answer = self.executor(code_action)
+        assert result == expected_result
+        assert final_answer is True
+
+
+@pytest.fixture
 def docker_executor():
     executor = DockerExecutor(
         additional_imports=["pillow", "numpy"],
@@ -150,6 +197,34 @@ class TestDockerExecutorIntegration:
         client = docker.from_env()
         containers = [c.id for c in client.containers.list(all=True)]
         assert container_id not in containers, "Container should be removed"
+
+    @pytest.mark.parametrize(
+        "code_action, expected_result",
+        [
+            (
+                dedent("""
+            text = "Text containing final_answer(5)"
+            final_answer(text)
+        """),
+                "Text containing final_answer(5)",
+            ),
+            (
+                dedent("""
+            num = 2
+            if num == 1:
+                final_answer("One")
+            elif num == 2:
+                final_answer("Two")
+        """),
+                "Two",
+            ),
+        ],
+    )
+    def test_final_answer_patterns(self, code_action, expected_result):
+        self.executor.send_tools({"final_answer": FinalAnswerTool()})
+        result, logs, final_answer = self.executor(code_action)
+        assert result == expected_result
+        assert final_answer is True
 
 
 class TestDockerExecutorUnit:
