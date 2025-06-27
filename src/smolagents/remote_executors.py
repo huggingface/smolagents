@@ -28,7 +28,7 @@ import PIL.Image
 import requests
 
 from .default_tools import FinalAnswerTool
-from .local_python_executor import PythonExecutor
+from .local_python_executor import CodeOutput, PythonExecutor
 from .monitoring import LogLevel
 from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
@@ -51,7 +51,7 @@ class RemotePythonExecutor(PythonExecutor):
         self.logger.log("Initializing executor, hold on...")
         self.installed_packages = []
 
-    def run_code_raise_errors(self, code: str) -> tuple[Any, str, bool]:
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
         Execute code, return the result and output, also determining if
         the result is the final answer.
@@ -73,8 +73,8 @@ class RemotePythonExecutor(PythonExecutor):
         # Get tool definitions
         code = get_tools_definition_code(tools)
         if code:
-            execution = self.run_code_raise_errors(code)
-            self.logger.log(execution[1])
+            code_output = self.run_code_raise_errors(code)
+            self.logger.log(code_output.logs)
 
     def send_variables(self, variables: dict):
         """
@@ -88,14 +88,14 @@ locals().update(vars_dict)
 """
         self.run_code_raise_errors(code)
 
-    def __call__(self, code_action: str) -> tuple[Any, str, bool]:
+    def __call__(self, code_action: str) -> CodeOutput:
         """Run the code and determine if it is the final answer."""
         return self.run_code_raise_errors(code_action)
 
     def install_packages(self, additional_imports: list[str]):
         if additional_imports:
-            _, execution_logs, _ = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
-            self.logger.log(execution_logs)
+            code_output = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
+            self.logger.log(code_output.logs)
         return additional_imports
 
     def _patch_final_answer_with_exception(self, final_answer_tool: FinalAnswerTool):
@@ -166,7 +166,7 @@ class E2BExecutor(RemotePythonExecutor):
         self.installed_packages = self.install_packages(additional_imports)
         self.logger.log("E2B is running", level=LogLevel.INFO)
 
-    def run_code_raise_errors(self, code: str) -> tuple[Any, str, bool]:
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
         execution = self.sandbox.run_code(code)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
 
@@ -175,7 +175,7 @@ class E2BExecutor(RemotePythonExecutor):
             # Check if the error is a FinalAnswerException
             if execution.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
                 final_answer = pickle.loads(base64.b64decode(execution.error.value))
-                return final_answer, execution_logs, True
+                return CodeOutput(output=final_answer, logs=execution_logs, is_final_answer=True)
 
             # Construct error message
             error_message = (
@@ -189,7 +189,7 @@ class E2BExecutor(RemotePythonExecutor):
 
         # Handle results
         if not execution.results:
-            return None, execution_logs, False
+            return CodeOutput(output=None, logs=execution_logs, is_final_answer=False)
 
         for result in execution.results:
             if not result.is_main_result:
@@ -199,7 +199,9 @@ class E2BExecutor(RemotePythonExecutor):
                 img_data = getattr(result, attribute_name, None)
                 if img_data is not None:
                     decoded_bytes = base64.b64decode(img_data.encode("utf-8"))
-                    return PIL.Image.open(BytesIO(decoded_bytes)), execution_logs, False
+                    return CodeOutput(
+                        output=PIL.Image.open(BytesIO(decoded_bytes)), logs=execution_logs, is_final_answer=False
+                    )
             # Handle other data formats
             for attribute_name in [
                 "chart",
@@ -215,9 +217,9 @@ class E2BExecutor(RemotePythonExecutor):
             ]:
                 data = getattr(result, attribute_name, None)
                 if data is not None:
-                    return data, execution_logs, False
+                    return CodeOutput(output=data, logs=execution_logs, is_final_answer=False)
         # If no main result found, return None
-        return None, execution_logs, False
+        return CodeOutput(output=None, logs=execution_logs, is_final_answer=False)
 
     def cleanup(self):
         """Clean up the E2B sandbox and resources."""
@@ -364,7 +366,7 @@ class DockerExecutor(RemotePythonExecutor):
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
-    def run_code_raise_errors(self, code_action: str) -> tuple[Any, str, bool]:
+    def run_code_raise_errors(self, code_action: str) -> CodeOutput:
         try:
             # Send execute request
             msg_id = self._send_execute_request(code_action)
@@ -395,7 +397,7 @@ class DockerExecutor(RemotePythonExecutor):
                 elif msg_type == "status" and msg_content["execution_state"] == "idle":
                     break
 
-            return result, "".join(outputs), is_final_answer
+            return CodeOutput(output=result, logs="".join(outputs), is_final_answer=is_final_answer)
 
         except Exception as e:
             self.logger.log_error(f"Code execution failed: {e}")
