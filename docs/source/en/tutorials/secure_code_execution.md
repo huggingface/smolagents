@@ -80,7 +80,7 @@ run_capture_exception(harmful_command)
 
 
 # Imports like os will not be performed unless explicitly added to `additional_authorized_imports`
-harmful_command="import os; exit_code = os.system("echo Bad command")"
+harmful_command="import os; exit_code = os.system('echo Bad command')"
 run_capture_exception(harmful_command)
 # >>> ERROR: Code execution failed at line 'import os' due to: InterpreterError: Import of os is not allowed. Authorized imports are: ['statistics', 'numpy', 'itertools', 'time', 'queue', 'collections', 'math', 'random', 're', 'datetime', 'stat', 'unicodedata']
 
