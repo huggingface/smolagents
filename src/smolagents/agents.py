@@ -509,6 +509,7 @@ You have been provided with these additional arguments, that you can access usin
                     start_time=planning_start_time,
                     end_time=planning_end_time,
                 )
+                self._finalize_step(planning_step)
 
             # Start action step!
             action_step_start_time = time.time()
@@ -559,7 +560,7 @@ You have been provided with these additional arguments, that you can access usin
             except Exception as e:
                 raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
 
-    def _finalize_step(self, memory_step: ActionStep):
+    def _finalize_step(self, memory_step: ActionStep | PlanningStep):
         memory_step.timing.end_time = time.time()
         for callback in self.step_callbacks:
             # For compatibility with old callbacks that don't take the agent as an argument

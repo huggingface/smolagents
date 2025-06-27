@@ -1083,6 +1083,28 @@ class TestMultiStepAgent:
             agent.run("Test task")
         assert "Agent interrupted" in str(e)
 
+    def test_interrupt_with_planning(self):
+        """Test that interrupt works with planning steps and verifies callbacks for both step types."""
+        callback_steps = []
+        
+        def interrupt_and_track_callback(memory_step, agent):
+            callback_steps.append(type(memory_step).__name__)
+            if len(callback_steps) >= 2:  # Interrupt after both planning and action steps
+                agent.interrupt()
+
+        agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModelPlanning(),
+            step_callbacks=[interrupt_and_track_callback],
+            planning_interval=1,
+            max_steps=2,
+        )
+        with pytest.raises(AgentError) as e:
+            agent.run("Test task")
+        assert "Agent interrupted" in str(e)
+        assert "PlanningStep" in callback_steps
+        assert "ActionStep" in callback_steps
+
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
         [
