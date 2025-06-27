@@ -560,13 +560,12 @@ class WasmExecutor(RemotePythonExecutor):
         except requests.RequestException as e:
             raise RuntimeError(f"Failed to connect to Deno server: {e}")
 
-    def run_code_raise_errors(self, code: str, return_final_answer: bool = False) -> CodeOutput:
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
         Execute Python code in the Pyodide environment and return the result.
 
         Args:
             code (`str`): Python code to execute.
-            return_final_answer (`bool`, default `False`): Whether to extract and return the final answer.
 
         Returns:
             `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
@@ -575,7 +574,6 @@ class WasmExecutor(RemotePythonExecutor):
             # Prepare the request payload
             payload = {
                 "code": code,
-                "returnFinalAnswer": return_final_answer,
                 "packages": self.installed_packages,
             }
 
@@ -585,22 +583,32 @@ class WasmExecutor(RemotePythonExecutor):
             if response.status_code != 200:
                 raise AgentError(f"Server error: {response.text}", self.logger)
 
+            result = None
+            is_final_answer = False
+
             # Parse the response
             result_data = response.json()
 
+            # Process the result
+            if result_data.get("result"):
+                result = result_data.get("result")
             # Check for execution errors
-            if result_data.get("error"):
+            elif result_data.get("error"):
                 error = result_data["error"]
-                error_message = f"{error.get('name', 'Error')}: {error.get('message', 'Unknown error')}"
-                if "stack" in error:
-                    error_message += f"\n{error['stack']}"
-                raise AgentError(error_message, self.logger)
+                if (
+                    error.get("pythonExceptionType") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION
+                    and "pythonExceptionValue" in error
+                ):
+                    result = pickle.loads(base64.b64decode(error["pythonExceptionValue"]))
+                    is_final_answer = True
+                else:
+                    error_message = f"{error.get('name', 'Error')}: {error.get('message', 'Unknown error')}"
+                    if "stack" in error:
+                        error_message += f"\n{error['stack']}"
+                    raise AgentError(error_message, self.logger)
 
             # Get the execution logs
             execution_logs = result_data.get("stdout", "")
-
-            # Process the result
-            result = result_data.get("result")
 
             # Handle image results
             if isinstance(result, dict) and result.get("type") == "image":
@@ -608,7 +616,7 @@ class WasmExecutor(RemotePythonExecutor):
                 decoded_bytes = base64.b64decode(image_data.encode("utf-8"))
                 return PIL.Image.open(BytesIO(decoded_bytes)), execution_logs
 
-            return CodeOutput(output=result, logs=execution_logs, is_final_answer=return_final_answer)
+            return CodeOutput(output=result, logs=execution_logs, is_final_answer=is_final_answer)
 
         except requests.RequestException as e:
             raise AgentError(f"Failed to communicate with Deno server: {e}", self.logger)
@@ -658,7 +666,7 @@ class WasmExecutor(RemotePythonExecutor):
         const pyodidePromise = loadPyodide();
 
         // Function to execute Python code and return the result
-        async function executePythonCode(code, returnFinalAnswer = false) {
+        async function executePythonCode(code) {
           const pyodide = await pyodidePromise;
 
           // Create a capture for stdout
@@ -675,35 +683,7 @@ class WasmExecutor(RemotePythonExecutor):
 
           try {
             // Execute the code
-            if (returnFinalAnswer) {
-              // Extract the final_answer call if present
-              const finalAnswerMatch = code.match(/final_answer\\s*\\((.*)\\)/);
-              if (finalAnswerMatch) {
-                // Execute the code up to the final_answer call
-                const preCode = code.replace(/final_answer\\s*\\(.*\\)/, "");
-                pyodide.runPython(preCode);
-
-                // Execute the final_answer expression and get the result
-                const finalAnswerExpr = finalAnswerMatch[1];
-                result = pyodide.runPython(`${finalAnswerExpr}`);
-
-                // Handle image results
-                if (result && result.constructor.name === "Image") {
-                  // Convert PIL Image to base64
-                  const pngBytes = pyodide.runPython(`
-                    import io
-                    import base64
-                    buf = io.BytesIO()
-                    _result.save(buf, format='PNG')
-                    base64.b64encode(buf.getvalue()).decode('utf-8')
-                  `);
-                  result = { type: "image", data: pngBytes };
-                }
-              }
-            } else {
-              // Just run the code without expecting a final answer
-              result = await pyodide.runPythonAsync(code);
-            }
+            result = await pyodide.runPythonAsync(code);
 
             // Get captured stdout
             stdout = pyodide.runPython("sys.stdout.getvalue()");
@@ -713,6 +693,24 @@ class WasmExecutor(RemotePythonExecutor):
               message: e.message,
               stack: e.stack
             };
+
+            // Extract Python exception details
+            if (e.constructor.name === "PythonError") {
+              // Get the Python exception type from the error message: at the end of the traceback
+              const errorMatch = e.message.match(/\\n([^:]+Exception): /);
+              if (errorMatch) {
+                error.pythonExceptionType = errorMatch[1].split(".").pop();
+              }
+
+              // If the error is a FinalAnswerException, extract its the encoded value
+              if (error.pythonExceptionType === "FinalAnswerException") {
+                // Extract the base64 encoded value from the error message
+                const valueMatch = e.message.match(/FinalAnswerException: (.*?)(?:\\n|$)/);
+                if (valueMatch) {
+                  error.pythonExceptionValue = valueMatch[1];
+                }
+              }
+            }
           }
 
           return {
@@ -730,7 +728,7 @@ class WasmExecutor(RemotePythonExecutor):
           if (req.method === "POST") {
             try {
               const body = await req.json();
-              const { code, returnFinalAnswer = false, packages = [] } = body;
+              const { code, packages = [] } = body;
 
               // Load any requested packages
               if (packages && packages.length > 0) {
@@ -745,7 +743,7 @@ class WasmExecutor(RemotePythonExecutor):
                 }
               }
 
-              const result = await executePythonCode(code, returnFinalAnswer);
+              const result = await executePythonCode(code);
               return new Response(JSON.stringify(result), {
                 headers: { "Content-Type": "application/json" }
               });
