@@ -716,9 +716,9 @@ class WebAssemblyExecutor(RemotePythonExecutor):
           }
 
           return {
-            result: result,
-            stdout: stdout,
-            error: error
+            result,
+            stdout,
+            error
           };
         }
 
@@ -738,13 +738,10 @@ class WebAssemblyExecutor(RemotePythonExecutor):
                 //await pyodide.loadPackagesFromImports(code);
                 await pyodide.loadPackage("micropip");
                 const micropip = pyodide.pyimport("micropip");
-                for (const pkg of packages) {
-                  try {
-                    // await pyodide.loadPackage(pkg);
-                    await micropip.install(pkg);
-                  } catch (e) {
-                    console.error(`Failed to load package ${pkg}: ${e.message}`);
-                  }
+                try {
+                  await micropip.install(packages);
+                } catch (e) {
+                  console.error(`Failed to load package ${pkg}: ${e.message}`);
                 }
               }
 
