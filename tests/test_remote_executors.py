@@ -29,7 +29,6 @@ class TestRemotePythonExecutor:
         tool = WikipediaSearchTool()
         executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
         executor.run_code_raise_errors = MagicMock()
-        executor.run_code_raise_errors.return_value = (None, "", False)
         executor.send_tools({"wikipedia_search": tool})
         assert executor.run_code_raise_errors.call_count == 2
         assert "!pip install wikipedia-api" == executor.run_code_raise_errors.call_args_list[0].args[0]
@@ -123,9 +122,9 @@ class TestE2BExecutorIntegration:
     )
     def test_final_answer_patterns(self, code_action, expected_result):
         self.executor.send_tools({"final_answer": FinalAnswerTool()})
-        result, logs, final_answer = self.executor(code_action)
-        assert final_answer is True
-        assert result == expected_result
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == expected_result
 
     def test_custom_final_answer(self):
         class CustomFinalAnswerTool(FinalAnswerTool):
@@ -136,9 +135,9 @@ class TestE2BExecutorIntegration:
         code_action = dedent("""
             final_answer(answer="_answer")
         """)
-        result, logs, final_answer = self.executor(code_action)
-        assert final_answer is True
-        assert result == "CUSTOM_answer"
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "CUSTOM_answer"
 
     def test_custom_final_answer_with_custom_inputs(self):
         class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
@@ -157,9 +156,9 @@ class TestE2BExecutorIntegration:
                 answer2="_answer2"
             )
         """)
-        result, logs, final_answer = self.executor(code_action)
-        assert final_answer is True
-        assert result == "answer1_CUSTOM_answer2"
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "answer1_CUSTOM_answer2"
 
 
 @pytest.fixture
@@ -188,20 +187,20 @@ class TestDockerExecutorIntegration:
         self.executor(code_action)
 
         code_action = "print(np.sqrt(a))"
-        result, logs, final_answer = self.executor(code_action)
-        assert "1.41421" in logs
+        code_output = self.executor(code_action)
+        assert "1.41421" in code_output.logs
 
     def test_execute_output(self):
         """Test execution that returns a string"""
         code_action = 'final_answer("This is the final answer")'
-        result, logs, final_answer = self.executor(code_action)
-        assert result == "This is the final answer", "Result should be 'This is the final answer'"
+        code_output = self.executor(code_action)
+        assert code_output.output == "This is the final answer", "Result should be 'This is the final answer'"
 
     def test_execute_multiline_output(self):
         """Test execution that returns a string"""
         code_action = 'result = "This is the final answer"\nfinal_answer(result)'
-        result, logs, final_answer = self.executor(code_action)
-        assert result == "This is the final answer", "Result should be 'This is the final answer'"
+        code_output = self.executor(code_action)
+        assert code_output.output == "This is the final answer", "Result should be 'This is the final answer'"
 
     def test_execute_image_output(self):
         """Test execution that returns a base64 image"""
@@ -212,8 +211,8 @@ class TestDockerExecutorIntegration:
             image = Image.new("RGB", (10, 10), (255, 0, 0))
             final_answer(image)
         """)
-        result, logs, final_answer = self.executor(code_action)
-        assert isinstance(result, PIL.Image.Image), "Result should be a PIL Image"
+        code_output = self.executor(code_action)
+        assert isinstance(code_output.output, PIL.Image.Image), "Result should be a PIL Image"
 
     def test_syntax_error_handling(self):
         """Test handling of syntax errors"""
@@ -265,9 +264,9 @@ class TestDockerExecutorIntegration:
     )
     def test_final_answer_patterns(self, code_action, expected_result):
         self.executor.send_tools({"final_answer": FinalAnswerTool()})
-        result, logs, final_answer = self.executor(code_action)
-        assert final_answer is True
-        assert result == expected_result
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == expected_result
 
     def test_custom_final_answer(self):
         class CustomFinalAnswerTool(FinalAnswerTool):
@@ -278,9 +277,9 @@ class TestDockerExecutorIntegration:
         code_action = dedent("""
             final_answer(answer="_answer")
         """)
-        result, logs, final_answer = self.executor(code_action)
-        assert final_answer is True
-        assert result == "CUSTOM_answer"
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "CUSTOM_answer"
 
     def test_custom_final_answer_with_custom_inputs(self):
         class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
@@ -299,9 +298,9 @@ class TestDockerExecutorIntegration:
                 answer2="_answer2"
             )
         """)
-        result, logs, final_answer = self.executor(code_action)
-        assert final_answer is True
-        assert result == "answer1_CUSTOM_answer2"
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "answer1_CUSTOM_answer2"
 
 
 class TestDockerExecutorUnit:
