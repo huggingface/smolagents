@@ -22,6 +22,7 @@ import logging
 import math
 import re
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
 from types import BuiltinFunctionType, FunctionType, ModuleType
@@ -1547,6 +1548,13 @@ def evaluate_python_code(
         raise InterpreterError(
             f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
         )
+
+
+@dataclass
+class CodeOutput:
+    output: Any
+    logs: str
+    is_final_answer: bool
 
 
 class PythonExecutor:
