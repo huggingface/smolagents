@@ -1089,7 +1089,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         executor.send_tools({"final_answer": FinalAnswerTool()})
 
-        res, _, _ = executor(
+        res = executor(
             dedent(
                 """
                 def target_function():
@@ -1098,7 +1098,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
                 final_answer(target_function)
                 """
             )
-        )
+        ).output
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
@@ -1809,7 +1809,7 @@ class TestLocalPythonExecutor:
     )
     def test_call_from_dict(self, code):
         executor = LocalPythonExecutor([])
-        result, _, _ = executor(code)
+        result = executor(code).output
         assert result == 11
 
     @pytest.mark.parametrize(
@@ -1841,7 +1841,7 @@ class TestLocalPythonExecutor:
     def test_chained_assignments(self, code):
         executor = LocalPythonExecutor([])
         executor.send_tools({})
-        result, _, _ = executor(code)
+        result = executor(code).output
         assert result == 1
 
     def test_evaluate_assign_error(self):
@@ -1853,7 +1853,7 @@ class TestLocalPythonExecutor:
     def test_function_def_recovers_source_code(self):
         executor = LocalPythonExecutor([])
         executor.send_tools({"final_answer": FinalAnswerTool()})
-        res, _, _ = executor(
+        res = executor(
             dedent(
                 """
                 def target_function():
@@ -1862,7 +1862,7 @@ class TestLocalPythonExecutor:
                 final_answer(target_function)
                 """
             )
-        )
+        ).output
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
@@ -1873,7 +1873,7 @@ class TestLocalPythonExecutor:
     def test_isinstance_builtin_type(self, code, expected_result):
         executor = LocalPythonExecutor([])
         executor.send_tools({})
-        result, _, _ = executor(code)
+        result = executor(code).output
         assert result is expected_result
 
 
