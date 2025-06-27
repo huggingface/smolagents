@@ -410,8 +410,8 @@ class TestWasmExecutorIntegration:
     def test_basic_execution(self):
         """Test basic code execution."""
         code = "a = 2 + 2; print(f'Result: {a}')"
-        _, logs, _ = self.executor(code)
-        assert "Result: 4" in logs
+        code_output = self.executor(code)
+        assert "Result: 4" in code_output.logs
 
     def test_state_persistence(self):
         """Test that variables persist between executions."""
@@ -419,15 +419,15 @@ class TestWasmExecutorIntegration:
         self.executor("x = 42")
 
         # Use the variable in a subsequent execution
-        _, logs, _ = self.executor("print(x)")
-        assert "42" in logs
+        code_output = self.executor("print(x)")
+        assert "42" in code_output.logs
 
     def test_final_answer(self):
         """Test returning a final answer."""
         code = 'final_answer("This is the final answer")'
-        result, _, is_final = self.executor(code)
-        assert result == "This is the final answer"
-        assert is_final is True
+        code_output = self.executor(code)
+        assert code_output.output == "This is the final answer"
+        assert code_output.is_final_answer is True
 
     def test_numpy_execution(self):
         """Test execution with NumPy."""
@@ -436,8 +436,8 @@ class TestWasmExecutorIntegration:
         arr = np.array([1, 2, 3, 4, 5])
         print(f"Mean: {np.mean(arr)}")
         """
-        _, logs, _ = self.executor(code)
-        assert "Mean: 3.0" in logs
+        code_output = self.executor(code)
+        assert "Mean: 3.0" in code_output.logs
 
     def test_error_handling(self):
         """Test handling of Python errors."""

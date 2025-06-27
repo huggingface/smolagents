@@ -560,7 +560,7 @@ class WasmExecutor(RemotePythonExecutor):
         except requests.RequestException as e:
             raise RuntimeError(f"Failed to connect to Deno server: {e}")
 
-    def run_code_raise_errors(self, code: str, return_final_answer: bool = False) -> tuple[Any, str]:
+    def run_code_raise_errors(self, code: str, return_final_answer: bool = False) -> CodeOutput:
         """
         Execute Python code in the Pyodide environment and return the result.
 
@@ -569,7 +569,7 @@ class WasmExecutor(RemotePythonExecutor):
             return_final_answer (`bool`, default `False`): Whether to extract and return the final answer.
 
         Returns:
-            tuple[Any, str]: A tuple containing the result and execution logs.
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
         """
         try:
             # Prepare the request payload
@@ -608,7 +608,7 @@ class WasmExecutor(RemotePythonExecutor):
                 decoded_bytes = base64.b64decode(image_data.encode("utf-8"))
                 return PIL.Image.open(BytesIO(decoded_bytes)), execution_logs
 
-            return result, execution_logs
+            return CodeOutput(output=result, logs=execution_logs, is_final_answer=return_final_answer)
 
         except requests.RequestException as e:
             raise AgentError(f"Failed to communicate with Deno server: {e}", self.logger)
