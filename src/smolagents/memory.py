@@ -221,18 +221,27 @@ class AgentMemory:
             image_count = 0
             for step in reversed(self.steps):
                 image_array = None
+                has_observation_images = False
+                has_task_images = False
                 if hasattr(step, "observations_images"):
                     image_array = step.observations_images
+                    has_observation_images = True
                 elif hasattr(step, "task_images"):
                     image_array = step.task_images
+                    has_task_images = True
                 if image_array is not None:
                     image_count += len(image_array)
                     
-                    if image_count >= self.max_images:
+                    if image_count > self.max_images:
                         # Remove image_count - self.max_images images from the
                         # beginning of the step's image array
                         image_array = image_array[image_count - self.max_images:]
                         image_count = self.max_images
+                        
+                        if has_observation_images:
+                            step.observations_images = image_array
+                        if has_task_images:
+                            step.task_images = image_array
 
     def get_succinct_steps(self) -> list[dict]:
         """Return a succinct representation of the agent's steps, excluding model input messages."""
