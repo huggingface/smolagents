@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from smolagents.cli import load_model
-from smolagents.local_python_executor import LocalPythonExecutor
+from smolagents.local_python_executor import CodeOutput, LocalPythonExecutor
 from smolagents.models import InferenceClientModel, LiteLLMModel, OpenAIServerModel, TransformersModel
 
 
@@ -106,7 +106,9 @@ def test_vision_web_browser_main():
     # agent.python_executor
     assert len(mock_code_agent.return_value.python_executor.call_args_list) == 1
     assert mock_code_agent.return_value.python_executor.call_args.args == ("from helium import *",)
-    assert LocalPythonExecutor(["helium"])("from helium import *") == (None, "", False)
+    assert LocalPythonExecutor(["helium"])("from helium import *") == CodeOutput(
+        output=None, logs="", is_final_answer=False
+    )
     # agent.run
     assert len(mock_code_agent.return_value.run.call_args_list) == 1
     assert mock_code_agent.return_value.run.call_args.args == ("test_prompt" + helium_instructions,)

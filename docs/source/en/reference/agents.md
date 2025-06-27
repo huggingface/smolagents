@@ -53,6 +53,11 @@ _This class is deprecated since 1.8.0: now you simply need to pass attributes `n
 
 [[autodoc]] smolagents.agents.FinalAnswerPromptTemplate
 
+## Memory
+
+Smolagents use memory to store information across multiple steps.
+
+[[autodoc]] smolagents.memory.AgentMemory
 
 ## Python code executors
 

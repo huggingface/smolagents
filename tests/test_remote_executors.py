@@ -7,7 +7,7 @@ import PIL.Image
 import pytest
 from rich.console import Console
 
-from smolagents.default_tools import WikipediaSearchTool
+from smolagents.default_tools import FinalAnswerTool, WikipediaSearchTool
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.remote_executors import DockerExecutor, E2BExecutor, RemotePythonExecutor, WebAssemblyExecutor
 from smolagents.utils import AgentError
@@ -30,11 +30,12 @@ class TestRemotePythonExecutor:
         executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
         executor.run_code_raise_errors = MagicMock()
         executor.send_tools({"wikipedia_search": tool})
-        assert executor.run_code_raise_errors.call_count == 1
-        assert "!pip install wikipedia-api" in executor.run_code_raise_errors.call_args.args[0]
+        assert executor.run_code_raise_errors.call_count == 2
+        assert "!pip install wikipedia-api" == executor.run_code_raise_errors.call_args_list[0].args[0]
+        assert "class WikipediaSearchTool(Tool)" in executor.run_code_raise_errors.call_args_list[1].args[0]
 
 
-class TestE2BExecutorMock:
+class TestE2BExecutorUnit:
     def test_e2b_executor_instantiation(self):
         logger = MagicMock()
         with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
@@ -45,7 +46,6 @@ class TestE2BExecutorMock:
             )
         assert isinstance(executor, E2BExecutor)
         assert executor.logger == logger
-        assert executor.final_answer_pattern.pattern == r"^final_answer\((.*)\)$"
         assert executor.sandbox == mock_sandbox.return_value
         assert mock_sandbox.call_count == 1
         assert mock_sandbox.call_args.kwargs == {
@@ -53,6 +53,143 @@ class TestE2BExecutorMock:
             "template": "dummy-template-id",
             "timeout": 60,
         }
+
+    def test_cleanup(self):
+        """Test that the cleanup method properly shuts down the sandbox"""
+        logger = MagicMock()
+        with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
+            # Setup mock
+            mock_sandbox.return_value.kill = MagicMock()
+
+            # Create executor
+            executor = E2BExecutor(additional_imports=[], logger=logger, api_key="dummy-api-key")
+
+            # Call cleanup
+            executor.cleanup()
+
+            # Verify sandbox was killed
+            mock_sandbox.return_value.kill.assert_called_once()
+            assert logger.log.call_count >= 2  # Should log start and completion messages
+
+
+@pytest.fixture
+def e2b_executor():
+    executor = E2BExecutor(
+        additional_imports=["pillow", "numpy"],
+        logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
+    )
+    yield executor
+    executor.cleanup()
+
+
+@require_run_all
+class TestE2BExecutorIntegration:
+    @pytest.fixture(autouse=True)
+    def set_executor(self, e2b_executor):
+        self.executor = e2b_executor
+
+    @pytest.mark.parametrize(
+        "code_action, expected_result",
+        [
+            (
+                dedent('''
+                    final_answer("""This is
+                    a multiline
+                    final answer""")
+                '''),
+                "This is\na multiline\nfinal answer",
+            ),
+            (
+                dedent("""
+                    text = '''Text containing
+                    final_answer(5)
+                    '''
+                    final_answer(text)
+                """),
+                "Text containing\nfinal_answer(5)\n",
+            ),
+            (
+                dedent("""
+                    num = 2
+                    if num == 1:
+                        final_answer("One")
+                    elif num == 2:
+                        final_answer("Two")
+                """),
+                "Two",
+            ),
+        ],
+    )
+    def test_final_answer_patterns(self, code_action, expected_result):
+        self.executor.send_tools({"final_answer": FinalAnswerTool()})
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == expected_result
+
+    def test_custom_final_answer(self):
+        class CustomFinalAnswerTool(FinalAnswerTool):
+            def forward(self, answer: str) -> str:
+                return "CUSTOM" + answer
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerTool()})
+        code_action = dedent("""
+            final_answer(answer="_answer")
+        """)
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "CUSTOM_answer"
+
+    def test_custom_final_answer_with_custom_inputs(self):
+        class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
+            inputs = {
+                "answer1": {"type": "string", "description": "First part of the answer."},
+                "answer2": {"type": "string", "description": "Second part of the answer."},
+            }
+
+            def forward(self, answer1: str, answer2: str) -> str:
+                return answer1 + "CUSTOM" + answer2
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerToolWithCustomInputs()})
+        code_action = dedent("""
+            final_answer(
+                answer1="answer1_",
+                answer2="_answer2"
+            )
+        """)
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "answer1_CUSTOM_answer2"
+
+
+class TestDockerExecutorUnit:
+    def test_cleanup(self):
+        """Test that cleanup properly stops and removes the container"""
+        logger = MagicMock()
+        with (
+            patch("docker.from_env") as mock_docker_client,
+            patch("requests.post") as mock_post,
+            patch("websocket.create_connection"),
+        ):
+            # Setup mocks
+            mock_container = MagicMock()
+            mock_container.status = "running"
+            mock_container.short_id = "test123"
+
+            mock_docker_client.return_value.containers.run.return_value = mock_container
+            mock_docker_client.return_value.images.get.return_value = MagicMock()
+
+            mock_post.return_value.status_code = 201
+            mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
+
+            # Create executor
+            executor = DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+
+            # Call cleanup
+            executor.cleanup()
+
+            # Verify container was stopped and removed
+            mock_container.stop.assert_called_once()
+            mock_container.remove.assert_called_once()
 
 
 @pytest.fixture
@@ -66,7 +203,7 @@ def docker_executor():
 
 
 @require_run_all
-class TestDockerExecutor:
+class TestDockerExecutorIntegration:
     @pytest.fixture(autouse=True)
     def set_executor(self, docker_executor):
         self.executor = docker_executor
@@ -81,20 +218,20 @@ class TestDockerExecutor:
         self.executor(code_action)
 
         code_action = "print(np.sqrt(a))"
-        result, logs, final_answer = self.executor(code_action)
-        assert "1.41421" in logs
+        code_output = self.executor(code_action)
+        assert "1.41421" in code_output.logs
 
     def test_execute_output(self):
         """Test execution that returns a string"""
         code_action = 'final_answer("This is the final answer")'
-        result, logs, final_answer = self.executor(code_action)
-        assert result == "This is the final answer", "Result should be 'This is the final answer'"
+        code_output = self.executor(code_action)
+        assert code_output.output == "This is the final answer", "Result should be 'This is the final answer'"
 
     def test_execute_multiline_output(self):
         """Test execution that returns a string"""
         code_action = 'result = "This is the final answer"\nfinal_answer(result)'
-        result, logs, final_answer = self.executor(code_action)
-        assert result == "This is the final answer", "Result should be 'This is the final answer'"
+        code_output = self.executor(code_action)
+        assert code_output.output == "This is the final answer", "Result should be 'This is the final answer'"
 
     def test_execute_image_output(self):
         """Test execution that returns a base64 image"""
@@ -105,8 +242,8 @@ class TestDockerExecutor:
             image = Image.new("RGB", (10, 10), (255, 0, 0))
             final_answer(image)
         """)
-        result, logs, final_answer = self.executor(code_action)
-        assert isinstance(result, PIL.Image.Image), "Result should be a PIL Image"
+        code_output = self.executor(code_action)
+        assert isinstance(code_output.output, PIL.Image.Image), "Result should be a PIL Image"
 
     def test_syntax_error_handling(self):
         """Test handling of syntax errors"""
@@ -123,6 +260,78 @@ class TestDockerExecutor:
         client = docker.from_env()
         containers = [c.id for c in client.containers.list(all=True)]
         assert container_id not in containers, "Container should be removed"
+
+    @pytest.mark.parametrize(
+        "code_action, expected_result",
+        [
+            (
+                dedent('''
+                    final_answer("""This is
+                    a multiline
+                    final answer""")
+                '''),
+                "This is\na multiline\nfinal answer",
+            ),
+            (
+                dedent("""
+                    text = '''Text containing
+                    final_answer(5)
+                    '''
+                    final_answer(text)
+                """),
+                "Text containing\nfinal_answer(5)\n",
+            ),
+            (
+                dedent("""
+                    num = 2
+                    if num == 1:
+                        final_answer("One")
+                    elif num == 2:
+                        final_answer("Two")
+                """),
+                "Two",
+            ),
+        ],
+    )
+    def test_final_answer_patterns(self, code_action, expected_result):
+        self.executor.send_tools({"final_answer": FinalAnswerTool()})
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == expected_result
+
+    def test_custom_final_answer(self):
+        class CustomFinalAnswerTool(FinalAnswerTool):
+            def forward(self, answer: str) -> str:
+                return "CUSTOM" + answer
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerTool()})
+        code_action = dedent("""
+            final_answer(answer="_answer")
+        """)
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "CUSTOM_answer"
+
+    def test_custom_final_answer_with_custom_inputs(self):
+        class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
+            inputs = {
+                "answer1": {"type": "string", "description": "First part of the answer."},
+                "answer2": {"type": "string", "description": "Second part of the answer."},
+            }
+
+            def forward(self, answer1: str, answer2: str) -> str:
+                return answer1 + "CUSTOM" + answer2
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerToolWithCustomInputs()})
+        code_action = dedent("""
+            final_answer(
+                answer1="answer1_",
+                answer2="_answer2"
+            )
+        """)
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "answer1_CUSTOM_answer2"
 
 
 class TestWebAssemblyExecutorUnit:
