@@ -29,9 +29,11 @@ class TestRemotePythonExecutor:
         tool = WikipediaSearchTool()
         executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
         executor.run_code_raise_errors = MagicMock()
+        executor.run_code_raise_errors.return_value = (None, "", False)
         executor.send_tools({"wikipedia_search": tool})
-        assert executor.run_code_raise_errors.call_count == 1
-        assert "!pip install wikipedia-api" in executor.run_code_raise_errors.call_args.args[0]
+        assert executor.run_code_raise_errors.call_count == 2
+        assert "!pip install wikipedia-api" == executor.run_code_raise_errors.call_args_list[0].args[0]
+        assert "class WikipediaSearchTool(Tool)" in executor.run_code_raise_errors.call_args_list[1].args[0]
 
 
 class TestE2BExecutorUnit:
