@@ -1083,6 +1083,44 @@ class TestMultiStepAgent:
             agent.run("Test task")
         assert "Agent interrupted" in str(e)
 
+    def test_planning_step_callbacks(self):
+        """Test that step callbacks are triggered for planning steps."""
+        callback_log = []
+
+        def test_callback(step, agent):
+            callback_log.append(type(step).__name__)
+
+        class FakeModelPlanningCallbacks(Model):
+            model_id = "fake_model"
+
+            def generate(self, messages, stop_sequences=None, tools_to_call_from=None):
+                # For CodeAgent, we need to return code-like content
+                from smolagents.monitoring import TokenUsage
+
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="<code>\nfinal_answer('Test response')\n</code>",
+                    token_usage=TokenUsage(input_tokens=10, output_tokens=5),
+                )
+
+        fake_model = FakeModelPlanningCallbacks()
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[test_callback],
+            planning_interval=1,  # Plan every step
+            max_steps=1,
+        )
+
+        agent.run("Test task")
+
+        # Verify both planning and action step callbacks were triggered
+        planning_callbacks = [cb for cb in callback_log if cb == "PlanningStep"]
+        action_callbacks = [cb for cb in callback_log if cb == "ActionStep"]
+
+        assert len(planning_callbacks) > 0, f"Expected PlanningStep callbacks, got: {callback_log}"
+        assert len(action_callbacks) > 0, f"Expected ActionStep callbacks, got: {callback_log}"
+
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
         [

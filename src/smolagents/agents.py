@@ -503,12 +503,12 @@ You have been provided with these additional arguments, that you can access usin
                     yield element
                     planning_step = element
                 assert isinstance(planning_step, PlanningStep)  # Last yielded element should be a PlanningStep
-                self.memory.steps.append(planning_step)
-                planning_end_time = time.time()
                 planning_step.timing = Timing(
                     start_time=planning_start_time,
-                    end_time=planning_end_time,
+                    end_time=time.time(),
                 )
+                self._finalize_step(planning_step)
+                self.memory.steps.append(planning_step)
 
             # Start action step!
             action_step_start_time = time.time()
@@ -559,7 +559,7 @@ You have been provided with these additional arguments, that you can access usin
             except Exception as e:
                 raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
 
-    def _finalize_step(self, memory_step: ActionStep):
+    def _finalize_step(self, memory_step: ActionStep | PlanningStep):
         memory_step.timing.end_time = time.time()
         for callback in self.step_callbacks:
             # For compatibility with old callbacks that don't take the agent as an argument
