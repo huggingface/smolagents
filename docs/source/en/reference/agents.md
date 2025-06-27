@@ -79,6 +79,6 @@ Smolagents use memory to store information across multiple steps.
 
 [[autodoc]] smolagents.remote_executors.DockerExecutor
 
-#### WebAssemblyExecutor
+#### WasmExecutor
 
-[[autodoc]] smolagents.remote_executors.WebAssemblyExecutor
+[[autodoc]] smolagents.remote_executors.WasmExecutor

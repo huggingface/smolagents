@@ -380,7 +380,7 @@ finally:
 WebAssembly (Wasm) is a binary instruction format that allows code to be run in a safe, sandboxed environment.
 It is designed to be fast, efficient, and secure, making it an excellent choice for executing potentially untrusted code.
 
-The `WebAssemblyExecutor` uses [Pyodide](https://pyodide.org/) and [Deno](https://docs.deno.com/).
+The `WasmExecutor` uses [Pyodide](https://pyodide.org/) and [Deno](https://docs.deno.com/).
 
 #### Installation
 

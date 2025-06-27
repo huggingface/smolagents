@@ -76,7 +76,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor, WebAssemblyExecutor
+from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
 from .tools import Tool, validate_tool_arguments
 from .utils import (
     AGENT_GRADIO_APP_TEMPLATE,
@@ -1541,7 +1541,7 @@ class CodeAgent(MultiStepAgent):
             remote_executors = {
                 "e2b": E2BExecutor,
                 "docker": DockerExecutor,
-                "wasm": WebAssemblyExecutor,
+                "wasm": WasmExecutor,
             }
             return remote_executors[self.executor_type](
                 self.additional_authorized_imports, self.logger, **self.executor_kwargs

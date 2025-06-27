@@ -9,7 +9,7 @@ from rich.console import Console
 
 from smolagents.default_tools import FinalAnswerTool, WikipediaSearchTool
 from smolagents.monitoring import AgentLogger, LogLevel
-from smolagents.remote_executors import DockerExecutor, E2BExecutor, RemotePythonExecutor, WebAssemblyExecutor
+from smolagents.remote_executors import DockerExecutor, E2BExecutor, RemotePythonExecutor, WasmExecutor
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
@@ -334,8 +334,8 @@ class TestDockerExecutorIntegration:
         assert code_output.output == "answer1_CUSTOM_answer2"
 
 
-class TestWebAssemblyExecutorUnit:
-    def test_web_assembly_executor_instantiation(self):
+class TestWasmExecutorUnit:
+    def test_wasm_executor_instantiation(self):
         logger = MagicMock()
 
         # Mock subprocess.run to simulate Deno being installed
@@ -353,10 +353,10 @@ class TestWebAssemblyExecutorUnit:
             mock_get.return_value.status_code = 200
 
             # Create the executor
-            executor = WebAssemblyExecutor(additional_imports=["numpy", "pandas"], logger=logger, timeout=30)
+            executor = WasmExecutor(additional_imports=["numpy", "pandas"], logger=logger, timeout=30)
 
             # Verify the executor was created correctly
-            assert isinstance(executor, WebAssemblyExecutor)
+            assert isinstance(executor, WasmExecutor)
             assert executor.logger == logger
             assert executor.timeout == 30
             assert "numpy" in executor.installed_packages
@@ -378,9 +378,9 @@ class TestWebAssemblyExecutorUnit:
 
 
 @require_run_all
-class TestWebAssemblyExecutorIntegration:
+class TestWasmExecutorIntegration:
     """
-    Integration tests for WebAssemblyExecutor.
+    Integration tests for WasmExecutor.
 
     These tests require Deno to be installed on the system.
     Skip these tests if you don't have Deno installed.
@@ -396,7 +396,7 @@ class TestWebAssemblyExecutorIntegration:
             subprocess.run(["deno", "--version"], capture_output=True, check=True)
 
             # Create the executor
-            self.executor = WebAssemblyExecutor(
+            self.executor = WasmExecutor(
                 additional_imports=["numpy", "pandas"],
                 logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
                 timeout=60,

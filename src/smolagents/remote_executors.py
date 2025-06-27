@@ -37,7 +37,7 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
-__all__ = ["E2BExecutor", "DockerExecutor", "WebAssemblyExecutor"]
+__all__ = ["E2BExecutor", "DockerExecutor", "WasmExecutor"]
 
 
 try:
@@ -456,7 +456,7 @@ class DockerExecutor(RemotePythonExecutor):
         self.cleanup()
 
 
-class WebAssemblyExecutor(RemotePythonExecutor):
+class WasmExecutor(RemotePythonExecutor):
     """
     Remote Python code executor in a sandboxed WebAssembly environment powered by Pyodide and Deno.
 
@@ -516,7 +516,7 @@ class WebAssemblyExecutor(RemotePythonExecutor):
 
         # Install additional packages
         self.installed_packages = self.install_packages(additional_imports)
-        self.logger.log("WebAssemblyExecutor is running", level=LogLevel.INFO)
+        self.logger.log("WasmExecutor is running", level=LogLevel.INFO)
 
     def _create_deno_runner(self):
         """Create the Deno JavaScript file that will run Pyodide and execute Python code."""
