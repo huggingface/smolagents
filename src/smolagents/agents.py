@@ -1644,16 +1644,15 @@ class CodeAgent(MultiStepAgent):
 
         ### Execute action ###
         self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
-        is_final_answer = False
         try:
-            output, execution_logs, is_final_answer = self.python_executor(code_action)
+            code_output = self.python_executor(code_action)
             execution_outputs_console = []
-            if len(execution_logs) > 0:
+            if len(code_output.logs) > 0:
                 execution_outputs_console += [
                     Text("Execution logs:", style="bold"),
-                    Text(execution_logs),
+                    Text(code_output.logs),
                 ]
-            observation = "Execution logs:\n" + execution_logs
+            observation = "Execution logs:\n" + code_output.logs
         except Exception as e:
             if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
                 execution_logs = str(self.python_executor.state["_print_outputs"])
@@ -1672,19 +1671,19 @@ class CodeAgent(MultiStepAgent):
                 )
             raise AgentExecutionError(error_msg, self.logger)
 
-        truncated_output = truncate_content(str(output))
+        truncated_output = truncate_content(str(code_output.output))
         observation += "Last output from code snippet:\n" + truncated_output
         memory_step.observations = observation
 
-        if not is_final_answer:
+        if not code_output.is_final_answer:
             execution_outputs_console += [
                 Text(
                     f"Out: {truncated_output}",
                 ),
             ]
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
-        memory_step.action_output = output
-        yield ActionOutput(output=output, is_final_answer=is_final_answer)
+        memory_step.action_output = code_output.output
+        yield ActionOutput(output=code_output.output, is_final_answer=code_output.is_final_answer)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the agent to a dictionary representation.
