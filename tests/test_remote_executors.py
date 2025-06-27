@@ -424,6 +424,7 @@ class TestWasmExecutorIntegration:
 
     def test_final_answer(self):
         """Test returning a final answer."""
+        self.executor.send_tools({"final_answer": FinalAnswerTool()})
         code = 'final_answer("This is the final answer")'
         code_output = self.executor(code)
         assert code_output.output == "This is the final answer"
