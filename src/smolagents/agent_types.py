@@ -249,6 +249,33 @@ class AgentAudio(AgentType, str):
             sf.write(self._path, self._tensor, samplerate=self.samplerate)
             return self._path
 
+    def resample(self, target_samplerate: int):
+        """
+        Resamples the internal audio tensor to the given sample rate in-place.
+
+        Modifies:
+        - self._tensor
+        - self.samplerate
+
+        Returns:
+            torch.Tensor: The resampled audio tensor.
+        """
+        from scipy import signal
+        from torch import from_numpy
+
+        if self._tensor is None:
+            raise ValueError("No tensor found — call to_raw() first or initialize with a tensor.")
+
+        audio_np = self._tensor.numpy()
+        duration = audio_np.shape[-1] / self.samplerate
+        target_len = int(duration * target_samplerate)
+
+        resampled = signal.resample(audio_np, target_len)
+        self._tensor = from_numpy(resampled.astype("float32"))
+        self.samplerate = target_samplerate
+
+        return self._tensor
+
 
 _AGENT_TYPE_MAPPING = {"string": AgentText, "image": AgentImage, "audio": AgentAudio}
 
