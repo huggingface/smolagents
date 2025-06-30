@@ -386,16 +386,17 @@ class MultiStepAgent(ABC):
     def _setup_step_callbacks(self, step_callbacks):
         # Initialize step callbacks registry
         self.step_callbacks = CallbackRegistry()
-        # Register callbacks list only for ActionStep for backward compatibility
-        if isinstance(step_callbacks, list):
-            for callback in step_callbacks:
-                self.step_callbacks.register(ActionStep, callback)
-        # Register callbacks dict for specific step classes
-        elif isinstance(step_callbacks, dict):
-            for step_cls, callback in step_callbacks.items():
-                self.step_callbacks.register(step_cls, callback)
-        else:
-            raise ValueError("step_callbacks must be a list or a dict")
+        if step_callbacks:
+            # Register callbacks list only for ActionStep for backward compatibility
+            if isinstance(step_callbacks, list):
+                for callback in step_callbacks:
+                    self.step_callbacks.register(ActionStep, callback)
+            # Register callbacks dict for specific step classes
+            elif isinstance(step_callbacks, dict):
+                for step_cls, callback in step_callbacks.items():
+                    self.step_callbacks.register(step_cls, callback)
+            else:
+                raise ValueError("step_callbacks must be a list or a dict")
         # Register monitor update_metrics only for ActionStep for backward compatibility
         self.step_callbacks.register(ActionStep, self.monitor.update_metrics)
 
