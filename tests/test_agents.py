@@ -47,6 +47,7 @@ from smolagents.agents import (
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import (
     ActionStep,
+    MemoryStep,
     PlanningStep,
     TaskStep,
 )
@@ -59,7 +60,7 @@ from smolagents.models import (
     Model,
     TransformersModel,
 )
-from smolagents.monitoring import AgentLogger, LogLevel, TokenUsage
+from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.tools import Tool, tool
 from smolagents.utils import (
     BASE_BUILTIN_MODULES,
@@ -765,6 +766,85 @@ class TestMultiStepAgent:
 
         # assert "read-only" in str(exc_info.value)
         # assert "Use 'self.prompt_templates[\"system_prompt\"]' instead" in str(exc_info.value)
+
+    def test_finalize_step_callbacks_with_list(self):
+        # Create mock callbacks
+        callback1 = MagicMock()
+        callback2 = MagicMock()
+
+        # Create a test agent with a list of callbacks
+        agent = DummyMultiStepAgent(tools=[], model=MagicMock(), step_callbacks=[callback1, callback2])
+
+        # Create steps of different types
+        action_step = ActionStep(step_number=1, timing=Timing(start_time=0.0))
+        planning_step = PlanningStep(
+            timing=Timing(start_time=1.0),
+            model_input_messages=[],
+            model_output_message=ChatMessage(role="assistant", content="Test plan"),
+            plan="Test planning step",
+        )
+
+        # Test with ActionStep
+        agent._finalize_step(action_step)
+
+        # Verify all callbacks were called
+        callback1.assert_called_once_with(action_step, agent=agent)
+        callback2.assert_called_once_with(action_step, agent=agent)
+
+        # Reset mocks
+        callback1.reset_mock()
+        callback2.reset_mock()
+
+        # Test with PlanningStep
+        agent._finalize_step(planning_step)
+
+        # Verify all callbacks were called again with the planning step
+        callback1.assert_not_called()
+        callback2.assert_not_called()
+
+    def test_finalize_step_callbacks_by_type(self):
+        # Create mock callbacks for different step types
+        action_step_callback = MagicMock()
+        planning_step_callback = MagicMock()
+        step_callback = MagicMock()
+
+        # Register callbacks for different step types
+        step_callbacks = {
+            ActionStep: action_step_callback,
+            PlanningStep: planning_step_callback,
+            MemoryStep: step_callback,
+        }
+        agent = DummyMultiStepAgent(tools=[], model=MagicMock(), step_callbacks=step_callbacks)
+
+        # Create steps of different types
+        action_step = ActionStep(step_number=1, timing=Timing(start_time=0.0))
+        planning_step = PlanningStep(
+            timing=Timing(start_time=1.0),
+            model_input_messages=[],
+            model_output_message=ChatMessage(role="assistant", content="Test plan"),
+            plan="Test planning step",
+        )
+
+        # Test with ActionStep
+        agent._finalize_step(action_step)
+
+        # Verify correct callbacks were called
+        action_step_callback.assert_called_once_with(action_step, agent=agent)
+        step_callback.assert_called_once_with(action_step, agent=agent)
+        planning_step_callback.assert_not_called()
+
+        # Reset mocks
+        action_step_callback.reset_mock()
+        planning_step_callback.reset_mock()
+        step_callback.reset_mock()
+
+        # Test with PlanningStep
+        agent._finalize_step(planning_step)
+
+        # Verify correct callbacks were called
+        planning_step_callback.assert_called_once_with(planning_step, agent=agent)
+        step_callback.assert_called_once_with(planning_step, agent=agent)
+        action_step_callback.assert_not_called()
 
     def test_logs_display_thoughts_even_if_error(self):
         class FakeJsonModelNoCall(Model):
