@@ -1687,11 +1687,11 @@ print("Ok, calculation done!")""")
 
         outputs = [s.model_output for s in actions_steps if s.model_output]
         assert outputs
-        assert all(o.endswith("<end_code>") for o in outputs)
+        assert all(o.endswith("</code>") for o in outputs)
 
         messages = [s.model_output_message for s in actions_steps if s.model_output_message]
         assert messages
-        assert all(m.content.endswith("<end_code>") for m in messages)
+        assert all(m.content.endswith("</code>") for m in messages)
 
     def test_change_tools_after_init(self):
         from smolagents import tool

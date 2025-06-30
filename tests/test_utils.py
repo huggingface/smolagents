@@ -95,29 +95,44 @@ class SimpleTool(Tool):
 class AgentTextTests(unittest.TestCase):
     def test_parse_code_blobs(self):
         with pytest.raises(ValueError):
-            parse_code_blobs("Wrong blob!")
+            parse_code_blobs("Wrong blob!", ("<code>", "</code>"))
 
         # Parsing mardkwon with code blobs should work
-        output = parse_code_blobs("""
+        output = parse_code_blobs(
+            """
 Here is how to solve the problem:
 <code>
 import numpy as np
 </code>
-""")
+""",
+            ("<code>", "</code>"),
+        )
         assert output == "import numpy as np"
 
-        # Parsing code blobs should work
+        # Parsing pure python code blobs should work
         code_blob = "import numpy as np"
-        output = parse_code_blobs(code_blob)
+        output = parse_code_blobs(code_blob, ("```python", "```"))
         assert output == code_blob
 
         # Allow whitespaces after header
-        output = parse_code_blobs("<code>    \ncode_a\n</code>")
+        output = parse_code_blobs("<code>    \ncode_a\n</code>", ("<code>", "</code>"))
         assert output == "code_a"
+
+        # Parsing markdown with code blobs should work
+        output = parse_code_blobs(
+            """
+Here is how to solve the problem:
+```python
+import numpy as np
+```
+""",
+            ("<code>", "</code>"),
+        )
+        assert output == "import numpy as np"
 
     def test_multiple_code_blobs(self):
         test_input = "<code>\nFoo\n</code>\n\n<code>\ncode_a\n</code>\n\n<code>\ncode_b\n</code>"
-        result = parse_code_blobs(test_input)
+        result = parse_code_blobs(test_input, ("<code>", "</code>"))
         assert result == "Foo\n\ncode_a\n\ncode_b"
 
 
