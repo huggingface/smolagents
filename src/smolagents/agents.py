@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import importlib
-import inspect
 import json
 import os
 import re
@@ -29,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, Type, TypedDict
 
 import jinja2
 import yaml
@@ -52,7 +51,9 @@ from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, Py
 from .memory import (
     ActionStep,
     AgentMemory,
+    CallbackRegistry,
     FinalAnswerStep,
+    MemoryStep,
     Message,
     PlanningStep,
     SystemPromptStep,
@@ -220,7 +221,7 @@ class MultiStepAgent(ABC):
             Parameter `grammar` is deprecated and will be removed in version 1.20.
             </Deprecated>
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
-        step_callbacks (`list[Callable]`, *optional*): Callbacks that will be called at each step.
+        step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
@@ -241,7 +242,7 @@ class MultiStepAgent(ABC):
         verbosity_level: LogLevel = LogLevel.INFO,
         grammar: dict[str, str] | None = None,
         managed_agents: list | None = None,
-        step_callbacks: list[Callable] | None = None,
+        step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable] | None = None,
         planning_interval: int | None = None,
         name: str | None = None,
         description: str | None = None,
@@ -294,8 +295,7 @@ class MultiStepAgent(ABC):
             self.logger = logger
 
         self.monitor = Monitor(self.model, self.logger)
-        self.step_callbacks = step_callbacks if step_callbacks is not None else []
-        self.step_callbacks.append(self.monitor.update_metrics)
+        self._setup_step_callbacks(step_callbacks)
         self.stream_outputs = False
 
     @property
@@ -346,6 +346,22 @@ class MultiStepAgent(ABC):
                 "Each tool or managed_agent should have a unique name! You passed these duplicate names: "
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
+
+    def _setup_step_callbacks(self, step_callbacks):
+        # Initialize step callbacks registry
+        self.step_callbacks = CallbackRegistry()
+        # Register callbacks list only for ActionStep for backward compatibility
+        if isinstance(step_callbacks, list):
+            for callback in step_callbacks:
+                self.step_callbacks.register(ActionStep, callback)
+        # Register callbacks dict for specific step classes
+        elif isinstance(step_callbacks, dict):
+            for step_cls, callback in step_callbacks.items():
+                self.step_callbacks.register(step_cls, callback)
+        else:
+            raise ValueError("step_callbacks must be a list or a dict")
+        # Register monitor update_metrics only for ActionStep for backward compatibility
+        self.step_callbacks.register(ActionStep, self.monitor.update_metrics)
 
     def run(
         self,
@@ -524,11 +540,7 @@ You have been provided with these additional arguments, that you can access usin
 
     def _finalize_step(self, memory_step: ActionStep | PlanningStep):
         memory_step.timing.end_time = time.time()
-        for callback in self.step_callbacks:
-            # For compatibility with old callbacks that don't take the agent as an argument
-            callback(memory_step) if len(inspect.signature(callback).parameters) == 1 else callback(
-                memory_step, agent=self
-            )
+        self.step_callbacks.callback(memory_step, agent=self)
 
     def _handle_max_steps_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
         action_step_start_time = time.time()
