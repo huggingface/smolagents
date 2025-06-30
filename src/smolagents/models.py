@@ -998,21 +998,33 @@ class TransformersModel(Model):
             tools_to_call_from=tools_to_call_from,
             **kwargs,
         )
-        count_prompt_tokens = generation_kwargs["inputs"].shape[1]  # type: ignore
 
+        # Get prompt token count once
+        count_prompt_tokens = generation_kwargs["inputs"].shape[1]  # type: ignore
+        self._last_input_token_count = count_prompt_tokens
+
+        # Start generation in a separate thread
         thread = Thread(target=self.model.generate, kwargs={"streamer": self.streamer, **generation_kwargs})
         thread.start()
 
-        # Generate with streaming
+        # Process streaming output
+        is_first_token = True
+        count_generated_tokens = 0
         for new_text in self.streamer:
-            self._last_input_token_count = count_prompt_tokens
-            self._last_output_token_count = 1
+            count_generated_tokens += 1
+            # Only include input tokens in the first yielded token
+            input_tokens = count_prompt_tokens if is_first_token else 0
+            is_first_token = False
             yield ChatMessageStreamDelta(
                 content=new_text,
                 tool_calls=None,
-                token_usage=TokenUsage(input_tokens=count_prompt_tokens, output_tokens=1),
+                token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=1),
             )
+            count_prompt_tokens = 0
         thread.join()
+
+        # Update final output token count
+        self._last_output_token_count = count_generated_tokens
 
 
 class ApiModel(Model):
