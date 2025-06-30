@@ -24,7 +24,7 @@ import PIL.Image
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool
+from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
 
 from .utils.markers import require_run_all
 
@@ -699,3 +699,33 @@ def test_launch_gradio_demo_does_not_raise(tool_fixture_name, request):
     with patch("gradio.Interface.launch") as mock_launch:
         launch_gradio_demo(tool)
     assert mock_launch.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "tool_input_type, expected_input, expects_error",
+    [
+        (bool, True, False),
+        (str, "b", False),
+        (int, 1, False),
+        (list, ["a", "b"], False),
+        (list[str], ["a", "b"], False),
+        (dict[str, str], {"a": "b"}, False),
+        (dict[str, str], "b", True),
+        (bool, "b", True),
+    ],
+)
+def test_validate_tool_arguments(tool_input_type, expected_input, expects_error):
+    @tool
+    def test_tool(argument_a: tool_input_type) -> str:
+        """Fake tool
+
+        Args:
+            argument_a: The input
+        """
+        return argument_a
+
+    error = validate_tool_arguments(test_tool, {"argument_a": expected_input})
+    if expects_error:
+        assert error is not None
+    else:
+        assert error is None

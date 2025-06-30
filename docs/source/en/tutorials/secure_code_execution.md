@@ -141,9 +141,7 @@ We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` 
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b")
-
-with agent:
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b") as agent:
     agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
@@ -237,9 +235,7 @@ Similar to the E2B Sandbox above, to quickly get started with Docker, simply add
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker")
-
-with agent:
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker") as agent:
     agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
@@ -373,6 +369,28 @@ print(response)
 
 finally:
     sandbox.cleanup()
+```
+
+### WebAssembly setup
+
+WebAssembly (Wasm) is a binary instruction format that allows code to be run in a safe, sandboxed environment.
+It is designed to be fast, efficient, and secure, making it an excellent choice for executing potentially untrusted code.
+
+The `WasmExecutor` uses [Pyodide](https://pyodide.org/) and [Deno](https://docs.deno.com/).
+
+#### Installation
+
+1. [Install Deno on your system](https://docs.deno.com/runtime/getting_started/installation/)
+
+#### Running your agent in WebAssembly: quick start
+
+Simply pass `executor_type="wasm"` to the agent initialization, like:
+```py
+from smolagents import InferenceClientModel, CodeAgent
+
+agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="wasm")
+
+agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
 ### Best practices for sandboxes

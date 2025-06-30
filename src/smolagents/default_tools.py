@@ -564,6 +564,7 @@ TOOL_MAPPING = {
 }
 
 __all__ = [
+    "ApiWebSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",

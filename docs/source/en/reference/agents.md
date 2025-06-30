@@ -58,3 +58,27 @@ _This class is deprecated since 1.8.0: now you simply need to pass attributes `n
 Smolagents use memory to store information across multiple steps.
 
 [[autodoc]] smolagents.memory.AgentMemory
+
+## Python code executors
+
+[[autodoc]] smolagents.local_python_executor.PythonExecutor
+
+### Local Python executor
+
+[[autodoc]] smolagents.local_python_executor.LocalPythonExecutor
+
+### Remote Python executors
+
+[[autodoc]] smolagents.remote_executors.RemotePythonExecutor
+
+#### E2BExecutor
+
+[[autodoc]] smolagents.remote_executors.E2BExecutor
+
+#### DockerExecutor
+
+[[autodoc]] smolagents.remote_executors.DockerExecutor
+
+#### WasmExecutor
+
+[[autodoc]] smolagents.remote_executors.WasmExecutor

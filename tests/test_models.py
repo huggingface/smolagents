@@ -287,7 +287,7 @@ class TestInferenceClientModel:
         model = InferenceClientModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
         model.client = MagicMock()
         mock_response = model.client.chat_completion.return_value
-        mock_response.choices[0].message = ChatCompletionOutputMessage(role="assistant")
+        mock_response.choices[0].message = ChatCompletionOutputMessage(role=MessageRole.ASSISTANT)
         messages = [ChatMessage(role=MessageRole.USER, content="Test message")]
         _ = model(messages)
         # Verify that the role conversion was applied
