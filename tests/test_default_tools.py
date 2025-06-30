@@ -96,6 +96,14 @@ class TestSpeechToTextTool:
         assert tool.pre_processor_class == WhisperProcessor
         assert tool.model_class == WhisperForConditionalGeneration
 
+    def test_initialization(self):
+        from transformers.models.whisper import WhisperForConditionalGeneration, WhisperProcessor
+
+        tool = SpeechToTextTool(model="dummy_model_id")
+        assert tool is not None
+        assert tool.pre_processor_class == WhisperProcessor
+        assert tool.model_class == WhisperForConditionalGeneration
+
 
 @pytest.mark.parametrize(
     "language, content_type, extract_format, query",

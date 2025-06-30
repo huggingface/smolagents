@@ -278,11 +278,7 @@ class TestPullMessagesFromStep:
             for msg in messages
             if msg.role == "assistant" and msg.metadata and msg.metadata.get("title", "").startswith("🛠️")
         )
-        # For the Python interpreter, check that code is properly formatted
-        if tool_name == "python_interpreter":
-            assert "```python" in tool_message.content
-        else:
-            assert expected in tool_message.content
+        assert expected in tool_message.content
 
     def test_action_step_with_error(self):
         """Test ActionStep with error."""

@@ -22,6 +22,7 @@ import logging
 import math
 import re
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
 from types import BuiltinFunctionType, FunctionType, ModuleType
@@ -217,6 +218,9 @@ def safer_func(
     Returns:
         Callable: Safer function with return value check.
     """
+    # If the function is a type, return it directly without wrapping
+    if isinstance(func, type):
+        return func
 
     @wraps(func)
     def _check_return(*args, **kwargs):
@@ -1546,6 +1550,13 @@ def evaluate_python_code(
         )
 
 
+@dataclass
+class CodeOutput:
+    output: Any
+    logs: str
+    is_final_answer: bool
+
+
 class PythonExecutor:
     pass
 
@@ -1585,7 +1596,7 @@ class LocalPythonExecutor(PythonExecutor):
         self.static_tools = None
         self.additional_functions = additional_functions or {}
 
-    def __call__(self, code_action: str) -> tuple[Any, str, bool]:
+    def __call__(self, code_action: str) -> CodeOutput:
         output, is_final_answer = evaluate_python_code(
             code_action,
             static_tools=self.static_tools,
@@ -1595,7 +1606,7 @@ class LocalPythonExecutor(PythonExecutor):
             max_print_outputs_length=self.max_print_outputs_length,
         )
         logs = str(self.state["_print_outputs"])
-        return output, logs, is_final_answer
+        return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
 
     def send_variables(self, variables: dict):
         self.state.update(variables)

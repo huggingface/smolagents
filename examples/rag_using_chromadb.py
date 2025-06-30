@@ -121,6 +121,7 @@ agent = CodeAgent(
     model=model,
     max_steps=4,
     verbosity_level=2,
+    stream_outputs=True,
 )
 
 agent_output = agent.run("How can I push a model to the Hub?")

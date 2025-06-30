@@ -154,8 +154,8 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
     try:
         first_accolade_index = json_blob.find("{")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_data = json_blob[first_accolade_index : last_accolade_index + 1]
-        json_data = json.loads(json_data, strict=False)
+        json_str = json_blob[first_accolade_index : last_accolade_index + 1]
+        json_data = json.loads(json_str, strict=False)
         return json_data, json_blob[:first_accolade_index]
     except IndexError:
         raise ValueError("The model output does not contain any JSON blob.")
@@ -172,16 +172,16 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
         )
 
 
-def extract_code_from_text(text: str) -> str | None:
+def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
     """Extract code from the LLM's output."""
-    pattern = r"```(?:py|python)?\s*\n(.*?)\n```"
+    pattern = rf"{code_block_tags[0]}(.*?){code_block_tags[1]}"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)
     return None
 
 
-def parse_code_blobs(text: str) -> str:
+def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     """Extract code blocs from the LLM's output.
 
     If a valid code block is passed, it returns it directly.
@@ -195,7 +195,9 @@ def parse_code_blobs(text: str) -> str:
     Raises:
         ValueError: If no valid code block is found in the text.
     """
-    matches = extract_code_from_text(text)
+    matches = extract_code_from_text(text, code_block_tags)
+    if not matches:  # Fallback to markdown pattern
+        matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
     if matches:
         return matches
     # Maybe the LLM outputted a code blob directly
@@ -209,29 +211,27 @@ def parse_code_blobs(text: str) -> str:
         raise ValueError(
             dedent(
                 f"""
-                Your code snippet is invalid, because the regex pattern ```(?:py|python)?\\s*\\n(.*?)\\n``` was not found in it.
+                Your code snippet is invalid, because the regex pattern {code_block_tags[0]}(.*?){code_block_tags[1]} was not found in it.
                 Here is your code snippet:
                 {text}
                 It seems like you're trying to return the final answer, you can do it as follows:
-                Code:
-                ```py
+                {code_block_tags[0]}
                 final_answer("YOUR FINAL ANSWER HERE")
-                ```<end_code>
+                {code_block_tags[1]}
                 """
             ).strip()
         )
     raise ValueError(
         dedent(
             f"""
-            Your code snippet is invalid, because the regex pattern ```(?:py|python)?\\s*\\n(.*?)\\n``` was not found in it.
+            Your code snippet is invalid, because the regex pattern {code_block_tags[0]}(.*?){code_block_tags[1]} was not found in it.
             Here is your code snippet:
             {text}
             Make sure to include code with the correct pattern, for instance:
             Thoughts: Your thoughts
-            Code:
-            ```py
+            {code_block_tags[0]}
             # Your python code here
-            ```<end_code>
+            {code_block_tags[1]}
             """
         ).strip()
     )
@@ -461,3 +461,42 @@ def make_init_file(folder: str | Path):
 
 def is_valid_name(name: str) -> bool:
     return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False
+
+
+AGENT_GRADIO_APP_TEMPLATE = """import yaml
+import os
+from smolagents import GradioUI, {{ class_name }}, {{ agent_dict['model']['class'] }}
+
+# Get current directory path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+{% for tool in tools.values() -%}
+from {{managed_agent_relative_path}}tools.{{ tool.name }} import {{ tool.__class__.__name__ }} as {{ tool.name | camelcase }}
+{% endfor %}
+{% for managed_agent in managed_agents.values() -%}
+from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app import agent_{{ managed_agent.name }}
+{% endfor %}
+
+model = {{ agent_dict['model']['class'] }}(
+{% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
+    {{ key }}={{ agent_dict['model']['data'][key]|repr }},
+{% endfor %})
+
+{% for tool in tools.values() -%}
+{{ tool.name }} = {{ tool.name | camelcase }}()
+{% endfor %}
+
+with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
+    prompt_templates = yaml.safe_load(stream)
+
+{{ agent_name }} = {{ class_name }}(
+    model=model,
+    tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
+    {{ attribute_name }}={{ value|repr }},
+    {% endfor %}prompt_templates=prompt_templates
+)
+if __name__ == "__main__":
+    GradioUI({{ agent_name }}).launch()
+""".strip()

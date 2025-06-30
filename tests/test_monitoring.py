@@ -15,10 +15,10 @@
 
 import unittest
 
+import PIL.Image
 import pytest
 
 from smolagents import (
-    AgentImage,
     CodeAgent,
     RunResult,
     ToolCallingAgent,
@@ -27,7 +27,8 @@ from smolagents import (
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
-    ChatMessageToolCallDefinition,
+    ChatMessageToolCallFunction,
+    MessageRole,
     Model,
     TokenUsage,
 )
@@ -40,25 +41,23 @@ class FakeLLMModel(Model):
     def generate(self, prompt, tools_to_call_from=None, **kwargs):
         if tools_to_call_from is not None:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="",
                 tool_calls=[
                     ChatMessageToolCall(
                         id="fake_id",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="final_answer", arguments={"answer": "image"}),
+                        function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "image"}),
                     )
                 ],
                 token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
             )
         else:
             return ChatMessage(
-                role="assistant",
-                content="""
-Code:
-```py
+                role=MessageRole.ASSISTANT,
+                content="""<code>
 final_answer('This is the final answer.')
-```""",
+</code>""",
                 token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
             )
 
@@ -91,7 +90,7 @@ class MonitoringTester(unittest.TestCase):
         class FakeLLMModelMalformedAnswer(Model):
             def generate(self, prompt, **kwargs):
                 return ChatMessage(
-                    role="assistant",
+                    role=MessageRole.ASSISTANT,
                     content="Malformed answer",
                     token_usage=TokenUsage(input_tokens=10, output_tokens=20),
                 )
@@ -135,7 +134,7 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(len(outputs), 11)
         plan_message = outputs[1]
         self.assertEqual(plan_message.role, "assistant")
-        self.assertIn("Code:", plan_message.content)
+        self.assertIn("<code>", plan_message.content)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("This is the final answer.", final_message.content)
@@ -145,6 +144,7 @@ class MonitoringTester(unittest.TestCase):
             tools=[],
             model=FakeLLMModel(),
             max_steps=1,
+            verbosity_level=100,
         )
 
         # Use stream_to_gradio to capture the output
@@ -152,21 +152,20 @@ class MonitoringTester(unittest.TestCase):
             stream_to_gradio(
                 agent,
                 task="Test task",
-                additional_args=dict(image=AgentImage(value="path.png")),
+                additional_args=dict(image=PIL.Image.new("RGB", (100, 100))),
             )
         )
 
-        self.assertEqual(len(outputs), 6)
+        self.assertEqual(len(outputs), 7)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIsInstance(final_message.content, dict)
-        self.assertEqual(final_message.content["path"], "path.png")
         self.assertEqual(final_message.content["mime_type"], "image/png")
 
     def test_streaming_with_agent_error(self):
         class DummyModel(Model):
             def generate(self, prompt, **kwargs):
-                return ChatMessage(role="assistant", content="Malformed call")
+                return ChatMessage(role=MessageRole.ASSISTANT, content="Malformed call")
 
         agent = CodeAgent(
             tools=[],
