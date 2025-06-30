@@ -141,9 +141,7 @@ We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` 
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b")
-
-with agent:
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b") as agent:
     agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
@@ -237,9 +235,7 @@ Similar to the E2B Sandbox above, to quickly get started with Docker, simply add
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker")
-
-with agent:
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker") as agent:
     agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
