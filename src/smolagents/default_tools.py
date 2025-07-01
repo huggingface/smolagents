@@ -217,7 +217,13 @@ class ApiWebSearchTool(Tool):
     output_type = "string"
 
     def __init__(
-        self, endpoint: str = "", api_key: str = "", api_key_name: str = "", headers: dict = None, params: dict = None
+        self,
+        endpoint: str = "",
+        api_key: str = "",
+        api_key_name: str = "",
+        headers: dict = None,
+        params: dict = None,
+        rate_limit: float | None = 1.0,
     ):
         import os
 
@@ -226,10 +232,27 @@ class ApiWebSearchTool(Tool):
         self.api_key = api_key or os.getenv(api_key_name)
         self.headers = headers or {"X-Subscription-Token": self.api_key}
         self.params = params or {"count": 10}
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        # No rate limit enforced
+        if not self.rate_limit:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
 
     def forward(self, query: str) -> str:
         import requests
 
+        self._enforce_rate_limit()
         params = {**self.params, "q": query}
         response = requests.get(self.endpoint, headers=self.headers, params=params)
         response.raise_for_status()
