@@ -82,6 +82,46 @@ class ToolTesterMixin:
 
 
 class TestTool:
+    @pytest.mark.parametrize(
+        "type_value, should_raise_error, error_contains",
+        [
+            # Valid cases
+            ("string", False, None),
+            (["string", "number"], False, None),
+            # Invalid cases
+            ("invalid_type", ValueError, "must be one of"),
+            (["string", "invalid_type"], ValueError, "must be one of"),
+            ([123, "string"], TypeError, "when type is a list, all elements must be strings"),
+            (123, TypeError, "must be a string or list of strings"),
+        ],
+    )
+    def test_tool_input_type_validation(self, type_value, should_raise_error, error_contains):
+        """Test the validation of the type property in tool inputs."""
+
+        # Define a tool class with the test type value
+        def create_tool():
+            class TestTool(Tool):
+                name = "test_tool"
+                description = "A tool for testing type validation"
+                inputs = {"text": {"type": type_value, "description": "Some input"}}
+                output_type = "string"
+
+                def forward(self, text) -> str:
+                    return text
+
+            return TestTool()
+
+        # Check if we expect this to raise an exception
+        if should_raise_error:
+            with pytest.raises(should_raise_error) as exc_info:
+                create_tool()
+            # Verify the error message contains expected text
+            assert error_contains in str(exc_info.value)
+        else:
+            # Should not raise an exception
+            tool = create_tool()
+            assert isinstance(tool, Tool)
+
     def test_tool_init_with_decorator(self):
         @tool
         def coolfunc(a: str, b: int) -> float:
