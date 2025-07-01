@@ -155,11 +155,24 @@ class Tool:
             assert "type" in input_content and "description" in input_content, (
                 f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
             )
-            input_types = [input_content["type"]] if isinstance(input_content["type"], str) else input_content["type"]
-            if any(input_type not in AUTHORIZED_TYPES for input_type in input_types):
-                raise Exception(
-                    f"Input '{input_name}': type '{input_content['type']}' is not an authorized value, should be one of {AUTHORIZED_TYPES}."
+            # Get input_types as a list, whether from a string or list
+            if isinstance(input_content["type"], str):
+                input_types = [input_content["type"]]
+            elif isinstance(input_content["type"], list):
+                input_types = input_content["type"]
+                # Check if all elements are strings
+                if not all(isinstance(t, str) for t in input_types):
+                    raise TypeError(
+                        f"Input '{input_name}': when type is a list, all elements must be strings, got {input_content['type']}"
+                    )
+            else:
+                raise TypeError(
+                    f"Input '{input_name}': type must be a string or list of strings, got {type(input_content['type']).__name__}"
                 )
+            # Check all types are authorized
+            invalid_types = [t for t in input_types if t not in AUTHORIZED_TYPES]
+            if invalid_types:
+                raise ValueError(f"Input '{input_name}': types {invalid_types} must be one of {AUTHORIZED_TYPES}")
         # Validate output type
         assert getattr(self, "output_type", None) in AUTHORIZED_TYPES
 
