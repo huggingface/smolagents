@@ -223,7 +223,8 @@ class ApiWebSearchTool(Tool):
 
         super().__init__()
         self.endpoint = endpoint or "https://api.search.brave.com/res/v1/web/search"
-        self.api_key = api_key or os.getenv(api_key_name)
+        self.api_key_name = api_key_name or "BRAVE_API_KEY"
+        self.api_key = api_key or os.getenv(self.api_key_name)
         self.headers = headers or {"X-Subscription-Token": self.api_key}
         self.params = params or {"count": 10}
 
