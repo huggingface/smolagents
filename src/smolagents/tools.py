@@ -214,7 +214,6 @@ class Tool:
                 if loop.is_running():
                     # We're in an async context, but __call__ is sync
                     # Create a new thread with its own event loop to run the async function
-                    import concurrent.futures
                     import threading
                     
                     def run_async_in_thread():
