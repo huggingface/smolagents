@@ -1,4 +1,4 @@
-# Plan Customization Example
+# Customize agent plan interactively
 
 This page demonstrates advanced usage of the smolagents library, focusing on interactive plan creation, user-driven plan modification, and memory preservation in agentic workflows. The example is based on the code in `examples/plan_customization/plan_customization.py`.
 

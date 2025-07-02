@@ -37,7 +37,7 @@
   - local: examples/using_different_models
     title: Using different models
   - local: examples/plan_customization
-    title: Plan Customization
+    title: Customize agent plan interactively
 - title: Reference
   sections:
   - local: reference/agents

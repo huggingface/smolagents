@@ -1,6 +1,6 @@
-# Plan Customization Example
+# Customize Agent Plan Interactively
 
-This example demonstrates advanced usage of the SmoLAgents library, specifically showing how to:
+This example demonstrates advanced usage of the smolagents library, specifically showing how to:
 
 1. **Interrupt agent execution after plan creation** using step callbacks
 2. **Allow user interaction** to review and modify plans
@@ -126,8 +126,8 @@ Proper error handling for:
 
 ## Requirements
 
-- SmoLAgents library
-- DuckDuckGoSearchTool (included with SmoLAgents)
+- smolagents library
+- DuckDuckGoSearchTool (included with smolagents)
 - Access to InferenceClientModel (requires HuggingFace API token)
 
 ## Educational Value
