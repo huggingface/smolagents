@@ -217,7 +217,7 @@ class GoogleSearchTool(Tool):
                         results = await response.json()
                     else:
                         error_data = await response.json()
-                        raise ValueError(error_data)
+                        raise ValueError(json.dumps(error_data))
         except asyncio.TimeoutError:
             raise Exception("Request timed out. Please try again later.")
         except aiohttp.ClientError as e:
