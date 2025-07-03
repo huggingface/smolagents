@@ -23,6 +23,7 @@ import json
 import keyword
 import os
 import re
+import time
 import types
 from functools import lru_cache
 from io import BytesIO
@@ -500,3 +501,34 @@ with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
 if __name__ == "__main__":
     GradioUI({{ agent_name }}).launch()
 """.strip()
+
+
+class RateLimiter:
+    """Simple rate limiter that enforces a minimum delay between consecutive calls.
+
+    This class is useful for limiting the rate of operations such as API requests,
+    by ensuring that calls to `throttle()` are spaced out by at least a given interval
+    based on the desired calls per second.
+
+    If no rate is specified (i.e., `calls_per_second` is None), rate limiting
+    is disabled and `throttle()` becomes a no-op.
+
+    Args:
+        calls_per_second (`float | None`): Maximum number of allowed operations per second.
+            Use `None` to disable rate limiting.
+    """
+
+    def __init__(self, calls_per_second: float | None = None):
+        self._enabled = calls_per_second is not None
+        self._interval = 1.0 / calls_per_second if self._enabled else 0.0
+        self._last_call = 0.0
+
+    def throttle(self):
+        """Pause execution to respect the rate limit, if enabled."""
+        if not self._enabled:
+            return
+        now = time.time()
+        elapsed = now - self._last_call
+        if elapsed < self._interval:
+            time.sleep(self._interval - elapsed)
+        self._last_call = time.time()
