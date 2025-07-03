@@ -1150,7 +1150,7 @@ class LiteLLMModel(ApiModel):
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
-
+        self._apply_rate_limit()
         response = self.client.completion(**completion_kwargs)
 
         self._last_input_token_count = response.usage.prompt_tokens
@@ -1184,6 +1184,7 @@ class LiteLLMModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
+        self._apply_rate_limit()
         for event in self.client.completion(**completion_kwargs, stream=True, stream_options={"include_usage": True}):
             if getattr(event, "usage", None):
                 self._last_input_token_count = event.usage.prompt_tokens
@@ -1429,6 +1430,7 @@ class InferenceClientModel(ApiModel):
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
+        self._apply_rate_limit()
         response = self.client.chat_completion(**completion_kwargs)
 
         self._last_input_token_count = response.usage.prompt_tokens
@@ -1460,6 +1462,7 @@ class InferenceClientModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
+        self._apply_rate_limit()
         for event in self.client.chat.completions.create(
             **completion_kwargs, stream=True, stream_options={"include_usage": True}
         ):
@@ -1574,6 +1577,7 @@ class OpenAIServerModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
+        self._apply_rate_limit()
         for event in self.client.chat.completions.create(
             **completion_kwargs, stream=True, stream_options={"include_usage": True}
         ):
@@ -1626,6 +1630,7 @@ class OpenAIServerModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
+        self._apply_rate_limit()
         response = self.client.chat.completions.create(**completion_kwargs)
 
         # Reported that `response.usage` can be None in some cases when using OpenRouter: see GH-1401
@@ -1863,7 +1868,7 @@ class AmazonBedrockServerModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-
+        self._apply_rate_limit()
         # self.client is created in ApiModel class
         response = self.client.converse(**completion_kwargs)
 
