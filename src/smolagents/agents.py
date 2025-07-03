@@ -225,6 +225,8 @@ class MultiStepAgent(ABC):
         state (`dict[str, Any]`, *optional*): Dictionary of variables that can be used in prompt templates
             or called in a python executed environment.
             They can be accessed using the keys as variables, the value is a value of any type.
+            Remember that state variables can only be set through the instance, never saved nor loaded,
+            as they may not be serializable.
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
         provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
