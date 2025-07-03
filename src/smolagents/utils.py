@@ -504,23 +504,23 @@ if __name__ == "__main__":
 
 
 class RateLimiter:
-    """Simple rate limiter that enforces a minimum delay between consecutive calls.
+    """Simple rate limiter that enforces a minimum delay between consecutive requests.
 
     This class is useful for limiting the rate of operations such as API requests,
     by ensuring that calls to `throttle()` are spaced out by at least a given interval
-    based on the desired calls per second.
+    based on the desired requests per minute.
 
-    If no rate is specified (i.e., `calls_per_second` is None), rate limiting
+    If no rate is specified (i.e., `requests_per_minute` is None), rate limiting
     is disabled and `throttle()` becomes a no-op.
 
     Args:
-        calls_per_second (`float | None`): Maximum number of allowed operations per second.
+        requests_per_minute (`float | None`): Maximum number of allowed requests per minute.
             Use `None` to disable rate limiting.
     """
 
-    def __init__(self, calls_per_second: float | None = None):
-        self._enabled = calls_per_second is not None
-        self._interval = 1.0 / calls_per_second if self._enabled else 0.0
+    def __init__(self, requests_per_minute: float | None = None):
+        self._enabled = requests_per_minute is not None
+        self._interval = 60.0 / requests_per_minute if self._enabled else 0.0
         self._last_call = 0.0
 
     def throttle(self):

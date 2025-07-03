@@ -1042,8 +1042,8 @@ class ApiModel(Model):
             Mapping to convert  between internal role names and API-specific role names. Defaults to None.
         client (`Any`, **optional**):
             Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
-        rate_limit (`float`, **optional**):
-            Rate limit in requests per second.
+        requests_per_minute (`float`, **optional**):
+            Rate limit in requests per minute.
         **kwargs: Additional keyword arguments to pass to the parent class.
     """
 
@@ -1052,13 +1052,13 @@ class ApiModel(Model):
         model_id: str,
         custom_role_conversions: dict[str, str] | None = None,
         client: Any | None = None,
-        rate_limit: float | None = None,
+        requests_per_minute: float | None = None,
         **kwargs,
     ):
         super().__init__(model_id=model_id, **kwargs)
         self.custom_role_conversions = custom_role_conversions or {}
         self.client = client or self.create_client()
-        self.rate_limiter = RateLimiter(rate_limit)
+        self.rate_limiter = RateLimiter(requests_per_minute)
 
     def create_client(self):
         """Create the API client for the specific service."""
