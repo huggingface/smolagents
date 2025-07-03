@@ -1005,7 +1005,6 @@ You have been provided with these additional arguments, that you can access usin
             "verbosity_level": agent_dict.get("verbosity_level"),
             "grammar": agent_dict.get("grammar"),
             "planning_interval": agent_dict.get("planning_interval"),
-            "state": agent_dict.get("state"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
         }
