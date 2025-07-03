@@ -37,7 +37,7 @@
   - local: examples/using_different_models
     title: Using different models
   - local: examples/plan_customization
-    title: Customize agent plan interactively
+    title: "Human-in-the-Loop: Customize agent plan interactively"
   - local: examples/async_agent
     title: Async Applications with Agents
 - title: Reference

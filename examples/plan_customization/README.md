@@ -1,13 +1,13 @@
-# Customize Agent Plan Interactively
+# Human-in-the-Loop: Customize Agent Plan Interactively
 
-This example demonstrates advanced usage of the smolagents library, specifically showing how to:
+This example demonstrates advanced usage of the smolagents library, specifically showing how to implement Human-in-the-Loop strategies to:
 
 1. **Interrupt agent execution after plan creation** using step callbacks
-2. **Allow user interaction** to review and modify plans
+2. **Allow user interaction** to review and modify plans (Human-in-the-Loop)
 3. **Resume execution** while preserving agent memory
-4. **Modify plans in real-time** based on user feedback
+4. **Modify plans in real-time** based on user feedback, keeping the human in control
 
-## Key Features
+## Human-in-the-Loop Key Features
 
 ### Interactive Plan Review
 - The agent creates a plan and pauses execution
@@ -23,6 +23,7 @@ This example demonstrates advanced usage of the smolagents library, specifically
 - Using `reset=False` preserves the agent's memory between runs
 - Demonstrates how to build on previous interactions
 - Shows memory state management across multiple executions
+- Maintains transparency and control
 
 ## Usage
 
@@ -63,16 +64,17 @@ agent.run(task, reset=True)
 agent.run(task, reset=False)  # Keeps all previous steps
 ```
 
-## Example Workflow
+## Example Human-in-the-Loop Workflow
 
 1. **Agent starts** with a complex task
 2. **Planning step** is created automatically
-3. **Execution pauses** - step callback triggers
-4. **User reviews** the plan in a formatted display
-5. **User chooses** to approve, modify, or cancel
-6. **Plan modification** (if requested) - user can edit the plan
-7. **Execution resumes** with approved/modified plan
-8. **Memory preservation** - all steps are maintained for future runs
+3. **Execution pauses** for human review - step callback triggers
+4. **Human-in-the-Loop**:
+   1. **User reviews the plan** in a formatted display
+   2. **User decides** to approve, modify, or cancel the plan
+   3. **User modifies the plan** (if requested) - user can edit the plan
+5. **Execution resumes** with approved/modified plan
+6. **Memory preservation** - all steps are maintained for future runs, maintaining transparency and control
 
 ## Interactive Elements
 

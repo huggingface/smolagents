@@ -1,15 +1,16 @@
-# Customize agent plan interactively
+# Human-in-the-Loop: Customize Agent Plan Interactively
 
-This page demonstrates advanced usage of the smolagents library, focusing on interactive plan creation, user-driven plan modification, and memory preservation in agentic workflows. The example is based on the code in `examples/plan_customization/plan_customization.py`.
+This page demonstrates advanced usage of the smolagents library, with a special focus on **Human-in-the-Loop (HITL)** approaches for interactive plan creation, user-driven plan modification, and memory preservation in agentic workflows.
+The example is based on the code in `examples/plan_customization/plan_customization.py`.
 
 ## Overview
 
-This example teaches you how to:
+This example teaches you how to implement Human-in-the-Loop strategies to:
 
 - Interrupt agent execution after a plan is created (using step callbacks)
-- Allow users to review and modify the agent's plan before execution
+- Allow users to review and modify the agent's plan before execution (Human-in-the-Loop)
 - Resume execution while preserving the agent's memory
-- Dynamically update plans based on user feedback
+- Dynamically update plans based on user feedback, keeping the human in control
 
 ## Key Concepts
 
@@ -28,9 +29,9 @@ agent = CodeAgent(
 )
 ```
 
-### Interactive Plan Review and Modification
+### Human-in-the-Loop: Interactive Plan Review and Modification
 
-When the agent creates a plan, the callback displays it and prompts the user to:
+When the agent creates a plan, the callback displays it and prompts the human user to:
 
 1. Approve the plan
 2. Modify the plan
@@ -54,6 +55,8 @@ Choose an option:
 3. Cancel
 Your choice (1-3):
 ```
+
+This Human-in-the-Loop step enables a human to intervene and review or modify the plan before execution continues, and ensures that the agent's actions align with human intent.
 
 If the user chooses to modify, they can edit the plan directly. The updated plan is then used for subsequent execution steps.
 
@@ -80,13 +83,13 @@ for i, step in enumerate(agent.memory.steps):
     print(f"  {i+1}. {step_type}")
 ```
 
-## Example Workflow
+## Example Human-in-the-Loop Workflow
 
 1. Agent starts with a complex task
-2. Planning step is created and execution pauses
-3. User reviews and optionally modifies the plan
+2. Planning step is created and execution pauses for human review
+3. Human reviews and optionally modifies the plan (Human-in-the-Loop)
 4. Execution resumes with the approved/modified plan
-5. All steps are preserved for future runs
+5. All steps are preserved for future runs, maintaining transparency and control
 
 ## Error Handling
 
