@@ -50,8 +50,11 @@ from smolagents.agents import (
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import (
     ActionStep,
+    CallbackRegistry,
+    FinalAnswerStep,
     MemoryStep,
     PlanningStep,
+    SystemPromptStep,
     TaskStep,
 )
 from smolagents.models import (
@@ -845,6 +848,93 @@ class TestMultiStepAgent:
         # assert "read-only" in str(exc_info.value)
         # assert "Use 'self.prompt_templates[\"system_prompt\"]' instead" in str(exc_info.value)
 
+    @pytest.mark.parametrize(
+        "step_callbacks, expected_registry_state",
+        [
+            # Case 0: None as input (initializes empty registry)
+            (
+                None,
+                {
+                    "MemoryStep": 0,
+                    "ActionStep": 1,
+                    "PlanningStep": 0,
+                    "TaskStep": 0,
+                    "SystemPromptStep": 0,
+                    "FinalAnswerStep": 0,
+                },  # Only monitor.update_metrics is registered for ActionStep
+            ),
+            # Case 1: List of callbacks (registers only for ActionStep: backward compatibility)
+            (
+                [MagicMock(), MagicMock()],
+                {
+                    "MemoryStep": 0,
+                    "ActionStep": 3,
+                    "PlanningStep": 0,
+                    "TaskStep": 0,
+                    "SystemPromptStep": 0,
+                    "FinalAnswerStep": 0,
+                },
+            ),
+            # Case 2: Dict mapping specific step types to callbacks
+            (
+                {ActionStep: MagicMock(), PlanningStep: MagicMock()},
+                {
+                    "MemoryStep": 0,
+                    "ActionStep": 2,
+                    "PlanningStep": 1,
+                    "TaskStep": 0,
+                    "SystemPromptStep": 0,
+                    "FinalAnswerStep": 0,
+                },
+            ),
+            # Case 3: Dict with list of callbacks for a step type
+            (
+                {ActionStep: [MagicMock(), MagicMock()]},
+                {
+                    "MemoryStep": 0,
+                    "ActionStep": 3,
+                    "PlanningStep": 0,
+                    "TaskStep": 0,
+                    "SystemPromptStep": 0,
+                    "FinalAnswerStep": 0,
+                },
+            ),
+            # Case 4: Dict with mixed single and list callbacks
+            (
+                {ActionStep: MagicMock(), MemoryStep: [MagicMock(), MagicMock()]},
+                {
+                    "MemoryStep": 2,
+                    "ActionStep": 2,
+                    "PlanningStep": 0,
+                    "TaskStep": 0,
+                    "SystemPromptStep": 0,
+                    "FinalAnswerStep": 0,
+                },
+            ),
+        ],
+    )
+    def test_setup_step_callbacks(self, step_callbacks, expected_registry_state):
+        """Test that _setup_step_callbacks correctly sets up the callback registry."""
+        # Create a dummy agent
+        agent = DummyMultiStepAgent(tools=[], model=MagicMock())
+        # Mock the monitor
+        agent.monitor = MagicMock()
+
+        # Call the method
+        agent._setup_step_callbacks(step_callbacks)
+
+        # Check that step_callbacks is a CallbackRegistry
+        assert isinstance(agent.step_callbacks, CallbackRegistry)
+
+        # Count callbacks for each step type
+        actual_registry_state = {}
+        for step_type in [MemoryStep, ActionStep, PlanningStep, TaskStep, SystemPromptStep, FinalAnswerStep]:
+            callbacks = agent.step_callbacks._callbacks.get(step_type, [])
+            actual_registry_state[step_type.__name__] = len(callbacks)
+
+        # Verify registry state matches expected
+        assert actual_registry_state == expected_registry_state
+
     def test_finalize_step_callbacks_with_list(self):
         # Create mock callbacks
         callback1 = MagicMock()
@@ -883,12 +973,13 @@ class TestMultiStepAgent:
     def test_finalize_step_callbacks_by_type(self):
         # Create mock callbacks for different step types
         action_step_callback = MagicMock()
+        action_step_callback_2 = MagicMock()
         planning_step_callback = MagicMock()
         step_callback = MagicMock()
 
         # Register callbacks for different step types
         step_callbacks = {
-            ActionStep: action_step_callback,
+            ActionStep: [action_step_callback, action_step_callback_2],
             PlanningStep: planning_step_callback,
             MemoryStep: step_callback,
         }
@@ -908,11 +999,13 @@ class TestMultiStepAgent:
 
         # Verify correct callbacks were called
         action_step_callback.assert_called_once_with(action_step, agent=agent)
+        action_step_callback_2.assert_called_once_with(action_step, agent=agent)
         step_callback.assert_called_once_with(action_step, agent=agent)
         planning_step_callback.assert_not_called()
 
         # Reset mocks
         action_step_callback.reset_mock()
+        action_step_callback_2.reset_mock()
         planning_step_callback.reset_mock()
         step_callback.reset_mock()
 
@@ -923,6 +1016,7 @@ class TestMultiStepAgent:
         planning_step_callback.assert_called_once_with(planning_step, agent=agent)
         step_callback.assert_called_once_with(planning_step, agent=agent)
         action_step_callback.assert_not_called()
+        action_step_callback_2.assert_not_called()
 
     def test_logs_display_thoughts_even_if_error(self):
         class FakeJsonModelNoCall(Model):
