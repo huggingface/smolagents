@@ -104,9 +104,12 @@ class DuckDuckGoSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results=10, **kwargs):
+    def __init__(self, max_results=10, rate_limit: float | None = 1.0, **kwargs):
         super().__init__()
         self.max_results = max_results
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
         try:
             from duckduckgo_search import DDGS
         except ImportError as e:
@@ -116,11 +119,25 @@ class DuckDuckGoSearchTool(Tool):
         self.ddgs = DDGS(**kwargs)
 
     def forward(self, query: str) -> str:
+        self._enforce_rate_limit()
         results = self.ddgs.text(query, max_results=self.max_results)
         if len(results) == 0:
             raise Exception("No results found! Try a less restrictive/shorter query.")
         postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
         return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        # No rate limit enforced
+        if not self.rate_limit:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
 
 
 class GoogleSearchTool(Tool):
