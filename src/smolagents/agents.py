@@ -965,7 +965,6 @@ You have been provided with these additional arguments, that you can access usin
             "verbosity_level": int(self.logger.level),
             "grammar": self.grammar,
             "planning_interval": self.planning_interval,
-            "state": self.state,
             "name": self.name,
             "description": self.description,
             "requirements": sorted(requirements),
