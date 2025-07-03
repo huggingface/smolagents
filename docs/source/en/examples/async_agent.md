@@ -77,7 +77,6 @@ curl -X POST http://localhost:8000/run-agent -H 'Content-Type: application/json'
 
 - [Starlette Documentation](https://www.starlette.io/)
 - [anyio Documentation](https://anyio.readthedocs.io/)
-- [smolagents Documentation](https://github.com/smol-ai/smolagents)
 
 ---
 
