@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from .monitoring import TokenUsage
 from .tools import Tool
-from .utils import _is_package_available, encode_image_base64, make_image_url, parse_json_blob
+from .utils import RateLimiter, _is_package_available, encode_image_base64, make_image_url, parse_json_blob
 
 
 if TYPE_CHECKING:
@@ -1042,19 +1042,31 @@ class ApiModel(Model):
             Mapping to convert  between internal role names and API-specific role names. Defaults to None.
         client (`Any`, **optional**):
             Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
+        rate_limit (`float`, **optional**):
+            Rate limit in requests per second.
         **kwargs: Additional keyword arguments to pass to the parent class.
     """
 
     def __init__(
-        self, model_id: str, custom_role_conversions: dict[str, str] | None = None, client: Any | None = None, **kwargs
+        self,
+        model_id: str,
+        custom_role_conversions: dict[str, str] | None = None,
+        client: Any | None = None,
+        rate_limit: float | None = None,
+        **kwargs,
     ):
         super().__init__(model_id=model_id, **kwargs)
         self.custom_role_conversions = custom_role_conversions or {}
         self.client = client or self.create_client()
+        self.rate_limiter = RateLimiter(rate_limit)
 
     def create_client(self):
         """Create the API client for the specific service."""
         raise NotImplementedError("Subclasses must implement this method to create a client")
+
+    def _apply_rate_limit(self):
+        """Apply rate limiting before making API calls."""
+        self.rate_limiter.throttle()
 
 
 class LiteLLMModel(ApiModel):
