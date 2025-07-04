@@ -28,7 +28,6 @@ contains the API docs for the underlying classes.
 
 [[autodoc]] launch_gradio_demo
 
-
 ## Default tools
 
 ### PythonInterpreterTool
