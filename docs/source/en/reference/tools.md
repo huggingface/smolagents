@@ -42,6 +42,10 @@ contains the API docs for the underlying classes.
 
 [[autodoc]] UserInputTool
 
+### ApiWebSearchTool
+
+[[autodoc]] ApiWebSearchTool
+
 ### WebSearchTool
 
 [[autodoc]] WebSearchTool
