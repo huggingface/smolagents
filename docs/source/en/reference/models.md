@@ -68,6 +68,8 @@ print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], st
 
 The `InferenceClientModel` wraps huggingface_hub's [InferenceClient](https://huggingface.co/docs/huggingface_hub/main/en/guides/inference) for the execution of the LLM. It supports all [Inference Providers](https://huggingface.co/docs/inference-providers/index) available on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
 
+You can also set a rate limit in requests per minute by using the `requests_per_minute` argument.
+
 ```python
 from smolagents import InferenceClientModel
 
@@ -75,7 +77,7 @@ messages = [
   {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}
 ]
 
-model = InferenceClientModel(provider="novita")
+model = InferenceClientModel(provider="novita", requests_per_minute=60)
 print(model(messages))
 ```
 ```text
@@ -86,7 +88,7 @@ print(model(messages))
 ### LiteLLMModel
 
 The `LiteLLMModel` leverages [LiteLLM](https://www.litellm.ai/) to support 100+ LLMs from various providers.
-You can pass kwargs upon model initialization that will then be used whenever using the model, for instance below we pass `temperature`.
+You can pass kwargs upon model initialization that will then be used whenever using the model, for instance below we pass `temperature`. You can also set a rate limit in requests per minute by using the `requests_per_minute` argument.
 
 ```python
 from smolagents import LiteLLMModel
@@ -95,7 +97,7 @@ messages = [
   {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}
 ]
 
-model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10)
+model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10, requests_per_minute=60)
 print(model(messages))
 ```
 
