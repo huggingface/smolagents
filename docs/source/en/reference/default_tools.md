@@ -1,27 +1,28 @@
 # Built-in Tools
 
 Ready-to-use tool implementations provided by the `smolagents` library.
+
 These built-in tools are concrete implementations of the `Tool` base class, each designed for specific tasks such as web searching, Python code execution, webpage retrieval, and user interaction.
 You can use these tools directly in your agents without having to implement the underlying functionality yourself.
 Each tool handles a particular capability and follows a consistent interface, making it easy to compose them into powerful agent workflows.
 
 The built-in tools can be categorized by their primary functions:
 - **Information Retrieval**: Search and retrieve information from the web and specific knowledge sources.
-  - [`ApiWebSearchTool`](#apiwebsearchtool)
-  - [`DuckDuckGoSearchTool`](#duckduckgosearchtool)
-  - [`GoogleSearchTool`](#googlesearchtool)
-  - [`WebSearchTool`](#websearchtool)
-  - [`WikipediaSearchTool`](#wikipediasearchtool)
+  - [`ApiWebSearchTool`]
+  - [`DuckDuckGoSearchTool`]
+  - [`GoogleSearchTool`]
+  - [`WebSearchTool`]
+  - [`WikipediaSearchTool`]
 - **Web Interaction**: Fetch and process content from specific web pages.
-  - [`VisitWebpageTool`](#visitwebpagetool)
+  - [`VisitWebpageTool`]
 - **Code Execution**: Dynamic execution of Python code for computational tasks.
-  - [`PythonInterpreterTool`](#pythoninterpretertool)
+  - [`PythonInterpreterTool`]
 - **User Interaction**: Enable Human-in-the-Loop collaboration between agents and users.
-  - [`UserInputTool`](#userinputtool): Collect input from users.
+  - [`UserInputTool`]: Collect input from users.
 - **Speech Processing**: Convert audio to textual data.
-  - [`SpeechToTextTool`](#speechtotexttool)
+  - [`SpeechToTextTool`]
 - **Workflow Control**: Manage and direct the flow of agent operations.
-  - [`FinalAnswerTool`](#finalanswertool): Conclude agent workflow with final response.
+  - [`FinalAnswerTool`]: Conclude agent workflow with final response.
 
 ## ApiWebSearchTool
 
