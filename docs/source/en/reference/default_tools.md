@@ -2,7 +2,7 @@
 
 Ready-to-use tool implementations provided by the `smolagents` library.
 
-These built-in tools are concrete implementations of the `Tool` base class, each designed for specific tasks such as web searching, Python code execution, webpage retrieval, and user interaction.
+These built-in tools are concrete implementations of the [`Tool`] base class, each designed for specific tasks such as web searching, Python code execution, webpage retrieval, and user interaction.
 You can use these tools directly in your agents without having to implement the underlying functionality yourself.
 Each tool handles a particular capability and follows a consistent interface, making it easy to compose them into powerful agent workflows.
 
