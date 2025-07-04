@@ -469,14 +469,15 @@ class VisitWebpageTool(Tool):
 
 class WikipediaSearchTool(Tool):
     """
-    WikipediaSearchTool searches Wikipedia and returns a summary or full text of the given topic, along with the page URL.
+    Search Wikipedia and return summary or full text of the requested article, along with the page URL.
 
     Attributes:
-        user_agent (str): A custom user-agent string to identify the project. This is required as per Wikipedia API policies, read more here: http://github.com/martin-majlis/Wikipedia-API/blob/master/README.rst
-        language (str): The language in which to retrieve Wikipedia articles.
-                http://meta.wikimedia.org/wiki/List_of_Wikipedias
-        content_type (str): Defines the content to fetch. Can be "summary" for a short summary or "text" for the full article.
-        extract_format (str): Defines the output format. Can be `"WIKI"` or `"HTML"`.
+        user_agent (`str`): Custom user-agent string to identify the project. This is required as per Wikipedia API policies.
+            See: https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
+        language (`str`, default `"en"`): Language in which to retrieve Wikipedia article.
+            See: http://meta.wikimedia.org/wiki/List_of_Wikipedias
+        content_type (`Literal["summary", "text"]`, default `"text"`): Type of content to fetch. Can be "summary" for a short summary or "text" for the full article.
+        extract_format (`Literal["HTML", "WIKI"]`, default `"WIKI"`): Extraction format of the output. Can be `"WIKI"` or `"HTML"`.
 
     Example:
         ```python
