@@ -1734,27 +1734,34 @@ class AmazonBedrockServerModel(ApiModel):
         **kwargs
             Additional keyword arguments passed directly to the underlying API calls.
 
-    Example:
+    Examples:
         Creating a model instance with default settings:
+        ```python
         >>> bedrock_model = AmazonBedrockServerModel(
         ...     model_id='us.amazon.nova-pro-v1:0'
         ... )
+        ```
 
         Creating a model instance with a custom boto3 client:
+        ```python
         >>> import boto3
         >>> client = boto3.client('bedrock-runtime', region_name='us-west-2')
         >>> bedrock_model = AmazonBedrockServerModel(
         ...     model_id='us.amazon.nova-pro-v1:0',
         ...     client=client
         ... )
+        ```
 
         Creating a model instance with client_kwargs for internal client creation:
+        ```python
         >>> bedrock_model = AmazonBedrockServerModel(
         ...     model_id='us.amazon.nova-pro-v1:0',
         ...     client_kwargs={'region_name': 'us-west-2', 'endpoint_url': 'https://custom-endpoint.com'}
         ... )
+        ```
 
         Creating a model instance with inference and guardrail configurations:
+        ```python
         >>> additional_api_config = {
         ...     "inferenceConfig": {
         ...         "maxTokens": 3000
@@ -1768,6 +1775,7 @@ class AmazonBedrockServerModel(ApiModel):
         ...     model_id='anthropic.claude-3-haiku-20240307-v1:0',
         ...     **additional_api_config
         ... )
+        ```
     """
 
     def __init__(
