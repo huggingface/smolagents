@@ -479,6 +479,7 @@ class WikipediaSearchTool(Tool):
         extract_format (str): Defines the output format. Can be `"WIKI"` or `"HTML"`.
 
     Example:
+        ```python
         >>> from smolagents import CodeAgent, InferenceClientModel, WikipediaSearchTool
         >>> agent = CodeAgent(
         >>>     tools=[
@@ -492,6 +493,7 @@ class WikipediaSearchTool(Tool):
         >>>     model=InferenceClientModel(),
         >>> )
         >>> agent.run("Python_(programming_language)")
+        ```
     """
 
     name = "wikipedia_search"
