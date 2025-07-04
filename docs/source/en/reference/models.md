@@ -177,6 +177,7 @@ model = AzureOpenAIServerModel(
 
 [[autodoc]] AzureOpenAIServerModel
 
+
 ### AmazonBedrockServerModel
 
 `AmazonBedrockServerModel` helps you connect to Amazon Bedrock and run your agent with any available models.
