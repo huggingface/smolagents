@@ -10,7 +10,7 @@ can vary as the APIs or underlying models are prone to change.
 To learn more about agents and tools make sure to read the [introductory guide](../index). This page
 contains the API docs for the underlying classes.
 
-## Tools
+## Tool Base Classes
 
 ### load_tool
 
@@ -27,40 +27,6 @@ contains the API docs for the underlying classes.
 ### launch_gradio_demo
 
 [[autodoc]] launch_gradio_demo
-
-## Default tools
-
-### PythonInterpreterTool
-
-[[autodoc]] PythonInterpreterTool
-
-### FinalAnswerTool
-
-[[autodoc]] FinalAnswerTool
-
-### UserInputTool
-
-[[autodoc]] UserInputTool
-
-### WebSearchTool
-
-[[autodoc]] WebSearchTool
-
-### DuckDuckGoSearchTool
-
-[[autodoc]] DuckDuckGoSearchTool
-
-### GoogleSearchTool
-
-[[autodoc]] GoogleSearchTool
-
-### VisitWebpageTool
-
-[[autodoc]] VisitWebpageTool
-
-### SpeechToTextTool
-
-[[autodoc]] SpeechToTextTool
 
 ## ToolCollection
 
