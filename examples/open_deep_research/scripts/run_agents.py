@@ -6,6 +6,7 @@ from pathlib import Path
 
 # import tqdm.asyncio
 from smolagents.utils import AgentError
+from atla_insights import tool
 
 
 def serialize_agent_error(obj):
@@ -15,6 +16,7 @@ def serialize_agent_error(obj):
         return str(obj)
 
 
+@tool
 def get_image_description(file_name: str, question: str, visual_inspection_tool) -> str:
     prompt = f"""Write a caption of 5 sentences for this image. Pay special attention to any details that might be useful for someone answering the following question:
 {question}. But do not try to answer the question directly!
@@ -22,6 +24,7 @@ Do not add any information that is not present in the image."""
     return visual_inspection_tool(image_path=file_name, question=prompt)
 
 
+@tool
 def get_document_description(file_path: str, question: str, document_inspection_tool) -> str:
     prompt = f"""Write a caption of 5 sentences for this document. Pay special attention to any details that might be useful for someone answering the following question:
 {question}. But do not try to answer the question directly!
@@ -29,6 +32,7 @@ Do not add any information that is not present in the document."""
     return document_inspection_tool.forward_initial_exam_mode(file_path=file_path, question=prompt)
 
 
+@tool
 def get_single_file_description(file_path: str, question: str, visual_inspection_tool, document_inspection_tool):
     file_extension = file_path.split(".")[-1]
     if file_extension in ["png", "jpg", "jpeg"]:

@@ -11,6 +11,7 @@ from typing import Any
 import datasets
 import pandas as pd
 from dotenv import load_dotenv
+from atla_insights import configure, instrument_smolagents, instrument_litellm, instrument, mark_success, mark_failure
 from huggingface_hub import login, snapshot_download
 from scripts.reformulator import prepare_response
 from scripts.run_agents import (
@@ -40,6 +41,14 @@ from smolagents import (
 
 
 load_dotenv(override=True)
+
+# Configure Atla Insights - REQUIRED FIRST
+configure(token=os.getenv("ATLA_INSIGHTS_TOKEN"))
+
+# Instrument based on framework and LLM provider
+instrument_smolagents("litellm")  # Framework choice with LLM provider
+instrument_litellm()     # LLM provider choice
+
 login(os.getenv("HF_TOKEN"))
 
 append_answer_lock = threading.Lock()
@@ -170,6 +179,7 @@ def append_answer(entry: dict, jsonl_file: str) -> None:
     print("Answer exported to file:", jsonl_path.resolve())
 
 
+@instrument("Processing single GAIA question")
 def answer_single_question(
     example: dict, model_id: str, answers_file: str, visual_inspection_tool: TextInspectorTool
 ) -> None:
@@ -228,6 +238,12 @@ Run verification steps if that's needed, you must make sure you find the correct
         # check if iteration limit exceeded
         iteration_limit_exceeded = True if "Agent stopped due to iteration limit or time limit." in output else False
         raised_exception = False
+        
+        # Mark success/failure for Atla Insights
+        if output and not parsing_error and not iteration_limit_exceeded:
+            mark_success()
+        else:
+            mark_failure()
 
     except Exception as e:
         print("Error on ", augmented_question, e)
@@ -237,6 +253,7 @@ Run verification steps if that's needed, you must make sure you find the correct
         iteration_limit_exceeded = False
         exception = e
         raised_exception = True
+        mark_failure()  # Mark failure for Atla Insights
     end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     token_counts_manager = agent.monitor.get_total_token_counts()
     token_counts_web = list(agent.managed_agents.values())[0].monitor.get_total_token_counts()

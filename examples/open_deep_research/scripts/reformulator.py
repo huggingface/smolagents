@@ -3,8 +3,10 @@
 import copy
 
 from smolagents.models import MessageRole, Model
+from atla_insights import tool
 
 
+@tool
 def prepare_response(original_task: str, inner_messages, reformulation_model: Model) -> str:
     messages = [
         {
