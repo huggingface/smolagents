@@ -262,7 +262,7 @@ class ApiWebSearchTool(Tool):
         ```python
         >>> from smolagents import ApiWebSearchTool
         >>> web_search_tool = ApiWebSearchTool(rate_limit=50.0)
-        >>> results = web_search_tool("Hugging Face?")
+        >>> results = web_search_tool("Hugging Face")
         >>> print(results)
         ```
     """
