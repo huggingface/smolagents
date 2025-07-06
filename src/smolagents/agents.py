@@ -77,7 +77,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
+from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor, YepCodeExecutor
 from .tools import Tool, validate_tool_arguments
 from .utils import (
     AGENT_GRADIO_APP_TEMPLATE,
@@ -1468,7 +1468,7 @@ class CodeAgent(MultiStepAgent):
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
-        executor_type (`Literal["local", "e2b", "docker", "wasm"]`, default `"local"`): Type of code executor.
+        executor_type (`Literal["local", "e2b", "yepcode", "docker", "wasm"]`, default `"local"`): Type of code executor.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
@@ -1483,6 +1483,20 @@ class CodeAgent(MultiStepAgent):
         **kwargs: Additional keyword arguments.
     """
 
+    def _executor_supports_unrestricted_imports(self, executor_type: str) -> bool:
+        """
+        Determine if the given executor type supports unrestricted imports.
+
+        Args:
+            executor_type (str): The type of executor to check.
+
+        Returns:
+            bool: True if the executor supports unrestricted imports, False otherwise.
+        """
+        # Add new executor types here that support unrestricted imports
+        unrestricted_executors = {"yepcode"}
+        return executor_type in unrestricted_executors
+
     def __init__(
         self,
         tools: list[Tool],
@@ -1490,7 +1504,7 @@ class CodeAgent(MultiStepAgent):
         prompt_templates: PromptTemplates | None = None,
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
-        executor_type: Literal["local", "e2b", "docker", "wasm"] = "local",
+        executor_type: Literal["local", "e2b", "yepcode", "docker", "wasm"] = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
@@ -1499,6 +1513,12 @@ class CodeAgent(MultiStepAgent):
         code_block_tags: str | tuple[str, str] | None = None,
         **kwargs,
     ):
+        if self._executor_supports_unrestricted_imports(executor_type):
+            if additional_authorized_imports:
+                additional_authorized_imports.append("*")
+            else:
+                additional_authorized_imports = ["*"]
+
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
         self.authorized_imports = sorted(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         self.max_print_outputs_length = max_print_outputs_length
@@ -1537,12 +1557,15 @@ class CodeAgent(MultiStepAgent):
             raise ValueError(
                 "`stream_outputs` is set to True, but the model class implements no `generate_stream` method."
             )
-        if "*" in self.additional_authorized_imports:
+        if (
+            not self._executor_supports_unrestricted_imports(executor_type)
+            and "*" in self.additional_authorized_imports
+        ):
             self.logger.log(
                 "Caution: you set an authorization for all imports, meaning your agent can decide to import any package it deems necessary. This might raise issues if the package is not installed in your environment.",
                 level=LogLevel.INFO,
             )
-        if executor_type not in {"local", "e2b", "docker", "wasm"}:
+        if executor_type not in {"local", "e2b", "yepcode", "docker", "wasm"}:
             raise ValueError(f"Unsupported executor type: {executor_type}")
         self.executor_type = executor_type
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
@@ -1570,6 +1593,7 @@ class CodeAgent(MultiStepAgent):
                 raise Exception("Managed agents are not yet supported with remote code execution.")
             remote_executors = {
                 "e2b": E2BExecutor,
+                "yepcode": YepCodeExecutor,
                 "docker": DockerExecutor,
                 "wasm": WasmExecutor,
             }
