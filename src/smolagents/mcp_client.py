@@ -83,7 +83,7 @@ class MCPClient:
     def __init__(
         self,
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
-        adapter_kwargs: dict[str, Any] | None = None
+        adapter_kwargs: dict[str, Any] | None = None,
     ):
         try:
             from mcpadapt.core import MCPAdapt
