@@ -20,7 +20,6 @@ from __future__ import annotations
 import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
-from datetime import timedelta
 
 from smolagents.tools import Tool
 
@@ -80,8 +79,7 @@ class MCPClient:
     def __init__(
         self,
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
-        connect_timeout: int = 30,
-        client_session_timeout_seconds: float | timedelta | None = 5,
+        adapter_kwargs: dict[str, Any]
     ):
         try:
             from mcpadapt.core import MCPAdapt
@@ -103,7 +101,7 @@ class MCPClient:
                 raise ValueError(
                     f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
                 )
-        self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter(), connect_timeout, client_session_timeout_seconds)
+        self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter(), **adapter_kwargs)
         self._tools: list[Tool] | None = None
         self.connect()
 
