@@ -55,6 +55,10 @@ class MCPClient:
             Please pass explicitly the "transport" key.
             </Deprecated>
 
+        adapter_kwargs (dict[str, Any], optional):
+            Additional keyword arguments to be passed directly to `MCPAdapt`.
+            If not provided, defaults to an empty dictionary.
+
     Example:
         ```python
         # fully managed context manager + stdio
@@ -79,7 +83,7 @@ class MCPClient:
     def __init__(
         self,
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
-        adapter_kwargs: dict[str, Any]
+        adapter_kwargs: dict[str, Any] | None = None
     ):
         try:
             from mcpadapt.core import MCPAdapt
@@ -101,6 +105,7 @@ class MCPClient:
                 raise ValueError(
                     f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
                 )
+        adapter_kwargs = adapter_kwargs or {}
         self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter(), **adapter_kwargs)
         self._tools: list[Tool] | None = None
         self.connect()
