@@ -1,5 +1,6 @@
 # Built-in Tools
 
+
 Ready-to-use tool implementations provided by the `smolagents` library.
 
 These built-in tools are concrete implementations of the [`Tool`] base class, each designed for specific tasks such as web searching, Python code execution, webpage retrieval, and user interaction.
