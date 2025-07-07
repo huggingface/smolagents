@@ -32,6 +32,7 @@ elif chosen_inference == "ollama":
 
 elif chosen_inference == "litellm":
     # For LlamaAPI: change model_id below to 'meta_llama/Llama-3.3-70B-Instruct'
+    # required: export LLAMA_API_KEY=YOUR_API_KEY
     model = LiteLLMModel(model_id="meta_llama/Llama-3.3-70B-Instruct")
 
 elif chosen_inference == "openai":
