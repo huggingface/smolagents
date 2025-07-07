@@ -44,12 +44,19 @@ from huggingface_hub import (
 from ._function_type_hints_utils import (
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
+    _get_json_schema_type,
     get_imports,
     get_json_schema,
 )
 from .agent_types import handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import BASE_BUILTIN_MODULES, _is_package_available, get_source, instance_to_source, is_valid_name
+from .utils import (
+    BASE_BUILTIN_MODULES,
+    _is_package_available,
+    get_source,
+    instance_to_source,
+    is_valid_name,
+)
 
 
 if TYPE_CHECKING:
@@ -148,10 +155,24 @@ class Tool:
             assert "type" in input_content and "description" in input_content, (
                 f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
             )
-            if input_content["type"] not in AUTHORIZED_TYPES:
-                raise Exception(
-                    f"Input '{input_name}': type '{input_content['type']}' is not an authorized value, should be one of {AUTHORIZED_TYPES}."
+            # Get input_types as a list, whether from a string or list
+            if isinstance(input_content["type"], str):
+                input_types = [input_content["type"]]
+            elif isinstance(input_content["type"], list):
+                input_types = input_content["type"]
+                # Check if all elements are strings
+                if not all(isinstance(t, str) for t in input_types):
+                    raise TypeError(
+                        f"Input '{input_name}': when type is a list, all elements must be strings, got {input_content['type']}"
+                    )
+            else:
+                raise TypeError(
+                    f"Input '{input_name}': type must be a string or list of strings, got {type(input_content['type']).__name__}"
                 )
+            # Check all types are authorized
+            invalid_types = [t for t in input_types if t not in AUTHORIZED_TYPES]
+            if invalid_types:
+                raise ValueError(f"Input '{input_name}': types {invalid_types} must be one of {AUTHORIZED_TYPES}")
         # Validate output type
         assert getattr(self, "output_type", None) in AUTHORIZED_TYPES
 
@@ -1199,6 +1220,27 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     )
     tool_definition_code += "\n\n".join(tool_codes)
     return tool_definition_code
+
+
+def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
+    if isinstance(arguments, dict):
+        for key, value in arguments.items():
+            if key not in tool.inputs:
+                return f"Argument {key} is not in the tool's input schema."
+
+            parsed_type = _get_json_schema_type(type(value))["type"]
+
+            if parsed_type != tool.inputs[key]["type"] and not tool.inputs[key]["type"] == "any":
+                return f"Argument {key} has type '{parsed_type}' but should be '{tool.inputs[key]['type']}'."
+        for key in tool.inputs:
+            if key not in arguments:
+                return f"Argument {key} is required."
+        return None
+    else:
+        expected_type = list(tool.inputs.values())[0]["type"]
+        if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
+            return f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'."
+        return None
 
 
 __all__ = [

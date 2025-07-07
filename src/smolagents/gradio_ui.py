@@ -22,7 +22,7 @@ from typing import Generator
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
 from smolagents.memory import ActionStep, FinalAnswerStep
-from smolagents.models import ChatMessageStreamDelta
+from smolagents.models import ChatMessageStreamDelta, MessageRole, agglomerate_stream_deltas
 from smolagents.utils import _is_package_available
 
 
@@ -93,12 +93,12 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
     # Output the step number
     step_number = f"Step {step_log.step_number}"
     if not skip_model_outputs:
-        yield gr.ChatMessage(role="assistant", content=f"**{step_number}**", metadata={"status": "done"})
+        yield gr.ChatMessage(role=MessageRole.ASSISTANT, content=f"**{step_number}**", metadata={"status": "done"})
 
     # First yield the thought/reasoning from the LLM
     if not skip_model_outputs and getattr(step_log, "model_output", ""):
         model_output = _clean_model_output(step_log.model_output)
-        yield gr.ChatMessage(role="assistant", content=model_output, metadata={"status": "done"})
+        yield gr.ChatMessage(role=MessageRole.ASSISTANT, content=model_output, metadata={"status": "done"})
 
     # For tool calls, create a parent message
     if getattr(step_log, "tool_calls", []):
@@ -118,7 +118,7 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
 
         # Create the tool call message
         parent_message_tool = gr.ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content=content,
             metadata={
                 "title": f"🛠️ Used tool {first_tool_call.name}",
@@ -133,7 +133,7 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
         if log_content:
             log_content = re.sub(r"^Execution logs:\s*", "", log_content)
             yield gr.ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content=f"```bash\n{log_content}\n",
                 metadata={"title": "📝 Execution Logs", "status": "done"},
             )
@@ -143,7 +143,7 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
         for image in step_log.observations_images:
             path_image = AgentImage(image).to_string()
             yield gr.ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content={"path": path_image, "mime_type": f"image/{path_image.split('.')[-1]}"},
                 metadata={"title": "🖼️ Output Image", "status": "done"},
             )
@@ -151,14 +151,16 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
     # Handle errors
     if getattr(step_log, "error", None):
         yield gr.ChatMessage(
-            role="assistant", content=str(step_log.error), metadata={"title": "💥 Error", "status": "done"}
+            role=MessageRole.ASSISTANT, content=str(step_log.error), metadata={"title": "💥 Error", "status": "done"}
         )
 
     # Add step footnote and separator
     yield gr.ChatMessage(
-        role="assistant", content=get_step_footnote_content(step_log, step_number), metadata={"status": "done"}
+        role=MessageRole.ASSISTANT,
+        content=get_step_footnote_content(step_log, step_number),
+        metadata={"status": "done"},
     )
-    yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
+    yield gr.ChatMessage(role=MessageRole.ASSISTANT, content="-----", metadata={"status": "done"})
 
 
 def _process_planning_step(step_log: PlanningStep, skip_model_outputs: bool = False) -> Generator:
@@ -174,12 +176,14 @@ def _process_planning_step(step_log: PlanningStep, skip_model_outputs: bool = Fa
     import gradio as gr
 
     if not skip_model_outputs:
-        yield gr.ChatMessage(role="assistant", content="**Planning step**", metadata={"status": "done"})
-        yield gr.ChatMessage(role="assistant", content=step_log.plan, metadata={"status": "done"})
+        yield gr.ChatMessage(role=MessageRole.ASSISTANT, content="**Planning step**", metadata={"status": "done"})
+        yield gr.ChatMessage(role=MessageRole.ASSISTANT, content=step_log.plan, metadata={"status": "done"})
     yield gr.ChatMessage(
-        role="assistant", content=get_step_footnote_content(step_log, "Planning step"), metadata={"status": "done"}
+        role=MessageRole.ASSISTANT,
+        content=get_step_footnote_content(step_log, "Planning step"),
+        metadata={"status": "done"},
     )
-    yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
+    yield gr.ChatMessage(role=MessageRole.ASSISTANT, content="-----", metadata={"status": "done"})
 
 
 def _process_final_answer_step(step_log: FinalAnswerStep) -> Generator:
@@ -197,25 +201,25 @@ def _process_final_answer_step(step_log: FinalAnswerStep) -> Generator:
     final_answer = step_log.output
     if isinstance(final_answer, AgentText):
         yield gr.ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content=f"**Final answer:**\n{final_answer.to_string()}\n",
             metadata={"status": "done"},
         )
     elif isinstance(final_answer, AgentImage):
         yield gr.ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content={"path": final_answer.to_string(), "mime_type": "image/png"},
             metadata={"status": "done"},
         )
     elif isinstance(final_answer, AgentAudio):
         yield gr.ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content={"path": final_answer.to_string(), "mime_type": "audio/wav"},
             metadata={"status": "done"},
         )
     else:
         yield gr.ChatMessage(
-            role="assistant", content=f"**Final answer:** {str(final_answer)}", metadata={"status": "done"}
+            role=MessageRole.ASSISTANT, content=f"**Final answer:** {str(final_answer)}", metadata={"status": "done"}
         )
 
 
@@ -249,38 +253,68 @@ def stream_to_gradio(
     additional_args: dict | None = None,
 ) -> Generator:
     """Runs an agent with the given task and streams the messages from the agent as gradio ChatMessages."""
+
     if not _is_package_available("gradio"):
         raise ModuleNotFoundError(
             "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
         )
-    intermediate_text = ""
-
+    accumulated_events: list[ChatMessageStreamDelta] = []
     for event in agent.run(
         task, images=task_images, stream=True, reset=reset_agent_memory, additional_args=additional_args
     ):
         if isinstance(event, ActionStep | PlanningStep | FinalAnswerStep):
-            intermediate_text = ""
             for message in pull_messages_from_step(
                 event,
                 # If we're streaming model outputs, no need to display them twice
                 skip_model_outputs=getattr(agent, "stream_outputs", False),
             ):
                 yield message
+            accumulated_events = []
         elif isinstance(event, ChatMessageStreamDelta):
-            intermediate_text += event.content or ""
-            yield intermediate_text
+            accumulated_events.append(event)
+            text = agglomerate_stream_deltas(accumulated_events).render_as_markdown()
+            yield text
 
 
 class GradioUI:
-    """A one-line interface to launch your agent in Gradio"""
+    """
+    Gradio interface for interacting with a [`MultiStepAgent`].
 
-    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None):
+    This class provides a web interface to interact with the agent in real-time, allowing users to submit prompts, upload files, and receive responses in a chat-like format.
+    It  can reset the agent's memory at the start of each interaction if desired.
+    It supports file uploads, which are saved to a specified folder.
+    It uses the [`gradio.Chatbot`] component to display the conversation history.
+    This class requires the `gradio` extra to be installed: `smolagents[gradio]`.
+
+    Args:
+        agent ([`MultiStepAgent`]): The agent to interact with.
+        file_upload_folder (`str`, *optional*): The folder where uploaded files will be saved.
+            If not provided, file uploads are disabled.
+        reset_agent_memory (`bool`, *optional*, defaults to `False`): Whether to reset the agent's memory at the start of each interaction.
+            If `True`, the agent will not remember previous interactions.
+
+    Raises:
+        ModuleNotFoundError: If the `gradio` extra is not installed.
+
+    Example:
+        ```python
+        from smolagents import CodeAgent, GradioUI, InferenceClientModel
+
+        model = InferenceClientModel(model_id="meta-llama/Meta-Llama-3.1-8B-Instruct")
+        agent = CodeAgent(tools=[], model=model)
+        gradio_ui = GradioUI(agent, file_upload_folder="uploads", reset_agent_memory=True)
+        gradio_ui.launch()
+        ```
+    """
+
+    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None, reset_agent_memory: bool = False):
         if not _is_package_available("gradio"):
             raise ModuleNotFoundError(
                 "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
             )
         self.agent = agent
         self.file_upload_folder = Path(file_upload_folder) if file_upload_folder is not None else None
+        self.reset_agent_memory = reset_agent_memory
         self.name = getattr(agent, "name") or "Agent interface"
         self.description = getattr(agent, "description", None)
         if self.file_upload_folder is not None:
@@ -298,7 +332,9 @@ class GradioUI:
             messages.append(gr.ChatMessage(role="user", content=prompt, metadata={"status": "done"}))
             yield messages
 
-            for msg in stream_to_gradio(session_state["agent"], task=prompt, reset_agent_memory=False):
+            for msg in stream_to_gradio(
+                session_state["agent"], task=prompt, reset_agent_memory=self.reset_agent_memory
+            ):
                 if isinstance(msg, gr.ChatMessage):
                     messages[-1].metadata["status"] = "done"
                     messages.append(msg)
@@ -307,7 +343,9 @@ class GradioUI:
                     if messages[-1].metadata["status"] == "pending":
                         messages[-1].content = msg
                     else:
-                        messages.append(gr.ChatMessage(role="assistant", content=msg, metadata={"status": "pending"}))
+                        messages.append(
+                            gr.ChatMessage(role=MessageRole.ASSISTANT, content=msg, metadata={"status": "pending"})
+                        )
                 yield messages
 
             yield messages
@@ -317,7 +355,15 @@ class GradioUI:
 
     def upload_file(self, file, file_uploads_log, allowed_file_types=None):
         """
-        Handle file uploads, default allowed types are .pdf, .docx, and .txt
+        Upload a file and add it to the list of uploaded files in the session state.
+
+        The file is saved to the `self.file_upload_folder` folder.
+        If the file type is not allowed, it returns a message indicating the disallowed file type.
+
+        Args:
+            file (`gradio.File`): The uploaded file.
+            file_uploads_log (`list`): A list to log uploaded files.
+            allowed_file_types (`list`, *optional*): List of allowed file extensions. Defaults to [".pdf", ".docx", ".txt"].
         """
         import gradio as gr
 
@@ -358,6 +404,13 @@ class GradioUI:
         )
 
     def launch(self, share: bool = True, **kwargs):
+        """
+        Launch the Gradio app with the agent interface.
+
+        Args:
+            share (`bool`, defaults to `True`): Whether to share the app publicly.
+            **kwargs: Additional keyword arguments to pass to the Gradio launch method.
+        """
         self.create_app().launch(debug=True, share=share, **kwargs)
 
     def create_app(self):
