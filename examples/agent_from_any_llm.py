@@ -5,7 +5,7 @@ from smolagents import (
     OpenAIServerModel,
     ToolCallingAgent,
     TransformersModel,
-    tool,
+    tool
 )
 
 
