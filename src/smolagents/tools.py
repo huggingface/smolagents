@@ -230,14 +230,15 @@ class Tool:
         return outputs
 
     def setup(self):
-        """
-        Overwrite this method here for any operation that is expensive and needs to be executed before you start using
-        your tool. Such as loading a big model.
+        """Overwrite this method here for any operation that is expensive and needs to
+        be executed before you start using your tool.
+
+        Such as loading a big model.
         """
         self.is_initialized = True
 
     def to_dict(self) -> dict:
-        """Returns a dictionary representing the tool"""
+        """Returns a dictionary representing the tool."""
         class_name = self.__class__.__name__
         if type(self).__name__ == "SimpleTool":
             # Check that imports are self-contained
@@ -267,7 +268,8 @@ class Tool:
             import re
 
             def add_self_argument(source_code: str) -> str:
-                """Add 'self' as first argument to a function definition if not present."""
+                """Add 'self' as first argument to a function definition if not
+                present."""
                 pattern = r"def forward\(((?!self)[^)]*)\)"
 
                 def replacement(match):
@@ -303,8 +305,7 @@ class Tool:
 
     @classmethod
     def from_dict(cls, tool_dict: dict[str, Any], **kwargs) -> "Tool":
-        """
-        Create tool from a dictionary representation.
+        """Create tool from a dictionary representation.
 
         Args:
             tool_dict (`dict[str, Any]`): Dictionary representation of the tool.
@@ -318,9 +319,8 @@ class Tool:
         return cls.from_code(tool_dict["code"], **kwargs)
 
     def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True):
-        """
-        Saves the relevant code files for your tool so it can be pushed to the Hub. This will copy the code of your
-        tool in `output_dir` as well as autogenerate:
+        """Saves the relevant code files for your tool so it can be pushed to the Hub.
+        This will copy the code of your tool in `output_dir` as well as autogenerate:
 
         - a `{tool_file_name}.py` file containing the logic for your tool.
         If you pass `make_gradio_app=True`, this will also write:
@@ -356,8 +356,7 @@ class Tool:
         token: bool | str | None = None,
         create_pr: bool = False,
     ) -> str:
-        """
-        Upload the tool to the Hub.
+        """Upload the tool to the Hub.
 
         Parameters:
             repo_id (`str`):
@@ -451,8 +450,7 @@ class Tool:
         trust_remote_code: bool = False,
         **kwargs,
     ):
-        """
-        Loads a tool defined on the Hub.
+        """Loads a tool defined on the Hub.
 
         <Tip warning={true}>
 
@@ -530,8 +528,7 @@ class Tool:
         api_name: str | None = None,
         token: str | None = None,
     ):
-        """
-        Creates a [`Tool`] from a Space given its id on the Hub.
+        """Creates a [`Tool`] from a Space given its id on the Hub.
 
         Args:
             space_id (`str`):
@@ -657,9 +654,7 @@ class Tool:
 
     @staticmethod
     def from_gradio(gradio_tool):
-        """
-        Creates a [`Tool`] from a gradio tool.
-        """
+        """Creates a [`Tool`] from a gradio tool."""
         import inspect
 
         class GradioToolWrapper(Tool):
@@ -678,9 +673,7 @@ class Tool:
 
     @staticmethod
     def from_langchain(langchain_tool):
-        """
-        Creates a [`Tool`] from a langchain tool.
-        """
+        """Creates a [`Tool`] from a langchain tool."""
 
         class LangChainToolWrapper(Tool):
             skip_forward_signature_validation = True
@@ -709,9 +702,8 @@ class Tool:
 
 
 def launch_gradio_demo(tool: Tool):
-    """
-    Launches a gradio demo for a tool. The corresponding tool class needs to properly implement the class attributes
-    `inputs` and `output_type`.
+    """Launches a gradio demo for a tool. The corresponding tool class needs to properly
+    implement the class attributes `inputs` and `output_type`.
 
     Args:
         tool (`Tool`): The tool for which to launch the demo.
@@ -761,8 +753,7 @@ def load_tool(
     trust_remote_code: bool = False,
     **kwargs,
 ):
-    """
-    Main function to quickly load a tool from the Hub.
+    """Main function to quickly load a tool from the Hub.
 
     <Tip warning={true}>
 
@@ -797,9 +788,7 @@ def load_tool(
 
 
 def add_description(description):
-    """
-    A decorator that adds a description to a function.
-    """
+    """A decorator that adds a description to a function."""
 
     def inner(func):
         func.description = description
@@ -810,8 +799,7 @@ def add_description(description):
 
 
 class ToolCollection:
-    """
-    Tool collections enable loading a collection of tools in the agent's toolbox.
+    """Tool collections enable loading a collection of tools in the agent's toolbox.
 
     Collections can be loaded from a collection in the Hub or from an MCP server, see:
     - [`ToolCollection.from_hub`]
@@ -961,8 +949,7 @@ class ToolCollection:
 
 
 def tool(tool_function: Callable) -> Tool:
-    """
-    Convert a function into an instance of a dynamically created Tool subclass.
+    """Convert a function into an instance of a dynamically created Tool subclass.
 
     Args:
         tool_function (`Callable`): Function to convert into a Tool subclass.
@@ -1117,9 +1104,8 @@ class PipelineTool(Tool):
         super().__init__()
 
     def setup(self):
-        """
-        Instantiates the `pre_processor`, `model` and `post_processor` if necessary.
-        """
+        """Instantiates the `pre_processor`, `model` and `post_processor` if
+        necessary."""
         if isinstance(self.pre_processor, str):
             if self.pre_processor_class is None:
                 from transformers import AutoProcessor
@@ -1153,24 +1139,18 @@ class PipelineTool(Tool):
         super().setup()
 
     def encode(self, raw_inputs):
-        """
-        Uses the `pre_processor` to prepare the inputs for the `model`.
-        """
+        """Uses the `pre_processor` to prepare the inputs for the `model`."""
         return self.pre_processor(raw_inputs)
 
     def forward(self, inputs):
-        """
-        Sends the inputs through the `model`.
-        """
+        """Sends the inputs through the `model`."""
         import torch
 
         with torch.no_grad():
             return self.model(**inputs)
 
     def decode(self, outputs):
-        """
-        Uses the `post_processor` to decode the model output.
-        """
+        """Uses the `post_processor` to decode the model output."""
         return self.post_processor(outputs)
 
     def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
@@ -1230,7 +1210,11 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
 
             parsed_type = _get_json_schema_type(type(value))["type"]
 
-            if parsed_type != tool.inputs[key]["type"] and not tool.inputs[key]["type"] == "any":
+            tool_inputs_type = tool.inputs[key]["type"]
+            if type(tool_inputs_type) is not list:
+                tool_inputs_type = [tool_inputs_type]
+
+            if parsed_type not in tool_inputs_type and not tool.inputs[key]["type"] == "any":
                 return f"Argument {key} has type '{parsed_type}' but should be '{tool.inputs[key]['type']}'."
         for key in tool.inputs:
             if key not in arguments:
