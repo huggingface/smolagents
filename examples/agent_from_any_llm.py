@@ -12,7 +12,7 @@ from smolagents import (
 # Choose which inference type to use!
 
 available_inferences = ["inference_client", "transformers", "ollama", "litellm", "openai"]
-chosen_inference = "inference_client"
+chosen_inference = "litellm"
 
 print(f"Chose model: '{chosen_inference}'")
 
@@ -31,8 +31,8 @@ elif chosen_inference == "ollama":
     )
 
 elif chosen_inference == "litellm":
-    # For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-latest'
-    model = LiteLLMModel(model_id="gpt-4o")
+    # For LlamaAPI: change model_id below to 'meta_llama/Llama-3.3-70B-Instruct'
+    model = LiteLLMModel(model_id="meta_llama/Llama-3.3-70B-Instruct")
 
 elif chosen_inference == "openai":
     # For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-latest'
