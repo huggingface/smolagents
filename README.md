@@ -91,13 +91,15 @@ model = InferenceClientModel(
 <details>
 <summary> <b>LiteLLM to access 100+ LLMs</b></summary>
 
+[LlamaAPI](https://llama.developer.meta.com?utm_source=partner-smolagents&utm_medium=readme)
+
 ```py
 from smolagents import LiteLLMModel
 
 model = LiteLLMModel(
-    model_id="anthropic/claude-3-5-sonnet-latest",
+    model_id="meta_llama/Llama-3.3-70B-Instruct",
     temperature=0.2,
-    api_key=os.environ["ANTHROPIC_API_KEY"]
+    api_key=os.environ["LLAMA_API_KEY"]
 )
 ```
 </details>
