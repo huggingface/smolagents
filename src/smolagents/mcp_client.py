@@ -57,7 +57,6 @@ class MCPClient:
 
         adapter_kwargs (dict[str, Any], optional):
             Additional keyword arguments to be passed directly to `MCPAdapt`.
-            If not provided, defaults to an empty dictionary.
 
     Example:
         ```python
