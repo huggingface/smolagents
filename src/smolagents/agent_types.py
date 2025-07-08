@@ -114,7 +114,7 @@ class AgentImage(AgentType, PIL.Image.Image):
         memo[id(self)] = result
         for key, value in self.__dict__.items():
             if key == "_raw" and self._raw is not None:
-                setattr(result, '_raw', self._raw.copy())
+                setattr(result, "_raw", self._raw.copy())
             else:
                 setattr(result, key, copy.deepcopy(value, memo))
         return result
