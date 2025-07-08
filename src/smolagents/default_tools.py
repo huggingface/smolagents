@@ -469,7 +469,7 @@ class VisitWebpageTool(Tool):
 
 class WikipediaSearchTool(Tool):
     """
-    Search Wikipedia and return summary or full text of the requested article, along with the page URL.
+    Search Wikipedia and return the summary or full text of the requested article, along with the page URL.
 
     Attributes:
         user_agent (`str`): Custom user-agent string to identify the project. This is required as per Wikipedia API policies.
