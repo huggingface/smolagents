@@ -99,14 +99,33 @@ class UserInputTool(Tool):
 
 
 class DuckDuckGoSearchTool(Tool):
+    """Web search tool that performs searches using the DuckDuckGo search engine.
+
+    Args:
+        max_results (`int`, default `10`): Maximum number of search results to return.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
+        **kwargs: Additional keyword arguments for the `DDGS` client.
+
+    Examples:
+        ```python
+        >>> from smolagents import DuckDuckGoSearchTool
+        >>> web_search_tool = DuckDuckGoSearchTool(max_results=5, rate_limit=2.0)
+        >>> results = web_search_tool("Hugging Face")
+        >>> print(results)
+        ```
+    """
+
     name = "web_search"
     description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results."""
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results=10, **kwargs):
+    def __init__(self, max_results: int = 10, rate_limit: float | None = 1.0, **kwargs):
         super().__init__()
         self.max_results = max_results
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
         try:
             from duckduckgo_search import DDGS
         except ImportError as e:
@@ -116,11 +135,25 @@ class DuckDuckGoSearchTool(Tool):
         self.ddgs = DDGS(**kwargs)
 
     def forward(self, query: str) -> str:
+        self._enforce_rate_limit()
         results = self.ddgs.text(query, max_results=self.max_results)
         if len(results) == 0:
             raise Exception("No results found! Try a less restrictive/shorter query.")
         postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
         return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        # No rate limit enforced
+        if not self.rate_limit:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
 
 
 class GoogleSearchTool(Tool):
@@ -210,6 +243,211 @@ class GoogleSearchTool(Tool):
         return "## Search Results\n" + "\n\n".join(web_snippets)
 
 
+class ApiWebSearchTool(Tool):
+    """Web search tool that performs API-based searches.
+    By default, it uses the Brave Search API.
+
+    This tool implements a rate limiting mechanism to ensure compliance with API usage policies.
+    By default, it limits requests to 1 query per second.
+
+    Args:
+        endpoint (`str`): API endpoint URL. Defaults to Brave Search API.
+        api_key (`str`): API key for authentication.
+        api_key_name (`str`): Environment variable name containing the API key. Defaults to "BRAVE_API_KEY".
+        headers (`dict`, *optional*): Headers for API requests.
+        params (`dict`, *optional*): Parameters for API requests.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
+
+    Examples:
+        ```python
+        >>> from smolagents import ApiWebSearchTool
+        >>> web_search_tool = ApiWebSearchTool(rate_limit=50.0)
+        >>> results = web_search_tool("Hugging Face")
+        >>> print(results)
+        ```
+    """
+
+    name = "web_search"
+    description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, URLs, and descriptions."
+    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
+    output_type = "string"
+
+    def __init__(
+        self,
+        endpoint: str = "",
+        api_key: str = "",
+        api_key_name: str = "",
+        headers: dict = None,
+        params: dict = None,
+        rate_limit: float | None = 1.0,
+    ):
+        import os
+
+        super().__init__()
+        self.endpoint = endpoint or "https://api.search.brave.com/res/v1/web/search"
+        self.api_key_name = api_key_name or "BRAVE_API_KEY"
+        self.api_key = api_key or os.getenv(self.api_key_name)
+        self.headers = headers or {"X-Subscription-Token": self.api_key}
+        self.params = params or {"count": 10}
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        # No rate limit enforced
+        if not self.rate_limit:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
+
+    def forward(self, query: str) -> str:
+        import requests
+
+        self._enforce_rate_limit()
+        params = {**self.params, "q": query}
+        response = requests.get(self.endpoint, headers=self.headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+        results = self.extract_results(data)
+        return self.format_markdown(results)
+
+    def extract_results(self, data: dict) -> list:
+        results = []
+        for result in data.get("web", {}).get("results", []):
+            results.append(
+                {"title": result["title"], "url": result["url"], "description": result.get("description", "")}
+            )
+        return results
+
+    def format_markdown(self, results: list) -> str:
+        if not results:
+            return "No results found."
+        return "## Search Results\n\n" + "\n\n".join(
+            [
+                f"{idx}. [{result['title']}]({result['url']})\n{result['description']}"
+                for idx, result in enumerate(results, start=1)
+            ]
+        )
+
+
+class WebSearchTool(Tool):
+    name = "web_search"
+    description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, links, and descriptions."
+    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
+    output_type = "string"
+
+    def __init__(self, max_results: int = 10, engine: str = "duckduckgo"):
+        super().__init__()
+        self.max_results = max_results
+        self.engine = engine
+
+    def forward(self, query: str) -> str:
+        results = self.search(query)
+        if len(results) == 0:
+            raise Exception("No results found! Try a less restrictive/shorter query.")
+        return self.parse_results(results)
+
+    def search(self, query: str) -> list:
+        if self.engine == "duckduckgo":
+            return self.search_duckduckgo(query)
+        elif self.engine == "bing":
+            return self.search_bing(query)
+        else:
+            raise ValueError(f"Unsupported engine: {self.engine}")
+
+    def parse_results(self, results: list) -> str:
+        return "## Search Results\n\n" + "\n\n".join(
+            [f"[{result['title']}]({result['link']})\n{result['description']}" for result in results]
+        )
+
+    def search_duckduckgo(self, query: str) -> list:
+        import requests
+
+        response = requests.get(
+            "https://lite.duckduckgo.com/lite/",
+            params={"q": query},
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        response.raise_for_status()
+        parser = self._create_duckduckgo_parser()
+        parser.feed(response.text)
+        return parser.results
+
+    def _create_duckduckgo_parser(self):
+        from html.parser import HTMLParser
+
+        class SimpleResultParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.results = []
+                self.current = {}
+                self.capture_title = False
+                self.capture_description = False
+                self.capture_link = False
+
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == "a" and attrs.get("class") == "result-link":
+                    self.capture_title = True
+                elif tag == "td" and attrs.get("class") == "result-snippet":
+                    self.capture_description = True
+                elif tag == "span" and attrs.get("class") == "link-text":
+                    self.capture_link = True
+
+            def handle_endtag(self, tag):
+                if tag == "a" and self.capture_title:
+                    self.capture_title = False
+                elif tag == "td" and self.capture_description:
+                    self.capture_description = False
+                elif tag == "span" and self.capture_link:
+                    self.capture_link = False
+                elif tag == "tr":
+                    # Store current result if all parts are present
+                    if {"title", "description", "link"} <= self.current.keys():
+                        self.current["description"] = " ".join(self.current["description"])
+                        self.results.append(self.current)
+                        self.current = {}
+
+            def handle_data(self, data):
+                if self.capture_title:
+                    self.current["title"] = data.strip()
+                elif self.capture_description:
+                    self.current.setdefault("description", [])
+                    self.current["description"].append(data.strip())
+                elif self.capture_link:
+                    self.current["link"] = "https://" + data.strip()
+
+        return SimpleResultParser()
+
+    def search_bing(self, query: str) -> list:
+        import xml.etree.ElementTree as ET
+
+        import requests
+
+        response = requests.get(
+            "https://www.bing.com/search",
+            params={"q": query, "format": "rss"},
+        )
+        response.raise_for_status()
+        root = ET.fromstring(response.text)
+        items = root.findall(".//item")
+        results = [
+            {
+                "title": item.findtext("title"),
+                "link": item.findtext("link"),
+                "description": item.findtext("description"),
+            }
+            for item in items[: self.max_results]
+        ]
+        return results
+
+
 class VisitWebpageTool(Tool):
     name = "visit_webpage"
     description = (
@@ -227,6 +465,15 @@ class VisitWebpageTool(Tool):
         super().__init__()
         self.max_output_length = max_output_length
 
+    def _truncate_content(self, content: str, max_length: int) -> str:
+        if len(content) <= max_length:
+            return content
+        return (
+            content[: max_length // 2]
+            + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
+            + content[-max_length // 2 :]
+        )
+
     def forward(self, url: str) -> str:
         try:
             import re
@@ -234,8 +481,6 @@ class VisitWebpageTool(Tool):
             import requests
             from markdownify import markdownify
             from requests.exceptions import RequestException
-
-            from smolagents.utils import truncate_content
         except ImportError as e:
             raise ImportError(
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
@@ -251,7 +496,7 @@ class VisitWebpageTool(Tool):
             # Remove multiple line breaks
             markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
 
-            return truncate_content(markdown_content, self.max_output_length)
+            return self._truncate_content(markdown_content, self.max_output_length)
 
         except requests.exceptions.Timeout:
             return "The request timed out. Please try again later or check the URL."
@@ -263,16 +508,18 @@ class VisitWebpageTool(Tool):
 
 class WikipediaSearchTool(Tool):
     """
-    WikipediaSearchTool searches Wikipedia and returns a summary or full text of the given topic, along with the page URL.
+    Search Wikipedia and return the summary or full text of the requested article, along with the page URL.
 
     Attributes:
-        user_agent (str): A custom user-agent string to identify the project. This is required as per Wikipedia API policies, read more here: http://github.com/martin-majlis/Wikipedia-API/blob/master/README.rst
-        language (str): The language in which to retrieve Wikipedia articles.
-                http://meta.wikimedia.org/wiki/List_of_Wikipedias
-        content_type (str): Defines the content to fetch. Can be "summary" for a short summary or "text" for the full article.
-        extract_format (str): Defines the output format. Can be `"WIKI"` or `"HTML"`.
+        user_agent (`str`): Custom user-agent string to identify the project. This is required as per Wikipedia API policies.
+            See: https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
+        language (`str`, default `"en"`): Language in which to retrieve Wikipedia article.
+            See: http://meta.wikimedia.org/wiki/List_of_Wikipedias
+        content_type (`Literal["summary", "text"]`, default `"text"`): Type of content to fetch. Can be "summary" for a short summary or "text" for the full article.
+        extract_format (`Literal["HTML", "WIKI"]`, default `"WIKI"`): Extraction format of the output. Can be `"WIKI"` or `"HTML"`.
 
     Example:
+        ```python
         >>> from smolagents import CodeAgent, InferenceClientModel, WikipediaSearchTool
         >>> agent = CodeAgent(
         >>>     tools=[
@@ -286,6 +533,7 @@ class WikipediaSearchTool(Tool):
         >>>     model=InferenceClientModel(),
         >>> )
         >>> agent.run("Python_(programming_language)")
+        ```
     """
 
     name = "wikipedia_search"
@@ -370,14 +618,11 @@ class SpeechToTextTool(PipelineTool):
     output_type = "string"
 
     def __new__(cls, *args, **kwargs):
-        from transformers.models.whisper import (
-            WhisperForConditionalGeneration,
-            WhisperProcessor,
-        )
+        from transformers.models.whisper import WhisperForConditionalGeneration, WhisperProcessor
 
         cls.pre_processor_class = WhisperProcessor
         cls.model_class = WhisperForConditionalGeneration
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls)
 
     def encode(self, audio):
         from .agent_types import AgentAudio
@@ -402,9 +647,11 @@ TOOL_MAPPING = {
 }
 
 __all__ = [
+    "ApiWebSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
+    "WebSearchTool",
     "DuckDuckGoSearchTool",
     "GoogleSearchTool",
     "VisitWebpageTool",

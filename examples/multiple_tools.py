@@ -243,11 +243,12 @@ agent = CodeAgent(
         search_wikipedia,
     ],
     model=model,
+    stream_outputs=True,
 )
 
 # Uncomment the line below to run the agent with a specific query
 
-agent.run("5000 dollars to Euros")
+agent.run("Convert 5000 dollars to Euros")
 # agent.run("What is the weather in New York?")
 # agent.run("Give me the top news headlines")
 # agent.run("Tell me a joke")

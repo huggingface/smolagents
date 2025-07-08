@@ -1,19 +1,23 @@
-from smolagents import InferenceClientModel, LiteLLMModel, OpenAIServerModel, TransformersModel, tool
-from smolagents.agents import CodeAgent, ToolCallingAgent
+from smolagents import (
+    CodeAgent,
+    InferenceClientModel,
+    LiteLLMModel,
+    OpenAIServerModel,
+    ToolCallingAgent,
+    TransformersModel,
+    tool,
+)
 
 
 # Choose which inference type to use!
 
-available_inferences = ["hf_api", "hf_api_provider", "transformers", "ollama", "litellm", "openai"]
-chosen_inference = "hf_api_provider"
+available_inferences = ["inference_client", "transformers", "ollama", "litellm", "openai"]
+chosen_inference = "inference_client"
 
 print(f"Chose model: '{chosen_inference}'")
 
-if chosen_inference == "hf_api":
-    model = InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
-
-elif chosen_inference == "hf_api_provider":
-    model = InferenceClientModel(provider="together")
+if chosen_inference == "inference_client":
+    model = InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct", provider="nebius")
 
 elif chosen_inference == "transformers":
     model = TransformersModel(model_id="HuggingFaceTB/SmolLM2-1.7B-Instruct", device_map="auto", max_new_tokens=1000)
@@ -52,6 +56,6 @@ agent = ToolCallingAgent(tools=[get_weather], model=model, verbosity_level=2)
 
 print("ToolCallingAgent:", agent.run("What's the weather like in Paris?"))
 
-agent = CodeAgent(tools=[get_weather], model=model, verbosity_level=2)
+agent = CodeAgent(tools=[get_weather], model=model, verbosity_level=2, stream_outputs=True)
 
 print("CodeAgent:", agent.run("What's the weather like in Paris?"))

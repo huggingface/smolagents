@@ -23,6 +23,7 @@ import json
 import keyword
 import os
 import re
+import time
 import types
 from functools import lru_cache
 from io import BytesIO
@@ -154,8 +155,8 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
     try:
         first_accolade_index = json_blob.find("{")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_data = json_blob[first_accolade_index : last_accolade_index + 1]
-        json_data = json.loads(json_data, strict=False)
+        json_str = json_blob[first_accolade_index : last_accolade_index + 1]
+        json_data = json.loads(json_str, strict=False)
         return json_data, json_blob[:first_accolade_index]
     except IndexError:
         raise ValueError("The model output does not contain any JSON blob.")
@@ -172,7 +173,16 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
         )
 
 
-def parse_code_blobs(text: str) -> str:
+def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
+    """Extract code from the LLM's output."""
+    pattern = rf"{code_block_tags[0]}(.*?){code_block_tags[1]}"
+    matches = re.findall(pattern, text, re.DOTALL)
+    if matches:
+        return "\n\n".join(match.strip() for match in matches)
+    return None
+
+
+def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     """Extract code blocs from the LLM's output.
 
     If a valid code block is passed, it returns it directly.
@@ -186,10 +196,11 @@ def parse_code_blobs(text: str) -> str:
     Raises:
         ValueError: If no valid code block is found in the text.
     """
-    pattern = r"```(?:py|python)?\s*\n(.*?)\n```"
-    matches = re.findall(pattern, text, re.DOTALL)
+    matches = extract_code_from_text(text, code_block_tags)
+    if not matches:  # Fallback to markdown pattern
+        matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
     if matches:
-        return "\n\n".join(match.strip() for match in matches)
+        return matches
     # Maybe the LLM outputted a code blob directly
     try:
         ast.parse(text)
@@ -201,29 +212,27 @@ def parse_code_blobs(text: str) -> str:
         raise ValueError(
             dedent(
                 f"""
-                Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
+                Your code snippet is invalid, because the regex pattern {code_block_tags[0]}(.*?){code_block_tags[1]} was not found in it.
                 Here is your code snippet:
                 {text}
                 It seems like you're trying to return the final answer, you can do it as follows:
-                Code:
-                ```py
+                {code_block_tags[0]}
                 final_answer("YOUR FINAL ANSWER HERE")
-                ```<end_code>
+                {code_block_tags[1]}
                 """
             ).strip()
         )
     raise ValueError(
         dedent(
             f"""
-            Your code snippet is invalid, because the regex pattern {pattern} was not found in it.
+            Your code snippet is invalid, because the regex pattern {code_block_tags[0]}(.*?){code_block_tags[1]} was not found in it.
             Here is your code snippet:
             {text}
             Make sure to include code with the correct pattern, for instance:
             Thoughts: Your thoughts
-            Code:
-            ```py
+            {code_block_tags[0]}
             # Your python code here
-            ```<end_code>
+            {code_block_tags[1]}
             """
         ).strip()
     )
@@ -331,15 +340,14 @@ def instance_to_source(instance, base_cls=None):
 
     # Add methods
     methods = {
-        name: func
+        name: func.__wrapped__ if hasattr(func, "__wrapped__") else func
         for name, func in cls.__dict__.items()
         if callable(func)
         and (
             not base_cls
             or not hasattr(base_cls, name)
             or (
-                isinstance(func, staticmethod)
-                or isinstance(func, classmethod)
+                isinstance(func, (staticmethod, classmethod))
                 or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code)
             )
         )
@@ -454,3 +462,73 @@ def make_init_file(folder: str | Path):
 
 def is_valid_name(name: str) -> bool:
     return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False
+
+
+AGENT_GRADIO_APP_TEMPLATE = """import yaml
+import os
+from smolagents import GradioUI, {{ class_name }}, {{ agent_dict['model']['class'] }}
+
+# Get current directory path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+{% for tool in tools.values() -%}
+from {{managed_agent_relative_path}}tools.{{ tool.name }} import {{ tool.__class__.__name__ }} as {{ tool.name | camelcase }}
+{% endfor %}
+{% for managed_agent in managed_agents.values() -%}
+from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app import agent_{{ managed_agent.name }}
+{% endfor %}
+
+model = {{ agent_dict['model']['class'] }}(
+{% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
+    {{ key }}={{ agent_dict['model']['data'][key]|repr }},
+{% endfor %})
+
+{% for tool in tools.values() -%}
+{{ tool.name }} = {{ tool.name | camelcase }}()
+{% endfor %}
+
+with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
+    prompt_templates = yaml.safe_load(stream)
+
+{{ agent_name }} = {{ class_name }}(
+    model=model,
+    tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
+    {{ attribute_name }}={{ value|repr }},
+    {% endfor %}prompt_templates=prompt_templates
+)
+if __name__ == "__main__":
+    GradioUI({{ agent_name }}).launch()
+""".strip()
+
+
+class RateLimiter:
+    """Simple rate limiter that enforces a minimum delay between consecutive requests.
+
+    This class is useful for limiting the rate of operations such as API requests,
+    by ensuring that calls to `throttle()` are spaced out by at least a given interval
+    based on the desired requests per minute.
+
+    If no rate is specified (i.e., `requests_per_minute` is None), rate limiting
+    is disabled and `throttle()` becomes a no-op.
+
+    Args:
+        requests_per_minute (`float | None`): Maximum number of allowed requests per minute.
+            Use `None` to disable rate limiting.
+    """
+
+    def __init__(self, requests_per_minute: float | None = None):
+        self._enabled = requests_per_minute is not None
+        self._interval = 60.0 / requests_per_minute if self._enabled else 0.0
+        self._last_call = 0.0
+
+    def throttle(self):
+        """Pause execution to respect the rate limit, if enabled."""
+        if not self._enabled:
+            return
+        now = time.time()
+        elapsed = now - self._last_call
+        if elapsed < self._interval:
+            time.sleep(self._interval - elapsed)
+        self._last_call = time.time()

@@ -9,7 +9,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
-from smolagents import CodeAgent, DuckDuckGoSearchTool, tool
+from smolagents import CodeAgent, WebSearchTool, tool
 from smolagents.agents import ActionStep
 from smolagents.cli import load_model
 
@@ -48,8 +48,17 @@ def parse_arguments():
     parser.add_argument(
         "--provider",
         type=str,
-        default=None,
         help="The inference provider to use for the model",
+    )
+    parser.add_argument(
+        "--api-base",
+        type=str,
+        help="The API base to use for the model",
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        help="The API key to use for the model",
     )
     return parser.parse_args()
 
@@ -120,7 +129,7 @@ def initialize_driver():
 def initialize_agent(model):
     """Initialize the CodeAgent with the specified model."""
     return CodeAgent(
-        tools=[DuckDuckGoSearchTool(), go_back, close_popups, search_item_ctrl_f],
+        tools=[WebSearchTool(), go_back, close_popups, search_item_ctrl_f],
         model=model,
         additional_authorized_imports=["helium"],
         step_callbacks=[save_screenshot],
@@ -135,53 +144,46 @@ Then you can use helium to access websites. Don't use helium for Google search, 
 Don't bother about the helium driver, it's already managed.
 We've already ran "from helium import *"
 Then you can go to pages!
-Code:
-```py
+<code>
 go_to('github.com/trending')
-```<end_code>
+</code>
 
 You can directly click clickable elements by inputting the text that appears on them.
-Code:
-```py
+<code>
 click("Top products")
-```<end_code>
+</code>
 
 If it's a link:
-Code:
-```py
+<code>
 click(Link("Top products"))
-```<end_code>
+</code>
 
 If you try to interact with an element and it's not found, you'll get a LookupError.
 In general stop your action after each button click to see what happens on your screenshot.
 Never try to login in a page.
 
 To scroll up or down, use scroll_down or scroll_up with as an argument the number of pixels to scroll from.
-Code:
-```py
+<code>
 scroll_down(num_pixels=1200) # This will scroll one viewport down
-```<end_code>
+</code>
 
 When you have pop-ups with a cross icon to close, don't try to click the close icon by finding its element or targeting an 'X' element (this most often fails).
 Just use your built-in tool `close_popups` to close them:
-Code:
-```py
+<code>
 close_popups()
-```<end_code>
+</code>
 
 You can use .exists() to check for the existence of an element. For example:
-Code:
-```py
+<code>
 if Text('Accept cookies?').exists():
     click('I accept')
-```<end_code>
+</code>
 
 Proceed in several steps rather than trying to solve the task in one shot.
 And at the end, only when you have your answer, return your final answer.
-Code:
-```py
+<code>
 final_answer("YOUR_ANSWER_HERE")
-```<end_code>
+</code>
 
 If pages seem stuck on loading, you might have to wait, for instance `import time` and run `time.sleep(5.0)`. But don't overuse this!
 To list elements on page, DO NOT try code-based element searches like 'contributors = find_all(S("ol > li"))': just look at the latest screenshot you have and read it visually, or use your tool search_item_ctrl_f.
@@ -193,12 +195,19 @@ When you have modals or cookie banners on screen, you should get rid of them bef
 """
 
 
-def run_webagent(prompt: str, model_type: str, model_id: str, provider: str) -> None:
+def run_webagent(
+    prompt: str,
+    model_type: str,
+    model_id: str,
+    provider: str | None = None,
+    api_base: str | None = None,
+    api_key: str | None = None,
+) -> None:
     # Load environment variables
     load_dotenv()
 
     # Initialize the model based on the provided arguments
-    model = load_model(model_type, model_id, provider=provider, api_base=None, api_key=None)
+    model = load_model(model_type, model_id, provider=provider, api_base=api_base, api_key=api_key)
 
     global driver
     driver = initialize_driver()
@@ -212,7 +221,7 @@ def run_webagent(prompt: str, model_type: str, model_id: str, provider: str) -> 
 def main() -> None:
     # Parse command line arguments
     args = parse_arguments()
-    run_webagent(args.prompt, args.model_type, args.model_id, args.provider)
+    run_webagent(args.prompt, args.model_type, args.model_id, args.provider, args.api_base, args.api_key)
 
 
 if __name__ == "__main__":

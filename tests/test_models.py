@@ -21,12 +21,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from huggingface_hub import ChatCompletionOutputMessage
 
+from smolagents.default_tools import FinalAnswerTool
 from smolagents.models import (
     AmazonBedrockServerModel,
     AzureOpenAIServerModel,
     ChatMessage,
     ChatMessageToolCall,
-    HfApiModel,
     InferenceClientModel,
     LiteLLMModel,
     LiteLLMRouterModel,
@@ -47,6 +47,67 @@ from .utils.markers import require_run_all
 
 
 class TestModel:
+    def test_agglomerate_stream_deltas(self):
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            TokenUsage,
+            agglomerate_stream_deltas,
+        )
+
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                content="Hi",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        type="function",
+                        function=ChatMessageToolCallFunction(arguments="", name="web_search", description=None),
+                    )
+                ],
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content=" everyone",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        type="function",
+                        function=ChatMessageToolCallFunction(arguments=' {"', name="web_search", description=None),
+                    )
+                ],
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content=", it's",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='query": "current pope name and date of birth"}',
+                            name="web_search",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=None,
+                token_usage=TokenUsage(input_tokens=1348, output_tokens=24),
+            ),
+        ]
+        agglomerated_stream_delta = agglomerate_stream_deltas(stream_deltas)
+        assert agglomerated_stream_delta.content == "Hi everyone, it's"
+        assert (
+            agglomerated_stream_delta.tool_calls[0].function.arguments
+            == ' {"query": "current pope name and date of birth"}'
+        )
+        assert agglomerated_stream_delta.token_usage.total_tokens == 1372
+
     @pytest.mark.parametrize(
         "model_id, stop_sequences, should_contain_stop",
         [
@@ -64,7 +125,10 @@ class TestModel:
         model = Model()
         model.model_id = model_id
         completion_kwargs = model._prepare_completion_kwargs(
-            messages=[{"role": "user", "content": [{"type": "text", "text": "Hello"}]}], stop_sequences=stop_sequences
+            messages=[
+                ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}]),
+            ],
+            stop_sequences=stop_sequences,
         )
         # Verify that the stop parameter is only included when appropriate
         if should_contain_stop:
@@ -72,6 +136,46 @@ class TestModel:
             assert completion_kwargs["stop"] == stop_sequences
         else:
             assert "stop" not in completion_kwargs
+
+    @pytest.mark.parametrize(
+        "with_tools, tool_choice, expected_result",
+        [
+            # Default behavior: With tools but no explicit tool_choice, should default to "required"
+            (True, ..., {"has_tool_choice": True, "value": "required"}),
+            # Custom value: With tools and explicit tool_choice="auto"
+            (True, "auto", {"has_tool_choice": True, "value": "auto"}),
+            # Tool name as string
+            (True, "valid_tool_function", {"has_tool_choice": True, "value": "valid_tool_function"}),
+            # Tool choice as dictionary
+            (
+                True,
+                {"type": "function", "function": {"name": "valid_tool_function"}},
+                {"has_tool_choice": True, "value": {"type": "function", "function": {"name": "valid_tool_function"}}},
+            ),
+            # With tools but explicit None tool_choice: should exclude tool_choice
+            (True, None, {"has_tool_choice": False, "value": None}),
+            # Without tools: tool_choice should never be included
+            (False, "required", {"has_tool_choice": False, "value": None}),
+            (False, "auto", {"has_tool_choice": False, "value": None}),
+            (False, None, {"has_tool_choice": False, "value": None}),
+            (False, ..., {"has_tool_choice": False, "value": None}),
+        ],
+    )
+    def test_prepare_completion_kwargs_tool_choice(self, with_tools, tool_choice, expected_result, example_tool):
+        model = Model()
+        kwargs = {"messages": [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]}
+        if with_tools:
+            kwargs["tools_to_call_from"] = [example_tool]
+        if tool_choice is not ...:
+            kwargs["tool_choice"] = tool_choice
+
+        completion_kwargs = model._prepare_completion_kwargs(**kwargs)
+
+        if expected_result["has_tool_choice"]:
+            assert "tool_choice" in completion_kwargs
+            assert completion_kwargs["tool_choice"] == expected_result["value"]
+        else:
+            assert "tool_choice" not in completion_kwargs
 
     def test_get_json_schema_has_nullable_args(self):
         @tool
@@ -96,7 +200,7 @@ class TestModel:
     @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         output = model(messages, stop_sequences=["great"]).content
         assert output.startswith("Hello")
 
@@ -106,7 +210,9 @@ class TestModel:
         # which is required to test capturing stop_sequences that have extra chars at the end.
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=100)
         stop_sequence = " print '>"
-        messages = [{"role": "user", "content": [{"type": "text", "text": f"Please{stop_sequence}'"}]}]
+        messages = [
+            ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": f"Please{stop_sequence}'"}]),
+        ]
         # check our assumption that that ">" is followed by "'"
         assert model.tokenizer.vocab[">'"]
         assert model(messages, stop_sequences=[]).content == f"I'm ready to help you{stop_sequence}'"
@@ -121,15 +227,15 @@ class TestModel:
             device_map="cpu",
             do_sample=False,
         )
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
-        output = model.generate(messages, stop_sequences=["great"]).content
-        assert output == "assistant\nHello"
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
+        output = model.generate(messages).content
+        assert output == "Hello! I'm here"
 
         output = model.generate_stream(messages, stop_sequences=["great"])
         output_str = ""
         for el in output:
             output_str += el.content
-        assert output_str == "assistant\nHello"
+        assert output_str == "Hello! I'm here"
 
     def test_transformers_message_vl_no_tool(self, shared_datadir, monkeypatch):
         monkeypatch.setattr("huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT", 30)  # instead of 10
@@ -142,15 +248,20 @@ class TestModel:
             device_map="cpu",
             do_sample=False,
         )
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}, {"type": "image", "image": img}]}]
-        output = model.generate(messages, stop_sequences=["great"]).content
-        assert output == "I am"
+        messages = [
+            ChatMessage(
+                role=MessageRole.USER,
+                content=[{"type": "text", "text": "What is this?"}, {"type": "image", "image": img}],
+            )
+        ]
+        output = model.generate(messages).content
+        assert output == "This is a very"
 
         output = model.generate_stream(messages, stop_sequences=["great"])
         output_str = ""
         for el in output:
             output_str += el.content
-        assert output_str == "I am"
+        assert output_str == "This is a very"
 
     def test_parse_json_if_needed(self):
         args = "abc"
@@ -176,8 +287,8 @@ class TestInferenceClientModel:
         model = InferenceClientModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
         model.client = MagicMock()
         mock_response = model.client.chat_completion.return_value
-        mock_response.choices[0].message = ChatCompletionOutputMessage(role="assistant")
-        messages = [{"role": "user", "content": "Test message"}]
+        mock_response.choices[0].message = ChatCompletionOutputMessage(role=MessageRole.ASSISTANT)
+        messages = [ChatMessage(role=MessageRole.USER, content="Test message")]
         _ = model(messages)
         # Verify that the role conversion was applied
         assert model.client.chat_completion.call_args.kwargs["messages"][0]["role"] == "system", (
@@ -194,79 +305,80 @@ class TestInferenceClientModel:
         with pytest.raises(ValueError, match="Received both `token` and `api_key` arguments."):
             InferenceClientModel(model_id="test-model", token="abc", api_key="def")
 
+    def test_structured_outputs_with_unsupported_provider(self):
+        with pytest.raises(
+            ValueError, match="InferenceClientModel only supports structured outputs with these providers:"
+        ):
+            model = InferenceClientModel(model_id="test-model", token="abc", provider="some_provider")
+            model.generate(
+                messages=[ChatMessage(role=MessageRole.USER, content="Hello!")],
+                response_format={"type": "json_object"},
+            )
+
     @require_run_all
     def test_get_hfapi_message_no_tool(self):
         model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         model(messages, stop_sequences=["great"])
 
     @require_run_all
     def test_get_hfapi_message_no_tool_external_provider(self):
         model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         model(messages, stop_sequences=["great"])
-
-
-class TestHfApiModel:
-    def test_init_model_with_tokens(self):
-        model = HfApiModel(model_id="test-model", token="abc")
-        assert model.client.token == "abc"
-
-        model = HfApiModel(model_id="test-model", api_key="abc")
-        assert model.client.token == "abc"
-
-        with pytest.raises(ValueError) as e:
-            _ = HfApiModel(model_id="test-model", token="abc", api_key="def")
-        assert "Received both `token` and `api_key` arguments." in str(e)
-
-    @require_run_all
-    def test_get_hfapi_message_no_tool(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
-        model.generate(messages, stop_sequences=["great"])
-
-    @require_run_all
-    def test_get_hfapi_message_no_tool_external_provider(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
-        model.generate(messages, stop_sequences=["great"])
 
     @require_run_all
     def test_get_hfapi_message_stream_no_tool(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         for el in model.generate_stream(messages, stop_sequences=["great"]):
             assert el.content is not None
 
     @require_run_all
     def test_get_hfapi_message_stream_no_tool_external_provider(self):
-        model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}]
+        model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         for el in model.generate_stream(messages, stop_sequences=["great"]):
             assert el.content is not None
 
 
 class TestLiteLLMModel:
     @pytest.mark.parametrize(
-        "model_id, error_flag",
+        "model_id",
         [
-            ("groq/llama-3.3-70b", "Invalid API Key"),
-            ("cerebras/llama-3.3-70b", "The api_key client option must be set"),
-            ("mistral/mistral-tiny", "The api_key client option must be set"),
+            "groq/llama-3.3-70b",
+            "cerebras/llama-3.3-70b",
+            "mistral/mistral-tiny",
         ],
     )
-    def test_call_different_providers_without_key(self, model_id, error_flag):
+    def test_call_different_providers_without_key(self, model_id):
+        # Different litellm versions produce different error messages for missing API keys
+        # This test checks for the presence of any common authentication-related error phrases
+        possible_error_messages = [
+            "Missing API Key",
+            "Wrong API Key",
+            "Invalid API Key",
+            "The api_key client option must be set",
+            "AuthenticationError",
+            "Unauthorized",
+        ]
         model = LiteLLMModel(model_id=model_id)
-        messages = [{"role": "user", "content": [{"type": "text", "text": "Test message"}]}]
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
+        # Test generate method
         with pytest.raises(Exception) as e:
-            # This should raise 401 error because of missing API key, not fail for any "bad format" reason
             model.generate(messages)
-        assert error_flag in str(e)
+        error_message = str(e)
+        assert any(possible_error_message in error_message for possible_error_message in possible_error_messages), (
+            f"Error message '{error_message}' does not contain any expected phrases"
+        )
+        # Test generate_stream method
         with pytest.raises(Exception) as e:
-            # This should raise 401 error because of missing API key, not fail for any "bad format" reason
             for el in model.generate_stream(messages):
                 assert el.content is not None
-        assert error_flag in str(e)
+        error_message = str(e)
+        assert any(possible_error_message in error_message for possible_error_message in possible_error_messages), (
+            f"Error message '{error_message}' does not contain any expected phrases"
+        )
 
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
@@ -299,7 +411,7 @@ class TestLiteLLMRouterModel:
             {"model_name": "llama-3.3-70b", "litellm_params": {"model": "groq/llama-3.3-70b"}},
             {"model_name": "llama-3.3-70b", "litellm_params": {"model": "cerebras/llama-3.3-70b"}},
         ]
-        with patch("litellm.Router") as mock_router:
+        with patch("litellm.router.Router") as mock_router:
             router_model = LiteLLMRouterModel(
                 model_id="model-group-1", model_list=model_list, client_kwargs={"routing_strategy": "simple-shuffle"}
             )
@@ -333,6 +445,30 @@ class TestOpenAIServerModel:
             base_url=api_base, api_key=api_key, organization=organization, project=project, max_retries=5
         )
         assert model.client == MockOpenAI.return_value
+
+    @require_run_all
+    def test_streaming_tool_calls(self):
+        model = OpenAIServerModel(model_id="gpt-4o-mini")
+        messages = [
+            ChatMessage(
+                role=MessageRole.USER,
+                content=[
+                    {
+                        "type": "text",
+                        "text": "Hello! Please return the final answer 'blob' and the final answer 'blob2' in two parallel tool calls",
+                    }
+                ],
+            ),
+        ]
+        for el in model.generate_stream(messages, tools_to_call_from=[FinalAnswerTool()]):
+            if el.tool_calls:
+                assert el.tool_calls[0].function.name == "final_answer"
+                args = el.tool_calls[0].function.arguments
+                if len(el.tool_calls) > 1:
+                    assert el.tool_calls[1].function.name == "final_answer"
+                    args2 = el.tool_calls[1].function.arguments
+        assert args == '{"answer": "blob"}'
+        assert args2 == '{"answer": "blob2"}'
 
 
 class TestAmazonBedrockServerModel:
@@ -429,8 +565,8 @@ class TestTransformersModel:
 
 def test_get_clean_message_list_basic():
     messages = [
-        {"role": "user", "content": [{"type": "text", "text": "Hello!"}]},
-        {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]},
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}]),
+        ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": "Hi there!"}]),
     ]
     result = get_clean_message_list(messages)
     assert len(result) == 2
@@ -442,8 +578,8 @@ def test_get_clean_message_list_basic():
 
 def test_get_clean_message_list_role_conversions():
     messages = [
-        {"role": "tool-call", "content": [{"type": "text", "text": "Calling tool..."}]},
-        {"role": "tool-response", "content": [{"type": "text", "text": "Tool response"}]},
+        ChatMessage(role=MessageRole.TOOL_CALL, content=[{"type": "text", "text": "Calling tool..."}]),
+        ChatMessage(role=MessageRole.TOOL_RESPONSE, content=[{"type": "text", "text": "Tool response"}]),
     ]
     result = get_clean_message_list(messages, role_conversions={"tool-call": "assistant", "tool-response": "user"})
     assert len(result) == 2
@@ -458,36 +594,34 @@ def test_get_clean_message_list_role_conversions():
     [
         (
             False,
-            {
-                "role": "user",
-                "content": [
+            dict(
+                role=MessageRole.USER,
+                content=[
                     {"type": "image", "image": "encoded_image"},
                     {"type": "image", "image": "second_encoded_image"},
                 ],
-            },
+            ),
         ),
         (
             True,
-            {
-                "role": "user",
-                "content": [
+            dict(
+                role=MessageRole.USER,
+                content=[
                     {"type": "image_url", "image_url": {"url": "data:image/png;base64,encoded_image"}},
                     {"type": "image_url", "image_url": {"url": "data:image/png;base64,second_encoded_image"}},
                 ],
-            },
+            ),
         ),
     ],
 )
 def test_get_clean_message_list_image_encoding(convert_images_to_image_urls, expected_clean_message):
-    messages = [
-        {
-            "role": "user",
-            "content": [{"type": "image", "image": b"image_data"}, {"type": "image", "image": b"second_image_data"}],
-        }
-    ]
+    message = ChatMessage(
+        role=MessageRole.USER,
+        content=[{"type": "image", "image": b"image_data"}, {"type": "image", "image": b"second_image_data"}],
+    )
     with patch("smolagents.models.encode_image_base64") as mock_encode:
         mock_encode.side_effect = ["encoded_image", "second_encoded_image"]
-        result = get_clean_message_list(messages, convert_images_to_image_urls=convert_images_to_image_urls)
+        result = get_clean_message_list([message], convert_images_to_image_urls=convert_images_to_image_urls)
         mock_encode.assert_any_call(b"image_data")
         mock_encode.assert_any_call(b"second_image_data")
         assert len(result) == 1
@@ -496,8 +630,8 @@ def test_get_clean_message_list_image_encoding(convert_images_to_image_urls, exp
 
 def test_get_clean_message_list_flatten_messages_as_text():
     messages = [
-        {"role": "user", "content": [{"type": "text", "text": "Hello!"}]},
-        {"role": "user", "content": [{"type": "text", "text": "How are you?"}]},
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}]),
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "How are you?"}]),
     ]
     result = get_clean_message_list(messages, flatten_messages_as_text=True)
     assert len(result) == 1

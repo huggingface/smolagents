@@ -82,8 +82,7 @@ class SimpleTool(Tool):
     def __init__(self):
         self.is_initialized = True
 
-    @tool
-    def valid_tool_function(input: str) -> str:
+    def forward(self, input: str) -> str:
         """A valid tool function.
 
         Args:
@@ -96,30 +95,44 @@ class SimpleTool(Tool):
 class AgentTextTests(unittest.TestCase):
     def test_parse_code_blobs(self):
         with pytest.raises(ValueError):
-            parse_code_blobs("Wrong blob!")
+            parse_code_blobs("Wrong blob!", ("<code>", "</code>"))
 
         # Parsing mardkwon with code blobs should work
-        output = parse_code_blobs("""
+        output = parse_code_blobs(
+            """
 Here is how to solve the problem:
-Code:
-```py
+<code>
 import numpy as np
-```<end_code>
-""")
+</code>
+""",
+            ("<code>", "</code>"),
+        )
         assert output == "import numpy as np"
 
-        # Parsing code blobs should work
+        # Parsing pure python code blobs should work
         code_blob = "import numpy as np"
-        output = parse_code_blobs(code_blob)
+        output = parse_code_blobs(code_blob, ("```python", "```"))
         assert output == code_blob
 
         # Allow whitespaces after header
-        output = parse_code_blobs("```py    \ncode_a\n````")
+        output = parse_code_blobs("<code>    \ncode_a\n</code>", ("<code>", "</code>"))
         assert output == "code_a"
 
+        # Parsing markdown with code blobs should work
+        output = parse_code_blobs(
+            """
+Here is how to solve the problem:
+```python
+import numpy as np
+```
+""",
+            ("<code>", "</code>"),
+        )
+        assert output == "import numpy as np"
+
     def test_multiple_code_blobs(self):
-        test_input = "```\nFoo\n```\n\n```py\ncode_a\n````\n\n```python\ncode_b\n```"
-        result = parse_code_blobs(test_input)
+        test_input = "<code>\nFoo\n</code>\n\n<code>\ncode_a\n</code>\n\n<code>\ncode_b\n</code>"
+        result = parse_code_blobs(test_input, ("<code>", "</code>"))
         assert result == "Foo\n\ncode_a\n\ncode_b"
 
 

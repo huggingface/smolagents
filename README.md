@@ -34,7 +34,7 @@ limitations under the License.
 
 ✨ **Simplicity**: the logic for agents fits in ~1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)). We kept abstractions to their minimal shape above raw code!
 
-🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/) or via Docker.
+🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/), Docker, or Pyodide+Deno WebAssembly sandbox.
 
 🤗 **Hub integrations**: you can [share/pull tools or agents to/from the Hub](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_hub) for instant sharing of the most efficient agents!
 
@@ -42,7 +42,7 @@ limitations under the License.
 
 👁️ **Modality-agnostic**: Agents support text, vision, video, even audio inputs! Cf [this tutorial](https://huggingface.co/docs/smolagents/examples/web_browser) for vision.
 
-🛠️ **Tool-agnostic**: you can use tools from [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), [MCP](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), you can even use a [Hub Space](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space) as a tool.
+🛠️ **Tool-agnostic**: you can use tools from any [MCP server](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), from [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), you can even use a [Hub Space](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space) as a tool.
 
 Full documentation can be found [here](https://huggingface.co/docs/smolagents/index).
 
@@ -51,21 +51,21 @@ Full documentation can be found [here](https://huggingface.co/docs/smolagents/in
 
 ## Quick demo
 
-First install the package.
+First install the package with a default set of tools:
 ```bash
-pip install smolagents
+pip install smolagents[toolkit]
 ```
 Then define your agent, give it the tools it needs and run it!
 ```py
-from smolagents import CodeAgent, DuckDuckGoSearchTool, InferenceClientModel
+from smolagents import CodeAgent, WebSearchTool, InferenceClientModel
 
 model = InferenceClientModel()
-agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
+agent = CodeAgent(tools=[WebSearchTool()], model=model, stream_outputs=True)
 
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
 ```
 
-https://github.com/user-attachments/assets/cd0226e2-7479-4102-aea0-57c22ca47884
+https://github.com/user-attachments/assets/84b149b4-246c-40c9-a48d-ba013b08e600
 
 You can even share your agent to the Hub, as a Space repository:
 ```py
@@ -102,7 +102,7 @@ model = LiteLLMModel(
 ```
 </details>
 <details>
-<summary> <b>OpenAI-compatible servers</b></summary>
+<summary> <b>OpenAI-compatible servers: Together AI</b></summary>
 
 ```py
 import os
@@ -114,6 +114,21 @@ model = OpenAIServerModel(
     api_key=os.environ["TOGETHER_API_KEY"], # Switch to the API key for the server you're targeting.
 )
 ```
+</details>
+<details>
+<summary> <b>OpenAI-compatible servers: OpenRouter</b></summary>
+
+```py
+import os
+from smolagents import OpenAIServerModel
+
+model = OpenAIServerModel(
+    model_id="openai/gpt-4o",
+    api_base="https://openrouter.ai/api/v1", # Leave this blank to query OpenAI servers.
+    api_key=os.environ["OPENROUTER_API_KEY"], # Switch to the API key for the server you're targeting.
+)
+```
+
 </details>
 <details>
 <summary> <b>Local `transformers` model</b></summary>
@@ -215,7 +230,7 @@ Especially, since code execution can be a security concern (arbitrary code execu
   - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
   - a sandboxed environment using [E2B](https://e2b.dev/) or Docker (removes the risk to your own system).
 
-On top of this [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) class, we still support the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) that writes actions as JSON/text blobs. But we recommend always using `CodeAgent`.
+Alongside [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent), we also provide the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) which writes actions as JSON/text blobs. You can pick whichever style best suits your use case.
 
 ## How smol is this library?
 
@@ -239,7 +254,7 @@ This comparison shows that open-source models can now take on the best closed mo
 ## Security
 
 Security is a critical consideration when working with code-executing agents. Our library provides:
-- Sandboxed execution options using [E2B](https://e2b.dev/) or Docker
+- Sandboxed execution options using [E2B](https://e2b.dev/), Docker, or Pyodide+Deno WebAssembly sandbox
 - Best practices for running agent code securely
 
 For security policies, vulnerability reporting, and more information on secure agent execution, please see our [Security Policy](SECURITY.md).

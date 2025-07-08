@@ -24,7 +24,7 @@ import PIL.Image
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool
+from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
 
 from .utils.markers import require_run_all
 
@@ -82,6 +82,46 @@ class ToolTesterMixin:
 
 
 class TestTool:
+    @pytest.mark.parametrize(
+        "type_value, should_raise_error, error_contains",
+        [
+            # Valid cases
+            ("string", False, None),
+            (["string", "number"], False, None),
+            # Invalid cases
+            ("invalid_type", ValueError, "must be one of"),
+            (["string", "invalid_type"], ValueError, "must be one of"),
+            ([123, "string"], TypeError, "when type is a list, all elements must be strings"),
+            (123, TypeError, "must be a string or list of strings"),
+        ],
+    )
+    def test_tool_input_type_validation(self, type_value, should_raise_error, error_contains):
+        """Test the validation of the type property in tool inputs."""
+
+        # Define a tool class with the test type value
+        def create_tool():
+            class TestTool(Tool):
+                name = "test_tool"
+                description = "A tool for testing type validation"
+                inputs = {"text": {"type": type_value, "description": "Some input"}}
+                output_type = "string"
+
+                def forward(self, text) -> str:
+                    return text
+
+            return TestTool()
+
+        # Check if we expect this to raise an exception
+        if should_raise_error:
+            with pytest.raises(should_raise_error) as exc_info:
+                create_tool()
+            # Verify the error message contains expected text
+            assert error_contains in str(exc_info.value)
+        else:
+            # Should not raise an exception
+            tool = create_tool()
+            assert isinstance(tool, Tool)
+
     def test_tool_init_with_decorator(self):
         @tool
         def coolfunc(a: str, b: int) -> float:
@@ -551,6 +591,20 @@ class TestTool:
         # Original function should not have 'self' parameter
         assert "self" not in original_signature.parameters
 
+    def test_tool_with_union_type_return(self):
+        @tool
+        def union_type_return_tool_function(param: int) -> str | bool:
+            """
+            Tool with output union type.
+
+            Args:
+                param: Input parameter.
+            """
+            return str(param) if param > 0 else False
+
+        assert isinstance(union_type_return_tool_function, Tool)
+        assert union_type_return_tool_function.output_type == "any"
+
 
 @pytest.fixture
 def mock_server_parameters():
@@ -604,6 +658,43 @@ class TestToolCollection:
             assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
             assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
 
+    def test_integration_from_mcp_with_streamable_http(self):
+        import subprocess
+        import time
+
+        # define the most simple mcp server with one tool that echoes the input text
+        mcp_server_script = dedent("""\
+            from mcp.server.fastmcp import FastMCP
+
+            mcp = FastMCP("Echo Server", host="127.0.0.1", port=8000)
+
+            @mcp.tool()
+            def echo_tool(text: str) -> str:
+                return text
+
+            mcp.run(transport="streamable-http")
+        """).strip()
+
+        # start the SSE mcp server in a subprocess
+        server_process = subprocess.Popen(
+            ["python", "-c", mcp_server_script],
+        )
+
+        # wait for the server to start
+        time.sleep(1)
+
+        try:
+            with ToolCollection.from_mcp(
+                {"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True
+            ) as tool_collection:
+                assert len(tool_collection.tools) == 1, "Expected 1 tool"
+                assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
+                assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
+        finally:
+            # clean up the process when test is done
+            server_process.kill()
+            server_process.wait()
+
     def test_integration_from_mcp_with_sse(self):
         import subprocess
         import time
@@ -631,7 +722,7 @@ class TestToolCollection:
 
         try:
             with ToolCollection.from_mcp(
-                {"url": "http://127.0.0.1:8000/sse"}, trust_remote_code=True
+                {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}, trust_remote_code=True
             ) as tool_collection:
                 assert len(tool_collection.tools) == 1, "Expected 1 tool"
                 assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
@@ -648,3 +739,33 @@ def test_launch_gradio_demo_does_not_raise(tool_fixture_name, request):
     with patch("gradio.Interface.launch") as mock_launch:
         launch_gradio_demo(tool)
     assert mock_launch.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "tool_input_type, expected_input, expects_error",
+    [
+        (bool, True, False),
+        (str, "b", False),
+        (int, 1, False),
+        (list, ["a", "b"], False),
+        (list[str], ["a", "b"], False),
+        (dict[str, str], {"a": "b"}, False),
+        (dict[str, str], "b", True),
+        (bool, "b", True),
+    ],
+)
+def test_validate_tool_arguments(tool_input_type, expected_input, expects_error):
+    @tool
+    def test_tool(argument_a: tool_input_type) -> str:
+        """Fake tool
+
+        Args:
+            argument_a: The input
+        """
+        return argument_a
+
+    error = validate_tool_arguments(test_tool, {"argument_a": expected_input})
+    if expects_error:
+        assert error is not None
+    else:
+        assert error is None

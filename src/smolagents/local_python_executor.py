@@ -22,6 +22,7 @@ import logging
 import math
 import re
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
 from types import BuiltinFunctionType, FunctionType, ModuleType
@@ -146,6 +147,90 @@ DANGEROUS_FUNCTIONS = [
 ]
 
 
+def check_safer_result(result: Any, static_tools: dict[str, Callable] = None, authorized_imports: list[str] = None):
+    """
+    Checks if a result is safer according to authorized imports and static tools.
+
+    Args:
+        result (Any): The result to check.
+        static_tools (dict[str, Callable]): Dictionary of static tools.
+        authorized_imports (list[str]): List of authorized imports.
+
+    Raises:
+        InterpreterError: If the result is not safe
+    """
+    if isinstance(result, ModuleType):
+        if not check_import_authorized(result.__name__, authorized_imports):
+            raise InterpreterError(f"Forbidden access to module: {result.__name__}")
+    elif isinstance(result, dict) and result.get("__spec__"):
+        if not check_import_authorized(result["__name__"], authorized_imports):
+            raise InterpreterError(f"Forbidden access to module: {result['__name__']}")
+    elif isinstance(result, (FunctionType, BuiltinFunctionType)):
+        for qualified_function_name in DANGEROUS_FUNCTIONS:
+            module_name, function_name = qualified_function_name.rsplit(".", 1)
+            if (
+                (static_tools is None or function_name not in static_tools)
+                and result.__name__ == function_name
+                and result.__module__ == module_name
+            ):
+                raise InterpreterError(f"Forbidden access to function: {function_name}")
+
+
+def safer_eval(func: Callable):
+    """
+    Decorator to enhance the security of an evaluation function by checking its return value.
+
+    Args:
+        func (Callable): Evaluation function to be made safer.
+
+    Returns:
+        Callable: Safer evaluation function with return value check.
+    """
+
+    @wraps(func)
+    def _check_return(
+        expression,
+        state,
+        static_tools,
+        custom_tools,
+        authorized_imports=BASE_BUILTIN_MODULES,
+    ):
+        result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
+        check_safer_result(result, static_tools, authorized_imports)
+        return result
+
+    return _check_return
+
+
+def safer_func(
+    func: Callable,
+    static_tools: dict[str, Callable] = BASE_PYTHON_TOOLS,
+    authorized_imports: list[str] = BASE_BUILTIN_MODULES,
+):
+    """
+    Decorator to enhance the security of a function call by checking its return value.
+
+    Args:
+        func (Callable): Function to be made safer.
+        static_tools (dict[str, Callable]): Dictionary of static tools.
+        authorized_imports (list[str]): List of authorized imports.
+
+    Returns:
+        Callable: Safer function with return value check.
+    """
+    # If the function is a type, return it directly without wrapping
+    if isinstance(func, type):
+        return func
+
+    @wraps(func)
+    def _check_return(*args, **kwargs):
+        result = func(*args, **kwargs)
+        check_safer_result(result, static_tools, authorized_imports)
+        return result
+
+    return _check_return
+
+
 class PrintContainer:
     def __init__(self):
         self.value = ""
@@ -243,46 +328,6 @@ def check_import_authorized(import_to_check: str, authorized_imports: list[str])
             return False
         current_node = current_node[part]
     return True
-
-
-def safer_eval(func: Callable):
-    """
-    Decorator to make the evaluation of a function safer by checking its return value.
-
-    Args:
-        func: Function to make safer.
-
-    Returns:
-        Callable: Safer function with return value check.
-    """
-
-    @wraps(func)
-    def _check_return(
-        expression,
-        state,
-        static_tools,
-        custom_tools,
-        authorized_imports=BASE_BUILTIN_MODULES,
-    ):
-        result = func(expression, state, static_tools, custom_tools, authorized_imports=authorized_imports)
-        if isinstance(result, ModuleType):
-            if not check_import_authorized(result.__name__, authorized_imports):
-                raise InterpreterError(f"Forbidden access to module: {result.__name__}")
-        elif isinstance(result, dict) and result.get("__spec__"):
-            if not check_import_authorized(result["__name__"], authorized_imports):
-                raise InterpreterError(f"Forbidden access to module: {result['__name__']}")
-        elif isinstance(result, (FunctionType, BuiltinFunctionType)):
-            for qualified_function_name in DANGEROUS_FUNCTIONS:
-                module_name, function_name = qualified_function_name.rsplit(".", 1)
-                if (
-                    function_name not in static_tools
-                    and result.__name__ == function_name
-                    and result.__module__ == module_name
-                ):
-                    raise InterpreterError(f"Forbidden access to function: {function_name}")
-        return result
-
-    return _check_return
 
 
 def evaluate_attribute(
@@ -456,24 +501,43 @@ def evaluate_class_def(
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
             class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+        elif isinstance(stmt, ast.AnnAssign):
+            if stmt.value:
+                value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
+            target = stmt.target
+            # Handle target types for annotation
+            if isinstance(target, ast.Name):
+                # Simple variable annotation like "x: int"
+                annotation = evaluate_ast(stmt.annotation, state, static_tools, custom_tools, authorized_imports)
+                class_dict.setdefault("__annotations__", {})[target.id] = annotation
+                # Assign value if provided
+                if stmt.value:
+                    class_dict[target.id] = value
+            elif isinstance(target, ast.Attribute):
+                # Attribute annotation like "obj.attr: int"
+                obj = evaluate_ast(target.value, class_dict, static_tools, custom_tools, authorized_imports)
+                # If there's a value assignment, set the attribute
+                if stmt.value:
+                    setattr(obj, target.attr, value)
+            elif isinstance(target, ast.Subscript):
+                # Subscript annotation like "dict[key]: int"
+                container = evaluate_ast(target.value, class_dict, static_tools, custom_tools, authorized_imports)
+                index = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
+                # If there's a value assignment, set the item
+                if stmt.value:
+                    container[index] = value
+            else:
+                raise InterpreterError(f"Unsupported AnnAssign target in class body: {type(target).__name__}")
         elif isinstance(stmt, ast.Assign):
+            value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
             for target in stmt.targets:
                 if isinstance(target, ast.Name):
-                    class_dict[target.id] = evaluate_ast(
-                        stmt.value,
-                        state,
-                        static_tools,
-                        custom_tools,
-                        authorized_imports,
-                    )
+                    class_dict[target.id] = value
                 elif isinstance(target, ast.Attribute):
-                    class_dict[target.attr] = evaluate_ast(
-                        stmt.value,
-                        state,
-                        static_tools,
-                        custom_tools,
-                        authorized_imports,
-                    )
+                    obj = evaluate_ast(target.value, class_dict, static_tools, custom_tools, authorized_imports)
+                    setattr(obj, target.attr, value)
+        elif isinstance(stmt, ast.Pass):
+            pass
         elif (
             isinstance(stmt, ast.Expr)
             and stmt == class_def.body[0]
@@ -805,7 +869,7 @@ def evaluate_name(
     if name.id in state:
         return state[name.id]
     elif name.id in static_tools:
-        return static_tools[name.id]
+        return safer_func(static_tools[name.id], static_tools=static_tools, authorized_imports=authorized_imports)
     elif name.id in custom_tools:
         return custom_tools[name.id]
     elif name.id in ERRORS:
@@ -1458,8 +1522,8 @@ def evaluate_python_code(
     if "final_answer" in static_tools:
         previous_final_answer = static_tools["final_answer"]
 
-        def final_answer(answer):  # Using 'answer' as the argument like in the original function
-            raise FinalAnswerException(previous_final_answer(answer))
+        def final_answer(*args, **kwargs):  # Allow arbitrary arguments to be passed
+            raise FinalAnswerException(previous_final_answer(*args, **kwargs))
 
         static_tools["final_answer"] = final_answer
 
@@ -1486,15 +1550,40 @@ def evaluate_python_code(
         )
 
 
+@dataclass
+class CodeOutput:
+    output: Any
+    logs: str
+    is_final_answer: bool
+
+
 class PythonExecutor:
     pass
 
 
 class LocalPythonExecutor(PythonExecutor):
+    """
+    Executor of Python code in a local environment.
+
+    This executor evaluates Python code with restricted access to imports and built-in functions,
+    making it suitable for running untrusted code. It maintains state between executions,
+    allows for custom tools and functions to be made available to the code, and captures
+    print outputs separately from return values.
+
+    Args:
+        additional_authorized_imports (`list[str]`):
+            Additional authorized imports for the executor.
+        max_print_outputs_length (`int`, defaults to `DEFAULT_MAX_LEN_OUTPUT=50_000`):
+            Maximum length of the print outputs.
+        additional_functions (`dict[str, Callable]`, *optional*):
+            Additional Python functions to be added to the executor.
+    """
+
     def __init__(
         self,
         additional_authorized_imports: list[str],
         max_print_outputs_length: int | None = None,
+        additional_functions: dict[str, Callable] | None = None,
     ):
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}
@@ -1505,8 +1594,9 @@ class LocalPythonExecutor(PythonExecutor):
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         # TODO: assert self.authorized imports are all installed locally
         self.static_tools = None
+        self.additional_functions = additional_functions or {}
 
-    def __call__(self, code_action: str) -> tuple[Any, str, bool]:
+    def __call__(self, code_action: str) -> CodeOutput:
         output, is_final_answer = evaluate_python_code(
             code_action,
             static_tools=self.static_tools,
@@ -1516,13 +1606,14 @@ class LocalPythonExecutor(PythonExecutor):
             max_print_outputs_length=self.max_print_outputs_length,
         )
         logs = str(self.state["_print_outputs"])
-        return output, logs, is_final_answer
+        return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
 
     def send_variables(self, variables: dict):
         self.state.update(variables)
 
     def send_tools(self, tools: dict[str, Tool]):
-        self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy()}
+        # Combine agent tools, base Python tools, and additional Python functions
+        self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy(), **self.additional_functions}
 
 
 __all__ = ["evaluate_python_code", "LocalPythonExecutor"]

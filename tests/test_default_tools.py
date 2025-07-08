@@ -26,6 +26,7 @@ from smolagents.default_tools import (
 )
 
 from .test_tools import ToolTesterMixin
+from .utils.markers import require_run_all
 
 
 class DefaultToolTests(unittest.TestCase):
@@ -35,6 +36,7 @@ class DefaultToolTests(unittest.TestCase):
         assert isinstance(result, str)
         assert "* [About Wikipedia](/wiki/Wikipedia:About)" in result  # Proper wikipedia pages have an About
 
+    @require_run_all
     def test_ddgs_with_kwargs(self):
         result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
         assert isinstance(result, str)
@@ -90,6 +92,14 @@ class TestSpeechToTextTool:
         from transformers.models.whisper import WhisperForConditionalGeneration, WhisperProcessor
 
         tool = SpeechToTextTool()
+        assert tool is not None
+        assert tool.pre_processor_class == WhisperProcessor
+        assert tool.model_class == WhisperForConditionalGeneration
+
+    def test_initialization(self):
+        from transformers.models.whisper import WhisperForConditionalGeneration, WhisperProcessor
+
+        tool = SpeechToTextTool(model="dummy_model_id")
         assert tool is not None
         assert tool.pre_processor_class == WhisperProcessor
         assert tool.model_class == WhisperForConditionalGeneration
