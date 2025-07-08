@@ -1858,7 +1858,7 @@ class TestCodeAgent:
         class FakeCodeModel(Model):
             def generate(self, messages, stop_sequences=None):
                 return ChatMessage(
-                    role=MessageRole.ASSISTANT, content="Thought: no\n\nCode:\n```py\nfake_image_tool()\n```"
+                    role=MessageRole.ASSISTANT, content="Thought: no\n\n<code>\nfake_image_tool()\n</code>"
                 )
 
         agent = CodeAgent(
