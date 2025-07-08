@@ -231,6 +231,31 @@ final_answer(7.2904)
             )
 
 
+class FakeCodeModelImageGeneration(Model):
+    def generate(self, messages, stop_sequences=None):
+        prompt = str(messages)
+        if "special_marker" not in prompt:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="""
+Thought: I should generate an image. special_marker
+<code>
+image = image_generation_tool()
+</code>
+""",
+            )
+        else:  # We're at step 2
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="""
+Thought: I can now answer the initial question
+<code>
+final_answer(image)
+</code>
+""",
+            )
+
+
 class FakeCodeModelPlanning(Model):
     def generate(self, messages, stop_sequences=None):
         prompt = str(messages)
@@ -1786,7 +1811,9 @@ class TestCodeAgent:
         assert agent.provide_run_summary is provide_run_summary
         agent.name = "test_agent"
         agent.run = MagicMock(return_value="Test output")
-        agent.write_memory_to_messages = MagicMock(return_value=[{"content": "Test summary"}])
+        agent.write_memory_to_messages = MagicMock(
+            return_value=[ChatMessage(role=MessageRole.ASSISTANT, content="Test summary")]
+        )
 
         result = agent("Test request")
         expected_summary = "Here is the final answer from your managed agent 'test_agent':\nTest output"
@@ -1796,6 +1823,20 @@ class TestCodeAgent:
                 "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
             )
         assert result == expected_summary
+
+    def test_code_agent_image_output(self):
+        from PIL import Image
+
+        from smolagents import tool
+
+        @tool
+        def image_generation_tool():
+            """Generate an image"""
+            return Image.new("RGB", (100, 100), color="red")
+
+        agent = CodeAgent(tools=[image_generation_tool], model=FakeCodeModelImageGeneration(), verbosity_level=1)
+        output = agent.run("Make me an image from the latest trend on google trends.")
+        assert isinstance(output, Image.Image)
 
     def test_errors_logging(self):
         class FakeCodeModel(Model):

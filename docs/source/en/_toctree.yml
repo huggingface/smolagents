@@ -46,5 +46,9 @@
     title: Agent-related objects
   - local: reference/models
     title: Model-related objects
-  - local: reference/tools
-    title: Tool-related objects
+  - title: Tools
+    sections:
+    - title: Tool-related objects
+      local: reference/tools
+    - title: Built-in Tools
+      local: reference/default_tools
