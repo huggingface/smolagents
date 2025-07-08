@@ -1786,7 +1786,9 @@ class TestCodeAgent:
         assert agent.provide_run_summary is provide_run_summary
         agent.name = "test_agent"
         agent.run = MagicMock(return_value="Test output")
-        agent.write_memory_to_messages = MagicMock(return_value=[{"content": "Test summary"}])
+        agent.write_memory_to_messages = MagicMock(
+            return_value=[ChatMessage(role=MessageRole.ASSISTANT, content="Test summary")]
+        )
 
         result = agent("Test request")
         expected_summary = "Here is the final answer from your managed agent 'test_agent':\nTest output"
