@@ -1223,7 +1223,6 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
                 return f"Argument {key} is not in the tool's input schema."
 
             parsed_type = _get_json_schema_type(type(value))["type"]
-
             tool_inputs_type = tool.inputs[key]["type"]
             if isinstance(tool_inputs_type, str):
                 tool_inputs_type = [tool_inputs_type]
