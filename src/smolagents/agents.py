@@ -255,7 +255,7 @@ class MultiStepAgent(ABC):
             Each function should:
             - Take the final answer and the agent's memory as arguments.
             - Return a boolean indicating whether the final answer is valid.
-        max_images (`int`, *optional*): Maximum number of images to retain in the agent's memory. If `-1`, there is no limit.
+        max_images (`int`, *optional*): Maximum number of images to retain in the agent's memory. If None, there is no limit.
     """
 
     def __init__(
@@ -277,7 +277,7 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
-        max_images: int = -1,
+        max_images: int | None = None,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -310,12 +310,13 @@ class MultiStepAgent(ABC):
         self.final_answer_checks = final_answer_checks if final_answer_checks is not None else []
         self.return_full_result = return_full_result
         self.instructions = instructions
+        self.max_images = max_images
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
         self.task: str | None = None
-        self.memory = AgentMemory(self.system_prompt, max_images=max_images)
+        self.memory = AgentMemory(self.system_prompt)
 
         if logger is None:
             self.logger = AgentLogger(level=verbosity_level)
@@ -737,10 +738,50 @@ You have been provided with these additional arguments, that you can access usin
         Reads past llm_outputs, actions, and observations or errors from the memory into a series of messages
         that can be used as input to the LLM. Adds a number of keywords (such as PLAN, error, etc) to help
         the LLM.
+        If max_images is set, it will limit the number of images in the messages keeping the latest images in
+        the message chain.
         """
         messages = self.memory.system_prompt.to_messages(summary_mode=summary_mode)
         for memory_step in self.memory.steps:
             messages.extend(memory_step.to_messages(summary_mode=summary_mode))
+
+        # If max_images is set, limit the number of images in the messages
+        if self.max_images is not None:
+            # Collect all image-containing message indices and their image fields
+            image_message_indices = []
+            total_images = 0
+
+            # Find all messages with images and count total images
+            for idx, msg in enumerate(messages):
+                # Check for possible image fields
+                if "images" in msg and isinstance(msg["images"], list):
+                    num_imgs = len(msg["images"])
+                    if num_imgs > 0:
+                        image_message_indices.append((idx, "images", num_imgs))
+                        total_images += num_imgs
+                # For compatibility, also check for 'task_images' and 'observations_images'
+                if "task_images" in msg and isinstance(msg["task_images"], list):
+                    num_imgs = len(msg["task_images"])
+                    if num_imgs > 0:
+                        image_message_indices.append((idx, "task_images", num_imgs))
+                        total_images += num_imgs
+                if "observations_images" in msg and isinstance(msg["observations_images"], list):
+                    num_imgs = len(msg["observations_images"])
+                    if num_imgs > 0:
+                        image_message_indices.append((idx, "observations_images", num_imgs))
+                        total_images += num_imgs
+
+            # If over the limit, trim images from the earliest messages first
+            if total_images > self.max_images:
+                images_to_remove = total_images - self.max_images
+                for idx, field, num_imgs in image_message_indices:
+                    if images_to_remove <= 0:
+                        break
+                    imgs = messages[idx][field]
+                    remove_count = min(images_to_remove, len(imgs))
+                    messages[idx][field] = imgs[remove_count:]
+                    images_to_remove -= remove_count
+
         return messages
 
     def _step_stream(
@@ -1182,7 +1223,7 @@ class ToolCallingAgent(MultiStepAgent):
         max_tool_threads (`int`, *optional*): Maximum number of threads for parallel tool calls.
             Higher values increase concurrency but resource usage as well.
             Defaults to `ThreadPoolExecutor`'s default.
-        max_images (`int`, *optional*): Maximum number of images to retain in the agent's memory. If `-1`, there is no limit.
+        max_images (`int`, *optional*): Maximum number of images to retain in the agent's memory. If None, there is no limit.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1194,7 +1235,7 @@ class ToolCallingAgent(MultiStepAgent):
         planning_interval: int | None = None,
         stream_outputs: bool = False,
         max_tool_threads: int | None = None,
-        max_images: int = -1,
+        max_images: int | None = None,
         **kwargs,
     ):
         prompt_templates = prompt_templates or yaml.safe_load(
@@ -1482,7 +1523,7 @@ class CodeAgent(MultiStepAgent):
             <Deprecated version="1.17.0">
             Parameter `grammar` is deprecated and will be removed in version 1.20.
             </Deprecated>
-        max_images (`int`, *optional*): Maximum number of images to retain in the agent's memory. If `-1`, there is no limit.
+        max_images (`int`, *optional*): Maximum number of images to retain in the agent's memory. If None, there is no limit.
         code_block_tags (`tuple[str, str]` | `Literal["markdown"]`, *optional*): Opening and closing tags for code blocks (regex strings). Pass a custom tuple, or pass 'markdown' to use ("```(?:python|py)", "\\n```"), leave empty to use ("<code>", "</code>").
         **kwargs: Additional keyword arguments.
     """
@@ -1500,7 +1541,7 @@ class CodeAgent(MultiStepAgent):
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
         grammar: dict[str, str] | None = None,
-        max_images: int = -1,
+        max_images: int | None = None,
         code_block_tags: str | tuple[str, str] | None = None,
         **kwargs,
     ):

@@ -200,54 +200,18 @@ class AgentMemory:
 
     Args:
         system_prompt (`str`): System prompt for the agent, which sets the context and instructions for the agent's behavior.
-        max_images (`int`): The maximum number of images to be retained in memory. The `max_images` number of latest images are retained. If -1 all images are retained.
 
     **Attributes**:
         - **system_prompt** (`SystemPromptStep`) -- System prompt step for the agent.
-        - **max_images** (`int`) -- The maximum number of images to be retained in memory. The `max_images` number of latest images are retained. If -1 all images are retained.
         - **steps** (`list[TaskStep | ActionStep | PlanningStep]`) -- List of steps taken by the agent, which can include tasks, actions, and planning steps.
     """
-    def __init__(self, system_prompt: str, max_images: int = -1):
+    def __init__(self, system_prompt: str):
         self.system_prompt: SystemPromptStep = SystemPromptStep(system_prompt=system_prompt)
         self.steps: list[TaskStep | ActionStep | PlanningStep] = []
-        self.max_images: int = max_images
 
     def reset(self):
         """Reset the agent's memory, clearing all steps and keeping the system prompt."""
         self.steps = []
-    
-    def append(self, step: TaskStep | ActionStep | PlanningStep):
-        """Add the provided `step` to the `steps` attribute, performing `max_images` check in the process."""
-        self.steps.append(step)
-        
-        if self.max_images != -1:
-            # Walk backwards through the steps and count the number of images in either the
-            # observations_images or task_images attribute. Once the count is greater than
-            # or equal to max_images, remove the last max_images images from the step.
-            image_count = 0
-            for step in reversed(self.steps):
-                image_array = None
-                has_observation_images = False
-                has_task_images = False
-                if hasattr(step, "observations_images"):
-                    image_array = step.observations_images
-                    has_observation_images = True
-                elif hasattr(step, "task_images"):
-                    image_array = step.task_images
-                    has_task_images = True
-                if image_array is not None:
-                    image_count += len(image_array)
-                    
-                    if image_count > self.max_images:
-                        # Remove image_count - self.max_images images from the
-                        # beginning of the step's image array
-                        image_array = image_array[image_count - self.max_images:]
-                        image_count = self.max_images
-                        
-                        if has_observation_images:
-                            step.observations_images = image_array
-                        if has_task_images:
-                            step.task_images = image_array
 
     def get_succinct_steps(self) -> list[dict]:
         """Return a succinct representation of the agent's steps, excluding model input messages."""
