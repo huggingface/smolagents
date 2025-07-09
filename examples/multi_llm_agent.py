@@ -39,7 +39,7 @@ model = LiteLLMRouterModel(
     model_list=llm_loadbalancer_model_list,
     client_kwargs={"routing_strategy": "simple-shuffle"},
 )
-agent = CodeAgent(tools=[WebSearchTool()], model=model, stream_outputs=True, return_full_results=True)
+agent = CodeAgent(tools=[WebSearchTool()], model=model, stream_outputs=True, return_full_result=True)
 
 full_result = agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
 

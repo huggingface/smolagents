@@ -10,7 +10,7 @@ agent = CodeAgent(
     description="This is an example agent.",
     step_callbacks=[],
     stream_outputs=True,
-    use_structured_outputs_internally=True,
+    # use_structured_outputs_internally=True,
 )
 
 GradioUI(agent, file_upload_folder="./data").launch()

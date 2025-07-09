@@ -535,14 +535,11 @@ class SpeechToTextTool(PipelineTool):
     output_type = "string"
 
     def __new__(cls, *args, **kwargs):
-        from transformers.models.whisper import (
-            WhisperForConditionalGeneration,
-            WhisperProcessor,
-        )
+        from transformers.models.whisper import WhisperForConditionalGeneration, WhisperProcessor
 
         cls.pre_processor_class = WhisperProcessor
         cls.model_class = WhisperForConditionalGeneration
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls)
 
     def encode(self, audio):
         from .agent_types import AgentAudio
@@ -567,6 +564,7 @@ TOOL_MAPPING = {
 }
 
 __all__ = [
+    "ApiWebSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
