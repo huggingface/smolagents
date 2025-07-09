@@ -186,36 +186,12 @@ class FinalAnswerStep(MemoryStep):
 
 
 class AgentMemory:
-    def __init__(self, system_prompt: str, max_images: int = -1):
+    def __init__(self, system_prompt: str):
         self.system_prompt = SystemPromptStep(system_prompt=system_prompt)
         self.steps: list[TaskStep | ActionStep | PlanningStep] = []
-        self.max_images = max_images
 
     def reset(self):
         self.steps = []
-    
-    def append(self, step: TaskStep | ActionStep | PlanningStep):
-        self.steps.append(step)
-        
-        if self.max_images != -1:
-            # Walk backwards through the steps and count the number of images in either the
-            # observations_images or task_images attribute. Once the count is greater than
-            # or equal to max_images, remove the last max_images images from the step.
-            image_count = 0
-            for step in reversed(self.steps):
-                image_array = None
-                if hasattr(step, "observations_images"):
-                    image_array = step.observations_images
-                elif hasattr(step, "task_images"):
-                    image_array = step.task_images
-                if image_array is not None:
-                    image_count += len(image_array)
-                    
-                    if image_count >= self.max_images:
-                        # Remove image_count - self.max_images images from the
-                        # beginning of the step's image array
-                        image_array = image_array[image_count - self.max_images:]
-                        image_count = self.max_images
 
     def get_succinct_steps(self) -> list[dict]:
         return [
