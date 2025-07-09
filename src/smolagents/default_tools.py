@@ -99,12 +99,28 @@ class UserInputTool(Tool):
 
 
 class DuckDuckGoSearchTool(Tool):
+    """Web search tool that performs searches using the DuckDuckGo search engine.
+
+    Args:
+        max_results (`int`, default `10`): Maximum number of search results to return.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
+        **kwargs: Additional keyword arguments for the `DDGS` client.
+
+    Examples:
+        ```python
+        >>> from smolagents import DuckDuckGoSearchTool
+        >>> web_search_tool = DuckDuckGoSearchTool(max_results=5, rate_limit=2.0)
+        >>> results = web_search_tool("Hugging Face")
+        >>> print(results)
+        ```
+    """
+
     name = "web_search"
     description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results."""
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results=10, rate_limit: float | None = 1.0, **kwargs):
+    def __init__(self, max_results: int = 10, rate_limit: float | None = 1.0, **kwargs):
         super().__init__()
         self.max_results = max_results
         self.rate_limit = rate_limit
@@ -228,6 +244,29 @@ class GoogleSearchTool(Tool):
 
 
 class ApiWebSearchTool(Tool):
+    """Web search tool that performs API-based searches.
+    By default, it uses the Brave Search API.
+
+    This tool implements a rate limiting mechanism to ensure compliance with API usage policies.
+    By default, it limits requests to 1 query per second.
+
+    Args:
+        endpoint (`str`): API endpoint URL. Defaults to Brave Search API.
+        api_key (`str`): API key for authentication.
+        api_key_name (`str`): Environment variable name containing the API key. Defaults to "BRAVE_API_KEY".
+        headers (`dict`, *optional*): Headers for API requests.
+        params (`dict`, *optional*): Parameters for API requests.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
+
+    Examples:
+        ```python
+        >>> from smolagents import ApiWebSearchTool
+        >>> web_search_tool = ApiWebSearchTool(rate_limit=50.0)
+        >>> results = web_search_tool("Hugging Face")
+        >>> print(results)
+        ```
+    """
+
     name = "web_search"
     description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, URLs, and descriptions."
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
@@ -469,16 +508,18 @@ class VisitWebpageTool(Tool):
 
 class WikipediaSearchTool(Tool):
     """
-    WikipediaSearchTool searches Wikipedia and returns a summary or full text of the given topic, along with the page URL.
+    Search Wikipedia and return the summary or full text of the requested article, along with the page URL.
 
     Attributes:
-        user_agent (str): A custom user-agent string to identify the project. This is required as per Wikipedia API policies, read more here: http://github.com/martin-majlis/Wikipedia-API/blob/master/README.rst
-        language (str): The language in which to retrieve Wikipedia articles.
-                http://meta.wikimedia.org/wiki/List_of_Wikipedias
-        content_type (str): Defines the content to fetch. Can be "summary" for a short summary or "text" for the full article.
-        extract_format (str): Defines the output format. Can be `"WIKI"` or `"HTML"`.
+        user_agent (`str`): Custom user-agent string to identify the project. This is required as per Wikipedia API policies.
+            See: https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
+        language (`str`, default `"en"`): Language in which to retrieve Wikipedia article.
+            See: http://meta.wikimedia.org/wiki/List_of_Wikipedias
+        content_type (`Literal["summary", "text"]`, default `"text"`): Type of content to fetch. Can be "summary" for a short summary or "text" for the full article.
+        extract_format (`Literal["HTML", "WIKI"]`, default `"WIKI"`): Extraction format of the output. Can be `"WIKI"` or `"HTML"`.
 
     Example:
+        ```python
         >>> from smolagents import CodeAgent, InferenceClientModel, WikipediaSearchTool
         >>> agent = CodeAgent(
         >>>     tools=[
@@ -492,6 +533,7 @@ class WikipediaSearchTool(Tool):
         >>>     model=InferenceClientModel(),
         >>> )
         >>> agent.run("Python_(programming_language)")
+        ```
     """
 
     name = "wikipedia_search"

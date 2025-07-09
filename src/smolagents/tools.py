@@ -48,7 +48,7 @@ from ._function_type_hints_utils import (
     get_imports,
     get_json_schema,
 )
-from .agent_types import handle_agent_input_types, handle_agent_output_types
+from .agent_types import AgentAudio, AgentImage, handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
 from .utils import (
     BASE_BUILTIN_MODULES,
@@ -579,7 +579,9 @@ class Tool:
                 self.name = name
                 self.description = description
                 self.client = Client(space_id, hf_token=token)
-                space_description = self.client.view_api(return_format="dict", print_info=False)["named_endpoints"]
+                space_api = self.client.view_api(return_format="dict", print_info=False)
+                assert isinstance(space_api, dict)
+                space_description = space_api["named_endpoints"]
 
                 # If api_name is not defined, take the first of the available APIs for this space
                 if api_name is None:
@@ -593,17 +595,16 @@ class Tool:
                     space_description_api = space_description[api_name]
                 except KeyError:
                     raise KeyError(f"Could not find specified {api_name=} among available api names.")
-
                 self.inputs = {}
                 for parameter in space_description_api["parameters"]:
-                    if not parameter["parameter_has_default"]:
-                        parameter_type = parameter["type"]["type"]
-                        if parameter_type == "object":
-                            parameter_type = "any"
-                        self.inputs[parameter["parameter_name"]] = {
-                            "type": parameter_type,
-                            "description": parameter["python_type"]["description"],
-                        }
+                    parameter_type = parameter["type"]["type"]
+                    if parameter_type == "object":
+                        parameter_type = "any"
+                    self.inputs[parameter["parameter_name"]] = {
+                        "type": parameter_type,
+                        "description": parameter["python_type"]["description"],
+                        "nullable": parameter["parameter_has_default"],
+                    }
                 output_component = space_description_api["returns"][0]["component"]
                 if output_component == "Image":
                     self.output_type = "image"
@@ -639,9 +640,17 @@ class Tool:
 
                 output = self.client.predict(*args, api_name=self.api_name, **kwargs)
                 if isinstance(output, tuple) or isinstance(output, list):
-                    return output[
+                    if isinstance(output[1], str):
+                        raise ValueError("The space returned this message: " + output[1])
+                    output = output[
                         0
                     ]  # Sometime the space also returns the generation seed, in which case the result is at index 0
+                IMAGE_EXTENTIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
+                AUDIO_EXTENTIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
+                if isinstance(output, str) and any([output.endswith(ext) for ext in IMAGE_EXTENTIONS]):
+                    output = AgentImage(output)
+                elif isinstance(output, str) and any([output.endswith(ext) for ext in AUDIO_EXTENTIONS]):
+                    output = AgentAudio(output)
                 return output
 
         return SpaceToolWrapper(
@@ -847,7 +856,7 @@ class ToolCollection:
         _collection = get_collection(collection_slug, token=token)
         _hub_repo_ids = {item.item_id for item in _collection.items if item.item_type == "space"}
 
-        tools = {Tool.from_hub(repo_id, token, trust_remote_code) for repo_id in _hub_repo_ids}
+        tools = [Tool.from_hub(repo_id, token, trust_remote_code) for repo_id in _hub_repo_ids]
 
         return cls(tools)
 
@@ -959,7 +968,12 @@ def tool(tool_function: Callable) -> Tool:
     """
     tool_json_schema = get_json_schema(tool_function)["function"]
     if "return" not in tool_json_schema:
-        raise TypeHintParsingException("Tool return type not found: make sure your function has a return type hint!")
+        if len(tool_json_schema["parameters"]["properties"]) == 0:
+            tool_json_schema["return"] = {"type": "null"}
+        else:
+            raise TypeHintParsingException(
+                "Tool return type not found: make sure your function has a return type hint!"
+            )
 
     class SimpleTool(Tool):
         def __init__(self):
