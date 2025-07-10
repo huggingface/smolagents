@@ -738,49 +738,57 @@ You have been provided with these additional arguments, that you can access usin
         Reads past llm_outputs, actions, and observations or errors from the memory into a series of messages
         that can be used as input to the LLM. Adds a number of keywords (such as PLAN, error, etc) to help
         the LLM.
-        If max_images is set, it will limit the number of images in the messages keeping the latest images in
+        If max_images is set, it will limit the number of images in the messages keeping the newest images in
         the message chain.
         """
         messages = self.memory.system_prompt.to_messages(summary_mode=summary_mode)
         for memory_step in self.memory.steps:
             messages.extend(memory_step.to_messages(summary_mode=summary_mode))
 
-        # If max_images is set, limit the number of images in the messages
         if self.max_images is not None:
-            # Collect all image-containing message indices and their image fields
-            image_message_indices = []
             total_images = 0
 
-            # Find all messages with images and count total images
-            for idx, msg in enumerate(messages):
-                # Check for possible image fields
-                if "images" in msg and isinstance(msg["images"], list):
-                    num_imgs = len(msg["images"])
-                    if num_imgs > 0:
-                        image_message_indices.append((idx, "images", num_imgs))
-                        total_images += num_imgs
-                # For compatibility, also check for 'task_images' and 'observations_images'
-                if "task_images" in msg and isinstance(msg["task_images"], list):
-                    num_imgs = len(msg["task_images"])
-                    if num_imgs > 0:
-                        image_message_indices.append((idx, "task_images", num_imgs))
-                        total_images += num_imgs
-                if "observations_images" in msg and isinstance(msg["observations_images"], list):
-                    num_imgs = len(msg["observations_images"])
-                    if num_imgs > 0:
-                        image_message_indices.append((idx, "observations_images", num_imgs))
-                        total_images += num_imgs
+            # First, count the total number of images in all messages
+            for msg in messages:
+                content = msg.content
+                if isinstance(content, list):
+                    for el in content:
+                        if isinstance(el, dict) and el.get("type") == "image":
+                            total_images += 1
 
-            # If over the limit, trim images from the earliest messages first
-            if total_images > self.max_images:
-                images_to_remove = total_images - self.max_images
-                for idx, field, num_imgs in image_message_indices:
-                    if images_to_remove <= 0:
-                        break
-                    imgs = messages[idx][field]
-                    remove_count = min(images_to_remove, len(imgs))
-                    messages[idx][field] = imgs[remove_count:]
-                    images_to_remove -= remove_count
+            # Calculate how many images need to be removed
+            images_to_remove = total_images - self.max_images
+            if images_to_remove > 0:
+                self.logger.log_markdown(
+                    content=f"Skipping {images_to_remove} images as there are {total_images} images in the memory which exceeds the max_images limit of {self.max_images}",
+                    title="Images to remove:",
+                    level=LogLevel.DEBUG,
+                )
+                removed = 0
+                # Iterate again, removing images from the beginning of the content for each message
+                for msg in messages:
+                    content = msg.content
+                    if isinstance(content, list):
+                        new_content = []
+                        for content_item in content:
+                            # Remove images from the beginning of the content until we've removed enough
+                            if (
+                                isinstance(content_item, dict)
+                                and content_item.get("type") == "image"
+                                and removed < images_to_remove
+                            ):
+                                removed += 1
+                                self.logger.log_markdown(
+                                    content="Skipping image",
+                                    level=LogLevel.DEBUG,
+                                )
+                            else:
+                                new_content.append(content_item)
+                        msg.content = new_content
+                        
+                        # If we've removed enough images, stop for efficiency
+                        if removed >= images_to_remove:
+                            break
 
         return messages
 
