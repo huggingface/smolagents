@@ -1593,12 +1593,14 @@ class LocalPythonExecutor(PythonExecutor):
             self.max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT
         self.additional_authorized_imports = additional_authorized_imports
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        # assert self.authorized imports are all installed locally, ignore the wildcard import
+        self._check_authorized_imports_are_installed()
+        self.static_tools = None
+        self.additional_functions = additional_functions or {}
+
+    def _check_authorized_imports_are_installed(self):
         missing_modules = [imp for imp in self.authorized_imports if find_spec(imp) is None and imp != "*"]
         if missing_modules:
             raise InterpreterError(f"The authorized modules {missing_modules} are not installed on this system.")
-        self.static_tools = None
-        self.additional_functions = additional_functions or {}
 
     def __call__(self, code_action: str) -> CodeOutput:
         output, is_final_answer = evaluate_python_code(
