@@ -752,6 +752,10 @@ def test_launch_gradio_demo_does_not_raise(tool_fixture_name, request):
         (dict[str, str], {"a": "b"}, False),
         (dict[str, str], "b", True),
         (bool, "b", True),
+        (str | int, "a", False),
+        (str | int, 1, False),
+        (str | int, None, True),
+        (str | int, True, True),
     ],
 )
 def test_validate_tool_arguments(tool_input_type, expected_input, expects_error):
