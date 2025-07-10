@@ -1596,7 +1596,7 @@ class LocalPythonExecutor(PythonExecutor):
         # assert self.authorized imports are all installed locally, ignore the wildcard import
         missing_modules = [imp for imp in self.authorized_imports if find_spec(imp) is None and imp != "*"]
         if missing_modules:
-            raise InterpreterError(f"The authrorized modules {missing_modules} are not installed on this system.")
+            raise InterpreterError(f"The authorized modules {missing_modules} are not installed on this system.")
         self.static_tools = None
         self.additional_functions = additional_functions or {}
 
