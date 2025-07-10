@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Agents - 导览
 
 [[open-in-colab]]
@@ -31,26 +16,28 @@ rendered properly in your Markdown viewer.
 
 - `model`，一个为您的 agent 提供动力的文本生成模型 - 因为 agent 与简单的 LLM 不同，它是一个使用 LLM 作为引擎的系统。您可以使用以下任一选项：
     - [`TransformersModel`] 使用预初始化的 `transformers` 管道在本地机器上运行推理
-    - [`HfApiModel`] 在底层使用 `huggingface_hub.InferenceClient`
+    - [`InferenceClientModel`] 在底层使用 `huggingface_hub.InferenceClient`
     - [`LiteLLMModel`] 让您通过 [LiteLLM](https://docs.litellm.ai/) 调用 100+ 不同的模型！
+    - [`AzureOpenAIServerModel`] 允许您使用部署在 [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service) 中的 OpenAI 模型。
+    - [`MLXModel`] 可创建 [mlx-lm](https://pypi.org/project/mlx-lm/) 流水线，以便在本地机器上运行推理。
 
 - `tools`，agent 可以用来解决任务的 `Tools` 列表。它可以是一个空列表。您还可以通过定义可选参数 `add_base_tools=True` 在您的 `tools` 列表之上添加默认工具箱。
 
-一旦有了这两个参数 `tools` 和 `model`，您就可以创建一个 agent 并运行它。您可以使用任何您喜欢的 LLM，无论是通过 [Hugging Face API](https://huggingface.co/docs/api-inference/en/index)、[transformers](https://github.com/huggingface/transformers/)、[ollama](https://ollama.com/)，还是 [LiteLLM](https://www.litellm.ai/)。
+一旦有了这两个参数 `tools` 和 `model`，您就可以创建一个 agent 并运行它。您可以使用任何您喜欢的 LLM，无论是通过 [Hugging Face API](https://huggingface.co/docs/api-inference/en/index)、[transformers](https://github.com/huggingface/transformers/)、[ollama](https://ollama.com/)、[LiteLLM](https://www.litellm.ai/)、[Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service)，还是[mlx-lm](https://pypi.org/project/mlx-lm/).。
 
 <hfoptions id="选择一个LLM">
 <hfoption id="Hugging Face API">
 
 Hugging Face API 可以免费使用而无需 token，但会有速率限制。
 
-要访问受限模型或使用 PRO 账户提高速率限制，您需要设置环境变量 `HF_TOKEN` 或在初始化 `HfApiModel` 时传递 `token` 变量。
+要访问受限模型或使用 PRO 账户提高速率限制，您需要设置环境变量 `HF_TOKEN` 或在初始化 `InferenceClientModel` 时传递 `token` 变量。
 
 ```python
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 model_id = "meta-llama/Llama-3.3-70B-Instruct"
 
-model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
+model = InferenceClientModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -110,6 +97,62 @@ agent.run(
 )
 ```
 </hfoption>
+<hfoption id="Azure OpenAI">
+
+要连接到 Azure OpenAI，您可以直接使用 `AzureOpenAIServerModel`，或使用 `LiteLLMModel` 并进行相应配置。
+
+初始化 `AzureOpenAIServerModel` 实例时，需要传递模型部署名称，可选择以下任一种方式：1.传递 `azure_endpoint`、`api_key` 和 `api_version` 参数；2.设置环境变量 `AZURE_OPENAI_ENDPOINT`、`AZURE_OPENAI_API_KEY` 和 `OPENAI_API_VERSION`
+
+```python
+# !pip install smolagents[openai]
+from smolagents import CodeAgent, AzureOpenAIServerModel
+
+model = AzureOpenAIServerModel(model_id="gpt-4o-mini")
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+也可按如下方式配置 `LiteLLMModel` 连接 Azure OpenAI：
+
+- 将模型部署名称作为 `model_id` 参数传递，并确保其前缀为 `azure/`
+- 确保设置环境变量 `AZURE_API_VERSION`
+- 任选其一：1.传递 `api_base` 和 `api_key` 参数；2.设置环境变量 `AZURE_API_KEY` 和 `AZURE_API_BASE`
+
+```python
+import os
+from smolagents import CodeAgent, LiteLLMModel
+
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-35-turbo-16k-deployment" # example of deployment name
+
+os.environ["AZURE_API_KEY"] = "" # api_key
+os.environ["AZURE_API_BASE"] = "" # "https://example-endpoint.openai.azure.com"
+os.environ["AZURE_API_VERSION"] = "" # "2024-10-01-preview"
+
+model = LiteLLMModel(model_id="azure/" + AZURE_OPENAI_CHAT_DEPLOYMENT_NAME)
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+   "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+</hfoption>
+<hfoption id="mlx-lm">
+
+```python
+# !pip install smolagents[mlx-lm]
+from smolagents import CodeAgent, MLXModel
+
+mlx_model = MLXModel("mlx-community/Qwen2.5-Coder-32B-Instruct-4bit")
+agent = CodeAgent(model=mlx_model, tools=[], add_base_tools=True)
+
+agent.run("Could you give me the 118th number in the Fibonacci sequence?")
+```
+
+</hfoption>
 </hfoptions>
 
 #### CodeAgent 和 ToolCallingAgent
@@ -125,6 +168,7 @@ Python 解释器默认也不允许在安全列表之外导入，所以所有最�
 ```py
 from smolagents import CodeAgent
 
+model = InferenceClientModel()
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
@@ -134,7 +178,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 如果生成的代码尝试执行非法操作或出现常规 Python 错误，执行将停止。
 
-您也可以使用 [E2B 代码执行器](https://e2b.dev/docs#what-is-e2-b) 而不是本地 Python 解释器，首先 [设置 `E2B_API_KEY` 环境变量](https://e2b.dev/dashboard?tab=keys)，然后在初始化 agent 时传递 `use_e2b_executor=True`。
+您也可以使用 [E2B 代码执行器](https://e2b.dev/docs#what-is-e2-b) 或 Docker 而不是本地 Python 解释器。对于 E2B，首先 [设置 `E2B_API_KEY` 环境变量](https://e2b.dev/dashboard?tab=keys)，然后在初始化 agent 时传递 `executor_type="e2b"`。对于 Docker，在初始化时传递 `executor_type="docker"`。
 
 > [!TIP]
 > 在 [该教程中](tutorials/secure_code_execution) 了解更多关于代码执行的内容。
@@ -152,7 +196,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 以下是一些有用的属性，用于检查运行后发生了什么：
 - `agent.logs` 存储 agent 的细粒度日志。在 agent 运行的每一步，所有内容都会存储在一个字典中，然后附加到 `agent.logs` 中。
-- 运行 `agent.write_inner_memory_from_logs()` 会为 LLM 创建一个 agent 日志的内部内存，作为聊天消息列表。此方法会遍历日志的每一步，并仅存储它感兴趣的内容作为消息：例如，它会将系统提示和任务存储为单独的消息，然后对于每一步，它会将 LLM 输出存储为一条消息，工具调用输出存储为另一条消息。如果您想要更高级别的视图 - 但不是每个日志都会被此方法转录。
+- 运行 `agent.write_memory_to_messages()` 会为 LLM 创建一个 agent 日志的内部内存，作为聊天消息列表。此方法会遍历日志的每一步，并仅存储它感兴趣的内容作为消息：例如，它会将系统提示和任务存储为单独的消息，然后对于每一步，它会将 LLM 输出存储为一条消息，工具调用输出存储为另一条消息。如果您想要更高级别的视图 - 但不是每个日志都会被此方法转录。
 
 ## 工具
 
@@ -168,7 +212,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 ### 默认工具箱
 
-Transformers 附带了一个用于增强 agent 的默认工具箱，您可以在初始化时通过参数 `add_base_tools = True` 将其添加到您的 agent 中：
+`smolagents` 附带了一个用于增强 agent 的默认工具箱，您可以在初始化时通过参数 `add_base_tools=True` 将其添加到您的 agent 中：
 
 - **DuckDuckGo 网页搜索**：使用 DuckDuckGo 浏览器执行网页搜索。
 - **Python 代码解释器**：在安全环境中运行 LLM 生成的 Python 代码。只有在使用 `add_base_tools=True` 初始化 [`ToolCallingAgent`] 时才会添加此工具，因为基于代码的 agent 已经可以原生执行 Python 代码
@@ -177,9 +221,9 @@ Transformers 附带了一个用于增强 agent 的默认工具箱，您可以在
 您可以通过调用 [`load_tool`] 函数和要执行的任务手动使用工具。
 
 ```python
-from smolagents import DuckDuckGoSearchTool
+from smolagents import WebSearchTool
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = WebSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 
@@ -260,8 +304,8 @@ class ModelDownloadTool(Tool):
 
 然后您可以直接初始化您的 agent：
 ```py
-from smolagents import CodeAgent, HfApiModel
-agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
@@ -274,7 +318,7 @@ agent.run(
 │ Can you give me the name of the model that has the most downloads in the 'text-to-video' │
 │ task on the Hugging Face Hub?                                                            │
 │                                                                                          │
-╰─ HfApiModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
+╰─ InferenceClientModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Step 0 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ╭─ Executing this code: ───────────────────────────────────────────────────────────────────╮
 │   1 model_name = model_download_tool(task="text-to-video")                               │
@@ -308,14 +352,14 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 
 为此，将 agent 封装在 [`ManagedAgent`] 对象中。此对象需要参数 `agent`、`name` 和 `description`，这些参数将嵌入到管理 agent 的系统提示中，以让它知道如何调用此托管 agent，就像我们对工具所做的那样。
 
-以下是一个使用我们的 [`DuckDuckGoSearchTool`] 制作一个管理特定网页搜索 agent 的 agent 的示例：
+以下是一个使用我们的 [`WebSearchTool`] 制作一个管理特定网页搜索 agent 的 agent 的示例：
 
 ```py
-from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ManagedAgent
+from smolagents import CodeAgent, InferenceClientModel, WebSearchTool, ManagedAgent
 
-model = HfApiModel()
+model = InferenceClientModel()
 
-web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
+web_agent = CodeAgent(tools=[WebSearchTool()], model=model)
 
 managed_web_agent = ManagedAgent(
     agent=web_agent,
@@ -342,14 +386,14 @@ manager_agent.run("Who is the CEO of Hugging Face?")
 from smolagents import (
     load_tool,
     CodeAgent,
-    HfApiModel,
+    InferenceClientModel,
     GradioUI
 )
 
 # 从 Hub 导入工具
 image_generation_tool = load_tool("m-ric/text-to-image")
 
-model = HfApiModel(model_id)
+model = InferenceClientModel(model_id=model_id)
 
 # 使用图像生成工具初始化 agent
 agent = CodeAgent(tools=[image_generation_tool], model=model)
@@ -363,6 +407,18 @@ GradioUI(agent).launch()
 您也可以在其他 agent 化应用程序中使用此 `reset=False` 参数来保持对话继续。
 
 ## 下一步
+
+最后，当您按需配置好agent后，即可将其分享至 Hub！
+
+```py
+agent.push_to_hub("m-ric/my_agent")
+```
+
+类似地，若要加载已推送至 Hub 的agent，在信任其工具代码的前提下，可使用：
+
+```py
+agent.from_hub("m-ric/my_agent", trust_remote_code=True)
+```
 
 要更深入地使用，您将需要查看我们的教程：
 - [我们的代码 agent 如何工作的解释](./tutorials/secure_code_execution)

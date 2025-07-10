@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Agents
 
 <Tip warning={true}>
@@ -42,10 +27,9 @@ Agents और tools के बारे में अधिक जानने �
 
 [[autodoc]] ToolCallingAgent
 
-
 ### ManagedAgent
 
-[[autodoc]] ManagedAgent
+_This class is deprecated since 1.8.0: now you just need to pass name and description attributes to an agent to directly use it as previously done with a ManagedAgent._
 
 ### stream_to_gradio
 
@@ -99,12 +83,12 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 
 [[autodoc]] TransformersModel
 
-### HfApiModel
+### InferenceClientModel
 
-`HfApiModel` LLM के एक्जीक्यूशन के लिए [HF Inference API](https://huggingface.co/docs/api-inference/index) क्लाइंट को रैप करता है।
+`InferenceClientModel` LLM के एक्जीक्यूशन के लिए [HF Inference API](https://huggingface.co/docs/api-inference/index) क्लाइंट को रैप करता है।
 
 ```python
-from smolagents import HfApiModel
+from smolagents import InferenceClientModel
 
 messages = [
   {"role": "user", "content": "Hello, how are you?"},
@@ -112,13 +96,13 @@ messages = [
   {"role": "user", "content": "No need to help, take it easy."},
 ]
 
-model = HfApiModel()
+model = InferenceClientModel()
 print(model(messages))
 ```
 ```text
 >>> Of course! If you change your mind, feel free to reach out. Take care!
 ```
-[[autodoc]] HfApiModel
+[[autodoc]] InferenceClientModel
 
 ### LiteLLMModel
 
@@ -134,7 +118,7 @@ messages = [
   {"role": "user", "content": "No need to help, take it easy."},
 ]
 
-model = LiteLLMModel("anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10)
+model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10)
 print(model(messages))
 ```
 
@@ -146,6 +130,7 @@ print(model(messages))
 यह क्लास आपको किसी भी OpenAIServer कम्पैटिबल मॉडल को कॉल करने देती है।
 यहाँ बताया गया है कि आप इसे कैसे सेट कर सकते हैं (आप दूसरे सर्वर को पॉइंट करने के लिए `api_base` url को कस्टमाइज़ कर सकते हैं):
 ```py
+import os
 from smolagents import OpenAIServerModel
 
 model = OpenAIServerModel(
@@ -154,3 +139,13 @@ model = OpenAIServerModel(
     api_key=os.environ["OPENAI_API_KEY"],
 )
 ```
+
+## Prompts
+
+[[autodoc]] smolagents.agents.PromptTemplates
+
+[[autodoc]] smolagents.agents.PlanningPromptTemplate
+
+[[autodoc]] smolagents.agents.ManagedAgentPromptTemplate
+
+[[autodoc]] smolagents.agents.FinalAnswerPromptTemplate

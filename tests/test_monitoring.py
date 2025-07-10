@@ -15,47 +15,50 @@
 
 import unittest
 
+import PIL.Image
+import pytest
+
 from smolagents import (
-    AgentError,
-    AgentImage,
     CodeAgent,
+    RunResult,
     ToolCallingAgent,
     stream_to_gradio,
 )
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
-    ChatMessageToolCallDefinition,
+    ChatMessageToolCallFunction,
+    MessageRole,
+    Model,
+    TokenUsage,
 )
-from smolagents.utils import AgentLogger, LogLevel
 
 
-class FakeLLMModel:
-    def __init__(self):
-        self.last_input_token_count = 10
-        self.last_output_token_count = 20
+class FakeLLMModel(Model):
+    def __init__(self, give_token_usage: bool = True):
+        self.give_token_usage = give_token_usage
 
-    def __call__(self, prompt, tools_to_call_from=None, **kwargs):
+    def generate(self, prompt, tools_to_call_from=None, **kwargs):
         if tools_to_call_from is not None:
             return ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content="",
                 tool_calls=[
                     ChatMessageToolCall(
                         id="fake_id",
                         type="function",
-                        function=ChatMessageToolCallDefinition(name="final_answer", arguments={"answer": "image"}),
+                        function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "image"}),
                     )
                 ],
+                token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
             )
         else:
             return ChatMessage(
-                role="assistant",
-                content="""
-Code:
-```py
+                role=MessageRole.ASSISTANT,
+                content="""<code>
 final_answer('This is the final answer.')
-```""",
+</code>""",
+                token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
             )
 
 
@@ -84,13 +87,13 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(agent.monitor.total_output_token_count, 20)
 
     def test_code_agent_metrics_max_steps(self):
-        class FakeLLMModelMalformedAnswer:
-            def __init__(self):
-                self.last_input_token_count = 10
-                self.last_output_token_count = 20
-
-            def __call__(self, prompt, **kwargs):
-                return ChatMessage(role="assistant", content="Malformed answer")
+        class FakeLLMModelMalformedAnswer(Model):
+            def generate(self, prompt, **kwargs):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="Malformed answer",
+                    token_usage=TokenUsage(input_tokens=10, output_tokens=20),
+                )
 
         agent = CodeAgent(
             tools=[],
@@ -104,14 +107,8 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(agent.monitor.total_output_token_count, 40)
 
     def test_code_agent_metrics_generation_error(self):
-        class FakeLLMModelGenerationException:
-            def __init__(self):
-                self.last_input_token_count = 10
-                self.last_output_token_count = 20
-
-            def __call__(self, prompt, **kwargs):
-                self.last_input_token_count = 10
-                self.last_output_token_count = 0
+        class FakeLLMModelGenerationException(Model):
+            def generate(self, prompt, **kwargs):
                 raise Exception("Cannot generate")
 
         agent = CodeAgent(
@@ -119,22 +116,25 @@ class MonitoringTester(unittest.TestCase):
             model=FakeLLMModelGenerationException(),
             max_steps=1,
         )
-        agent.run("Fake task")
-
-        self.assertEqual(agent.monitor.total_input_token_count, 20)  # Should have done two monitoring callbacks
-        self.assertEqual(agent.monitor.total_output_token_count, 0)
+        with pytest.raises(Exception) as e:
+            agent.run("Fake task")
+        assert "Cannot generate" in str(e.value)
 
     def test_streaming_agent_text_output(self):
         agent = CodeAgent(
             tools=[],
             model=FakeLLMModel(),
             max_steps=1,
+            planning_interval=2,
         )
 
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 7)
+        self.assertEqual(len(outputs), 11)
+        plan_message = outputs[1]
+        self.assertEqual(plan_message.role, "assistant")
+        self.assertIn("<code>", plan_message.content)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("This is the final answer.", final_message.content)
@@ -144,6 +144,7 @@ class MonitoringTester(unittest.TestCase):
             tools=[],
             model=FakeLLMModel(),
             max_steps=1,
+            verbosity_level=100,
         )
 
         # Use stream_to_gradio to capture the output
@@ -151,33 +152,101 @@ class MonitoringTester(unittest.TestCase):
             stream_to_gradio(
                 agent,
                 task="Test task",
-                additional_args=dict(image=AgentImage(value="path.png")),
+                additional_args=dict(image=PIL.Image.new("RGB", (100, 100))),
             )
         )
 
-        self.assertEqual(len(outputs), 5)
+        self.assertEqual(len(outputs), 7)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIsInstance(final_message.content, dict)
-        self.assertEqual(final_message.content["path"], "path.png")
         self.assertEqual(final_message.content["mime_type"], "image/png")
 
     def test_streaming_with_agent_error(self):
-        logger = AgentLogger(level=LogLevel.INFO)
-
-        def dummy_model(prompt, **kwargs):
-            raise AgentError("Simulated agent error", logger)
+        class DummyModel(Model):
+            def generate(self, prompt, **kwargs):
+                return ChatMessage(role=MessageRole.ASSISTANT, content="Malformed call")
 
         agent = CodeAgent(
             tools=[],
-            model=dummy_model,
+            model=DummyModel(),
             max_steps=1,
         )
 
         # Use stream_to_gradio to capture the output
         outputs = list(stream_to_gradio(agent, task="Test task"))
 
-        self.assertEqual(len(outputs), 9)
+        self.assertEqual(len(outputs), 11)
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
-        self.assertIn("Simulated agent error", final_message.content)
+        self.assertIn("Malformed call", final_message.content)
+
+    def test_run_return_full_result(self):
+        agent = CodeAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_result=True,
+        )
+
+        result = agent.run("Fake task")
+
+        self.assertIsInstance(result, RunResult)
+        self.assertEqual(result.output, "This is the final answer.")
+        self.assertEqual(result.state, "success")
+        self.assertEqual(result.token_usage, TokenUsage(input_tokens=10, output_tokens=20))
+        self.assertIsInstance(result.messages, list)
+        self.assertGreater(result.timing.duration, 0)
+
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_result=True,
+        )
+
+        result = agent.run("Fake task")
+
+        self.assertIsInstance(result, RunResult)
+        self.assertEqual(result.output, "image")
+        self.assertEqual(result.state, "success")
+        self.assertEqual(result.token_usage, TokenUsage(input_tokens=10, output_tokens=20))
+        self.assertIsInstance(result.messages, list)
+        self.assertGreater(result.timing.duration, 0)
+
+        # Below 2 lines should be removed when the attributes are removed
+        assert agent.monitor.total_input_token_count == 10
+        assert agent.monitor.total_output_token_count == 20
+
+    def test_run_result_no_token_usage(self):
+        agent = CodeAgent(
+            tools=[],
+            model=FakeLLMModel(give_token_usage=False),
+            max_steps=1,
+            return_full_result=True,
+        )
+
+        result = agent.run("Fake task")
+
+        self.assertIsInstance(result, RunResult)
+        self.assertEqual(result.output, "This is the final answer.")
+        self.assertEqual(result.state, "success")
+        self.assertIsNone(result.token_usage)
+        self.assertIsInstance(result.messages, list)
+        self.assertGreater(result.timing.duration, 0)
+
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(give_token_usage=False),
+            max_steps=1,
+            return_full_result=True,
+        )
+
+        result = agent.run("Fake task")
+
+        self.assertIsInstance(result, RunResult)
+        self.assertEqual(result.output, "image")
+        self.assertEqual(result.state, "success")
+        self.assertIsNone(result.token_usage)
+        self.assertIsInstance(result.messages, list)
+        self.assertGreater(result.timing.duration, 0)

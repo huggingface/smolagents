@@ -1,7 +1,9 @@
 - title: Get started
   sections:
   - local: index
-    title: 🤗 Agents
+    title: Introduction
+  - local: installation
+    title: Installation options
   - local: guided_tour
     title: Guided tour
 - title: Tutorials
@@ -13,7 +15,9 @@
   - local: tutorials/tools
     title: 🛠️ Tools - in-depth guide
   - local: tutorials/secure_code_execution
-    title: 🛡️ Secure your code execution with E2B
+    title: 🛡️ Secure code execution
+  - local: tutorials/memory
+    title: 📚 Manage your agent's memory
 - title: Conceptual guides
   sections:
   - local: conceptual_guides/intro_agents
@@ -25,14 +29,26 @@
   - local: examples/text_to_sql
     title: Self-correcting Text-to-SQL
   - local: examples/rag
-    title: Master you knowledge base with agentic RAG
+    title: Master your knowledge base with agentic RAG
   - local: examples/multiagents
     title: Orchestrate a multi-agent system
+  - local: examples/web_browser
+    title: Build a web browser agent using vision models
+  - local: examples/using_different_models
+    title: Using different models
+  - local: examples/plan_customization
+    title: "Human-in-the-Loop: Customize agent plan interactively"
+  - local: examples/async_agent
+    title: Async Applications with Agents
 - title: Reference
   sections:
   - local: reference/agents
     title: Agent-related objects
   - local: reference/models
     title: Model-related objects
-  - local: reference/tools
-    title: Tool-related objects
+  - title: Tools
+    sections:
+    - title: Tool-related objects
+      local: reference/tools
+    - title: Built-in Tools
+      local: reference/default_tools

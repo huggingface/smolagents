@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Models
 
 <Tip warning={true}>
@@ -27,13 +12,17 @@ contains the API docs for the underlying classes.
 
 ## Models
 
+### Your custom Model
+
 You're free to create and use your own models to power your agent.
 
-You could use any `model` callable for your agent, as long as:
-1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns a `str`.
-2. It stops generating outputs *before* the sequences passed in the argument `stop_sequences`
+You could subclass the base `Model` class to create a model for your agent.
+The main criteria is to subclass the `generate` method, with these two criteria:
+1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns an object with a `.content` attribute.
+2. It stops generating outputs at the sequences passed in the argument `stop_sequences`.
 
-For defining your LLM, you can make a `custom_model` method which accepts a list of [messages](./chat_templating) and returns an object with a .content attribute containing the text. This callable also needs to accept a `stop_sequences` argument that indicates when to stop generating.
+For defining your LLM, you can make a `CustomModel` class that inherits from the base `Model` class.
+It should have a generate method that takes a list of [messages](./chat_templating) and returns an object with a .content attribute containing the text. The `generate` method also needs to accept a `stop_sequences` argument that indicates when to stop generating.
 
 ```python
 from huggingface_hub import login, InferenceClient
@@ -44,13 +33,16 @@ model_id = "meta-llama/Llama-3.3-70B-Instruct"
 
 client = InferenceClient(model=model_id)
 
-def custom_model(messages, stop_sequences=["Task"]):
-    response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1000)
-    answer = response.choices[0].message
-    return answer
+class CustomModel(Model):
+    def generate(messages, stop_sequences=["Task"]):
+        response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1024)
+        answer = response.choices[0].message
+        return answer
+
+custom_model = CustomModel()
 ```
 
-Additionally, `custom_model` can also take a `grammar` argument. In the case where you specify a `grammar` upon agent initialization, this argument will be passed to the calls to model, with the `grammar` that you defined upon initialization, to allow [constrained generation](https://huggingface.co/docs/text-generation-inference/conceptual/guidance) in order to force properly-formatted agent outputs.
+Additionally, `generate` can also take a `grammar` argument. In the case where you specify a `grammar` upon agent initialization, this argument will be passed to the calls to model, with the `grammar` that you defined upon initialization, to allow [constrained generation](https://huggingface.co/docs/text-generation-inference/conceptual/guidance) in order to force properly-formatted agent outputs.
 
 ### TransformersModel
 
@@ -61,7 +53,7 @@ from smolagents import TransformersModel
 
 model = TransformersModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
 
-print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
+print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], stop_sequences=["great"]))
 ```
 ```text
 >>> What a
@@ -72,52 +64,85 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 
 [[autodoc]] TransformersModel
 
-### HfApiModel
+### InferenceClientModel
 
-The `HfApiModel` wraps an [HF Inference API](https://huggingface.co/docs/api-inference/index) client for the execution of the LLM.
+The `InferenceClientModel` wraps huggingface_hub's [InferenceClient](https://huggingface.co/docs/huggingface_hub/main/en/guides/inference) for the execution of the LLM. It supports all [Inference Providers](https://huggingface.co/docs/inference-providers/index) available on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
+
+You can also set a rate limit in requests per minute by using the `requests_per_minute` argument.
 
 ```python
-from smolagents import HfApiModel
+from smolagents import InferenceClientModel
 
 messages = [
-  {"role": "user", "content": "Hello, how are you?"},
-  {"role": "assistant", "content": "I'm doing great. How can I help you today?"},
-  {"role": "user", "content": "No need to help, take it easy."},
+  {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}
 ]
 
-model = HfApiModel()
+model = InferenceClientModel(provider="novita", requests_per_minute=60)
 print(model(messages))
 ```
 ```text
 >>> Of course! If you change your mind, feel free to reach out. Take care!
 ```
-[[autodoc]] HfApiModel
+[[autodoc]] InferenceClientModel
 
 ### LiteLLMModel
 
 The `LiteLLMModel` leverages [LiteLLM](https://www.litellm.ai/) to support 100+ LLMs from various providers.
-You can pass kwargs upon model initialization that will then be used whenever using the model, for instance below we pass `temperature`.
+You can pass kwargs upon model initialization that will then be used whenever using the model, for instance below we pass `temperature`. You can also set a rate limit in requests per minute by using the `requests_per_minute` argument.
 
 ```python
 from smolagents import LiteLLMModel
 
 messages = [
-  {"role": "user", "content": "Hello, how are you?"},
-  {"role": "assistant", "content": "I'm doing great. How can I help you today?"},
-  {"role": "user", "content": "No need to help, take it easy."},
+  {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}
 ]
 
-model = LiteLLMModel("anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10)
+model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", temperature=0.2, max_tokens=10, requests_per_minute=60)
 print(model(messages))
 ```
 
 [[autodoc]] LiteLLMModel
+
+### LiteLLMRouterModel
+
+The `LiteLLMRouterModel` is a wrapper around the [LiteLLM Router](https://docs.litellm.ai/docs/routing) that leverages
+advanced routing strategies: load-balancing across multiple deployments, prioritizing critical requests via queueing,
+and implementing basic reliability measures such as cooldowns, fallbacks, and exponential backoff retries.
+
+```python
+from smolagents import LiteLLMRouterModel
+
+messages = [
+  {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}
+]
+
+model = LiteLLMRouterModel(
+    model_id="llama-3.3-70b",
+    model_list=[
+        {
+            "model_name": "llama-3.3-70b",
+            "litellm_params": {"model": "groq/llama-3.3-70b", "api_key": os.getenv("GROQ_API_KEY")},
+        },
+        {
+            "model_name": "llama-3.3-70b",
+            "litellm_params": {"model": "cerebras/llama-3.3-70b", "api_key": os.getenv("CEREBRAS_API_KEY")},
+        },
+    ],
+    client_kwargs={
+        "routing_strategy": "simple-shuffle",
+    },
+)
+print(model(messages))
+```
+
+[[autodoc]] LiteLLMRouterModel
 
 ### OpenAIServerModel
 
 This class lets you call any OpenAIServer compatible model.
 Here's how you can set it (you can customise the `api_base` url to point to another server):
 ```py
+import os
 from smolagents import OpenAIServerModel
 
 model = OpenAIServerModel(
@@ -151,3 +176,57 @@ model = AzureOpenAIServerModel(
 ```
 
 [[autodoc]] AzureOpenAIServerModel
+
+### AmazonBedrockServerModel
+
+`AmazonBedrockServerModel` helps you connect to Amazon Bedrock and run your agent with any available models.
+
+Below is an example setup. This class also offers additional options for customization.
+
+```py
+import os
+
+from smolagents import AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(
+    model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID"),
+)
+```
+
+[[autodoc]] AmazonBedrockServerModel
+
+### MLXModel
+
+
+```python
+from smolagents import MLXModel
+
+model = MLXModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
+
+print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
+```
+```text
+>>> What a
+```
+
+> [!TIP]
+> You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
+
+[[autodoc]] MLXModel
+
+### VLLMModel
+
+Model to use [vLLM](https://docs.vllm.ai/) for fast LLM inference and serving.
+
+```python
+from smolagents import VLLMModel
+
+model = VLLMModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
+
+print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
+```
+
+> [!TIP]
+> You must have `vllm` installed on your machine. Please run `pip install smolagents[vllm]` if it's not the case.
+
+[[autodoc]] VLLMModel

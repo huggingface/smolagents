@@ -1,25 +1,10 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Orchestrate a multi-agent system 🤖🤝🤖
 
 [[open-in-colab]]
 
 In this notebook we will make a **multi-agent web browser: an agentic system with several agents collaborating to solve problems using the web!**
 
-It will be a simple hierarchy, using a `ManagedAgent` object to wrap the managed web search agent:
+It will be a simple hierarchy:
 
 ```
               +----------------+
@@ -28,35 +13,33 @@ It will be a simple hierarchy, using a `ManagedAgent` object to wrap the managed
                        |
         _______________|______________
        |                              |
-  Code interpreter   +--------------------------------+
-       tool          |         Managed agent          |
-                     |      +------------------+      |
-                     |      | Web Search agent |      |
-                     |      +------------------+      |
-                     |         |            |         |
-                     |  Web Search tool     |         |
-                     |             Visit webpage tool |
-                     +--------------------------------+
+Code Interpreter            +------------------+
+    tool                    | Web Search agent |
+                            +------------------+
+                               |            |
+                        Web Search tool     |
+                                   Visit webpage tool
 ```
 Let's set up this system. 
 
 Run the line below to install the required dependencies:
 
-```
-!pip install markdownify duckduckgo-search smolagents --upgrade -q
+```py
+!pip install smolagents[toolkit] --upgrade -q
 ```
 
-Let's login in order to call the HF Inference API:
+Let's login to HF in order to call Inference Providers:
 
-```
+```py
 from huggingface_hub import login
 
 login()
 ```
 
-⚡️ Our agent will be powered by [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) using `HfApiModel` class that uses HF's Inference API: the Inference API allows to quickly and easily run any OS model.
+⚡️ Our agent will be powered by [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) using `InferenceClientModel` class that uses HF's Inference API: the Inference API allows to quickly and easily run any OS model.
 
-_Note:_ The Inference API hosts models based on various criteria, and deployed models may be updated or replaced without prior notice. Learn more about it [here](https://huggingface.co/docs/api-inference/supported-models).
+> [!TIP]
+> Inference Providers give access to hundreds of models, powered by serverless inference partners. A list of supported providers can be found [here](https://huggingface.co/docs/inference-providers/index).
 
 ```py
 model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
@@ -64,9 +47,9 @@ model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
 
 ## 🔍 Create a web search tool
 
-For web browsing, we can already use our pre-existing [`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools.py#L151-L176) tool to provide a Google search equivalent.
+For web browsing, we can already use our native [`WebSearchTool`] tool to provide a Google search equivalent.
 
-But then we will also need to be able to peak into the page found by the `DuckDuckGoSearchTool`.
+But then we will also need to be able to peak into the page found by the `WebSearchTool`.
 To do so, we could import the library's built-in `VisitWebpageTool`, but we will build it again to see how it's done.
 
 So let's create our `VisitWebpageTool` tool from scratch using `markdownify`.
@@ -119,41 +102,34 @@ print(visit_webpage("https://en.wikipedia.org/wiki/Hugging_Face")[:500])
 Now that we have all the tools `search` and `visit_webpage`, we can use them to create the web agent.
 
 Which configuration to choose for this agent?
-- Web browsing is a single-timeline task that does not require parallel tool calls, so JSON tool calling works well for that. We thus choose a `JsonAgent`.
+- Web browsing is a single-timeline task that does not require parallel tool calls, so JSON tool calling works well for that. We thus choose a `ToolCallingAgent`.
 - Also, since sometimes web search requires exploring many pages before finding the correct answer, we prefer to increase the number of `max_steps` to 10.
 
 ```py
 from smolagents import (
     CodeAgent,
     ToolCallingAgent,
-    HfApiModel,
-    ManagedAgent,
-    DuckDuckGoSearchTool,
+    InferenceClientModel,
+    WebSearchTool,
     LiteLLMModel,
 )
 
-model = HfApiModel(model_id)
+model = InferenceClientModel(model_id=model_id)
 
 web_agent = ToolCallingAgent(
-    tools=[DuckDuckGoSearchTool(), visit_webpage],
+    tools=[WebSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
+    name="web_search_agent",
+    description="Runs web searches for you.",
 )
 ```
 
-We then wrap this agent into a `ManagedAgent` that will make it callable by its manager agent.
+Note that we gave this agent attributes `name` and `description`, mandatory attributes to make this agent callable by its manager agent.
 
-```py
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
-    name="search",
-    description="Runs web searches for you. Give it your query as an argument.",
-)
-```
+Then we create a manager agent, and upon initialization we pass our managed agent to it in its `managed_agents` argument.
 
-Finally we create a manager agent, and upon initialization we pass our managed agent to it in its `managed_agents` argument.
-
-Since this agent is the one tasked with the planning and thinking, advanced reasoning will be beneficial, so a `CodeAgent` will be the best choice.
+Since this agent is the one tasked with the planning and thinking, advanced reasoning will be beneficial, so a `CodeAgent` will work well.
 
 Also, we want to ask a question that involves the current year and does additional data calculations: so let us add `additional_authorized_imports=["time", "numpy", "pandas"]`, just in case the agent needs these packages.
 
@@ -161,7 +137,7 @@ Also, we want to ask a question that involves the current year and does addition
 manager_agent = CodeAgent(
     tools=[],
     model=model,
-    managed_agents=[managed_web_agent],
+    managed_agents=[web_agent],
     additional_authorized_imports=["time", "numpy", "pandas"],
 )
 ```

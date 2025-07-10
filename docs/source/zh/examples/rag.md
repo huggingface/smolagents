@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Agentic RAG
 
 [[open-in-colab]]
@@ -38,7 +23,7 @@ Retrieval-Augmented-Generation (RAG) 是“使用大语言模型（LLM）来回�
 !pip install smolagents pandas langchain langchain-community sentence-transformers rank_bm25 --upgrade -q
 ```
 
-你需要一个有效的 token 作为环境变量 `HF_TOKEN` 来调用 HF Inference API。我们使用 python-dotenv 来加载它。
+你需要一个有效的 token 作为环境变量 `HF_TOKEN` 来调用 Inference Providers。我们使用 python-dotenv 来加载它。
 ```py
 from dotenv import load_dotenv
 load_dotenv()
@@ -126,10 +111,10 @@ BM25 检索方法是一个经典的检索方法，因为它的设置速度非常
 _Note:_ 此 Inference API 托管基于各种标准的模型，部署的模型可能会在没有事先通知的情况下进行更新或替换。了解更多信息，请点击[这里](https://huggingface.co/docs/api-inference/supported-models)。
 
 ```py
-from smolagents import HfApiModel, CodeAgent
+from smolagents import InferenceClientModel, CodeAgent
 
 agent = CodeAgent(
-    tools=[retriever_tool], model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbose=True
+    tools=[retriever_tool], model=InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct"), max_steps=4, verbose=True
 )
 ```
 

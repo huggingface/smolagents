@@ -1,51 +1,139 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Agents - Guided tour
 
 [[open-in-colab]]
 
 In this guided visit, you will learn how to build an agent, how to run it, and how to customize it to make it work better for your use-case.
 
-### Building your agent
+## Choosing an agent type: CodeAgent or ToolCallingAgent
+
+`smolagents` comes with two agent classes: [`CodeAgent`] and [`ToolCallingAgent`], which represent two different paradigms for how agents interact with tools.
+The key difference lies in how actions are specified and executed: code generation vs structured tool calling.
+
+- [`CodeAgent`] generates tool calls as Python code snippets.
+  - The code is executed either locally (potentially unsecure) or in a secure sandbox.
+  - Tools are exposed as Python functions (via bindings).
+  - Example of tool call:
+    ```py
+    result = search_docs("What is the capital of France?")
+    print(result)
+    ```
+  - Strengths:
+    - Highly expressive: Allows for complex logic and control flow and can combine tools, loop, transform, reason.
+    - Flexible: No need to predefine every possible action, can dynamically generate new actions/tools.
+    - Emergent reasoning: Ideal for multi-step problems or dynamic logic.
+  - Limitations
+    - Risk of errors: Must handle syntax errors, exceptions.
+    - Less predictable: More prone to unexpected or unsafe outputs.
+    - Requires secure execution environment.
+
+- [`ToolCallingAgent`] writes tool calls as structured JSON.
+  - This is the common format used in many frameworks (OpenAI API), allowing for structured tool interactions without code execution.
+  - Tools are defined with a JSON schema: name, description, parameter types, etc.
+  - Example of tool call:
+    ```json
+    {
+      "tool_call": {
+        "name": "search_docs",
+        "arguments": {
+          "query": "What is the capital of France?"
+        }
+      }
+    }
+    ```
+  - Strengths:
+    - Reliable: Less prone to hallucination, outputs are structured and validated.
+    - Safe: Arguments are strictly validated, no risk of arbitrary code running.
+    - Interoperable: Easy to map to external APIs or services.
+  - Limitations:
+    - Low expressivity: Can't easily combine or transform results dynamically, or perform complex logic or control flow.
+    - Inflexible: Must define all possible actions in advance, limited to predefined tools.
+    - No code synthesis: Limited to tool capabilities.
+
+When to use which agent type:
+- Use [`CodeAgent`] when:
+  - You need reasoning, chaining, or dynamic composition.
+  - Tools are functions that can be combined (e.g., parsing + math + querying).
+  - Your agent is a problem solver or programmer.
+
+- Use [`ToolCallingAgent`] when:
+  - You have simple, atomic tools (e.g., call an API, fetch a document).
+  - You want high reliability and clear validation.
+  - Your agent is like a dispatcher or controller.
+
+## CodeAgent
+
+[`CodeAgent`] generates Python code snippets to perform actions and solve tasks.
+
+By default, the Python code execution is done in your local environment.
+This should be safe because the only functions that can be called are the tools you provided (especially if it's only tools by Hugging Face) and a set of predefined safe functions like `print` or functions from the `math` module, so you're already limited in what can be executed.
+
+The Python interpreter also doesn't allow imports by default outside of a safe list, so all the most obvious attacks shouldn't be an issue.
+You can authorize additional imports by passing the authorized modules as a list of strings in argument `additional_authorized_imports` upon initialization of your [`CodeAgent`]:
+
+```py
+model = InferenceClientModel()
+agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
+agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
+```
+
+Additionally, as an extra security layer, access to submodule is forbidden by default, unless explicitly authorized within the import list.
+For instance, to access the `numpy.random` submodule, you need to add `'numpy.random'` to the `additional_authorized_imports` list.
+This could also be authorized by using `numpy.*`, which will allow `numpy` as well as any subpackage like `numpy.random` and its own subpackages.
+
+> [!WARNING]
+> The LLM can generate arbitrary code that will then be executed: do not add any unsafe imports!
+
+The execution will stop at any code trying to perform an illegal operation or if there is a regular Python error with the code generated by the agent.
+
+You can also use [E2B code executor](https://e2b.dev/docs#what-is-e2-b) or Docker instead of a local Python interpreter. For E2B, first [set the `E2B_API_KEY` environment variable](https://e2b.dev/dashboard?tab=keys) and then pass `executor_type="e2b"` upon agent initialization. For Docker, pass `executor_type="docker"` during initialization.
+
+
+> [!TIP]
+> Learn more about code execution [in this tutorial](tutorials/secure_code_execution).
+
+### ToolCallingAgent
+
+[`ToolCallingAgent`] outputs JSON tool calls, which is the common format used in many frameworks (OpenAI API), allowing for structured tool interactions without code execution.
+
+It works much in the same way like [`CodeAgent`], of course without `additional_authorized_imports` since it doesn't execute code:
+
+```py
+from smolagents import ToolCallingAgent
+
+agent = ToolCallingAgent(tools=[], model=model)
+agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
+```
+
+## Building your agent
 
 To initialize a minimal agent, you need at least these two arguments:
 
 - `model`, a text-generation model to power your agent - because the agent is different from a simple LLM, it is a system that uses a LLM as its engine. You can use any of these options:
     - [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
-    - [`HfApiModel`] leverages a `huggingface_hub.InferenceClient` under the hood.
-    - [`LiteLLMModel`] lets you call 100+ different models through [LiteLLM](https://docs.litellm.ai/)!
+    - [`InferenceClientModel`] leverages a `huggingface_hub.InferenceClient` under the hood and supports all Inference Providers on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
+    - [`LiteLLMModel`] similarly lets you call 100+ different models and providers through [LiteLLM](https://docs.litellm.ai/)!
     - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
+    - [`AmazonBedrockServerModel`] allows you to use Amazon Bedrock in [AWS](https://aws.amazon.com/bedrock/?nc1=h_ls).
+    - [`MLXModel`] creates a [mlx-lm](https://pypi.org/project/mlx-lm/) pipeline to run inference on your local machine.
 
 - `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Hugging Face API](https://huggingface.co/docs/api-inference/en/index), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), or [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
+Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), [Amazon Bedrock](https://aws.amazon.com/bedrock/?nc1=h_ls), or [mlx-lm](https://pypi.org/project/mlx-lm/).
 
 <hfoptions id="Pick a LLM">
-<hfoption id="Hugging Face API">
+<hfoption id="Inference Providers">
 
-Hugging Face API is free to use without a token, but then it will have a rate limitation.
+Inference Providers need a `HF_TOKEN` to authenticate, but a free HF account already comes with included credits. Upgrade to PRO to raise your included credits.
 
-To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `HfApiModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
+To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `InferenceClientModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
 
 ```python
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 model_id = "meta-llama/Llama-3.3-70B-Instruct" 
 
-model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to HfApiModel to use a default free model
+model = InferenceClientModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to InferenceClientModel to use a default model
+# you can also specify a particular provider e.g. provider="together" or provider="sambanova"
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -94,8 +182,8 @@ from smolagents import CodeAgent, LiteLLMModel
 model = LiteLLMModel(
     model_id="ollama_chat/llama3.2", # This model is a bit weak for agentic behaviours though
     api_base="http://localhost:11434", # replace with 127.0.0.1:11434 or remote open-ai compatible server if necessary
-    api_key="YOUR_API_KEY" # replace with API key if necessary
-    num_ctx=8192 # ollama default is 2048 which will fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
+    api_key="YOUR_API_KEY", # replace with API key if necessary
+    num_ctx=8192, # ollama default is 2048 which will fail horribly. 8192 works for easy tasks, more is better. Check https://huggingface.co/spaces/NyxKrage/LLM-Model-VRAM-Calculator to calculate how much VRAM this will need for the selected model.
 )
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
@@ -148,48 +236,135 @@ agent.run(
 ```
 
 </hfoption>
+<hfoption id="Amazon Bedrock">
+
+The `AmazonBedrockServerModel` class provides native integration with Amazon Bedrock, allowing for direct API calls and comprehensive configuration.
+
+Basic Usage:
+
+```python
+# !pip install smolagents[aws_sdk]
+from smolagents import CodeAgent, AmazonBedrockServerModel
+
+model = AmazonBedrockServerModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+Advanced Configuration:
+
+```python
+import boto3
+from smolagents import AmazonBedrockServerModel
+
+# Create a custom Bedrock client
+bedrock_client = boto3.client(
+    'bedrock-runtime',
+    region_name='us-east-1',
+    aws_access_key_id='YOUR_ACCESS_KEY',
+    aws_secret_access_key='YOUR_SECRET_KEY'
+)
+
+additional_api_config = {
+    "inferenceConfig": {
+        "maxTokens": 3000
+    },
+    "guardrailConfig": {
+        "guardrailIdentifier": "identify1",
+        "guardrailVersion": 'v1'
+    },
+}
+
+# Initialize with comprehensive configuration
+model = AmazonBedrockServerModel(
+    model_id="us.amazon.nova-pro-v1:0",
+    client=bedrock_client,  # Use custom client
+    **additional_api_config
+)
+
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+Using LiteLLMModel:
+
+Alternatively, you can use `LiteLLMModel` with Bedrock models:
+
+```python
+from smolagents import LiteLLMModel, CodeAgent
+
+model = LiteLLMModel(model_name="bedrock/anthropic.claude-3-sonnet-20240229-v1:0")
+agent = CodeAgent(tools=[], model=model)
+
+agent.run("Explain the concept of quantum computing")
+```
+
+</hfoption>
+<hfoption id="mlx-lm">
+
+```python
+# !pip install smolagents[mlx-lm]
+from smolagents import CodeAgent, MLXModel
+
+mlx_model = MLXModel("mlx-community/Qwen2.5-Coder-32B-Instruct-4bit")
+agent = CodeAgent(model=mlx_model, tools=[], add_base_tools=True)
+
+agent.run("Could you give me the 118th number in the Fibonacci sequence?")
+```
+
+</hfoption>
 </hfoptions>
 
-#### CodeAgent and ToolCallingAgent
+## Advanced agent configuration
 
-The [`CodeAgent`] is our default agent. It will write and execute python code snippets at each step.
+### Customizing agent termination conditions
 
-By default, the execution is done in your local environment.
-This should be safe because the only functions that can be called are the tools you provided (especially if it's only tools by Hugging Face) and a set of predefined safe functions like `print` or functions from the `math` module, so you're already limited in what can be executed.
+By default, an agent continues running until it calls the `final_answer` function or reaches the maximum number of steps.
+The `final_answer_checks` parameter gives you more control over when and how an agent terminates its execution:
 
-The Python interpreter also doesn't allow imports by default outside of a safe list, so all the most obvious attacks shouldn't be an issue.
-You can authorize additional imports by passing the authorized modules as a list of strings in argument `additional_authorized_imports` upon initialization of your [`CodeAgent`]:
+```python
+from smolagents import CodeAgent, InferenceClientModel
 
-```py
-model = HfApiModel()
-agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
-agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
+# Define a custom final answer check function
+def is_integer(final_answer: str, agent_memory=None) -> bool:
+    """Return True if final_answer is an integer."""
+    try:
+        int(final_answer)
+        return True
+    except ValueError:
+        return False
+
+# Initialize agent with custom final answer check
+agent = CodeAgent(
+    tools=[],
+    model=InferenceClientModel(),
+    final_answer_checks=[is_integer]
+)
+
+agent.run("Calculate the least common multiple of 3 and 7")
 ```
 
-> [!WARNING]
-> The LLM can generate arbitrary code that will then be executed: do not add any unsafe imports!
+The `final_answer_checks` parameter accepts a list of functions that each:
+- Take the agent's final_answer string the agent's memory as parameters
+- Return a boolean indicating whether the final_answer is valid (True) or not (False)
 
-The execution will stop at any code trying to perform an illegal operation or if there is a regular Python error with the code generated by the agent.
+If any function returns `False`, the agent will log the error message and continue the run.
+This validation mechanism enables:
+- Enforcing output format requirements (e.g., ensuring numeric answers for math problems)
+- Implementing domain-specific validation rules
+- Creating more robust agents that validate their own outputs
 
-You can also use [E2B code executor](https://e2b.dev/docs#what-is-e2-b) instead of a local Python interpreter by first [setting the `E2B_API_KEY` environment variable](https://e2b.dev/dashboard?tab=keys) and then passing `use_e2b_executor=True` upon agent initialization.
-
-> [!TIP]
-> Learn more about code execution [in this tutorial](tutorials/secure_code_execution).
-
-We also support the widely-used way of writing actions as JSON-like blobs: this is [`ToolCallingAgent`], it works much in the same way like [`CodeAgent`], of course without `additional_authorized_imports` since it doesn't execute code:
-
-```py
-from smolagents import ToolCallingAgent
-
-agent = ToolCallingAgent(tools=[], model=model)
-agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
-```
-
-### Inspecting an agent run
+## Inspecting an agent run
 
 Here are a few useful attributes to inspect what happened after a run:
 - `agent.logs` stores the fine-grained logs of the agent. At every step of the agent's run, everything gets stored in a dictionary that then is appended to `agent.logs`.
-- Running `agent.write_inner_memory_from_logs()` creates an inner memory of the agent's logs for the LLM to view, as a list of chat messages. This method goes over each step of the log and only stores what it's interested in as a message: for instance, it will save the system prompt and task in separate messages, then for each step it will store the LLM output as a message, and the tool call output as another message. Use this if you want a higher-level view of what has happened - but not every log will be transcripted by this method.
+- Running `agent.write_memory_to_messages()` writes the agent's memory as list of chat messages for the Model to view. This method goes over each step of the log and only stores what it's interested in as a message: for instance, it will save the system prompt and task in separate messages, then for each step it will store the LLM output as a message, and the tool call output as another message. Use this if you want a higher-level view of what has happened - but not every log will be transcripted by this method.
 
 ## Tools
 
@@ -205,7 +380,7 @@ When the agent is initialized, the tool attributes are used to generate a tool d
 
 ### Default toolbox
 
-Transformers comes with a default toolbox for empowering agents, that you can add to your agent upon initialization with argument `add_base_tools = True`:
+If you install `smolagents` with the "toolkit" extra, it comes with a default toolbox for empowering agents, that you can add to your agent upon initialization with argument `add_base_tools=True`:
 
 - **DuckDuckGo web search***: performs a web search using DuckDuckGo browser.
 - **Python code interpreter**: runs your LLM generated Python code in a secure environment. This tool will only be added to [`ToolCallingAgent`] if you initialize it with `add_base_tools=True`, since code-based agent can already natively execute Python code
@@ -214,9 +389,10 @@ Transformers comes with a default toolbox for empowering agents, that you can ad
 You can manually use a tool by calling it with its arguments.
 
 ```python
-from smolagents import DuckDuckGoSearchTool
+# !pip install smolagents[toolkit]
+from smolagents import WebSearchTool
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = WebSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 
@@ -263,7 +439,8 @@ def model_download_tool(task: str) -> str:
 The function needs:
 - A clear name. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
 - Type hints on both inputs and output
-- A description, that includes an 'Args:' part where each argument is described (without a type indication this time, it will be pulled from the type hint). Same as for the tool name, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
+- A description, that includes an 'Args:' part where each argument is described (without a type indication this time, it will be pulled from the type hint). Same as for the tool name, this description is an instruction manual for the LLM powering your agent, so do not neglect it.
+
 All these elements will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
 
 > [!TIP]
@@ -287,7 +464,7 @@ class ModelDownloadTool(Tool):
 
 The subclass needs the following attributes:
 - A clear `name`. The name should be descriptive enough of what this tool does to help the LLM brain powering the agent. Since this tool returns the model with the most downloads for a task, let's name it `model_download_tool`.
-- A `description`. Same as for the `name`, this description is an instruction manual for the LLM powering you agent, so do not neglect it.
+- A `description`. Same as for the `name`, this description is an instruction manual for the LLM powering your agent, so do not neglect it.
 - Input types and descriptions
 - Output type
 All these attributes will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
@@ -297,8 +474,8 @@ All these attributes will be automatically baked into the agent's system prompt 
 
 Then you can directly initialize your agent:
 ```py
-from smolagents import CodeAgent, HfApiModel
-agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
@@ -311,7 +488,7 @@ You get the following logs:
 │ Can you give me the name of the model that has the most downloads in the 'text-to-video' │
 │ task on the Hugging Face Hub?                                                            │
 │                                                                                          │
-╰─ HfApiModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
+╰─ InferenceClientModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Step 0 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ╭─ Executing this code: ───────────────────────────────────────────────────────────────────╮
 │   1 model_name = model_download_tool(task="text-to-video")                               │
@@ -343,25 +520,25 @@ It empirically yields better performance on most benchmarks. The reason for this
 
 You can easily build hierarchical multi-agent systems with `smolagents`.
 
-To do so, encapsulate the agent in a [`ManagedAgent`] object. This object needs arguments `agent`, `name`, and a `description`, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
+To do so, just ensure your agent has `name` and`description` attributes, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
+Then you can pass this managed agent in the parameter managed_agents upon initialization of the manager agent.
 
-Here's an example of making an agent that managed a specific web search agent using our [`DuckDuckGoSearchTool`]:
+Here's an example of making an agent that managed a specific web search agent using our native [`WebSearchTool`]:
 
 ```py
-from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ManagedAgent
+from smolagents import CodeAgent, InferenceClientModel, WebSearchTool
 
-model = HfApiModel()
+model = InferenceClientModel()
 
-web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
-
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
-    name="web_search",
+web_agent = CodeAgent(
+    tools=[WebSearchTool()],
+    model=model,
+    name="web_search_agent",
     description="Runs web searches for you. Give it your query as an argument."
 )
 
 manager_agent = CodeAgent(
-    tools=[], model=model, managed_agents=[managed_web_agent]
+    tools=[], model=model, managed_agents=[web_agent]
 )
 
 manager_agent.run("Who is the CEO of Hugging Face?")
@@ -379,14 +556,14 @@ You can use `GradioUI` to interactively submit tasks to your agent and observe i
 from smolagents import (
     load_tool,
     CodeAgent,
-    HfApiModel,
+    InferenceClientModel,
     GradioUI
 )
 
 # Import tool from Hub
 image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
-model = HfApiModel(model_id)
+model = InferenceClientModel(model_id=model_id)
 
 # Initialize the agent with the image generation tool
 agent = CodeAgent(tools=[image_generation_tool], model=model)
@@ -399,7 +576,21 @@ The `reset=False` flag means the agent's memory is not flushed before launching 
 
 You can also use this `reset=False` argument to keep the conversation going in any other agentic application.
 
+In gradio UIs, if you want to allow users to interrupt a running agent, you could do this with a button that triggers method `agent.interrupt()`.
+This will stop the agent at the end of its current step, then raise an error.
+
 ## Next steps
+
+Finally, when you've configured your agent to your needs, you can share it to the Hub!
+
+```py
+agent.push_to_hub("m-ric/my_agent")
+```
+
+Similarly, to load an agent that has been pushed to hub, if you trust the code from its tools, use:
+```py
+agent.from_hub("m-ric/my_agent", trust_remote_code=True)
+```
 
 For more in-depth usage, you will then want to check out our tutorials:
 - [the explanation of how our code agents work](./tutorials/secure_code_execution)

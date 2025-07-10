@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # 安全代码执行
 
 [[open-in-colab]]
@@ -41,7 +26,7 @@ rendered properly in your Markdown viewer.
 ### 本地 Python 解释器
 
 默认情况下，`CodeAgent` 会在你的环境中运行 LLM 生成的代码。
-这个执行不是由普通的 Python 解释器完成的：我们从零开始重新构建了一个更安全的 `LocalPythonInterpreter`。
+这个执行不是由普通的 Python 解释器完成的：我们从零开始重新构建了一个更安全的 `LocalPythonExecutor`。
 这个解释器通过以下方式设计以确保安全：
   - 将导入限制为用户显式传递的列表
   - 限制操作次数以防止无限循环和资源膨胀
@@ -64,16 +49,16 @@ rendered properly in your Markdown viewer.
 
 现在你已经准备好了！
 
-要将代码执行器设置为 E2B，只需在初始化 `CodeAgent` 时传递标志 `use_e2b_executor=True`。
+要将代码执行器设置为 E2B，只需在初始化 `CodeAgent` 时传递标志 `executor_type="e2b"`。
 请注意，你应该将所有工具的依赖项添加到 `additional_authorized_imports` 中，以便执行器安装它们。
 
 ```py
-from smolagents import CodeAgent, VisitWebpageTool, HfApiModel
+from smolagents import CodeAgent, VisitWebpageTool, InferenceClientModel
 agent = CodeAgent(
     tools = [VisitWebpageTool()],
-    model=HfApiModel(),
+    model=InferenceClientModel(),
     additional_authorized_imports=["requests", "markdownify"],
-    use_e2b_executor=True
+    executor_type="e2b"
 )
 
 agent.run("What was Abraham Lincoln's preferred pet?")

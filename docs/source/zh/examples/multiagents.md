@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # 编排 multi-agent 系统 🤖🤝🤖
 
 [[open-in-colab]]
@@ -53,7 +38,7 @@ login()
 ```
 
 ⚡️ HF的Inference API 可以快速轻松地运行任何开源模型，因此我们的agent将使用HF的Inference API
-中的`HfApiModel`类来调用
+中的`InferenceClientModel`类来调用
 [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct)模型。
 
 _Note:_ 基于多参数和部署模型的 Inference API 可能在没有预先通知的情况下更新或替换模型。了解更多信息，请参阅[这里](https://huggingface.co/docs/api-inference/supported-models)。
@@ -65,8 +50,8 @@ model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
 ## 🔍 创建网络搜索工具
 
 虽然我们可以使用已经存在的
-[`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools.py#L151-L176)
-工具作为谷歌搜索的平替进行网页浏览，然后我们也需要能够查看`DuckDuckGoSearchTool`找到的页面。为此，我
+[`WebSearchTool`]
+工具作为谷歌搜索的平替进行网页浏览，然后我们也需要能够查看`WebSearchTool`找到的页面。为此，我
 们可以直接导入库的内置
 `VisitWebpageTool`。但是我们将重新构建它以了解其工作原理。
 
@@ -120,45 +105,43 @@ print(visit_webpage("https://en.wikipedia.org/wiki/Hugging_Face")[:500])
 现在我们有了所有工具`search`和`visit_webpage`，我们可以使用它们来创建web agent。
 
 我们该选取什么样的配置来构建这个agent呢？
-- 网页浏览是一个单线程任务，不需要并行工具调用，因此JSON工具调用对于这个任务非常有效。因此我们选择`JsonAgent`。
+- 网页浏览是一个单线程任务，不需要并行工具调用，因此JSON工具调用对于这个任务非常有效。因此我们选择`ToolCallingAgent`。
 - 有时候网页搜索需要探索许多页面才能找到正确答案，所以我们更喜欢将 `max_steps` 增加到10。
 
 ```py
 from smolagents import (
     CodeAgent,
     ToolCallingAgent,
-    HfApiModel,
+    InferenceClientModel,
     ManagedAgent,
-    DuckDuckGoSearchTool,
+    WebSearchTool,
     LiteLLMModel,
 )
 
-model = HfApiModel(model_id)
+model = InferenceClientModel(model_id=model_id)
 
 web_agent = ToolCallingAgent(
-    tools=[DuckDuckGoSearchTool(), visit_webpage],
+    tools=[WebSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
-)
-```
-
-然后我们将这个agent封装到一个`ManagedAgent`中，使其可以被其管理的agent调用。
-
-```py
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
     name="search",
     description="Runs web searches for you. Give it your query as an argument.",
 )
 ```
 
-最后，我们创建一个manager agent，在初始化时将我们的managed agent传递给它的`managed_agents`参数。因为这个agent负责计划和思考，所以高级推理将是有益的，因此`CodeAgent`将是最佳选择。此外，我们想要问一个涉及当前年份的问题，并进行额外的数据计算：因此让我们添加`additional_authorized_imports=["time", "numpy", "pandas"]`，以防agent需要这些包。
+请注意，我们为这个代理赋予了 name（名称）和 description（描述）属性，这些是必需属性，以便让管理代理能够调用此代理。
+
+然后，我们创建一个管理代理，在初始化时，将受管代理作为 managed_agents 参数传递给它。
+
+由于这个代理的任务是进行规划和思考，高级推理能力会很有帮助，因此 CodeAgent（代码代理）将是最佳选择。
+
+此外，我们要提出一个涉及当前年份并需要进行额外数据计算的问题：所以让我们添加 additional_authorized_imports=["time", "numpy", "pandas"]，以防代理需要用到这些包。
 
 ```py
 manager_agent = CodeAgent(
     tools=[],
     model=model,
-    managed_agents=[managed_web_agent],
+    managed_agents=[web_agent],
     additional_authorized_imports=["time", "numpy", "pandas"],
 )
 ```

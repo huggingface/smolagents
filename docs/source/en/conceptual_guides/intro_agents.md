@@ -1,21 +1,6 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Introduction to Agents
 
-## 🤔 What are agents?
+## 🤔 What are agents?
 
 Any efficient system using AI will need to provide LLMs some kind of access to the real world: for instance the possibility to call a search tool to get external information, or to act on certain programs in order to solve a task. In other words, LLMs should have ***agency***. Agentic programs are the gateway to the outside world for LLMs.
 
@@ -28,13 +13,14 @@ Note that with this definition, "agent" is not a discrete, 0 or 1 definition: in
 
 See in the table below how agency can vary across systems:
 
-| Agency Level | Description                                             | How that's called | Example Pattern                                    |
-| ------------ | ------------------------------------------------------- | ----------------- | -------------------------------------------------- |
-| ☆☆☆          | LLM output has no impact on program flow                | Simple Processor  | `process_llm_output(llm_response)`                 |
-| ★☆☆          | LLM output determines an if/else switch                 | Router            | `if llm_decision(): path_a() else: path_b()`       |
-| ★★☆          | LLM output determines function execution                | Tool Caller       | `run_function(llm_chosen_tool, llm_chosen_args)`   |
-| ★★★          | LLM output controls iteration and program continuation  | Multi-step Agent  | `while llm_should_continue(): execute_next_step()` |
-| ★★★          | One agentic workflow can start another agentic workflow | Multi-Agent       | `if llm_trigger(): execute_agent()`                |
+| Agency Level | Description                                            | Short name       | Example Code                                       |
+| ------------ | ------------------------------------------------------ | ---------------- | -------------------------------------------------- |
+| ☆☆☆ | LLM output has no impact on program flow                        | Simple processor | `process_llm_output(llm_response)`                 |
+| ★☆☆ | LLM output controls an if/else switch                           | Router           | `if llm_decision(): path_a() else: path_b()`       |
+| ★★☆ | LLM output controls function execution                          | Tool call        | `run_function(llm_chosen_tool, llm_chosen_args)`   |
+| ★★☆ | LLM output controls iteration and program continuation          | Multi-step Agent | `while llm_should_continue(): execute_next_step()` |
+| ★★★ | One agentic workflow can start another agentic workflow         | Multi-Agent      | `if llm_trigger(): execute_agent()`                |
+| ★★★ | LLM acts in code, can define its own tools / start other agents | Code Agents      | `def custom_tool(args): ...`                       |
 
 The multi-step agent has this code structure:
 
@@ -68,7 +54,7 @@ If that deterministic workflow fits all queries, by all means just code everythi
 
 But what if the workflow can't be determined that well in advance? 
 
-For instance, a user wants to ask : `"I can come on Monday, but I forgot my passport so risk being delayed to Wednesday, is it possible to take me and my stuff to surf on Tuesday morning, with a cancellation insurance?"` This question hinges on many factors, and probably none of the predetermined criteria above will suffice for this request.
+For instance, a user wants to ask: `"I can come on Monday, but I forgot my passport so risk being delayed to Wednesday, is it possible to take me and my stuff to surf on Tuesday morning, with a cancellation insurance?"` This question hinges on many factors, and probably none of the predetermined criteria above will suffice for this request.
 
 If the pre-determined workflow falls short too often, that means you need more flexibility.
 
@@ -83,15 +69,15 @@ Until recently, computer programs were restricted to pre-determined workflows, t
 For some low-level agentic use cases, like chains or routers, you can write all the code yourself. You'll be much better that way, since it will let you control and understand your system better.
 
 But once you start going for more complicated behaviours like letting an LLM call a function (that's "tool calling") or letting an LLM run a while loop ("multi-step agent"), some abstractions become necessary:
-- for tool calling, you need to parse the agent's output, so this output needs a predefined format like "Thought: I should call tool 'get_weather'. Action: get_weather(Paris).", that you parse with a predefined function, and system prompt given to the LLM should notify it about this format.
-- for a multi-step agent where the LLM output determines the loop, you need to give a different prompt to the LLM based on what happened in the last loop iteration: so you need some kind of memory.
+- For tool calling, you need to parse the agent's output, so this output needs a predefined format like "Thought: I should call tool 'get_weather'. Action: get_weather(Paris).", that you parse with a predefined function, and system prompt given to the LLM should notify it about this format.
+- For a multi-step agent where the LLM output determines the loop, you need to give a different prompt to the LLM based on what happened in the last loop iteration: so you need some kind of memory.
 
 See? With these two examples, we already found the need for a few items to help us:
 
 - Of course, an LLM that acts as the engine powering the system
 - A list of tools that the agent can access
-- A parser that extracts tool calls from the LLM output
-- A system prompt synced with the parser
+- A system prompt guiding the LLM on the agent logic: ReAct loop of Reflection -> Action -> Observation, available tools, tool calling format to use...
+- A parser that extracts tool calls from the LLM output, in the format indicated by system prompt above.
 - A memory
 
 But wait, since we give room to LLMs in decisions, surely they will make mistakes: so we need error logging and retry mechanisms.
@@ -102,11 +88,12 @@ All these elements need tight coupling to make a well-functioning system. That's
 
 In a multi-step agent, at each step, the LLM can write an action, in the form of some calls to external tools. A common format (used by Anthropic, OpenAI, and many others) for writing these actions is generally different shades of "writing actions as a JSON of tools names and arguments to use, which you then parse to know which tool to execute and with which arguments".
 
-[Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the tool calling LLMs in code is much better.
+[Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the LLMs actions written as code snippets is a more natural and flexible way of writing them.
 
-The reason for this simply that *we crafted our code languages specifically to be the best possible way to express actions performed by a computer*. If JSON snippets were a better expression, JSON would be the top programming language and programming would be hell on earth.
+The reason for this simply that *we crafted our code languages specifically to express the actions performed by a computer*.
+In other words, our agent is going to write programs in order to solve the user's issues : do you think their programming will be easier in blocks of Python or JSON?
 
-The figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030), illustrate some advantages of writing actions in code:
+The figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030), illustrates some advantages of writing actions in code:
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_vs_json_actions.png">
 
@@ -115,4 +102,4 @@ Writing actions in code rather than JSON-like snippets provides better:
 - **Composability:** could you nest JSON actions within each other, or define a set of JSON actions to re-use later, the same way you could just define a python function?
 - **Object management:** how do you store the output of an action like `generate_image` in JSON?
 - **Generality:** code is built to express simply anything you can have a computer do.
-- **Representation in LLM training data:** plenty of quality code actions is already included in LLMs’ training data which means they’re already trained for this!
+- **Representation in LLM training data:** plenty of quality code actions are already included in LLMs’ training data which means they’re already trained for this!

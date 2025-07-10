@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # सुरक्षित कोड एक्जीक्यूशन
 
 [[open-in-colab]]
@@ -41,7 +26,7 @@ rendered properly in your Markdown viewer.
 ### लोकल पायथन इंटरप्रेटर
 
 डिफ़ॉल्ट रूप से, `CodeAgent` LLM-जनरेटेड कोड को आपके एनवायरनमेंट में चलाता है।
-यह एक्जीक्यूशन वैनिला पायथन इंटरप्रेटर द्वारा नहीं किया जाता: हमने एक अधिक सुरक्षित `LocalPythonInterpreter` को शुरू से फिर से बनाया है।
+यह एक्जीक्यूशन वैनिला पायथन इंटरप्रेटर द्वारा नहीं किया जाता: हमने एक अधिक सुरक्षित `LocalPythonExecutor` को शुरू से फिर से बनाया है।
 यह इंटरप्रेटर सुरक्षा के लिए डिज़ाइन किया गया है:
  - इम्पोर्ट्स को उपयोगकर्ता द्वारा स्पष्ट रूप से पास की गई सूची तक सीमित करना
  - इनफिनिट लूप्स और रिसोर्स ब्लोटिंग को रोकने के लिए ऑपरेशंस की संख्या को कैप करना
@@ -64,16 +49,16 @@ rendered properly in your Markdown viewer.
 
 अब आप तैयार हैं!
 
-कोड एक्जीक्यूटर को E2B पर सेट करने के लिए, बस अपने `CodeAgent` को इनिशियलाइज़ करते समय `use_e2b_executor=True` फ्लैग पास करें।
+कोड एक्जीक्यूटर को E2B पर सेट करने के लिए, बस अपने `CodeAgent` को इनिशियलाइज़ करते समय `executor_type="e2b"` फ्लैग पास करें।
 ध्यान दें कि आपको `additional_authorized_imports` में सभी टूल की डिपेंडेंसीज़ जोड़नी चाहिए, ताकि एक्जीक्यूटर उन्हें इंस्टॉल करे।
 
 ```py
-from smolagents import CodeAgent, VisitWebpageTool, HfApiModel
+from smolagents import CodeAgent, VisitWebpageTool, InferenceClientModel
 agent = CodeAgent(
     tools = [VisitWebpageTool()],
-    model=HfApiModel(),
+    model=InferenceClientModel(),
     additional_authorized_imports=["requests", "markdownify"],
-    use_e2b_executor=True
+    executor_type="e2b"
 )
 
 agent.run("What was Abraham Lincoln's preferred pet?")

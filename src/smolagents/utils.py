@@ -20,15 +20,20 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import keyword
+import os
 import re
-import textwrap
+import time
 import types
-from enum import IntEnum
 from functools import lru_cache
 from io import BytesIO
-from typing import Dict, Tuple, Union
+from pathlib import Path
+from textwrap import dedent
+from typing import TYPE_CHECKING, Any
 
-from rich.console import Console
+
+if TYPE_CHECKING:
+    from smolagents.memory import AgentLogger
 
 
 __all__ = ["AgentError"]
@@ -42,13 +47,6 @@ def _is_package_available(package_name: str) -> bool:
     except importlib.metadata.PackageNotFoundError:
         return False
 
-
-@lru_cache
-def _is_pillow_available():
-    return importlib.util.find_spec("PIL") is not None
-
-
-console = Console()
 
 BASE_BUILTIN_MODULES = [
     "collections",
@@ -65,29 +63,29 @@ BASE_BUILTIN_MODULES = [
 ]
 
 
-class LogLevel(IntEnum):
-    ERROR = 0  # Only errors
-    INFO = 1  # Normal output (default)
-    DEBUG = 2  # Detailed output
+def escape_code_brackets(text: str) -> str:
+    """Escapes square brackets in code segments while preserving Rich styling tags."""
 
+    def replace_bracketed_content(match):
+        content = match.group(1)
+        cleaned = re.sub(
+            r"bold|red|green|blue|yellow|magenta|cyan|white|black|italic|dim|\s|#[0-9a-fA-F]{6}", "", content
+        )
+        return f"\\[{content}\\]" if cleaned.strip() else f"[{content}]"
 
-class AgentLogger:
-    def __init__(self, level: LogLevel = LogLevel.INFO):
-        self.level = level
-        self.console = Console()
-
-    def log(self, *args, level: LogLevel = LogLevel.INFO, **kwargs):
-        if level <= self.level:
-            self.console.print(*args, **kwargs)
+    return re.sub(r"\[([^\]]*)\]", replace_bracketed_content, text)
 
 
 class AgentError(Exception):
     """Base class for other agent-related exceptions"""
 
-    def __init__(self, message, logger: AgentLogger):
+    def __init__(self, message, logger: "AgentLogger"):
         super().__init__(message)
         self.message = message
-        logger.log(f"[bold red]{message}[/bold red]", level=LogLevel.ERROR)
+        logger.log_error(message)
+
+    def dict(self) -> dict[str, str]:
+        return {"type": self.__class__.__name__, "message": str(self.message)}
 
 
 class AgentParsingError(AgentError):
@@ -108,19 +106,60 @@ class AgentMaxStepsError(AgentError):
     pass
 
 
+class AgentToolCallError(AgentExecutionError):
+    """Exception raised for errors when incorrect arguments are passed to the tool"""
+
+    pass
+
+
+class AgentToolExecutionError(AgentExecutionError):
+    """Exception raised for errors when executing a tool"""
+
+    pass
+
+
 class AgentGenerationError(AgentError):
     """Exception raised for errors in generation in the agent"""
 
     pass
 
 
-def parse_json_blob(json_blob: str) -> Dict[str, str]:
+def make_json_serializable(obj: Any) -> Any:
+    """Recursive function to make objects JSON serializable"""
+    if obj is None:
+        return None
+    elif isinstance(obj, (str, int, float, bool)):
+        # Try to parse string as JSON if it looks like a JSON object/array
+        if isinstance(obj, str):
+            try:
+                if (obj.startswith("{") and obj.endswith("}")) or (obj.startswith("[") and obj.endswith("]")):
+                    parsed = json.loads(obj)
+                    return make_json_serializable(parsed)
+            except json.JSONDecodeError:
+                pass
+        return obj
+    elif isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {str(k): make_json_serializable(v) for k, v in obj.items()}
+    elif hasattr(obj, "__dict__"):
+        # For custom objects, convert their __dict__ to a serializable format
+        return {"_type": obj.__class__.__name__, **{k: make_json_serializable(v) for k, v in obj.__dict__.items()}}
+    else:
+        # For any other type, convert to string
+        return str(obj)
+
+
+def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
+    "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
     try:
         first_accolade_index = json_blob.find("{")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_blob = json_blob[first_accolade_index : last_accolade_index + 1].replace('\\"', "'")
-        json_data = json.loads(json_blob, strict=False)
-        return json_data
+        json_str = json_blob[first_accolade_index : last_accolade_index + 1]
+        json_data = json.loads(json_str, strict=False)
+        return json_data, json_blob[:first_accolade_index]
+    except IndexError:
+        raise ValueError("The model output does not contain any JSON blob.")
     except json.JSONDecodeError as e:
         place = e.pos
         if json_blob[place - 1 : place + 2] == "},\n":
@@ -132,64 +171,71 @@ def parse_json_blob(json_blob: str) -> Dict[str, str]:
             f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"
             f"'{json_blob[place - 4 : place + 5]}'."
         )
-    except Exception as e:
-        raise ValueError(f"Error in parsing the JSON blob: {e}")
 
 
-def parse_code_blobs(code_blob: str) -> str:
-    """Parses the LLM's output to get any code blob inside. Will return the code directly if it's code."""
-    pattern = r"```(?:py|python)?\n(.*?)\n```"
-    matches = re.findall(pattern, code_blob, re.DOTALL)
-    if len(matches) == 0:
-        try:  # Maybe the LLM outputted a code blob directly
-            ast.parse(code_blob)
-            return code_blob
-        except SyntaxError:
-            pass
+def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
+    """Extract code from the LLM's output."""
+    pattern = rf"{code_block_tags[0]}(.*?){code_block_tags[1]}"
+    matches = re.findall(pattern, text, re.DOTALL)
+    if matches:
+        return "\n\n".join(match.strip() for match in matches)
+    return None
 
-        if "final" in code_blob and "answer" in code_blob:
-            raise ValueError(
-                f"""
-The code blob is invalid, because the regex pattern {pattern} was not found in {code_blob=}. It seems like you're trying to return the final answer, you can do it as follows:
-Code:
-```py
-final_answer("YOUR FINAL ANSWER HERE")
-```<end_code>""".strip()
-            )
+
+def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
+    """Extract code blocs from the LLM's output.
+
+    If a valid code block is passed, it returns it directly.
+
+    Args:
+        text (`str`): LLM's output text to parse.
+
+    Returns:
+        `str`: Extracted code block.
+
+    Raises:
+        ValueError: If no valid code block is found in the text.
+    """
+    matches = extract_code_from_text(text, code_block_tags)
+    if not matches:  # Fallback to markdown pattern
+        matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
+    if matches:
+        return matches
+    # Maybe the LLM outputted a code blob directly
+    try:
+        ast.parse(text)
+        return text
+    except SyntaxError:
+        pass
+
+    if "final" in text and "answer" in text:
         raise ValueError(
-            f"""
-The code blob is invalid, because the regex pattern {pattern} was not found in {code_blob=}. Make sure to include code with the correct pattern, for instance:
-Thoughts: Your thoughts
-Code:
-```py
-# Your python code here
-```<end_code>""".strip()
+            dedent(
+                f"""
+                Your code snippet is invalid, because the regex pattern {code_block_tags[0]}(.*?){code_block_tags[1]} was not found in it.
+                Here is your code snippet:
+                {text}
+                It seems like you're trying to return the final answer, you can do it as follows:
+                {code_block_tags[0]}
+                final_answer("YOUR FINAL ANSWER HERE")
+                {code_block_tags[1]}
+                """
+            ).strip()
         )
-    return "\n\n".join(match.strip() for match in matches)
-
-
-def parse_json_tool_call(json_blob: str) -> Tuple[str, Union[str, None]]:
-    json_blob = json_blob.replace("```json", "").replace("```", "")
-    tool_call = parse_json_blob(json_blob)
-    tool_name_key, tool_arguments_key = None, None
-    for possible_tool_name_key in ["action", "tool_name", "tool", "name", "function"]:
-        if possible_tool_name_key in tool_call:
-            tool_name_key = possible_tool_name_key
-    for possible_tool_arguments_key in [
-        "action_input",
-        "tool_arguments",
-        "tool_args",
-        "parameters",
-    ]:
-        if possible_tool_arguments_key in tool_call:
-            tool_arguments_key = possible_tool_arguments_key
-    if tool_name_key is not None:
-        if tool_arguments_key is not None:
-            return tool_call[tool_name_key], tool_call[tool_arguments_key]
-        else:
-            return tool_call[tool_name_key], None
-    error_msg = "No tool name key found in tool call!" + f" Tool call: {json_blob}"
-    raise AgentParsingError(error_msg)
+    raise ValueError(
+        dedent(
+            f"""
+            Your code snippet is invalid, because the regex pattern {code_block_tags[0]}(.*?){code_block_tags[1]} was not found in it.
+            Here is your code snippet:
+            {text}
+            Make sure to include code with the correct pattern, for instance:
+            Thoughts: Your thoughts
+            {code_block_tags[0]}
+            # Your python code here
+            {code_block_tags[1]}
+            """
+        ).strip()
+    )
 
 
 MAX_LENGTH_TRUNCATE_CONTENT = 20000
@@ -280,10 +326,12 @@ def instance_to_source(instance, base_cls=None):
 
     for name, value in class_attrs.items():
         if isinstance(value, str):
+            # multiline value
             if "\n" in value:
-                class_lines.append(f'    {name} = """{value}"""')
+                escaped_value = value.replace('"""', r"\"\"\"")  # Escape triple quotes
+                class_lines.append(f'    {name} = """{escaped_value}"""')
             else:
-                class_lines.append(f'    {name} = "{value}"')
+                class_lines.append(f"    {name} = {json.dumps(value)}")
         else:
             class_lines.append(f"    {name} = {repr(value)}")
 
@@ -292,11 +340,16 @@ def instance_to_source(instance, base_cls=None):
 
     # Add methods
     methods = {
-        name: func
+        name: func.__wrapped__ if hasattr(func, "__wrapped__") else func
         for name, func in cls.__dict__.items()
         if callable(func)
-        and not (
-            base_cls and hasattr(base_cls, name) and getattr(base_cls, name).__code__.co_code == func.__code__.co_code
+        and (
+            not base_cls
+            or not hasattr(base_cls, name)
+            or (
+                isinstance(func, (staticmethod, classmethod))
+                or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code)
+            )
         )
     }
 
@@ -361,7 +414,9 @@ def get_source(obj) -> str:
 
     inspect_error = None
     try:
-        return textwrap.dedent(inspect.getsource(obj)).strip()
+        # Handle dynamically created classes
+        source = getattr(obj, "__source__", None) or inspect.getsource(obj)
+        return dedent(source).strip()
     except OSError as e:
         # let's keep track of the exception to raise it if all further methods fail
         inspect_error = e
@@ -378,7 +433,7 @@ def get_source(obj) -> str:
         tree = ast.parse(all_cells)
         for node in ast.walk(tree):
             if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name == obj.__name__:
-                return textwrap.dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
+                return dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
         raise ValueError(f"Could not find source code for {obj.__name__} in IPython history")
     except ImportError:
         # IPython is not available, let's just raise the original inspect error
@@ -396,3 +451,84 @@ def encode_image_base64(image):
 
 def make_image_url(base64_image):
     return f"data:image/png;base64,{base64_image}"
+
+
+def make_init_file(folder: str | Path):
+    os.makedirs(folder, exist_ok=True)
+    # Create __init__
+    with open(os.path.join(folder, "__init__.py"), "w"):
+        pass
+
+
+def is_valid_name(name: str) -> bool:
+    return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False
+
+
+AGENT_GRADIO_APP_TEMPLATE = """import yaml
+import os
+from smolagents import GradioUI, {{ class_name }}, {{ agent_dict['model']['class'] }}
+
+# Get current directory path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+{% for tool in tools.values() -%}
+from {{managed_agent_relative_path}}tools.{{ tool.name }} import {{ tool.__class__.__name__ }} as {{ tool.name | camelcase }}
+{% endfor %}
+{% for managed_agent in managed_agents.values() -%}
+from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app import agent_{{ managed_agent.name }}
+{% endfor %}
+
+model = {{ agent_dict['model']['class'] }}(
+{% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
+    {{ key }}={{ agent_dict['model']['data'][key]|repr }},
+{% endfor %})
+
+{% for tool in tools.values() -%}
+{{ tool.name }} = {{ tool.name | camelcase }}()
+{% endfor %}
+
+with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
+    prompt_templates = yaml.safe_load(stream)
+
+{{ agent_name }} = {{ class_name }}(
+    model=model,
+    tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
+    {{ attribute_name }}={{ value|repr }},
+    {% endfor %}prompt_templates=prompt_templates
+)
+if __name__ == "__main__":
+    GradioUI({{ agent_name }}).launch()
+""".strip()
+
+
+class RateLimiter:
+    """Simple rate limiter that enforces a minimum delay between consecutive requests.
+
+    This class is useful for limiting the rate of operations such as API requests,
+    by ensuring that calls to `throttle()` are spaced out by at least a given interval
+    based on the desired requests per minute.
+
+    If no rate is specified (i.e., `requests_per_minute` is None), rate limiting
+    is disabled and `throttle()` becomes a no-op.
+
+    Args:
+        requests_per_minute (`float | None`): Maximum number of allowed requests per minute.
+            Use `None` to disable rate limiting.
+    """
+
+    def __init__(self, requests_per_minute: float | None = None):
+        self._enabled = requests_per_minute is not None
+        self._interval = 60.0 / requests_per_minute if self._enabled else 0.0
+        self._last_call = 0.0
+
+    def throttle(self):
+        """Pause execution to respect the rate limit, if enabled."""
+        if not self._enabled:
+            return
+        now = time.time()
+        elapsed = now - self._last_call
+        if elapsed < self._interval:
+            time.sleep(self._interval - elapsed)
+        self._last_call = time.time()
