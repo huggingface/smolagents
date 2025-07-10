@@ -1598,9 +1598,24 @@ class LocalPythonExecutor(PythonExecutor):
         self.additional_functions = additional_functions or {}
 
     def _check_authorized_imports_are_installed(self):
-        missing_modules = [imp for imp in self.authorized_imports if find_spec(imp) is None and imp != "*"]
+        """
+        Check that all authorized imports are installed on the system.
+
+        Handles wildcard imports ("*") and partial star-pattern imports (e.g., "os.*").
+
+        Raises:
+            InterpreterError: If any of the authorized modules are not installed.
+        """
+        missing_modules = [
+            base_module
+            for imp in self.authorized_imports
+            if imp != "*" and find_spec(base_module := imp.split(".")[0]) is None
+        ]
         if missing_modules:
-            raise InterpreterError(f"The authorized modules {missing_modules} are not installed on this system.")
+            raise InterpreterError(
+                f"Non-installed authorized modules: {', '.join(missing_modules)}. "
+                f"Please install these modules or remove them from the authorized imports list."
+            )
 
     def __call__(self, code_action: str) -> CodeOutput:
         output, is_final_answer = evaluate_python_code(
