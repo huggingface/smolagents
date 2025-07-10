@@ -1244,7 +1244,7 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
 
             actual_type = _get_json_schema_type(type(value))["type"]
             expected_type = tool.inputs[key]["type"]
-            if isinstance(expected_type, str):
+            if isinstance(expected_type, str) and expected_type != "any":
                 expected_type = [expected_type]
             expected_type_is_nullable = tool.inputs[key].get("nullable", False)
 
