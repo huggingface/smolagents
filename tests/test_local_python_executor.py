@@ -1797,12 +1797,12 @@ def test_check_import_authorized(module: str, authorized_imports: list[str], exp
 
 class TestLocalPythonExecutor:
     def test_uninstalled_imports(self):
-        assert LocalPythonExecutor(additional_authorized_imports=["math"], tools={})
+        assert LocalPythonExecutor(additional_authorized_imports=["math"])
         with pytest.raises(InterpreterError):
-            LocalPythonExecutor(additional_authorized_imports=["i_do_not_exist"], tools={})
+            LocalPythonExecutor(additional_authorized_imports=["i_do_not_exist"])
         with pytest.raises(InterpreterError):
-            LocalPythonExecutor(additional_authorized_imports=["math", "i_do_not_exist", "os"], tools={})
-        assert LocalPythonExecutor(additional_authorized_imports=["*"], tools={})
+            LocalPythonExecutor(additional_authorized_imports=["math", "i_do_not_exist", "os"])
+        assert LocalPythonExecutor(additional_authorized_imports=["*"])
 
     def test_state_name(self):
         executor = LocalPythonExecutor(additional_authorized_imports=[])
