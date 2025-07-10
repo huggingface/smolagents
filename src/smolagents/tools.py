@@ -1244,13 +1244,11 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
 
             actual_type = _get_json_schema_type(type(value))["type"]
             expected_type = tool.inputs[key]["type"]
-            if isinstance(expected_type, str) and expected_type != "any":
-                expected_type = [expected_type]
             expected_type_is_nullable = tool.inputs[key].get("nullable", False)
 
             # Type is valid if it matches, is "any", or is null for nullable parameters
             if (
-                actual_type not in expected_type
+                (actual_type != expected_type if isinstance(expected_type, str) else actual_type not in expected_type)
                 and expected_type != "any"
                 and not (actual_type == "null" and expected_type_is_nullable)
             ):
