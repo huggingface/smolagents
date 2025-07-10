@@ -1242,15 +1242,23 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
             if key not in tool.inputs:
                 return f"Argument {key} is not in the tool's input schema."
 
-            parsed_type = _get_json_schema_type(type(value))["type"]
-            tool_inputs_type = tool.inputs[key]["type"]
-            if isinstance(tool_inputs_type, str):
-                tool_inputs_type = [tool_inputs_type]
+            actual_type = _get_json_schema_type(type(value))["type"]
+            expected_type = tool.inputs[key]["type"]
+            if isinstance(expected_type, str):
+                expected_type = [expected_type]
+            expected_type_is_nullable = tool.inputs[key].get("nullable", False)
 
-            if parsed_type not in tool_inputs_type and not tool.inputs[key]["type"] == "any":
-                return f"Argument {key} has type '{parsed_type}' but should be '{tool.inputs[key]['type']}'."
-        for key in tool.inputs:
-            if key not in arguments:
+            # Type is valid if it matches, is "any", or is null for nullable parameters
+            if (
+                actual_type not in expected_type
+                and expected_type != "any"
+                and not (actual_type == "null" and expected_type_is_nullable)
+            ):
+                return f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'."
+
+        for key, schema in tool.inputs.items():
+            key_is_nullable = schema.get("nullable", False)
+            if key not in arguments and not key_is_nullable:
                 return f"Argument {key} is required."
         return None
     else:

@@ -2029,10 +2029,10 @@ print("Ok, calculation done!")""")
         with patch("smolagents.models.InferenceClientModel"):
             agent = CodeAgent.from_dict(
                 agent_dict,
-                additional_authorized_imports=["matplotlib"],
+                additional_authorized_imports=["requests"],
                 executor_kwargs={"max_print_outputs_length": 5_000},
             )
-        assert agent.additional_authorized_imports == ["matplotlib"]
+        assert agent.additional_authorized_imports == ["requests"]
         assert agent.executor_kwargs == {"max_print_outputs_length": 5_000}
 
     def test_custom_final_answer_with_custom_inputs(self):
