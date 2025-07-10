@@ -1796,16 +1796,29 @@ def test_check_import_authorized(module: str, authorized_imports: list[str], exp
 
 
 class TestLocalPythonExecutor:
-    def test_additional_authorized_imports_are_installed(self):
-        assert LocalPythonExecutor(additional_authorized_imports=["math"])
-        assert LocalPythonExecutor(additional_authorized_imports=["*"])
-        assert LocalPythonExecutor(additional_authorized_imports=["os.*"])
-        with pytest.raises(InterpreterError):
-            LocalPythonExecutor(additional_authorized_imports=["i_do_not_exist"])
-        with pytest.raises(InterpreterError):
-            LocalPythonExecutor(additional_authorized_imports=["math", "i_do_not_exist", "os"])
-        with pytest.raises(InterpreterError):
-            LocalPythonExecutor(additional_authorized_imports=["i_do_not_exist.*"])
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, should_raise",
+        [
+            # Valid imports
+            (["math"], None),
+            (["math", "os"], None),  # Multiple valid imports
+            ([], None),  # Empty list of imports
+            (["*"], None),  # Wildcard allows all imports
+            (["os.*"], None),  # Submodule wildcard
+            # Invalid imports
+            (["i_do_not_exist"], True),  # Non-existent module
+            (["math", "i_do_not_exist"], True),  # Mix of valid and invalid
+            (["i_do_not_exist.*"], True),  # Non-existent module with wildcard
+        ],
+    )
+    def test_additional_authorized_imports_are_installed(self, additional_authorized_imports, should_raise):
+        expectation = (
+            pytest.raises(InterpreterError, match="Non-installed authorized modules")
+            if should_raise
+            else does_not_raise()
+        )
+        with expectation:
+            LocalPythonExecutor(additional_authorized_imports=additional_authorized_imports)
 
     def test_state_name(self):
         executor = LocalPythonExecutor(additional_authorized_imports=[])
