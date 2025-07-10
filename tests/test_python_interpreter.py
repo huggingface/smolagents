@@ -22,9 +22,9 @@ import pytest
 from smolagents.default_tools import BASE_PYTHON_TOOLS
 from smolagents.local_python_executor import (
     InterpreterError,
+    LocalPythonInterpreter,
     evaluate_python_code,
     fix_final_answer_code,
-    LocalPythonInterpreter,
 )
 
 
@@ -436,13 +436,9 @@ if char.isalpha():
     def test_uninstalled_imports(self):
         assert LocalPythonInterpreter(additional_authorized_imports=["math"], tools={})
         with pytest.raises(InterpreterError):
-            LocalPythonInterpreter(
-                additional_authorized_imports=["i_do_not_exist"], tools={}
-            )
+            LocalPythonInterpreter(additional_authorized_imports=["i_do_not_exist"], tools={})
         with pytest.raises(InterpreterError):
-            LocalPythonInterpreter(
-                additional_authorized_imports=["math", "i_do_not_exist", "os"], tools={}
-            )
+            LocalPythonInterpreter(additional_authorized_imports=["math", "i_do_not_exist", "os"], tools={})
         assert LocalPythonInterpreter(additional_authorized_imports=["*"], tools={})
 
     def test_multiple_comparators(self):
