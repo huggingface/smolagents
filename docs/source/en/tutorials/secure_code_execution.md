@@ -30,8 +30,8 @@ By default, the `CodeAgent` runs LLM-generated code in your environment.
 This is inherently risky, LLM-generated code could be harmful to your environment.
 
 Malicious code execution can occur in several ways:
-- **Plain LLM error:** LLMs are still far from perfect and may unintentionally generate harmful commands while attempting to be helpful. While this risk is low, instances have been observed where an LLM attempted to execute potentially dangerous code.  
-- **Supply chain attack:** Running an untrusted or compromised LLM could expose a system to harmful code generation. While this risk is extremely low when using well-known models on secure inference infrastructure, it remains a theoretical possibility.  
+- **Plain LLM error:** LLMs are still far from perfect and may unintentionally generate harmful commands while attempting to be helpful. While this risk is low, instances have been observed where an LLM attempted to execute potentially dangerous code.
+- **Supply chain attack:** Running an untrusted or compromised LLM could expose a system to harmful code generation. While this risk is extremely low when using well-known models on secure inference infrastructure, it remains a theoretical possibility.
 - **Prompt injection:** an agent browsing the web could arrive on a malicious website that contains harmful instructions, thus injecting an attack into the agent's memory
 - **Exploitation of publicly accessible agents:** Agents exposed to the public can be misused by malicious actors to execute harmful code. Attackers may craft adversarial inputs to exploit the agent's execution capabilities, leading to unintended consequences.
 Once malicious code is executed, whether accidentally or intentionally, it can damage the file system, exploit local or cloud-based resources, abuse API services, and even compromise network security.
@@ -102,11 +102,11 @@ These safeguards make out interpreter is safer.
 We have used it on a diversity of use cases, without ever observing any damage to the environment.
 
 > [!WARNING]
-> It's important to understand that no local python sandbox can ever be completely secure. While our interpreter provides significant safety improvements over the standard Python interpreter, it is still possible for a determined attacker or a fine-tuned malicious LLM to find vulnerabilities and potentially harm your environment. 
-> 
+> It's important to understand that no local python sandbox can ever be completely secure. While our interpreter provides significant safety improvements over the standard Python interpreter, it is still possible for a determined attacker or a fine-tuned malicious LLM to find vulnerabilities and potentially harm your environment.
+>
 > For example, if you've allowed packages like `Pillow` to process images, the LLM could generate code that creates thousands of large image files to fill your hard drive. Other advanced escape techniques might exploit deeper vulnerabilities in authorized packages.
-> 
-> Running LLM-generated code in your local environment always carries some inherent risk. The only way to run LLM-generated code with truly robust security isolation is to use remote execution options like E2B or Docker, as detailed below.
+>
+> Running LLM-generated code in your local environment always carries some inherent risk. The only way to run LLM-generated code with truly robust security isolation is to use remote execution options like E2B, YepCode or Docker, as detailed below.
 
 The risk of a malicious attack is low when using well-known LLMs from trusted inference providers, but it is not zero.
 For high-security applications or when using less trusted models, you should consider using a remote execution sandbox.
@@ -118,7 +118,7 @@ When working with AI agents that execute code, security is paramount. There are 
 
 ![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/remote_execution.png)
 
-1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"` or `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
+1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"`, `executor_type="yepcode"`, or `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
 
 2. **Running the entire agentic system in a sandbox**: This approach (right side of diagram) runs the entire agentic system, including the agent, model, and tools, within a sandbox environment. This provides better isolation but requires more manual setup and may require passing sensitive credentials (like API keys) to the sandbox environment.
 
@@ -217,6 +217,61 @@ print(response)
 execution_logs = run_code_raise_errors(sandbox, agent_code)
 print(execution_logs)
 ```
+
+### YepCode setup
+
+YepCode offers a cloud-based serverless runtime for secure code execution in fully isolated sandboxes. It automatically detects and installs dependencies, and includes a complete UI and audit module to monitor executions, view logs, and track parameters and outcomes.
+
+You can also define and manage secrets, which can be safely referenced within your agent tasks—making it easy to build robust, secure, and scalable workflows.
+
+#### Installation
+
+1. Sign up for a YepCode account at [cloud.yepcode.io](https://cloud.yepcode.io)
+2. Get your API token from your workspace under: `Settings` > `API credentials`
+3. Install the required packages:
+```bash
+pip install 'smolagents[yepcode]'
+```
+
+#### Running your agent in YepCode: quick start
+
+We provide a simple way to use YepCode Run: simply add `executor_type="yepcode"` to the agent initialization, as follows:
+
+```py
+from smolagents import CodeAgent, VisitWebpageTool, InferenceClientModel
+
+agent = CodeAgent(
+    tools=[VisitWebpageTool()],
+    model=InferenceClientModel(),
+    executor_type="yepcode"
+)
+
+agent.run("What was Abraham Lincoln's preferred pet?")
+```
+
+Make sure to set your YepCode API token as an environment variable:
+```bash
+export YEPCODE_API_TOKEN=your_api_token_here
+```
+
+Or pass it directly to the executor:
+```py
+agent = CodeAgent(
+    tools=[VisitWebpageTool()],
+    model=InferenceClientModel(),
+    executor_type="yepcode",
+    executor_kwargs={"api_token": "your_api_token_here", "removeOnDone": True}
+)
+```
+
+> [!TIP]
+> Using the agent as a context manager (with the `with` statement) ensures that YepCode resources are cleaned up immediately after the agent completes its task.
+> Alternatively, you can manually call the agent's `cleanup()` method.
+
+YepCode Run automatically handles package installation and provides comprehensive execution monitoring and logging. It's particularly well-suited for production environments where you need reliable, scalable code execution with built-in observability.
+
+> [!NOTE]
+> **Key Advantage**: Unlike other executors, YepCode automatically detects and installs packages from imports, so you don't need to specify `additional_authorized_imports`. Simply import any package you need (e.g., `import pandas`, `import numpy`) and YepCode will handle the installation automatically. If you need to use any package that couldn't be guessed by the import sentence, use the `additional_authorized_imports` and installation [will be forced]( https://yepcode.io/docs/dependencies).
 
 ### Docker setup
 
@@ -393,6 +448,7 @@ agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="wasm")
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
+
 ### Best practices for sandboxes
 
 These key practices apply to both E2B and Docker sandboxes:
@@ -420,8 +476,8 @@ These key practices apply to both E2B and Docker sandboxes:
 As illustrated in the diagram earlier, both sandboxing approaches have different security implications:
 
 ### Approach 1: Running just the code snippets in a sandbox
-- **Pros**: 
-  - Easier to set up with a simple parameter (`executor_type="e2b"` or `executor_type="docker"`)
+- **Pros**:
+  - Easier to set up with a simple parameter (`executor_type="e2b"`, `executor_type="yepcode"`, or `executor_type="docker"`)
   - No need to transfer API keys to the sandbox
   - Better protection for your local environment
 - **Cons**:

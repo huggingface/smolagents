@@ -80,6 +80,10 @@ Extras for executing code remotely:
   ```bash
   pip install "smolagents[e2b]"
   ```
+- **yepcode**: Enable YepCode support for cloud-based serverless execution with automatic package installation.
+  ```bash
+  pip install "smolagents[yepcode]"
+  ```
 
 ### Telemetry and User Interface
 Extras for telemetry, monitoring and user interface components:
