@@ -25,6 +25,10 @@ from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
+
+from multiprocessing import Manager
+from smolagents import CodeAgent, InferenceClientModel
+
 import pytest
 from huggingface_hub import (
     ChatCompletionOutputFunctionDefinition,
@@ -430,6 +434,20 @@ class TestAgent:
             additional_args={"instruction": "Remember this."},
         )
         assert "Remember this" in agent.task
+
+
+    def test_agent_communication():
+        with Manager() as manager:
+            queue_dict = manager.dict()
+            queue_dict[0] = manager.Queue()
+            queue_dict[1] = manager.Queue()
+            model = InferenceClientModel(model_id="mock-model")  # Use a mock model
+            agent0 = CodeAgent(tools=[], model=model, agent_id=0, queue_dict=queue_dict)
+            agent1 = CodeAgent(tools=[], model=model, agent_id=1, queue_dict=queue_dict)
+            agent0.send_message(1, "test message")
+            agent1.receive_messages()
+            assert agent1.task == "test message"  # Assuming message sets task
+
 
     def test_reset_conversations(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())

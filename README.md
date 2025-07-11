@@ -30,56 +30,88 @@ limitations under the License.
   </div>
 </h3>
 
-`smolagents` is a library that enables you to run powerful agents in a few lines of code. It offers:
+`smolagents` is a lightweight library for building autonomous agents that solve tasks using code and tools. Agents run as independent processes and communicate directly via message queues, eliminating centralized orchestration. Each agent has a unique `agent_id` and a queue in a shared `queue_dict`, enabling decentralized task processing.
 
-✨ **Simplicity**: the logic for agents fits in ~1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)). We kept abstractions to their minimal shape above raw code!
+✨ **Simplicity**: The core logic fits in ~1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)), keeping abstractions minimal.
 
-🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/) or via Docker.
+🧑‍💻 **First-class support for Code Agents**: Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes actions as Python code, executed securely in sandboxed environments via [E2B](https://e2b.dev/) or Docker.
 
-🤗 **Hub integrations**: you can [share/pull tools or agents to/from the Hub](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_hub) for instant sharing of the most efficient agents!
+🤗 **Hub integrations**: Share or pull tools and agents to/from the Hub for instant collaboration (see [Tool.from_hub](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_hub)).
 
-🌐 **Model-agnostic**: smolagents supports any LLM. It can be a local `transformers` or `ollama` model, one of [many providers on the Hub](https://huggingface.co/blog/inference-providers), or any model from OpenAI, Anthropic and many others via our [LiteLLM](https://www.litellm.ai/) integration.
+🌐 **Model-agnostic**: Supports any LLM, including local `transformers` or `ollama` models, [HF inference providers](https://huggingface.co/blog/inference-providers), or models from OpenAI, Anthropic, and others via [LiteLLM](https://www.litellm.ai/).
 
-👁️ **Modality-agnostic**: Agents support text, vision, video, even audio inputs! Cf [this tutorial](https://huggingface.co/docs/smolagents/examples/web_browser) for vision.
+👁️ **Modality-agnostic**: Agents handle text, vision, video, and audio inputs (see [vision tutorial](https://huggingface.co/docs/smolagents/examples/web_browser)).
 
-🛠️ **Tool-agnostic**: you can use tools from any [MCP server](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), from [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), you can even use a [Hub Space](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space) as a tool.
+🛠️ **Tool-agnostic**: Use tools from [MCP servers](https://huggingface.co/docs/smolagents/reference/tools#smolagents.ToolCollection.from_mcp), [LangChain](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_langchain), or [Hub Spaces](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_space).
 
-Full documentation can be found [here](https://huggingface.co/docs/smolagents/index).
+Full documentation is available [here](https://huggingface.co/docs/smolagents/index).
 
 > [!NOTE]
-> Check the our [launch blog post](https://huggingface.co/blog/smolagents) to learn more about `smolagents`!
+> Check our [launch blog post](https://huggingface.co/blog/smolagents) to learn more about `smolagents`!
 
-## Quick demo
+## Quick Demo
 
-First install the package with a default set of tools:
+Install the package with default tools:
+
 ```bash
 pip install smolagents[toolkit]
 ```
-Then define your agent, give it the tools it needs and run it!
-```py
-from smolagents import CodeAgent, WebSearchTool, InferenceClientModel
 
-model = InferenceClientModel()
-agent = CodeAgent(tools=[WebSearchTool()], model=model, stream_outputs=True)
+Set your Hugging Face API key:
 
-agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
+```bash
+export HF_TOKEN=your_huggingface_api_key_here
 ```
 
-https://github.com/user-attachments/assets/84b149b4-246c-40c9-a48d-ba013b08e600
+Run multiple agents to solve a task collaboratively:
 
-You can even share your agent to the Hub, as a Space repository:
-```py
+```python
+from multiprocessing import Manager, Process
+from smolagents import CodeAgent, InferenceClientModel, WebSearchTool
+
+def start_agent(agent_id, queue_dict, task=None):
+    model = InferenceClientModel()
+    agent = CodeAgent(
+        tools=[WebSearchTool()],
+        model=model,
+        agent_id=agent_id,
+        queue_dict=queue_dict,
+        additional_authorized_imports=["numpy", "pandas"],
+    )
+    agent.run(task=task)
+
+if __name__ == "__main__":
+    task = "How many seconds would it take for a leopard at full speed to run through Pont des Arts?"
+    num_agents = 2
+    with Manager() as manager:
+        queue_dict = manager.dict()
+        for i in range(num_agents):
+            queue_dict[i] = manager.Queue()
+        processes = [
+            Process(target=start_agent, args=(i, queue_dict, task if i == 0 else None))
+            for i in range(num_agents)
+        ]
+        for p in processes:
+            p.start()
+        for p in processes:
+            p.join()
+```
+
+This launches two `CodeAgent` instances. Agent 0 processes the task and may send subtasks (e.g., code or search results) to Agent 1 via message queues. Agents use tools like `web_search` or `python_interpreter` and return results with `final_answer()`.
+
+You can share your agent to the Hub as a Space repository:
+
+```python
 agent.push_to_hub("m-ric/my_agent")
-
 # agent.from_hub("m-ric/my_agent") to load an agent from Hub
 ```
 
-Our library is LLM-agnostic: you could switch the example above to any inference provider.
+`smolagents` is LLM-agnostic. Switch the model as needed:
 
 <details>
-<summary> <b>InferenceClientModel, gateway for all <a href="https://huggingface.co/docs/inference-providers/index">inference providers</a> supported on HF</b></summary>
+<summary> <b>InferenceClientModel (HF inference providers)</b></summary>
 
-```py
+```python
 from smolagents import InferenceClientModel
 
 model = InferenceClientModel(
@@ -89,9 +121,9 @@ model = InferenceClientModel(
 ```
 </details>
 <details>
-<summary> <b>LiteLLM to access 100+ LLMs</b></summary>
+<summary> <b>LiteLLM (100+ LLMs)</b></summary>
 
-```py
+```python
 from smolagents import LiteLLMModel
 
 model = LiteLLMModel(
@@ -104,36 +136,35 @@ model = LiteLLMModel(
 <details>
 <summary> <b>OpenAI-compatible servers: Together AI</b></summary>
 
-```py
+```python
 import os
 from smolagents import OpenAIServerModel
 
 model = OpenAIServerModel(
     model_id="deepseek-ai/DeepSeek-R1",
-    api_base="https://api.together.xyz/v1/", # Leave this blank to query OpenAI servers.
-    api_key=os.environ["TOGETHER_API_KEY"], # Switch to the API key for the server you're targeting.
+    api_base="https://api.together.xyz/v1/",
+    api_key=os.environ["TOGETHER_API_KEY"],
 )
 ```
 </details>
 <details>
 <summary> <b>OpenAI-compatible servers: OpenRouter</b></summary>
 
-```py
+```python
 import os
 from smolagents import OpenAIServerModel
 
 model = OpenAIServerModel(
     model_id="openai/gpt-4o",
-    api_base="https://openrouter.ai/api/v1", # Leave this blank to query OpenAI servers.
-    api_key=os.environ["OPENROUTER_API_KEY"], # Switch to the API key for the server you're targeting.
+    api_base="https://openrouter.ai/api/v1",
+    api_key=os.environ["OPENROUTER_API_KEY"],
 )
 ```
-
 </details>
 <details>
 <summary> <b>Local `transformers` model</b></summary>
 
-```py
+```python
 from smolagents import TransformersModel
 
 model = TransformersModel(
@@ -146,126 +177,89 @@ model = TransformersModel(
 <details>
 <summary> <b>Azure models</b></summary>
 
-```py
+```python
 import os
 from smolagents import AzureOpenAIServerModel
 
 model = AzureOpenAIServerModel(
-    model_id = os.environ.get("AZURE_OPENAI_MODEL"),
+    model_id=os.environ.get("AZURE_OPENAI_MODEL"),
     azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
     api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
-    api_version=os.environ.get("OPENAI_API_VERSION")    
+    api_version=os.environ.get("OPENAI_API_VERSION")
 )
 ```
 </details>
 <details>
 <summary> <b>Amazon Bedrock models</b></summary>
 
-```py
+```python
 import os
 from smolagents import AmazonBedrockServerModel
 
 model = AmazonBedrockServerModel(
-    model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID") 
+    model_id=os.environ.get("AMAZON_BEDROCK_MODEL_ID")
 )
 ```
 </details>
 
 ## CLI
 
-You can run agents from CLI using two commands: `smolagent` and `webagent`.
+Run agents from the CLI using `smolagent` or `webagent`.
 
-`smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools.
+`smolagent` runs multiple `CodeAgent` or `ToolCallingAgent` instances that collaborate via message queues:
 
 ```bash
-smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
+smolagent "Plan a trip to Tokyo, Kyoto, and Osaka between Mar 28 and Apr 7." --num-agents 2 --model-type "InferenceClientModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
 ```
 
-Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
+`webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)):
 
-For instance:
 ```bash
-webagent "go to xyz.com/men, get to sale section, click the first clothing item you see. Get the product details, and the price, return them. note that I'm shopping from France" --model-type "LiteLLMModel" --model-id "gpt-4o"
+webagent "Go to xyz.com/men, get to sale section, click the first clothing item. Get the product details and price, return them. Note that I'm shopping from France" --model-type "LiteLLMModel" --model-id "gpt-4o"
 ```
 
-## How do Code agents work?
+## How Do Agents Work?
 
-Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) works mostly like classical ReAct agents - the exception being that the LLM engine writes its actions as Python code snippets.
+Agents in `smolagents` run as independent processes, each with a unique `agent_id` and a queue in a shared `queue_dict`. They communicate directly by sending messages (e.g., tasks, code, or results) using `self.send_message(target_id, message)` and checking their queue with `self.receive_messages()`. This decentralized approach eliminates the need for a centralized ReAct loop.
 
-```mermaid
-flowchart TB
-    Task[User Task]
-    Memory[agent.memory]
-    Generate[Generate from agent.model]
-    Execute[Execute Code action - Tool calls are written as functions]
-    Answer[Return the argument given to 'final_answer']
+[`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes actions as Python code snippets, executed securely in sandboxed environments (e.g., [E2B](https://e2b.dev/) or Docker). Code-based actions [use 30% fewer steps](https://huggingface.co/papers/2402.01030) and [achieve higher performance](https://huggingface.co/papers/2411.01747) compared to traditional tool-calling methods.
 
-    Task -->|Add task to agent.memory| Memory
+[`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) writes actions as JSON blobs, suitable for tasks requiring structured tool calls. Both agent types support collaborative workflows via message queues.
 
-    subgraph ReAct[ReAct loop]
-        Memory -->|Memory as chat messages| Generate
-        Generate -->|Parse output to extract code action| Execute
-        Execute -->|No call to 'final_answer' tool => Store execution logs in memory and keep running| Memory
-    end
-    
-    Execute -->|Call to 'final_answer' tool| Answer
+Example workflow for two agents solving "Compute 5 + 3":
 
-    %% Styling
-    classDef default fill:#d4b702,stroke:#8b7701,color:#ffffff
-    classDef io fill:#4a5568,stroke:#2d3748,color:#ffffff
-    
-    class Task,Answer io
-```
+- **Agent 0**: Generates code (`result = 5 + 3; print(result)`) and sends it to Agent 1.
+- **Agent 1**: Receives the code, executes it using `python_interpreter`, and returns the result with `final_answer()`.
 
-Actions are now Python code snippets. Hence, tool calls will be performed as Python function calls. For instance, here is how the agent can perform web search over several websites in one single action:
-```py
-requests_to_search = ["gulf of mexico america", "greenland denmark", "tariffs"]
-for request in requests_to_search:
-    print(f"Here are the search results for {request}:", web_search(request))
-```
+See [our intro to agents](https://huggingface.co/docs/smolagents/conceptual_guides/intro_agents) for more details.
 
-Writing actions as code snippets is demonstrated to work better than the current industry practice of letting the LLM output a dictionary of the tools it wants to call: [uses 30% fewer steps](https://huggingface.co/papers/2402.01030) (thus 30% fewer LLM calls) and [reaches higher performance on difficult benchmarks](https://huggingface.co/papers/2411.01747). Head to [our high-level intro to agents](https://huggingface.co/docs/smolagents/conceptual_guides/intro_agents) to learn more on that.
+## How Smol Is This Library?
 
-Especially, since code execution can be a security concern (arbitrary code execution!), we provide options at runtime:
-  - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
-  - a sandboxed environment using [E2B](https://e2b.dev/) or Docker (removes the risk to your own system).
+The core logic in `agents.py` is <1,000 lines, minimizing abstractions. We support `CodeAgent` (Python code actions), `ToolCallingAgent` (JSON actions), multi-agent collaboration, tool collections, remote code execution, and vision models. The framework handles complex tasks like consistent code formatting, parsing, and secure execution, but you can hack into the source code to use only what you need.
 
-Alongside [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent), we also provide the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) which writes actions as JSON/text blobs. You can pick whichever style best suits your use case.
+## How Strong Are Open Models for Agentic Workflows?
 
-## How smol is this library?
-
-We strived to keep abstractions to a strict minimum: the main code in `agents.py` has <1,000 lines of code.
-Still, we implement several types of agents: `CodeAgent` writes its actions as Python code snippets, and the more classic `ToolCallingAgent` leverages built-in tool calling methods. We also have multi-agent hierarchies, import from tool collections, remote code execution, vision models...
-
-By the way, why use a framework at all? Well, because a big part of this stuff is non-trivial. For instance, the code agent has to keep a consistent format for code throughout its system prompt, its parser, the execution. So our framework handles this complexity for you. But of course we still encourage you to hack into the source code and use only the bits that you need, to the exclusion of everything else!
-
-## How strong are open models for agentic workflows?
-
-We've created [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) instances with some leading models, and compared them on [this benchmark](https://huggingface.co/datasets/m-ric/agents_medium_benchmark_2) that gathers questions from a few different benchmarks to propose a varied blend of challenges.
-
-[Find the benchmarking code here](https://github.com/huggingface/smolagents/blob/main/examples/smolagents_benchmark/run.py) for more detail on the agentic setup used, and see a comparison of using LLMs code agents compared to vanilla (spoilers: code agents works better).
+We’ve benchmarked [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) with leading models on [this benchmark](https://huggingface.co/datasets/m-ric/agents_medium_benchmark_2), combining varied challenges. [See the benchmarking code](https://github.com/huggingface/smolagents/blob/main/examples/smolagents_benchmark/run.py) for details. Open-source models like DeepSeek-R1 often outperform closed-source models in agentic tasks.
 
 <p align="center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/benchmark_code_agents.jpeg" alt="benchmark of different models on agentic workflows. Open model DeepSeek-R1 beats closed-source models." width=60% max-width=500px>
 </p>
 
-This comparison shows that open-source models can now take on the best closed models!
-
 ## Security
 
-Security is a critical consideration when working with code-executing agents. Our library provides:
-- Sandboxed execution options using [E2B](https://e2b.dev/) or Docker
-- Best practices for running agent code securely
+Security is critical for code-executing agents. We provide:
+- Sandboxed execution via [E2B](https://e2b.dev/) or Docker.
+- Best practices for secure agent execution.
 
-For security policies, vulnerability reporting, and more information on secure agent execution, please see our [Security Policy](SECURITY.md).
+See our [Security Policy](SECURITY.md) for vulnerability reporting and secure execution guidelines.
 
 ## Contribute
 
-Everyone is welcome to contribute, get started with our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
+Everyone is welcome to contribute. See our [contribution guide](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md).
 
 ## Cite smolagents
 
-If you use `smolagents` in your publication, please cite it by using the following BibTeX entry.
+If you use `smolagents` in your publication, please cite it:
 
 ```bibtex
 @Misc{smolagents,

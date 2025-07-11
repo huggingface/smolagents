@@ -5,12 +5,24 @@ import pytest
 from smolagents.cli import load_model
 from smolagents.local_python_executor import LocalPythonExecutor
 from smolagents.models import InferenceClientModel, LiteLLMModel, OpenAIServerModel, TransformersModel
+import subprocess
 
 
 @pytest.fixture
 def set_env_vars(monkeypatch):
     monkeypatch.setenv("FIREWORKS_API_KEY", "test_fireworks_api_key")
     monkeypatch.setenv("HF_TOKEN", "test_hf_api_key")
+
+
+def test_multi_agent_cli():
+    result = subprocess.run(
+        ["smolagent", "test task", "--num-agents", "2", "--model-id", "mock-model"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "Agent 0 running" in result.stdout
+    assert "Agent 1 running" in result.stdout
 
 
 def test_load_model_openai_server_model(set_env_vars):
