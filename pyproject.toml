@@ -64,7 +64,7 @@ telemetry = [
   "openinference-instrumentation-smolagents>=0.1.4"
 ]
 toolkit = [
-  "duckduckgo-search>=6.3.7",  # DuckDuckGoSearchTool
+  "ddgs>=9.0.2",  # DuckDuckGoSearchTool
   "markdownify>=0.14.1",  # VisitWebpageTool
 ]
 transformers = [
