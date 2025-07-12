@@ -169,7 +169,6 @@ with MCPClient([server_params1, server_params2]) as tools:
 
 > [!WARNING]
 > **Security Warning:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
->
 > Using MCP servers comes with security risks:
 > - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
 > - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
@@ -280,7 +279,6 @@ The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
 
 > [!WARNING]
 > **Security Warning:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
->
 > Using MCP servers comes with security risks:
 > - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
 > - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
