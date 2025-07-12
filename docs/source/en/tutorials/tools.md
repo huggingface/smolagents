@@ -172,7 +172,7 @@ with MCPClient([server_params1, server_params2]) as tools:
 > Using MCP servers comes with security risks:
 > - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
 > - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
-> - **Streamable HTTP-based MCP servers** while the remote MCP servers will not be able to execute code on your machine, still proceed with caution.
+> - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
 
 ### Import a Space as a tool
 
@@ -282,7 +282,7 @@ The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
 > Using MCP servers comes with security risks:
 > - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
 > - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
-> - **Streamable HTTP-based MCP servers** while the remote MCP servers will not be able to execute code on your machine, still proceed with caution.
+> - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
 
 For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
 ```py
