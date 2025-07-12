@@ -279,8 +279,12 @@ Leverage tools from the hundreds of MCP servers available on [glama.ai](https://
 The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
 
 > [!WARNING]
-> **Security Warning:** The same security warnings mentioned earlier for `MCPClient` apply when using `ToolCollection.from_mcp()`.
-
+> **Security Warning:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
+>
+> Using MCP servers comes with security risks:
+> - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
+> - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
+> - **Streamable HTTP-based MCP servers** while the remote MCP servers will not be able to execute code on your machine, still proceed with caution.
 
 For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
 ```py
