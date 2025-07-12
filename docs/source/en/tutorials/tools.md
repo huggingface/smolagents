@@ -277,7 +277,7 @@ Leverage tools from the hundreds of MCP servers available on [glama.ai](https://
 The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
 
 > [!WARNING]
-> **Security Warning:** The same security warnings mentioned for `MCPClient` apply when using `MCPClient` directly.
+> **Security Warning:** The same security warnings mentioned earlier for `MCPClient` apply when using `ToolCollection.from_mcp()`.
 
 
 For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
