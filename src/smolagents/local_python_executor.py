@@ -837,6 +837,10 @@ def evaluate_call(
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
+        if func.__name__.startswith("__") and func.__name__.endswith("__") and (func.__name__ not in static_tools.values()):
+            raise InterpreterError(
+                f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
+            )
         return func(*args, **kwargs)
 
 
