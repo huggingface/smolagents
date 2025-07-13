@@ -728,6 +728,17 @@ def test_supports_stop_parameter(model_id, expected):
     assert supports_stop_parameter(model_id) == expected, f"Failed for model_id: {model_id}"
 
 
+def test_transformers_model_with_dict_message():
+    model = TransformersModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
+    # Message passed as a dictionary, not a class object
+    message_dict = [{"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]}]
+    # Run model
+    output = model(message_dict, stop_sequences=["END"])
+    print(output)
+    assert isinstance(output, ChatMessage), "Expected output to be a ChatMessage object"
+    assert output.content and isinstance(output.content, str), "Expected non-empty text in content"
+    assert len(output.content.strip()) > 0, "Output content is empty"
+
 class TestGetToolCallFromText:
     @pytest.fixture(autouse=True)
     def mock_uuid4(self):

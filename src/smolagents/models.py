@@ -288,15 +288,15 @@ def get_clean_message_list(
     output_message_list: list[dict[str, Any]] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
     for message in message_list:
-        role = message.role
+        role = message["role"]
         if role not in MessageRole.roles():
             raise ValueError(f"Incorrect role {role}, only {MessageRole.roles()} are supported for now.")
 
         if role in role_conversions:
-            message.role = role_conversions[role]  # type: ignore
+            message["role"] = role_conversions[role]  # type: ignore
         # encode images if needed
-        if isinstance(message.content, list):
-            for element in message.content:
+        if isinstance(message["content"], list):
+            for element in message["content"]:
                 assert isinstance(element, dict), "Error: this element should be a dict:" + str(element)
                 if element["type"] == "image":
                     assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
@@ -310,12 +310,12 @@ def get_clean_message_list(
                     else:
                         element["image"] = encode_image_base64(element["image"])
 
-        if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
+        if len(output_message_list) > 0 and message["role"] == output_message_list[-1]["role"]:
+            assert isinstance(message["content"], list), "Error: wrong content:" + str(message["content"])
             if flatten_messages_as_text:
-                output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
+                output_message_list[-1]["content"] += "\n" + message["content"][0]["text"]
             else:
-                for el in message.content:
+                for el in message["content"]:
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
                         output_message_list[-1]["content"][-1]["text"] += "\n" + el["text"]
@@ -323,12 +323,12 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                content = message.content[0]["text"]
+                content = message["content"][0]["text"]
             else:
-                content = message.content
+                content = message["content"]
             output_message_list.append(
                 {
-                    "role": message.role,
+                    "role": message["role"],
                     "content": content,
                 }
             )
