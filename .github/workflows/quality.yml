@@ -23,9 +23,9 @@ jobs:
         run: |
           pip install --upgrade uv
 
-      - name: Install dependencies
-        run: uv pip install "smolagents[quality] @ ."
+      - name: Install only quality dependencies
+        run: uv pip install ruff
 
       # Equivalent of "make quality" but step by step
-      - run: ruff check examples src tests  # linter
-      - run: ruff format --check examples src tests  # formatter
+      - run: uv run ruff check examples src tests  # linter
+      - run: uv run ruff format --check examples src tests  # formatter
