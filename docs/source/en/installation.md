@@ -4,7 +4,36 @@ The `smolagents` library can be installed using pip. Here are the different inst
 
 ## Prerequisites
 - Python 3.10 or newer
-- pip
+- Python package manager: [`pip`](https://pip.pypa.io/en/stable/) or [`uv`](https://docs.astral.sh/uv/)
+
+## Virtual Environment
+
+It's strongly recommended to install `smolagents` within a Python virtual environment.
+Virtual environments isolate your project dependencies from other Python projects and your system Python installation,
+preventing version conflicts and making package management more reliable.
+
+<hfoptions id="virtual-environment">
+<hfoption id="venv">
+
+Using [`venv`](https://docs.python.org/3/library/venv.html):
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+</hfoption>
+<hfoption id="uv">
+
+Using [`uv`](https://docs.astral.sh/uv/):
+
+```bash
+uv venv .venv
+source .venv/bin/activate
+```
+
+</hfoption>
+</hfoptions>
 
 ## Basic Installation
 
