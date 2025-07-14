@@ -452,7 +452,7 @@ You have been provided with these additional arguments, that you can access usin
             level=LogLevel.INFO,
             title=self.name if hasattr(self, "name") else None,
         )
-        self.memory.append(TaskStep(task=self.task, task_images=images))
+        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
 
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
@@ -530,7 +530,7 @@ You have been provided with these additional arguments, that you can access usin
                     end_time=planning_end_time,
                 )
                 self._finalize_step(planning_step)
-                self.memory.append(planning_step)
+                self.memory.steps.append(planning_step)
 
             # Start action step!
             action_step_start_time = time.time()
@@ -565,7 +565,7 @@ You have been provided with these additional arguments, that you can access usin
                 action_step.error = e
             finally:
                 self._finalize_step(action_step)
-                self.memory.append(action_step)
+                self.memory.steps.append(action_step)
                 yield action_step
                 self.step_number += 1
 
@@ -596,7 +596,7 @@ You have been provided with these additional arguments, that you can access usin
         )
         final_memory_step.action_output = final_answer.content
         self._finalize_step(final_memory_step)
-        self.memory.append(final_memory_step)
+        self.memory.steps.append(final_memory_step)
         return final_answer.content
 
     def _generate_planning_step(
@@ -784,6 +784,10 @@ You have been provided with these additional arguments, that you can access usin
                                 )
                             else:
                                 new_content.append(content_item)
+                        
+                        if len(new_content) == 0:
+                            new_content = [{"type": "text", "text": "[IMAGES REMOVED]"}]
+                        
                         msg.content = new_content
                         
                         # If we've removed enough images, stop for efficiency
