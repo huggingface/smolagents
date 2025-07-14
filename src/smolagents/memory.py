@@ -205,6 +205,7 @@ class AgentMemory:
         - **system_prompt** (`SystemPromptStep`) -- System prompt step for the agent.
         - **steps** (`list[TaskStep | ActionStep | PlanningStep]`) -- List of steps taken by the agent, which can include tasks, actions, and planning steps.
     """
+
     def __init__(self, system_prompt: str):
         self.system_prompt: SystemPromptStep = SystemPromptStep(system_prompt=system_prompt)
         self.steps: list[TaskStep | ActionStep | PlanningStep] = []
