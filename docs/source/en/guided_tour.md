@@ -332,7 +332,7 @@ The `final_answer_checks` parameter gives you more control over when and how an 
 from smolagents import CodeAgent, InferenceClientModel
 
 # Define a custom final answer check function
-def is_integer(final_answer: str, agent_memory=None) -> bool:
+def is_integer(final_answer: str, agent_memory=None, agent_state=None) -> bool:
     """Return True if final_answer is an integer."""
     try:
         int(final_answer)
@@ -351,7 +351,7 @@ agent.run("Calculate the least common multiple of 3 and 7")
 ```
 
 The `final_answer_checks` parameter accepts a list of functions that each:
-- Take the agent's final_answer string the agent's memory as parameters
+- Take the agent's final_answer string, the agent's memory and the agent's state as parameters
 - Return a boolean indicating whether the final_answer is valid (True) or not (False)
 
 If any function returns `False`, the agent will log the error message and continue the run.
