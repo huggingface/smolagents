@@ -95,9 +95,18 @@ a Pull Request!
 ### Making code changes
 
 To install dev dependencies, run:
+<details>
+<summary><strong>Using pip</strong></summary>
 ```
 pip install -e ".[dev]"
 ```
+</details>
+<details>
+<summary><strong>Using uv</strong></summary>
+```
+uv pip install -e "smolagents[dev] @ ."
+```
+</details>
 
 When making changes to the codebase, please check that it follows the repo's code quality requirements by running:
 To check code quality of the source code:
