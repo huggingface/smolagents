@@ -18,10 +18,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Setup venv
-      - name: Setup uv
-        run: |
-          pip install --upgrade uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
 
       - name: Install only quality dependencies
         run: uv pip install ruff
