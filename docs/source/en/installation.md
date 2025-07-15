@@ -38,7 +38,7 @@ source .venv/bin/activate
 ## Basic Installation
 
 Install `smolagents` core library with:
-<hfoptions id="virtual-environment">
+<hfoptions id="installation">
 <hfoption id="pip">
 ```bash
 pip install smolagents
