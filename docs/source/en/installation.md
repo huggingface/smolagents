@@ -37,7 +37,7 @@ source .venv/bin/activate
 
 ## Basic Installation
 
-Install `smolagents` core library with:
+Install `smolagents` core library with: DEBUG
 
 <hfoptions id="installation">
 <hfoption id="pip">
