@@ -81,20 +81,16 @@ These extras include various tools and integrations:
   ```bash
   pip install "smolagents[toolkit]"
   ```
-</hfoption>
-<hfoption id="uv">
-- **toolkit**: Install a default set of tools for common tasks.
-  ```bash
-  uv pip install "smolagents[toolkit]"
-  ```
-</hfoption>
-<hfoption id="pip">
 - **mcp**: Add support for the Model Context Protocol (MCP) to integrate with external tools and services.
   ```bash
   pip install "smolagents[mcp]"
   ```
 </hfoption>
 <hfoption id="uv">
+- **toolkit**: Install a default set of tools for common tasks.
+  ```bash
+  uv pip install "smolagents[toolkit]"
+  ```
 - **mcp**: Add support for the Model Context Protocol (MCP) to integrate with external tools and services.
   ```bash
   uv pip install "smolagents[mcp]"
