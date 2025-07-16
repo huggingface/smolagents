@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import importlib
-import inspect
 import json
 import os
 import re
@@ -35,42 +34,35 @@ import jinja2
 import yaml
 from huggingface_hub import create_repo, metadata_update, snapshot_download, upload_folder
 from jinja2 import StrictUndefined, Template
-from rich.console import Group
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from multiprocessing import Manager, Process, Queue #for multiprocessing and decentralization integration
-
 
 if TYPE_CHECKING:
     import PIL.Image
 
-from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
+from .agent_types import AgentAudio, AgentImage
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
-from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
+from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor
 from .memory import (
     ActionStep,
     AgentMemory,
     FinalAnswerStep,
     PlanningStep,
-    SystemPromptStep,
     TaskStep,
     Timing,
     TokenUsage,
     ToolCall,
 )
 from .models import (
-    CODEAGENT_RESPONSE_FORMAT,
     ChatMessage,
     ChatMessageStreamDelta,
     ChatMessageToolCall,
     MessageRole,
     Model,
-    agglomerate_stream_deltas,
-    parse_json_if_needed,
 )
 from .monitoring import (
     YELLOW_HEX,
@@ -81,14 +73,10 @@ from .monitoring import (
 from .remote_executors import DockerExecutor, E2BExecutor
 from .tools import Tool
 from .utils import (
-    AgentError,
-    AgentExecutionError,
-    AgentGenerationError,
     AgentMaxStepsError,
     AgentParsingError,
     AgentToolCallError,
     AgentToolExecutionError,
-    extract_code_from_text,
     is_valid_name,
     make_init_file,
     parse_code_blobs,
@@ -275,7 +263,7 @@ class MultiStepAgent(ABC):
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
     ):
-            
+
         self.agent_name = self.__class__.__name__
         self.model = model
         self.agent_id = agent_id  # Store unique agent ID
@@ -1166,7 +1154,7 @@ class ToolCallingAgent(MultiStepAgent):
             )
         self.max_tool_threads = max_tool_threads
 
-    
+
     @property
     def tools_and_managed_agents(self):
         """Returns a combined list of tools and managed agents."""

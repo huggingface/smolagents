@@ -21,13 +21,10 @@ import warnings
 from collections.abc import Generator
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
+from multiprocessing import Manager
 from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
-
-
-from multiprocessing import Manager
-from smolagents import CodeAgent, InferenceClientModel
 
 import pytest
 from huggingface_hub import (
@@ -37,7 +34,7 @@ from huggingface_hub import (
 )
 from rich.console import Console
 
-from smolagents import EMPTY_PROMPT_TEMPLATES
+from smolagents import EMPTY_PROMPT_TEMPLATES, CodeAgent, InferenceClientModel
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
     AgentError,

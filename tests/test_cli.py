@@ -1,3 +1,4 @@
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -5,7 +6,6 @@ import pytest
 from smolagents.cli import load_model
 from smolagents.local_python_executor import LocalPythonExecutor
 from smolagents.models import InferenceClientModel, LiteLLMModel, OpenAIServerModel, TransformersModel
-import subprocess
 
 
 @pytest.fixture
