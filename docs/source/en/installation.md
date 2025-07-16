@@ -88,12 +88,19 @@ These extras include various tools and integrations:
   uv pip install "smolagents[toolkit]"
   ```
 </hfoption>
-</hfoptions>
-
+<hfoption id="pip">
 - **mcp**: Add support for the Model Context Protocol (MCP) to integrate with external tools and services.
   ```bash
   pip install "smolagents[mcp]"
   ```
+</hfoption>
+<hfoption id="uv">
+- **mcp**: Add support for the Model Context Protocol (MCP) to integrate with external tools and services.
+  ```bash
+  uv pip install "smolagents[mcp]"
+  ```
+</hfoption>
+</hfoptions>
 
 ### Model Integration
 These extras enable integration with various AI models and frameworks:
