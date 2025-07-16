@@ -76,16 +76,20 @@ uv pip install "smolagents[extra1,extra2]"
 ### Tools
 These extras include various tools and integrations:
 - **toolkit**: Install a default set of tools for common tasks.
+
   <hfoptions id="installation">
   <hfoption id="pip">
   ```bash
   pip install "smolagents[toolkit]"
   ```
+
   </hfoption>
   <hfoption id="uv">
+
   ```bash
   uv pip install "smolagents[toolkit]"
   ```
+
   </hfoption>
   </hfoptions>
 
