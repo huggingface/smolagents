@@ -79,6 +79,7 @@ These extras include various tools and integrations:
 
   <hfoptions id="installation">
   <hfoption id="pip">
+
   ```bash
   pip install "smolagents[toolkit]"
   ```
