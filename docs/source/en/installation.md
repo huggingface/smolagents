@@ -41,18 +41,14 @@ Install `smolagents` core library with:
 
 <hfoptions id="installation">
 <hfoption id="pip">
-
 ```bash
 pip install smolagents
 ```
-
 </hfoption>
 <hfoption id="uv">
-
 ```bash
 uv pip install smolagents
 ```
-
 </hfoption>
 </hfoptions>
 
@@ -100,6 +96,8 @@ These extras include various tools and integrations:
 
 ### Model Integration
 These extras enable integration with various AI models and frameworks:
+<hfoptions id="installation">
+<hfoption id="pip">
 - **openai**: Add support for OpenAI API models.
   ```bash
   pip install "smolagents[openai]"
@@ -124,9 +122,39 @@ These extras enable integration with various AI models and frameworks:
   ```bash
   pip install "smolagents[bedrock]"
   ```
+</hfoption>
+<hfoption id="uv">
+- **openai**: Add support for OpenAI API models.
+  ```bash
+  uv pip install "smolagents[openai]"
+  ```
+- **transformers**: Enable Hugging Face Transformers models.
+  ```bash
+  uv pip install "smolagents[transformers]"
+  ```
+- **vllm**: Add VLLM support for efficient model inference.
+  ```bash
+  uv pip install "smolagents[vllm]"
+  ```
+- **mlx-lm**: Enable support for MLX-LM models.
+  ```bash
+  uv pip install "smolagents[mlx-lm]"
+  ```
+- **litellm**: Add LiteLLM support for lightweight model inference.
+  ```bash
+  uv pip install "smolagents[litellm]"
+  ```
+- **bedrock**: Enable support for AWS Bedrock models.
+  ```bash
+  uv pip install "smolagents[bedrock]"
+  ```
+</hfoption>
+</hfoptions>
 
 ### Multimodal Capabilities
 Extras for handling different types of media and input:
+<hfoptions id="installation">
+<hfoption id="pip">
 - **vision**: Add support for image processing and computer vision tasks.
   ```bash
   pip install "smolagents[vision]"
@@ -135,9 +163,23 @@ Extras for handling different types of media and input:
   ```bash
   pip install "smolagents[audio]"
   ```
+</hfoption>
+<hfoption id="uv">
+- **vision**: Add support for image processing and computer vision tasks.
+  ```bash
+  uv pip install "smolagents[vision]"
+  ```
+- **audio**: Enable audio processing capabilities.
+  ```bash
+  uv pip install "smolagents[audio]"
+  ```
+</hfoption>
+</hfoptions>
 
 ### Remote Execution
 Extras for executing code remotely:
+<hfoptions id="installation">
+<hfoption id="pip">
 - **docker**: Add support for executing code in Docker containers.
   ```bash
   pip install "smolagents[docker]"
@@ -146,9 +188,23 @@ Extras for executing code remotely:
   ```bash
   pip install "smolagents[e2b]"
   ```
+</hfoption>
+<hfoption id="uv">
+- **docker**: Add support for executing code in Docker containers.
+  ```bash
+  uv pip install "smolagents[docker]"
+  ```
+- **e2b**: Enable E2B support for remote execution.
+  ```bash
+  uv pip install "smolagents[e2b]"
+  ```
+</hfoption>
+</hfoptions>
 
 ### Telemetry and User Interface
 Extras for telemetry, monitoring and user interface components:
+<hfoptions id="installation">
+<hfoption id="pip">
 - **telemetry**: Add support for monitoring and tracing.
   ```bash
   pip install "smolagents[telemetry]"
@@ -157,12 +213,33 @@ Extras for telemetry, monitoring and user interface components:
   ```bash
   pip install "smolagents[gradio]"
   ```
+</hfoption>
+<hfoption id="uv">
+- **telemetry**: Add support for monitoring and tracing.
+  ```bash
+  uv pip install "smolagents[telemetry]"
+  ```
+- **gradio**: Add support for interactive Gradio UI components.
+  ```bash
+  uv pip install "smolagents[gradio]"
+  ```
+</hfoption>
+</hfoptions>
 
 ### Complete Installation
 To install all available extras, you can use:
+<hfoptions id="installation">
+<hfoption id="pip">
 ```bash
 pip install "smolagents[all]"
 ```
+</hfoption>
+<hfoption id="uv">
+```bash
+uv pip install "smolagents[all]"
+```
+</hfoption>
+</hfoptions>
 
 ## Verifying Installation
 After installation, you can verify that `smolagents` is installed correctly by running:
