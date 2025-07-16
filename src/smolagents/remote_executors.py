@@ -37,7 +37,7 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
-__all__ = ["E2BExecutor", "DockerExecutor", "WasmExecutor"]
+__all__ = ["E2BExecutor", "YepCodeExecutor", "DockerExecutor", "WasmExecutor"]
 
 
 try:
@@ -237,6 +237,191 @@ class E2BExecutor(RemotePythonExecutor):
                 del self.sandbox
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
+
+
+class YepCodeExecutor(RemotePythonExecutor):
+    """
+    Executes Python code using YepCode Run.
+
+    YepCode automatically detects and installs packages from imports, so you don't need to
+    specify additional_authorized_imports in your CodeAgent. Simply import any package you
+    need (e.g., import pandas, import numpy) and YepCode will handle the installation.
+
+    Args:
+        additional_imports (`list[str]`): Additional imports (not used - YepCode auto-installs from imports).
+        logger (`Logger`): Logger to use.
+        api_token (`str`, optional): YepCode API token. If not provided, will be read from YEPCODE_API_TOKEN environment variable.
+        **kwargs: Additional arguments to pass to the YepCode runner (ie: removeOnDone, etc.)
+    """
+
+    def __init__(self, additional_imports: list[str], logger, api_token: str = None, **kwargs):
+        super().__init__(additional_imports, logger)
+        try:
+            from yepcode_run import YepCodeApiConfig, YepCodeRun
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                """Please install 'yepcode' extra to use YepCodeExecutor: `pip install 'smolagents[yepcode]'`"""
+            )
+
+        # Initialize YepCode API config
+        if api_token is None:
+            api_token = os.getenv("YEPCODE_API_TOKEN")
+            if api_token is None:
+                raise ValueError(
+                    "YepCode API token is required. Set YEPCODE_API_TOKEN environment variable or pass api_token parameter."
+                )
+
+        self.api_config = YepCodeApiConfig(api_token=api_token)
+        self.runner = YepCodeRun(self.api_config)
+        self.kwargs = kwargs
+
+        # Store tools code to include in every execution
+        self.tools_code = ""
+        # Store variables code to include in every execution
+        self.variables_code = ""
+        # Store additional_imports to include in every execution
+        self.additional_imports_code = ""
+
+        self.installed_packages = self.install_packages(additional_imports)
+        self.logger.log("YepCode is configured", level=LogLevel.INFO)
+
+    def send_tools(self, tools: dict[str, Tool]):
+        """Override send_tools to store tools code for later inclusion in every execution."""
+        if "final_answer" in tools:
+            self._patch_final_answer_with_exception(tools["final_answer"])
+
+        # Install tool packages
+        packages_to_install = {
+            pkg
+            for tool in tools.values()
+            for pkg in tool.to_dict()["requirements"]
+            if pkg not in self.installed_packages + ["smolagents"]
+        }
+        if packages_to_install:
+            self.installed_packages += self.install_packages(list(packages_to_install))
+
+        # Store tools code for later inclusion in every execution
+        self.tools_code = get_tools_definition_code(tools) or ""
+        if self.tools_code:
+            self.logger.log("Tools code stored for YepCode execution", level=LogLevel.INFO)
+
+    def send_variables(self, variables: dict):
+        """Override send_variables to store variables code for later inclusion in every execution."""
+        if variables:
+            pickled_vars = base64.b64encode(pickle.dumps(variables)).decode()
+            self.variables_code = f"""
+import pickle, base64
+vars_dict = pickle.loads(base64.b64decode('{pickled_vars}'))
+locals().update(vars_dict)
+"""
+            self.logger.log("Variables code stored for YepCode execution", level=LogLevel.INFO)
+
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code using YepCode Run and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
+        try:
+            # Combine tools code, variables code, and user code
+            full_code = (
+                self.additional_imports_code + "\n" + self.tools_code + "\n" + self.variables_code + "\n" + code
+            )
+
+            # Execute code using YepCode Run with final_answer function and tools
+            execution = self.runner.run(
+                full_code,
+                {"language": "python", **self.kwargs},
+            )
+
+            # Wait for execution to complete
+            execution.wait_for_done()
+
+            # Get execution logs
+            execution_logs = "\n".join([f"{log.timestamp} {log.level}: {log.message}" for log in execution.logs])
+
+            # Handle errors
+            if execution.error:
+                # Check if the error is a FinalAnswerException
+                if "FinalAnswerException" in execution.error:
+                    # Extract the pickled final answer from the error message
+                    import re
+
+                    match = re.search(r"FinalAnswerException: ([A-Za-z0-9+/=]+)", execution.error)
+                    if match:
+                        final_answer = pickle.loads(base64.b64decode(match.group(1)))
+                        return CodeOutput(output=final_answer, logs=execution_logs, is_final_answer=True)
+
+                # Regular error
+                error_message = f"{execution_logs}\nExecuting code yielded an error:\n{execution.error}"
+                raise AgentError(error_message, self.logger)
+
+            # Handle successful execution
+            result = execution.return_value
+
+            # Handle different output types
+            if isinstance(result, dict):
+                # Check if it's a success response from YepCode
+                if result.get("success") and "data" in result:
+                    output = result["data"]
+                else:
+                    output = result
+            else:
+                output = result
+
+            # Handle image outputs (if the output is base64 encoded image)
+            if isinstance(output, str) and output.startswith("data:image/"):
+                # Extract base64 data
+                header, data = output.split(",", 1)
+                decoded_bytes = base64.b64decode(data)
+                return CodeOutput(
+                    output=PIL.Image.open(BytesIO(decoded_bytes)), logs=execution_logs, is_final_answer=False
+                )
+
+            return CodeOutput(output=output, logs=execution_logs, is_final_answer=False)
+
+        except Exception as e:
+            error_message = f"YepCode execution failed: {str(e)}"
+            raise AgentError(error_message, self.logger)
+
+    def install_packages(self, additional_imports: list[str]) -> list[str]:
+        """
+        In YepCode, packages are automatically detected and installed from imports.
+        This method is kept for compatibility but packages don't need to be pre-installed.
+
+        Args:
+            additional_imports (`list[str]`): Package names (not used in YepCode).
+
+        Returns:
+            list[str]: Empty list since YepCode handles package installation automatically.
+        """
+        if additional_imports:
+            self.logger.log(
+                f"Note: YepCode will automatically detect and install packages from imports. Pre-specified packages will be forced to install: {', '.join(additional_imports)}",
+                level=LogLevel.INFO,
+            )
+            for package in additional_imports:
+                if package != "*":
+                    self.additional_imports_code += f"# @add-package {package}\n"
+            return additional_imports
+        return []  # YepCode handles package installation automatically
+
+    def cleanup(self):
+        """Clean up YepCode resources."""
+        try:
+            self.logger.log("Cleaning up YepCode resources...", level=LogLevel.INFO)
+            # YepCode Run handles cleanup automatically, but we can do any local cleanup here
+            if hasattr(self, "runner"):
+                del self.runner
+            if hasattr(self, "api_config"):
+                del self.api_config
+            self.logger.log("YepCode cleanup completed", level=LogLevel.INFO)
+        except Exception as e:
+            self.logger.log_error(f"Error during YepCode cleanup: {e}")
 
 
 class DockerExecutor(RemotePythonExecutor):
