@@ -88,6 +88,7 @@ These extras include various tools and integrations:
   ```
   </hfoption>
   </hfoptions>
+
 - **mcp**: Add support for the Model Context Protocol (MCP) to integrate with external tools and services.
   <hfoptions id="installation">
   <hfoption id="pip">
