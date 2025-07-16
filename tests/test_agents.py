@@ -26,8 +26,8 @@ from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
-import pytest
-from huggingface_hub import (
+import pytest #type: ignore
+from huggingface_hub import (  #type: ignore
     ChatCompletionOutputFunctionDefinition,
     ChatCompletionOutputMessage,
     ChatCompletionOutputToolCall,
@@ -37,7 +37,6 @@ from rich.console import Console
 from smolagents import EMPTY_PROMPT_TEMPLATES, CodeAgent, InferenceClientModel
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
-    AgentError,
     AgentMaxStepsError,
     CodeAgent,
     MultiStepAgent,
@@ -46,6 +45,7 @@ from smolagents.agents import (
     ToolOutput,
     populate_template,
 )
+
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import (
     ActionStep,
@@ -69,6 +69,7 @@ from smolagents.utils import (
     AgentGenerationError,
     AgentToolCallError,
     AgentToolExecutionError,
+    AgentError,
 )
 
 

@@ -4,7 +4,7 @@ from multiprocessing import Manager, Process
 from smolagents import CodeAgent, InferenceClientModel, WebSearchTool
 
 
-def start_agent(agent_id: int, queue_dict: dict, tools: list[Tool], model: Model):
+def start_agent(agent_id: int, queue_dict: dict, tools, model):
     """Start an agent as a separate process."""
     agent = CodeAgent(
         tools=tools,
