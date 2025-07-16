@@ -265,16 +265,21 @@ Extras for telemetry, monitoring and user interface components:
 
 ### Complete Installation
 To install all available extras, you can use:
+
 <hfoptions id="installation">
 <hfoption id="pip">
+
 ```bash
 pip install "smolagents[all]"
 ```
+
 </hfoption>
 <hfoption id="uv">
+
 ```bash
 uv pip install "smolagents[all]"
 ```
+
 </hfoption>
 </hfoptions>
 
