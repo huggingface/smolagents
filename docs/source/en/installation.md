@@ -60,9 +60,18 @@ uv pip install smolagents
 
 `smolagents` provides several optional dependencies (extras) that can be installed based on your needs.
 You can install these extras using the following syntax:
+<hfoptions id="installation">
+<hfoption id="pip">
 ```bash
 pip install "smolagents[extra1,extra2]"
 ```
+</hfoption>
+<hfoption id="uv">
+```bash
+uv pip install "smolagents[extra1,extra2]"
+```
+</hfoption>
+</hfoptions>
 
 ### Tools
 These extras include various tools and integrations:
