@@ -75,24 +75,20 @@ uv pip install "smolagents[extra1,extra2]"
 
 ### Tools
 These extras include various tools and integrations:
+<hfoptions id="installation">
+<hfoption id="pip">
 - **toolkit**: Install a default set of tools for common tasks.
-
-  <hfoptions id="installation">
-  <hfoption id="pip">
-
   ```bash
   pip install "smolagents[toolkit]"
   ```
-
-  </hfoption>
-  <hfoption id="uv">
-
+</hfoption>
+<hfoption id="uv">
+- **toolkit**: Install a default set of tools for common tasks.
   ```bash
   uv pip install "smolagents[toolkit]"
   ```
-
-  </hfoption>
-  </hfoptions>
+</hfoption>
+</hfoptions>
 
 - **mcp**: Add support for the Model Context Protocol (MCP) to integrate with external tools and services.
   ```bash
