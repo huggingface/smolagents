@@ -435,7 +435,7 @@ class MultiStepAgent(ABC):
         max_steps = max_steps or self.max_steps
         self.task = task
         self.interrupt_switch = False
-        if additional_args is not None:
+        if additional_args:
             self.state.update(additional_args)
             self.task += f"""
 You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
