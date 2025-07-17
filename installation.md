@@ -17,7 +17,7 @@ uv pip install .
 flit install
 ```
 
-3. Pass Hugging face key as an environment variable: run `export HF_TOKEN=your_huggingface_api_key_here`
+3. Pass Hugging Face key as an environment variable: run `export HF_TOKEN=your_huggingface_api_key_here`
 You can also set mistral-AI API keys.
 
 4. Compile the file:
