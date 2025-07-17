@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias, TypedDict, Union
+from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
 
 import jinja2
 import yaml
@@ -44,7 +44,8 @@ from rich.text import Text
 if TYPE_CHECKING:
     import PIL.Image
 
-from langfuse_setup import langfuse
+from langfuse import Langfuse
+
 
 from .agent_types import AgentAudio, AgentImage
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
@@ -52,7 +53,9 @@ from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, Py
 from .memory import (
     ActionStep,
     AgentMemory,
+    CallbackRegistry,
     FinalAnswerStep,
+    MemoryStep,
     PlanningStep,
     TaskStep,
     Timing,
@@ -75,6 +78,7 @@ from .monitoring import (
 from .remote_executors import DockerExecutor, E2BExecutor
 from .tools import ReceiveMessagesTool, SendMessageTool, Tool
 from .utils import (
+    AGENT_GRADIO_APP_TEMPLATE,
     AgentError,
     AgentMaxRuntimeError,
     AgentMaxStepsError,
@@ -89,6 +93,12 @@ from .utils import (
 
 
 logger = getLogger(__name__)
+
+langfuse = Langfuse(
+    public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
+    secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
+    host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+)
 
 
 def get_variable_names(self, template: str) -> set[str]:
@@ -112,8 +122,11 @@ class ActionOutput:
 
 @dataclass
 class ToolOutput:
+    id: str
     output: Any
     is_final_answer: bool
+    observation: str
+    tool_call: ToolCall
 
 
 class PlanningPromptTemplate(TypedDict):
@@ -209,6 +222,7 @@ StreamEvent: TypeAlias = Union[
     ChatMessageStreamDelta,
     ChatMessageToolCall,
     ActionOutput,
+    ToolCall,
     ToolOutput,
     PlanningStep,
     ActionStep,
@@ -235,7 +249,7 @@ class MultiStepAgent(ABC):
             Parameter `grammar` is deprecated and will be removed in version 1.20.
             </Deprecated>
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
-        step_callbacks (`list[Callable]`, *optional*): Callbacks that will be called at each step.
+        step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable | list[Callable]]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
@@ -260,7 +274,7 @@ class MultiStepAgent(ABC):
         verbosity_level: LogLevel = LogLevel.INFO,
         grammar: dict[str, str] | None = None,
         managed_agents: list | None = None,
-        step_callbacks: list[Callable] | None = None,
+        step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable | list[Callable]] | None = None,
         planning_interval: int | None = None,
         name: str | None = None,
         description: str | None = None,
@@ -319,12 +333,16 @@ class MultiStepAgent(ABC):
             self.logger = logger
 
         self.monitor = Monitor(self.model, self.logger)
-        self.step_callbacks = step_callbacks if step_callbacks is not None else []
-        self.step_callbacks.append(self.monitor.update_metrics)
+        self._setup_step_callbacks(step_callbacks)
         self.stream_outputs = False
+        # Initialize Langfuse trace
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
 
     def send_message(self, target_id: int, message: Any) -> None:
         """Send a message to the target agent's queue."""
+        if self.trace:
+            span = self.trace.span(name=f"send_message_{self.agent_id}")
+            span.update(inputs={"target_id": target_id, "message": str(message)})
         try:
             self._send_message_tool(target_id, message)
             self.logger.log(f"Agent {self.agent_id} sent message to Agent {target_id}", level=LogLevel.INFO)
@@ -411,6 +429,27 @@ class MultiStepAgent(ABC):
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
 
+
+    def _setup_step_callbacks(self, step_callbacks):
+        # Initialize step callbacks registry
+        self.step_callbacks = CallbackRegistry()
+        if step_callbacks:
+            # Register callbacks list only for ActionStep for backward compatibility
+            if isinstance(step_callbacks, list):
+                for callback in step_callbacks:
+                    self.step_callbacks.register(ActionStep, callback)
+            # Register callbacks dict for specific step classes
+            elif isinstance(step_callbacks, dict):
+                for step_cls, callbacks in step_callbacks.items():
+                    if not isinstance(callbacks, list):
+                        callbacks = [callbacks]
+                    for callback in callbacks:
+                        self.step_callbacks.register(step_cls, callback)
+            else:
+                raise ValueError("step_callbacks must be a list or a dict")
+        # Register monitor update_metrics only for ActionStep for backward compatibility
+        self.step_callbacks.register(ActionStep, self.monitor.update_metrics)
+
     def run(
         self,
         task: str | None = None,
@@ -431,6 +470,17 @@ class MultiStepAgent(ABC):
             max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating. If None, uses
             the agent's `max_runtime` attribute.
         """
+
+        max_steps = max_steps or self.max_steps
+        self.task = task
+        self.interrupt_switch = False
+        if additional_args:
+            self.state.update(additional_args)
+            self.task += f"""
+You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
+{str(additional_args)}."""
+
+        self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
         if reset:
             self.memory.reset()
             self.monitor.reset()
@@ -457,6 +507,7 @@ class MultiStepAgent(ABC):
         # Decentralized loop: process messages and tasks
         if max_runtime is None:
             max_runtime = self.max_runtime
+
 
         start_time = time.time()
         try:
@@ -531,6 +582,7 @@ class MultiStepAgent(ABC):
             self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
         except AgentToolExecutionError as e:
             self.logger.log(f"Tool execution error: {e}", level=LogLevel.ERROR)
+
 
     def _handle_max_steps_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
         action_step_start_time = time.time()
@@ -638,8 +690,7 @@ class MultiStepAgent(ABC):
                     }
                 ],
             )
-            # remove last message from memory_messages because it is the current task
-            input_messages = [plan_update_pre] + memory_messages[:-1] + [plan_update_post]
+            input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
             if self.stream_outputs and hasattr(self.model, "generate_stream"):
                 plan_message_content = ""
                 input_tokens, output_tokens = 0, 0
@@ -706,7 +757,9 @@ class MultiStepAgent(ABC):
             messages.extend(memory_step.to_messages(summary_mode=summary_mode))
         return messages
 
-    def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ActionOutput | ToolOutput]:
+    def _step_stream(
+        self, memory_step: ActionStep
+    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Yields ChatMessageStreamDelta during the run if streaming is enabled.
@@ -784,7 +837,10 @@ class MultiStepAgent(ABC):
             chat_message: ChatMessage = self.model.generate(messages)
             return chat_message
         except Exception as e:
-            return ChatMessage(role=MessageRole.ASSISTANT, content=f"Error in generating final LLM output:\n{e}")
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=[{"type": "text", "text": f"Error in generating final LLM output: {e}"}],
+            )
 
     def visualize(self):
         """Creates a rich tree visualization of the agent's structure."""
@@ -818,7 +874,7 @@ class MultiStepAgent(ABC):
         if self.provide_run_summary:
             answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
             for message in self.write_memory_to_messages(summary_mode=True):
-                content = message["content"]
+                content = message.content
                 answer += "\n" + truncate_content(str(content)) + "\n---"
             answer += "\n</summary_of_work>"
         return answer
@@ -884,6 +940,10 @@ class MultiStepAgent(ABC):
         # Make agent.py file with Gradio UI
         agent_name = f"agent_{self.name}" if getattr(self, "name", None) else "agent"
         managed_agent_relative_path = relative_path + "." if relative_path is not None else ""
+
+        app_template = AGENT_GRADIO_APP_TEMPLATE
+
+
         app_template = textwrap.dedent(
             """
             import yaml
@@ -924,6 +984,8 @@ class MultiStepAgent(ABC):
                 GradioUI({{ agent_name }}).launch()
             """
         ).strip()
+
+        
         template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
         template_env.filters["repr"] = repr
         template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
@@ -1217,6 +1279,40 @@ class ToolCallingAgent(MultiStepAgent):
                 "`stream_outputs` is set to True, but the model class implements no `generate_stream` method."
             )
         self.max_tool_threads = max_tool_threads
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+
+    def create_python_executor(self) -> PythonExecutor:
+        if self.trace:
+            span = self.trace.span(name=f"create_python_executor_{self.agent_id}")
+            span.update(inputs={"executor_type": self.executor_type})
+        try:
+            match self.executor_type:
+                case "e2b" | "docker":
+                    if self.managed_agents:
+                        raise Exception("Managed agents are not yet supported with remote code execution.")
+                    if self.executor_type == "e2b":
+                        executor = E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                    else:
+                        executor = DockerExecutor(
+                            self.additional_authorized_imports, self.logger, **self.executor_kwargs
+                        )
+                case "local":
+                    executor = LocalPythonExecutor(
+                        self.additional_authorized_imports,
+                        **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
+                    )
+                case _:
+                    raise ValueError(f"Unsupported executor type: {self.executor_type}")
+            if self.trace:
+                span.update(outputs={"executor": self.executor_type})
+            return executor
+        except Exception as e:
+            if self.trace:
+                span.update(outputs={"status": "error", "error": str(e)})
+            raise
+        finally:
+            if self.trace:
+                span.end()
 
     @property
     def tools_and_managed_agents(self):
@@ -1237,7 +1333,10 @@ class ToolCallingAgent(MultiStepAgent):
     def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ToolOutput]:
         raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
 
-    def process_tool_calls(self, chat_message: ChatMessage, memory_step: ActionStep) -> Generator[StreamEvent]:
+
+    def process_tool_calls(
+        self, chat_message: ChatMessage, memory_step: ActionStep
+    ) -> Generator[ToolCall | ToolOutput]:
         """Process tool calls from the model output and update agent memory.
 
         Args:
@@ -1245,37 +1344,25 @@ class ToolCallingAgent(MultiStepAgent):
             memory_step (`ActionStep)`: Memory ActionStep to update with results.
 
         Yields:
-            `ActionOutput`: The final output of tool execution.
+            `ToolCall | ToolOutput`: The tool call or tool output.
         """
-        model_outputs = []
-        tool_calls = []
-        observations = []
-
-        final_answer_call = None
-        parallel_calls = []
+        parallel_calls: dict[str, ToolCall] = {}
         assert chat_message.tool_calls is not None
-        for tool_call in chat_message.tool_calls:
+        for chat_tool_call in chat_message.tool_calls:
+            tool_call = ToolCall(
+                name=chat_tool_call.function.name, arguments=chat_tool_call.function.arguments, id=chat_tool_call.id
+            )
             yield tool_call
-            tool_name = tool_call.function.name
-            tool_arguments = tool_call.function.arguments
-            model_outputs.append(str(f"Called Tool: '{tool_name}' with arguments: {tool_arguments}"))
-            tool_calls.append(ToolCall(name=tool_name, arguments=tool_arguments, id=tool_call.id))
-            # Track final_answer separately, add others to parallel processing list
-            if tool_name == "final_answer":
-                final_answer_call = (tool_name, tool_arguments)
-                break  # Stop: final answer reached, no further tool calls
-            else:
-                parallel_calls.append((tool_name, tool_arguments))
+            parallel_calls[tool_call.id] = tool_call
 
         # Helper function to process a single tool call
-        def process_single_tool_call(call_info):
-            tool_name, tool_arguments = call_info
+        def process_single_tool_call(tool_call: ToolCall) -> ToolOutput:
+            tool_name = tool_call.name
+            tool_arguments = tool_call.arguments or {}
             self.logger.log(
                 Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
                 level=LogLevel.INFO,
             )
-            if tool_arguments is None:
-                tool_arguments = {}
             tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
             tool_call_result_type = type(tool_call_result)
             if tool_call_result_type in [AgentImage, AgentAudio]:
@@ -1292,59 +1379,46 @@ class ToolCallingAgent(MultiStepAgent):
                 f"Observations: {observation.replace('[', '|')}",  # escape potential rich-tag-like components
                 level=LogLevel.INFO,
             )
-            return observation
+            is_final_answer = tool_name == "final_answer"
+
+            return ToolOutput(
+                id=tool_call.id,
+                output=tool_call_result,
+                is_final_answer=is_final_answer,
+                observation=observation,
+                tool_call=tool_call,
+            )
 
         # Process tool calls in parallel
-        if parallel_calls:
-            if len(parallel_calls) == 1:
-                # If there's only one call, process it directly
-                observations.append(process_single_tool_call(parallel_calls[0]))
-                yield ToolOutput(output=None, is_final_answer=False)
-            else:
-                # If multiple tool calls, process them in parallel
-                with ThreadPoolExecutor(self.max_tool_threads) as executor:
-                    futures = [executor.submit(process_single_tool_call, call_info) for call_info in parallel_calls]
-                    for future in as_completed(futures):
-                        observations.append(future.result())
-                        yield ToolOutput(output=None, is_final_answer=False)
+        outputs = {}
+        if len(parallel_calls) == 1:
+            # If there's only one call, process it directly
+            tool_call = list(parallel_calls.values())[0]
+            tool_output = process_single_tool_call(tool_call)
+            outputs[tool_output.id] = tool_output
+            yield tool_output
+        else:
+            # If multiple tool calls, process them in parallel
+            with ThreadPoolExecutor(self.max_tool_threads) as executor:
+                futures = [
+                    executor.submit(process_single_tool_call, tool_call) for tool_call in parallel_calls.values()
+                ]
+                for future in as_completed(futures):
+                    tool_output = future.result()
+                    outputs[tool_output.id] = tool_output
+                    yield tool_output
 
-        # Process final_answer call if present
-        if final_answer_call:
-            tool_name, tool_arguments = final_answer_call
-            self.logger.log(
-                Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
-                level=LogLevel.INFO,
-            )
-            answer = (
-                tool_arguments["answer"]
-                if isinstance(tool_arguments, dict) and "answer" in tool_arguments
-                else tool_arguments
-            )
-            if isinstance(answer, str) and answer in self.state.keys():
-                # if the answer is a state variable, return the value
-                # State variables are not JSON-serializable (AgentImage, AgentAudio) so can't be passed as arguments to execute_tool_call
-                final_answer = self.state[answer]
-                self.logger.log(
-                    f"[bold {YELLOW_HEX}]Final answer:[/bold {YELLOW_HEX}] Extracting key '{answer}' from state to return value '{final_answer}'.",
-                    level=LogLevel.INFO,
-                )
-            else:
-                # Allow arbitrary keywords
-                final_answer = self.execute_tool_call("final_answer", tool_arguments)
-                self.logger.log(
-                    Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
-                    level=LogLevel.INFO,
-                )
-            memory_step.action_output = final_answer
-            yield ToolOutput(output=final_answer, is_final_answer=True)
-
-        # Update memory step with all results
-        if model_outputs:
-            memory_step.model_output = "\n".join(model_outputs)
-        if tool_calls:
-            memory_step.tool_calls = tool_calls
-        if observations:
-            memory_step.observations = "\n".join(observations)
+        memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
+        memory_step.model_output = memory_step.model_output or ""
+        memory_step.observations = memory_step.observations or ""
+        for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
+            message = f"Tool call {tool_output.id}: calling '{tool_output.tool_call.name}' with arguments: {tool_output.tool_call.arguments}\n"
+            memory_step.model_output += message
+            memory_step.observations += tool_output.observation + "\n"
+        memory_step.model_output = memory_step.model_output.rstrip("\n")
+        memory_step.observations = (
+            memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
+        )
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
@@ -1377,44 +1451,27 @@ class ToolCallingAgent(MultiStepAgent):
         arguments = self._substitute_state_variables(arguments)
         is_managed_agent = tool_name in self.managed_agents
 
+        error_msg = validate_tool_arguments(tool, arguments)
+        if error_msg:
+            raise AgentToolCallError(error_msg, self.logger)
+
         try:
             # Call tool with appropriate arguments
             if isinstance(arguments, dict):
                 return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
-            elif isinstance(arguments, str):
+            else:
                 return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
-            else:
-                raise TypeError(f"Unsupported arguments type: {type(arguments)}")
-
-        except TypeError as e:
-            # Handle invalid arguments
-            description = getattr(tool, "description", "No description")
-            if is_managed_agent:
-                error_msg = (
-                    f"Invalid request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
-                    "You should call this team member with a valid request.\n"
-                    f"Team member description: {description}"
-                )
-            else:
-                error_msg = (
-                    f"Invalid call to tool '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
-                    "You should call this tool with correct input arguments.\n"
-                    f"Expected inputs: {json.dumps(tool.inputs)}\n"
-                    f"Returns output type: {tool.output_type}\n"
-                    f"Tool description: '{description}'"
-                )
-            raise AgentToolCallError(error_msg, self.logger) from e
 
         except Exception as e:
             # Handle execution errors
             if is_managed_agent:
                 error_msg = (
-                    f"Error executing request to team member '{tool_name}' with arguments {json.dumps(arguments)}: {e}\n"
+                    f"Error executing request to team member '{tool_name}' with arguments {str(arguments)}: {e}\n"
                     "Please try again or request to another team member"
                 )
             else:
                 error_msg = (
-                    f"Error executing tool '{tool_name}' with arguments {json.dumps(arguments)}: {type(e).__name__}: {e}\n"
+                    f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}\n"
                     "Please try again or use another tool"
                 )
             raise AgentToolExecutionError(error_msg, self.logger) from e
@@ -1430,7 +1487,7 @@ class CodeAgent(MultiStepAgent):
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
-        executor_type (`str`, default `"local"`): Which executor type to use between `"local"`, `"e2b"`, or `"docker"`.
+        executor_type (`Literal["local", "e2b", "docker", "wasm"]`, default `"local"`): Type of code executor.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
@@ -1441,6 +1498,7 @@ class CodeAgent(MultiStepAgent):
             <Deprecated version="1.17.0">
             Parameter `grammar` is deprecated and will be removed in version 1.20.
             </Deprecated>
+        code_block_tags (`tuple[str, str]` | `Literal["markdown"]`, *optional*): Opening and closing tags for code blocks (regex strings). Pass a custom tuple, or pass 'markdown' to use ("```(?:python|py)", "\\n```"), leave empty to use ("<code>", "</code>").
         **kwargs: Additional keyword arguments.
     """
 
@@ -1453,12 +1511,13 @@ class CodeAgent(MultiStepAgent):
         prompt_templates: PromptTemplates | None = None,
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
-        executor_type: str | None = "local",
+        executor_type: Literal["local", "e2b", "docker", "wasm"] = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
         grammar: dict[str, str] | None = None,
+        code_block_tags: str | tuple[str, str] | None = None,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
@@ -1475,6 +1534,17 @@ class CodeAgent(MultiStepAgent):
             )
         if grammar and use_structured_outputs_internally:
             raise ValueError("You cannot use 'grammar' and 'use_structured_outputs_internally' at the same time.")
+
+        if isinstance(code_block_tags, str) and not code_block_tags == "markdown":
+            raise ValueError("Only 'markdown' is supported for a string argument to `code_block_tags`.")
+        self.code_block_tags = (
+            code_block_tags
+            if isinstance(code_block_tags, tuple)
+            else ("```python", "```")
+            if code_block_tags == "markdown"
+            else ("<code>", "</code>")
+        )
+
         super().__init__(
             tools=tools,
             model=model,
@@ -1495,27 +1565,58 @@ class CodeAgent(MultiStepAgent):
                 "Caution: you set an authorization for all imports, meaning your agent can decide to import any package it deems necessary. This might raise issues if the package is not installed in your environment.",
                 level=LogLevel.INFO,
             )
-        self.executor_type = executor_type or "local"
-        self.executor_kwargs = executor_kwargs or {}
+        if executor_type not in {"local", "e2b", "docker", "wasm"}:
+            raise ValueError(f"Unsupported executor type: {executor_type}")
+        self.executor_type = executor_type
+        self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
         self.python_executor = self.create_python_executor()
-        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace")
+
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.cleanup()
+
+    def cleanup(self):
+        """Clean up resources used by the agent, such as the remote Python executor."""
+        if hasattr(self.python_executor, "cleanup"):
+            self.python_executor.cleanup()
+
 
     def create_python_executor(self) -> PythonExecutor:
-        match self.executor_type:
-            case "e2b" | "docker":
-                if self.managed_agents:
-                    raise Exception("Managed agents are not yet supported with remote code execution.")
-                if self.executor_type == "e2b":
-                    return E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
-                else:
-                    return DockerExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
-            case "local":
-                return LocalPythonExecutor(
-                    self.additional_authorized_imports,
-                    **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
-                )
-            case _:  # if applicable
-                raise ValueError(f"Unsupported executor type: {self.executor_type}")
+        if self.trace:
+            span = self.trace.span(name=f"create_python_executor_{self.agent_id}")
+            span.update(inputs={"executor_type": self.executor_type})
+        try:
+            match self.executor_type:
+                case "e2b" | "docker":
+                    if self.managed_agents:
+                        raise Exception("Managed agents are not yet supported with remote code execution.")
+                    if self.executor_type == "e2b":
+                        executor = E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                    else:
+                        executor = DockerExecutor(
+                            self.additional_authorized_imports, self.logger, **self.executor_kwargs
+                        )
+                case "local":
+                    executor = LocalPythonExecutor(
+                        self.additional_authorized_imports,
+                        **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
+                    )
+                case _:
+                    raise ValueError(f"Unsupported executor type: {self.executor_type}")
+            if self.trace:
+                span.update(outputs={"executor": self.executor_type})
+            return executor
+        except Exception as e:
+            if self.trace:
+                span.update(outputs={"status": "error", "error": str(e)})
+            raise
+        finally:
+            if self.trace:
+
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
@@ -1529,12 +1630,15 @@ class CodeAgent(MultiStepAgent):
                     else str(self.authorized_imports)
                 ),
                 "custom_instructions": self.instructions,
+                "code_block_opening_tag": self.code_block_tags[0],
+                "code_block_closing_tag": self.code_block_tags[1],
             },
         )
         return system_prompt
 
     def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ActionOutput]:
         raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
+
 
     @classmethod
     def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "CodeAgent":
@@ -1553,6 +1657,7 @@ class CodeAgent(MultiStepAgent):
             "executor_type": agent_dict.get("executor_type"),
             "executor_kwargs": agent_dict.get("executor_kwargs"),
             "max_print_outputs_length": agent_dict.get("max_print_outputs_length"),
+            "code_block_tags": agent_dict.get("code_block_tags"),
         }
         # Filter out None values
         code_agent_kwargs = {k: v for k, v in code_agent_kwargs.items() if v is not None}

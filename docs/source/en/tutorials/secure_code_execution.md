@@ -80,7 +80,7 @@ run_capture_exception(harmful_command)
 
 
 # Imports like os will not be performed unless explicitly added to `additional_authorized_imports`
-harmful_command="import os; exit_code = os.system("echo Bad command")"
+harmful_command="import os; exit_code = os.system('echo Bad command')"
 run_capture_exception(harmful_command)
 # >>> ERROR: Code execution failed at line 'import os' due to: InterpreterError: Import of os is not allowed. Authorized imports are: ['statistics', 'numpy', 'itertools', 'time', 'queue', 'collections', 'math', 'random', 're', 'datetime', 'stat', 'unicodedata']
 
@@ -141,10 +141,13 @@ We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` 
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b")
-
-agent.run("Can you give me the 100th Fibonacci number?")
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b") as agent:
+    agent.run("Can you give me the 100th Fibonacci number?")
 ```
+
+> [!TIP]
+> Using the agent as a context manager (with the `with` statement) ensures that the E2B sandbox is cleaned up immediately after the agent completes its task.
+> Alternatively, you can manually call the agent's `cleanup()` method.
 
 This solution send the agent state to the server at the start of each `agent.run()`.
 Then the models are called from the local environment, but the generated code will be sent to the sandbox for execution, and only the output will be returned.
@@ -154,7 +157,6 @@ This is illustrated in the figure below.
 <p align="center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png" alt="sandboxed code execution" width=60% max-width=500px>
 </p>
-
 
 However, since any call to a [managed agent](../examples/multiagents) would require model calls, since we do not transfer secrets to the remote sandbox, the model call would lack credentials.
 Hence this solution does not work (yet) with more complicated multi-agent setups.
@@ -229,13 +231,17 @@ pip install 'smolagents[docker]'
 #### Running your agent in Docker: quick start
 
 Similar to the E2B Sandbox above, to quickly get started with Docker, simply add `executor_type="docker"` to the agent initialization, like:
+
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker")
-
-agent.run("Can you give me the 100th Fibonacci number?")
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker") as agent:
+    agent.run("Can you give me the 100th Fibonacci number?")
 ```
+
+> [!TIP]
+> Using the agent as a context manager (with the `with` statement) ensures that the Docker container is cleaned immediately after the agent completes its task.
+> Alternatively, you can manually call the agent's `cleanup()` method.
 
 #### Advanced docker usage
 
@@ -363,6 +369,28 @@ print(response)
 
 finally:
     sandbox.cleanup()
+```
+
+### WebAssembly setup
+
+WebAssembly (Wasm) is a binary instruction format that allows code to be run in a safe, sandboxed environment.
+It is designed to be fast, efficient, and secure, making it an excellent choice for executing potentially untrusted code.
+
+The `WasmExecutor` uses [Pyodide](https://pyodide.org/) and [Deno](https://docs.deno.com/).
+
+#### Installation
+
+1. [Install Deno on your system](https://docs.deno.com/runtime/getting_started/installation/)
+
+#### Running your agent in WebAssembly: quick start
+
+Simply pass `executor_type="wasm"` to the agent initialization, like:
+```py
+from smolagents import InferenceClientModel, CodeAgent
+
+agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="wasm")
+
+agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
 ### Best practices for sandboxes

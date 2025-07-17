@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -99,14 +99,33 @@ class UserInputTool(Tool):
 
 
 class DuckDuckGoSearchTool(Tool):
+    """Web search tool that performs searches using the DuckDuckGo search engine.
+
+    Args:
+        max_results (`int`, default `10`): Maximum number of search results to return.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
+        **kwargs: Additional keyword arguments for the `DDGS` client.
+
+    Examples:
+        ```python
+        >>> from smolagents import DuckDuckGoSearchTool
+        >>> web_search_tool = DuckDuckGoSearchTool(max_results=5, rate_limit=2.0)
+        >>> results = web_search_tool("Hugging Face")
+        >>> print(results)
+        ```
+    """
+
     name = "web_search"
     description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results."""
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results=10, **kwargs):
+    def __init__(self, max_results: int = 10, rate_limit: float | None = 1.0, **kwargs):
         super().__init__()
         self.max_results = max_results
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
         try:
             from duckduckgo_search import DDGS
         except ImportError as e:
@@ -116,11 +135,25 @@ class DuckDuckGoSearchTool(Tool):
         self.ddgs = DDGS(**kwargs)
 
     def forward(self, query: str) -> str:
+        self._enforce_rate_limit()
         results = self.ddgs.text(query, max_results=self.max_results)
         if len(results) == 0:
             raise Exception("No results found! Try a less restrictive/shorter query.")
         postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
         return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        # No rate limit enforced
+        if not self.rate_limit:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
 
 
 class GoogleSearchTool(Tool):
@@ -211,25 +244,72 @@ class GoogleSearchTool(Tool):
 
 
 class ApiWebSearchTool(Tool):
+    """Web search tool that performs API-based searches.
+    By default, it uses the Brave Search API.
+
+    This tool implements a rate limiting mechanism to ensure compliance with API usage policies.
+    By default, it limits requests to 1 query per second.
+
+    Args:
+        endpoint (`str`): API endpoint URL. Defaults to Brave Search API.
+        api_key (`str`): API key for authentication.
+        api_key_name (`str`): Environment variable name containing the API key. Defaults to "BRAVE_API_KEY".
+        headers (`dict`, *optional*): Headers for API requests.
+        params (`dict`, *optional*): Parameters for API requests.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
+
+    Examples:
+        ```python
+        >>> from smolagents import ApiWebSearchTool
+        >>> web_search_tool = ApiWebSearchTool(rate_limit=50.0)
+        >>> results = web_search_tool("Hugging Face")
+        >>> print(results)
+        ```
+    """
+
     name = "web_search"
     description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, URLs, and descriptions."
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
     def __init__(
-        self, endpoint: str = "", api_key: str = "", api_key_name: str = "", headers: dict = None, params: dict = None
+        self,
+        endpoint: str = "",
+        api_key: str = "",
+        api_key_name: str = "",
+        headers: dict = None,
+        params: dict = None,
+        rate_limit: float | None = 1.0,
     ):
         import os
 
         super().__init__()
         self.endpoint = endpoint or "https://api.search.brave.com/res/v1/web/search"
-        self.api_key = api_key or os.getenv(api_key_name)
+        self.api_key_name = api_key_name or "BRAVE_API_KEY"
+        self.api_key = api_key or os.getenv(self.api_key_name)
         self.headers = headers or {"X-Subscription-Token": self.api_key}
         self.params = params or {"count": 10}
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        # No rate limit enforced
+        if not self.rate_limit:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
 
     def forward(self, query: str) -> str:
         import requests
 
+        self._enforce_rate_limit()
         params = {**self.params, "q": query}
         response = requests.get(self.endpoint, headers=self.headers, params=params)
         response.raise_for_status()
@@ -428,16 +508,18 @@ class VisitWebpageTool(Tool):
 
 class WikipediaSearchTool(Tool):
     """
-    WikipediaSearchTool searches Wikipedia and returns a summary or full text of the given topic, along with the page URL.
+    Search Wikipedia and return the summary or full text of the requested article, along with the page URL.
 
     Attributes:
-        user_agent (str): A custom user-agent string to identify the project. This is required as per Wikipedia API policies, read more here: http://github.com/martin-majlis/Wikipedia-API/blob/master/README.rst
-        language (str): The language in which to retrieve Wikipedia articles.
-                http://meta.wikimedia.org/wiki/List_of_Wikipedias
-        content_type (str): Defines the content to fetch. Can be "summary" for a short summary or "text" for the full article.
-        extract_format (str): Defines the output format. Can be `"WIKI"` or `"HTML"`.
+        user_agent (`str`): Custom user-agent string to identify the project. This is required as per Wikipedia API policies.
+            See: https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
+        language (`str`, default `"en"`): Language in which to retrieve Wikipedia article.
+            See: http://meta.wikimedia.org/wiki/List_of_Wikipedias
+        content_type (`Literal["summary", "text"]`, default `"text"`): Type of content to fetch. Can be "summary" for a short summary or "text" for the full article.
+        extract_format (`Literal["HTML", "WIKI"]`, default `"WIKI"`): Extraction format of the output. Can be `"WIKI"` or `"HTML"`.
 
     Example:
+        ```python
         >>> from smolagents import CodeAgent, InferenceClientModel, WikipediaSearchTool
         >>> agent = CodeAgent(
         >>>     tools=[
@@ -451,6 +533,7 @@ class WikipediaSearchTool(Tool):
         >>>     model=InferenceClientModel(),
         >>> )
         >>> agent.run("Python_(programming_language)")
+        ```
     """
 
     name = "wikipedia_search"
@@ -554,16 +637,85 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+class SendMessageTool(Tool):
+    """Tool for sending a message to another agent's queue."""
+
+    name = "send_message"
+    description = "Send a message to another agent via the shared queue_dict."
+    inputs = {
+        "target_id": {"type": "integer", "description": "ID of the recipient agent"},
+        "message": {"type": "any", "description": "Message to send"},
+    }
+    output_type = "null"
+
+    def __init__(self, queue_dict: dict, agent_id: int, logger=None):
+        super().__init__()
+        self.queue_dict = queue_dict
+        self.agent_id = agent_id
+        self.logger = logger
+
+    def forward(self, target_id: int, message: Any) -> None:
+        from .monitoring import LogLevel
+
+        if target_id in self.queue_dict:
+            self.queue_dict[target_id].put(message)
+            if self.logger is not None:
+                self.logger.log(
+                    f"Agent {self.agent_id} sent message to Agent {target_id}",
+                    level=LogLevel.INFO,
+                )
+        else:
+            if self.logger is not None:
+                self.logger.log(
+                    f"Agent {self.agent_id} failed to send message: Target {target_id} not found",
+                    level=LogLevel.WARNING,
+                )
+            raise ValueError(f"Target {target_id} not found in queue_dict")
+
+
+class ReceiveMessagesTool(Tool):
+    """Tool for receiving all messages from the current agent's queue."""
+
+    name = "receive_messages"
+    description = "Retrieve all messages for the current agent from its queue."
+    inputs = {}
+    output_type = "array"
+
+    def __init__(self, queue_dict: dict, agent_id: int, logger=None, process_message: Callable | None = None):
+        super().__init__()
+        self.queue_dict = queue_dict
+        self.agent_id = agent_id
+        self.logger = logger
+        self.process_message = process_message
+        self.queue = queue_dict[agent_id]
+
+    def forward(self) -> list[Any]:
+        from .monitoring import LogLevel
+
+        messages = []
+        while not self.queue.empty():
+            msg = self.queue.get()
+            if self.logger is not None:
+                self.logger.log(f"Agent {self.agent_id} received message: {msg}", level=LogLevel.INFO)
+            if self.process_message is not None:
+                self.process_message(msg)
+            messages.append(msg)
+        return messages
+
+
 TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
         PythonInterpreterTool,
         DuckDuckGoSearchTool,
         VisitWebpageTool,
+        SendMessageTool,
+        ReceiveMessagesTool,
     ]
 }
 
 __all__ = [
+    "ApiWebSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
@@ -573,4 +725,6 @@ __all__ = [
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
+    "SendMessageTool",
+    "ReceiveMessagesTool",
 ]

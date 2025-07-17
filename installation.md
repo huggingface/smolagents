@@ -15,6 +15,8 @@
 uv pip install flit
 uv pip install .
 flit install
+
+uv pip install -e "smolagents[dev] @ ."
 ```
 
 3. Pass Hugging Face key as an environment variable: run `export HF_TOKEN=your_huggingface_api_key_here`
@@ -23,5 +25,11 @@ You can also set mistral-AI API keys.
 4. Compile the file:
 ```bash
 make
-make tests
+make test
+```
+
+You can test easlily that the code works by using:
+```bash
+smolagent "Compute 5 + 3" --num-agents 2 --tools python_interpreter --imports langfuse
+python examples/decentralized_smolagents_benchmark/run.py --model-id gpt-4o --agent-action-type vanilla #agent-action-type code or tool-calling require a SERPER API key
 ```

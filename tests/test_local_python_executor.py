@@ -761,8 +761,9 @@ except ValueError as e:
         code = "type_a = float(2); type_b = str; type_c = int"
         state = {}
         result, is_final_answer = evaluate_python_code(code, {"float": float, "str": str, "int": int}, state=state)
-        # Result is wrapped by safer_func
-        assert result.__wrapped__ is int
+        # Type objects are not wrapped by safer_func
+        assert not hasattr(result, "__wrapped__")
+        assert result is int
 
     def test_tuple_id(self):
         code = """
@@ -1088,7 +1089,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         executor.send_tools({"final_answer": FinalAnswerTool()})
 
-        res, _, _ = executor(
+        res = executor(
             dedent(
                 """
                 def target_function():
@@ -1097,7 +1098,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
                 final_answer(target_function)
                 """
             )
-        )
+        ).output
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
@@ -1134,9 +1135,10 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         assert result == (5, "test")
         assert isinstance(state["TestClass"], type)
-        # Values are wrapped by safer_func
-        annotations = {key: value.__wrapped__ for key, value in state["TestClass"].__annotations__.items()}
-        assert annotations == {"x": int, "y": str}
+        # Type objects are not wrapped by safer_func
+        for value in state["TestClass"].__annotations__.values():
+            assert not hasattr(value, "__wrapped__")
+        assert state["TestClass"].__annotations__ == {"x": int, "y": str}
         assert state["TestClass"].x == 5
         assert state["TestClass"].y == "test"
         assert isinstance(state["instance"], state["TestClass"])
@@ -1190,9 +1192,10 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
         assert result == ("value", ["b", 30])
         assert isinstance(state["TestClass"], type)
-        # Values are wrapped by safer_func
-        annotations = {key: value.__wrapped__ for key, value in state["TestClass"].__annotations__.items()}
-        assert annotations == {"key_data": dict, "index_data": list}
+        # Type objects are not wrapped by safer_func
+        for value in state["TestClass"].__annotations__.values():
+            assert not hasattr(value, "__wrapped__")
+        assert state["TestClass"].__annotations__ == {"key_data": dict, "index_data": list}
         assert state["TestClass"].key_data == {"key": "value"}
         assert state["TestClass"].index_data == ["a", "b", 30]
 
@@ -1793,6 +1796,30 @@ def test_check_import_authorized(module: str, authorized_imports: list[str], exp
 
 
 class TestLocalPythonExecutor:
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, should_raise",
+        [
+            # Valid imports
+            (["math"], None),
+            (["math", "os"], None),  # Multiple valid imports
+            ([], None),  # Empty list of imports
+            (["*"], None),  # Wildcard allows all imports
+            (["os.*"], None),  # Submodule wildcard
+            # Invalid imports
+            (["i_do_not_exist"], True),  # Non-existent module
+            (["math", "i_do_not_exist"], True),  # Mix of valid and invalid
+            (["i_do_not_exist.*"], True),  # Non-existent module with wildcard
+        ],
+    )
+    def test_additional_authorized_imports_are_installed(self, additional_authorized_imports, should_raise):
+        expectation = (
+            pytest.raises(InterpreterError, match="Non-installed authorized modules")
+            if should_raise
+            else does_not_raise()
+        )
+        with expectation:
+            LocalPythonExecutor(additional_authorized_imports=additional_authorized_imports)
+
     def test_state_name(self):
         executor = LocalPythonExecutor(additional_authorized_imports=[])
         assert executor.state.get("__name__") == "__main__"
@@ -1806,7 +1833,7 @@ class TestLocalPythonExecutor:
     )
     def test_call_from_dict(self, code):
         executor = LocalPythonExecutor([])
-        result, _, _ = executor(code)
+        result = executor(code).output
         assert result == 11
 
     @pytest.mark.parametrize(
@@ -1838,7 +1865,7 @@ class TestLocalPythonExecutor:
     def test_chained_assignments(self, code):
         executor = LocalPythonExecutor([])
         executor.send_tools({})
-        result, _, _ = executor(code)
+        result = executor(code).output
         assert result == 1
 
     def test_evaluate_assign_error(self):
@@ -1850,7 +1877,7 @@ class TestLocalPythonExecutor:
     def test_function_def_recovers_source_code(self):
         executor = LocalPythonExecutor([])
         executor.send_tools({"final_answer": FinalAnswerTool()})
-        res, _, _ = executor(
+        res = executor(
             dedent(
                 """
                 def target_function():
@@ -1859,9 +1886,19 @@ class TestLocalPythonExecutor:
                 final_answer(target_function)
                 """
             )
-        )
+        ).output
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
+
+    @pytest.mark.parametrize(
+        "code, expected_result",
+        [("isinstance(5, int)", True), ("isinstance('foo', str)", True), ("isinstance(5, str)", False)],
+    )
+    def test_isinstance_builtin_type(self, code, expected_result):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        result = executor(code).output
+        assert result is expected_result
 
 
 class TestLocalPythonExecutorSecurity:

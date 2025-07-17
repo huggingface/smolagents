@@ -24,7 +24,7 @@ import PIL.Image
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool
+from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
 
 from .utils.markers import require_run_all
 
@@ -82,6 +82,46 @@ class ToolTesterMixin:
 
 
 class TestTool:
+    @pytest.mark.parametrize(
+        "type_value, should_raise_error, error_contains",
+        [
+            # Valid cases
+            ("string", False, None),
+            (["string", "number"], False, None),
+            # Invalid cases
+            ("invalid_type", ValueError, "must be one of"),
+            (["string", "invalid_type"], ValueError, "must be one of"),
+            ([123, "string"], TypeError, "when type is a list, all elements must be strings"),
+            (123, TypeError, "must be a string or list of strings"),
+        ],
+    )
+    def test_tool_input_type_validation(self, type_value, should_raise_error, error_contains):
+        """Test the validation of the type property in tool inputs."""
+
+        # Define a tool class with the test type value
+        def create_tool():
+            class TestTool(Tool):
+                name = "test_tool"
+                description = "A tool for testing type validation"
+                inputs = {"text": {"type": type_value, "description": "Some input"}}
+                output_type = "string"
+
+                def forward(self, text) -> str:
+                    return text
+
+            return TestTool()
+
+        # Check if we expect this to raise an exception
+        if should_raise_error:
+            with pytest.raises(should_raise_error) as exc_info:
+                create_tool()
+            # Verify the error message contains expected text
+            assert error_contains in str(exc_info.value)
+        else:
+            # Should not raise an exception
+            tool = create_tool()
+            assert isinstance(tool, Tool)
+
     def test_tool_init_with_decorator(self):
         @tool
         def coolfunc(a: str, b: int) -> float:
@@ -699,3 +739,134 @@ def test_launch_gradio_demo_does_not_raise(tool_fixture_name, request):
     with patch("gradio.Interface.launch") as mock_launch:
         launch_gradio_demo(tool)
     assert mock_launch.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "tool_input_type, expected_input, expects_error",
+    [
+        (bool, True, False),
+        (str, "b", False),
+        (int, 1, False),
+        (list, ["a", "b"], False),
+        (list[str], ["a", "b"], False),
+        (dict[str, str], {"a": "b"}, False),
+        (dict[str, str], "b", True),
+        (bool, "b", True),
+        (str | int, "a", False),
+        (str | int, 1, False),
+        (str | int, None, True),
+        (str | int, True, True),
+    ],
+)
+def test_validate_tool_arguments(tool_input_type, expected_input, expects_error):
+    @tool
+    def test_tool(argument_a: tool_input_type) -> str:
+        """Fake tool
+
+        Args:
+            argument_a: The input
+        """
+        return argument_a
+
+    error = validate_tool_arguments(test_tool, {"argument_a": expected_input})
+    if expects_error:
+        assert error is not None
+    else:
+        assert error is None
+
+
+@pytest.mark.parametrize(
+    "scenario, type_hint, default, input_value, expected_error_message",
+    [
+        # Required parameters (no default)
+        # - Valid input
+        ("required_unsupported_none", str, ..., "text", None),
+        # - None not allowed
+        ("required_unsupported_none", str, ..., None, "Argument param has type 'null' but should be 'string'."),
+        # - Missing required parameter is not allowed
+        ("required_unsupported_none", str, ..., ..., "Argument param is required."),
+        #
+        # Required parameters but supports None
+        # - Valid input
+        ("required_supported_none", str | None, ..., "text", None),
+        # - None allowed
+        ("required_supported_none", str | None, ..., None, None),
+        # - Missing required parameter is not allowed
+        # TODO: Fix this test case: property is marked as nullable because it can be None, but it can't be missing because it is required
+        # ("required_supported_none", str | None, ..., ..., "Argument param is required."),
+        pytest.param(
+            "required_supported_none",
+            str | None,
+            ...,
+            ...,
+            "Argument param is required.",
+            marks=pytest.mark.skip(reason="TODO: Fix this test case"),
+        ),
+        #
+        # Optional parameters (has default, doesn't support None)
+        # - Valid input
+        ("optional_unsupported_none", str, "default", "text", None),
+        # - None not allowed
+        # TODO: Fix this test case: property is marked as nullable because it has a default value, but it can't be None
+        # ("optional_unsupported_none", str, "default", None, "Argument param has type 'null' but should be 'string'."),
+        pytest.param(
+            "optional_unsupported_none",
+            str,
+            "default",
+            None,
+            "Argument param has type 'null' but should be 'string'.",
+            marks=pytest.mark.skip(reason="TODO: Fix this test case"),
+        ),
+        # - Missing optional parameter is allowed
+        ("optional_unsupported_none", str, "default", ..., None),
+        #
+        # Optional and supports None parameters with string default
+        # - Valid input
+        ("optional_supported_none_str_default", str | None, "default", "text", None),
+        # - None allowed
+        ("optional_supported_none_str_default", str | None, "default", None, None),
+        # - Missing optional parameter is allowed
+        ("optional_supported_none_str_default", str | None, "default", ..., None),
+        #
+        # Optional and supports None parameters with None default
+        # - Valid input
+        ("optional_supported_none_none_default", str | None, None, "text", None),
+        # - None allowed
+        ("optional_supported_none_none_default", str | None, None, None, None),
+        # - Missing optional parameter is allowed
+        ("optional_supported_none_none_default", str | None, None, ..., None),
+    ],
+)
+def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_value, expected_error_message):
+    """Test validation of tool arguments with focus on nullable properties: optional (with default value) and supporting None value."""
+
+    # Create a tool with the appropriate signature
+    if default is ...:  # Using Ellipsis to indicate no default value
+
+        @tool
+        def test_tool(param: type_hint) -> str:
+            """Test tool.
+
+            Args:
+                param: Input param
+            """
+            return str(param) if param is not None else "NULL"
+    else:
+
+        @tool
+        def test_tool(param: type_hint = default) -> str:
+            """Test tool.
+
+            Args:
+                param: Input param.
+            """
+            return str(param) if param is not None else "NULL"
+
+    # Test with the input dictionary
+    input_dict = {"param": input_value} if input_value is not ... else {}
+    error = validate_tool_arguments(test_tool, input_dict)
+
+    if expected_error_message:
+        assert error == expected_error_message, f"Expected error for {scenario}"
+    else:
+        assert error is None, f"Unexpected error for {scenario}"

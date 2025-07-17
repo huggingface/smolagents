@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from .monitoring import TokenUsage
 from .tools import Tool
-from .utils import _is_package_available, encode_image_base64, make_image_url, parse_json_blob
+from .utils import RateLimiter, _is_package_available, encode_image_base64, make_image_url, parse_json_blob
 
 
 if TYPE_CHECKING:
@@ -89,9 +89,21 @@ class ChatMessageToolCall:
         return f"Call: {self.id}: Calling {str(self.function.name)} with arguments: {str(self.function.arguments)}"
 
 
+class MessageRole(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+    TOOL_CALL = "tool-call"
+    TOOL_RESPONSE = "tool-response"
+
+    @classmethod
+    def roles(cls):
+        return [r.value for r in cls]
+
+
 @dataclass
 class ChatMessage:
-    role: str
+    role: MessageRole
     content: str | list[dict[str, Any]] | None = None
     tool_calls: list[ChatMessageToolCall] | None = None
     raw: Any | None = None  # Stores the raw output from the API
@@ -158,18 +170,6 @@ class ChatMessageStreamDelta:
     content: str | None = None
     tool_calls: list[ChatMessageToolCallStreamDelta] | None = None
     token_usage: TokenUsage | None = None
-
-
-class MessageRole(str, Enum):
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
-    TOOL_CALL = "tool-call"
-    TOOL_RESPONSE = "tool-response"
-
-    @classmethod
-    def roles(cls):
-        return [r.value for r in cls]
 
 
 def agglomerate_stream_deltas(
@@ -270,7 +270,7 @@ def remove_stop_sequences(content: str, stop_sequences: list[str]) -> str:
 
 
 def get_clean_message_list(
-    message_list: list[ChatMessage],
+    message_list: list[ChatMessage | dict],
     role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
     convert_images_to_image_urls: bool = False,
     flatten_messages_as_text: bool = False,
@@ -280,7 +280,7 @@ def get_clean_message_list(
     Subsequent messages with the same role will be concatenated to a single message.
 
     Args:
-        message_list (`list[dict[str, str]]`): List of chat messages.
+        message_list (`list[ChatMessage | dict]`): List of chat messages. Mixed types are allowed.
         role_conversions (`dict[MessageRole, MessageRole]`, *optional* ): Mapping to convert roles.
         convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
         flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
@@ -288,6 +288,8 @@ def get_clean_message_list(
     output_message_list: list[dict[str, Any]] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
     for message in message_list:
+        if isinstance(message, dict):
+            message = ChatMessage.from_dict(message)
         role = message.role
         if role not in MessageRole.roles():
             raise ValueError(f"Incorrect role {role}, only {MessageRole.roles()} are supported for now.")
@@ -408,7 +410,7 @@ class Model:
 
     def _prepare_completion_kwargs(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -591,7 +593,7 @@ class VLLMModel(Model):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -715,7 +717,7 @@ class MLXModel(Model):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -891,7 +893,7 @@ class TransformersModel(Model):
 
     def _prepare_completion_args(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
@@ -939,7 +941,7 @@ class TransformersModel(Model):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -983,7 +985,7 @@ class TransformersModel(Model):
 
     def generate_stream(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -998,21 +1000,33 @@ class TransformersModel(Model):
             tools_to_call_from=tools_to_call_from,
             **kwargs,
         )
-        count_prompt_tokens = generation_kwargs["inputs"].shape[1]  # type: ignore
 
+        # Get prompt token count once
+        count_prompt_tokens = generation_kwargs["inputs"].shape[1]  # type: ignore
+        self._last_input_token_count = count_prompt_tokens
+
+        # Start generation in a separate thread
         thread = Thread(target=self.model.generate, kwargs={"streamer": self.streamer, **generation_kwargs})
         thread.start()
 
-        # Generate with streaming
+        # Process streaming output
+        is_first_token = True
+        count_generated_tokens = 0
         for new_text in self.streamer:
-            self._last_input_token_count = count_prompt_tokens
-            self._last_output_token_count = 1
+            count_generated_tokens += 1
+            # Only include input tokens in the first yielded token
+            input_tokens = count_prompt_tokens if is_first_token else 0
+            is_first_token = False
             yield ChatMessageStreamDelta(
                 content=new_text,
                 tool_calls=None,
-                token_usage=TokenUsage(input_tokens=count_prompt_tokens, output_tokens=1),
+                token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=1),
             )
+            count_prompt_tokens = 0
         thread.join()
+
+        # Update final output token count
+        self._last_output_token_count = count_generated_tokens
 
 
 class ApiModel(Model):
@@ -1030,19 +1044,31 @@ class ApiModel(Model):
             Mapping to convert  between internal role names and API-specific role names. Defaults to None.
         client (`Any`, **optional**):
             Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
+        requests_per_minute (`float`, **optional**):
+            Rate limit in requests per minute.
         **kwargs: Additional keyword arguments to pass to the parent class.
     """
 
     def __init__(
-        self, model_id: str, custom_role_conversions: dict[str, str] | None = None, client: Any | None = None, **kwargs
+        self,
+        model_id: str,
+        custom_role_conversions: dict[str, str] | None = None,
+        client: Any | None = None,
+        requests_per_minute: float | None = None,
+        **kwargs,
     ):
         super().__init__(model_id=model_id, **kwargs)
         self.custom_role_conversions = custom_role_conversions or {}
         self.client = client or self.create_client()
+        self.rate_limiter = RateLimiter(requests_per_minute)
 
     def create_client(self):
         """Create the API client for the specific service."""
         raise NotImplementedError("Subclasses must implement this method to create a client")
+
+    def _apply_rate_limit(self):
+        """Apply rate limiting before making API calls."""
+        self.rate_limiter.throttle()
 
 
 class LiteLLMModel(ApiModel):
@@ -1108,7 +1134,7 @@ class LiteLLMModel(ApiModel):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1126,7 +1152,7 @@ class LiteLLMModel(ApiModel):
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
-
+        self._apply_rate_limit()
         response = self.client.completion(**completion_kwargs)
 
         self._last_input_token_count = response.usage.prompt_tokens
@@ -1142,7 +1168,7 @@ class LiteLLMModel(ApiModel):
 
     def generate_stream(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1160,6 +1186,7 @@ class LiteLLMModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
+        self._apply_rate_limit()
         for event in self.client.completion(**completion_kwargs, stream=True, stream_options={"include_usage": True}):
             if getattr(event, "usage", None):
                 self._last_input_token_count = event.usage.prompt_tokens
@@ -1385,7 +1412,7 @@ class InferenceClientModel(ApiModel):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1405,6 +1432,7 @@ class InferenceClientModel(ApiModel):
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
+        self._apply_rate_limit()
         response = self.client.chat_completion(**completion_kwargs)
 
         self._last_input_token_count = response.usage.prompt_tokens
@@ -1420,7 +1448,7 @@ class InferenceClientModel(ApiModel):
 
     def generate_stream(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1436,6 +1464,7 @@ class InferenceClientModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
+        self._apply_rate_limit()
         for event in self.client.chat.completions.create(
             **completion_kwargs, stream=True, stream_options={"include_usage": True}
         ):
@@ -1534,7 +1563,7 @@ class OpenAIServerModel(ApiModel):
 
     def generate_stream(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1550,6 +1579,7 @@ class OpenAIServerModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
+        self._apply_rate_limit()
         for event in self.client.chat.completions.create(
             **completion_kwargs, stream=True, stream_options={"include_usage": True}
         ):
@@ -1586,7 +1616,7 @@ class OpenAIServerModel(ApiModel):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1602,10 +1632,12 @@ class OpenAIServerModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
+        self._apply_rate_limit()
         response = self.client.chat.completions.create(**completion_kwargs)
 
-        self._last_input_token_count = response.usage.prompt_tokens
-        self._last_output_token_count = response.usage.completion_tokens
+        # Reported that `response.usage` can be None in some cases when using OpenRouter: see GH-1401
+        self._last_input_token_count = getattr(response.usage, "prompt_tokens", 0)
+        self._last_output_token_count = getattr(response.usage, "completion_tokens", 0)
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
@@ -1704,27 +1736,34 @@ class AmazonBedrockServerModel(ApiModel):
         **kwargs
             Additional keyword arguments passed directly to the underlying API calls.
 
-    Example:
+    Examples:
         Creating a model instance with default settings:
+        ```python
         >>> bedrock_model = AmazonBedrockServerModel(
         ...     model_id='us.amazon.nova-pro-v1:0'
         ... )
+        ```
 
         Creating a model instance with a custom boto3 client:
+        ```python
         >>> import boto3
         >>> client = boto3.client('bedrock-runtime', region_name='us-west-2')
         >>> bedrock_model = AmazonBedrockServerModel(
         ...     model_id='us.amazon.nova-pro-v1:0',
         ...     client=client
         ... )
+        ```
 
         Creating a model instance with client_kwargs for internal client creation:
+        ```python
         >>> bedrock_model = AmazonBedrockServerModel(
         ...     model_id='us.amazon.nova-pro-v1:0',
         ...     client_kwargs={'region_name': 'us-west-2', 'endpoint_url': 'https://custom-endpoint.com'}
         ... )
+        ```
 
         Creating a model instance with inference and guardrail configurations:
+        ```python
         >>> additional_api_config = {
         ...     "inferenceConfig": {
         ...         "maxTokens": 3000
@@ -1738,6 +1777,7 @@ class AmazonBedrockServerModel(ApiModel):
         ...     model_id='anthropic.claude-3-haiku-20240307-v1:0',
         ...     **additional_api_config
         ... )
+        ```
     """
 
     def __init__(
@@ -1770,7 +1810,7 @@ class AmazonBedrockServerModel(ApiModel):
 
     def _prepare_completion_kwargs(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1823,7 +1863,7 @@ class AmazonBedrockServerModel(ApiModel):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1838,7 +1878,7 @@ class AmazonBedrockServerModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-
+        self._apply_rate_limit()
         # self.client is created in ApiModel class
         response = self.client.converse(**completion_kwargs)
 
