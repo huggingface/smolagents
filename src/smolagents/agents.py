@@ -44,6 +44,8 @@ from rich.text import Text
 if TYPE_CHECKING:
     import PIL.Image
 
+from langfuse import Langfuse
+
 from .agent_types import AgentAudio, AgentImage
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor
@@ -85,15 +87,15 @@ from .utils import (
     truncate_content,
 )
 
-from langfuse import Langfuse
 
 logger = getLogger(__name__)
 
 langfuse = Langfuse(
-        public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
-        secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
-        host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")
-    )
+    public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
+    secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
+    host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+)
+
 
 def get_variable_names(self, template: str) -> set[str]:
     pattern = re.compile(r"\{\{([^{}]+)\}\}")
@@ -329,7 +331,6 @@ class MultiStepAgent(ABC):
         # Initialize Langfuse trace
         self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
 
-
     def send_message(self, target_id: int, message: Any) -> None:
         """Send a message to the target agent's queue."""
         if self.trace:
@@ -338,7 +339,7 @@ class MultiStepAgent(ABC):
         try:
             self._send_message_tool(target_id, message)
             self.logger.log(f"Agent {self.agent_id} sent message to Agent {target_id}", level=LogLevel.INFO)
-            
+
         except ValueError:
             self.logger.log(
                 f"Agent {self.agent_id} failed to send message: Target {target_id} not found",
@@ -1230,7 +1231,6 @@ class ToolCallingAgent(MultiStepAgent):
         self.max_tool_threads = max_tool_threads
         self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
 
-
     def create_python_executor(self) -> PythonExecutor:
         if self.trace:
             span = self.trace.span(name=f"create_python_executor_{self.agent_id}")
@@ -1243,7 +1243,9 @@ class ToolCallingAgent(MultiStepAgent):
                     if self.executor_type == "e2b":
                         executor = E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
                     else:
-                        executor = DockerExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                        executor = DockerExecutor(
+                            self.additional_authorized_imports, self.logger, **self.executor_kwargs
+                        )
                 case "local":
                     executor = LocalPythonExecutor(
                         self.additional_authorized_imports,
@@ -1261,7 +1263,6 @@ class ToolCallingAgent(MultiStepAgent):
         finally:
             if self.trace:
                 span.end()
-
 
     @property
     def tools_and_managed_agents(self):
@@ -1557,7 +1558,9 @@ class CodeAgent(MultiStepAgent):
                     if self.executor_type == "e2b":
                         executor = E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
                     else:
-                        executor = DockerExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                        executor = DockerExecutor(
+                            self.additional_authorized_imports, self.logger, **self.executor_kwargs
+                        )
                 case "local":
                     executor = LocalPythonExecutor(
                         self.additional_authorized_imports,

@@ -23,5 +23,11 @@ You can also set mistral-AI API keys.
 4. Compile the file:
 ```bash
 make
-make tests
+pip install -e .[test]
+make test
+```
+
+You can test easlily that the code works by using:
+```bash
+smolagent "Compute 5 + 3" --num-agents 2 --tools python_interpreter --imports langfuse
 ```
