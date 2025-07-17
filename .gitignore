@@ -2,7 +2,7 @@
 logs
 tmp
 wandb
-langfuse_setup
+langfuse_setup.py
 
 
 # Data
