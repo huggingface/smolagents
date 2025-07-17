@@ -74,6 +74,7 @@ from .remote_executors import DockerExecutor, E2BExecutor
 from .tools import Tool
 from .utils import (
     AgentError,
+    AgentMaxRuntimeError,
     AgentMaxStepsError,
     AgentParsingError,
     AgentToolCallError,
@@ -224,6 +225,7 @@ class MultiStepAgent(ABC):
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         instructions (`str`, *optional*): Custom instructions for the agent, will be inserted in the system prompt.
         max_steps (`int`, default `20`): Maximum number of steps the agent can take to solve the task.
+        max_runtime (`int`, default `300`): Maximum runtime allowed for `run()` in seconds.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
@@ -251,6 +253,7 @@ class MultiStepAgent(ABC):
         prompt_templates: PromptTemplates | None = None,
         instructions: str | None = None,
         max_steps: int = 20,
+        max_runtime: int = 300,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
         grammar: dict[str, str] | None = None,
@@ -283,6 +286,7 @@ class MultiStepAgent(ABC):
                         )
 
         self.max_steps = max_steps
+        self.max_runtime = max_runtime
         self.step_number = 0
         if grammar is not None:
             warnings.warn(
@@ -410,7 +414,7 @@ def run(
     reset: bool = True,
     images: list["PIL.Image.Image"] | None = None,
     additional_args: dict | None = None,
-    max_runtime: int = 300,  # Maximum runtime in seconds
+    max_runtime: int | None = None,  # Maximum runtime in seconds
 ):
     """
     Run the agent in a decentralized manner, processing tasks from its queue.
@@ -421,7 +425,8 @@ def run(
         reset (`bool`): Whether to reset the conversation or keep it going.
         images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
         additional_args (`dict`, *optional*): Additional variables for the agent.
-        max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating.
+        max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating. If None, uses
+            the agent's `max_runtime` attribute.
     """
     if reset:
         self.memory.reset()
@@ -447,9 +452,15 @@ def run(
         self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
     # Decentralized loop: process messages and tasks
+    if max_runtime is None:
+        max_runtime = self.max_runtime
+
     start_time = time.time()
     try:
-        while time.time() - start_time < max_runtime:
+        while True:
+            if max_runtime is not None and time.time() - start_time >= max_runtime:
+                raise AgentMaxRuntimeError("Reached maximum runtime.", self.logger)
+
             self.step_number += 1
 
             if self.step_number > self.max_steps:
@@ -467,6 +478,10 @@ def run(
     except AgentMaxStepsError as e:
         self.logger.log(f"Max steps reached: {e}", level=LogLevel.WARNING)
         final_answer = self._handle_max_steps_reached(self.task, images)
+        return final_answer
+    except AgentMaxRuntimeError as e:
+        self.logger.log(f"Max runtime reached: {e}", level=LogLevel.WARNING)
+        final_answer = self._handle_max_runtime_reached(self.task, images)
         return final_answer
     except AgentError as e:
         self.logger.log(f"Agent error: {e}", level=LogLevel.ERROR)
@@ -520,6 +535,20 @@ def run(
         final_memory_step = ActionStep(
             step_number=self.step_number,
             error=AgentMaxStepsError("Reached max steps.", self.logger),
+            timing=Timing(start_time=action_step_start_time, end_time=time.time()),
+            token_usage=final_answer.token_usage,
+        )
+        final_memory_step.action_output = final_answer.content
+        self._finalize_step(final_memory_step)
+        self.memory.steps.append(final_memory_step)
+        return final_answer.content
+
+    def _handle_max_runtime_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
+        action_step_start_time = time.time()
+        final_answer = self.provide_final_answer(task, images)
+        final_memory_step = ActionStep(
+            step_number=self.step_number,
+            error=AgentMaxRuntimeError("Reached max runtime.", self.logger),
             timing=Timing(start_time=action_step_start_time, end_time=time.time()),
             token_usage=final_answer.token_usage,
         )
@@ -942,6 +971,7 @@ def run(
             "managed_agents": [managed_agent.to_dict() for managed_agent in self.managed_agents.values()],
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
+            "max_runtime": self.max_runtime,
             "verbosity_level": int(self.logger.level),
             "grammar": self.grammar,
             "planning_interval": self.planning_interval,
@@ -981,6 +1011,7 @@ def run(
             "tools": tools,
             "prompt_templates": agent_dict.get("prompt_templates"),
             "max_steps": agent_dict.get("max_steps"),
+            "max_runtime": agent_dict.get("max_runtime"),
             "verbosity_level": agent_dict.get("verbosity_level"),
             "grammar": agent_dict.get("grammar"),
             "planning_interval": agent_dict.get("planning_interval"),
