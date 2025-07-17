@@ -71,7 +71,7 @@ from .monitoring import (
     Monitor,
 )
 from .remote_executors import DockerExecutor, E2BExecutor
-from .tools import Tool
+from .tools import ReceiveMessagesTool, SendMessageTool, Tool
 from .utils import (
     AgentError,
     AgentMaxRuntimeError,
@@ -272,18 +272,20 @@ class MultiStepAgent(ABC):
         self.agent_id = agent_id  # Store unique agent ID
         self.queue_dict = queue_dict  # Shared dictionary of queues
         self.queue = queue_dict[agent_id]  # Agent's own queue
+        self._send_message_tool = SendMessageTool(queue_dict)
+        self._receive_messages_tool = ReceiveMessagesTool(agent_id, queue_dict)
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         if prompt_templates is not None:
             missing_keys = set(EMPTY_PROMPT_TEMPLATES.keys()) - set(prompt_templates.keys())
-            assert not missing_keys, (
-                f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
-            )
+            assert (
+                not missing_keys
+            ), f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
             for key, value in EMPTY_PROMPT_TEMPLATES.items():
                 if isinstance(value, dict):
                     for subkey in value.keys():
-                        assert key in prompt_templates.keys() and (subkey in prompt_templates[key].keys()), (
-                            f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
-                        )
+                        assert (
+                            key in prompt_templates.keys() and (subkey in prompt_templates[key].keys())
+                        ), f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
 
         self.max_steps = max_steps
         self.max_runtime = max_runtime
@@ -321,18 +323,18 @@ class MultiStepAgent(ABC):
 
     def send_message(self, target_id: int, message: Any) -> None:
         """Send a message to the target agent's queue."""
-        if target_id in self.queue_dict:
-            self.queue_dict[target_id].put(message)
+        try:
+            self._send_message_tool(target_id, message)
             self.logger.log(f"Agent {self.agent_id} sent message to Agent {target_id}", level=LogLevel.INFO)
-        else:
+        except ValueError:
             self.logger.log(
-                f"Agent {self.agent_id} failed to send message: Target {target_id} not found", level=LogLevel.WARNING
+                f"Agent {self.agent_id} failed to send message: Target {target_id} not found",
+                level=LogLevel.WARNING,
             )
 
     def receive_messages(self) -> None:
         """Process all incoming messages in the agent's queue."""
-        while not self.queue.empty():
-            message = self.queue.get()
+        for message in self._receive_messages_tool():
             self.process_message(message)
 
     def process_message(self, message: Any) -> None:
@@ -367,9 +369,9 @@ class MultiStepAgent(ABC):
         """Setup managed agents with proper logging."""
         self.managed_agents = {}
         if managed_agents:
-            assert all(agent.name and agent.description for agent in managed_agents), (
-                "All managed agents need both a name and a description!"
-            )
+            assert all(
+                agent.name and agent.description for agent in managed_agents
+            ), "All managed agents need both a name and a description!"
             self.managed_agents = {agent.name: agent for agent in managed_agents}
             # Ensure managed agents can be called as tools by the model: set their inputs and output_type
             for agent in self.managed_agents.values():
@@ -406,7 +408,6 @@ class MultiStepAgent(ABC):
                 "Each tool or managed_agent should have a unique name! You passed these duplicate names: "
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
-
 
     def run(
         self,
@@ -881,7 +882,8 @@ class MultiStepAgent(ABC):
         # Make agent.py file with Gradio UI
         agent_name = f"agent_{self.name}" if getattr(self, "name", None) else "agent"
         managed_agent_relative_path = relative_path + "." if relative_path is not None else ""
-        app_template = textwrap.dedent("""
+        app_template = textwrap.dedent(
+            """
             import yaml
             import os
             from smolagents import GradioUI, {{ class_name }}, {{ agent_dict['model']['class'] }}
@@ -918,7 +920,8 @@ class MultiStepAgent(ABC):
             )
             if __name__ == "__main__":
                 GradioUI({{ agent_name }}).launch()
-            """).strip()
+            """
+        ).strip()
         template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
         template_env.filters["repr"] = repr
         template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
