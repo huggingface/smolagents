@@ -2,8 +2,6 @@
 logs
 tmp
 wandb
-langfuse_setup.py
-
 
 # Data
 data
