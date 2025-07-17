@@ -14,8 +14,10 @@ def start_agent(agent_id: int, queue_dict: dict, tools, model):
     )
     agent.run()
 
+
 if __name__ == "__main__":
     from smolagents import InferenceClientModel, WebSearchTool
+
     model = InferenceClientModel()
     tools = [WebSearchTool()]
     num_agents = 2

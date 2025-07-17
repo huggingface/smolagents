@@ -73,6 +73,7 @@ from .monitoring import (
 from .remote_executors import DockerExecutor, E2BExecutor
 from .tools import Tool
 from .utils import (
+    AgentError,
     AgentMaxStepsError,
     AgentParsingError,
     AgentToolCallError,
@@ -263,7 +264,6 @@ class MultiStepAgent(ABC):
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
     ):
-
         self.agent_name = self.__class__.__name__
         self.model = model
         self.agent_id = agent_id  # Store unique agent ID
@@ -321,7 +321,9 @@ class MultiStepAgent(ABC):
             self.queue_dict[target_id].put(message)
             self.logger.log(f"Agent {self.agent_id} sent message to Agent {target_id}", level=LogLevel.INFO)
         else:
-            self.logger.log(f"Agent {self.agent_id} failed to send message: Target {target_id} not found", level=LogLevel.WARNING)
+            self.logger.log(
+                f"Agent {self.agent_id} failed to send message: Target {target_id} not found", level=LogLevel.WARNING
+            )
 
     def receive_messages(self) -> None:
         """Process all incoming messages in the agent's queue."""
@@ -341,7 +343,6 @@ class MultiStepAgent(ABC):
         elif isinstance(message, dict) and "tool_call" in message:
             # Handle tool call results or delegated tasks
             self._process_tool_call(message["tool_call"])
-
 
     @property
     def system_prompt(self) -> str:
@@ -402,70 +403,98 @@ class MultiStepAgent(ABC):
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
 
-    def run(
-        self,
-        task: str | None = None,  # Allow running without a task initially
-        reset: bool = True,
-        images: list["PIL.Image.Image"] | None = None,
-        additional_args: dict | None = None,
-    ):
-        """
-        Run the agent in a decentralized manner, processing tasks from its queue.
-        The vanilla method use a centralized ReAct loop, but this method allows for decentralized processing.
 
-        Args:
-            task (`str`, *optional*): Initial task to perform.
-            reset (`bool`): Whether to reset the conversation or keep it going.
-            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
-            additional_args (`dict`, *optional*): Additional variables for the agent.
-        """
-        if reset:
-            self.memory.reset()
-            self.monitor.reset()
+def run(
+    self,
+    task: str | None = None,
+    reset: bool = True,
+    images: list["PIL.Image.Image"] | None = None,
+    additional_args: dict | None = None,
+    max_runtime: int = 300,  # Maximum runtime in seconds
+):
+    """
+    Run the agent in a decentralized manner, processing tasks from its queue.
+    The vanilla method use a centralized ReAct loop, but this method allows for decentralized processing.
 
-        if task:
-            self.task = task
-            self.memory.steps.append(TaskStep(task=self.task, task_images=images))
-            self.logger.log_task(
-                content=self.task.strip(),
-                subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
-                level=LogLevel.INFO,
-                title=f"Agent {self.agent_id}",
-            )
+    Args:
+        task (`str`, *optional*): Initial task to perform.
+        reset (`bool`): Whether to reset the conversation or keep it going.
+        images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
+        additional_args (`dict`, *optional*): Additional variables for the agent.
+        max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating.
+    """
+    if reset:
+        self.memory.reset()
+        self.monitor.reset()
+        self.step_number = 0
+        self.interrupt_switch = False
 
-        if additional_args is not None:
-            self.state.update(additional_args)
+    if task:
+        self.task = task
+        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+        self.logger.log_task(
+            content=self.task.strip(),
+            subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
+            level=LogLevel.INFO,
+            title=f"Agent {self.agent_id}",
+        )
 
-        if getattr(self, "python_executor", None):
-            self.python_executor.send_variables(variables=self.state)
-            self.python_executor.send_tools({**self.tools, **self.managed_agents})
+    if additional_args is not None:
+        self.state.update(additional_args)
 
-        # Decentralized loop: process messages and tasks
-        while True:
+    if getattr(self, "python_executor", None):
+        self.python_executor.send_variables(variables=self.state)
+        self.python_executor.send_tools({**self.tools, **self.managed_agents})
+
+    # Decentralized loop: process messages and tasks
+    start_time = time.time()
+    try:
+        while time.time() - start_time < max_runtime:
+            self.step_number += 1
+
+            if self.step_number > self.max_steps:
+                raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
+
+            if self.interrupt_switch:
+                raise AgentError("Agent interrupted.", self.logger)
+
             self.receive_messages()
+
             if self.task:
                 self._process_task()
+
             time.sleep(1)  # Prevent busy loop; adjust as needed
+    except AgentMaxStepsError as e:
+        self.logger.log(f"Max steps reached: {e}", level=LogLevel.WARNING)
+        final_answer = self._handle_max_steps_reached(self.task, images)
+        return final_answer
+    except AgentError as e:
+        self.logger.log(f"Agent error: {e}", level=LogLevel.ERROR)
+        return str(e)
+    except Exception as e:
+        self.logger.log(f"Unexpected error: {e}", level=LogLevel.ERROR)
+        raise AgentError(f"Unexpected error: {e}", self.logger)
 
     def _process_task(self) -> None:
         """Process the current task, e.g., generate code or delegate to another agent."""
-        # Example: Agent 0 generates code, sends to Agent 1 for execution
-        if self.agent_id == 0:
-            code = self._generate_code()
-            self.send_message(1, code)
-        elif self.agent_id == 1:
+        try:
+            # Example: Agent 0 generates code, sends to Agent 1 for execution
+            if self.agent_id == 0:
+                code = self._generate_code()
+                self.send_message(1, code)
             # Agent 1 might execute code or use tools
-            self._process_tool_call({"name": "python_interpreter", "arguments": self.task})
+            elif self.agent_id == 1:
+                self._process_tool_call({"name": "python_interpreter", "arguments": self.task})
+        except AgentError as e:
+            self.logger.log(f"Error processing task: {e}", level=LogLevel.ERROR)
+            self.send_message(0, {"error": str(e)})
 
     def _generate_code(self) -> str:
         """Generate code for the task (customize based on CodeAgent logic)."""
         memory_messages = self.write_memory_to_messages()
         input_messages = memory_messages + [
-            ChatMessage(
-            role=MessageRole.USER,
-            content=[{"type": "text", "text": f"Generate code for: {self.task}"}]
-            )
-    ]
+            ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": f"Generate code for: {self.task}"}])
+        ]
         chat_message = self.model.generate(input_messages)
         code = parse_code_blobs(chat_message.content) or chat_message.content
         self.logger.log_code(title=f"Agent {self.agent_id} generated code:", content=code, level=LogLevel.INFO)
@@ -484,7 +513,6 @@ class MultiStepAgent(ABC):
             self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
         except AgentToolExecutionError as e:
             self.logger.log(f"Tool execution error: {e}", level=LogLevel.ERROR)
-
 
     def _handle_max_steps_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
         action_step_start_time = time.time()
@@ -1154,7 +1182,6 @@ class ToolCallingAgent(MultiStepAgent):
             )
         self.max_tool_threads = max_tool_threads
 
-
     @property
     def tools_and_managed_agents(self):
         """Returns a combined list of tools and managed agents."""
@@ -1435,7 +1462,6 @@ class CodeAgent(MultiStepAgent):
         self.executor_type = executor_type or "local"
         self.executor_kwargs = executor_kwargs or {}
         self.python_executor = self.create_python_executor()
-
 
     def create_python_executor(self) -> PythonExecutor:
         match self.executor_type:

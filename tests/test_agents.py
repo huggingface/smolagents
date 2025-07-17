@@ -26,8 +26,8 @@ from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
-import pytest #type: ignore
-from huggingface_hub import (  #type: ignore
+import pytest
+from huggingface_hub import (
     ChatCompletionOutputFunctionDefinition,
     ChatCompletionOutputMessage,
     ChatCompletionOutputToolCall,
@@ -37,15 +37,15 @@ from rich.console import Console
 from smolagents import EMPTY_PROMPT_TEMPLATES, CodeAgent, InferenceClientModel
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
+    #  AgentError,
     AgentMaxStepsError,
-    CodeAgent,
+    #  CodeAgent,
     MultiStepAgent,
     ToolCall,
     ToolCallingAgent,
     ToolOutput,
     populate_template,
 )
-
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import (
     ActionStep,
@@ -56,7 +56,7 @@ from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
-    InferenceClientModel,
+    #  InferenceClientModel,
     MessageRole,
     Model,
     TransformersModel,
@@ -65,11 +65,11 @@ from smolagents.monitoring import AgentLogger, LogLevel, TokenUsage
 from smolagents.tools import Tool, tool
 from smolagents.utils import (
     BASE_BUILTIN_MODULES,
+    AgentError,
     AgentExecutionError,
     AgentGenerationError,
     AgentToolCallError,
     AgentToolExecutionError,
-    AgentError,
 )
 
 
@@ -433,7 +433,6 @@ class TestAgent:
         )
         assert "Remember this" in agent.task
 
-
     def test_agent_communication():
         with Manager() as manager:
             queue_dict = manager.dict()
@@ -445,7 +444,6 @@ class TestAgent:
             agent0.send_message(1, "test message")
             agent1.receive_messages()
             assert agent1.task == "test message"  # Assuming message sets task
-
 
     def test_reset_conversations(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())

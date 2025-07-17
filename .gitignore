@@ -2,6 +2,8 @@
 logs
 tmp
 wandb
+langfuse_setup
+
 
 # Data
 data
