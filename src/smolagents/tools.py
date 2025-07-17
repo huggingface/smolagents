@@ -145,9 +145,9 @@ class Tool:
         # Validate inputs
         for input_name, input_content in self.inputs.items():
             assert isinstance(input_content, dict), f"Input '{input_name}' should be a dictionary."
-            assert "type" in input_content and "description" in input_content, (
-                f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
-            )
+            assert (
+                "type" in input_content and "description" in input_content
+            ), f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
             if input_content["type"] not in AUTHORIZED_TYPES:
                 raise Exception(
                     f"Input '{input_name}': type '{input_content['type']}' is not an authorized value, should be one of {AUTHORIZED_TYPES}."
@@ -173,17 +173,17 @@ class Tool:
                 "properties"
             ]  # This function will not raise an error on missing docstrings, contrary to get_json_schema
             for key, value in self.inputs.items():
-                assert key in json_schema, (
-                    f"Input '{key}' should be present in function signature, found only {json_schema.keys()}"
-                )
+                assert (
+                    key in json_schema
+                ), f"Input '{key}' should be present in function signature, found only {json_schema.keys()}"
                 if "nullable" in value:
-                    assert "nullable" in json_schema[key], (
-                        f"Nullable argument '{key}' in inputs should have key 'nullable' set to True in function signature."
-                    )
+                    assert (
+                        "nullable" in json_schema[key]
+                    ), f"Nullable argument '{key}' in inputs should have key 'nullable' set to True in function signature."
                 if key in json_schema and "nullable" in json_schema[key]:
-                    assert "nullable" in value, (
-                        f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
-                    )
+                    assert (
+                        "nullable" in value
+                    ), f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
 
     def forward(self, *args, **kwargs):
         return NotImplementedError("Write this method in your subclass of `Tool`.")
@@ -739,6 +739,48 @@ def launch_gradio_demo(tool: Tool):
     ).launch()
 
 
+class SendMessageTool(Tool):
+    """Tool to send a message to another agent via the shared ``queue_dict``."""
+
+    name = "send_message"
+    description = "Send a message to another agent using the shared queues."
+    inputs = {
+        "target_id": {"type": "integer", "description": "ID of the target agent."},
+        "message": {"type": "any", "description": "The message to send."},
+    }
+    output_type = "null"
+
+    def __init__(self, queue_dict: dict[int, Any]):
+        self.queue_dict = queue_dict
+        super().__init__()
+
+    def forward(self, target_id: int, message: Any) -> None:
+        if target_id not in self.queue_dict:
+            raise ValueError(f"Target {target_id} not found in queue_dict")
+        self.queue_dict[target_id].put(message)
+
+
+class ReceiveMessagesTool(Tool):
+    """Tool to retrieve and clear all messages for the current agent."""
+
+    name = "receive_messages"
+    description = "Retrieve all messages queued for this agent."
+    inputs = {}
+    output_type = "array"
+
+    def __init__(self, agent_id: int, queue_dict: dict[int, Any]):
+        self.agent_id = agent_id
+        self.queue_dict = queue_dict
+        super().__init__()
+
+    def forward(self) -> list[Any]:
+        messages: list[Any] = []
+        queue = self.queue_dict[self.agent_id]
+        while not queue.empty():
+            messages.append(queue.get())
+        return messages
+
+
 def load_tool(
     repo_id,
     model_repo_id: str | None = None,
@@ -996,7 +1038,8 @@ def tool(tool_function: Callable) -> Tool:
     forward_method_source = f"def forward{str(new_sig)}:\n{textwrap.indent(tool_source_body, '    ')}"
     # - Create the class source
     class_source = (
-        textwrap.dedent(f"""
+        textwrap.dedent(
+            f"""
         class SimpleTool(Tool):
             name: str = "{tool_json_schema["name"]}"
             description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
@@ -1006,7 +1049,8 @@ def tool(tool_function: Callable) -> Tool:
             def __init__(self):
                 self.is_initialized = True
 
-        """)
+        """
+        )
         + textwrap.indent(forward_method_source, "    ")  # indent for class method
     )
     # - Store the source code on both class and method for inspection
@@ -1214,4 +1258,6 @@ __all__ = [
     "load_tool",
     "launch_gradio_demo",
     "ToolCollection",
+    "SendMessageTool",
+    "ReceiveMessagesTool",
 ]
