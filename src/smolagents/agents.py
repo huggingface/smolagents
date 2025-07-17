@@ -383,61 +383,66 @@ class MultiStepAgent(ABC):
             )
 
 
-def run(
-    self,
-    task: str | None = None,
-    reset: bool = True,
-    images: list["PIL.Image.Image"] | None = None,
-    additional_args: dict | None = None,
-    max_runtime: int | None = None,  # Maximum runtime in seconds
-):
-    """
-    Run the agent in a decentralized manner, processing tasks from its queue.
-    The vanilla method use a centralized ReAct loop, but this method allows for decentralized processing.
+    def run(
+        self,
+        task: str | None = None,
+        reset: bool = True,
+        images: list["PIL.Image.Image"] | None = None,
+        additional_args: dict | None = None,
+        max_runtime: int | None = None,  # Maximum runtime in seconds
+    ):
+        """
+        Run the agent in a decentralized manner, processing tasks from its queue.
+        The vanilla method use a centralized ReAct loop, but this method allows for decentralized processing.
 
-    Args:
-        task (`str`, *optional*): Initial task to perform.
-        reset (`bool`): Whether to reset the conversation or keep it going.
-        images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
-        additional_args (`dict`, *optional*): Additional variables for the agent.
-        max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating. If None, uses
+        Args:
+            task (`str`, *optional*): Initial task to perform.
+            reset (`bool`): Whether to reset the conversation or keep it going.
+            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
+            additional_args (`dict`, *optional*): Additional variables for the agent.
+            max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating. If None, uses
             the agent's `max_runtime` attribute.
-    """
-    if reset:
-        self.memory.reset()
-        self.monitor.reset()
-        self.step_number = 0
-        self.interrupt_switch = False
+        """
+        if reset:
+            self.memory.reset()
+            self.monitor.reset()
+            self.step_number = 0
+            self.interrupt_switch = False
 
-        self.logger.log_task(
-            content=self.task.strip(),
-            subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
-            level=LogLevel.INFO,
-            title=self.name if hasattr(self, "name") else None,
-        )
-        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+        if task:
+            self.task = task
+            self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+            self.logger.log_task(
+                content=self.task.strip(),
+                subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
+                level=LogLevel.INFO,
+                title=f"Agent {self.agent_id}",
+            )
+
+        if additional_args is not None:
+            self.state.update(additional_args)
 
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
-    # Decentralized loop: process messages and tasks
-    if max_runtime is None:
-        max_runtime = self.max_runtime
+        # Decentralized loop: process messages and tasks
+        if max_runtime is None:
+            max_runtime = self.max_runtime
 
-    start_time = time.time()
-    try:
-        while True:
-            if max_runtime is not None and time.time() - start_time >= max_runtime:
-                raise AgentMaxRuntimeError("Reached maximum runtime.", self.logger)
+        start_time = time.time()
+        try:
+            while True:
+                if max_runtime is not None and time.time() - start_time >= max_runtime:
+                    raise AgentMaxRuntimeError("Reached maximum runtime.", self.logger)
 
-            self.step_number += 1
+                self.step_number += 1
 
-            if self.step_number > self.max_steps:
-                raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
+                if self.step_number > self.max_steps:
+                    raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
 
-            if self.interrupt_switch:
-                raise AgentError("Agent interrupted.", self.logger)
+                if self.interrupt_switch:
+                    raise AgentError("Agent interrupted.", self.logger)
 
             # Run a planning step if scheduled
             if self.planning_interval is not None and (
