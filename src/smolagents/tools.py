@@ -257,7 +257,13 @@ class Tool:
 
                 return re.sub(pattern, replacement, source_code)
 
-            forward_source_code = forward_source_code.replace(self.name, "forward")
+            # Rename the function definition without affecting references in the body
+            forward_source_code = re.sub(
+                rf"def\s+{re.escape(self.name)}\s*\(",
+                "def forward(",
+                forward_source_code,
+                count=1,
+            )
             forward_source_code = add_self_argument(forward_source_code)
             forward_source_code = forward_source_code.replace("@tool", "").strip()
             tool_code += "\n\n" + textwrap.indent(forward_source_code, "    ")
