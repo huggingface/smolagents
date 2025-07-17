@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 from smolagents import (
+    EMPTY_PROMPT_TEMPLATES,
     AgentError,
     CodeAgent,
     GoogleSearchTool,
@@ -77,6 +78,12 @@ def parse_arguments():
         help="The number of processes to run in parallel",
     )
     parser.add_argument(
+        "--num-examples",
+        type=int,
+        default=None,
+        help="Limit the number of examples per task (useful for testing)",
+    )
+    parser.add_argument(
         "--push-answers-to-hub",
         action="store_true",
         help="Push the answers to the hub",
@@ -89,14 +96,18 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def load_eval_dataset(eval_dataset):
+def load_eval_dataset(eval_dataset, num_examples=None):
     # Choose the tasks to evaluate on:
     # tasks = ["gaia"]
     # or evaluate on all tasks: ["gaia", "math", "simpleqa"]
     tasks = datasets.get_dataset_config_names(eval_dataset)
     print(tasks)
 
-    eval_ds = {task: datasets.load_dataset(eval_dataset, task, split="test") for task in tasks}
+    if num_examples is None:
+        split = "test"
+    else:
+        split = f"test[:{num_examples}]"
+    eval_ds = {task: datasets.load_dataset(eval_dataset, task, split=split) for task in tasks}
     print(pd.DataFrame(eval_ds["simpleqa"]).head())
     return eval_ds
 
@@ -124,63 +135,75 @@ def append_answer(entry: dict, jsonl_file: str) -> None:
 
 
 def answer_single_question(example, model, answers_file, action_type):
-    if action_type == "vanilla":
-        agent = model
-    elif action_type == "code":
-        agent = CodeAgent(
-            tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool()],
-            model=model,
-            additional_authorized_imports=["numpy", "sympy"],
-            max_steps=10,
-        )
-    elif action_type == "tool-calling":
-        agent = ToolCallingAgent(
-            tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool(), PythonInterpreterTool()],
-            model=model,
-            additional_authorized_imports=["numpy", "sympy"],
-            max_steps=10,
-        )
+    from multiprocessing import Manager
 
-    augmented_question = example["question"]
-    if example["source"] == "SimpleQA":
-        augmented_question += " Answer with only the final number."
-    if example["source"] == "MATH":
-        augmented_question += " Write code, not latex."
+    with Manager() as manager:
+        queue_dict = manager.dict()
+        queue_dict[0] = manager.Queue()
 
-    start_time = time.time()
-
-    try:
         if action_type == "vanilla":
-            answer = agent([{"role": "user", "content": augmented_question}]).content
-            token_counts = agent.monitor.get_total_token_counts()
-            intermediate_steps = answer
-        else:
-            # Run agent 🚀
-            answer = str(agent.run(augmented_question))
-            token_counts = agent.monitor.get_total_token_counts()
-            intermediate_steps = [dict(message) for message in agent.write_memory_to_messages()]
+            agent = model
+        elif action_type == "code":
+            agent = CodeAgent(
+                tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool()],
+                model=model,
+                agent_id=0,
+                queue_dict=queue_dict,
+                prompt_templates=EMPTY_PROMPT_TEMPLATES,
+                additional_authorized_imports=["numpy", "sympy"],
+                max_steps=10,
+            )
+        elif action_type == "tool-calling":
+            agent = ToolCallingAgent(
+                tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool(), PythonInterpreterTool()],
+                model=model,
+                agent_id=0,
+                queue_dict=queue_dict,
+                prompt_templates=EMPTY_PROMPT_TEMPLATES,
+                additional_authorized_imports=["numpy", "sympy"],
+                max_steps=10,
+            )
 
-        end_time = time.time()
-    except Exception as e:
-        print("Error on ", augmented_question, e)
-        intermediate_steps = []
-        token_counts = {"input": 0, "output": 0}
-        answer = str(e)
-    end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    annotated_example = {
-        "model_id": model.model_id,
-        "agent_action_type": action_type,
-        "question": augmented_question,
-        "original_question": example["question"],
-        "answer": answer,
-        "true_answer": example["true_answer"],
-        "source": example["source"],
-        "intermediate_steps": intermediate_steps,
-        "start_time": start_time,
-        "end_time": end_time,
-        "token_counts": token_counts,
-    }
-    append_answer(annotated_example, answers_file)
+        augmented_question = example["question"]
+        if example["source"] == "SimpleQA":
+            augmented_question += " Answer with only the final number."
+        if example["source"] == "MATH":
+            augmented_question += " Write code, not latex."
+
+        start_time = time.time()
+
+        try:
+            if action_type == "vanilla":
+                answer = agent([{"role": "user", "content": augmented_question}]).content
+                token_counts = agent.monitor.get_total_token_counts()
+                intermediate_steps = answer
+            else:
+                # Run agent 🚀
+                answer = str(agent.run(augmented_question))
+                token_counts = agent.monitor.get_total_token_counts()
+                intermediate_steps = [dict(message) for message in agent.write_memory_to_messages()]
+
+            end_time = time.time()
+        except Exception as e:
+            print("Error on ", augmented_question, e)
+            intermediate_steps = []
+            token_counts = {"input": 0, "output": 0}
+            answer = str(e)
+        end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        annotated_example = {
+            "model_id": model.model_id,
+            "agent_action_type": action_type,
+            "question": augmented_question,
+            "original_question": example["question"],
+            "answer": answer,
+            "true_answer": example["true_answer"],
+            "source": example["source"],
+            "intermediate_steps": intermediate_steps,
+            "start_time": start_time,
+            "end_time": end_time,
+            "token_counts": token_counts,
+        }
+        append_answer(annotated_example, answers_file)
 
 
 def answer_questions(
@@ -234,7 +257,7 @@ def answer_questions(
 if __name__ == "__main__":
     args = parse_arguments()
 
-    eval_ds = load_eval_dataset(args.eval_dataset)
+    eval_ds = load_eval_dataset(args.eval_dataset, num_examples=args.num_examples)
 
     if args.model_type == "LiteLLMModel":
         model = LiteLLMModel(

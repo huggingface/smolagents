@@ -145,9 +145,9 @@ class Tool:
         # Validate inputs
         for input_name, input_content in self.inputs.items():
             assert isinstance(input_content, dict), f"Input '{input_name}' should be a dictionary."
-            assert (
-                "type" in input_content and "description" in input_content
-            ), f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
+            assert "type" in input_content and "description" in input_content, (
+                f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
+            )
             if input_content["type"] not in AUTHORIZED_TYPES:
                 raise Exception(
                     f"Input '{input_name}': type '{input_content['type']}' is not an authorized value, should be one of {AUTHORIZED_TYPES}."
@@ -173,17 +173,17 @@ class Tool:
                 "properties"
             ]  # This function will not raise an error on missing docstrings, contrary to get_json_schema
             for key, value in self.inputs.items():
-                assert (
-                    key in json_schema
-                ), f"Input '{key}' should be present in function signature, found only {json_schema.keys()}"
+                assert key in json_schema, (
+                    f"Input '{key}' should be present in function signature, found only {json_schema.keys()}"
+                )
                 if "nullable" in value:
-                    assert (
-                        "nullable" in json_schema[key]
-                    ), f"Nullable argument '{key}' in inputs should have key 'nullable' set to True in function signature."
+                    assert "nullable" in json_schema[key], (
+                        f"Nullable argument '{key}' in inputs should have key 'nullable' set to True in function signature."
+                    )
                 if key in json_schema and "nullable" in json_schema[key]:
-                    assert (
-                        "nullable" in value
-                    ), f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
+                    assert "nullable" in value, (
+                        f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
+                    )
 
     def forward(self, *args, **kwargs):
         return NotImplementedError("Write this method in your subclass of `Tool`.")

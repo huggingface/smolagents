@@ -46,6 +46,8 @@ from rich.text import Text
 if TYPE_CHECKING:
     import PIL.Image
 
+from langfuse_setup import langfuse
+
 from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
@@ -93,8 +95,6 @@ from .utils import (
     parse_code_blobs,
     truncate_content,
 )
-
-from langfuse_setup import langfuse
 
 
 logger = getLogger(__name__)
@@ -284,15 +284,15 @@ class MultiStepAgent(ABC):
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         if prompt_templates is not None:
             missing_keys = set(EMPTY_PROMPT_TEMPLATES.keys()) - set(prompt_templates.keys())
-            assert (
-                not missing_keys
-            ), f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
+            assert not missing_keys, (
+                f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
+            )
             for key, value in EMPTY_PROMPT_TEMPLATES.items():
                 if isinstance(value, dict):
                     for subkey in value.keys():
-                        assert (
-                            key in prompt_templates.keys() and (subkey in prompt_templates[key].keys())
-                        ), f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
+                        assert key in prompt_templates.keys() and (subkey in prompt_templates[key].keys()), (
+                            f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
+                        )
 
         self.max_steps = max_steps
         self.max_runtime = max_runtime
@@ -376,9 +376,9 @@ class MultiStepAgent(ABC):
         """Setup managed agents with proper logging."""
         self.managed_agents = {}
         if managed_agents:
-            assert all(
-                agent.name and agent.description for agent in managed_agents
-            ), "All managed agents need both a name and a description!"
+            assert all(agent.name and agent.description for agent in managed_agents), (
+                "All managed agents need both a name and a description!"
+            )
             self.managed_agents = {agent.name: agent for agent in managed_agents}
             # Ensure managed agents can be called as tools by the model: set their inputs and output_type
             for agent in self.managed_agents.values():
