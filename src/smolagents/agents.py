@@ -94,6 +94,8 @@ from .utils import (
     truncate_content,
 )
 
+from langfuse_setup import langfuse
+
 
 logger = getLogger(__name__)
 
@@ -1568,6 +1570,7 @@ class CodeAgent(MultiStepAgent):
         self.executor_type = executor_type or "local"
         self.executor_kwargs = executor_kwargs or {}
         self.python_executor = self.create_python_executor()
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace")
 
     def create_python_executor(self) -> PythonExecutor:
         match self.executor_type:
