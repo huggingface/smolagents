@@ -118,7 +118,7 @@ def load_model(
     elif model_type == "InferenceClientModel":
         return InferenceClientModel(
             model_id=model_id,
-            token=api_key or os.getenv("HF_API_KEY"),
+            token=api_key or os.getenv("HF_TOKEN"),
             provider=provider,
         )
     else:
