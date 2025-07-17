@@ -410,7 +410,7 @@ class Model:
 
     def _prepare_completion_kwargs(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -593,7 +593,7 @@ class VLLMModel(Model):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -717,7 +717,7 @@ class MLXModel(Model):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -893,7 +893,7 @@ class TransformersModel(Model):
 
     def _prepare_completion_args(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
@@ -941,7 +941,7 @@ class TransformersModel(Model):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -985,7 +985,7 @@ class TransformersModel(Model):
 
     def generate_stream(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1134,7 +1134,7 @@ class LiteLLMModel(ApiModel):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1168,7 +1168,7 @@ class LiteLLMModel(ApiModel):
 
     def generate_stream(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1412,7 +1412,7 @@ class InferenceClientModel(ApiModel):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1448,7 +1448,7 @@ class InferenceClientModel(ApiModel):
 
     def generate_stream(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1563,7 +1563,7 @@ class OpenAIServerModel(ApiModel):
 
     def generate_stream(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1616,7 +1616,7 @@ class OpenAIServerModel(ApiModel):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1810,7 +1810,7 @@ class AmazonBedrockServerModel(ApiModel):
 
     def _prepare_completion_kwargs(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
@@ -1863,7 +1863,7 @@ class AmazonBedrockServerModel(ApiModel):
 
     def generate(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage | dict],
         stop_sequences: list[str] | None = None,
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
