@@ -50,9 +50,9 @@ from smolagents.default_tools import (
     DuckDuckGoSearchTool,
     FinalAnswerTool,
     PythonInterpreterTool,
-    VisitWebpageTool,
-    SendMessageTool,
     ReceiveMessagesTool,
+    SendMessageTool,
+    VisitWebpageTool,
 )
 from smolagents.memory import (
     ActionStep,

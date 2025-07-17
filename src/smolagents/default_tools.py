@@ -613,9 +613,7 @@ class ReceiveMessagesTool(Tool):
         while not self.queue.empty():
             msg = self.queue.get()
             if self.logger is not None:
-                self.logger.log(
-                    f"Agent {self.agent_id} received message: {msg}", level=LogLevel.INFO
-                )
+                self.logger.log(f"Agent {self.agent_id} received message: {msg}", level=LogLevel.INFO)
             if self.process_message is not None:
                 self.process_message(msg)
             messages.append(msg)
