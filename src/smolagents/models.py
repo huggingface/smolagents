@@ -270,7 +270,7 @@ def remove_stop_sequences(content: str, stop_sequences: list[str]) -> str:
 
 
 def get_clean_message_list(
-    message_list: list[ChatMessage],
+    message_list: list[ChatMessage | dict],
     role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
     convert_images_to_image_urls: bool = False,
     flatten_messages_as_text: bool = False,
@@ -280,7 +280,7 @@ def get_clean_message_list(
     Subsequent messages with the same role will be concatenated to a single message.
 
     Args:
-        message_list (`list[dict[str, str]]`): List of chat messages.
+        message_list (`list[ChatMessage | dict]`): List of chat messages. Mixed types are allowed.
         role_conversions (`dict[MessageRole, MessageRole]`, *optional* ): Mapping to convert roles.
         convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
         flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
@@ -288,6 +288,8 @@ def get_clean_message_list(
     output_message_list: list[dict[str, Any]] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
     for message in message_list:
+        if isinstance(message, dict):
+            message = ChatMessage.from_dict(message)
         role = message.role
         if role not in MessageRole.roles():
             raise ValueError(f"Incorrect role {role}, only {MessageRole.roles()} are supported for now.")
