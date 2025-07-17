@@ -576,6 +576,34 @@ def test_get_clean_message_list_basic():
     assert result[1]["content"][0]["text"] == "Hi there!"
 
 
+@pytest.mark.parametrize(
+    "messages,expected_roles,expected_texts",
+    [
+        (
+            [
+                {"role": "user", "content": [{"type": "text", "text": "Hello!"}]},
+                {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]},
+            ],
+            ["user", "assistant"],
+            ["Hello!", "Hi there!"],
+        ),
+        (
+            [
+                {"role": "user", "content": [{"type": "text", "text": "How are you?"}]},
+            ],
+            ["user"],
+            ["How are you?"],
+        ),
+    ],
+)
+def test_get_clean_message_list_with_dicts(messages, expected_roles, expected_texts):
+    result = get_clean_message_list(messages)
+    assert len(result) == len(messages)
+    for i, msg in enumerate(result):
+        assert msg["role"] == expected_roles[i]
+        assert msg["content"][0]["text"] == expected_texts[i]
+
+
 def test_get_clean_message_list_role_conversions():
     messages = [
         ChatMessage(role=MessageRole.TOOL_CALL, content=[{"type": "text", "text": "Calling tool..."}]),
