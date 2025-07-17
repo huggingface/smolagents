@@ -4,8 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.19.0.dev0"
-description = "🤗 smolagents: a lightweight library for decentralized agents that collaborate via message queues to solve tasks using Python code and tools."
+
+version = "1.21.0.dev0"
+description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
+
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" },
 ]
@@ -49,7 +51,7 @@ litellm = [
   "litellm>=1.60.2",
 ]
 mcp = [
-  "mcpadapt>=0.1.8",  # Support Streamable HTTP transport
+  "mcpadapt>=0.1.11",  # Support Image and Audio content
   "mcp",
 ]
 mlx-lm = [

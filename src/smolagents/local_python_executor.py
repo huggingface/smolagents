@@ -23,8 +23,10 @@ import math
 import re
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
+from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any
 
@@ -219,6 +221,9 @@ def safer_func(
     Returns:
         Callable: Safer function with return value check.
     """
+    # If the function is a type, return it directly without wrapping
+    if isinstance(func, type):
+        return func
 
     @wraps(func)
     def _check_return(*args, **kwargs):
@@ -1555,6 +1560,13 @@ def evaluate_python_code(
         )
 
 
+@dataclass
+class CodeOutput:
+    output: Any
+    logs: str
+    is_final_answer: bool
+
+
 class PythonExecutor:
     pass
 
@@ -1591,12 +1603,32 @@ class LocalPythonExecutor(PythonExecutor):
             self.max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT
         self.additional_authorized_imports = additional_authorized_imports
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        # TODO: assert self.authorized imports are all installed locally
+        self._check_authorized_imports_are_installed()
         self.static_tools = None
         self.additional_functions = additional_functions or {}
         self.execution_timeout = execution_timeout
 
-    def __call__(self, code_action: str) -> tuple[Any, str, bool]:
+    def _check_authorized_imports_are_installed(self):
+        """
+        Check that all authorized imports are installed on the system.
+
+        Handles wildcard imports ("*") and partial star-pattern imports (e.g., "os.*").
+
+        Raises:
+            InterpreterError: If any of the authorized modules are not installed.
+        """
+        missing_modules = [
+            base_module
+            for imp in self.authorized_imports
+            if imp != "*" and find_spec(base_module := imp.split(".")[0]) is None
+        ]
+        if missing_modules:
+            raise InterpreterError(
+                f"Non-installed authorized modules: {', '.join(missing_modules)}. "
+                f"Please install these modules or remove them from the authorized imports list."
+            )
+
+    def __call__(self, code_action: str) -> CodeOutput:
         output, is_final_answer = evaluate_python_code(
             code_action,
             static_tools=self.static_tools,
@@ -1607,7 +1639,7 @@ class LocalPythonExecutor(PythonExecutor):
             timeout=self.execution_timeout,
         )
         logs = str(self.state["_print_outputs"])
-        return output, logs, is_final_answer
+        return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
 
     def send_variables(self, variables: dict):
         self.state.update(variables)

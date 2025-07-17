@@ -84,7 +84,7 @@ You can then navigate to `http://0.0.0.0:6006/projects/` to inspect your run!
 
 You can see that the CodeAgent called its managed ToolCallingAgent (by the way, the managed agent could have been a CodeAgent as well) to ask it to run the web search for the U.S. 2024 growth rate. Then the managed agent returned its report and the manager agent acted upon it to calculate the economy doubling time! Sweet, isn't it?
 
-## Setting up telemetry with Langfuse
+## Setting up telemetry with 🪢 Langfuse
 
 This part shows how to monitor and debug your Hugging Face **smolagents** with **Langfuse** using the `SmolagentsInstrumentor`.
 
@@ -93,8 +93,7 @@ This part shows how to monitor and debug your Hugging Face **smolagents** with *
 ### Step 1: Install Dependencies
 
 ```python
-%pip install smolagents
-%pip install opentelemetry-sdk opentelemetry-exporter-otlp openinference-instrumentation-smolagents
+%pip install langfuse 'smolagents[telemetry]' openinference-instrumentation-smolagents
 ```
 
 ### Step 2: Set Up Environment Variables
@@ -105,36 +104,39 @@ Also, add your [Hugging Face token](https://huggingface.co/settings/tokens) (`HF
 
 ```python
 import os
-import base64
-
-LANGFUSE_PUBLIC_KEY="pk-lf-..."
-LANGFUSE_SECRET_KEY="sk-lf-..."
-LANGFUSE_AUTH=base64.b64encode(f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()).decode()
-
-os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://cloud.langfuse.com/api/public/otel" # EU data region
-# os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://us.cloud.langfuse.com/api/public/otel" # US data region
-os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {LANGFUSE_AUTH}"
-
+# Get keys for your project from the project settings page: https://cloud.langfuse.com
+os.environ["LANGFUSE_PUBLIC_KEY"] = "pk-lf-..." 
+os.environ["LANGFUSE_SECRET_KEY"] = "sk-lf-..." 
+os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com" # 🇪🇺 EU region
+# os.environ["LANGFUSE_HOST"] = "https://us.cloud.langfuse.com" # 🇺🇸 US region
+ 
 # your Hugging Face token
 os.environ["HF_TOKEN"] = "hf_..."
 ```
 
+With the environment variables set, we can now initialize the Langfuse client. `get_client()` initializes the Langfuse client using the credentials provided in the environment variables.
+
+```python
+from langfuse import get_client
+ 
+langfuse = get_client()
+ 
+# Verify connection
+if langfuse.auth_check():
+    print("Langfuse client is authenticated and ready!")
+else:
+    print("Authentication failed. Please check your credentials and host.")
+```
+
 ### Step 3: Initialize the `SmolagentsInstrumentor`
 
-Initialize the `SmolagentsInstrumentor` before your application code. Configure `tracer_provider` and add a span processor to export traces to Langfuse. `OTLPSpanExporter()` uses the endpoint and headers from the environment variables.
+Initialize the `SmolagentsInstrumentor` before your application code. 
 
 
 ```python
-from opentelemetry.sdk.trace import TracerProvider
-
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-
-trace_provider = TracerProvider()
-trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
-
-SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
+ 
+SmolagentsInstrumentor().instrument()
 ```
 
 ### Step 4: Run your smolagent

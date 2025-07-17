@@ -22,7 +22,7 @@ from typing import Generator
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
 from smolagents.memory import ActionStep, FinalAnswerStep
-from smolagents.models import ChatMessageStreamDelta, agglomerate_stream_deltas
+from smolagents.models import ChatMessageStreamDelta, MessageRole, agglomerate_stream_deltas
 from smolagents.utils import _is_package_available
 
 
@@ -93,12 +93,12 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
     # Output the step number
     step_number = f"Step {step_log.step_number}"
     if not skip_model_outputs:
-        yield gr.ChatMessage(role="assistant", content=f"**{step_number}**", metadata={"status": "done"})
+        yield gr.ChatMessage(role=MessageRole.ASSISTANT, content=f"**{step_number}**", metadata={"status": "done"})
 
     # First yield the thought/reasoning from the LLM
     if not skip_model_outputs and getattr(step_log, "model_output", ""):
         model_output = _clean_model_output(step_log.model_output)
-        yield gr.ChatMessage(role="assistant", content=model_output, metadata={"status": "done"})
+        yield gr.ChatMessage(role=MessageRole.ASSISTANT, content=model_output, metadata={"status": "done"})
 
     # For tool calls, create a parent message
     if getattr(step_log, "tool_calls", []):
@@ -118,7 +118,7 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
 
         # Create the tool call message
         parent_message_tool = gr.ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content=content,
             metadata={
                 "title": f"🛠️ Used tool {first_tool_call.name}",
@@ -133,7 +133,7 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
         if log_content:
             log_content = re.sub(r"^Execution logs:\s*", "", log_content)
             yield gr.ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content=f"```bash\n{log_content}\n",
                 metadata={"title": "📝 Execution Logs", "status": "done"},
             )
@@ -143,7 +143,7 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
         for image in step_log.observations_images:
             path_image = AgentImage(image).to_string()
             yield gr.ChatMessage(
-                role="assistant",
+                role=MessageRole.ASSISTANT,
                 content={"path": path_image, "mime_type": f"image/{path_image.split('.')[-1]}"},
                 metadata={"title": "🖼️ Output Image", "status": "done"},
             )
@@ -151,14 +151,16 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
     # Handle errors
     if getattr(step_log, "error", None):
         yield gr.ChatMessage(
-            role="assistant", content=str(step_log.error), metadata={"title": "💥 Error", "status": "done"}
+            role=MessageRole.ASSISTANT, content=str(step_log.error), metadata={"title": "💥 Error", "status": "done"}
         )
 
     # Add step footnote and separator
     yield gr.ChatMessage(
-        role="assistant", content=get_step_footnote_content(step_log, step_number), metadata={"status": "done"}
+        role=MessageRole.ASSISTANT,
+        content=get_step_footnote_content(step_log, step_number),
+        metadata={"status": "done"},
     )
-    yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
+    yield gr.ChatMessage(role=MessageRole.ASSISTANT, content="-----", metadata={"status": "done"})
 
 
 def _process_planning_step(step_log: PlanningStep, skip_model_outputs: bool = False) -> Generator:
@@ -174,12 +176,14 @@ def _process_planning_step(step_log: PlanningStep, skip_model_outputs: bool = Fa
     import gradio as gr
 
     if not skip_model_outputs:
-        yield gr.ChatMessage(role="assistant", content="**Planning step**", metadata={"status": "done"})
-        yield gr.ChatMessage(role="assistant", content=step_log.plan, metadata={"status": "done"})
+        yield gr.ChatMessage(role=MessageRole.ASSISTANT, content="**Planning step**", metadata={"status": "done"})
+        yield gr.ChatMessage(role=MessageRole.ASSISTANT, content=step_log.plan, metadata={"status": "done"})
     yield gr.ChatMessage(
-        role="assistant", content=get_step_footnote_content(step_log, "Planning step"), metadata={"status": "done"}
+        role=MessageRole.ASSISTANT,
+        content=get_step_footnote_content(step_log, "Planning step"),
+        metadata={"status": "done"},
     )
-    yield gr.ChatMessage(role="assistant", content="-----", metadata={"status": "done"})
+    yield gr.ChatMessage(role=MessageRole.ASSISTANT, content="-----", metadata={"status": "done"})
 
 
 def _process_final_answer_step(step_log: FinalAnswerStep) -> Generator:
@@ -197,25 +201,25 @@ def _process_final_answer_step(step_log: FinalAnswerStep) -> Generator:
     final_answer = step_log.output
     if isinstance(final_answer, AgentText):
         yield gr.ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content=f"**Final answer:**\n{final_answer.to_string()}\n",
             metadata={"status": "done"},
         )
     elif isinstance(final_answer, AgentImage):
         yield gr.ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content={"path": final_answer.to_string(), "mime_type": "image/png"},
             metadata={"status": "done"},
         )
     elif isinstance(final_answer, AgentAudio):
         yield gr.ChatMessage(
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content={"path": final_answer.to_string(), "mime_type": "audio/wav"},
             metadata={"status": "done"},
         )
     else:
         yield gr.ChatMessage(
-            role="assistant", content=f"**Final answer:** {str(final_answer)}", metadata={"status": "done"}
+            role=MessageRole.ASSISTANT, content=f"**Final answer:** {str(final_answer)}", metadata={"status": "done"}
         )
 
 
@@ -339,7 +343,9 @@ class GradioUI:
                     if messages[-1].metadata["status"] == "pending":
                         messages[-1].content = msg
                     else:
-                        messages.append(gr.ChatMessage(role="assistant", content=msg, metadata={"status": "pending"}))
+                        messages.append(
+                            gr.ChatMessage(role=MessageRole.ASSISTANT, content=msg, metadata={"status": "pending"})
+                        )
                 yield messages
 
             yield messages

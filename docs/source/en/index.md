@@ -22,11 +22,13 @@ Key features of `smolagents` include:
 
 👁️ **Modality-agnostic**: Beyond text, agents can handle vision, video, and audio inputs, broadening the range of possible applications. Check out [this tutorial](examples/web_browser) for vision.
 
-🛠️ **Tool-agnostic**: You can use tools from any [MCP server](reference/tools#smolagents.ToolCollection.from_mcp), from [LangChain]reference/tools#smolagents.Tool.from_langchain), you can even use a [Hub Space](reference/tools#smolagents.Tool.from_space) as a tool.
+🛠️ **Tool-agnostic**: You can use tools from any [MCP server](reference/tools#smolagents.ToolCollection.from_mcp), from [LangChain](reference/tools#smolagents.Tool.from_langchain), you can even use a [Hub Space](reference/tools#smolagents.Tool.from_space) as a tool.
 
 💻 **CLI Tools**: Comes with command-line utilities (smolagent, webagent) for quickly running agents without writing boilerplate code.
 
 ## Quickstart
+
+[[open-in-colab]]
 
 Get started with smolagents in just a few minutes! This guide will show you how to create and run your first agent.
 
@@ -34,11 +36,6 @@ Get started with smolagents in just a few minutes! This guide will show you how 
 
 Install smolagents with pip:
 
-```bash
-pip install smolagents
-```
-
-For additional features, you can install optional dependencies:
 ```bash
 pip install smolagents[toolkit]  # Includes default tools like web search
 ```
@@ -68,14 +65,12 @@ That's it! Your agent will use Python code to solve the task and return the resu
 Let's make our agent more capable by adding some tools:
 
 ```python
-from smolagents import CodeAgent, InferenceClientModel
+from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
 
-# Initialize with default tools (requires smolagents[toolkit])
 model = InferenceClientModel()
 agent = CodeAgent(
-    tools=[],  # Empty list since we'll use default tools
+    tools=[DuckDuckGoSearchTool()],
     model=model,
-    add_base_tools=True  # This adds web search and other default tools
 )
 
 # Now the agent can search the web!

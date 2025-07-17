@@ -87,7 +87,7 @@ Voilà!
 
 如图所示，CodeAgent 调用了其托管的 ToolCallingAgent（注：托管Agent也可以是另一个 CodeAgent）执行美国2024年经济增长率的网络搜索。托管Agent返回报告后，管理Agent根据结果计算出经济翻倍周期！是不是很智能？
 
-## 使用 Langfuse 配置遥测
+## 使用 🪢 Langfuse 配置遥测
 
 本部分演示如何通过 `SmolagentsInstrumentor` 使用 **Langfuse** 监控和调试 Hugging Face **smolagents**。
 
@@ -96,8 +96,7 @@ Voilà!
 ### 步骤 1: 安装依赖
 
 ```python
-%pip install smolagents
-%pip install opentelemetry-sdk opentelemetry-exporter-otlp openinference-instrumentation-smolagents
+%pip install langfuse 'smolagents[telemetry]' openinference-instrumentation-smolagents
 ```
 
 ### 步骤 2: 配置环境变量
@@ -107,36 +106,37 @@ Voilà!
 同时需添加 [Hugging Face 令牌](https://huggingface.co/settings/tokens) (`HF_TOKEN`) 作为环境变量：
 ```python
 import os
-import base64
-
-LANGFUSE_PUBLIC_KEY="pk-lf-..."
-LANGFUSE_SECRET_KEY="sk-lf-..."
-LANGFUSE_AUTH=base64.b64encode(f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()).decode()
-
-os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://cloud.langfuse.com/api/public/otel" # EU data region
-# os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://us.cloud.langfuse.com/api/public/otel" # US data region
-os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {LANGFUSE_AUTH}"
-
+# Get keys for your project from the project settings page: https://cloud.langfuse.com
+os.environ["LANGFUSE_PUBLIC_KEY"] = "pk-lf-..." 
+os.environ["LANGFUSE_SECRET_KEY"] = "sk-lf-..." 
+os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com" # 🇪🇺 EU region
+# os.environ["LANGFUSE_HOST"] = "https://us.cloud.langfuse.com" # 🇺🇸 US region
+ 
 # your Hugging Face token
 os.environ["HF_TOKEN"] = "hf_..."
 ```
 
+```python
+from langfuse import get_client
+ 
+langfuse = get_client()
+ 
+# Verify connection
+if langfuse.auth_check():
+    print("Langfuse client is authenticated and ready!")
+else:
+    print("Authentication failed. Please check your credentials and host.")
+```
+
 ### 步骤 3: 初始化 `SmolagentsInstrumentor`
 
-在应用程序代码执行前初始化 `SmolagentsInstrumentor`。配置 `tracer_provider` 并添加 span processor 将追踪数据导出至 Langfuse。`OTLPSpanExporter()` 会自动使用环境变量中配置的端点和请求头。
+在应用程序代码执行前初始化 `SmolagentsInstrumentor`。
 
 
 ```python
-from opentelemetry.sdk.trace import TracerProvider
-
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-
-trace_provider = TracerProvider()
-trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
-
-SmolagentsInstrumentor().instrument(tracer_provider=trace_provider)
+ 
+SmolagentsInstrumentor().instrument()
 ```
 
 ### 步骤 4: 运行 smolagent

@@ -36,11 +36,19 @@
     title: Build a web browser agent using vision models
   - local: examples/using_different_models
     title: Using different models
+  - local: examples/plan_customization
+    title: "Human-in-the-Loop: Customize agent plan interactively"
+  - local: examples/async_agent
+    title: Async Applications with Agents
 - title: Reference
   sections:
   - local: reference/agents
     title: Agent-related objects
   - local: reference/models
     title: Model-related objects
-  - local: reference/tools
-    title: Tool-related objects
+  - title: Tools
+    sections:
+    - title: Tool-related objects
+      local: reference/tools
+    - title: Built-in Tools
+      local: reference/default_tools
