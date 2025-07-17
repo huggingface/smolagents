@@ -30,7 +30,7 @@ limitations under the License.
   </div>
 </h3>
 
-`smolagents` is a lightweight library for building autonomous agents that solve tasks using code and tools. Agents run as independent processes and communicate directly via message queues, eliminating centralized orchestration. Each agent has a unique `agent_id` and a queue in a shared `queue_dict`, enabling decentralized task processing.
+`smolagents` is a lightweight library for building autonomous agents that solve tasks using code and tools. Agents run as independent processes and communicate directly via message queues using the `SendMessageTool` and `ReceiveMessagesTool`. Each agent maintains its own queue in a shared dictionary for decentralized task processing.
 
 ✨ **Simplicity**: The core logic fits in ~1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)), keeping abstractions minimal.
 
@@ -67,15 +67,24 @@ Run multiple agents to solve a task collaboratively:
 
 ```python
 from multiprocessing import Manager, Process
-from smolagents import CodeAgent, InferenceClientModel, WebSearchTool
+from smolagents import (
+    CodeAgent,
+    InferenceClientModel,
+    WebSearchTool,
+    SendMessageTool,
+    ReceiveMessagesTool,
+)
 
 def start_agent(agent_id, queue_dict, task=None):
     model = InferenceClientModel()
+    tools = [
+        WebSearchTool(),
+        SendMessageTool(queue_dict, agent_id),
+        ReceiveMessagesTool(queue_dict, agent_id),
+    ]
     agent = CodeAgent(
-        tools=[WebSearchTool()],
+        tools=tools,
         model=model,
-        agent_id=agent_id,
-        queue_dict=queue_dict,
         additional_authorized_imports=["numpy", "pandas"],
     )
     agent.run(task=task)
@@ -97,7 +106,7 @@ if __name__ == "__main__":
             p.join()
 ```
 
-This launches two `CodeAgent` instances. Agent 0 processes the task and may send subtasks (e.g., code or search results) to Agent 1 via message queues. Agents use tools like `web_search` or `python_interpreter` and return results with `final_answer()`.
+This launches two `CodeAgent` instances. Agent 0 processes the task and may send subtasks (e.g., code or search results) to Agent 1 via message queues using `SendMessageTool` and `ReceiveMessagesTool`. Agents use tools like `web_search` or `python_interpreter` and return results with `final_answer()`.
 
 You can share your agent to the Hub as a Space repository:
 
@@ -220,7 +229,7 @@ webagent "Go to xyz.com/men, get to sale section, click the first clothing item.
 
 ## How Do Agents Work?
 
-Agents in `smolagents` run as independent processes, each with a unique `agent_id` and a queue in a shared `queue_dict`. They communicate directly by sending messages (e.g., tasks, code, or results) using `self.send_message(target_id, message)` and checking their queue with `self.receive_messages()`. This decentralized approach eliminates the need for a centralized ReAct loop.
+Agents in `smolagents` run as independent processes. Each agent has a queue inside a shared dictionary, and they communicate by sending messages with `SendMessageTool` and retrieving them with `ReceiveMessagesTool`. This decentralized approach eliminates the need for a centralized ReAct loop.
 
 [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes actions as Python code snippets, executed securely in sandboxed environments (e.g., [E2B](https://e2b.dev/) or Docker). Code-based actions [use 30% fewer steps](https://huggingface.co/papers/2402.01030) and [achieve higher performance](https://huggingface.co/papers/2411.01747) compared to traditional tool-calling methods.
 
