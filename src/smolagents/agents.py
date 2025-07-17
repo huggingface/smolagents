@@ -34,7 +34,6 @@ import jinja2
 import yaml
 from huggingface_hub import create_repo, metadata_update, snapshot_download, upload_folder
 from jinja2 import StrictUndefined, Template
-from rich.console import Group
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -45,9 +44,12 @@ from rich.text import Text
 if TYPE_CHECKING:
     import PIL.Image
 
-from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
+from langfuse import Langfuse
+
+
+from .agent_types import AgentAudio, AgentImage
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
-from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
+from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor
 from .memory import (
     ActionStep,
     AgentMemory,
@@ -55,21 +57,17 @@ from .memory import (
     FinalAnswerStep,
     MemoryStep,
     PlanningStep,
-    SystemPromptStep,
     TaskStep,
     Timing,
     TokenUsage,
     ToolCall,
 )
 from .models import (
-    CODEAGENT_RESPONSE_FORMAT,
     ChatMessage,
     ChatMessageStreamDelta,
     ChatMessageToolCall,
     MessageRole,
     Model,
-    agglomerate_stream_deltas,
-    parse_json_if_needed,
 )
 from .monitoring import (
     YELLOW_HEX,
@@ -77,18 +75,16 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
-from .tools import Tool, validate_tool_arguments
+from .remote_executors import DockerExecutor, E2BExecutor
+from .tools import ReceiveMessagesTool, SendMessageTool, Tool
 from .utils import (
     AGENT_GRADIO_APP_TEMPLATE,
     AgentError,
-    AgentExecutionError,
-    AgentGenerationError,
+    AgentMaxRuntimeError,
     AgentMaxStepsError,
     AgentParsingError,
     AgentToolCallError,
     AgentToolExecutionError,
-    extract_code_from_text,
     is_valid_name,
     make_init_file,
     parse_code_blobs,
@@ -97,6 +93,12 @@ from .utils import (
 
 
 logger = getLogger(__name__)
+
+langfuse = Langfuse(
+    public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
+    secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
+    host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+)
 
 
 def get_variable_names(self, template: str) -> set[str]:
@@ -239,6 +241,7 @@ class MultiStepAgent(ABC):
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         instructions (`str`, *optional*): Custom instructions for the agent, will be inserted in the system prompt.
         max_steps (`int`, default `20`): Maximum number of steps the agent can take to solve the task.
+        max_runtime (`int`, default `300`): Maximum runtime allowed for `run()` in seconds.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
@@ -261,9 +264,12 @@ class MultiStepAgent(ABC):
         self,
         tools: list[Tool],
         model: Model,
+        agent_id: int,  # New parameter
+        queue_dict: dict,  # New parameter
         prompt_templates: PromptTemplates | None = None,
         instructions: str | None = None,
         max_steps: int = 20,
+        max_runtime: int = 300,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
         grammar: dict[str, str] | None = None,
@@ -279,6 +285,11 @@ class MultiStepAgent(ABC):
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
+        self.agent_id = agent_id  # Store unique agent ID
+        self.queue_dict = queue_dict  # Shared dictionary of queues
+        self.queue = queue_dict[agent_id]  # Agent's own queue
+        self._send_message_tool = SendMessageTool(queue_dict)
+        self._receive_messages_tool = ReceiveMessagesTool(agent_id, queue_dict)
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         if prompt_templates is not None:
             missing_keys = set(EMPTY_PROMPT_TEMPLATES.keys()) - set(prompt_templates.keys())
@@ -293,6 +304,7 @@ class MultiStepAgent(ABC):
                         )
 
         self.max_steps = max_steps
+        self.max_runtime = max_runtime
         self.step_number = 0
         if grammar is not None:
             warnings.warn(
@@ -323,6 +335,40 @@ class MultiStepAgent(ABC):
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)
         self.stream_outputs = False
+        # Initialize Langfuse trace
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+
+    def send_message(self, target_id: int, message: Any) -> None:
+        """Send a message to the target agent's queue."""
+        if self.trace:
+            span = self.trace.span(name=f"send_message_{self.agent_id}")
+            span.update(inputs={"target_id": target_id, "message": str(message)})
+        try:
+            self._send_message_tool(target_id, message)
+            self.logger.log(f"Agent {self.agent_id} sent message to Agent {target_id}", level=LogLevel.INFO)
+        except ValueError:
+            self.logger.log(
+                f"Agent {self.agent_id} failed to send message: Target {target_id} not found",
+                level=LogLevel.WARNING,
+            )
+
+    def receive_messages(self) -> None:
+        """Process all incoming messages in the agent's queue."""
+        for message in self._receive_messages_tool():
+            self.process_message(message)
+
+    def process_message(self, message: Any) -> None:
+        """Handle a received message."""
+        self.logger.log(f"Agent {self.agent_id} received message: {message}", level=LogLevel.INFO)
+        # Example: If message is a task, treat it as a new task
+        if isinstance(message, str):
+            self.task = message
+            self.memory.steps.append(TaskStep(task=self.task))
+            # Process task (e.g., generate code or execute)
+            self._process_task()
+        elif isinstance(message, dict) and "tool_call" in message:
+            # Handle tool call results or delegated tasks
+            self._process_tool_call(message["tool_call"])
 
     @property
     def system_prompt(self) -> str:
@@ -383,6 +429,7 @@ class MultiStepAgent(ABC):
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
 
+
     def _setup_step_callbacks(self, step_callbacks):
         # Initialize step callbacks registry
         self.step_callbacks = CallbackRegistry()
@@ -405,33 +452,25 @@ class MultiStepAgent(ABC):
 
     def run(
         self,
-        task: str,
-        stream: bool = False,
+        task: str | None = None,
         reset: bool = True,
         images: list["PIL.Image.Image"] | None = None,
         additional_args: dict | None = None,
-        max_steps: int | None = None,
+        max_runtime: int | None = None,  # Maximum runtime in seconds
     ):
         """
-        Run the agent for the given task.
+        Run the agent in a decentralized manner, processing tasks from its queue.
+        The vanilla method use a centralized ReAct loop, but this method allows for decentralized processing.
 
         Args:
-            task (`str`): Task to perform.
-            stream (`bool`): Whether to run in streaming mode.
-                If `True`, returns a generator that yields each step as it is executed. You must iterate over this generator to process the individual steps (e.g., using a for loop or `next()`).
-                If `False`, executes all steps internally and returns only the final answer after completion.
-            reset (`bool`): Whether to reset the conversation or keep it going from previous run.
+            task (`str`, *optional*): Initial task to perform.
+            reset (`bool`): Whether to reset the conversation or keep it going.
             images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
-            additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
-            max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
-
-        Example:
-        ```py
-        from smolagents import CodeAgent
-        agent = CodeAgent(tools=[])
-        agent.run("What is the result of 2 power 3.7384?")
-        ```
+            additional_args (`dict`, *optional*): Additional variables for the agent.
+            max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating. If None, uses
+            the agent's `max_runtime` attribute.
         """
+
         max_steps = max_steps or self.max_steps
         self.task = task
         self.interrupt_switch = False
@@ -445,144 +484,105 @@ You have been provided with these additional arguments, that you can access usin
         if reset:
             self.memory.reset()
             self.monitor.reset()
+            self.step_number = 0
+            self.interrupt_switch = False
 
-        self.logger.log_task(
-            content=self.task.strip(),
-            subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
-            level=LogLevel.INFO,
-            title=self.name if hasattr(self, "name") else None,
-        )
-        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+        if task:
+            self.task = task
+            self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+            self.logger.log_task(
+                content=self.task.strip(),
+                subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
+                level=LogLevel.INFO,
+                title=f"Agent {self.agent_id}",
+            )
+
+        if additional_args is not None:
+            self.state.update(additional_args)
 
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
-        if stream:
-            # The steps are returned as they are executed through a generator to iterate on.
-            return self._run_stream(task=self.task, max_steps=max_steps, images=images)
-        run_start_time = time.time()
-        # Outputs are returned only at the end. We only look at the last step.
+        # Decentralized loop: process messages and tasks
+        if max_runtime is None:
+            max_runtime = self.max_runtime
 
-        steps = list(self._run_stream(task=self.task, max_steps=max_steps, images=images))
-        assert isinstance(steps[-1], FinalAnswerStep)
-        output = steps[-1].output
 
-        if self.return_full_result:
-            total_input_tokens = 0
-            total_output_tokens = 0
-            correct_token_usage = True
-            for step in self.memory.steps:
-                if isinstance(step, (ActionStep, PlanningStep)):
-                    if step.token_usage is None:
-                        correct_token_usage = False
-                        break
-                    else:
-                        total_input_tokens += step.token_usage.input_tokens
-                        total_output_tokens += step.token_usage.output_tokens
-            if correct_token_usage:
-                token_usage = TokenUsage(input_tokens=total_input_tokens, output_tokens=total_output_tokens)
-            else:
-                token_usage = None
+        start_time = time.time()
+        try:
+            while True:
+                if max_runtime is not None and time.time() - start_time >= max_runtime:
+                    raise AgentMaxRuntimeError("Reached maximum runtime.", self.logger)
 
-            if self.memory.steps and isinstance(getattr(self.memory.steps[-1], "error", None), AgentMaxStepsError):
-                state = "max_steps_error"
-            else:
-                state = "success"
-
-            messages = self.memory.get_full_steps()
-
-            return RunResult(
-                output=output,
-                token_usage=token_usage,
-                messages=messages,
-                timing=Timing(start_time=run_start_time, end_time=time.time()),
-                state=state,
-            )
-
-        return output
-
-    def _run_stream(
-        self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
-    ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
-        self.step_number = 1
-        returned_final_answer = False
-        while not returned_final_answer and self.step_number <= max_steps:
-            if self.interrupt_switch:
-                raise AgentError("Agent interrupted.", self.logger)
-
-            # Run a planning step if scheduled
-            if self.planning_interval is not None and (
-                self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0
-            ):
-                planning_start_time = time.time()
-                planning_step = None
-                for element in self._generate_planning_step(
-                    task, is_first_step=len(self.memory.steps) == 1, step=self.step_number
-                ):  # Don't use the attribute step_number here, because there can be steps from previous runs
-                    yield element
-                    planning_step = element
-                assert isinstance(planning_step, PlanningStep)  # Last yielded element should be a PlanningStep
-                planning_end_time = time.time()
-                planning_step.timing = Timing(
-                    start_time=planning_start_time,
-                    end_time=planning_end_time,
-                )
-                self._finalize_step(planning_step)
-                self.memory.steps.append(planning_step)
-
-            # Start action step!
-            action_step_start_time = time.time()
-            action_step = ActionStep(
-                step_number=self.step_number,
-                timing=Timing(start_time=action_step_start_time),
-                observations_images=images,
-            )
-            self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
-            try:
-                for output in self._step_stream(action_step):
-                    # Yield all
-                    yield output
-
-                    if isinstance(output, ActionOutput) and output.is_final_answer:
-                        final_answer = output.output
-                        self.logger.log(
-                            Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
-                            level=LogLevel.INFO,
-                        )
-
-                        if self.final_answer_checks:
-                            self._validate_final_answer(final_answer)
-                        returned_final_answer = True
-                        action_step.is_final_answer = True
-
-            except AgentGenerationError as e:
-                # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
-                raise e
-            except AgentError as e:
-                # Other AgentError types are caused by the Model, so we should log them and iterate.
-                action_step.error = e
-            finally:
-                self._finalize_step(action_step)
-                self.memory.steps.append(action_step)
-                yield action_step
                 self.step_number += 1
 
-        if not returned_final_answer and self.step_number == max_steps + 1:
-            final_answer = self._handle_max_steps_reached(task, images)
-            yield action_step
-        yield FinalAnswerStep(handle_agent_output_types(final_answer))
+                if self.step_number > self.max_steps:
+                    raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
 
-    def _validate_final_answer(self, final_answer: Any):
-        for check_function in self.final_answer_checks:
-            try:
-                assert check_function(final_answer, self.memory)
-            except Exception as e:
-                raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
+                if self.interrupt_switch:
+                    raise AgentError("Agent interrupted.", self.logger)
 
-    def _finalize_step(self, memory_step: ActionStep | PlanningStep):
-        memory_step.timing.end_time = time.time()
-        self.step_callbacks.callback(memory_step, agent=self)
+                self.receive_messages()
+
+                if self.task:
+                    self._process_task()
+
+                time.sleep(1)  # Prevent busy loop; adjust as needed
+        except AgentMaxStepsError as e:
+            self.logger.log(f"Max steps reached: {e}", level=LogLevel.WARNING)
+            final_answer = self._handle_max_steps_reached(self.task, images)
+            return final_answer
+        except AgentMaxRuntimeError as e:
+            self.logger.log(f"Max runtime reached: {e}", level=LogLevel.WARNING)
+            final_answer = self._handle_max_runtime_reached(self.task, images)
+            return final_answer
+        except AgentError as e:
+            self.logger.log(f"Agent error: {e}", level=LogLevel.ERROR)
+            return str(e)
+        except Exception as e:
+            self.logger.log(f"Unexpected error: {e}", level=LogLevel.ERROR)
+            raise AgentError(f"Unexpected error: {e}", self.logger)
+
+    def _process_task(self) -> None:
+        """Process the current task, e.g., generate code or delegate to another agent."""
+        try:
+            # Example: Agent 0 generates code, sends to Agent 1 for execution
+            if self.agent_id == 0:
+                code = self._generate_code()
+                self.send_message(1, code)
+            # Agent 1 might execute code or use tools
+            elif self.agent_id == 1:
+                self._process_tool_call({"name": "python_interpreter", "arguments": self.task})
+        except AgentError as e:
+            self.logger.log(f"Error processing task: {e}", level=LogLevel.ERROR)
+            self.send_message(0, {"error": str(e)})
+
+    def _generate_code(self) -> str:
+        """Generate code for the task (customize based on CodeAgent logic)."""
+        memory_messages = self.write_memory_to_messages()
+        input_messages = memory_messages + [
+            ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": f"Generate code for: {self.task}"}])
+        ]
+        chat_message = self.model.generate(input_messages)
+        code = parse_code_blobs(chat_message.content) or chat_message.content
+        self.logger.log_code(title=f"Agent {self.agent_id} generated code:", content=code, level=LogLevel.INFO)
+        return code
+
+    def _process_tool_call(self, tool_call: dict) -> None:
+        """Execute a tool call received from another agent."""
+        tool_name = tool_call["name"]
+        arguments = tool_call["arguments"]
+        try:
+            result = self.execute_tool_call(tool_name, arguments)
+            self.logger.log(f"Agent {self.agent_id} tool result: {result}", level=LogLevel.INFO)
+            if tool_name == "final_answer":
+                self.memory.steps.append(FinalAnswerStep(output=result))
+            # Optionally send result to another agent
+            self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
+        except AgentToolExecutionError as e:
+            self.logger.log(f"Tool execution error: {e}", level=LogLevel.ERROR)
+
 
     def _handle_max_steps_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
         action_step_start_time = time.time()
@@ -590,6 +590,20 @@ You have been provided with these additional arguments, that you can access usin
         final_memory_step = ActionStep(
             step_number=self.step_number,
             error=AgentMaxStepsError("Reached max steps.", self.logger),
+            timing=Timing(start_time=action_step_start_time, end_time=time.time()),
+            token_usage=final_answer.token_usage,
+        )
+        final_memory_step.action_output = final_answer.content
+        self._finalize_step(final_memory_step)
+        self.memory.steps.append(final_memory_step)
+        return final_answer.content
+
+    def _handle_max_runtime_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
+        action_step_start_time = time.time()
+        final_answer = self.provide_final_answer(task, images)
+        final_memory_step = ActionStep(
+            step_number=self.step_number,
+            error=AgentMaxRuntimeError("Reached max runtime.", self.logger),
             timing=Timing(start_time=action_step_start_time, end_time=time.time()),
             token_usage=final_answer.token_usage,
         )
@@ -926,7 +940,52 @@ You have been provided with these additional arguments, that you can access usin
         # Make agent.py file with Gradio UI
         agent_name = f"agent_{self.name}" if getattr(self, "name", None) else "agent"
         managed_agent_relative_path = relative_path + "." if relative_path is not None else ""
+
         app_template = AGENT_GRADIO_APP_TEMPLATE
+
+
+        app_template = textwrap.dedent(
+            """
+            import yaml
+            import os
+            from smolagents import GradioUI, {{ class_name }}, {{ agent_dict['model']['class'] }}
+
+            # Get current directory path
+            CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+            {% for tool in tools.values() -%}
+            from {{managed_agent_relative_path}}tools.{{ tool.name }} import {{ tool.__class__.__name__ }} as {{ tool.name | camelcase }}
+            {% endfor %}
+            {% for managed_agent in managed_agents.values() -%}
+            from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app import agent_{{ managed_agent.name }}
+            {% endfor %}
+
+            model = {{ agent_dict['model']['class'] }}(
+            {% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
+                {{ key }}={{ agent_dict['model']['data'][key]|repr }},
+            {% endfor %})
+
+            {% for tool in tools.values() -%}
+            {{ tool.name }} = {{ tool.name | camelcase }}()
+            {% endfor %}
+
+            with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
+                prompt_templates = yaml.safe_load(stream)
+
+            {{ agent_name }} = {{ class_name }}(
+                model=model,
+                tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
+                {{ attribute_name }}={{ value|repr }},
+                {% endfor %}prompt_templates=prompt_templates
+            )
+            if __name__ == "__main__":
+                GradioUI({{ agent_name }}).launch()
+            """
+        ).strip()
+
+        
         template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
         template_env.filters["repr"] = repr
         template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
@@ -979,6 +1038,7 @@ You have been provided with these additional arguments, that you can access usin
             "managed_agents": [managed_agent.to_dict() for managed_agent in self.managed_agents.values()],
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
+            "max_runtime": self.max_runtime,
             "verbosity_level": int(self.logger.level),
             "grammar": self.grammar,
             "planning_interval": self.planning_interval,
@@ -1018,6 +1078,7 @@ You have been provided with these additional arguments, that you can access usin
             "tools": tools,
             "prompt_templates": agent_dict.get("prompt_templates"),
             "max_steps": agent_dict.get("max_steps"),
+            "max_runtime": agent_dict.get("max_runtime"),
             "verbosity_level": agent_dict.get("verbosity_level"),
             "grammar": agent_dict.get("grammar"),
             "planning_interval": agent_dict.get("planning_interval"),
@@ -1192,6 +1253,8 @@ class ToolCallingAgent(MultiStepAgent):
         self,
         tools: list[Tool],
         model: Model,
+        agent_id: int,  # Add
+        queue_dict: dict,  # Add
         prompt_templates: PromptTemplates | None = None,
         planning_interval: int | None = None,
         stream_outputs: bool = False,
@@ -1204,18 +1267,52 @@ class ToolCallingAgent(MultiStepAgent):
         super().__init__(
             tools=tools,
             model=model,
+            agent_id=agent_id,  # Pass to parent
+            queue_dict=queue_dict,  # Pass to parent
             prompt_templates=prompt_templates,
             planning_interval=planning_interval,
             **kwargs,
         )
-        # Streaming setup
         self.stream_outputs = stream_outputs
         if self.stream_outputs and not hasattr(self.model, "generate_stream"):
             raise ValueError(
                 "`stream_outputs` is set to True, but the model class implements no `generate_stream` method."
             )
-        # Tool calling setup
         self.max_tool_threads = max_tool_threads
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+
+    def create_python_executor(self) -> PythonExecutor:
+        if self.trace:
+            span = self.trace.span(name=f"create_python_executor_{self.agent_id}")
+            span.update(inputs={"executor_type": self.executor_type})
+        try:
+            match self.executor_type:
+                case "e2b" | "docker":
+                    if self.managed_agents:
+                        raise Exception("Managed agents are not yet supported with remote code execution.")
+                    if self.executor_type == "e2b":
+                        executor = E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                    else:
+                        executor = DockerExecutor(
+                            self.additional_authorized_imports, self.logger, **self.executor_kwargs
+                        )
+                case "local":
+                    executor = LocalPythonExecutor(
+                        self.additional_authorized_imports,
+                        **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
+                    )
+                case _:
+                    raise ValueError(f"Unsupported executor type: {self.executor_type}")
+            if self.trace:
+                span.update(outputs={"executor": self.executor_type})
+            return executor
+        except Exception as e:
+            if self.trace:
+                span.update(outputs={"status": "error", "error": str(e)})
+            raise
+        finally:
+            if self.trace:
+                span.end()
 
     @property
     def tools_and_managed_agents(self):
@@ -1233,90 +1330,9 @@ class ToolCallingAgent(MultiStepAgent):
         )
         return system_prompt
 
-    def _step_stream(
-        self, memory_step: ActionStep
-    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
-        """
-        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
-        Yields ChatMessageStreamDelta during the run if streaming is enabled.
-        At the end, yields either None if the step is not final, or the final answer.
-        """
-        memory_messages = self.write_memory_to_messages()
+    def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ToolOutput]:
+        raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
 
-        input_messages = memory_messages.copy()
-
-        # Add new step in logs
-        memory_step.model_input_messages = input_messages
-
-        try:
-            if self.stream_outputs and hasattr(self.model, "generate_stream"):
-                output_stream = self.model.generate_stream(
-                    input_messages,
-                    stop_sequences=["Observation:", "Calling tools:"],
-                    tools_to_call_from=self.tools_and_managed_agents,
-                )
-
-                chat_message_stream_deltas: list[ChatMessageStreamDelta] = []
-                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
-                    for event in output_stream:
-                        chat_message_stream_deltas.append(event)
-                        live.update(
-                            Markdown(agglomerate_stream_deltas(chat_message_stream_deltas).render_as_markdown())
-                        )
-                        yield event
-                chat_message = agglomerate_stream_deltas(chat_message_stream_deltas)
-            else:
-                chat_message: ChatMessage = self.model.generate(
-                    input_messages,
-                    stop_sequences=["Observation:", "Calling tools:"],
-                    tools_to_call_from=self.tools_and_managed_agents,
-                )
-                if chat_message.content is None and chat_message.raw is not None:
-                    log_content = str(chat_message.raw)
-                else:
-                    log_content = str(chat_message.content) or ""
-
-                self.logger.log_markdown(
-                    content=log_content,
-                    title="Output message of the LLM:",
-                    level=LogLevel.DEBUG,
-                )
-
-            # Record model output
-            memory_step.model_output_message = chat_message
-            memory_step.model_output = chat_message.content
-            memory_step.token_usage = chat_message.token_usage
-        except Exception as e:
-            raise AgentGenerationError(f"Error while generating output:\n{e}", self.logger) from e
-
-        if chat_message.tool_calls is None or len(chat_message.tool_calls) == 0:
-            try:
-                chat_message = self.model.parse_tool_calls(chat_message)
-            except Exception as e:
-                raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
-        else:
-            for tool_call in chat_message.tool_calls:
-                tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
-        final_answer, got_final_answer = None, False
-        for output in self.process_tool_calls(chat_message, memory_step):
-            yield output
-            if isinstance(output, ToolOutput):
-                if output.is_final_answer:
-                    if got_final_answer:
-                        raise AgentToolExecutionError(
-                            "You returned multiple final answers. Please return only one single final answer!",
-                            self.logger,
-                        )
-                    final_answer = output.output
-                    got_final_answer = True
-
-                    # Manage state variables
-                    if isinstance(final_answer, str) and final_answer in self.state.keys():
-                        final_answer = self.state[final_answer]
-        yield ActionOutput(
-            output=final_answer,
-            is_final_answer=got_final_answer,
-        )
 
     def process_tool_calls(
         self, chat_message: ChatMessage, memory_step: ActionStep
@@ -1490,6 +1506,8 @@ class CodeAgent(MultiStepAgent):
         self,
         tools: list[Tool],
         model: Model,
+        agent_id: int,  # Add
+        queue_dict: dict,  # Add
         prompt_templates: PromptTemplates | None = None,
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
@@ -1530,6 +1548,8 @@ class CodeAgent(MultiStepAgent):
         super().__init__(
             tools=tools,
             model=model,
+            agent_id=agent_id,  # Pass to parent
+            queue_dict=queue_dict,  # Pass to parent
             prompt_templates=prompt_templates,
             grammar=grammar,
             planning_interval=planning_interval,
@@ -1551,6 +1571,8 @@ class CodeAgent(MultiStepAgent):
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
         self.python_executor = self.create_python_executor()
 
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+
     def __enter__(self):
         return self
 
@@ -1562,23 +1584,39 @@ class CodeAgent(MultiStepAgent):
         if hasattr(self.python_executor, "cleanup"):
             self.python_executor.cleanup()
 
+
     def create_python_executor(self) -> PythonExecutor:
-        if self.executor_type == "local":
-            return LocalPythonExecutor(
-                self.additional_authorized_imports,
-                **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
-            )
-        else:
-            if self.managed_agents:
-                raise Exception("Managed agents are not yet supported with remote code execution.")
-            remote_executors = {
-                "e2b": E2BExecutor,
-                "docker": DockerExecutor,
-                "wasm": WasmExecutor,
-            }
-            return remote_executors[self.executor_type](
-                self.additional_authorized_imports, self.logger, **self.executor_kwargs
-            )
+        if self.trace:
+            span = self.trace.span(name=f"create_python_executor_{self.agent_id}")
+            span.update(inputs={"executor_type": self.executor_type})
+        try:
+            match self.executor_type:
+                case "e2b" | "docker":
+                    if self.managed_agents:
+                        raise Exception("Managed agents are not yet supported with remote code execution.")
+                    if self.executor_type == "e2b":
+                        executor = E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                    else:
+                        executor = DockerExecutor(
+                            self.additional_authorized_imports, self.logger, **self.executor_kwargs
+                        )
+                case "local":
+                    executor = LocalPythonExecutor(
+                        self.additional_authorized_imports,
+                        **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
+                    )
+                case _:
+                    raise ValueError(f"Unsupported executor type: {self.executor_type}")
+            if self.trace:
+                span.update(outputs={"executor": self.executor_type})
+            return executor
+        except Exception as e:
+            if self.trace:
+                span.update(outputs={"status": "error", "error": str(e)})
+            raise
+        finally:
+            if self.trace:
+
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
@@ -1598,147 +1636,9 @@ class CodeAgent(MultiStepAgent):
         )
         return system_prompt
 
-    def _step_stream(
-        self, memory_step: ActionStep
-    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
-        """
-        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
-        Yields ChatMessageStreamDelta during the run if streaming is enabled.
-        At the end, yields either None if the step is not final, or the final answer.
-        """
-        memory_messages = self.write_memory_to_messages()
+    def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ActionOutput]:
+        raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
 
-        input_messages = memory_messages.copy()
-        ### Generate model output ###
-        memory_step.model_input_messages = input_messages
-        stop_sequences = ["Observation:", "Calling tools:"]
-        if self.code_block_tags[1] not in self.code_block_tags[0]:
-            # If the closing tag is contained in the opening tag, adding it as a stop sequence would cut short any code generation
-            stop_sequences.append(self.code_block_tags[1])
-        try:
-            additional_args: dict[str, Any] = {}
-            if self.grammar:
-                additional_args["grammar"] = self.grammar
-            if self._use_structured_outputs_internally:
-                additional_args["response_format"] = CODEAGENT_RESPONSE_FORMAT
-            if self.stream_outputs:
-                output_stream = self.model.generate_stream(
-                    input_messages,
-                    stop_sequences=stop_sequences,
-                    **additional_args,
-                )
-                chat_message_stream_deltas: list[ChatMessageStreamDelta] = []
-                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
-                    for event in output_stream:
-                        chat_message_stream_deltas.append(event)
-                        live.update(
-                            Markdown(agglomerate_stream_deltas(chat_message_stream_deltas).render_as_markdown())
-                        )
-                        yield event
-                chat_message = agglomerate_stream_deltas(chat_message_stream_deltas)
-                memory_step.model_output_message = chat_message
-                output_text = chat_message.content
-            else:
-                chat_message: ChatMessage = self.model.generate(
-                    input_messages,
-                    stop_sequences=stop_sequences,
-                    **additional_args,
-                )
-                memory_step.model_output_message = chat_message
-                output_text = chat_message.content
-                self.logger.log_markdown(
-                    content=output_text,
-                    title="Output message of the LLM:",
-                    level=LogLevel.DEBUG,
-                )
-
-            # This adds the end code sequence to the history.
-            # This will nudge ulterior LLM calls to finish with this end code sequence, thus efficiently stopping generation.
-            if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
-                output_text += self.code_block_tags[1]
-                memory_step.model_output_message.content = output_text
-
-            memory_step.token_usage = chat_message.token_usage
-            memory_step.model_output = output_text
-        except Exception as e:
-            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
-
-        ### Parse output ###
-        try:
-            if self._use_structured_outputs_internally:
-                code_action = json.loads(output_text)["code"]
-                code_action = extract_code_from_text(code_action, self.code_block_tags) or code_action
-            else:
-                code_action = parse_code_blobs(output_text, self.code_block_tags)
-            code_action = fix_final_answer_code(code_action)
-            memory_step.code_action = code_action
-        except Exception as e:
-            error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
-            raise AgentParsingError(error_msg, self.logger)
-
-        tool_call = ToolCall(
-            name="python_interpreter",
-            arguments=code_action,
-            id=f"call_{len(self.memory.steps)}",
-        )
-        yield tool_call
-        memory_step.tool_calls = [tool_call]
-
-        ### Execute action ###
-        self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
-        try:
-            code_output = self.python_executor(code_action)
-            execution_outputs_console = []
-            if len(code_output.logs) > 0:
-                execution_outputs_console += [
-                    Text("Execution logs:", style="bold"),
-                    Text(code_output.logs),
-                ]
-            observation = "Execution logs:\n" + code_output.logs
-        except Exception as e:
-            if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
-                execution_logs = str(self.python_executor.state["_print_outputs"])
-                if len(execution_logs) > 0:
-                    execution_outputs_console = [
-                        Text("Execution logs:", style="bold"),
-                        Text(execution_logs),
-                    ]
-                    memory_step.observations = "Execution logs:\n" + execution_logs
-                    self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
-            error_msg = str(e)
-            if "Import of " in error_msg and " is not allowed" in error_msg:
-                self.logger.log(
-                    "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
-                    level=LogLevel.INFO,
-                )
-            raise AgentExecutionError(error_msg, self.logger)
-
-        truncated_output = truncate_content(str(code_output.output))
-        observation += "Last output from code snippet:\n" + truncated_output
-        memory_step.observations = observation
-
-        if not code_output.is_final_answer:
-            execution_outputs_console += [
-                Text(
-                    f"Out: {truncated_output}",
-                ),
-            ]
-        self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
-        memory_step.action_output = code_output.output
-        yield ActionOutput(output=code_output.output, is_final_answer=code_output.is_final_answer)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert the agent to a dictionary representation.
-
-        Returns:
-            `dict`: Dictionary representation of the agent.
-        """
-        agent_dict = super().to_dict()
-        agent_dict["authorized_imports"] = self.authorized_imports
-        agent_dict["executor_type"] = self.executor_type
-        agent_dict["executor_kwargs"] = self.executor_kwargs
-        agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
-        return agent_dict
 
     @classmethod
     def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "CodeAgent":

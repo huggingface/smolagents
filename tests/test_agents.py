@@ -21,6 +21,7 @@ import warnings
 from collections.abc import Generator
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
+from multiprocessing import Manager
 from pathlib import Path
 from textwrap import dedent
 from typing import Optional
@@ -34,11 +35,12 @@ from huggingface_hub import (
 )
 from rich.console import Console
 
-from smolagents import EMPTY_PROMPT_TEMPLATES
+from smolagents import EMPTY_PROMPT_TEMPLATES, CodeAgent, InferenceClientModel
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
-    AgentError,
+    #  AgentError,
     AgentMaxStepsError,
+
     AgentToolCallError,
     CodeAgent,
     MultiStepAgent,
@@ -47,7 +49,14 @@ from smolagents.agents import (
     ToolOutput,
     populate_template,
 )
-from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.default_tools import (
+    DuckDuckGoSearchTool,
+    FinalAnswerTool,
+    PythonInterpreterTool,
+    ReceiveMessagesTool,
+    SendMessageTool,
+    VisitWebpageTool,
+)
 from smolagents.memory import (
     ActionStep,
     CallbackRegistry,
@@ -61,7 +70,7 @@ from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
-    InferenceClientModel,
+    #  InferenceClientModel,
     MessageRole,
     Model,
     TransformersModel,
@@ -70,8 +79,13 @@ from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.tools import Tool, tool
 from smolagents.utils import (
     BASE_BUILTIN_MODULES,
+    AgentError,
     AgentExecutionError,
     AgentGenerationError,
+
+    AgentMaxRuntimeError,
+    AgentToolCallError,
+
     AgentToolExecutionError,
 )
 
@@ -485,6 +499,26 @@ class TestAgent:
         )
         assert "Remember this" in agent.task
 
+    def test_agent_communication():
+        with Manager() as manager:
+            queue_dict = manager.dict()
+            queue_dict[0] = manager.Queue()
+            queue_dict[1] = manager.Queue()
+            model = InferenceClientModel(model_id="mock-model")  # Use a mock model
+            agent0 = CodeAgent(tools=[SendMessageTool(queue_dict, 0)], model=model)
+            messages: list[str] = []
+
+            def set_task(msg: str):
+                messages.append(msg)
+
+            agent1 = CodeAgent(
+                tools=[ReceiveMessagesTool(queue_dict, 1, process_message=set_task)],
+                model=model,
+            )
+            agent0.tools[0](1, "test message")
+            agent1.tools[0]()
+            assert messages == ["test message"]
+
     def test_reset_conversations(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())
         output = agent.run("What is 2 multiplied by 3.6452?", reset=True)
@@ -522,6 +556,17 @@ class TestAgent:
         assert len(agent.memory.steps) == 5  # Task step + 3 action steps + Final answer
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
+
+    def test_fails_max_runtime(self):
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModelNoReturn(),
+            max_steps=50,
+            max_runtime=1,
+        )
+        answer = agent.run("What is 2 multiplied by 3.6452?", max_runtime=1)
+        assert isinstance(answer, str)
+        assert isinstance(agent.memory.steps[-1].error, AgentMaxRuntimeError)
 
     def test_tool_descriptions_get_baked_in_system_prompt(self):
         tool = PythonInterpreterTool()

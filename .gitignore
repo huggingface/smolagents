@@ -153,3 +153,6 @@ tool_output/
 
 # Gradio runtime
 .gradio/
+
+#Other cache
+.ruff_cache/
