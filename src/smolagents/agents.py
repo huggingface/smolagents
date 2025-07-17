@@ -82,6 +82,7 @@ from .utils import (
     AgentError,
     AgentExecutionError,
     AgentGenerationError,
+    AgentMaxRuntimeError,
     AgentMaxStepsError,
     AgentParsingError,
     AgentToolCallError,
@@ -233,6 +234,7 @@ class MultiStepAgent(ABC):
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         instructions (`str`, *optional*): Custom instructions for the agent, will be inserted in the system prompt.
         max_steps (`int`, default `20`): Maximum number of steps the agent can take to solve the task.
+        max_runtime (`int`, default `300`): Maximum runtime allowed for `run()` in seconds.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
         grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
@@ -258,6 +260,7 @@ class MultiStepAgent(ABC):
         prompt_templates: PromptTemplates | None = None,
         instructions: str | None = None,
         max_steps: int = 20,
+        max_runtime: int = 300,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
         grammar: dict[str, str] | None = None,
@@ -287,6 +290,7 @@ class MultiStepAgent(ABC):
                         )
 
         self.max_steps = max_steps
+        self.max_runtime = max_runtime
         self.step_number = 0
         if grammar is not None:
             warnings.warn(
@@ -378,48 +382,32 @@ class MultiStepAgent(ABC):
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
 
-    def run(
-        self,
-        task: str,
-        stream: bool = False,
-        reset: bool = True,
-        images: list["PIL.Image.Image"] | None = None,
-        additional_args: dict | None = None,
-        max_steps: int | None = None,
-    ):
-        """
-        Run the agent for the given task.
 
-        Args:
-            task (`str`): Task to perform.
-            stream (`bool`): Whether to run in streaming mode.
-                If `True`, returns a generator that yields each step as it is executed. You must iterate over this generator to process the individual steps (e.g., using a for loop or `next()`).
-                If `False`, executes all steps internally and returns only the final answer after completion.
-            reset (`bool`): Whether to reset the conversation or keep it going from previous run.
-            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
-            additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
-            max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+def run(
+    self,
+    task: str | None = None,
+    reset: bool = True,
+    images: list["PIL.Image.Image"] | None = None,
+    additional_args: dict | None = None,
+    max_runtime: int | None = None,  # Maximum runtime in seconds
+):
+    """
+    Run the agent in a decentralized manner, processing tasks from its queue.
+    The vanilla method use a centralized ReAct loop, but this method allows for decentralized processing.
 
-        Example:
-        ```py
-        from smolagents import CodeAgent
-        agent = CodeAgent(tools=[])
-        agent.run("What is the result of 2 power 3.7384?")
-        ```
-        """
-        max_steps = max_steps or self.max_steps
-        self.task = task
+    Args:
+        task (`str`, *optional*): Initial task to perform.
+        reset (`bool`): Whether to reset the conversation or keep it going.
+        images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
+        additional_args (`dict`, *optional*): Additional variables for the agent.
+        max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating. If None, uses
+            the agent's `max_runtime` attribute.
+    """
+    if reset:
+        self.memory.reset()
+        self.monitor.reset()
+        self.step_number = 0
         self.interrupt_switch = False
-        if additional_args is not None:
-            self.state.update(additional_args)
-            self.task += f"""
-You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
-{str(additional_args)}."""
-
-        self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
-        if reset:
-            self.memory.reset()
-            self.monitor.reset()
 
         self.logger.log_task(
             content=self.task.strip(),
@@ -433,56 +421,21 @@ You have been provided with these additional arguments, that you can access usin
             self.python_executor.send_variables(variables=self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
-        if stream:
-            # The steps are returned as they are executed through a generator to iterate on.
-            return self._run_stream(task=self.task, max_steps=max_steps, images=images)
-        run_start_time = time.time()
-        # Outputs are returned only at the end. We only look at the last step.
+    # Decentralized loop: process messages and tasks
+    if max_runtime is None:
+        max_runtime = self.max_runtime
 
-        steps = list(self._run_stream(task=self.task, max_steps=max_steps, images=images))
-        assert isinstance(steps[-1], FinalAnswerStep)
-        output = steps[-1].output
+    start_time = time.time()
+    try:
+        while True:
+            if max_runtime is not None and time.time() - start_time >= max_runtime:
+                raise AgentMaxRuntimeError("Reached maximum runtime.", self.logger)
 
-        if self.return_full_result:
-            total_input_tokens = 0
-            total_output_tokens = 0
-            correct_token_usage = True
-            for step in self.memory.steps:
-                if isinstance(step, (ActionStep, PlanningStep)):
-                    if step.token_usage is None:
-                        correct_token_usage = False
-                        break
-                    else:
-                        total_input_tokens += step.token_usage.input_tokens
-                        total_output_tokens += step.token_usage.output_tokens
-            if correct_token_usage:
-                token_usage = TokenUsage(input_tokens=total_input_tokens, output_tokens=total_output_tokens)
-            else:
-                token_usage = None
+            self.step_number += 1
 
-            if self.memory.steps and isinstance(getattr(self.memory.steps[-1], "error", None), AgentMaxStepsError):
-                state = "max_steps_error"
-            else:
-                state = "success"
+            if self.step_number > self.max_steps:
+                raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
 
-            messages = self.memory.get_full_steps()
-
-            return RunResult(
-                output=output,
-                token_usage=token_usage,
-                messages=messages,
-                timing=Timing(start_time=run_start_time, end_time=time.time()),
-                state=state,
-            )
-
-        return output
-
-    def _run_stream(
-        self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
-    ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
-        self.step_number = 1
-        returned_final_answer = False
-        while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
 
@@ -528,7 +481,11 @@ You have been provided with these additional arguments, that you can access usin
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
                 raise e
-            except AgentError as e:
+            except AgentMaxRuntimeError as e:
+        self.logger.log(f"Max runtime reached: {e}", level=LogLevel.WARNING)
+        final_answer = self._handle_max_runtime_reached(self.task, images)
+        return final_answer
+    except AgentError as e:
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
                 action_step.error = e
             finally:
@@ -563,6 +520,20 @@ You have been provided with these additional arguments, that you can access usin
         final_memory_step = ActionStep(
             step_number=self.step_number,
             error=AgentMaxStepsError("Reached max steps.", self.logger),
+            timing=Timing(start_time=action_step_start_time, end_time=time.time()),
+            token_usage=final_answer.token_usage,
+        )
+        final_memory_step.action_output = final_answer.content
+        self._finalize_step(final_memory_step)
+        self.memory.steps.append(final_memory_step)
+        return final_answer.content
+
+    def _handle_max_runtime_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
+        action_step_start_time = time.time()
+        final_answer = self.provide_final_answer(task, images)
+        final_memory_step = ActionStep(
+            step_number=self.step_number,
+            error=AgentMaxRuntimeError("Reached max runtime.", self.logger),
             timing=Timing(start_time=action_step_start_time, end_time=time.time()),
             token_usage=final_answer.token_usage,
         )
@@ -985,6 +956,7 @@ You have been provided with these additional arguments, that you can access usin
             "managed_agents": [managed_agent.to_dict() for managed_agent in self.managed_agents.values()],
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
+            "max_runtime": self.max_runtime,
             "verbosity_level": int(self.logger.level),
             "grammar": self.grammar,
             "planning_interval": self.planning_interval,
@@ -1024,6 +996,7 @@ You have been provided with these additional arguments, that you can access usin
             "tools": tools,
             "prompt_templates": agent_dict.get("prompt_templates"),
             "max_steps": agent_dict.get("max_steps"),
+            "max_runtime": agent_dict.get("max_runtime"),
             "verbosity_level": agent_dict.get("verbosity_level"),
             "grammar": agent_dict.get("grammar"),
             "planning_interval": agent_dict.get("planning_interval"),

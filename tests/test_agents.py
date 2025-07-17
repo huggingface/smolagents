@@ -75,6 +75,7 @@ from smolagents.utils import (
     AgentError,
     AgentExecutionError,
     AgentGenerationError,
+    AgentMaxRuntimeError,
     AgentToolCallError,
     AgentToolExecutionError,
 )
@@ -497,6 +498,17 @@ class TestAgent:
         assert len(agent.memory.steps) == 5  # Task step + 3 action steps + Final answer
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
+
+    def test_fails_max_runtime(self):
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModelNoReturn(),
+            max_steps=50,
+            max_runtime=1,
+        )
+        answer = agent.run("What is 2 multiplied by 3.6452?", max_runtime=1)
+        assert isinstance(answer, str)
+        assert isinstance(agent.memory.steps[-1].error, AgentMaxRuntimeError)
 
     def test_tool_descriptions_get_baked_in_system_prompt(self):
         tool = PythonInterpreterTool()
