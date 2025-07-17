@@ -1574,6 +1574,10 @@ class TestToolCallingAgent:
         assert "Error while parsing" in capture.get()
         assert len(agent.memory.steps) == 4
 
+    @pytest.mark.skip(
+        reason="Test is not properly implemented (GH-1255) because fake_tools should have the same name. "
+        "Additionally, it uses CodeAgent instead of ToolCallingAgent (GH-1409)"
+    )
     def test_change_tools_after_init(self):
         from smolagents import tool
 
@@ -1908,6 +1912,9 @@ print("Ok, calculation done!")""")
         assert messages
         assert all(m.content.endswith("</code>") for m in messages)
 
+    @pytest.mark.skip(
+        reason="Test is not properly implemented (GH-1255) because fake_tools should have the same name. "
+    )
     def test_change_tools_after_init(self):
         from smolagents import tool
 
