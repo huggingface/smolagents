@@ -59,8 +59,9 @@ openai = [
   "openai>=1.58.1"
 ]
 telemetry = [
+  "langfuse>=2.0.0",
   "arize-phoenix",
-  "opentelemetry-sdk", 
+  "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
   "openinference-instrumentation-smolagents>=0.1.4"
 ]

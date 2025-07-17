@@ -85,9 +85,15 @@ from .utils import (
     truncate_content,
 )
 
+from langfuse import Langfuse
 
 logger = getLogger(__name__)
 
+langfuse = Langfuse(
+        public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
+        secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
+        host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    )
 
 def get_variable_names(self, template: str) -> set[str]:
     pattern = re.compile(r"\{\{([^{}]+)\}\}")
@@ -320,12 +326,19 @@ class MultiStepAgent(ABC):
         self.step_callbacks = step_callbacks if step_callbacks is not None else []
         self.step_callbacks.append(self.monitor.update_metrics)
         self.stream_outputs = False
+        # Initialize Langfuse trace
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+
 
     def send_message(self, target_id: int, message: Any) -> None:
         """Send a message to the target agent's queue."""
+        if self.trace:
+            span = self.trace.span(name=f"send_message_{self.agent_id}")
+            span.update(inputs={"target_id": target_id, "message": str(message)})
         try:
             self._send_message_tool(target_id, message)
             self.logger.log(f"Agent {self.agent_id} sent message to Agent {target_id}", level=LogLevel.INFO)
+            
         except ValueError:
             self.logger.log(
                 f"Agent {self.agent_id} failed to send message: Target {target_id} not found",
@@ -1215,6 +1228,40 @@ class ToolCallingAgent(MultiStepAgent):
                 "`stream_outputs` is set to True, but the model class implements no `generate_stream` method."
             )
         self.max_tool_threads = max_tool_threads
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+
+
+    def create_python_executor(self) -> PythonExecutor:
+        if self.trace:
+            span = self.trace.span(name=f"create_python_executor_{self.agent_id}")
+            span.update(inputs={"executor_type": self.executor_type})
+        try:
+            match self.executor_type:
+                case "e2b" | "docker":
+                    if self.managed_agents:
+                        raise Exception("Managed agents are not yet supported with remote code execution.")
+                    if self.executor_type == "e2b":
+                        executor = E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                    else:
+                        executor = DockerExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                case "local":
+                    executor = LocalPythonExecutor(
+                        self.additional_authorized_imports,
+                        **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
+                    )
+                case _:
+                    raise ValueError(f"Unsupported executor type: {self.executor_type}")
+            if self.trace:
+                span.update(outputs={"executor": self.executor_type})
+            return executor
+        except Exception as e:
+            if self.trace:
+                span.update(outputs={"status": "error", "error": str(e)})
+            raise
+        finally:
+            if self.trace:
+                span.end()
+
 
     @property
     def tools_and_managed_agents(self):
@@ -1496,23 +1543,38 @@ class CodeAgent(MultiStepAgent):
         self.executor_type = executor_type or "local"
         self.executor_kwargs = executor_kwargs or {}
         self.python_executor = self.create_python_executor()
+        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
 
     def create_python_executor(self) -> PythonExecutor:
-        match self.executor_type:
-            case "e2b" | "docker":
-                if self.managed_agents:
-                    raise Exception("Managed agents are not yet supported with remote code execution.")
-                if self.executor_type == "e2b":
-                    return E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
-                else:
-                    return DockerExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
-            case "local":
-                return LocalPythonExecutor(
-                    self.additional_authorized_imports,
-                    **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
-                )
-            case _:  # if applicable
-                raise ValueError(f"Unsupported executor type: {self.executor_type}")
+        if self.trace:
+            span = self.trace.span(name=f"create_python_executor_{self.agent_id}")
+            span.update(inputs={"executor_type": self.executor_type})
+        try:
+            match self.executor_type:
+                case "e2b" | "docker":
+                    if self.managed_agents:
+                        raise Exception("Managed agents are not yet supported with remote code execution.")
+                    if self.executor_type == "e2b":
+                        executor = E2BExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                    else:
+                        executor = DockerExecutor(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+                case "local":
+                    executor = LocalPythonExecutor(
+                        self.additional_authorized_imports,
+                        **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
+                    )
+                case _:
+                    raise ValueError(f"Unsupported executor type: {self.executor_type}")
+            if self.trace:
+                span.update(outputs={"executor": self.executor_type})
+            return executor
+        except Exception as e:
+            if self.trace:
+                span.update(outputs={"status": "error", "error": str(e)})
+            raise
+        finally:
+            if self.trace:
+                span.end()
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
