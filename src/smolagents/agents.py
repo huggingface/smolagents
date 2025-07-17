@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 
 from langfuse import Langfuse
 
+
 from .agent_types import AgentAudio, AgentImage
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor
@@ -76,7 +77,6 @@ from .monitoring import (
 )
 from .remote_executors import DockerExecutor, E2BExecutor
 from .tools import ReceiveMessagesTool, SendMessageTool, Tool
-
 from .utils import (
     AGENT_GRADIO_APP_TEMPLATE,
     AgentError,
@@ -346,7 +346,6 @@ class MultiStepAgent(ABC):
         try:
             self._send_message_tool(target_id, message)
             self.logger.log(f"Agent {self.agent_id} sent message to Agent {target_id}", level=LogLevel.INFO)
-
         except ValueError:
             self.logger.log(
                 f"Agent {self.agent_id} failed to send message: Target {target_id} not found",
@@ -430,6 +429,7 @@ class MultiStepAgent(ABC):
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
 
+
     def _setup_step_callbacks(self, step_callbacks):
         # Initialize step callbacks registry
         self.step_callbacks = CallbackRegistry()
@@ -507,6 +507,7 @@ You have been provided with these additional arguments, that you can access usin
         # Decentralized loop: process messages and tasks
         if max_runtime is None:
             max_runtime = self.max_runtime
+
 
         start_time = time.time()
         try:
@@ -942,6 +943,49 @@ You have been provided with these additional arguments, that you can access usin
 
         app_template = AGENT_GRADIO_APP_TEMPLATE
 
+
+        app_template = textwrap.dedent(
+            """
+            import yaml
+            import os
+            from smolagents import GradioUI, {{ class_name }}, {{ agent_dict['model']['class'] }}
+
+            # Get current directory path
+            CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+            {% for tool in tools.values() -%}
+            from {{managed_agent_relative_path}}tools.{{ tool.name }} import {{ tool.__class__.__name__ }} as {{ tool.name | camelcase }}
+            {% endfor %}
+            {% for managed_agent in managed_agents.values() -%}
+            from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app import agent_{{ managed_agent.name }}
+            {% endfor %}
+
+            model = {{ agent_dict['model']['class'] }}(
+            {% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
+                {{ key }}={{ agent_dict['model']['data'][key]|repr }},
+            {% endfor %})
+
+            {% for tool in tools.values() -%}
+            {{ tool.name }} = {{ tool.name | camelcase }}()
+            {% endfor %}
+
+            with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
+                prompt_templates = yaml.safe_load(stream)
+
+            {{ agent_name }} = {{ class_name }}(
+                model=model,
+                tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
+                {{ attribute_name }}={{ value|repr }},
+                {% endfor %}prompt_templates=prompt_templates
+            )
+            if __name__ == "__main__":
+                GradioUI({{ agent_name }}).launch()
+            """
+        ).strip()
+
+        
         template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
         template_env.filters["repr"] = repr
         template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
@@ -1526,6 +1570,7 @@ class CodeAgent(MultiStepAgent):
         self.executor_type = executor_type
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
         self.python_executor = self.create_python_executor()
+
         self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
 
     def __enter__(self):
@@ -1538,6 +1583,7 @@ class CodeAgent(MultiStepAgent):
         """Clean up resources used by the agent, such as the remote Python executor."""
         if hasattr(self.python_executor, "cleanup"):
             self.python_executor.cleanup()
+
 
     def create_python_executor(self) -> PythonExecutor:
         if self.trace:

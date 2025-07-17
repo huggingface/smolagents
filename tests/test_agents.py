@@ -82,6 +82,10 @@ from smolagents.utils import (
     AgentError,
     AgentExecutionError,
     AgentGenerationError,
+
+    AgentMaxRuntimeError,
+    AgentToolCallError,
+
     AgentToolExecutionError,
 )
 
