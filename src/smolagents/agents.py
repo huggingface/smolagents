@@ -408,87 +408,87 @@ class MultiStepAgent(ABC):
             )
 
 
-def run(
-    self,
-    task: str | None = None,
-    reset: bool = True,
-    images: list["PIL.Image.Image"] | None = None,
-    additional_args: dict | None = None,
-    max_runtime: int | None = None,  # Maximum runtime in seconds
-):
-    """
-    Run the agent in a decentralized manner, processing tasks from its queue.
-    The vanilla method use a centralized ReAct loop, but this method allows for decentralized processing.
+    def run(
+        self,
+        task: str | None = None,
+        reset: bool = True,
+        images: list["PIL.Image.Image"] | None = None,
+        additional_args: dict | None = None,
+        max_runtime: int | None = None,  # Maximum runtime in seconds
+    ):
+        """
+        Run the agent in a decentralized manner, processing tasks from its queue.
+        The vanilla method use a centralized ReAct loop, but this method allows for decentralized processing.
 
-    Args:
-        task (`str`, *optional*): Initial task to perform.
-        reset (`bool`): Whether to reset the conversation or keep it going.
-        images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
-        additional_args (`dict`, *optional*): Additional variables for the agent.
-        max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating. If None, uses
+        Args:
+            task (`str`, *optional*): Initial task to perform.
+            reset (`bool`): Whether to reset the conversation or keep it going.
+            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
+            additional_args (`dict`, *optional*): Additional variables for the agent.
+            max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating. If None, uses
             the agent's `max_runtime` attribute.
-    """
-    if reset:
-        self.memory.reset()
-        self.monitor.reset()
-        self.step_number = 0
-        self.interrupt_switch = False
+        """
+        if reset:
+            self.memory.reset()
+            self.monitor.reset()
+            self.step_number = 0
+            self.interrupt_switch = False
 
-    if task:
-        self.task = task
-        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
-        self.logger.log_task(
-            content=self.task.strip(),
-            subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
-            level=LogLevel.INFO,
-            title=f"Agent {self.agent_id}",
-        )
+        if task:
+            self.task = task
+            self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+            self.logger.log_task(
+                content=self.task.strip(),
+                subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
+                level=LogLevel.INFO,
+                title=f"Agent {self.agent_id}",
+            )
 
-    if additional_args is not None:
-        self.state.update(additional_args)
+        if additional_args is not None:
+            self.state.update(additional_args)
 
-    if getattr(self, "python_executor", None):
-        self.python_executor.send_variables(variables=self.state)
-        self.python_executor.send_tools({**self.tools, **self.managed_agents})
+        if getattr(self, "python_executor", None):
+            self.python_executor.send_variables(variables=self.state)
+            self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
-    # Decentralized loop: process messages and tasks
-    if max_runtime is None:
-        max_runtime = self.max_runtime
+        # Decentralized loop: process messages and tasks
+        if max_runtime is None:
+            max_runtime = self.max_runtime
 
-    start_time = time.time()
-    try:
-        while True:
-            if max_runtime is not None and time.time() - start_time >= max_runtime:
-                raise AgentMaxRuntimeError("Reached maximum runtime.", self.logger)
+        start_time = time.time()
+        try:
+            while True:
+                if max_runtime is not None and time.time() - start_time >= max_runtime:
+                    raise AgentMaxRuntimeError("Reached maximum runtime.", self.logger)
 
-            self.step_number += 1
+                self.step_number += 1
 
-            if self.step_number > self.max_steps:
-                raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
+                if self.step_number > self.max_steps:
+                    raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
 
-            if self.interrupt_switch:
-                raise AgentError("Agent interrupted.", self.logger)
+                if self.interrupt_switch:
+                    raise AgentError("Agent interrupted.", self.logger)
 
-            self.receive_messages()
+                self.receive_messages()
 
-            if self.task:
-                self._process_task()
+                if self.task:
+                    self._process_task()
 
-            time.sleep(1)  # Prevent busy loop; adjust as needed
-    except AgentMaxStepsError as e:
-        self.logger.log(f"Max steps reached: {e}", level=LogLevel.WARNING)
-        final_answer = self._handle_max_steps_reached(self.task, images)
-        return final_answer
-    except AgentMaxRuntimeError as e:
-        self.logger.log(f"Max runtime reached: {e}", level=LogLevel.WARNING)
-        final_answer = self._handle_max_runtime_reached(self.task, images)
-        return final_answer
-    except AgentError as e:
-        self.logger.log(f"Agent error: {e}", level=LogLevel.ERROR)
-        return str(e)
-    except Exception as e:
-        self.logger.log(f"Unexpected error: {e}", level=LogLevel.ERROR)
-        raise AgentError(f"Unexpected error: {e}", self.logger)
+                time.sleep(1)  # Prevent busy loop; adjust as needed
+        except AgentMaxStepsError as e:
+            self.logger.log(f"Max steps reached: {e}", level=LogLevel.WARNING)
+            final_answer = self._handle_max_steps_reached(self.task, images)
+            return final_answer
+        except AgentMaxRuntimeError as e:
+            self.logger.log(f"Max runtime reached: {e}", level=LogLevel.WARNING)
+            final_answer = self._handle_max_runtime_reached(self.task, images)
+            return final_answer
+        except AgentError as e:
+            self.logger.log(f"Agent error: {e}", level=LogLevel.ERROR)
+            return str(e)
+        except Exception as e:
+            self.logger.log(f"Unexpected error: {e}", level=LogLevel.ERROR)
+            raise AgentError(f"Unexpected error: {e}", self.logger)
 
     def _process_task(self) -> None:
         """Process the current task, e.g., generate code or delegate to another agent."""
