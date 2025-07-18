@@ -499,6 +499,7 @@ class MultiStepAgent(ABC):
 
         self.task = task
         self.interrupt_switch = False
+        self.final_result = None
         if additional_args:
             self.state.update(additional_args)
             self.task += f"""
@@ -545,14 +546,17 @@ You have been provided with these additional arguments, that you can access usin
                     raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
 
                 if self.interrupt_switch:
-                    raise AgentError("Agent interrupted.", self.logger)
+                    break
 
                 self.receive_messages()
 
                 if self.task:
                     self._process_task()
+                else:
+                    break
 
                 time.sleep(1)  # Prevent busy loop; adjust as needed
+            return self.final_result
         except AgentMaxStepsError as e:
             self.logger.log(f"Max steps reached: {e}", level=LogLevel.WARNING)
             final_answer = self._handle_max_steps_reached(self.task, images)
@@ -601,30 +605,22 @@ You have been provided with these additional arguments, that you can access usin
             result = self.execute_tool_call(tool_name, arguments)
             self.logger.log(f"Agent {self.agent_id} tool result: {result}", level=LogLevel.INFO)
             if tool_name == "final_answer":
-                checks_passed = True
+                valid = True
                 for check in self.final_answer_checks:
                     try:
                         if not check(result, self.memory):
-                            raise ValueError("failed with error")
+                            valid = False
                     except Exception as e:
-                        self.logger.log(
-                            f"Final answer check failed with error: {e}", level=LogLevel.ERROR
-                        )
-                        failed_step = ActionStep(
-                            step_number=self.step_number,
-                            error=AgentError("failed with error", self.logger),
-                            timing=Timing(start_time=time.time(), end_time=time.time()),
-                        )
-                        self._finalize_step(failed_step)
-                        self.memory.steps.append(failed_step)
-                        checks_passed = False
-                        break
-                if checks_passed:
+                        valid = False
+                        self.logger.log(f"Final answer check failed: {e}", level=LogLevel.ERROR)
+                if valid:
                     self.memory.steps.append(FinalAnswerStep(output=result))
+                    self.final_result = result
+                    self.task = None
                     self.interrupt_switch = True
-                    return result
+                    # Optionally send result to another agent
+                    self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
             else:
-                # Optionally send result to another agent
                 self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
         except AgentToolExecutionError as e:
             self.logger.log(f"Tool execution error: {e}", level=LogLevel.ERROR)
