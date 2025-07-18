@@ -108,7 +108,7 @@ if Langfuse is not None:
 
 def get_variable_names(self, template: str) -> set[str]:
     pattern = re.compile(r"\{\{([^{}]+)\}\}")
-    return {match.group(1).strip() for match in pattern.finditer(template)}
+    return {match.group(1).strip() for match in pattern.finditer(template)} #Consider deleting this function if not used
 
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
