@@ -25,6 +25,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Queue
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
@@ -264,8 +265,8 @@ class MultiStepAgent(ABC):
         self,
         tools: list[Tool],
         model: Model,
-        agent_id: int,  # New parameter
-        queue_dict: dict,  # New parameter
+        agent_id: int = 0,
+        queue_dict: dict | None = None,
         prompt_templates: PromptTemplates | None = None,
         instructions: str | None = None,
         max_steps: int = 20,
@@ -285,9 +286,14 @@ class MultiStepAgent(ABC):
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
-        self.agent_id = agent_id  # Store unique agent ID
-        self.queue_dict = queue_dict  # Shared dictionary of queues
-        self.queue = queue_dict[agent_id]  # Agent's own queue
+        self.agent_id = agent_id
+
+        if queue_dict is None:
+            queue_dict = {agent_id: Queue()}
+        else:
+            queue_dict.setdefault(agent_id, Queue())
+        self.queue_dict = queue_dict
+        self.queue = queue_dict[agent_id]
         self._send_message_tool = SendMessageTool(queue_dict)
         self._receive_messages_tool = ReceiveMessagesTool(agent_id, queue_dict)
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
@@ -335,8 +341,13 @@ class MultiStepAgent(ABC):
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)
         self.stream_outputs = False
-        # Initialize Langfuse trace
-        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+        # Initialize Langfuse trace if available
+        self.trace = None
+        if hasattr(langfuse, "trace"):
+            try:
+                self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace")
+            except Exception:
+                self.trace = None
 
     def send_message(self, target_id: int, message: Any) -> None:
         """Send a message to the target agent's queue."""
@@ -611,6 +622,12 @@ You have been provided with these additional arguments, that you can access usin
         self._finalize_step(final_memory_step)
         self.memory.steps.append(final_memory_step)
         return final_answer.content
+
+    def _finalize_step(self, memory_step: MemoryStep):
+        """Finalize a step by running registered callbacks."""
+        if getattr(memory_step, "timing", None) and memory_step.timing.end_time is None:
+            memory_step.timing.end_time = time.time()
+        self.step_callbacks.callback(memory_step, agent=self)
 
     def _generate_planning_step(
         self, task, is_first_step: bool, step: int
@@ -1279,7 +1296,12 @@ class ToolCallingAgent(MultiStepAgent):
                 "`stream_outputs` is set to True, but the model class implements no `generate_stream` method."
             )
         self.max_tool_threads = max_tool_threads
-        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+        self.trace = None
+        if hasattr(langfuse, "trace"):
+            try:
+                self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace")
+            except Exception:
+                self.trace = None
 
     def create_python_executor(self) -> PythonExecutor:
         if self.trace:
@@ -1571,7 +1593,12 @@ class CodeAgent(MultiStepAgent):
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
         self.python_executor = self.create_python_executor()
 
-        self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace") if langfuse else None
+        self.trace = None
+        if hasattr(langfuse, "trace"):
+            try:
+                self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace")
+            except Exception:
+                self.trace = None
 
     def __enter__(self):
         return self
