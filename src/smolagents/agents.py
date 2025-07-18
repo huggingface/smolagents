@@ -977,8 +977,7 @@ You have been provided with these additional arguments, that you can access usin
                 "data": self.model.to_dict(),
             },
             "managed_agents": {
-                managed_agent.name: managed_agent.to_dict()
-                for managed_agent in self.managed_agents.values()
+                managed_agent.name: managed_agent.to_dict() for managed_agent in self.managed_agents.values()
             },
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
