@@ -1616,6 +1616,7 @@ class CodeAgent(MultiStepAgent):
             raise
         finally:
             if self.trace:
+                span.end()
 
 
     def initialize_system_prompt(self) -> str:
