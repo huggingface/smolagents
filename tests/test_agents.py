@@ -1318,14 +1318,20 @@ class TestMultiStepAgent:
         def interrupt_callback(memory_step, agent):
             agent.interrupt()
 
-        agent = CodeAgent(
-            tools=[],
-            model=fake_model,
-            step_callbacks=[interrupt_callback],
-        )
-        with pytest.raises(AgentError) as e:
-            agent.run("Test task")
-        assert "Agent interrupted" in str(e)
+        with Manager() as manager:
+            queue_dict = manager.dict()
+            queue_dict[0] = manager.Queue()
+            agent = CodeAgent(
+                tools=[],
+                model=fake_model,
+                step_callbacks=[interrupt_callback],
+                agent_id=0,
+                queue_dict=queue_dict,
+                prompt_templates=EMPTY_PROMPT_TEMPLATES,
+            )
+            result = agent.run("Test task")
+            assert result is None
+            assert agent.interrupt_switch
 
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
