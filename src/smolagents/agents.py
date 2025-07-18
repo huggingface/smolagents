@@ -345,7 +345,6 @@ class MultiStepAgent(ABC):
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)
         self.stream_outputs = False
-
         self.interrupt_switch = False
         
         # Initialize Langfuse trace if available
@@ -355,7 +354,6 @@ class MultiStepAgent(ABC):
                 self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace")
             except Exception:
                 self.trace = None
-
 
     def send_message(self, target_id: int, message: Any) -> None:
         """Send a message to the target agent's queue."""
