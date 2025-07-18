@@ -25,10 +25,10 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from queue import Queue
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
+from queue import Queue
 from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
 
 import jinja2
@@ -108,7 +108,9 @@ if Langfuse is not None:
 
 def get_variable_names(self, template: str) -> set[str]:
     pattern = re.compile(r"\{\{([^{}]+)\}\}")
-    return {match.group(1).strip() for match in pattern.finditer(template)} #Consider deleting this function if not used
+    return {
+        match.group(1).strip() for match in pattern.finditer(template)
+    }  # Consider deleting this function if not used
 
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
@@ -270,7 +272,7 @@ class MultiStepAgent(ABC):
         tools: list[Tool],
         model: Model,
         agent_id: int = 0,
-        queue_dict: dict | None = None,
+        queue_dict: dict | dict = {},
         prompt_templates: PromptTemplates | None = None,
         instructions: str | None = None,
         max_steps: int = 20,
@@ -298,6 +300,8 @@ class MultiStepAgent(ABC):
             queue_dict.setdefault(agent_id, Queue())
         self.queue_dict = queue_dict
         self.queue = queue_dict[agent_id]
+
+
         self._send_message_tool = SendMessageTool(queue_dict)
         self._receive_messages_tool = ReceiveMessagesTool(agent_id, queue_dict)
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
@@ -346,7 +350,15 @@ class MultiStepAgent(ABC):
         self._setup_step_callbacks(step_callbacks)
         self.stream_outputs = False
         self.interrupt_switch = False
-        
+
+        # Generate a unique agent ID for this instance
+        # Get the highest existing agent_id and increment by 1
+        existing_agent_ids = list(queue_dict.keys()) if queue_dict else []
+        if agent_id == 0 and existing_agent_ids:
+            self.agent_id = max(existing_agent_ids) + 1
+        else:
+            self.agent_id = agent_id
+
         # Initialize Langfuse trace if available
         self.trace = None
         if hasattr(langfuse, "trace"):
@@ -501,8 +513,8 @@ class MultiStepAgent(ABC):
         if additional_args:
             self.state.update(additional_args)
             self.task += f"""
-You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
-{str(additional_args)}."""
+            You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
+            {str(additional_args)}."""
 
         self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
         if reset:
@@ -1329,8 +1341,8 @@ class ToolCallingAgent(MultiStepAgent):
         self,
         tools: list[Tool],
         model: Model,
-        agent_id: int,  # Add
-        queue_dict: dict,  # Add
+        agent_id: int = 0,
+        queue_dict: dict | dict = {},
         prompt_templates: PromptTemplates | None = None,
         planning_interval: int | None = None,
         stream_outputs: bool = False,
@@ -1361,6 +1373,20 @@ class ToolCallingAgent(MultiStepAgent):
                 self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace")
             except Exception:
                 self.trace = None
+
+        # Generate a unique agent ID for this instance
+        # Get the highest existing agent_id and increment by 1
+        existing_agent_ids = list(queue_dict.keys()) if queue_dict else []
+        if agent_id == 0 and existing_agent_ids:
+            self.agent_id = max(existing_agent_ids) + 1
+        else:
+            self.agent_id = agent_id
+
+        # Initialize or update queue_dict
+        if queue_dict is {}:
+            queue_dict = {self.agent_id: Queue()}
+        else:
+            queue_dict.setdefault(self.agent_id, Queue())
 
     def create_python_executor(self) -> PythonExecutor:
         if self.trace:
@@ -1602,8 +1628,8 @@ class CodeAgent(MultiStepAgent):
         self,
         tools: list[Tool],
         model: Model,
-        agent_id: int,  # Add
-        queue_dict: dict,  # Add
+        agent_id: int = 0,
+        queue_dict: dict | dict = {},
         prompt_templates: PromptTemplates | None = None,
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
@@ -1640,6 +1666,26 @@ class CodeAgent(MultiStepAgent):
             if code_block_tags == "markdown"
             else ("<code>", "</code>")
         )
+        # Generate a unique agent ID for this instance
+        # Get the highest existing agent_id and increment by 1
+        existing_agent_ids = list(queue_dict.keys()) if queue_dict else []
+        if agent_id == 0 and existing_agent_ids:
+            self.agent_id = max(existing_agent_ids) + 1
+        else:
+            self.agent_id = agent_id
+
+        # Ensure queue_dict exists and contains an entry for this agent
+        self.executor_type = executor_type
+
+        # Initialize executor kwargs
+        self.executor_kwargs = executor_kwargs or {}
+
+        # Initialize or update queue_dict
+        if queue_dict is {}:
+            # If queue_dict is empty, create a new Queue for this agent_id
+            queue_dict = {self.agent_id: Queue()}
+        else:  # If queue_dict is provided, ensure it has an entry for this agent_id
+            queue_dict.setdefault(self.agent_id, Queue()) 
 
         super().__init__(
             tools=tools,

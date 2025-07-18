@@ -75,12 +75,15 @@ def test_cli_main(capsys):
     with patch("smolagents.cli.load_model") as mock_load_model:
         mock_load_model.return_value = "mock_model"
         with patch("smolagents.cli.CodeAgent") as mock_code_agent:
+
             class DummyProcess:
                 def __init__(self, target, args):
                     self.target = target
                     self.args = args
+
                 def start(self):
                     self.target(*self.args)
+
                 def join(self):
                     pass
 

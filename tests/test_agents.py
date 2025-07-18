@@ -35,12 +35,11 @@ from huggingface_hub import (
 )
 from rich.console import Console
 
-from smolagents import EMPTY_PROMPT_TEMPLATES, CodeAgent, InferenceClientModel
+from smolagents import EMPTY_PROMPT_TEMPLATES, InferenceClientModel
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
     #  AgentError,
     AgentMaxStepsError,
-
     AgentToolCallError,
     CodeAgent,
     MultiStepAgent,
@@ -79,13 +78,9 @@ from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.tools import Tool, tool
 from smolagents.utils import (
     BASE_BUILTIN_MODULES,
-    AgentError,
     AgentExecutionError,
     AgentGenerationError,
-
     AgentMaxRuntimeError,
-    AgentToolCallError,
-
     AgentToolExecutionError,
 )
 
@@ -499,7 +494,7 @@ class TestAgent:
         )
         assert "Remember this" in agent.task
 
-    def test_agent_communication():
+    def test_agent_communication(self):
         with Manager() as manager:
             queue_dict = manager.dict()
             queue_dict[0] = manager.Queue()

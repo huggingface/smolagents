@@ -2,14 +2,14 @@ import importlib.util
 import pathlib
 
 from datasets import Dataset
-from test_agents import FakeCodeModel
 
 from smolagents.tools import Tool
+from tests.test_agents import FakeCodeModel
 
 
 spec = importlib.util.spec_from_file_location(
     "dec_run",
-    pathlib.Path(__file__).resolve().parents[1] / "examples" / "decentralized_smolagents_benchmark copy" / "run.py",
+    pathlib.Path(__file__).resolve().parents[1] / "examples" / "decentralized_smolagents_benchmark" / "run.py",
 )
 dec_run = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(dec_run)

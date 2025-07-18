@@ -20,6 +20,7 @@ def patch_multi_step_agent_with_suppressed_logging():
         default_queue_dict[0] = manager.Queue()
 
         with patch.object(MultiStepAgent, "__init__", autospec=True) as mock_init:
+
             def init_with_suppressed_logging(
                 self,
                 *args,
