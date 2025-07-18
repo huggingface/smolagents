@@ -505,7 +505,12 @@ class TestAgent:
             queue_dict[0] = manager.Queue()
             queue_dict[1] = manager.Queue()
             model = InferenceClientModel(model_id="mock-model")  # Use a mock model
-            agent0 = CodeAgent(tools=[SendMessageTool(queue_dict, 0)], model=model)
+            agent0 = CodeAgent(
+                tools=[SendMessageTool(queue_dict, 0)],
+                model=model,
+                agent_id=0,
+                queue_dict=queue_dict,
+            )
             messages: list[str] = []
 
             def set_task(msg: str):
@@ -514,6 +519,8 @@ class TestAgent:
             agent1 = CodeAgent(
                 tools=[ReceiveMessagesTool(queue_dict, 1, process_message=set_task)],
                 model=model,
+                agent_id=1,
+                queue_dict=queue_dict,
             )
             agent0.tools[0](1, "test message")
             agent1.tools[0]()
