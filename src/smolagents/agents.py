@@ -1622,6 +1622,7 @@ class CodeAgent(MultiStepAgent):
         finally:
             if self.trace:
                 span.end()
+                
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
