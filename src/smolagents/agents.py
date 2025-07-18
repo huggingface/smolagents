@@ -253,7 +253,7 @@ class MultiStepAgent(ABC):
         provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
         final_answer_checks (`list[Callable]`, *optional*): List of validation functions to run before accepting a final answer.
             Each function should:
-            - Take the final answer and the agent's memory as arguments.
+            - Take the final answer, the agent's memory and the agent's state as arguments.
             - Return a boolean indicating whether the final answer is valid.
     """
 
@@ -576,7 +576,7 @@ You have been provided with these additional arguments, that you can access usin
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
             try:
-                assert check_function(final_answer, self.memory)
+                assert check_function(final_answer, self.memory, self.state)
             except Exception as e:
                 raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
 
