@@ -45,8 +45,10 @@ from rich.text import Text
 if TYPE_CHECKING:
     import PIL.Image
 
-from langfuse import Langfuse
-
+try:
+    from langfuse import Langfuse
+except Exception:  # pragma: no cover - optional dependency
+    Langfuse = None
 
 from .agent_types import AgentAudio, AgentImage
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
@@ -58,6 +60,7 @@ from .memory import (
     FinalAnswerStep,
     MemoryStep,
     PlanningStep,
+    SystemPromptStep,
     TaskStep,
     Timing,
     TokenUsage,
@@ -71,13 +74,12 @@ from .models import (
     Model,
 )
 from .monitoring import (
-    YELLOW_HEX,
     AgentLogger,
     LogLevel,
     Monitor,
 )
 from .remote_executors import DockerExecutor, E2BExecutor
-from .tools import ReceiveMessagesTool, SendMessageTool, Tool
+from .tools import ReceiveMessagesTool, SendMessageTool, Tool, validate_tool_arguments
 from .utils import (
     AGENT_GRADIO_APP_TEMPLATE,
     AgentError,
@@ -95,11 +97,13 @@ from .utils import (
 
 logger = getLogger(__name__)
 
-langfuse = Langfuse(
-    public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
-    host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
-)
+langfuse = None
+if Langfuse is not None:
+    langfuse = Langfuse(
+        public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
+        secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
+        host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+    )
 
 
 def get_variable_names(self, template: str) -> set[str]:
@@ -341,6 +345,8 @@ class MultiStepAgent(ABC):
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)
         self.stream_outputs = False
+        self.interrupt_switch = False
+        
         # Initialize Langfuse trace if available
         self.trace = None
         if hasattr(langfuse, "trace"):
@@ -351,17 +357,25 @@ class MultiStepAgent(ABC):
 
     def send_message(self, target_id: int, message: Any) -> None:
         """Send a message to the target agent's queue."""
+        span = None
         if self.trace:
             span = self.trace.span(name=f"send_message_{self.agent_id}")
             span.update(inputs={"target_id": target_id, "message": str(message)})
         try:
             self._send_message_tool(target_id, message)
             self.logger.log(f"Agent {self.agent_id} sent message to Agent {target_id}", level=LogLevel.INFO)
+            if span:
+                span.update(outputs={"status": "success"})
         except ValueError:
+            if span:
+                span.update(outputs={"status": "error", "error": f"Target {target_id} not found"})
             self.logger.log(
                 f"Agent {self.agent_id} failed to send message: Target {target_id} not found",
                 level=LogLevel.WARNING,
             )
+        finally:
+            if span:
+                span.end()
 
     def receive_messages(self) -> None:
         """Process all incoming messages in the agent's queue."""
@@ -440,7 +454,6 @@ class MultiStepAgent(ABC):
                 f"{[name for name in tool_and_managed_agent_names if tool_and_managed_agent_names.count(name) > 1]}"
             )
 
-
     def _setup_step_callbacks(self, step_callbacks):
         # Initialize step callbacks registry
         self.step_callbacks = CallbackRegistry()
@@ -482,9 +495,9 @@ class MultiStepAgent(ABC):
             the agent's `max_runtime` attribute.
         """
 
-        max_steps = max_steps or self.max_steps
         self.task = task
         self.interrupt_switch = False
+        self.final_result = None
         if additional_args:
             self.state.update(additional_args)
             self.task += f"""
@@ -519,7 +532,6 @@ You have been provided with these additional arguments, that you can access usin
         if max_runtime is None:
             max_runtime = self.max_runtime
 
-
         start_time = time.time()
         try:
             while True:
@@ -532,14 +544,17 @@ You have been provided with these additional arguments, that you can access usin
                     raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
 
                 if self.interrupt_switch:
-                    raise AgentError("Agent interrupted.", self.logger)
+                    break
 
                 self.receive_messages()
 
                 if self.task:
                     self._process_task()
+                else:
+                    break
 
                 time.sleep(1)  # Prevent busy loop; adjust as needed
+            return self.final_result
         except AgentMaxStepsError as e:
             self.logger.log(f"Max steps reached: {e}", level=LogLevel.WARNING)
             final_answer = self._handle_max_steps_reached(self.task, images)
@@ -588,12 +603,25 @@ You have been provided with these additional arguments, that you can access usin
             result = self.execute_tool_call(tool_name, arguments)
             self.logger.log(f"Agent {self.agent_id} tool result: {result}", level=LogLevel.INFO)
             if tool_name == "final_answer":
-                self.memory.steps.append(FinalAnswerStep(output=result))
-            # Optionally send result to another agent
-            self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
+                valid = True
+                for check in self.final_answer_checks:
+                    try:
+                        if not check(result, self.memory):
+                            valid = False
+                    except Exception as e:
+                        valid = False
+                        self.logger.log(f"Final answer check failed: {e}", level=LogLevel.ERROR)
+                if valid:
+                    self.memory.steps.append(FinalAnswerStep(output=result))
+                    self.final_result = result
+                    self.task = None
+                    self.interrupt_switch = True
+                    # Optionally send result to another agent
+                    self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
+            else:
+                self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
         except AgentToolExecutionError as e:
             self.logger.log(f"Tool execution error: {e}", level=LogLevel.ERROR)
-
 
     def _handle_max_steps_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
         action_step_start_time = time.time()
@@ -632,117 +660,138 @@ You have been provided with these additional arguments, that you can access usin
     def _generate_planning_step(
         self, task, is_first_step: bool, step: int
     ) -> Generator[ChatMessageStreamDelta | PlanningStep]:
+        span = None
+        if self.trace:
+            span = self.trace.span(name=f"planning_step_{self.agent_id}")
+            span.update(inputs={"task": task, "is_first_step": is_first_step, "step": step})
+
         start_time = time.time()
-        if is_first_step:
-            input_messages = [
-                ChatMessage(
+        try:
+            if is_first_step:
+                input_messages = [
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=[
+                            {
+                                "type": "text",
+                                "text": populate_template(
+                                    self.prompt_templates["planning"]["initial_plan"],
+                                    variables={
+                                        "task": task,
+                                        "tools": self.tools,
+                                        "managed_agents": self.managed_agents,
+                                    },
+                                ),
+                            }
+                        ],
+                    )
+                ]
+                if self.stream_outputs and hasattr(self.model, "generate_stream"):
+                    plan_message_content = ""
+                    output_stream = self.model.generate_stream(input_messages, stop_sequences=["<end_plan>"])  # type: ignore
+                    input_tokens, output_tokens = 0, 0
+                    with Live("", console=self.logger.console, vertical_overflow="visible") as live:
+                        for event in output_stream:
+                            if event.content is not None:
+                                plan_message_content += event.content
+                                live.update(Markdown(plan_message_content))
+                                if event.token_usage:
+                                    output_tokens += event.token_usage.output_tokens
+                                    input_tokens = event.token_usage.input_tokens
+                            yield event
+                else:
+                    plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
+                    plan_message_content = plan_message.content
+                    input_tokens, output_tokens = (
+                        (
+                            plan_message.token_usage.input_tokens,
+                            plan_message.token_usage.output_tokens,
+                        )
+                        if plan_message.token_usage
+                        else (None, None)
+                    )
+                plan = textwrap.dedent(
+                    f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
+                )
+            else:
+                # Summary mode removes the system prompt and previous planning messages output by the model.
+                # Removing previous planning messages avoids influencing too much the new plan.
+                memory_messages = self.write_memory_to_messages(summary_mode=True)
+                plan_update_pre = ChatMessage(
+                    role=MessageRole.SYSTEM,
+                    content=[
+                        {
+                            "type": "text",
+                            "text": populate_template(
+                                self.prompt_templates["planning"]["update_plan_pre_messages"], variables={"task": task}
+                            ),
+                        }
+                    ],
+                )
+                plan_update_post = ChatMessage(
                     role=MessageRole.USER,
                     content=[
                         {
                             "type": "text",
                             "text": populate_template(
-                                self.prompt_templates["planning"]["initial_plan"],
-                                variables={"task": task, "tools": self.tools, "managed_agents": self.managed_agents},
+                                self.prompt_templates["planning"]["update_plan_post_messages"],
+                                variables={
+                                    "task": task,
+                                    "tools": self.tools,
+                                    "managed_agents": self.managed_agents,
+                                    "remaining_steps": (self.max_steps - step),
+                                },
                             ),
                         }
                     ],
                 )
-            ]
-            if self.stream_outputs and hasattr(self.model, "generate_stream"):
-                plan_message_content = ""
-                output_stream = self.model.generate_stream(input_messages, stop_sequences=["<end_plan>"])  # type: ignore
-                input_tokens, output_tokens = 0, 0
-                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
-                    for event in output_stream:
-                        if event.content is not None:
-                            plan_message_content += event.content
-                            live.update(Markdown(plan_message_content))
-                            if event.token_usage:
-                                output_tokens += event.token_usage.output_tokens
-                                input_tokens = event.token_usage.input_tokens
-                        yield event
-            else:
-                plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
-                plan_message_content = plan_message.content
-                input_tokens, output_tokens = (
-                    (
-                        plan_message.token_usage.input_tokens,
-                        plan_message.token_usage.output_tokens,
-                    )
-                    if plan_message.token_usage
-                    else (None, None)
+                input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
+                if self.stream_outputs and hasattr(self.model, "generate_stream"):
+                    plan_message_content = ""
+                    input_tokens, output_tokens = 0, 0
+                    with Live("", console=self.logger.console, vertical_overflow="visible") as live:
+                        for event in self.model.generate_stream(
+                            input_messages,
+                            stop_sequences=["<end_plan>"],
+                        ):  # type: ignore
+                            if event.content is not None:
+                                plan_message_content += event.content
+                                live.update(Markdown(plan_message_content))
+                                if event.token_usage:
+                                    output_tokens += event.token_usage.output_tokens
+                                    input_tokens = event.token_usage.input_tokens
+                            yield event
+                else:
+                    plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
+                    plan_message_content = plan_message.content
+                    if plan_message.token_usage is not None:
+                        input_tokens, output_tokens = (
+                            plan_message.token_usage.input_tokens,
+                            plan_message.token_usage.output_tokens,
+                        )
+                plan = textwrap.dedent(
+                    f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message_content}\n```"""
                 )
-            plan = textwrap.dedent(
-                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
+
+            log_headline = "Initial plan" if is_first_step else "Updated plan"
+            self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
+            planning_step = PlanningStep(
+                model_input_messages=input_messages,
+                plan=plan,
+                model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content=plan_message_content),
+                token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens),
+                timing=Timing(start_time=start_time, end_time=time.time()),
             )
-        else:
-            # Summary mode removes the system prompt and previous planning messages output by the model.
-            # Removing previous planning messages avoids influencing too much the new plan.
-            memory_messages = self.write_memory_to_messages(summary_mode=True)
-            plan_update_pre = ChatMessage(
-                role=MessageRole.SYSTEM,
-                content=[
-                    {
-                        "type": "text",
-                        "text": populate_template(
-                            self.prompt_templates["planning"]["update_plan_pre_messages"], variables={"task": task}
-                        ),
-                    }
-                ],
-            )
-            plan_update_post = ChatMessage(
-                role=MessageRole.USER,
-                content=[
-                    {
-                        "type": "text",
-                        "text": populate_template(
-                            self.prompt_templates["planning"]["update_plan_post_messages"],
-                            variables={
-                                "task": task,
-                                "tools": self.tools,
-                                "managed_agents": self.managed_agents,
-                                "remaining_steps": (self.max_steps - step),
-                            },
-                        ),
-                    }
-                ],
-            )
-            input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
-            if self.stream_outputs and hasattr(self.model, "generate_stream"):
-                plan_message_content = ""
-                input_tokens, output_tokens = 0, 0
-                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
-                    for event in self.model.generate_stream(
-                        input_messages,
-                        stop_sequences=["<end_plan>"],
-                    ):  # type: ignore
-                        if event.content is not None:
-                            plan_message_content += event.content
-                            live.update(Markdown(plan_message_content))
-                            if event.token_usage:
-                                output_tokens += event.token_usage.output_tokens
-                                input_tokens = event.token_usage.input_tokens
-                        yield event
-            else:
-                plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
-                plan_message_content = plan_message.content
-                if plan_message.token_usage is not None:
-                    input_tokens, output_tokens = (
-                        plan_message.token_usage.input_tokens,
-                        plan_message.token_usage.output_tokens,
-                    )
-            plan = textwrap.dedent(
-                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message_content}\n```"""
-            )
-        log_headline = "Initial plan" if is_first_step else "Updated plan"
-        self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
-        yield PlanningStep(
-            model_input_messages=input_messages,
-            plan=plan,
-            model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content=plan_message_content),
-            token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens),
-            timing=Timing(start_time=start_time, end_time=time.time()),
-        )
+            if span:
+                span.update(outputs={"plan": plan})
+            yield planning_step
+        except Exception as e:
+            if span:
+                span.update(outputs={"status": "error", "error": str(e)})
+            raise
+        finally:
+            if span:
+                span.end()
 
     @property
     def logs(self):
@@ -823,6 +872,11 @@ You have been provided with these additional arguments, that you can access usin
         Returns:
             `str`: Final answer to the task.
         """
+        span = None
+        if self.trace:
+            span = self.trace.span(name=f"final_answer_{self.agent_id}")
+            span.update(inputs={"task": task})
+
         messages = [
             ChatMessage(
                 role=MessageRole.SYSTEM,
@@ -852,12 +906,19 @@ You have been provided with these additional arguments, that you can access usin
         )
         try:
             chat_message: ChatMessage = self.model.generate(messages)
+            if span:
+                span.update(outputs={"answer": chat_message.content})
             return chat_message
         except Exception as e:
+            if span:
+                span.update(outputs={"status": "error", "error": str(e)})
             return ChatMessage(
                 role=MessageRole.ASSISTANT,
                 content=[{"type": "text", "text": f"Error in generating final LLM output: {e}"}],
             )
+        finally:
+            if span:
+                span.end()
 
     def visualize(self):
         """Creates a rich tree visualization of the agent's structure."""
@@ -960,7 +1021,6 @@ You have been provided with these additional arguments, that you can access usin
 
         app_template = AGENT_GRADIO_APP_TEMPLATE
 
-
         app_template = textwrap.dedent(
             """
             import yaml
@@ -1002,7 +1062,6 @@ You have been provided with these additional arguments, that you can access usin
             """
         ).strip()
 
-        
         template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
         template_env.filters["repr"] = repr
         template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
@@ -1355,7 +1414,6 @@ class ToolCallingAgent(MultiStepAgent):
     def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ToolOutput]:
         raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
 
-
     def process_tool_calls(
         self, chat_message: ChatMessage, memory_step: ActionStep
     ) -> Generator[ToolCall | ToolOutput]:
@@ -1461,9 +1519,17 @@ class ToolCallingAgent(MultiStepAgent):
             tool_name (`str`): Name of the tool or managed agent to execute.
             arguments (dict[str, str] | str): Arguments passed to the tool call.
         """
+        span = None
+        if self.trace:
+            span = self.trace.span(name=f"execute_tool_call_{self.agent_id}")
+            span.update(inputs={"tool_name": tool_name, "arguments": str(arguments)})
+
         # Check if the tool exists
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
+            if span:
+                span.update(outputs={"status": "error", "error": f"Unknown tool {tool_name}"})
+                span.end()
             raise AgentToolExecutionError(
                 f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
             )
@@ -1480,9 +1546,12 @@ class ToolCallingAgent(MultiStepAgent):
         try:
             # Call tool with appropriate arguments
             if isinstance(arguments, dict):
-                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+                result = tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
             else:
-                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+                result = tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+            if span:
+                span.update(outputs={"result": str(result)})
+            return result
 
         except Exception as e:
             # Handle execution errors
@@ -1496,7 +1565,12 @@ class ToolCallingAgent(MultiStepAgent):
                     f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}\n"
                     "Please try again or use another tool"
                 )
+            if span:
+                span.update(outputs={"status": "error", "error": str(e)})
             raise AgentToolExecutionError(error_msg, self.logger) from e
+        finally:
+            if span:
+                span.end()
 
 
 class CodeAgent(MultiStepAgent):
@@ -1611,7 +1685,6 @@ class CodeAgent(MultiStepAgent):
         if hasattr(self.python_executor, "cleanup"):
             self.python_executor.cleanup()
 
-
     def create_python_executor(self) -> PythonExecutor:
         if self.trace:
             span = self.trace.span(name=f"create_python_executor_{self.agent_id}")
@@ -1645,7 +1718,6 @@ class CodeAgent(MultiStepAgent):
             if self.trace:
                 span.end()
 
-
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
             self.prompt_templates["system_prompt"],
@@ -1666,7 +1738,6 @@ class CodeAgent(MultiStepAgent):
 
     def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ActionOutput]:
         raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
-
 
     @classmethod
     def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "CodeAgent":
