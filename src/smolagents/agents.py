@@ -44,7 +44,10 @@ from rich.text import Text
 if TYPE_CHECKING:
     import PIL.Image
 
-from langfuse import Langfuse
+try:
+    from langfuse import Langfuse
+except Exception:  # pragma: no cover - optional dependency
+    Langfuse = None
 
 
 from .agent_types import AgentAudio, AgentImage
@@ -94,11 +97,13 @@ from .utils import (
 
 logger = getLogger(__name__)
 
-langfuse = Langfuse(
-    public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
-    host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
-)
+langfuse = None
+if Langfuse is not None:
+    langfuse = Langfuse(
+        public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
+        secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
+        host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+    )
 
 
 def get_variable_names(self, template: str) -> set[str]:
@@ -1616,7 +1621,7 @@ class CodeAgent(MultiStepAgent):
             raise
         finally:
             if self.trace:
-
+                span.end()
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
