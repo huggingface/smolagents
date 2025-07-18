@@ -345,6 +345,9 @@ class MultiStepAgent(ABC):
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)
         self.stream_outputs = False
+
+        self.interrupt_switch = False
+        
         # Initialize Langfuse trace if available
         self.trace = None
         if hasattr(langfuse, "trace"):
@@ -352,6 +355,7 @@ class MultiStepAgent(ABC):
                 self.trace = langfuse.trace(name=f"Agent_{agent_id}_trace")
             except Exception:
                 self.trace = None
+
 
     def send_message(self, target_id: int, message: Any) -> None:
         """Send a message to the target agent's queue."""
@@ -597,9 +601,31 @@ You have been provided with these additional arguments, that you can access usin
             result = self.execute_tool_call(tool_name, arguments)
             self.logger.log(f"Agent {self.agent_id} tool result: {result}", level=LogLevel.INFO)
             if tool_name == "final_answer":
-                self.memory.steps.append(FinalAnswerStep(output=result))
-            # Optionally send result to another agent
-            self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
+                checks_passed = True
+                for check in self.final_answer_checks:
+                    try:
+                        if not check(result, self.memory):
+                            raise ValueError("failed with error")
+                    except Exception as e:
+                        self.logger.log(
+                            f"Final answer check failed with error: {e}", level=LogLevel.ERROR
+                        )
+                        failed_step = ActionStep(
+                            step_number=self.step_number,
+                            error=AgentError("failed with error", self.logger),
+                            timing=Timing(start_time=time.time(), end_time=time.time()),
+                        )
+                        self._finalize_step(failed_step)
+                        self.memory.steps.append(failed_step)
+                        checks_passed = False
+                        break
+                if checks_passed:
+                    self.memory.steps.append(FinalAnswerStep(output=result))
+                    self.interrupt_switch = True
+                    return result
+            else:
+                # Optionally send result to another agent
+                self.send_message(0, {"tool_call": {"name": "final_answer", "arguments": result}})
         except AgentToolExecutionError as e:
             self.logger.log(f"Tool execution error: {e}", level=LogLevel.ERROR)
 
