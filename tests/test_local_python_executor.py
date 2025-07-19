@@ -1074,6 +1074,18 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         dangerous_code = "import os; os.listdir('./')"
         evaluate_python_code(dangerous_code, authorized_imports=["*"])
 
+    def test_string_keywords(self):
+        code = """params = {
+    'random_state': 42,
+}
+def checks_keys(random_state):
+    return True
+
+checks_keys(**params)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result
+
     @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     def test_can_import_scipy_if_explicitly_authorized(self):
         code = "import scipy"
