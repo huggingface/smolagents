@@ -19,6 +19,7 @@ import pytest
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
     DuckDuckGoSearchTool,
+    FileReaderTool,
     PythonInterpreterTool,
     SpeechToTextTool,
     VisitWebpageTool,
@@ -132,3 +133,33 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+class TestFileReaderTool(ToolTesterMixin):
+    def setup_method(self):
+        self.tool = FileReaderTool()
+
+    def test_file_reading(self, tmp_path):
+        # Create a test file
+        test_file = tmp_path / "test.txt"
+        test_content = "Hello, this is a test file!"
+        test_file.write_text(test_content)
+
+        result = self.tool(str(test_file))
+        assert isinstance(result, str)
+        assert "Hello, this is a test file!" in result
+
+    def test_nonexistent_file(self):
+        result = self.tool("nonexistent_file.txt")
+        assert "Error: File not found at path" in result
+
+    def test_max_length_truncation(self, tmp_path):
+        # Create a test file with content longer than max length
+        test_file = tmp_path / "long.txt"
+        test_content = "test " * 10000  # Create a long string
+        test_file.write_text(test_content)
+
+        tool = FileReaderTool(max_output_length=100)
+        result = tool(str(test_file))
+        assert len(result) <= 100
+        assert "This content has been truncated" in result

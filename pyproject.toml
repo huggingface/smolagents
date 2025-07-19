@@ -65,7 +65,7 @@ telemetry = [
 ]
 toolkit = [
   "duckduckgo-search>=6.3.7",  # DuckDuckGoSearchTool
-  "markdownify>=0.14.1",  # VisitWebpageTool
+  "markitdown[all]",  # VisitWebpageTool, FileReaderTool
 ]
 transformers = [
   "accelerate",
