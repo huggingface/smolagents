@@ -438,7 +438,7 @@ class MultiStepAgent(ABC):
         if additional_args:
             self.state.update(additional_args)
             self.task += f"""
-You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
+You have been provided with these additional arguments, that you can access directly using the keys as variables:
 {str(additional_args)}."""
 
         self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
