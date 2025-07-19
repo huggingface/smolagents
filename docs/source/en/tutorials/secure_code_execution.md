@@ -116,7 +116,7 @@ For high-security applications or when using less trusted models, you should con
 When working with AI agents that execute code, security is paramount. There are two main approaches to sandboxing code execution in smolagents, each with different security properties and capabilities:
 
 
-![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/remote_execution.png)
+![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png)
 
 1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"` or `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
 
