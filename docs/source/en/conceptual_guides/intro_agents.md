@@ -1,6 +1,6 @@
-# Introduction to Agents
+# What are agents? 🤔
 
-## 🤔 What are agents?
+## An introduction to agentic systems.
 
 Any efficient system using AI will need to provide LLMs some kind of access to the real world: for instance the possibility to call a search tool to get external information, or to act on certain programs in order to solve a task. In other words, LLMs should have ***agency***. Agentic programs are the gateway to the outside world for LLMs.
 
@@ -13,14 +13,14 @@ Note that with this definition, "agent" is not a discrete, 0 or 1 definition: in
 
 See in the table below how agency can vary across systems:
 
-| Agency Level | Description                                            | Short name       | Example Code                                       |
-| ------------ | ------------------------------------------------------ | ---------------- | -------------------------------------------------- |
-| ☆☆☆ | LLM output has no impact on program flow                        | Simple processor | `process_llm_output(llm_response)`                 |
-| ★☆☆ | LLM output controls an if/else switch                           | Router           | `if llm_decision(): path_a() else: path_b()`       |
-| ★★☆ | LLM output controls function execution                          | Tool call        | `run_function(llm_chosen_tool, llm_chosen_args)`   |
-| ★★☆ | LLM output controls iteration and program continuation          | Multi-step Agent | `while llm_should_continue(): execute_next_step()` |
-| ★★★ | One agentic workflow can start another agentic workflow         | Multi-Agent      | `if llm_trigger(): execute_agent()`                |
-| ★★★ | LLM acts in code, can define its own tools / start other agents | Code Agents      | `def custom_tool(args): ...`                       |
+| Agency Level | Description                                                     | Short name       | Example Code                                       |
+| ------------ | --------------------------------------------------------------- | ---------------- | -------------------------------------------------- |
+| ☆☆☆          | LLM output has no impact on program flow                        | Simple processor | `process_llm_output(llm_response)`                 |
+| ★☆☆          | LLM output controls an if/else switch                           | Router           | `if llm_decision(): path_a() else: path_b()`       |
+| ★★☆          | LLM output controls function execution                          | Tool call        | `run_function(llm_chosen_tool, llm_chosen_args)`   |
+| ★★☆          | LLM output controls iteration and program continuation          | Multi-step Agent | `while llm_should_continue(): execute_next_step()` |
+| ★★★          | One agentic workflow can start another agentic workflow         | Multi-Agent      | `if llm_trigger(): execute_agent()`                |
+| ★★★          | LLM acts in code, can define its own tools / start other agents | Code Agents      | `def custom_tool(args): ...`                       |
 
 The multi-step agent has this code structure:
 
