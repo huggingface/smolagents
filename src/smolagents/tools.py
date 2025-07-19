@@ -526,7 +526,7 @@ class Tool:
     def from_space(
         space_id: str,
         name: str,
-        description: str,
+        description: str = "",
         api_name: str | None = None,
         token: str | None = None,
     ):
@@ -575,7 +575,7 @@ class Tool:
                 self,
                 space_id: str,
                 name: str,
-                description: str,
+                description: str = "",
                 api_name: str | None = None,
                 token: str | None = None,
             ):
@@ -615,6 +615,7 @@ class Tool:
                     self.output_type = "audio"
                 else:
                     self.output_type = "any"
+                print(self.inputs, self.output_type)
                 self.is_initialized = True
 
             def sanitize_argument_for_prediction(self, arg):
