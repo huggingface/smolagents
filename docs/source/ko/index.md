@@ -4,65 +4,65 @@
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/license_to_call.png" style="max-width:700px"/>
 </div>
 
-## What is smolagents?
+## smolagents란 무엇인가요?[[what-is-smolagents]]
 
-`smolagents` is an open-source Python library designed to make it extremely easy to build and run agents using just a few lines of code.
+`smolagents`는 단 몇 줄의 코드만으로 에이전트를 구축하고 실행할 수 있도록 설계된 오픈소스 Python 라이브러리입니다.
 
-Key features of `smolagents` include:
+`smolagents`의 주요 특징:
 
-✨ **Simplicity**: The logic for agents fits in ~thousand lines of code. We kept abstractions to their minimal shape above raw code!
+✨ **단순함**: 에이전트 로직이 약 천 줄의 코드로 구현되어 있습니다. 코드 위에 불필요한 복잡한 구조를 추가하지 않고 단순하게 만들었습니다!
 
-🧑‍💻 **First-class support for Code Agents**: [`CodeAgent`](reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code") to invoke tools or perform computations, enabling natural composability (function nesting, loops, conditionals). To make it secure, we support [executing in sandboxed environment](tutorials/secure_code_execution) via [E2B](https://e2b.dev/) or via Docker.
+🧑‍💻 **코드 에이전트의 완전한 지원**: [`CodeAgent`](reference/agents#smolagents.CodeAgent)는 도구 호출이나 계산 수행을 위해 직접 코드를 작성합니다 ("코드 작성용 에이전트"와는 반대 개념). 이를 통해 함수 중첩, 루프, 조건문 등을 자연스럽게 조합할 수 있습니다. 보안을 위해 [E2B](https://e2b.dev/)나 Docker를 통한 [샌드박스 환경 실행](tutorials/secure_code_execution)을 지원합니다.
 
-📡 **Common Tool-Calling Agent Support**: In addition to CodeAgents, [`ToolCallingAgent`](reference/agents#smolagents.ToolCallingAgent) supports usual JSON/text-based tool-calling for scenarios where that paradigm is preferred.
+📡 **기본 도구 호출 에이전트 지원**: CodeAgent 외에도 [`ToolCallingAgent`](reference/agents#smolagents.ToolCallingAgent)는 일반적인 JSON/텍스트 기반 도구 호출 방식이 필요한 경우를 위해 지원됩니다.
 
-🤗 **Hub integrations**: Seamlessly share and load agents and tools to/from the Hub as Gradio Spaces.
+🤗 **Hub 통합**: Gradio Spaces로 에이전트와 도구를 Hub에서 원활하게 공유하고 로드할 수 있습니다.
 
-🌐 **Model-agnostic**: Easily integrate any large language model (LLM), whether it's hosted on the Hub via [Inference providers](https://huggingface.co/docs/inference-providers/index), accessed via APIs such as OpenAI, Anthropic, or many others via LiteLLM integration, or run locally using Transformers or Ollama. Powering an agent with your preferred LLM is straightforward and flexible.
+🌐 **모델 독립적**: Hub의 [Inference providers](https://huggingface.co/docs/inference-providers/index)나 OpenAI, Anthropic 등의 API를 통해 접근하거나, LiteLLM 통합으로 다양한 LLM을 쉽게 연결할 수 있습니다. Transformers나 Ollama를 사용한 로컬 실행도 가능합니다. 원하는 LLM으로 에이전트를 구동하는 것이 간단하고 유연합니다.
 
-👁️ **Modality-agnostic**: Beyond text, agents can handle vision, video, and audio inputs, broadening the range of possible applications. Check out [this tutorial](examples/web_browser) for vision.
+👁️ **모달리티 독립적**: 텍스트뿐만 아니라 비전, 비디오, 오디오 입력도 처리할 수 있어 활용 가능한 애플리케이션 범위가 확장됩니다. 비전 관련 [튜토리얼](examples/web_browser)을 확인해보세요.
 
-🛠️ **Tool-agnostic**: You can use tools from any [MCP server](reference/tools#smolagents.ToolCollection.from_mcp), from [LangChain](reference/tools#smolagents.Tool.from_langchain), you can even use a [Hub Space](reference/tools#smolagents.Tool.from_space) as a tool.
+🛠️ **도구 독립적**: [MCP 서버](reference/tools#smolagents.ToolCollection.from_mcp)의 도구나 [LangChain](reference/tools#smolagents.Tool.from_langchain)의 도구를 사용할 수 있고, [Hub Space](reference/tools#smolagents.Tool.from_space)도 도구로 활용할 수 있습니다.
 
-💻 **CLI Tools**: Comes with command-line utilities (smolagent, webagent) for quickly running agents without writing boilerplate code.
+💻 **CLI 도구**: 기본 설정 코드 작성 없이 에이전트를 빠르게 실행할 수 있는 명령줄 유틸리티(smolagent, webagent)가 포함되어 있습니다.
 
-## Quickstart
+## 빠른 시작[[quickstart]]
 
 [[open-in-colab]]
 
-Get started with smolagents in just a few minutes! This guide will show you how to create and run your first agent.
+smolagents를 단 몇 분 만에 시작해보세요! 이 가이드는 첫 번째 에이전트를 생성하고 실행하는 방법을 보여줍니다.
 
-### Installation
+### 설치[[installation]]
 
-Install smolagents with pip:
+pip으로 smolagents를 설치하세요:
 
 ```bash
-pip install smolagents[toolkit]  # Includes default tools like web search
+pip install smolagents[toolkit]  # 웹 검색과 같은 기본 도구 포함
 ```
 
-### Create Your First Agent
+### 첫 에이전트 만들기[[create-your-first-agent]]
 
-Here's a minimal example to create and run an agent:
+다음은 에이전트를 생성하고 실행하는 최소한의 예제입니다:
 
 ```python
 from smolagents import CodeAgent, InferenceClientModel
 
-# Initialize a model (using Hugging Face Inference API)
-model = InferenceClientModel()  # Uses a default model
+# 모델 초기화 (Hugging Face Inference API 사용)
+model = InferenceClientModel()  # 기본 모델 사용
 
-# Create an agent with no tools
+# 도구 없이 에이전트 생성
 agent = CodeAgent(tools=[], model=model)
 
-# Run the agent with a task
+# 작업으로 에이전트 실행
 result = agent.run("Calculate the sum of numbers from 1 to 10")
 print(result)
 ```
 
-That's it! Your agent will use Python code to solve the task and return the result.
+끝입니다! 에이전트가 Python 코드를 사용하여 작업을 해결하고 결과를 반환합니다.
 
-### Adding Tools
+### 도구 추가[[adding-tools]]
 
-Let's make our agent more capable by adding some tools:
+몇 가지 도구를 추가하여 에이전트를 더 강력하게 만들어보겠습니다:
 
 ```python
 from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
@@ -73,53 +73,53 @@ agent = CodeAgent(
     model=model,
 )
 
-# Now the agent can search the web!
+# 이제 에이전트가 웹을 검색할 수 있습니다!
 result = agent.run("What is the current weather in Paris?")
 print(result)
 ```
 
-### Using Different Models
+### 다른 모델 사용하기[[using-different-models]]
 
-You can use various models with your agent:
+에이전트와 함께 다양한 모델을 사용할 수 있습니다:
 
 ```python
-# Using a specific model from Hugging Face
+# Hugging Face의 특정 모델 사용
 model = InferenceClientModel(model_id="meta-llama/Llama-2-70b-chat-hf")
 
-# Using OpenAI/Anthropic (requires smolagents[litellm])
+# OpenAI/Anthropic 사용 (smolagents[litellm] 필요)
 from smolagents import LiteLLMModel
 model = LiteLLMModel(model_id="gpt-4")
 
-# Using local models (requires smolagents[transformers])
+# 로컬 모델 사용 (smolagents[transformers] 필요)
 from smolagents import TransformersModel
 model = TransformersModel(model_id="meta-llama/Llama-2-7b-chat-hf")
 ```
 
-## Next Steps
+## 다음 단계[[next-steps]]
 
-- Learn how to set up smolagents with various models and tools in the [Installation Guide](installation)
-- Check out the [Guided Tour](guided_tour) for more advanced features
-- Learn about [building custom tools](tutorials/tools)
-- Explore [secure code execution](tutorials/secure_code_execution)
-- See how to create [multi-agent systems](tutorials/building_good_agents)
+- [설치 가이드](installation)에서 다양한 모델과 도구로 smolagents를 설정하는 방법을 알아보세요
+- 더 고급 기능은 [안내서](guided_tour)를 확인하세요
+- [커스텀 도구 구축](tutorials/tools)에 대해 알아보세요
+- [안전한 코드 실행](tutorials/secure_code_execution)을 살펴보세요
+- [멀티 에이전트 시스템](tutorials/building_good_agents) 생성 방법을 확인하세요
 
 <div class="mt-10">
   <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-y-4 md:gap-x-5">
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./guided_tour"
-      ><div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Guided tour</div>
-      <p class="text-gray-700">Learn the basics and become familiar with using Agents. Start here if you are using Agents for the first time!</p>
+      ><div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">안내서</div>
+      <p class="text-gray-700">기본 사항을 배우고 에이전트 사용에 익숙해지세요. 에이전트를 처음 사용하는 경우 여기서 시작하세요!</p>
     </a>
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./examples/text_to_sql"
-      ><div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">How-to guides</div>
-      <p class="text-gray-700">Practical guides to help you achieve a specific goal: create an agent to generate and test SQL queries!</p>
+      ><div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">실습 가이드</div>
+      <p class="text-gray-700">특정 목표를 달성하는 데 도움이 되는 실용적인 가이드: SQL 쿼리를 생성하고 테스트하는 에이전트를 만들어보세요!</p>
     </a>
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./conceptual_guides/intro_agents"
-      ><div class="w-full text-center bg-gradient-to-br from-pink-400 to-pink-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Conceptual guides</div>
-      <p class="text-gray-700">High-level explanations for building a better understanding of important topics.</p>
+      ><div class="w-full text-center bg-gradient-to-br from-pink-400 to-pink-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">개념 가이드</div>
+      <p class="text-gray-700">중요한 주제에 대한 전체적인 이해를 돕는 설명입니다.</p>
    </a>
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./tutorials/building_good_agents"
-      ><div class="w-full text-center bg-gradient-to-br from-purple-400 to-purple-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Tutorials</div>
-      <p class="text-gray-700">Horizontal tutorials that cover important aspects of building agents.</p>
+      ><div class="w-full text-center bg-gradient-to-br from-purple-400 to-purple-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">튜토리얼</div>
+      <p class="text-gray-700">에이전트 구축의 중요한 측면을 다루는 포괄적인 튜토리얼입니다.</p>
     </a>
   </div>
 </div>
