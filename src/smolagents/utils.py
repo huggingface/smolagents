@@ -405,27 +405,26 @@ def get_source(obj) -> str:
         TypeError: If object is not a class or callable
         OSError: If source code cannot be retrieved from any source
         ValueError: If source cannot be found in IPython history
-
-    Note:
-        TODO: handle Python standard REPL
     """
     if not (isinstance(obj, type) or callable(obj)):
         raise TypeError(f"Expected class or callable, got {type(obj)}")
 
     inspect_error = None
+    # Try with inspect.getsource (standard library)
     try:
-        # Handle dynamically created classes
         source = getattr(obj, "__source__", None) or inspect.getsource(obj)
         return dedent(source).strip()
     except OSError as e:
-        # let's keep track of the exception to raise it if all further methods fail
-        inspect_error = e
+        inspect_error = e  # Keep the original error to raise if all fallbacks fail
+
+    # Try to get from IPython history if available
     try:
         import IPython
 
         shell = IPython.get_ipython()
         if not shell:
             raise ImportError("No active IPython shell found")
+        
         all_cells = "\n".join(shell.user_ns.get("In", [])).strip()
         if not all_cells:
             raise ValueError("No code cells found in IPython session")
@@ -435,12 +434,19 @@ def get_source(obj) -> str:
             if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name == obj.__name__:
                 return dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
         raise ValueError(f"Could not find source code for {obj.__name__} in IPython history")
-    except ImportError:
-        # IPython is not available, let's just raise the original inspect error
-        raise inspect_error
-    except ValueError as e:
-        # IPython is available but we couldn't find the source code, let's raise the error
-        raise e from inspect_error
+    except (ImportError, ValueError):
+        pass  # If IPython fails, move to the next fallback
+
+    # Try with dill (for standard REPL and other cases)
+    try:
+        import dill
+        source = dill.source.getsource(obj)
+        return dedent(source).strip()
+    except (ImportError, TypeError, OSError):
+        pass  # If dill fails, we're out of options
+
+    # If all fallbacks failed, raise the original error from inspect
+    raise inspect_error
 
 
 def encode_image_base64(image):
@@ -494,9 +500,15 @@ with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
     model=model,
     tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
     managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
-    {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
+    {% for attribute_name, value in agent_dict.items() if
+        attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements", "class"]
+        and value is not none
+        and value != []
+        and value != {}
+    -%}
     {{ attribute_name }}={{ value|repr }},
-    {% endfor %}prompt_templates=prompt_templates
+    {% endfor %}
+    prompt_templates=prompt_templates
 )
 if __name__ == "__main__":
     GradioUI({{ agent_name }}).launch()
