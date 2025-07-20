@@ -95,6 +95,7 @@ test = [
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
   "Wikipedia-API>=0.8.1",
+  "mlx[cpu]",  # GH-1588
 ]
 dev = [
   "smolagents[quality,test]",
