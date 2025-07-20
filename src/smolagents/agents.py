@@ -970,7 +970,9 @@ You have been provided with these additional arguments, that you can access dire
             )
 
         agent_dict = {
-            "class": self.__class__.__name__,
+            # The function tries to add class='CodeAgent' (for example) as an argument, which results in a syntax error in Python because class is a reserved keyword.
+            # This key is unnecessary here, since the class name (e.g., CodeAgent) is already hardcoded in the template.
+            # "class": self.__class__.__name__,
             "tools": tool_dicts,
             "model": {
                 "class": self.model.__class__.__name__,
