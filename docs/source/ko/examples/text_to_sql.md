@@ -68,11 +68,11 @@ rows = [
 insert_rows_into_table(rows, receipts)
 ```
 
-### 에이전트 구축하기
+### 에이전트 만들기
 
 이제 툴을 활용해 SQL 테이블을 조회할 수 있도록 만들어봅시다.
 
-툴의 description 속성은 에이전트 시스템에 의해 LLM 프롬프트에 포함되는 부분으로, LLM이 해당 도구를 어떻게 사용할 수 있는지에 대한 정보를 제공합니다. 바로 이 부분에 우리가 정의한 SQL 테이블의 설명을 작성하면 됩니다.
+툴의 설명 속성은 에이전트 시스템에 의해 LLM 프롬프트에 포함되는 부분으로, LLM이 해당 도구를 어떻게 사용할 수 있는지에 대한 정보를 제공합니다. 바로 이 부분에 우리가 정의한 SQL 테이블의 설명을 작성하면 됩니다.
 
 ```py
 inspector = inspect(engine)
@@ -90,9 +90,9 @@ Columns:
   - tip: FLOAT
 ```
 
-Now let’s build our tool. It needs the following: (read [the tool doc](../tutorials/tools) for more detail)
-- A docstring with an `Args:` part listing arguments.
-- Type hints on both inputs and output.
+이제 우리만의 툴을 만들어봅시다. 툴은 아래와 같은 요소를 필요로 합니다. (자세한 내용은 [툴 문서](../tutorials/tools)를 참고하세요)
+- 인자(`Args:`) 목록이 포함된 독스트링
+- 입력과 출력에 대한 타입 힌트
 
 ```py
 from smolagents import tool
@@ -119,11 +119,11 @@ def sql_engine(query: str) -> str:
     return output
 ```
 
-Now let us create an agent that leverages this tool.
+이제 이 툴을 활용하는 에이전트를 만들어보겠습니다.
 
-We use the `CodeAgent`, which is smolagents’ main agent class: an agent that writes actions in code and can iterate on previous output according to the ReAct framework.
+여기서는 smolagent의 메인 에이전트 클래스인 `CodeAgent`를 사용합니다. `CodeAgent`는 코드로 액션을 작성하고 ReAct 프레임워크에 따라 이전 출력 결과를 반복적으로 개선할 수 있습니다.
 
-The model is the LLM that powers the agent system. `InferenceClientModel` allows you to call LLMs using HF’s Inference API, either via Serverless or Dedicated endpoint, but you could also use any proprietary API.
+모델은 에이전트 시스템을 구동하는 LLM을 의미합니다. `InferenceClientModel`을 사용하면 허깅페이스의 Inference API를 통해 서버리스 또는 Dedicated 엔드포인트 방식으로 LLM을 호출할 수 있으며, 필요에 따라 다른 사설 API를 사용할 수도 있습니다.
 
 ```py
 from smolagents import CodeAgent, InferenceClientModel
@@ -188,11 +188,11 @@ agent = CodeAgent(
 
 agent.run("Which waiter got more total money from tips?")
 ```
-It directly works! The setup was surprisingly simple, wasn’t it?
+바로 동작합니다! 설정 과정이 놀라울 만큼 간단하지 않았나요?
 
-This example is done! We've touched upon these concepts:
-- Building new tools.
-- Updating a tool's description.
-- Switching to a stronger LLM helps agent reasoning.
+이번 예제는 여기까지입니다! 지금까지 다음과 같은 개념들을 확인했습니다:
+- 새로운 툴 만들기
+- 툴 설명 업데이트하기
+- 더 강력한 LLM을 사용할 경우 에이전트의 추론 능력이 향상된다는 점
 
-✅ Now you can go build this text-to-SQL system you’ve always dreamt of! ✨
+✅ 이제 여러분이 꿈꿔왔던 text-to-SQL 시스템을 직접 만들어볼 수 있습니다! ✨
