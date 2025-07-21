@@ -460,11 +460,12 @@ You have been provided with these additional arguments, that you can access dire
 
         if stream:
             # The steps are returned as they are executed through a generator to iterate on.
-            return self._run_stream(task=self.task, max_steps=max_steps, images=images)
-        run_start_time = time.time()
-        # Outputs are returned only at the end. We only look at the last step.
+            return self._run_stream(task=self.task, max_steps=max_steps)
 
-        steps = list(self._run_stream(task=self.task, max_steps=max_steps, images=images))
+        run_start_time = time.time()
+        steps = list(self._run_stream(task=self.task, max_steps=max_steps))
+
+        # Outputs are returned only at the end. We only look at the last step.
         assert isinstance(steps[-1], FinalAnswerStep)
         output = steps[-1].output
 
@@ -503,7 +504,7 @@ You have been provided with these additional arguments, that you can access dire
         return output
 
     def _run_stream(
-        self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
+        self, task: str, max_steps: int
     ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
         self.step_number = 1
         returned_final_answer = False
@@ -533,11 +534,7 @@ You have been provided with these additional arguments, that you can access dire
 
             # Start action step!
             action_step_start_time = time.time()
-            action_step = ActionStep(
-                step_number=self.step_number,
-                timing=Timing(start_time=action_step_start_time),
-                observations_images=images,
-            )
+            action_step = ActionStep(step_number=self.step_number, timing=Timing(start_time=action_step_start_time))
             self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
             try:
                 for output in self._step_stream(action_step):
@@ -569,7 +566,7 @@ You have been provided with these additional arguments, that you can access dire
                 self.step_number += 1
 
         if not returned_final_answer and self.step_number == max_steps + 1:
-            final_answer = self._handle_max_steps_reached(task, images)
+            final_answer = self._handle_max_steps_reached(task)
             yield action_step
         yield FinalAnswerStep(handle_agent_output_types(final_answer))
 
@@ -584,9 +581,9 @@ You have been provided with these additional arguments, that you can access dire
         memory_step.timing.end_time = time.time()
         self.step_callbacks.callback(memory_step, agent=self)
 
-    def _handle_max_steps_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
+    def _handle_max_steps_reached(self, task: str) -> Any:
         action_step_start_time = time.time()
-        final_answer = self.provide_final_answer(task, images)
+        final_answer = self.provide_final_answer(task)
         final_memory_step = ActionStep(
             step_number=self.step_number,
             error=AgentMaxStepsError("Reached max steps.", self.logger),
@@ -781,7 +778,7 @@ You have been provided with these additional arguments, that you can access dire
             )
         return rationale.strip(), action.strip()
 
-    def provide_final_answer(self, task: str, images: list["PIL.Image.Image"] | None = None) -> ChatMessage:
+    def provide_final_answer(self, task: str) -> ChatMessage:
         """
         Provide the final answer to the task, based on the logs of the agent's interactions.
 
@@ -803,8 +800,6 @@ You have been provided with these additional arguments, that you can access dire
                 ],
             )
         ]
-        if images:
-            messages[0].content += [{"type": "image", "image": image} for image in images]
         messages += self.write_memory_to_messages()[1:]
         messages.append(
             ChatMessage(
