@@ -196,10 +196,7 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
                     self.class_attributes.add(target.id)
 
             # Check if the assignment is more complex than simple literals
-            if not all(
-                isinstance(val, (ast.Constant, ast.Dict, ast.List, ast.Set))
-                for val in ast.walk(node.value)
-            ):
+            if not all(isinstance(val, (ast.Constant, ast.Dict, ast.List, ast.Set)) for val in ast.walk(node.value)):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
                         self.complex_attributes.add(target.id)
