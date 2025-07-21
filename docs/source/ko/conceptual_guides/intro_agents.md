@@ -1,105 +1,105 @@
-# Introduction to Agents
+# 에이전트 소개[[introduction-to-agents]]
 
-## 🤔 What are agents?
+## 🤔 에이전트란 무엇인가요?[[what-are-agents]]
 
-Any efficient system using AI will need to provide LLMs some kind of access to the real world: for instance the possibility to call a search tool to get external information, or to act on certain programs in order to solve a task. In other words, LLMs should have ***agency***. Agentic programs are the gateway to the outside world for LLMs.
+AI를 사용하는 모든 효율적인 시스템은 LLM에게 실제 세계에 접근할 수 있는 어떤 형태의 권한을 제공해야 합니다. 예를 들어, 외부 정보를 얻기 위해 검색 도구를 호출하거나 특정 프로그램에서 작업을 수행할 수 있는 가능성을 제공해야 합니다. 다시 말해, LLM은 ***에이전시***를 가져야 합니다. 에이전틱 프로그램은 LLM이 외부 세계와 연결되는 관문입니다.
 
 > [!TIP]
-> AI Agents are **programs where LLM outputs control the workflow**.
+> AI 에이전트는 **LLM 출력이 워크플로우를 제어하는 프로그램**입니다.
 
-Any system leveraging LLMs will integrate the LLM outputs into code. The influence of the LLM's input on the code workflow is the level of agency of LLMs in the system.
+LLM을 활용하는 모든 시스템은 LLM 출력을 코드에 통합합니다. LLM 입력이 코드 워크플로우에 미치는 영향은 시스템 내에서 LLM의 에이전시 수준을 나타냅니다.
 
-Note that with this definition, "agent" is not a discrete, 0 or 1 definition: instead, "agency" evolves on a continuous spectrum, as you give more or less power to the LLM on your workflow.
+이 정의에 따르면, "에이전트"는 이산적이고 0 또는 1로 정의되는 것이 아닙니다. 대신, 워크플로우에서 LLM에 더 많은 또는 더 적은 권한을 부여함에 따라 "에이전시"는 연속적인 스펙트럼에서 발전합니다.
 
-See in the table below how agency can vary across systems:
+아래 표에서 시스템 간 에이전시가 어떻게 달라질 수 있는지 확인하세요:
 
-| Agency Level | Description                                            | Short name       | Example Code                                       |
-| ------------ | ------------------------------------------------------ | ---------------- | -------------------------------------------------- |
-| ☆☆☆ | LLM output has no impact on program flow                        | Simple processor | `process_llm_output(llm_response)`                 |
-| ★☆☆ | LLM output controls an if/else switch                           | Router           | `if llm_decision(): path_a() else: path_b()`       |
-| ★★☆ | LLM output controls function execution                          | Tool call        | `run_function(llm_chosen_tool, llm_chosen_args)`   |
-| ★★☆ | LLM output controls iteration and program continuation          | Multi-step Agent | `while llm_should_continue(): execute_next_step()` |
-| ★★★ | One agentic workflow can start another agentic workflow         | Multi-Agent      | `if llm_trigger(): execute_agent()`                |
-| ★★★ | LLM acts in code, can define its own tools / start other agents | Code Agents      | `def custom_tool(args): ...`                       |
+| 에이전시 수준 | 설명                                                    | 짧은 이름       | 예제 코드                                           |
+| ------------- | ------------------------------------------------------ | --------------- | -------------------------------------------------- |
+| ☆☆☆          | LLM 출력이 프로그램 흐름에 영향을 미치지 않음            | 단순 프로세서   | `process_llm_output(llm_response)`                 |
+| ★☆☆          | LLM 출력이 if/else 분기를 제어                           | 라우터          | `if llm_decision(): path_a() else: path_b()`       |
+| ★★☆          | LLM 출력이 함수 실행을 제어                              | 도구 호출       | `run_function(llm_chosen_tool, llm_chosen_args)`   |
+| ★★☆          | LLM 출력이 반복 및 프로그램 지속을 제어                  | 다단계 에이전트 | `while llm_should_continue(): execute_next_step()` |
+| ★★★          | 하나의 에이전틱 워크플로우가 다른 에이전틱 워크플로우를 시작 | 다중 에이전트   | `if llm_trigger(): execute_agent()`                |
+| ★★★          | LLM이 코드에서 작동하며, 자체 도구를 정의하거나 다른 에이전트를 시작할 수 있음 | 코드 에이전트   | `def custom_tool(args): ...`                       |
 
-The multi-step agent has this code structure:
+다단계 에이전트는 다음과 같은 코드 구조를 가집니다:
 
 ```python
 memory = [user_defined_task]
-while llm_should_continue(memory): # this loop is the multi-step part
-    action = llm_get_next_action(memory) # this is the tool-calling part
+while llm_should_continue(memory): # 이 루프는 다단계 부분입니다
+    action = llm_get_next_action(memory) # 이것은 도구 호출 부분입니다
     observations = execute_action(action)
     memory += [action, observations]
 ```
 
-This agentic system runs in a loop, executing a new action at each step (the action can involve calling some pre-determined *tools* that are just functions), until its observations make it apparent that a satisfactory state has been reached to solve the given task. Here’s an example of how a multi-step agent can solve a simple math question:
+이 에이전틱 시스템은 루프 내에서 실행되며, 각 단계에서 새로운 작업을 수행합니다(작업은 단순히 함수인 사전 정의된 *도구*를 호출하는 것을 포함할 수 있습니다). 주어진 작업을 해결하기 위해 만족스러운 상태에 도달했음을 관찰할 때까지 계속됩니다. 다음은 다단계 에이전트가 간단한 수학 문제를 해결하는 방법의 예입니다:
 
 <div class="flex justify-center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/Agent_ManimCE.gif"/>
 </div>
 
 
-## ✅ When to use agents / ⛔ when to avoid them
+## ✅ 에이전트를 사용할 때 / ⛔ 피해야 할 때[[when-to-use-agents-/-when-to-avoid-them]]
 
-Agents are useful when you need an LLM to determine the workflow of an app. But they’re often overkill. The question is: do I really need flexibility in the workflow to efficiently solve the task at hand?
-If the pre-determined workflow falls short too often, that means you need more flexibility.
-Let's take an example: say you're making an app that handles customer requests on a surfing trip website.
+에이전트는 앱의 워크플로우를 결정할 때 대규모 언어 모델(LLM)이 필요할 때 유용합니다. 하지만 종종 과도하게 사용되기도 합니다. 질문은 다음과 같습니다: 현재 작업을 효율적으로 해결하기 위해 워크플로우에 정말로 유연성이 필요한가요?
+미리 결정된 워크플로우가 자주 부족하다면, 더 많은 유연성이 필요하다는 의미입니다.
+예를 들어, 서핑 여행 웹사이트에서 고객 요청을 처리하는 앱을 만들고 있다고 가정해 봅시다.
 
-You could know in advance that the requests will belong to either of 2 buckets (based on user choice), and you have a predefined workflow for each of these 2 cases.
+사용자 선택에 따라 요청이 두 가지 범주 중 하나에 속할 수 있으며, 이 두 가지 경우 각각에 대한 사전 정의된 워크플로우가 있다고 가정할 수 있습니다.
 
-1. Want some knowledge on the trips? ⇒ give them access to a search bar to search your knowledge base
-2. Wants to talk to sales? ⇒ let them type in a contact form.
+1. 여행에 대한 정보를 원하나요? ⇒ 검색 바를 통해 지식 베이스를 검색할 수 있도록 합니다.
+2. 영업팀과 대화하고 싶나요? ⇒ 연락처 양식을 작성할 수 있도록 합니다.
 
-If that deterministic workflow fits all queries, by all means just code everything! This will give you a 100% reliable system with no risk of error introduced by letting unpredictable LLMs meddle in your workflow. For the sake of simplicity and robustness, it's advised to regularize towards not using any agentic behaviour. 
+이 결정론적 워크플로우가 모든 쿼리에 적합하다면, 모든 것을 코드로 작성하세요! 이렇게 하면 예측할 수 없는 LLM이 워크플로우에 개입하여 오류를 일으킬 위험 없이 100% 신뢰할 수 있는 시스템을 구축할 수 있습니다. 단순성과 견고함을 위해, 에이전트 행동을 사용하지 않는 방향으로 정규화하는 것이 권장됩니다.
 
-But what if the workflow can't be determined that well in advance? 
+하지만 워크플로우를 미리 그렇게 잘 결정할 수 없다면 어떻게 될까요?
 
-For instance, a user wants to ask: `"I can come on Monday, but I forgot my passport so risk being delayed to Wednesday, is it possible to take me and my stuff to surf on Tuesday morning, with a cancellation insurance?"` This question hinges on many factors, and probably none of the predetermined criteria above will suffice for this request.
+예를 들어, 사용자가 다음과 같은 질문을 하고 싶어한다고 가정해 봅시다: `"월요일에 올 수 있지만 여권을 잊어버려 수요일로 지연될 위험이 있습니다. 화요일 아침에 저와 제 짐을 서핑하러 데려갈 수 있나요, 취소 보험이 포함된 상태로?"` 이 질문은 많은 요소에 달려 있으며, 아마도 위의 사전 결정된 기준 중 어느 것도 이 요청에 충분하지 않을 것입니다.
 
-If the pre-determined workflow falls short too often, that means you need more flexibility.
+미리 결정된 워크플로우가 자주 부족하다면, 더 많은 유연성이 필요하다는 의미입니다.
 
-That is where an agentic setup helps.
+이런 경우에 에이전트 설정이 도움이 됩니다.
 
-In the above example, you could just make a multi-step agent that has access to a weather API for weather forecasts, Google Maps API to compute travel distance, an employee availability dashboard and a RAG system on your knowledge base.
+위의 예에서, 날씨 예보를 위한 날씨 API, 여행 거리를 계산하기 위한 Google Maps API, 직원 가용성 대시보드 및 지식 베이스의 RAG 시스템에 접근할 수 있는 다단계 에이전트를 만들 수 있습니다.
 
-Until recently, computer programs were restricted to pre-determined workflows, trying to handle complexity by piling up  if/else switches. They focused on extremely narrow tasks, like "compute the sum of these numbers" or "find the shortest path in this graph". But actually, most real-life tasks, like our trip example above, do not fit in pre-determined workflows. Agentic systems open up the vast world of real-world tasks to programs!
+최근까지 컴퓨터 프로그램은 미리 결정된 워크플로우에 제한되어 있었으며, if/else 스위치를 쌓아 복잡성을 처리하려고 했습니다. 이들은 "이 숫자의 합을 계산하라"거나 "이 그래프에서 최단 경로를 찾아라"와 같은 매우 좁은 작업에 집중했습니다. 하지만 실제로 대부분의 실제 작업, 예를 들어 위의 여행 예제와 같은 작업은 미리 결정된 워크플로우에 맞지 않습니다. 에이전트 시스템은 프로그램에 실제 세계의 방대한 작업을 열어줍니다!
 
-## Why `smolagents`?
+## 왜 `smolagents`인가?[[why-smolagents]]
 
-For some low-level agentic use cases, like chains or routers, you can write all the code yourself. You'll be much better that way, since it will let you control and understand your system better.
+일부 저수준의 에이전트 사용 사례, 예를 들어 체인이나 라우터 같은 경우에는 모든 코드를 직접 작성할 수 있습니다. 이렇게 하면 시스템을 더 잘 제어하고 이해할 수 있기 때문에 훨씬 더 나은 방법입니다.
 
-But once you start going for more complicated behaviours like letting an LLM call a function (that's "tool calling") or letting an LLM run a while loop ("multi-step agent"), some abstractions become necessary:
-- For tool calling, you need to parse the agent's output, so this output needs a predefined format like "Thought: I should call tool 'get_weather'. Action: get_weather(Paris).", that you parse with a predefined function, and system prompt given to the LLM should notify it about this format.
-- For a multi-step agent where the LLM output determines the loop, you need to give a different prompt to the LLM based on what happened in the last loop iteration: so you need some kind of memory.
+하지만 LLM이 함수를 호출하도록 하거나("도구 호출") LLM이 while 루프를 실행하도록 하는("다단계 에이전트") 등 더 복잡한 동작을 구현하려고 할 때는 몇 가지 추상화가 필요합니다:
+- 도구 호출의 경우, 에이전트의 출력을 파싱해야 하므로 이 출력은 "생각: 도구 'get_weather'를 호출해야 합니다. 행동: get_weather(Paris)."와 같은 사전 정의된 형식이 필요합니다. 이 형식을 사전 정의된 함수로 파싱하고, LLM에 제공되는 시스템 프롬프트는 이 형식에 대해 알려야 합니다.
+- LLM 출력이 루프를 결정하는 다단계 에이전트의 경우, 마지막 루프 반복에서 발생한 일에 따라 LLM에 다른 프롬프트를 제공해야 합니다. 따라서 일종의 메모리가 필요합니다.
 
-See? With these two examples, we already found the need for a few items to help us:
+보셨나요? 이 두 가지 예시만으로도 이미 몇 가지 도움이 필요한 항목들이 필요하다는 것을 알 수 있습니다:
 
-- Of course, an LLM that acts as the engine powering the system
-- A list of tools that the agent can access
-- A system prompt guiding the LLM on the agent logic: ReAct loop of Reflection -> Action -> Observation, available tools, tool calling format to use...
-- A parser that extracts tool calls from the LLM output, in the format indicated by system prompt above.
-- A memory
+- 물론, 시스템을 구동하는 엔진 역할을 하는 LLM
+- 에이전트가 접근할 수 있는 도구 목록
+- 에이전트 로직에 대한 LLM을 안내하는 시스템 프롬프트: Reflection -> Action -> Observation의 ReAct 루프, 사용 가능한 도구, 사용할 도구 호출 형식 등...
+- 시스템 프롬프트에서 지시한 형식으로 LLM 출력에서 도구 호출을 추출하는 파서
+- 메모리
 
-But wait, since we give room to LLMs in decisions, surely they will make mistakes: so we need error logging and retry mechanisms.
+하지만 잠깐, LLM에게 결정을 맡기면 당연히 실수를 할 것입니다. 따라서 오류 로깅과 재시도 메커니즘이 필요합니다.
 
-All these elements need tight coupling to make a well-functioning system. That's why we decided we needed to make basic building blocks to make all this stuff work together.
+이 모든 요소들은 잘 작동하는 시스템을 만들기 위해 긴밀하게 결합되어야 합니다. 그래서 우리는 이 모든 것들이 함께 작동할 수 있도록 기본적인 빌딩 블록을 만들어야 한다고 결정했습니다.
 
-## Code agents
+## 코드 에이전트[[code-agents]]
 
-In a multi-step agent, at each step, the LLM can write an action, in the form of some calls to external tools. A common format (used by Anthropic, OpenAI, and many others) for writing these actions is generally different shades of "writing actions as a JSON of tools names and arguments to use, which you then parse to know which tool to execute and with which arguments".
+다단계 에이전트에서는 각 단계에서 대규모 언어 모델(LLM)이 외부 도구 호출 형태로 동작을 작성할 수 있습니다. 이러한 동작을 작성하는 일반적인 형식은 일반적으로 "사용할 도구 이름과 인수를 JSON으로 작성한 후 이를 파싱하여 어떤 도구를 어떤 인수로 실행할지 결정하는" 방식의 다양한 변형입니다. 이 형식은 Anthropic, OpenAI 등 여러 곳에서 사용됩니다.
 
-[Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the LLMs actions written as code snippets is a more natural and flexible way of writing them.
+[여러](https://huggingface.co/papers/2402.01030) [연구](https://huggingface.co/papers/2411.01747) [논문](https://huggingface.co/papers/2401.00812)은 LLM의 동작을 코드 스니펫으로 작성하는 것이 더 자연스럽고 유연한 방법임을 보여주었습니다.
 
-The reason for this simply that *we crafted our code languages specifically to express the actions performed by a computer*.
-In other words, our agent is going to write programs in order to solve the user's issues : do you think their programming will be easier in blocks of Python or JSON?
+이유는 간단합니다. *우리는 컴퓨터가 수행하는 동작을 표현하기 위해 코드 언어를 특별히 설계했습니다.* 
+다시 말해, 에이전트가 사용자의 문제를 해결하기 위해 프로그램을 작성할 때, Python 블록으로 작성하는 것이 JSON 블록으로 작성하는 것보다 더 쉬울까요?
 
-The figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030), illustrates some advantages of writing actions in code:
+아래 그림은 [실행 가능한 코드 동작이 더 나은 LLM 에이전트를 이끌어냅니다](https://huggingface.co/papers/2402.01030)에서 가져온 것으로, 코드를 사용하여 동작을 작성하는 것의 몇 가지 장점을 보여줍니다:
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_vs_json_actions.png">
 
-Writing actions in code rather than JSON-like snippets provides better:
+JSON과 같은 스니펫 대신 코드로 동작을 작성하는 것은 다음과 같은 이점을 제공합니다:
 
-- **Composability:** could you nest JSON actions within each other, or define a set of JSON actions to re-use later, the same way you could just define a python function?
-- **Object management:** how do you store the output of an action like `generate_image` in JSON?
-- **Generality:** code is built to express simply anything you can have a computer do.
-- **Representation in LLM training data:** plenty of quality code actions are already included in LLMs’ training data which means they’re already trained for this!
+- **구성 가능성:** JSON 동작을 서로 중첩하거나 나중에 재사용할 JSON 동작 세트를 정의할 수 있을까요? Python 함수로 정의할 수 있는 것처럼 말입니다.
+- **객체 관리:** JSON에서 `generate_image`와 같은 동작의 출력을 어떻게 저장할 수 있을까요?
+- **일반성:** 코드는 컴퓨터가 수행할 수 있는 모든 것을 간단히 표현하도록 설계되었습니다.
+- **LLM 학습 데이터에서의 표현:** 많은 양질의 코드 동작이 이미 LLM의 학습 데이터에 포함되어 있어, 이미 이를 위해 훈련되어 있습니다!
