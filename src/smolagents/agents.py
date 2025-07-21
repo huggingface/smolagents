@@ -453,7 +453,8 @@ You have been provided with these additional arguments, that you can access dire
             level=LogLevel.INFO,
             title=self.name if hasattr(self, "name") else None,
         )
-        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+        self.memory.run_images = images
+        self.memory.steps.append(TaskStep(task=self.task, task_images=images if self.model.supports_images else None))
 
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
@@ -1436,9 +1437,17 @@ class ToolCallingAgent(MultiStepAgent):
         try:
             # Call tool with appropriate arguments
             if isinstance(arguments, dict):
-                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+                return (
+                    tool(**arguments, images=self.memory.run_images)
+                    if is_managed_agent
+                    else tool(**arguments, sanitize_inputs_outputs=True)
+                )
             else:
-                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+                return (
+                    tool(arguments, images=self.memory.run_images)
+                    if is_managed_agent
+                    else tool(arguments, sanitize_inputs_outputs=True)
+                )
 
         except Exception as e:
             # Handle execution errors
