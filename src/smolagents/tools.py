@@ -26,6 +26,7 @@ import tempfile
 import textwrap
 import types
 import warnings
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
@@ -94,7 +95,15 @@ AUTHORIZED_TYPES = [
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
 
 
-class Tool:
+class BaseTool(ABC):
+    name: str
+
+    @abstractmethod
+    def __call__(self, *args, **kwargs) -> Any:
+        pass
+
+
+class Tool(BaseTool):
     """
     A base class for the functions used by the agent. Subclass this and implement the `forward` method as well as the
     following class attributes:
