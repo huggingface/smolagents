@@ -246,8 +246,8 @@ class Tool(BaseTool):
         self.is_initialized = True
 
     def to_code_prompt(self) -> str:
-        args_types = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
-        tool_signature = f"({args_types}) -> {self.output_type}"
+        args_signature = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
+        tool_signature = f"({args_signature}) -> {self.output_type}"
         tool_doc = self.description
         if self.inputs:
             args_descriptions = "\n".join(
@@ -255,7 +255,7 @@ class Tool(BaseTool):
             )
             args_doc = f"Args:\n{textwrap.indent(args_descriptions, '    ')}"
             tool_doc += f"\n\n{args_doc}"
-        tool_doc = '"""' + tool_doc + '\n"""'
+        tool_doc = f'"""{tool_doc}\n"""'
         return f"def {self.name}{tool_signature}:\n{textwrap.indent(tool_doc, '    ')}"
 
     def to_tool_calling_prompt(self) -> str:
