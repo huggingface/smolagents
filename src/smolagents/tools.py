@@ -103,6 +103,24 @@ class BaseTool(ABC):
         pass
 
 
+
+class FunctionTool(BaseTool):
+    def __init__(self, func: Callable, name: str | None = None):
+        self.func = func
+        self.name = name or func.__name__
+
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
+
+    def to_code_prompt(self) -> str:
+        tool_doc = f'"""{inspect.getdoc(self.func)}\n"""'
+        return f"def {self.name}{inspect.signature(self.func)}:\n{textwrap.indent(tool_doc, '    ')}"
+
+    def to_tool_calling_prompt(self) -> str:
+        schema = get_json_schema(self.func)
+        return json.dumps(schema["function"])
+
+
 class Tool(BaseTool):
     """
     A base class for the functions used by the agent. Subclass this and implement the `forward` method as well as the
