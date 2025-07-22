@@ -27,7 +27,7 @@
 - title: 예제
   sections:
   - local: examples/text_to_sql
-    title: Self-correcting Text-to-SQL
+    title: 자가교정 Text-to-SQL
   - local: examples/rag
     title: Master your knowledge base with agentic RAG
   - local: examples/multiagents

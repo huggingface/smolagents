@@ -100,8 +100,8 @@ from smolagents import tool
 @tool
 def sql_engine(query: str) -> str:
     """
-    Allows you to perform SQL queries on the table. Returns a string representation of the result.
-    The table is named 'receipts'. Its description is as follows:
+    테이블에 SQL 쿼리를 수행할 수 있습니다. 결과를 문자열로 반환합니다.
+    테이블 이름은 'receipts'이며, 설명은 다음과 같습니다:
         Columns:
         - receipt_id: INTEGER
         - customer_name: VARCHAR(16)
@@ -109,7 +109,7 @@ def sql_engine(query: str) -> str:
         - tip: FLOAT
 
     Args:
-        query: The query to perform. This should be correct SQL.
+        query: 수행할 쿼리입니다. 올바른 SQL이어야 합니다.
     """
     output = ""
     with engine.connect() as con:
@@ -135,11 +135,11 @@ agent = CodeAgent(
 agent.run("Can you give me the name of the client who got the most expensive receipt?")
 ```
 
-### Level 2: Table joins
+### 레벨 업: 테이블 조인
 
-Now let’s make it more challenging! We want our agent to handle joins across multiple tables.
+이제 좀 더 어려운 과제를 해결해 볼까요? 에이전트가 여러 테이블에 걸친 조인을 처리하도록 만들어 보겠습니다.
 
-So let’s make a second table recording the names of waiters for each receipt_id!
+이를 위해 각 `receipt_id`에 해당하는 웨이터의 이름을 기록하는 두 번째 테이블을 만들어 보겠습니다.
 
 ```py
 table_name = "waiters"
@@ -159,7 +159,7 @@ rows = [
 ]
 insert_rows_into_table(rows, waiters)
 ```
-Since we changed the table, we update the `SQLExecutorTool` with this table’s description to let the LLM properly leverage information from this table.
+테이블이 변경되었기 때문에 LLM이 테이블 정보를 올바르게 활용할 수 있도록 `sql_engine`의 설명을 업데이트하겠습니다.
 
 ```py
 updated_description = """Allows you to perform SQL queries on the table. Beware that this tool's output is a string representation of the execution output.
@@ -176,7 +176,7 @@ for table in ["receipts", "waiters"]:
 
 print(updated_description)
 ```
-Since this request is a bit harder than the previous one, we’ll switch the LLM engine to use the more powerful [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct)!
+이번 요청은 이전보다 조금 더 어려우므로 더 강력한 [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) 모델을 사용하도록 LLM 엔진을 바꾸겠습니다!
 
 ```py
 sql_engine.description = updated_description
