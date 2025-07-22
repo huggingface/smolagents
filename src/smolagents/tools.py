@@ -255,7 +255,7 @@ class Tool(BaseTool):
             )
             args_doc = f"Args:\n{textwrap.indent(args_descriptions, '    ')}"
             tool_doc += f"\n\n{args_doc}"
-        tool_doc = '"""\n' + tool_doc + '\n"""'
+        tool_doc = '"""' + tool_doc + '\n"""'
         return f"def {self.name}{tool_signature}:\n{textwrap.indent(tool_doc, '    ')}"
 
     def to_tool_calling_prompt(self) -> str:
