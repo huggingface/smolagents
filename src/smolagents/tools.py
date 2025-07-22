@@ -103,7 +103,6 @@ class BaseTool(ABC):
         pass
 
 
-
 class FunctionTool(BaseTool):
     def __init__(self, func: Callable, name: str | None = None):
         self.func = func
