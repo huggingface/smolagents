@@ -24,7 +24,7 @@
 
 🛠️ **도구 독립적**: [MCP 서버](reference/tools#smolagents.ToolCollection.from_mcp)의 도구나 [LangChain](reference/tools#smolagents.Tool.from_langchain)의 도구를 사용할 수 있고, [Hub Space](reference/tools#smolagents.Tool.from_space)도 도구로 활용할 수 있습니다.
 
-💻 **CLI 도구**: 기본 설정 코드 작성 없이 에이전트를 빠르게 실행할 수 있는 명령줄 유틸리티(smolagent, webagent)가 포함되어 있습니다.
+💻 **CLI 도구**: 보일러플레이트 코드 작성 없이 에이전트를 빠르게 실행할 수 있는 명령줄 유틸리티(smolagent, webagent)가 포함되어 있습니다.
 
 ## 빠른 시작[[quickstart]]
 
