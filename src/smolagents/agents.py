@@ -267,11 +267,12 @@ class MultiStepAgent(ABC):
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
         grammar: dict[str, str] | None = None,
-        managed_agents: list | None = None,
+        managed_agents: list["MultiStepAgent"] | None = None,
         step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable | list[Callable]] | None = None,
         planning_interval: int | None = None,
         name: str | None = None,
         description: str | None = None,
+        output_type: str | None = None,
         provide_run_summary: bool = False,
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
@@ -304,6 +305,7 @@ class MultiStepAgent(ABC):
         self.state: dict[str, Any] = {}
         self.name = self._validate_name(name)
         self.description = description
+        self.output_type = output_type
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks if final_answer_checks is not None else []
         self.return_full_result = return_full_result
@@ -339,7 +341,7 @@ class MultiStepAgent(ABC):
             raise ValueError(f"Agent name '{name}' must be a valid Python identifier and not a reserved keyword.")
         return name
 
-    def _setup_managed_agents(self, managed_agents: list | None = None) -> None:
+    def _setup_managed_agents(self, managed_agents: list["MultiStepAgent"] | None = None) -> None:
         """Setup managed agents with proper logging."""
         self.managed_agents = {}
         if managed_agents:
@@ -356,9 +358,10 @@ class MultiStepAgent(ABC):
                         "description": "Dictionary of extra inputs to pass to the managed agent, e.g. images, dataframes, or any other contextual data it may need.",
                     },
                 }
-                agent.output_type = "string"
+                if not agent.output_type:
+                    agent.output_type = "string"
 
-    def _setup_tools(self, tools, add_base_tools):
+    def _setup_tools(self, tools: list[Tool], add_base_tools: bool):
         assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
@@ -371,7 +374,7 @@ class MultiStepAgent(ABC):
             )
         self.tools.setdefault("final_answer", FinalAnswerTool())
 
-    def _validate_tools_and_managed_agents(self, tools, managed_agents):
+    def _validate_tools_and_managed_agents(self, tools: list[Tool], managed_agents: list["MultiStepAgent"] | None):
         tool_and_managed_agent_names = [tool.name for tool in tools]
         if managed_agents is not None:
             tool_and_managed_agent_names += [agent.name for agent in managed_agents]
