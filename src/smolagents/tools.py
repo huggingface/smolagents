@@ -322,7 +322,7 @@ class Tool(BaseTool):
             validate_tool_attributes(self.__class__)
 
             tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
-            
+
         # Dynamically fetch the current smolagents version to ensure environment reproducibility.
         try:
             smolagents_version = importlib.metadata.version("smolagents")
@@ -330,7 +330,7 @@ class Tool(BaseTool):
         except importlib.metadata.PackageNotFoundError:
             # Fallback if smolagents is used locally without being installed.
             smolagents_dependency = "smolagents"
-        
+
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {smolagents_dependency}
 
         return {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
