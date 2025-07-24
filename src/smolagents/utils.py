@@ -424,7 +424,7 @@ def get_source(obj) -> str:
         shell = IPython.get_ipython()
         if not shell:
             raise ImportError("No active IPython shell found")
-        
+
         all_cells = "\n".join(shell.user_ns.get("In", [])).strip()
         if not all_cells:
             raise ValueError("No code cells found in IPython session")
