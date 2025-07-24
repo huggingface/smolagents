@@ -1,3 +1,6 @@
+# Example usage: python run.py --model-type LiteLLMModel --model-id gpt-4o --provider openai --agent-action-type code
+# python run.py --model-type LiteLLMModel --model-id gpt-4o --provider openai  --agent-action-type tool-calling
+
 import argparse
 import datetime
 import json

@@ -3,6 +3,13 @@ logs
 tmp
 wandb
 
+#Test gaia
+wb/
+pdb5wb7.ent
+downloads_folder/
+model_performance_comparison.png
+langfuse_test.py
+
 # Data
 data
 outputs

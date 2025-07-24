@@ -983,12 +983,23 @@ class MarkdownConverter:
     def _guess_ext_magic(self, path):
         """Use puremagic (a Python implementation of libmagic) to guess a file's extension based on the first few bytes."""
         # Use puremagic to guess
+        if not os.path.isfile(path):
+            raise ValueError(f"Invalid file path passed to _guess_ext_magic: {path}")
         try:
             guesses = puremagic.magic_file(path)
             if len(guesses) > 0:
                 ext = guesses[0].extension.strip()
                 if len(ext) > 0:
                     return ext
+        except puremagic.PureMagicError as e:
+            # If puremagic fails, we just ignore it and return None
+            print(f"Error in puremagic: {e}")
+        except puremagic.PureMagicNotFoundError:
+            # If puremagic is not installed, we just ignore it and return None
+            print("puremagic is not installed. Skipping magic file type detection.")
+        except ValueError:
+            # If the path is not a file, we just ignore it and return None
+            print(f"Invalid file path passed to _guess_ext_magic: {path}")
         except FileNotFoundError:
             pass
         except IsADirectoryError:

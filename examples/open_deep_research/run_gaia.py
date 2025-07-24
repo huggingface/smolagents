@@ -8,10 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+
+BASE_DIR = Path(__file__).resolve().parent
+
 import datasets
 import pandas as pd
 from dotenv import load_dotenv
 from huggingface_hub import login, snapshot_download
+from scripts.gaia_scorer import check_close_call, question_scorer
 from scripts.reformulator import prepare_response
 from scripts.run_agents import (
     get_single_file_description,
@@ -127,12 +131,13 @@ def create_agent_team(model: Model):
 
 
 def load_gaia_dataset(use_raw_dataset: bool, set_to_run: str) -> datasets.Dataset:
-    if not os.path.exists("data/gaia"):
+    data_dir = BASE_DIR / "data" / "gaia"
+    if not data_dir.exists():
         if use_raw_dataset:
             snapshot_download(
                 repo_id="gaia-benchmark/GAIA",
                 repo_type="dataset",
-                local_dir="data/gaia",
+                local_dir=str(data_dir),
                 ignore_patterns=[".gitattributes", "README.md"],
             )
         else:
@@ -140,20 +145,20 @@ def load_gaia_dataset(use_raw_dataset: bool, set_to_run: str) -> datasets.Datase
             snapshot_download(
                 repo_id="smolagents/GAIA-annotated",
                 repo_type="dataset",
-                local_dir="data/gaia",
+                local_dir=str(data_dir),
                 ignore_patterns=[".gitattributes", "README.md"],
             )
 
     def preprocess_file_paths(row):
         if len(row["file_name"]) > 0:
-            row["file_name"] = f"data/gaia/{set_to_run}/" + row["file_name"]
+            row["file_name"] = str(data_dir / set_to_run / row["file_name"])
         return row
 
     eval_ds = datasets.load_dataset(
-        "data/gaia/GAIA.py",
-        name="2023_all",
+        path="data/gaia",
+        name="default",
         split=set_to_run,
-        # data_files={"validation": "validation/metadata.jsonl", "test": "test/metadata.jsonl"},
+        data_files={"validation": "2023/validation/metadata.jsonl", "test": "2023/test/metadata.jsonl"},
     )
 
     eval_ds = eval_ds.rename_columns({"Question": "question", "Final answer": "true_answer", "Level": "task"})
@@ -161,10 +166,10 @@ def load_gaia_dataset(use_raw_dataset: bool, set_to_run: str) -> datasets.Datase
     return eval_ds
 
 
-def append_answer(entry: dict, jsonl_file: str) -> None:
+def append_answer(entry: dict, jsonl_file: Path) -> None:
     jsonl_path = Path(jsonl_file)
     jsonl_path.parent.mkdir(parents=True, exist_ok=True)
-    with append_answer_lock, open(jsonl_file, "a", encoding="utf-8") as fp:
+    with append_answer_lock, jsonl_path.open("a", encoding="utf-8") as fp:
         fp.write(json.dumps(entry) + "\n")
     assert jsonl_path.exists(), "File not found!"
     print("Answer exported to file:", jsonl_path.resolve())
@@ -244,6 +249,12 @@ Run verification steps if that's needed, you must make sure you find the correct
         "input": token_counts_manager["input"] + token_counts_web["input"],
         "output": token_counts_manager["output"] + token_counts_web["output"],
     }
+    is_correct = question_scorer(str(output), str(example["true_answer"]))
+    is_near_correct = check_close_call(str(output), str(example["true_answer"]), is_correct)
+    print("Question:", example["question"])
+    print("Prediction:", output)
+    print("True answer:", example["true_answer"])
+    print("Correct?", is_correct)
     annotated_example = {
         "agent_name": model.model_id,
         "question": example["question"],
@@ -256,14 +267,16 @@ Run verification steps if that's needed, you must make sure you find the correct
         "task": example["task"],
         "task_id": example["task_id"],
         "true_answer": example["true_answer"],
+        "is_correct": is_correct,
+        "is_near_correct": is_near_correct,
         "start_time": start_time,
         "end_time": end_time,
         "token_counts": total_token_counts,
     }
-    append_answer(annotated_example, answers_file)
+    append_answer(annotated_example, Path(answers_file))
 
 
-def get_examples_to_answer(answers_file: str, eval_ds: datasets.Dataset) -> list[dict]:
+def get_examples_to_answer(answers_file: Path, eval_ds: datasets.Dataset) -> list[dict]:
     print(f"Loading answers from {answers_file}...")
     try:
         done_questions = pd.read_json(answers_file, lines=True)["question"].tolist()
@@ -275,15 +288,36 @@ def get_examples_to_answer(answers_file: str, eval_ds: datasets.Dataset) -> list
     return [line for line in eval_ds.to_list() if line["question"] not in done_questions and line["file_name"]]
 
 
+def compute_score(answers_file: Path) -> None:
+    df = pd.read_json(answers_file, lines=True)
+    if "is_correct" not in df.columns:
+        df["is_correct"] = df.apply(lambda x: question_scorer(str(x["prediction"]), str(x["true_answer"])), axis=1)
+    accuracy = df["is_correct"].mean()
+    print("\nModel answers vs GAIA ground truth:\n")
+    for _, row in df.iterrows():
+        print(
+            f"Q: {row['question']}\nPredicted: {row['prediction']}\nGT: {row['true_answer']}\nCorrect: {row['is_correct']}\n"
+        )
+    print(f"Average accuracy: {accuracy * 100:.2f}% ({df['is_correct'].sum()}/{len(df)})")
+
+
 def main():
     args = parse_args()
     print(f"Starting run with arguments: {args}")
+
+    def create_output_folders(set_to_run):
+        """Create output folders if they don't exist."""
+        output_folder = Path(f"output/{set_to_run}")
+        output_folder.mkdir(parents=True, exist_ok=True)
+        print(f"Ensured output folder exists at: {output_folder}")
+
+    create_output_folders(args.set_to_run)
 
     eval_ds = load_gaia_dataset(args.use_raw_dataset, args.set_to_run)
     print("Loaded evaluation dataset:")
     print(pd.DataFrame(eval_ds)["task"].value_counts())
 
-    answers_file = f"output/{args.set_to_run}/{args.run_name}.jsonl"
+    answers_file = BASE_DIR / "output" / args.set_to_run / f"{args.run_name}.jsonl"
     tasks_to_run = get_examples_to_answer(answers_file, eval_ds)
 
     with ThreadPoolExecutor(max_workers=args.concurrency) as exe:
@@ -292,11 +326,13 @@ def main():
             for example in tasks_to_run
         ]
         for f in tqdm(as_completed(futures), total=len(tasks_to_run), desc="Processing tasks"):
-            f.result()
-
-    # for example in tasks_to_run:
-    #     answer_single_question(example, args.model_id, answers_file, visualizer)
+            try:
+                f.result()
+            except Exception as e:
+                print(f"Error in task: {e}")
+                continue
     print("All tasks processed.")
+    compute_score(answers_file)
 
 
 if __name__ == "__main__":
