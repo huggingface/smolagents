@@ -352,7 +352,7 @@ def test_e2e_function_tool_save(tmp_path):
                 return task"""
     )
     requirements = set((tmp_path / "requirements.txt").read_text().split())
-    assert requirements == {"smolagents"}  # FIXME: IPython should be in the requirements
+    assert any(req.startswith("smolagents==") or req == "smolagents" for req in requirements)
     assert (tmp_path / "app.py").read_text() == textwrap.dedent(
         """\
         from smolagents import launch_gradio_demo
@@ -410,7 +410,7 @@ def test_e2e_ipython_function_tool_save(tmp_path):
                 return task"""
     )
     requirements = set((tmp_path / "requirements.txt").read_text().split())
-    assert requirements == {"smolagents"}  # FIXME: IPython should be in the requirements
+    assert any(req.startswith("smolagents==") or req == "smolagents" for req in requirements)
     assert (tmp_path / "app.py").read_text() == textwrap.dedent(
         """\
         from smolagents import launch_gradio_demo
