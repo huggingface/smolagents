@@ -502,6 +502,7 @@ class GradioUI:
                 [text_input, submit_btn],
             )
 
+            chatbot.clear(self.agent.memory.reset)
         return demo
 
 
