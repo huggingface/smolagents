@@ -155,7 +155,7 @@ def load_gaia_dataset(use_raw_dataset: bool, set_to_run: str) -> datasets.Datase
         return row
 
     eval_ds = datasets.load_dataset(
-        path="data/gaia",
+        path=str(data_dir),
         name="default",
         split=set_to_run,
         data_files={"validation": "2023/validation/metadata.jsonl", "test": "2023/test/metadata.jsonl"},
@@ -329,7 +329,7 @@ def main():
             try:
                 f.result()
             except Exception as e:
-                print(f"Error in task: {e}")
+                print(f"Error in task '{getattr(f, 'question', 'unknown') if hasattr(f, 'question') else getattr(f, 'task_id', 'unknown')}': {e}")
                 continue
     print("All tasks processed.")
     compute_score(answers_file)

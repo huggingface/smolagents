@@ -999,7 +999,7 @@ class MarkdownConverter:
             print("puremagic is not installed. Skipping magic file type detection.")
         except ValueError:
             # If the path is not a file, we just ignore it and return None
-            print(f"Invalid file path passed to _guess_ext_magic: {path}")
+            pass
         except FileNotFoundError:
             pass
         except IsADirectoryError:
