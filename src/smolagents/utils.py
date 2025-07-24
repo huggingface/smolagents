@@ -434,18 +434,22 @@ def get_source(obj) -> str:
             if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name == obj.__name__:
                 return dedent("\n".join(all_cells.split("\n")[node.lineno - 1 : node.end_lineno])).strip()
         raise ValueError(f"Could not find source code for {obj.__name__} in IPython history")
-    except (ImportError, ValueError):
-        pass  # If IPython fails, move to the next fallback
+    except ImportError:
+        # If IPython not available, try dill instead
+        pass
+    except ValueError as ve:
+        # If IPython is available but fails to find the source, don't continue to dill
+        raise ve from inspect_error
 
-    # Try with dill (for standard REPL and other cases)
+    # Try dill only if IPython isn't available or fails to import
     try:
         import dill
         source = dill.source.getsource(obj)
         return dedent(source).strip()
     except (ImportError, TypeError, OSError):
-        pass  # If dill fails, we're out of options
+        pass  # fallback failed
 
-    # If all fallbacks failed, raise the original error from inspect
+    # Final fallback
     raise inspect_error
 
 
