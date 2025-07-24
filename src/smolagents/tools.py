@@ -303,7 +303,7 @@ class Tool:
             smolagents_version = importlib.metadata.version("smolagents")
             smolagents_dependency = f"smolagents=={smolagents_version}"
         except importlib.metadata.PackageNotFoundError:
-            # Fallback if smolagents is used locally without being installed
+            # Fallback if smolagents is used locally without being installed.
             smolagents_dependency = "smolagents"
         
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {smolagents_dependency}
