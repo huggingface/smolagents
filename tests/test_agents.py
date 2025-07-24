@@ -1374,6 +1374,74 @@ class TestMultiStepAgent:
             agent = DummyMultiStepAgent.from_dict(agent_dict, max_steps=30)
         assert agent.max_steps == 30
 
+    def test_multiagent_to_dict_from_dict_roundtrip(self):
+        """Test that to_dict() and from_dict() work correctly for agents with managed agents."""
+        # Create a managed agent
+        managed_agent = CodeAgent(
+            tools=[], model=MagicMock(), name="managed_agent", description="A managed agent for testing", max_steps=5
+        )
+
+        # Create a main agent with the managed agent
+        main_agent = ToolCallingAgent(
+            tools=[],
+            managed_agents=[managed_agent],
+            model=MagicMock(),
+            name="main_agent",
+            description="Main agent with managed agents",
+            max_steps=10,
+        )
+
+        # Convert to dict
+        agent_dict = main_agent.to_dict()
+
+        # Verify managed_agents structure in dict
+        assert "managed_agents" in agent_dict
+        assert isinstance(agent_dict["managed_agents"], list)
+        assert len(agent_dict["managed_agents"]) == 1
+
+        managed_agent_dict = agent_dict["managed_agents"][0]
+        assert managed_agent_dict["name"] == "managed_agent"
+        assert managed_agent_dict["class"] == "CodeAgent"
+        assert managed_agent_dict["description"] == "A managed agent for testing"
+        assert managed_agent_dict["max_steps"] == 5
+
+        # Test round-trip: from_dict should recreate the agent
+        # Mock the model classes directly instead of patching smolagents.models.MagicMock
+        with patch("smolagents.agents.importlib.import_module") as mock_import:
+            # Mock the models module
+            mock_models_module = MagicMock()
+            mock_model_class = MagicMock()
+            mock_model_instance = MagicMock()
+            mock_model_class.from_dict.return_value = mock_model_instance
+            mock_models_module.MagicMock = mock_model_class
+
+            # Mock the agents module
+            mock_agents_module = MagicMock()
+            mock_agents_module.CodeAgent = CodeAgent
+            mock_agents_module.ToolCallingAgent = ToolCallingAgent
+
+            def side_effect(module_name):
+                if module_name == "smolagents.models":
+                    return mock_models_module
+                elif module_name == "smolagents.agents":
+                    return mock_agents_module
+                return MagicMock()
+
+            mock_import.side_effect = side_effect
+
+            recreated_agent = ToolCallingAgent.from_dict(agent_dict)
+
+        # Verify the recreated agent has the same structure
+        assert recreated_agent.name == "main_agent"
+        assert recreated_agent.description == "Main agent with managed agents"
+        assert recreated_agent.max_steps == 10
+        assert len(recreated_agent.managed_agents) == 1
+
+        recreated_managed_agent = list(recreated_agent.managed_agents.values())[0]
+        assert recreated_managed_agent.name == "managed_agent"
+        assert recreated_managed_agent.description == "A managed agent for testing"
+        assert recreated_managed_agent.max_steps == 5
+
 
 class TestToolCallingAgent:
     def test_toolcalling_agent_instructions(self):
