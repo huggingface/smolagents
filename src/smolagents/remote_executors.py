@@ -86,6 +86,8 @@ class RemotePythonExecutor(PythonExecutor):
         """
         Send variables to the kernel namespace using pickle.
         """
+        if not variables:
+            return
         pickled_vars = base64.b64encode(pickle.dumps(variables)).decode()
         code = f"""
 import pickle, base64

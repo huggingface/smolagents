@@ -320,6 +320,7 @@ def instance_to_source(instance, base_cls=None):
         name: value
         for name, value in cls.__dict__.items()
         if not name.startswith("__")
+        and not name == "_abc_impl"
         and not callable(value)
         and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
     }

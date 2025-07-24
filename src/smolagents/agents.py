@@ -78,7 +78,7 @@ from .monitoring import (
     Monitor,
 )
 from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
-from .tools import Tool, validate_tool_arguments
+from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
     AGENT_GRADIO_APP_TEMPLATE,
     AgentError,
@@ -359,7 +359,9 @@ class MultiStepAgent(ABC):
                 agent.output_type = "string"
 
     def _setup_tools(self, tools, add_base_tools):
-        assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
+        assert all(isinstance(tool, BaseTool) for tool in tools), (
+            "All elements must be instance of BaseTool (or a subclass)"
+        )
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(

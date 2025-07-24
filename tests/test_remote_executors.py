@@ -24,6 +24,12 @@ class TestRemotePythonExecutor:
         # No new packages should be installed
         assert "!pip install" not in executor.run_code_raise_errors.call_args.args[0]
 
+    def test_send_variables_with_empty_dict_is_noop(self):
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
+        executor.run_code_raise_errors = MagicMock()
+        executor.send_variables({})
+        assert executor.run_code_raise_errors.call_count == 0
+
     @require_run_all
     def test_send_tools_with_default_wikipedia_search_tool(self):
         tool = WikipediaSearchTool()

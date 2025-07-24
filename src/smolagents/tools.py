@@ -26,6 +26,7 @@ import tempfile
 import textwrap
 import types
 import warnings
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
@@ -95,7 +96,15 @@ AUTHORIZED_TYPES = [
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
 
 
-class Tool:
+class BaseTool(ABC):
+    name: str
+
+    @abstractmethod
+    def __call__(self, *args, **kwargs) -> Any:
+        pass
+
+
+class Tool(BaseTool):
     """
     A base class for the functions used by the agent. Subclass this and implement the `forward` method as well as the
     following class attributes:
@@ -236,6 +245,22 @@ class Tool:
         your tool. Such as loading a big model.
         """
         self.is_initialized = True
+
+    def to_code_prompt(self) -> str:
+        args_signature = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
+        tool_signature = f"({args_signature}) -> {self.output_type}"
+        tool_doc = self.description
+        if self.inputs:
+            args_descriptions = "\n".join(
+                f"{arg_name}: {arg_schema['description']}" for arg_name, arg_schema in self.inputs.items()
+            )
+            args_doc = f"Args:\n{textwrap.indent(args_descriptions, '    ')}"
+            tool_doc += f"\n\n{args_doc}"
+        tool_doc = f'"""{tool_doc}\n"""'
+        return f"def {self.name}{tool_signature}:\n{textwrap.indent(tool_doc, '    ')}"
+
+    def to_tool_calling_prompt(self) -> str:
+        return f"{self.name}: {self.description}\n    Takes inputs: {self.inputs}\n    Returns an output of type: {self.output_type}"
 
     def to_dict(self) -> dict:
         """Returns a dictionary representing the tool"""

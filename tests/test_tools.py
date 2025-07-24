@@ -122,6 +122,57 @@ class TestTool:
             tool = create_tool()
             assert isinstance(tool, Tool)
 
+    @pytest.mark.parametrize(
+        "tool_fixture, expected_output",
+        [
+            ("no_input_tool", 'def no_input_tool() -> string:\n    """Tool with no inputs\n    """'),
+            (
+                "single_input_tool",
+                'def single_input_tool(text: string) -> string:\n    """Tool with one input\n\n    Args:\n        text: Input text\n    """',
+            ),
+            (
+                "multi_input_tool",
+                'def multi_input_tool(text: string, count: integer) -> object:\n    """Tool with multiple inputs\n\n    Args:\n        text: Text input\n        count: Number count\n    """',
+            ),
+            (
+                "multiline_description_tool",
+                'def multiline_description_tool(input: string) -> string:\n    """This is a tool with\n    multiple lines\n    in the description\n\n    Args:\n        input: Some input\n    """',
+            ),
+        ],
+    )
+    def test_tool_to_code_prompt_output_format(self, tool_fixture, expected_output, request):
+        """Test that to_code_prompt generates properly formatted and indented output."""
+        tool = request.getfixturevalue(tool_fixture)
+        code_prompt = tool.to_code_prompt()
+        assert code_prompt == expected_output
+
+    @pytest.mark.parametrize(
+        "tool_fixture, expected_output",
+        [
+            (
+                "no_input_tool",
+                "no_input_tool: Tool with no inputs\n    Takes inputs: {}\n    Returns an output of type: string",
+            ),
+            (
+                "single_input_tool",
+                "single_input_tool: Tool with one input\n    Takes inputs: {'text': {'type': 'string', 'description': 'Input text'}}\n    Returns an output of type: string",
+            ),
+            (
+                "multi_input_tool",
+                "multi_input_tool: Tool with multiple inputs\n    Takes inputs: {'text': {'type': 'string', 'description': 'Text input'}, 'count': {'type': 'integer', 'description': 'Number count'}}\n    Returns an output of type: object",
+            ),
+            (
+                "multiline_description_tool",
+                "multiline_description_tool: This is a tool with\nmultiple lines\nin the description\n    Takes inputs: {'input': {'type': 'string', 'description': 'Some input'}}\n    Returns an output of type: string",
+            ),
+        ],
+    )
+    def test_tool_to_tool_calling_prompt_output_format(self, tool_fixture, expected_output, request):
+        """Test that to_tool_calling_prompt generates properly formatted output."""
+        tool = request.getfixturevalue(tool_fixture)
+        tool_calling_prompt = tool.to_tool_calling_prompt()
+        assert tool_calling_prompt == expected_output
+
     def test_tool_init_with_decorator(self):
         @tool
         def coolfunc(a: str, b: int) -> float:
