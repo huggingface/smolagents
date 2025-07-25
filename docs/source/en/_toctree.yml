@@ -40,7 +40,6 @@
     title: "Human-in-the-Loop: Customize agent plan interactively"
   - local: examples/async_agent
     title: Async Applications with Agents
-
 - title: Reference
   sections:
   - local: reference/agents
