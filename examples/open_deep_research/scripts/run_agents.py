@@ -9,6 +9,7 @@ from smolagents.utils import AgentError
 
 
 def serialize_agent_error(obj):
+    """Serialize AgentError objects for JSON output."""
     if isinstance(obj, AgentError):
         return {"error_type": obj.__class__.__name__, "message": obj.message}
     else:
@@ -16,6 +17,13 @@ def serialize_agent_error(obj):
 
 
 def get_image_description(file_name: str, question: str, visual_inspection_tool) -> str:
+    """
+    Get description of an image file for context.
+    
+    DEBUGGING FIX: Changed parameter from file_path to image_path
+    - ISSUE: TypeError due to mismatched parameter name
+    - SOLUTION: Use image_path parameter as expected by visualizer tool
+    """
     prompt = f"""Write a caption of 5 sentences for this image. Pay special attention to any details that might be useful for someone answering the following question:
 {question}. But do not try to answer the question directly!
 Do not add any information that is not present in the image."""

@@ -133,14 +133,12 @@ def answer_single_question(example, model, answers_file, action_type):
         agent = CodeAgent(
             tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool()],
             model=model,
-            additional_authorized_imports=["numpy", "sympy"],
             max_steps=10,
         )
     elif action_type == "tool-calling":
         agent = ToolCallingAgent(
             tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool(), PythonInterpreterTool()],
             model=model,
-            additional_authorized_imports=["numpy", "sympy"],
             max_steps=10,
         )
 
