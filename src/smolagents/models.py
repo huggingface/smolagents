@@ -1723,6 +1723,8 @@ class AmazonBedrockServerModel(ApiModel):
     allowing for customized model inference, guardrail configuration, message handling,
     and other parameters allowed by boto3 API.
 
+    Authentication:
+
     Amazon Bedrock supports multiple authentication methods:
     - Default AWS credentials:
        Use the default AWS credential chain (e.g., IAM roles, IAM users).
