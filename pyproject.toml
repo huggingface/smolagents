@@ -22,7 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 bedrock = [
-  "boto3>=1.39.0"
+  "boto3>=1.36.18"
 ]
 torch = [
   "torch",
