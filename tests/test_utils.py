@@ -508,3 +508,46 @@ def test_parse_json_blob_with_invalid_json(raw_json):
 def test_is_valid_name(name, expected):
     """Test the is_valid_name function with various inputs."""
     assert is_valid_name(name) is expected
+
+
+def test_agent_gradio_app_template_excludes_class_keyword():
+    """Test that the AGENT_GRADIO_APP_TEMPLATE excludes 'class' from agent kwargs."""
+    import jinja2
+
+    from smolagents.utils import AGENT_GRADIO_APP_TEMPLATE
+
+    # Mock agent_dict with 'class' key that should be excluded
+    agent_dict = {
+        "model": {"class": "CodeAgent", "data": {}},
+        "class": "CodeAgent",  # This should be excluded to prevent SyntaxError
+        "some_valid_attr": "value",
+        "tools": [],
+        "managed_agents": {},
+        "requirements": [],
+        "prompt_templates": {},
+    }
+
+    template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
+    template_env.filters["repr"] = repr
+    template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
+    template = template_env.from_string(AGENT_GRADIO_APP_TEMPLATE)
+    result = template.render(
+        agent_name="test_agent",
+        class_name="CodeAgent",
+        agent_dict=agent_dict,
+        tools={},
+        managed_agents={},
+        managed_agent_relative_path="",
+    )
+
+    # Should contain valid attribute but not 'class='  as a keyword argument
+    assert "some_valid_attr='value'," in result
+    assert "class=" not in result
+
+    # Verify the generated code is syntactically valid Python
+    import ast
+
+    try:
+        ast.parse(result)
+    except SyntaxError as e:
+        pytest.fail(f"Generated app.py contains syntax error: {e}")
