@@ -1724,9 +1724,9 @@ class AmazonBedrockServerModel(ApiModel):
     and other parameters allowed by boto3 API.
 
     Amazon Bedrock supports multiple authentication methods:
-    1. Default AWS credentials:
+    - Default AWS credentials:
        Use the default AWS credential chain (e.g., IAM roles, IAM users).
-    2. API Key Authentication (requires `boto3 >= 1.39.0`):
+    - API Key Authentication (requires `boto3 >= 1.39.0`):
        Set the API key using the `AWS_BEARER_TOKEN_BEDROCK` environment variable.
 
     > [!TIP]
