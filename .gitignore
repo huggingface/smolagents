@@ -12,7 +12,7 @@ langfuse_test.py
 
 # Data
 data
-outputs
+#outputs
 data/
 
 # Apple
@@ -155,7 +155,7 @@ interpreter_workspace/
 # Archive
 archive/
 savedir/
-output/
+#output/
 tool_output/
 
 # Gradio runtime
