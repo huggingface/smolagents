@@ -1747,9 +1747,7 @@ class AmazonBedrockServerModel(ApiModel):
            The client will use the default credential chain automatically.
 
         2. **API Keys** (requires boto3 >= 1.39.3):
-           Amazon Bedrock now supports API keys for streamlined authentication.
-           You can generate API keys from the Amazon Bedrock console or AWS SDK.
-           Pass the API key through the client configuration.
+           Set the API key as the AWS_BEARER_TOKEN_BEDROCK environment variable.
 
     Examples:
         Creating a model instance with default settings:
