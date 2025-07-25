@@ -31,6 +31,8 @@ from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any
 
+import jinja2
+
 
 if TYPE_CHECKING:
     from smolagents.memory import AgentLogger
@@ -502,6 +504,13 @@ with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
 if __name__ == "__main__":
     GradioUI({{ agent_name }}).launch()
 """.strip()
+
+
+def create_agent_gradio_app_template():
+    env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
+    env.filters["repr"] = repr
+    env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
+    return env.from_string(AGENT_GRADIO_APP_TEMPLATE)
 
 
 class RateLimiter:

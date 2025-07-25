@@ -22,7 +22,14 @@ from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
 from smolagents.tools import tool
-from smolagents.utils import get_source, instance_to_source, is_valid_name, parse_code_blobs, parse_json_blob
+from smolagents.utils import (
+    create_agent_gradio_app_template,
+    get_source,
+    instance_to_source,
+    is_valid_name,
+    parse_code_blobs,
+    parse_json_blob,
+)
 
 
 class ValidTool(Tool):
@@ -512,9 +519,6 @@ def test_is_valid_name(name, expected):
 
 def test_agent_gradio_app_template_excludes_class_keyword():
     """Test that the AGENT_GRADIO_APP_TEMPLATE excludes 'class' from agent kwargs."""
-    import jinja2
-
-    from smolagents.utils import AGENT_GRADIO_APP_TEMPLATE
 
     # Mock agent_dict with 'class' key that should be excluded
     agent_dict = {
@@ -527,10 +531,7 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         "prompt_templates": {},
     }
 
-    template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
-    template_env.filters["repr"] = repr
-    template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
-    template = template_env.from_string(AGENT_GRADIO_APP_TEMPLATE)
+    template = create_agent_gradio_app_template()
     result = template.render(
         agent_name="test_agent",
         class_name="CodeAgent",
