@@ -1,7 +1,7 @@
 # Smolagents Benchmark Runner
 # ===========================
-# 
-# Example usage: 
+#
+# Example usage:
 # python run.py --model-type LiteLLMModel --model-id gpt-4o --provider openai --agent-action-type tool-calling
 # python run.py --model-type InferenceClientModel --model-id gpt-4o --provider openai --agent-action-type code
 
@@ -9,12 +9,12 @@ import argparse
 import datetime
 import json
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Generator
-import re
 
 import datasets
 import pandas as pd
@@ -31,7 +31,7 @@ from smolagents import (
     ToolCallingAgent,
     VisitWebpageTool,
 )
-from smolagents.memory import FinalAnswerStep, ActionStep, PlanningStep
+from smolagents.memory import ActionStep, FinalAnswerStep, PlanningStep
 from smolagents.models import ChatMessageStreamDelta
 
 
@@ -187,7 +187,7 @@ def answer_single_question(example, model, answers_file, action_type):
                 answer = f"Error extracting answer: {str(e)}"
 
             token_counts = agent.monitor.get_total_token_counts()
-            
+
             # CRITICAL FIX: Changed dict(message) to message.dict()
             # ISSUE: Was getting "'ChatMessage' object is not iterable" error in JSON output
             # CAUSE: ChatMessage objects are not iterable with dict() constructor
@@ -196,12 +196,12 @@ def answer_single_question(example, model, answers_file, action_type):
 
         end_time = time.time()
         duration = end_time - start_time
-        answer_preview = str(answer)[:100] + ('...' if len(str(answer)) > 100 else '') if answer else "No answer"
+        answer_preview = str(answer)[:100] + ("..." if len(str(answer)) > 100 else "") if answer else "No answer"
         print(f"✅ Question processed in {duration:.2f}s - Answer: {answer_preview}")
     except Exception as e:
         end_time = time.time()
         duration = end_time - start_time
-        question_preview = str(augmented_question)[:50] + ('...' if len(str(augmented_question)) > 50 else '')
+        question_preview = str(augmented_question)[:50] + ("..." if len(str(augmented_question)) > 50 else "")
         print(f"❌ Error after {duration:.2f}s on question: {question_preview}")
         print(f"   Error details: {str(e)}")
         intermediate_steps = []
@@ -230,10 +230,11 @@ def answer_single_question(example, model, answers_file, action_type):
 # This section was added to provide comprehensive benchmark evaluation
 # with multiple scoring metrics and detailed performance analysis.
 
+
 def normalize_answer(answer):
     """
     Normalize answer for comparison.
-    
+
     Removes extra whitespace, converts to lowercase, and strips punctuation
     to enable more flexible answer matching.
     """
@@ -241,16 +242,16 @@ def normalize_answer(answer):
         return ""
     answer = str(answer).strip().lower()
     # Remove extra whitespace
-    answer = re.sub(r'\s+', ' ', answer)
+    answer = re.sub(r"\s+", " ", answer)
     # Remove common punctuation at the end
-    answer = re.sub(r'[.!?;,]+$', '', answer)
+    answer = re.sub(r"[.!?;,]+$", "", answer)
     return answer
 
 
 def calculate_exact_match_score(predicted_answer, true_answer):
     """
     Calculate exact match score (1.0 for perfect match, 0.0 otherwise).
-    
+
     This is the strictest scoring metric.
     """
     return 1.0 if normalize_answer(predicted_answer) == normalize_answer(true_answer) else 0.0
@@ -260,10 +261,10 @@ def calculate_contains_score(predicted_answer, true_answer):
     """Calculate score based on whether the predicted answer contains the true answer."""
     normalized_pred = normalize_answer(predicted_answer)
     normalized_true = normalize_answer(true_answer)
-    
+
     if not normalized_true:
         return 0.0
-    
+
     return 1.0 if normalized_true in normalized_pred else 0.0
 
 
@@ -271,31 +272,31 @@ def calculate_benchmark_scores(jsonl_file_path):
     """Calculate scores for a benchmark result file."""
     if not os.path.exists(jsonl_file_path):
         return {"error": "File not found"}
-    
+
     total_questions = 0
     exact_matches = 0
     contains_matches = 0
-    
-    with open(jsonl_file_path, 'r', encoding='utf-8') as f:
+
+    with open(jsonl_file_path, "r", encoding="utf-8") as f:
         for line in f:
             try:
                 data = json.loads(line.strip())
                 if not data:
                     continue
-                    
-                predicted = data.get('answer', '')
-                true_answer = data.get('true_answer', '')
-                
+
+                predicted = data.get("answer", "")
+                true_answer = data.get("true_answer", "")
+
                 total_questions += 1
                 exact_matches += calculate_exact_match_score(predicted, true_answer)
                 contains_matches += calculate_contains_score(predicted, true_answer)
-                
+
             except json.JSONDecodeError:
                 continue
-    
+
     if total_questions == 0:
         return {"error": "No valid questions found"}
-    
+
     return {
         "total_questions": total_questions,
         "exact_match_score": exact_matches / total_questions,

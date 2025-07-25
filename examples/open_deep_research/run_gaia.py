@@ -2,7 +2,7 @@
 # =============================================
 #
 #
-# EXAMPLE COMMAND: from folder examples/open_deep_research, run: 
+# EXAMPLE COMMAND: from folder examples/open_deep_research, run:
 # python run_gaia.py --concurrency 32 --run-name generate-traces-03-apr-noplanning --model-id gpt-4o
 
 import argparse
@@ -104,7 +104,7 @@ def create_agent_team(model: Model):
         ArchiveSearchTool(browser),
         TextInspectorTool(model, text_limit),
         visualizer,  # Correcting error: "prediction": "Critical Error: Cannot use inspect_file_as_text tool with images: use visualizer instead!",
-    ] 
+    ]
 
     text_webbrowser_agent = ToolCallingAgent(
         model=model,
@@ -176,7 +176,7 @@ def load_gaia_dataset(use_raw_dataset: bool, set_to_run: str) -> datasets.Datase
 def append_answer(entry: dict, jsonl_file: Path) -> None:
     jsonl_path = Path(jsonl_file)
     jsonl_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     def convert_to_serializable(obj):
         """Convert objects to JSON serializable format"""
         if hasattr(obj, "dict"):
@@ -185,7 +185,7 @@ def append_answer(entry: dict, jsonl_file: Path) -> None:
             return obj.__dict__
         else:
             return str(obj)
-    
+
     try:
         with append_answer_lock, jsonl_path.open("a", encoding="utf-8") as fp:
             fp.write(json.dumps(entry, default=convert_to_serializable, ensure_ascii=False) + "\n")
@@ -252,7 +252,7 @@ Run verification steps if that's needed, you must make sure you find the correct
             final_result = prepare_response(augmented_question, agent_memory, reformulation_model=model)
             output = str(final_result)
             # Fix: Use .dict() method for ChatMessage objects instead of dict() constructor
-            intermediate_steps = [msg.dict() if hasattr(msg, 'dict') else str(msg) for msg in agent_memory]
+            intermediate_steps = [msg.dict() if hasattr(msg, "dict") else str(msg) for msg in agent_memory]
             parsing_error = any("AgentParsingError" in str(step) for step in intermediate_steps)
             iteration_limit_exceeded = "Agent stopped due to iteration limit or time limit." in output
         except Exception as e:
@@ -262,7 +262,7 @@ Run verification steps if that's needed, you must make sure you find the correct
             raised_exception = True
 
         end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         # Safely get token counts with fallback
         try:
             token_counts_manager = agent.monitor.get_total_token_counts()
@@ -315,10 +315,10 @@ Run verification steps if that's needed, you must make sure you find the correct
         "end_time": end_time,
         "token_counts": total_token_counts,
     }
-    
+
     # Always append to main answers file
     append_answer(annotated_example, Path(answers_file))
-    
+
     # If there was an error, also append to errors file
     if raised_exception or parsing_error or iteration_limit_exceeded:
         append_answer(annotated_example, Path(errors_file))
@@ -353,26 +353,32 @@ def compute_score(answers_file: Path) -> None:
 
     if "is_correct" not in df.columns:
         df["is_correct"] = df.apply(lambda x: question_scorer(str(x["prediction"]), str(x["true_answer"])), axis=1)
-    
+
     # Calculate comprehensive scores
     total_questions = len(df)
     correct_answers = df["is_correct"].sum()
     accuracy = df["is_correct"].mean()
-    
+
     # Calculate additional metrics
     error_count = df["agent_error"].notna().sum()
     parsing_error_count = df["parsing_error"].sum()
     iteration_limit_count = df["iteration_limit_exceeded"].sum()
-    
+
     # Group by task level for detailed analysis
     task_scores = None
     if "task" in df.columns:
-        task_scores = df.groupby("task").agg({
-            "is_correct": ["count", "sum", "mean"],
-            "agent_error": lambda x: x.notna().sum(),
-            "parsing_error": "sum",
-            "iteration_limit_exceeded": "sum"
-        }).round(3)
+        task_scores = (
+            df.groupby("task")
+            .agg(
+                {
+                    "is_correct": ["count", "sum", "mean"],
+                    "agent_error": lambda x: x.notna().sum(),
+                    "parsing_error": "sum",
+                    "iteration_limit_exceeded": "sum",
+                }
+            )
+            .round(3)
+        )
         task_scores.columns = ["total", "correct", "accuracy", "errors", "parsing_errors", "iteration_limits"]
 
     # Save detailed score analysis
@@ -380,21 +386,23 @@ def compute_score(answers_file: Path) -> None:
     with score_file.open("w", encoding="utf-8") as f:
         f.write("GAIA Benchmark Detailed Results\n")
         f.write("=" * 50 + "\n\n")
-        f.write(f"Overall Performance:\n")
+        f.write("Overall Performance:\n")
         f.write(f"  Total Questions: {total_questions}\n")
         f.write(f"  Correct Answers: {correct_answers}\n")
         f.write(f"  Accuracy: {accuracy * 100:.2f}%\n\n")
-        
-        f.write(f"Error Analysis:\n")
-        f.write(f"  Agent Errors: {error_count} ({error_count/total_questions*100:.1f}%)\n")
-        f.write(f"  Parsing Errors: {parsing_error_count} ({parsing_error_count/total_questions*100:.1f}%)\n")
-        f.write(f"  Iteration Limits: {iteration_limit_count} ({iteration_limit_count/total_questions*100:.1f}%)\n\n")
-        
+
+        f.write("Error Analysis:\n")
+        f.write(f"  Agent Errors: {error_count} ({error_count / total_questions * 100:.1f}%)\n")
+        f.write(f"  Parsing Errors: {parsing_error_count} ({parsing_error_count / total_questions * 100:.1f}%)\n")
+        f.write(
+            f"  Iteration Limits: {iteration_limit_count} ({iteration_limit_count / total_questions * 100:.1f}%)\n\n"
+        )
+
         if "task" in df.columns:
             f.write("Performance by Task Level:\n")
             if task_scores is not None:
                 f.write(str(task_scores) + "\n\n")
-        
+
         f.write("Individual Results:\n")
         f.write("-" * 50 + "\n")
         for idx, row in df.iterrows():
@@ -416,38 +424,38 @@ def compute_score(answers_file: Path) -> None:
         "parsing_error_rate": float(parsing_error_count / total_questions),
         "iteration_limit_rate": float(iteration_limit_count / total_questions),
         "timestamp": datetime.now().isoformat(),
-        "answers_file": str(answers_file.name)
+        "answers_file": str(answers_file.name),
     }
-    
+
     if "task" in df.columns and task_scores is not None:
         summary_data["task_performance"] = task_scores.to_dict()
-    
+
     with summary_file.open("w", encoding="utf-8") as f:
         json.dump(summary_data, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 60)
     print("📊 GAIA BENCHMARK RESULTS")
     print("=" * 60)
-    print(f"📈 Overall Performance:")
+    print("📈 Overall Performance:")
     print(f"   Total Questions: {total_questions}")
     print(f"   Correct Answers: {correct_answers}")
     print(f"   Accuracy: {accuracy * 100:.2f}%")
     print()
-    print(f"⚠️  Error Analysis:")
-    print(f"   Agent Errors: {error_count} ({error_count/total_questions*100:.1f}%)")
-    print(f"   Parsing Errors: {parsing_error_count} ({parsing_error_count/total_questions*100:.1f}%)")
-    print(f"   Iteration Limits: {iteration_limit_count} ({iteration_limit_count/total_questions*100:.1f}%)")
-    
+    print("⚠️  Error Analysis:")
+    print(f"   Agent Errors: {error_count} ({error_count / total_questions * 100:.1f}%)")
+    print(f"   Parsing Errors: {parsing_error_count} ({parsing_error_count / total_questions * 100:.1f}%)")
+    print(f"   Iteration Limits: {iteration_limit_count} ({iteration_limit_count / total_questions * 100:.1f}%)")
+
     if "task" in df.columns:
         print()
-        print(f"📋 Performance by Task Level:")
+        print("📋 Performance by Task Level:")
         for task_level in sorted(df["task"].unique()):
             task_data = df[df["task"] == task_level]
             task_acc = task_data["is_correct"].mean()
             task_count = len(task_data)
             task_correct = task_data["is_correct"].sum()
-            print(f"   Level {task_level}: {task_acc*100:.1f}% ({task_correct}/{task_count})")
-    
+            print(f"   Level {task_level}: {task_acc * 100:.1f}% ({task_correct}/{task_count})")
+
     print()
     print(f"💾 Detailed results saved to: {score_file}")
     print(f"💾 Summary data saved to: {summary_file}")
@@ -504,11 +512,11 @@ def main():
         print(f"Error: The answers file {answers_file} was not created. Check the append_answer function.")
     else:
         print(f"✅ Main answers file created successfully: {answers_file}")
-        
+
     if errors_file.exists():
         print(f"⚠️  Errors file created: {errors_file}")
     else:
-        print(f"✅ No errors file created (no errors encountered)")
+        print("✅ No errors file created (no errors encountered)")
 
     print("All tasks processed.")
     compute_score(answers_file)

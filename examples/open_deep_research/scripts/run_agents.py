@@ -19,7 +19,7 @@ def serialize_agent_error(obj):
 def get_image_description(file_name: str, question: str, visual_inspection_tool) -> str:
     """
     Get description of an image file for context.
-    
+
     DEBUGGING FIX: Changed parameter from file_path to image_path
     - ISSUE: TypeError due to mismatched parameter name
     - SOLUTION: Use image_path parameter as expected by visualizer tool
