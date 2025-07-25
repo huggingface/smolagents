@@ -1748,7 +1748,7 @@ class AmazonBedrockServerModel(ApiModel):
 
         2. **API Keys** (requires boto3 >= 1.39.0):
            Set the API key as the AWS_BEARER_TOKEN_BEDROCK environment variable.
-           Note: API key support requires boto3 >= 1.39.0, but basic Bedrock functionality 
+           Note: API key support requires boto3 >= 1.39.0, but basic Bedrock functionality
            works with boto3 >= 1.36.18 for users not requiring API key authentication.
 
     Examples:
