@@ -1746,7 +1746,7 @@ class AmazonBedrockServerModel(ApiModel):
         1. **Default AWS credentials** (IAM role, AWS credentials from environment, etc.):
            The client will use the default credential chain automatically.
 
-        2. **API Keys** (requires boto3 >= 1.39.3):
+        2. **API Keys** (requires boto3 >= 1.39.0):
            Set the API key as the AWS_BEARER_TOKEN_BEDROCK environment variable.
 
     Examples:
