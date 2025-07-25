@@ -78,7 +78,7 @@ from .monitoring import (
     Monitor,
 )
 from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
-from .tools import Tool, validate_tool_arguments
+from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
     AGENT_GRADIO_APP_TEMPLATE,
     AgentError,
@@ -359,7 +359,9 @@ class MultiStepAgent(ABC):
                 agent.output_type = "string"
 
     def _setup_tools(self, tools, add_base_tools):
-        assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
+        assert all(isinstance(tool, BaseTool) for tool in tools), (
+            "All elements must be instance of BaseTool (or a subclass)"
+        )
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(
@@ -1008,13 +1010,15 @@ You have been provided with these additional arguments, that you can access dire
             tools.append(Tool.from_code(tool_info["code"]))
         # Load managed agents
         managed_agents = []
-        for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
-            managed_agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_class_name)
-            managed_agents.append(managed_agent_class.from_dict(agent_dict["managed_agents"][managed_agent_name]))
+        for managed_agent_dict in agent_dict["managed_agents"]:
+            agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_dict["class"])
+            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {
             "model": model,
             "tools": tools,
+            "managed_agents": managed_agents,
             "prompt_templates": agent_dict.get("prompt_templates"),
             "max_steps": agent_dict.get("max_steps"),
             "verbosity_level": agent_dict.get("verbosity_level"),
