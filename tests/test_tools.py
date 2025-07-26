@@ -24,9 +24,187 @@ import PIL.Image
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
+from smolagents.tools import (
+    AUTHORIZED_TYPES,
+    FunctionTool,
+    Tool,
+    ToolCollection,
+    launch_gradio_demo,
+    tool,
+    validate_tool_arguments,
+)
 
 from .utils.markers import require_run_all
+
+
+def simple_func(x):
+    return x + 1
+
+
+def complex_func(a, b=1):
+    return a + b
+
+
+def documented_func(x: int) -> int:
+    """This function adds one to the input.
+
+    Args:
+        x: Integer input.
+    """
+    return x + 1
+
+
+def multi_param(a: str, b: int = 1, *args, **kwargs) -> str:
+    """Complex function.
+
+    Args:
+        a: String input.
+        b: Integer input, defaults to 1.
+        args: Variable length argument list.
+        kwargs: Arbitrary keyword arguments.
+    """
+    return a * b
+
+
+def typed_func(x: int, y: str = "hello") -> dict[str, Any]:
+    """Function with type hints.
+
+    Args:
+        x: Integer input.
+        y: String input, defaults to 'hello'.
+    """
+    return {"result": x}
+
+
+def multi_typed(numbers: list[int], flag: bool = False) -> int | None:
+    """Function with complex types.
+
+    Args:
+        numbers: List of integers to sum.
+        flag: Boolean flag to control the output.
+    """
+    return sum(numbers) if flag else None
+
+
+class TestFunctionTool:
+    @pytest.mark.parametrize(
+        "func, custom_name, expected_name",
+        [
+            (lambda x: x + 1, None, "<lambda>"),
+            (lambda x: x * 2, "multiplier", "multiplier"),
+            (simple_func, None, "simple_func"),
+            (complex_func, "adder", "adder"),
+        ],
+    )
+    def test_initialization(self, func, custom_name, expected_name):
+        """Test initialization of FunctionTool with different functions and names."""
+        tool = FunctionTool(func, name=custom_name)
+        assert tool.func == func
+        assert tool.name == expected_name
+
+    @pytest.mark.parametrize(
+        "func, args, kwargs, expected_result",
+        [
+            (lambda x: x + 1, [2], {}, 3),
+            (lambda x, y: x * y, [3, 4], {}, 12),
+            (lambda x, y=2: x * y, [3], {}, 6),
+            (lambda x, y=2: x * y, [3], {"y": 4}, 12),
+            (lambda **kwargs: sum(kwargs.values()), [], {"a": 1, "b": 2}, 3),
+        ],
+    )
+    def test_call_method(self, func, args, kwargs, expected_result):
+        """Test the __call__ method correctly passes arguments to the wrapped function."""
+        tool = FunctionTool(func)
+        result = tool(*args, **kwargs)
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "func, expected",
+        [
+            (
+                documented_func,
+                dedent('''\
+                    def documented_func(x: int) -> int:
+                        """This function adds one to the input.
+
+                        Args:
+                            x: Integer input.
+                        """'''),
+            ),
+            (
+                multi_param,
+                dedent('''\
+                    def multi_param(a: str, b: int = 1, *args, **kwargs) -> str:
+                        """Complex function.
+
+                        Args:
+                            a: String input.
+                            b: Integer input, defaults to 1.
+                            args: Variable length argument list.
+                            kwargs: Arbitrary keyword arguments.
+                        """'''),
+            ),
+        ],
+    )
+    def test_to_code_prompt(self, func, expected):
+        """Test that to_code_prompt correctly formats the function as code."""
+        tool = FunctionTool(func)
+        code_prompt = tool.to_code_prompt()
+        assert code_prompt == expected
+
+    @pytest.mark.parametrize(
+        "func, expected",
+        [
+            (
+                typed_func,
+                '{"name": "typed_func", "description": "Function with type hints.", "parameters": {"type": "object", "properties": {"x": {"type": "integer", "description": "Integer input."}, "y": {"type": "string", "nullable": true, "description": "String input, defaults to \'hello\'."}}, "required": ["x"]}, "return": {"type": "object", "additionalProperties": {"type": "any"}}}',
+            ),
+            (
+                multi_typed,
+                '{"name": "multi_typed", "description": "Function with complex types.", "parameters": {"type": "object", "properties": {"numbers": {"type": "array", "items": {"type": "integer"}, "description": "List of integers to sum."}, "flag": {"type": "boolean", "nullable": true, "description": "Boolean flag to control the output."}}, "required": ["numbers"]}, "return": {"type": "integer", "nullable": true}}',
+            ),
+        ],
+    )
+    def test_to_tool_calling_prompt(self, func, expected):
+        """Test that to_tool_calling_prompt returns valid JSON schema representation."""
+        tool = FunctionTool(func)
+        tool_calling_prompt = tool.to_tool_calling_prompt()
+        assert tool_calling_prompt == expected
+
+    def test_with_real_function(self):
+        """Test FunctionTool with a real function to ensure complete integration."""
+
+        def calculate_area(length: float, width: float = 1.0) -> float:
+            """Calculate the area of a rectangle.
+
+            Args:
+                length: The length of the rectangle
+                width: The width of the rectangle (defaults to 1.0)
+
+            Returns:
+                The calculated area
+            """
+            return length * width
+
+        tool = FunctionTool(calculate_area)
+
+        # Test calling
+        assert tool(5, 3) == 15
+        assert tool(5) == 5
+
+        # Test code prompt
+        code_prompt = tool.to_code_prompt()
+        assert "def calculate_area" in code_prompt
+        assert "length: float" in code_prompt
+        assert "width: float = 1.0" in code_prompt
+        assert "Calculate the area of a rectangle" in code_prompt
+
+        # Test tool calling prompt
+        schema_str = tool.to_tool_calling_prompt()
+        assert "calculate_area" in schema_str
+        assert "length" in schema_str
+        assert "width" in schema_str
+        assert "float" in schema_str.lower() or "number" in schema_str.lower()
 
 
 class ToolTesterMixin:
