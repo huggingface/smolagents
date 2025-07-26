@@ -290,7 +290,8 @@ class MultiStepAgent(ABC):
                         assert key in prompt_templates.keys() and (subkey in prompt_templates[key].keys()), (
                             f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
                         )
-
+        if not isinstance(max_steps, int) or max_steps <= 0:
+            raise ValueError("max_steps must be a positive integer.")
         self.max_steps = max_steps
         self.step_number = 0
         if grammar is not None:

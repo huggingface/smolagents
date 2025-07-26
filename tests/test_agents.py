@@ -485,6 +485,11 @@ class TestAgent:
         )
         assert "Remember this" in agent.task
 
+    @pytest.mark.parametrize("invalid_max_steps", [0, -1, 5.5, "ten"])
+    def test_invalid_max_steps_raises_error(self, invalid_max_steps):
+        with pytest.raises(ValueError, match="max_steps must be a positive integer."):
+            CodeAgent(tools=[], model=Model(), max_steps=invalid_max_steps)
+
     def test_reset_conversations(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())
         output = agent.run("What is 2 multiplied by 3.6452?", reset=True)
