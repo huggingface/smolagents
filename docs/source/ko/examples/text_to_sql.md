@@ -17,7 +17,7 @@
 !pip install smolagents python-dotenv sqlalchemy --upgrade -q
 ```
 
-추론 프로바이더를 호출하려면 환경 변수 `HF_TOKEN`에 유효한 토큰이 설정돼있어야 합니다.
+추론 프로바이더를 호출하려면 환경 변수 `HF_TOKEN`에 유효한 토큰이 설정되어 있어야 합니다.
 python-dotenv를 이용해 환경 변수를 불러오겠습니다.
 ```py
 from dotenv import load_dotenv
