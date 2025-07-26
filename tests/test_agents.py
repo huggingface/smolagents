@@ -116,7 +116,7 @@ class FakeToolCallModel(Model):
         if len(messages) < 3:
             return ChatMessage(
                 role=MessageRole.ASSISTANT,
-                content="",
+                content="I will call the python interpreter.",
                 tool_calls=[
                     ChatMessageToolCall(
                         id="call_0",
@@ -130,7 +130,7 @@ class FakeToolCallModel(Model):
         else:
             return ChatMessage(
                 role=MessageRole.ASSISTANT,
-                content="",
+                content="I will return the final answer.",
                 tool_calls=[
                     ChatMessageToolCall(
                         id="call_1",
@@ -421,10 +421,7 @@ class TestAgent:
         assert "7.2904" in output
         assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
         assert "7.2904" in agent.memory.steps[1].observations
-        assert (
-            agent.memory.steps[2].model_output
-            == "Tool call call_1: calling 'final_answer' with arguments: {'answer': '7.2904'}"
-        )
+        assert agent.memory.steps[2].model_output == "I will return the final answer."
 
     def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
         import PIL.Image
@@ -615,7 +612,6 @@ class TestAgent:
         agent.replay()
 
         str_output = agent_logger.console.export_text()
-        assert "Tool call" in str_output
         assert "arguments" in str_output
 
     def test_code_nontrivial_final_answer_works(self):
@@ -1718,7 +1714,6 @@ class TestToolCallingAgent:
                         function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "test_value"}),
                     )
                 ],
-                "expected_model_output": "Tool call call_1: calling 'test_tool' with arguments: {'input': 'test_value'}",
                 "expected_observations": "Processed: test_value",
                 "expected_final_outputs": ["Processed: test_value"],
                 "expected_error": None,
@@ -1737,7 +1732,6 @@ class TestToolCallingAgent:
                         function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value2"}),
                     ),
                 ],
-                "expected_model_output": "Tool call call_1: calling 'test_tool' with arguments: {'input': 'value1'}\nTool call call_2: calling 'test_tool' with arguments: {'input': 'value2'}",
                 "expected_observations": "Processed: value1\nProcessed: value2",
                 "expected_final_outputs": ["Processed: value1", "Processed: value2"],
                 "expected_error": None,
@@ -1767,7 +1761,6 @@ class TestToolCallingAgent:
             # Case 4: Empty tool calls list
             {
                 "tool_calls": [],
-                "expected_model_output": "",
                 "expected_observations": "",
                 "expected_final_outputs": [],
                 "expected_error": None,
@@ -1783,7 +1776,6 @@ class TestToolCallingAgent:
                         ),
                     )
                 ],
-                "expected_model_output": "Tool call call_1: calling 'final_answer' with arguments: {'answer': 'This is the final answer'}",
                 "expected_observations": "This is the final answer",
                 "expected_final_outputs": ["This is the final answer"],
                 "expected_error": None,
@@ -1807,7 +1799,7 @@ class TestToolCallingAgent:
         # Create chat message with the specified tool calls for process_tool_calls
         chat_message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=test_case["tool_calls"])
         # Create a memory step for process_tool_calls
-        memory_step = ActionStep(step_number=10, timing="mock_timing")
+        memory_step = ActionStep(step_number=10, timing="mock_timing", model_output="")
 
         # Process tool calls
         if test_case["expected_error"]:
@@ -1815,7 +1807,7 @@ class TestToolCallingAgent:
                 list(agent.process_tool_calls(chat_message, memory_step))
         else:
             final_outputs = list(agent.process_tool_calls(chat_message, memory_step))
-            assert memory_step.model_output == test_case["expected_model_output"]
+            assert memory_step.model_output == ""
             assert memory_step.observations == test_case["expected_observations"]
             assert [
                 final_output.output for final_output in final_outputs if isinstance(final_output, ToolOutput)
