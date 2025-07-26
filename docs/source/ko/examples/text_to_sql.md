@@ -1,4 +1,4 @@
-# Text-to-SQL
+# Text-to-SQL[[text-to-sql]]
 
 [[open-in-colab]]
 
@@ -68,7 +68,7 @@ rows = [
 insert_rows_into_table(rows, receipts)
 ```
 
-### 에이전트 만들기
+### 에이전트 만들기[[build-our-agent]]
 
 이제 도구를 활용해 SQL 테이블을 조회할 수 있도록 만들어봅시다.
 
@@ -119,7 +119,7 @@ def sql_engine(query: str) -> str:
     return output
 ```
 
-이제 이 도구를 활용하는 에이전트를 만들어보겠습니다.
+이제 이 도구를 사용하는 에이전트를 만들어보겠습니다.
 
 여기서는 smolagent의 메인 에이전트 클래스인 `CodeAgent`를 사용합니다. `CodeAgent`는 코드로 액션을 작성하고 ReAct 프레임워크에 따라 이전 출력 결과를 반복적으로 개선할 수 있습니다.
 
@@ -135,7 +135,7 @@ agent = CodeAgent(
 agent.run("Can you give me the name of the client who got the most expensive receipt?")
 ```
 
-### 레벨 업: 테이블 조인
+### 레벨 업: 테이블 조인[[level-2-table-joins]]
 
 이제 좀 더 어려운 과제를 해결해 볼까요? 에이전트가 여러 테이블에 걸친 조인을 처리하도록 만들어 보겠습니다.
 
@@ -176,7 +176,7 @@ for table in ["receipts", "waiters"]:
 
 print(updated_description)
 ```
-이번 요청은 이전보다 조금 더 어려우므로 더 강력한 [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) 모델을 사용하도록 LLM 엔진을 바꾸겠습니다!
+이번 요청은 이전보다 조금 더 어려우므로, 더 강력한 [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) 모델을 사용하도록 LLM 엔진을 바꾸겠습니다!
 
 ```py
 sql_engine.description = updated_description
@@ -193,6 +193,6 @@ agent.run("Which waiter got more total money from tips?")
 이번 예제는 여기까지입니다! 지금까지 다음과 같은 개념들을 살펴보았습니다.
 - 새로운 도구 만들기
 - 도구 설명 업데이트하기
-- 더 강력한 LLM을 사용할 경우 에이전트의 추론 능력이 향상된다는 점
+- 더 강력한 LLM으로 에이전트 추론 능력 향상시키기
 
-✅ 이제 여러분이 꿈꿔왔던 text-to-SQL 시스템을 직접 만들어볼 수 있습니다! ✨
+✅ 이제 여러분이 꿈꿔왔던 text-to-SQL 시스템을 직접 만들어 보세요! ✨
