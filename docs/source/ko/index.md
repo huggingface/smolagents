@@ -1,4 +1,4 @@
-# `smolagents`
+# `smolagents`[[smolagents]]
 
 <div class="flex justify-center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/license_to_call.png" style="max-width:700px"/>
