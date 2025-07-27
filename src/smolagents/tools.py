@@ -1277,6 +1277,8 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
                 and expected_type != "any"
                 and not (actual_type == "null" and expected_type_is_nullable)
             ):
+                if actual_type == "integer" and expected_type == "number":
+                    continue
                 return f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'."
 
         for key, schema in tool.inputs.items():

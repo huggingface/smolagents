@@ -798,6 +798,7 @@ def test_launch_gradio_demo_does_not_raise(tool_fixture_name, request):
         (bool, True, False),
         (str, "b", False),
         (int, 1, False),
+        (float, 1, False),
         (list, ["a", "b"], False),
         (list[str], ["a", "b"], False),
         (dict[str, str], {"a": "b"}, False),
