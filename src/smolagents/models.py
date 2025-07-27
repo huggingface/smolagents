@@ -778,8 +778,8 @@ class TransformersModel(Model):
             The torch_dtype to initialize your model with.
         trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
-        kwargs (dict, *optional*):
-            Any additional keyword arguments that you want to use in model.generate(), for instance `max_new_tokens` or `device`.
+        model_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to `AutoModel.from_pretrained` (like revision, model_args, config, etc.).
         **kwargs:
             Additional keyword arguments to pass to `model.generate()`, for instance `max_new_tokens` or `device`.
     Raises:
@@ -806,6 +806,7 @@ class TransformersModel(Model):
         device_map: str | None = None,
         torch_dtype: str | None = None,
         trust_remote_code: bool = False,
+        model_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
         try:
@@ -843,12 +844,14 @@ class TransformersModel(Model):
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
         self._is_vlm = False
+        self.model_kwargs = model_kwargs or {}
         try:
             self.model = AutoModelForImageTextToText.from_pretrained(
                 model_id,
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 trust_remote_code=trust_remote_code,
+                **self.model_kwargs,
             )
             self.processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=trust_remote_code)
             self._is_vlm = True
@@ -861,6 +864,7 @@ class TransformersModel(Model):
                     device_map=device_map,
                     torch_dtype=torch_dtype,
                     trust_remote_code=trust_remote_code,
+                    **self.model_kwargs,
                 )
                 self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
                 self.streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)  # type: ignore
@@ -1718,6 +1722,18 @@ class AmazonBedrockServerModel(ApiModel):
     This class provides an interface to interact with various Bedrock language models,
     allowing for customized model inference, guardrail configuration, message handling,
     and other parameters allowed by boto3 API.
+
+    Authentication:
+
+    Amazon Bedrock supports multiple authentication methods:
+    - Default AWS credentials:
+       Use the default AWS credential chain (e.g., IAM roles, IAM users).
+    - API Key Authentication (requires `boto3 >= 1.39.0`):
+       Set the API key using the `AWS_BEARER_TOKEN_BEDROCK` environment variable.
+
+    > [!TIP]
+    > API key support requires `boto3 >= 1.39.0`.
+    > For users not relying on API key authentication, the minimum supported version is `boto3 >= 1.36.18`.
 
     Parameters:
         model_id (`str`):
