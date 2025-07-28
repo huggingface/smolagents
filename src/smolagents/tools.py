@@ -1043,7 +1043,23 @@ def tool(tool_function: Callable) -> Tool:
     # - Get the source code of tool_function
     tool_source = inspect.getsource(tool_function)
     # - Remove the tool decorator and function definition line
-    tool_source_body = "\n".join(tool_source.split("\n")[2:])
+    try:
+        tree = ast.parse(tool_source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                func_node = node
+                break
+        else:
+            raise ValueError("No function definition found")
+        body_start_line = func_node.body[0].lineno - 1  # AST lineno starts with 1
+
+        lines = tool_source.splitlines()
+        body_lines = lines[body_start_line:]
+        tool_source_body = "\n".join(body_lines)
+    except Exception as e:
+        # Fall back to simple processing
+        lines = tool_source.splitlines()
+        tool_source_body = "\n".join(lines[2:]) if len(lines) > 2 else ""
     # - Dedent
     tool_source_body = textwrap.dedent(tool_source_body)
     # - Create the forward method source, including def line and indentation
