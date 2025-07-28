@@ -178,14 +178,14 @@ system_prompt: |-
   Example:
   ---
   Task: "Generate and execute code to compute 5 + 3"
-  If Agent {{agent_id}} is 0:
+  If Agent {{agent.agent_id}} is 0:
     Reasoning: I will generate code for the task and send it to Agent 1 for execution.
     Code:
     ```python
     code = "result = 5 + 3\nprint(result)"
     self.send_message(1, code)
     ```
-  If Agent {{agent_id}} is 1:
+  If Agent {{agent.agent_id}} is 1:
     Reasoning: I received code from Agent 0. I will execute it using the python_interpreter tool.
     Code:
     ```python
