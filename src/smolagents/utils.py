@@ -24,7 +24,6 @@ import keyword
 import os
 import re
 import time
-import types
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
@@ -269,36 +268,6 @@ class ImportFinder(ast.NodeVisitor):
             # Get the base package name (before any dots)
             base_package = node.module.split(".")[0]
             self.packages.add(base_package)
-
-
-def get_method_source(method):
-    """Get source code for a method, including bound methods."""
-    if isinstance(method, types.MethodType):
-        method = method.__func__
-    return get_source(method)
-
-
-def is_same_method(method1, method2):
-    """Compare two methods by their source code."""
-    try:
-        source1 = get_method_source(method1)
-        source2 = get_method_source(method2)
-
-        # Remove method decorators if any
-        source1 = "\n".join(line for line in source1.split("\n") if not line.strip().startswith("@"))
-        source2 = "\n".join(line for line in source2.split("\n") if not line.strip().startswith("@"))
-
-        return source1 == source2
-    except (TypeError, OSError):
-        return False
-
-
-def is_same_item(item1, item2):
-    """Compare two class items (methods or attributes) for equality."""
-    if callable(item1) and callable(item2):
-        return is_same_method(item1, item2)
-    else:
-        return item1 == item2
 
 
 def instance_to_source(instance, base_cls=None):
