@@ -1265,7 +1265,7 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
     if isinstance(arguments, dict):
         for key, value in arguments.items():
             if key not in tool.inputs:
-                return f"Argument {key} is not in the tool's input schema."
+                raise ValueError(f"Argument {key} is not in the tool's input schema")
 
             actual_type = _get_json_schema_type(type(value))["type"]
             expected_type = tool.inputs[key]["type"]
@@ -1279,18 +1279,17 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
             ):
                 if actual_type == "integer" and expected_type == "number":
                     continue
-                return f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'."
+                raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'")
 
         for key, schema in tool.inputs.items():
             key_is_nullable = schema.get("nullable", False)
             if key not in arguments and not key_is_nullable:
-                return f"Argument {key} is required."
+                raise ValueError(f"Argument {key} is required")
         return None
     else:
         expected_type = list(tool.inputs.values())[0]["type"]
         if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
-            return f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'."
-        return None
+            raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
 
 
 __all__ = [
