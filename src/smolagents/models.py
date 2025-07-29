@@ -1850,7 +1850,6 @@ class AmazonBedrockServerModel(ApiModel):
             convert_images_to_image_urls=convert_images_to_image_urls,
             **kwargs,
         )
-
         # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
         # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
         completion_kwargs.pop("toolConfig", None)
@@ -1898,8 +1897,23 @@ class AmazonBedrockServerModel(ApiModel):
         # self.client is created in ApiModel class
         response = self.client.converse(**completion_kwargs)
 
-        # Get first message
-        response["output"]["message"]["content"] = response["output"]["message"]["content"][0]["text"]
+        # Get first message that is not a thinking block. Also check it is the last message of the list.
+        i = 0
+        found = False
+        content_length = len(response["output"]["message"]["content"])
+        while i < content_length:
+            print(response["output"]["message"]["content"][i].keys())
+            if "text" in response["output"]["message"]["content"][i].keys():
+                found = True
+                response["output"]["message"]["content"] = response["output"]["message"]["content"][i]["text"]
+                break
+            else:
+                assert "reasoningContent" in response["output"]["message"]["content"][i].keys()
+            i += 1
+        assert found, '"text" field not found in any element of response["output"]["message"]["content"]'
+        assert i == content_length - 1, (
+            '"text found in position other than last, investigate proper output format, probably thinking mode fault'
+        )
 
         self._last_input_token_count = response["usage"]["inputTokens"]
         self._last_output_token_count = response["usage"]["outputTokens"]
