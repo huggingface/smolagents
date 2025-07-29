@@ -1434,6 +1434,9 @@ class ToolCallingAgent(MultiStepAgent):
             validate_tool_arguments(tool, arguments)
         except (ValueError, TypeError) as e:
             raise AgentToolCallError(str(e), self.logger) from e
+        except Exception as e:
+            error_msg = f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}"
+            raise AgentToolExecutionError(error_msg, self.logger) from e
 
         try:
             # Call tool with appropriate arguments
