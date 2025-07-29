@@ -1430,9 +1430,10 @@ class ToolCallingAgent(MultiStepAgent):
         arguments = self._substitute_state_variables(arguments)
         is_managed_agent = tool_name in self.managed_agents
 
-        error_msg = validate_tool_arguments(tool, arguments)
-        if error_msg:
-            raise AgentToolCallError(error_msg, self.logger)
+        try:
+            validate_tool_arguments(tool, arguments)
+        except (ValueError, TypeError) as e:
+            raise AgentToolCallError(str(e), self.logger) from e
 
         try:
             # Call tool with appropriate arguments
