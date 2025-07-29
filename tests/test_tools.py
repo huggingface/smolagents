@@ -820,11 +820,13 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         """
         return argument_a
 
-    error = validate_tool_arguments(test_tool, {"argument_a": expected_input})
     if expects_error:
-        assert error is not None
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(test_tool, {"argument_a": expected_input})
+
     else:
-        assert error is None
+        # Should not raise any exception
+        validate_tool_arguments(test_tool, {"argument_a": expected_input})
 
 
 @pytest.mark.parametrize(
@@ -834,9 +836,9 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         # - Valid input
         ("required_unsupported_none", str, ..., "text", None),
         # - None not allowed
-        ("required_unsupported_none", str, ..., None, "Argument param has type 'null' but should be 'string'."),
+        ("required_unsupported_none", str, ..., None, "Argument param has type 'null' but should be 'string'"),
         # - Missing required parameter is not allowed
-        ("required_unsupported_none", str, ..., ..., "Argument param is required."),
+        ("required_unsupported_none", str, ..., ..., "Argument param is required"),
         #
         # Required parameters but supports None
         # - Valid input
@@ -845,13 +847,13 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         ("required_supported_none", str | None, ..., None, None),
         # - Missing required parameter is not allowed
         # TODO: Fix this test case: property is marked as nullable because it can be None, but it can't be missing because it is required
-        # ("required_supported_none", str | None, ..., ..., "Argument param is required."),
+        # ("required_supported_none", str | None, ..., ..., "Argument param is required"),
         pytest.param(
             "required_supported_none",
             str | None,
             ...,
             ...,
-            "Argument param is required.",
+            "Argument param is required",
             marks=pytest.mark.skip(reason="TODO: Fix this test case"),
         ),
         #
@@ -860,13 +862,13 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         ("optional_unsupported_none", str, "default", "text", None),
         # - None not allowed
         # TODO: Fix this test case: property is marked as nullable because it has a default value, but it can't be None
-        # ("optional_unsupported_none", str, "default", None, "Argument param has type 'null' but should be 'string'."),
+        # ("optional_unsupported_none", str, "default", None, "Argument param has type 'null' but should be 'string'"),
         pytest.param(
             "optional_unsupported_none",
             str,
             "default",
             None,
-            "Argument param has type 'null' but should be 'string'.",
+            "Argument param has type 'null' but should be 'string'",
             marks=pytest.mark.skip(reason="TODO: Fix this test case"),
         ),
         # - Missing optional parameter is allowed
@@ -916,9 +918,10 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
 
     # Test with the input dictionary
     input_dict = {"param": input_value} if input_value is not ... else {}
-    error = validate_tool_arguments(test_tool, input_dict)
 
     if expected_error_message:
-        assert error == expected_error_message, f"Expected error for {scenario}"
+        with pytest.raises((ValueError, TypeError), match=expected_error_message):
+            validate_tool_arguments(test_tool, input_dict)
     else:
-        assert error is None, f"Unexpected error for {scenario}"
+        # Should not raise any exception
+        validate_tool_arguments(test_tool, input_dict)
