@@ -103,6 +103,21 @@ class BaseTool(ABC):
         pass
 
 
+class ToolRegistry(dict):
+    """Registry for tools that provides dict-like access."""
+
+    def __init__(self, tools: list[BaseTool]):
+        super().__init__({tool.name: tool for tool in tools})
+
+    def __setitem__(self, key: str, value: BaseTool):
+        """Add or update a tool."""
+        super().__setitem__(key, value)
+
+    def __repr__(self) -> str:
+        """String representation of the registry."""
+        return f"ToolRegistry({list(self.keys())})"
+
+
 class Tool(BaseTool):
     """
     A base class for the functions used by the agent. Subclass this and implement the `forward` method as well as the
