@@ -666,7 +666,7 @@ nested_answer()
     def test_final_answer_checks(self):
         error_string = "failed with error"
 
-        def check_always_fails(final_answer, agent_memory):
+        def check_always_fails(final_answer, agent_memory, agent_state):
             assert False, "Error raised in check"
 
         agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_always_fails])
@@ -677,7 +677,7 @@ nested_answer()
         agent = CodeAgent(
             model=FakeCodeModel(),
             tools=[],
-            final_answer_checks=[lambda x, y: x == 7.2904],
+            final_answer_checks=[lambda x, y, z: x == 7.2904],
             verbosity_level=1000,
         )
         output = agent.run("Dummy task.")
