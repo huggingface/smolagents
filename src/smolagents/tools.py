@@ -103,51 +103,6 @@ class BaseTool(ABC):
         pass
 
 
-class ToolRegistry:
-    """Registry for tools that provides dict-like access."""
-
-    def __init__(self, tools: list[BaseTool]):
-        self._tools = {tool.name: tool for tool in tools}
-
-    def __getitem__(self, key: str) -> BaseTool:
-        """Get a tool by name."""
-        if key not in self._tools:
-            raise KeyError(f"Tool '{key}' not found in registry")
-        return self._tools[key]
-
-    def __setitem__(self, key: str, value: Tool):
-        """Add or update a tool."""
-        self._tools[key] = value
-
-    def __delitem__(self, key: str):
-        """Remove a tool."""
-        del self._tools[key]
-
-    def __contains__(self, key: str) -> bool:
-        """Check if tool exists."""
-        return key in self._tools
-
-    def __iter__(self):
-        """Iterate over tool names."""
-        return iter(self._tools)
-
-    def __len__(self) -> int:
-        """Get number of tools."""
-        return len(self._tools)
-
-    def keys(self):
-        """Get tool names."""
-        return self._tools.keys()
-
-    def values(self):
-        """Get tools."""
-        return self._tools.values()
-
-    def items(self):
-        """Get (name, tool) pairs."""
-        return self._tools.items()
-
-
 class Tool(BaseTool):
     """
     A base class for the functions used by the agent. Subclass this and implement the `forward` method as well as the
@@ -1367,5 +1322,4 @@ __all__ = [
     "load_tool",
     "launch_gradio_demo",
     "ToolCollection",
-    "ToolRegistry",
 ]
