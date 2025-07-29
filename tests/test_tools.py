@@ -24,9 +24,98 @@ import PIL.Image
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
+from smolagents.tools import (
+    AUTHORIZED_TYPES,
+    Tool,
+    ToolCollection,
+    ToolRegistry,
+    launch_gradio_demo,
+    tool,
+    validate_tool_arguments,
+)
 
 from .utils.markers import require_run_all
+
+
+class MockTool(Tool):
+    def __init__(self, name: str, description: str = "Mock tool"):
+        self.name = name
+        self.description = description
+        self.inputs = {"param": {"type": "string", "description": "Test parameter"}}
+        self.output_type = "string"
+
+    def forward(self, param: str) -> str:
+        return f"Result: {param}"
+
+
+class TestToolRegistry:
+    def test_basic_dict_interface(self):
+        """Test that ToolRegistry behaves like a dictionary."""
+        registry = ToolRegistry([MockTool("tool1"), MockTool("tool2")])
+
+        # Test __len__
+        assert len(registry) == 2
+
+        # Test __contains__
+        assert "tool1" in registry
+        assert "tool2" in registry
+        assert "tool3" not in registry
+
+        # Test keys()
+        assert set(registry.keys()) == {"tool1", "tool2"}
+
+        # Test __iter__
+        assert set(iter(registry)) == {"tool1", "tool2"}
+
+    def test_tool_access_returns_tool(self):
+        """Test that accessing a tool returns a Tool."""
+        tool = MockTool("test_tool")  # noqa: F402
+        registry = ToolRegistry([tool])
+
+        accessed_tool = registry["test_tool"]
+
+        assert isinstance(accessed_tool, Tool)
+        assert accessed_tool is tool
+        # assert validated_tool.name == "test_tool"
+
+    def test_tool_addition_and_removal(self):
+        """Test adding and removing tools from the registry."""
+        registry = ToolRegistry([MockTool("tool1")])
+
+        # Test adding a new tool
+        registry["tool2"] = MockTool("tool2")
+
+        assert "tool2" in registry
+        assert len(registry) == 2
+
+        # Test removing a tool
+        del registry["tool1"]
+
+        assert "tool1" not in registry
+        assert len(registry) == 1
+
+    def test_key_error_for_missing_tool(self):
+        """Test that accessing a non-existent tool raises KeyError."""
+        registry = ToolRegistry([])
+
+        with pytest.raises(KeyError, match="Tool 'missing_tool' not found in registry"):
+            registry["missing_tool"]
+
+    def test_values_and_items(self):
+        """Test that values() and items() return tools."""
+        registry = ToolRegistry([MockTool("tool1"), MockTool("tool2")])
+
+        # Test values()
+        values = list(registry.values())
+        assert len(values) == 2
+        assert all(isinstance(v, Tool) for v in values)
+
+        # Test items()
+        items = list(registry.items())
+        assert len(items) == 2
+        for name, tool in items:  # noqa: F402
+            assert isinstance(tool, Tool)
+            assert tool.name == name
 
 
 class ToolTesterMixin:
