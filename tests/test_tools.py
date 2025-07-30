@@ -722,6 +722,8 @@ class TestToolDecorator:
         assert (
             "def forward(self, text: str, count: int=1, uppercase: bool=False, multiline_parameter_1: int=1000, multiline_parameter_2: int=2000) -> str:"
             in forward_source
+            or "def forward(self, text: str, count: int = 1, uppercase: bool = False, multiline_parameter_1: int = 1000, multiline_parameter_2: int = 2000) -> str:"
+            in forward_source
         )
         assert "result = text * count" in forward_source
         assert "return result.upper() if uppercase else result" in forward_source
@@ -771,6 +773,8 @@ class TestToolDecorator:
         forward_source = complex_tool.forward.__source__
         assert (
             "def forward(self, text: str, multiplier: int=2, separator: str=' ', multiline_parameter_1: int=1000, multiline_parameter_2: int=2000) -> str:"
+            in forward_source
+            or "def forward(self, text: str, multiplier: int = 2, separator: str = ' ', multiline_parameter_1: int = 1000, multiline_parameter_2: int = 2000) -> str:"
             in forward_source
         )
         assert "parts = [text] * multiplier" in forward_source
