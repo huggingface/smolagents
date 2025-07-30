@@ -16,6 +16,18 @@
 # limitations under the License.
 from __future__ import annotations
 
+
+__all__ = [
+    "AUTHORIZED_TYPES",
+    "FunctionTool",
+    "Tool",
+    "function_tool",
+    "tool",
+    "load_tool",
+    "launch_gradio_demo",
+    "ToolCollection",
+]
+
 import ast
 import inspect
 import json
@@ -1363,15 +1375,3 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
         expected_type = list(tool.inputs.values())[0]["type"]
         if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
             raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
-
-
-__all__ = [
-    "AUTHORIZED_TYPES",
-    "FunctionTool",
-    "Tool",
-    "function_tool",
-    "tool",
-    "load_tool",
-    "launch_gradio_demo",
-    "ToolCollection",
-]
