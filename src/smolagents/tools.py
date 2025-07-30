@@ -120,6 +120,39 @@ class FunctionTool(BaseTool):
         return json.dumps(schema["function"])
 
 
+def function_tool(tool_function: Callable) -> FunctionTool:
+    """
+    Convert a function into a [`FunctionTool`] instance.
+
+    This decorator wraps a regular function to create a [`FunctionTool`] that can be used
+    with agents. The function should have proper type hints and a docstring with
+    argument descriptions.
+
+    Args:
+        tool_function (`Callable`): Function to convert into a FunctionTool instance.
+            Should have type hints for each input and a type hint for the output.
+            Should also have a docstring including the description of the function
+            and an 'Args:' part where each argument is described.
+
+    Returns:
+        `FunctionTool`: FunctionTool instance wrapping the provided function.
+
+    Example:
+        ```python
+        @function_tool
+        def calculate_sum(a: int, b: int) -> int:
+            '''Calculate the sum of two numbers.
+
+            Args:
+                a: First number
+                b: Second number
+            '''
+            return a + b
+        ```
+    """
+    return FunctionTool(tool_function)
+
+
 class Tool(BaseTool):
     """
     A base class for the functions used by the agent. Subclass this and implement the `forward` method as well as the
