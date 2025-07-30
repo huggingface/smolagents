@@ -1334,6 +1334,7 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
 
 __all__ = [
     "AUTHORIZED_TYPES",
+    "FunctionTool",
     "Tool",
     "tool",
     "load_tool",
