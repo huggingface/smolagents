@@ -1897,23 +1897,14 @@ class AmazonBedrockServerModel(ApiModel):
         # self.client is created in ApiModel class
         response = self.client.converse(**completion_kwargs)
 
-        # Get first message that is not a thinking block. Also check it is the last message of the list.
-        i = 0
-        found = False
-        content_length = len(response["output"]["message"]["content"])
-        while i < content_length:
-            print(response["output"]["message"]["content"][i].keys())
-            if "text" in response["output"]["message"]["content"][i].keys():
-                found = True
-                response["output"]["message"]["content"] = response["output"]["message"]["content"][i]["text"]
-                break
-            else:
-                assert "reasoningContent" in response["output"]["message"]["content"][i].keys()
-            i += 1
-        assert found, '"text" field not found in any element of response["output"]["message"]["content"]'
-        assert i == content_length - 1, (
-            '"text found in position other than last, investigate proper output format, probably thinking mode fault'
-        )
+        # Get last message content block in case thinking mode is enabled: discard thinking
+        last_message_content_block = response["output"]["message"]["content"][-1]
+        if "text" not in last_message_content_block:
+            raise KeyError(
+                '"text" field not found in the last element of response["output"]["message"]["content"]. '
+                "Unexpected output format, possibly due to thinking mode changes."
+            )
+        response["output"]["message"]["content"] = last_message_content_block["text"]
 
         self._last_input_token_count = response["usage"]["inputTokens"]
         self._last_output_token_count = response["usage"]["outputTokens"]
