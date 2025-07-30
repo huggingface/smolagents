@@ -1056,7 +1056,7 @@ def tool(tool_function: Callable) -> Tool:
         lines = tool_source.splitlines()
         body_lines = lines[body_start_line:]
         tool_source_body = "\n".join(body_lines)
-    except Exception as e:
+    except Exception:
         # Fall back to simple processing
         lines = tool_source.splitlines()
         tool_source_body = "\n".join(lines[2:]) if len(lines) > 2 else ""
