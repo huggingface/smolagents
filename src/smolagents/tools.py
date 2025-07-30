@@ -1369,6 +1369,7 @@ __all__ = [
     "AUTHORIZED_TYPES",
     "FunctionTool",
     "Tool",
+    "function_tool",
     "tool",
     "load_tool",
     "launch_gradio_demo",
