@@ -665,7 +665,7 @@ class TestToolDecorator:
         def dummy_decorator(func):
             return func
 
-        with pytest.warns(UserWarning, match="`@tool` may not work properly in remote Python executor"):
+        with pytest.warns(UserWarning, match="has decorators other than @tool"):
 
             @tool
             @dummy_decorator
@@ -748,7 +748,7 @@ class TestToolDecorator:
         def dummy_decorator_2(func):
             return func
 
-        with pytest.warns(UserWarning, match="`@tool` may not work properly in remote Python executor"):
+        with pytest.warns(UserWarning, match="has decorators other than @tool"):
 
             @tool
             @dummy_decorator_1
