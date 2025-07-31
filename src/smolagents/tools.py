@@ -1049,33 +1049,25 @@ def tool(tool_function: Callable) -> Tool:
     func_node = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
     if not func_node:
         raise ValueError("No function definition found")
-    # - Extract decorator lines
-    if len(func_node.decorator_list) == 0:
-        decorator_lines = ""
-    else:
-        tool_decorators = [
-            node for node in func_node.decorator_list if isinstance(node, ast.Name) and node.id == "tool"
-        ]
-        if len(tool_decorators) == 1:
-            decorators_start = tool_decorators[0].end_lineno
-        elif len(tool_decorators) == 0:
-            decorators_start = 0
-        else:
-            raise ValueError("decorated function should have exactly ONE @tool decorator")
-        if len(func_node.decorator_list) - len(tool_decorators) > 0:
+    #   - Extract decorator lines
+    decorator_lines = ""
+    if func_node.decorator_list:
+        tool_decorators = [d for d in func_node.decorator_list if isinstance(d, ast.Name) and d.id == "tool"]
+        if len(tool_decorators) > 1:
+            raise ValueError(f"Function '{func_node.name}' has multiple @tool decorators. Only one is allowed.")
+        if len(tool_decorators) < len(func_node.decorator_list):
             warnings.warn(
-                "functions with decorators other than `@tool` may not work properly in "
-                "remote Python executor. This is because additional decorators can interfere with "
-                "the serialization and execution process. For more details, see issue #1626."
+                f"Function '{func_node.name}' has decorators other than @tool, "
+                "which may cause issues during remote execution. See issue #1626."
             )
-        decorators_end = func_node.decorator_list[-1].end_lineno
-        decorator_lines = "\n".join(lines[decorators_start:decorators_end])
-    # - Extract tool source body
-    body_start_line = func_node.body[0].lineno - 1  # AST lineno starts with 1
-    body_lines = lines[body_start_line:]
-    tool_source_body = "\n".join(body_lines)
+        decorator_start = tool_decorators[0].end_lineno if tool_decorators else 0
+        decorator_end = func_node.decorator_list[-1].end_lineno
+        decorator_lines = "\n".join(lines[decorator_start:decorator_end])
+    #   - Extract tool source body
+    body_start = func_node.body[0].lineno - 1  # AST lineno starts at 1
+    tool_source_body = "\n".join(lines[body_start:])
     # - Create the forward method source, including def line and indentation
-    forward_method_source = f"def forward{str(new_sig)}:\n{tool_source_body}"
+    forward_method_source = f"def forward{new_sig}:\n{tool_source_body}"
     # - Create the class source
     indent = " " * 4  # for class method
     class_source = (
