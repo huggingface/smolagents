@@ -1045,11 +1045,9 @@ def tool(tool_function: Callable) -> Tool:
     # - Remove the tool decorator and function definition line
     lines = tool_source.splitlines()
     tree = ast.parse(tool_source)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            func_node = node
-            break
-    else:
+    #   - Find function definition
+    func_node = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
+    if not func_node:
         raise ValueError("No function definition found")
     # - Extract decorator lines
     if len(func_node.decorator_list) == 0:
