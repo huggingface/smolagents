@@ -1048,17 +1048,22 @@ def tool(tool_function: Callable) -> Tool:
     #   - Find function definition
     func_node = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
     if not func_node:
-        raise ValueError("No function definition found")
+        raise ValueError(
+            "No function definition found in the provided source of {tool_function.__name__}. "
+            "Ensure the input is a standard function."
+        )
     #   - Extract decorator lines
     decorator_lines = ""
     if func_node.decorator_list:
         tool_decorators = [d for d in func_node.decorator_list if isinstance(d, ast.Name) and d.id == "tool"]
         if len(tool_decorators) > 1:
-            raise ValueError(f"Function '{func_node.name}' has multiple @tool decorators. Only one is allowed.")
+            raise ValueError(
+                f"Multiple @tool decorators found on function '{func_node.name}'. Only one @tool decorator is allowed."
+            )
         if len(tool_decorators) < len(func_node.decorator_list):
             warnings.warn(
-                f"Function '{func_node.name}' has decorators other than @tool, "
-                "which may cause issues during remote execution. See issue #1626."
+                f"Function '{func_node.name}' has decorators other than @tool. "
+                "This may cause issues with serialization in the remote executor. See issue #1626."
             )
         decorator_start = tool_decorators[0].end_lineno if tool_decorators else 0
         decorator_end = func_node.decorator_list[-1].end_lineno
