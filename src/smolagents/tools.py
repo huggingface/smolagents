@@ -1067,7 +1067,7 @@ def tool(tool_function: Callable) -> Tool:
             raise ValueError("decorated function should have exactly ONE @tool decorator")
         if len(func_node.decorator_list) - len(tool_decorators) > 0:
             warnings.warn(
-                "functions decorated by decorators other than `@tool` may not work properly in "
+                "functions with decorators other than `@tool` may not work properly in "
                 "remote Python executor, see #1626."
             )
         decorators_end = func_node.decorator_list[-1].end_lineno
