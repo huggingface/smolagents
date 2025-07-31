@@ -1041,8 +1041,7 @@ def tool(tool_function: Callable) -> Tool:
 
     # Create and attach the source code of the dynamically created tool class and forward method
     # - Get the source code of tool_function
-    tool_source = inspect.getsource(tool_function)
-    tool_source = textwrap.dedent(tool_source)
+    tool_source = textwrap.dedent(inspect.getsource(tool_function))
     # - Remove the tool decorator and function definition line
     lines = tool_source.splitlines()
     tree = ast.parse(tool_source)
