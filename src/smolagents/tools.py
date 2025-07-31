@@ -1053,17 +1053,26 @@ def tool(tool_function: Callable) -> Tool:
     else:
         raise ValueError("No function definition found")
     # - Extract decorator lines
-    tool_decorators = [node for node in func_node.decorator_list if isinstance(node, ast.Name) and node.id == "tool"]
-    assert len(tool_decorators) == 1  # has exactly ONE @tool decorator
-    tool_decorator = tool_decorators[0]
-    final_decorator = func_node.decorator_list[-1]
-    decorator_lines = "\n".join(lines[tool_decorator.end_lineno : final_decorator.end_lineno])
+    if len(func_node.decorator_list) == 0:
+        decorator_lines = ""
+    else:
+        tool_decorators = [
+            node for node in func_node.decorator_list if isinstance(node, ast.Name) and node.id == "tool"
+        ]
+        if len(tool_decorators) == 1:
+            decorators_start = tool_decorators[0].end_lineno
+        elif len(tool_decorators) == 0:
+            decorators_start = 0
+        else:
+            raise ValueError("decorated function should has exactly ONE @tool decorator")
+        decorators_end = func_node.decorator_list[-1].end_lineno
+        decorator_lines = "\n".join(lines[decorators_start:decorators_end])
     # - Extract tool source body
     body_start_line = func_node.body[0].lineno - 1  # AST lineno starts with 1
     body_lines = lines[body_start_line:]
     tool_source_body = "\n".join(body_lines)
     # - Create the forward method source, including def line and indentation
-    forward_method_source = f"def forward{str(new_sig)}:\n{textwrap.indent(tool_source_body, '    ')}"
+    forward_method_source = f"def forward{str(new_sig)}:\n{tool_source_body}"
     # - Create the class source
     indent = " " * 4  # for class method
     class_source = (
