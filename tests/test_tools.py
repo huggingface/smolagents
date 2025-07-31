@@ -17,6 +17,7 @@ import os
 from textwrap import dedent
 from typing import Any, Literal
 from unittest.mock import MagicMock, patch
+import warnings
 
 import mcp
 import numpy as np
@@ -664,15 +665,17 @@ class TestToolDecorator:
         def dummy_decorator(func):
             return func
 
-        @tool
-        @dummy_decorator
-        def multi_decorator_tool(text: str) -> str:
-            """Tool with multiple decorators.
+        with pytest.warns(UserWarning, match="`@tool` may not work properly in remote Python executor"):
 
-            Args:
-                text: Input text
-            """
-            return text.upper()
+            @tool
+            @dummy_decorator
+            def multi_decorator_tool(text: str) -> str:
+                """Tool with multiple decorators.
+
+                Args:
+                    text: Input text
+                """
+                return text.upper()
 
         # Verify the tool works
         assert isinstance(multi_decorator_tool, Tool)
@@ -692,25 +695,28 @@ class TestToolDecorator:
     def test_tool_decorator_source_extraction_with_multiline_signature(self):
         """Test that @tool correctly extracts source code with multiline function signatures."""
 
-        @tool
-        def multiline_signature_tool(
-            text: str,
-            count: int = 1,
-            uppercase: bool = False,
-            multiline_parameter_1: int = 1_000,
-            multiline_parameter_2: int = 2_000,
-        ) -> str:
-            """Tool with multiline signature.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
 
-            Args:
-                text: Input text
-                count: Number of repetitions
-                uppercase: Whether to convert to uppercase
-                multiline_parameter_1: Dummy parameter
-                multiline_parameter_2: Dummy parameter
-            """
-            result = text * count
-            return result.upper() if uppercase else result
+            @tool
+            def multiline_signature_tool(
+                text: str,
+                count: int = 1,
+                uppercase: bool = False,
+                multiline_parameter_1: int = 1_000,
+                multiline_parameter_2: int = 2_000,
+            ) -> str:
+                """Tool with multiline signature.
+
+                Args:
+                    text: Input text
+                    count: Number of repetitions
+                    uppercase: Whether to convert to uppercase
+                    multiline_parameter_1: Dummy parameter
+                    multiline_parameter_2: Dummy parameter
+                """
+                result = text * count
+                return result.upper() if uppercase else result
 
         # Verify the tool works
         assert isinstance(multiline_signature_tool, Tool)
@@ -742,27 +748,29 @@ class TestToolDecorator:
         def dummy_decorator_2(func):
             return func
 
-        @tool
-        @dummy_decorator_1
-        @dummy_decorator_2
-        def complex_tool(
-            text: str,
-            multiplier: int = 2,
-            separator: str = " ",
-            multiline_parameter_1: int = 1_000,
-            multiline_parameter_2: int = 2_000,
-        ) -> str:
-            """Complex tool with multiple decorators and multiline signature.
+        with pytest.warns(UserWarning, match="`@tool` may not work properly in remote Python executor"):
 
-            Args:
-                text: Input text
-                multiplier: How many times to repeat
-                separator: What to use between repetitions
-                multiline_parameter_1: Dummy parameter
-                multiline_parameter_2: Dummy parameter
-            """
-            parts = [text] * multiplier
-            return separator.join(parts)
+            @tool
+            @dummy_decorator_1
+            @dummy_decorator_2
+            def complex_tool(
+                text: str,
+                multiplier: int = 2,
+                separator: str = " ",
+                multiline_parameter_1: int = 1_000,
+                multiline_parameter_2: int = 2_000,
+            ) -> str:
+                """Complex tool with multiple decorators and multiline signature.
+
+                Args:
+                    text: Input text
+                    multiplier: How many times to repeat
+                    separator: What to use between repetitions
+                    multiline_parameter_1: Dummy parameter
+                    multiline_parameter_2: Dummy parameter
+                """
+                parts = [text] * multiplier
+                return separator.join(parts)
 
         # Verify the tool works
         assert isinstance(complex_tool, Tool)

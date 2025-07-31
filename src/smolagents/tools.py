@@ -1065,6 +1065,11 @@ def tool(tool_function: Callable) -> Tool:
             decorators_start = 0
         else:
             raise ValueError("decorated function should has exactly ONE @tool decorator")
+        if len(func_node.decorator_list) - len(tool_decorators) > 0:
+            warnings.warn(
+                "functions decorated by decorators other than `@tool` may not work properly in "
+                "remote Python executor, see #1626."
+            )
         decorators_end = func_node.decorator_list[-1].end_lineno
         decorator_lines = "\n".join(lines[decorators_start:decorators_end])
     # - Extract tool source body
