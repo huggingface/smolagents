@@ -1655,6 +1655,120 @@ class OpenAIServerModel(ApiModel):
 OpenAIModel = OpenAIServerModel
 
 
+class OpenAIResponsesModel(OpenAIServerModel):
+    def _prepare_response_kwargs(
+        self,
+        messages: list[ChatMessage | dict],
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> dict[str, Any]:
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=None,
+            response_format=None,
+            tools_to_call_from=tools_to_call_from,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+        input_items = []
+        for msg in completion_kwargs.pop("messages"):
+            if isinstance(msg["content"], str):
+                # Simple text content
+                input_items.append(
+                    {
+                        "type": "message",
+                        "role": msg["role"],
+                        "content": [{"type": "input_text", "text": msg["content"]}],
+                    }
+                )
+            elif isinstance(msg["content"], list):
+                # Multi-modal content (text + images)
+                content_items = []
+                for item in msg["content"]:
+                    if item["type"] == "text":
+                        content_items.append({"type": "input_text", "text": item["text"]})
+                    elif item["type"] == "image_url":
+                        content_items.append({"type": "input_image", "input_url": item["image_url"]})
+
+                input_items.append(
+                    {
+                        "type": "message",
+                        "role": msg["role"],
+                        "content": content_items,
+                    }
+                )
+
+        response_kwargs = {
+            **completion_kwargs,
+            "input": input_items,
+            "model": self.model_id,
+        }
+
+        if response_format is not None:
+            response_kwargs["text"] = {"format": response_format}
+
+        return response_kwargs
+
+    def generate(
+        self,
+        messages: list[ChatMessage | dict],
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        completion_kwargs = self._prepare_response_kwargs(
+            messages=messages,
+            response_format=response_format,
+            tools_to_call_from=tools_to_call_from,
+            **kwargs,
+        )
+        self._apply_rate_limit()
+        response = self.client.responses.create(**completion_kwargs)
+
+        self._last_input_token_count = response.usage.input_tokens
+        self._last_output_token_count = response.usage.output_tokens
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=response.output_text,
+            raw=response,
+            token_usage=TokenUsage(
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+            ),
+        )
+
+    def generate_stream(
+        self,
+        messages: list[ChatMessage | dict],
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> Generator[ChatMessageStreamDelta]:
+        completion_kwargs = self._prepare_response_kwargs(
+            messages=messages,
+            response_format=response_format,
+            tools_to_call_from=tools_to_call_from,
+            **kwargs,
+        )
+        self._apply_rate_limit()
+        for event in self.client.responses.create(**completion_kwargs, stream=True):
+            if hasattr(event, "delta"):
+                yield ChatMessageStreamDelta(content=event.delta)
+            if hasattr(event, "response") and getattr(event, "response", None):
+                usage = event.response.usage
+                self._last_input_token_count = usage.input_tokens
+                self._last_output_token_count = usage.output_tokens
+                yield ChatMessageStreamDelta(
+                    content="",
+                    token_usage=TokenUsage(
+                        input_tokens=usage.input_tokens,
+                        output_tokens=usage.output_tokens,
+                    ),
+                )
+
+
 class AzureOpenAIServerModel(OpenAIServerModel):
     """This model connects to an Azure OpenAI deployment.
 
@@ -1933,6 +2047,7 @@ __all__ = [
     "LiteLLMRouterModel",
     "OpenAIServerModel",
     "OpenAIModel",
+    "OpenAIResponsesModel",
     "VLLMModel",
     "AzureOpenAIServerModel",
     "AzureOpenAIModel",
