@@ -64,19 +64,28 @@ class RemotePythonExecutor(PythonExecutor):
         raise NotImplementedError
 
     def send_tools(self, tools: dict[str, Tool]):
-        if "final_answer" in tools:
-            self._patch_final_answer_with_exception(tools["final_answer"])
+        # Filter out non-Tool objects (like executor instances from managed_agents)
+        try:
+            from smolagents.tools import Tool as ToolClass
+        except ImportError:
+            # Fallback for different import paths
+            from .tools import Tool as ToolClass
+        
+        filtered_tools = {name: tool for name, tool in tools.items() if isinstance(tool, ToolClass)}
+        
+        if "final_answer" in filtered_tools:
+            self._patch_final_answer_with_exception(filtered_tools["final_answer"])
         # Install tool packages
         packages_to_install = {
             pkg
-            for tool in tools.values()
+            for tool in filtered_tools.values()
             for pkg in tool.to_dict()["requirements"]
             if pkg not in self.installed_packages + ["smolagents"]
         }
         if packages_to_install:
             self.installed_packages += self.install_packages(list(packages_to_install))
         # Get tool definitions
-        code = get_tools_definition_code(tools)
+        code = get_tools_definition_code(filtered_tools)
         if code:
             code_output = self.run_code_raise_errors(code)
             self.logger.log(code_output.logs)
@@ -197,7 +206,7 @@ locals().update(vars_dict)
         This is necessary because the remote executors
         rely on the FinalAnswerTool to detect the final answer.
         It modifies the `forward` method of the FinalAnswerTool to raise
-        a `FinalAnswerException` with the final answer as a pickled value.
+        a `FinalAnswerException` with the final answer as a JSON-serialized value.
         This allows the executor to catch this exception and return the final answer.
 
         Args:
@@ -213,14 +222,42 @@ locals().update(vars_dict)
         def forward(self, *args, **kwargs) -> Any:
             import base64
             import json
+            from datetime import datetime
+            from io import BytesIO
 
             class FinalAnswerException(Exception):
                 def __init__(self, value):
                     self.value = value
 
+            def _to_json_safe(obj):
+                """Convert Python objects to JSON-serializable format."""
+                if isinstance(obj, (str, int, float, bool, type(None))):
+                    return obj
+                elif isinstance(obj, dict):
+                    return {k: _to_json_safe(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [_to_json_safe(item) for item in obj]
+                elif isinstance(obj, tuple):
+                    return {"__type__": "tuple", "data": [_to_json_safe(item) for item in obj]}
+                elif isinstance(obj, set):
+                    return {"__type__": "set", "data": [_to_json_safe(item) for item in obj]}
+                elif isinstance(obj, bytes):
+                    return {"__type__": "bytes", "data": base64.b64encode(obj).decode()}
+                elif hasattr(obj, 'tolist'):  # numpy arrays
+                    return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
+                elif hasattr(obj, 'isoformat'):  # datetime objects
+                    return {"__type__": "datetime", "data": obj.isoformat()}
+                elif hasattr(obj, 'save'):  # PIL Images
+                    buffer = BytesIO()
+                    obj.save(buffer, format='PNG')
+                    return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
+                else:
+                    # For unsupported types, convert to string representation
+                    return str(obj)
+
             # Use JSON-safe serialization for final answer
             result = self._forward(*args, **kwargs)
-            json_safe_result = self._parent_executor._to_json_safe(result)
+            json_safe_result = _to_json_safe(result)
             raise FinalAnswerException(base64.b64encode(json.dumps(json_safe_result).encode()).decode())
 
         # - Set the new forward method function to the _FinalAnswerTool class
@@ -238,8 +275,6 @@ locals().update(vars_dict)
 
         # Set the new class as the class of the final_answer_tool instance
         final_answer_tool.__class__ = _FinalAnswerTool
-        # Store reference to executor for serialization
-        _FinalAnswerTool._parent_executor = self
 
 
 class E2BExecutor(RemotePythonExecutor):
