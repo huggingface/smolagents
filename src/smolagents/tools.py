@@ -1064,7 +1064,7 @@ def tool(tool_function: Callable) -> Tool:
         elif len(tool_decorators) == 0:
             decorators_start = 0
         else:
-            raise ValueError("decorated function should has exactly ONE @tool decorator")
+            raise ValueError("decorated function should have exactly ONE @tool decorator")
         if len(func_node.decorator_list) - len(tool_decorators) > 0:
             warnings.warn(
                 "functions decorated by decorators other than `@tool` may not work properly in "
