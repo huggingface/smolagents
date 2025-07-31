@@ -18,7 +18,6 @@ import base64
 import inspect
 import json
 import os
-import pickle
 import subprocess
 import tempfile
 import time
@@ -84,17 +83,103 @@ class RemotePythonExecutor(PythonExecutor):
 
     def send_variables(self, variables: dict):
         """
-        Send variables to the kernel namespace using pickle.
+        Send variables to the kernel namespace using JSON-safe serialization.
         """
         if not variables:
             return
-        pickled_vars = base64.b64encode(pickle.dumps(variables)).decode()
+        
+        # Convert variables to JSON-serializable format
+        json_safe_vars = self._to_json_safe(variables)
+        encoded_vars = base64.b64encode(json.dumps(json_safe_vars).encode()).decode()
+        
         code = f"""
-import pickle, base64
-vars_dict = pickle.loads(base64.b64decode('{pickled_vars}'))
+import json, base64
+import numpy as np
+from datetime import datetime
+from io import BytesIO
+import PIL.Image
+
+def _from_json_safe(obj):
+    if isinstance(obj, dict):
+        if "__type__" in obj:
+            obj_type = obj["__type__"]
+            if obj_type == "ndarray":
+                return np.array(obj["data"], dtype=obj["dtype"])
+            elif obj_type == "datetime":
+                return datetime.fromisoformat(obj["data"])
+            elif obj_type == "bytes":
+                return base64.b64decode(obj["data"])
+            elif obj_type == "PIL.Image":
+                img_bytes = base64.b64decode(obj["data"])
+                return PIL.Image.open(BytesIO(img_bytes))
+            elif obj_type == "set":
+                return set(obj["data"])
+            elif obj_type == "tuple":
+                return tuple(obj["data"])
+        return {{k: _from_json_safe(v) for k, v in obj.items()}}
+    elif isinstance(obj, list):
+        return [_from_json_safe(item) for item in obj]
+    return obj
+
+vars_dict = json.loads(base64.b64decode('{encoded_vars}'))
+vars_dict = _from_json_safe(vars_dict)
 locals().update(vars_dict)
 """
         self.run_code_raise_errors(code)
+    
+    def _to_json_safe(self, obj):
+        """Convert Python objects to JSON-serializable format."""
+        if isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        elif isinstance(obj, dict):
+            return {k: self._to_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._to_json_safe(item) for item in obj]
+        elif isinstance(obj, tuple):
+            return {"__type__": "tuple", "data": [self._to_json_safe(item) for item in obj]}
+        elif isinstance(obj, set):
+            return {"__type__": "set", "data": [self._to_json_safe(item) for item in obj]}
+        elif isinstance(obj, bytes):
+            return {"__type__": "bytes", "data": base64.b64encode(obj).decode()}
+        elif hasattr(obj, 'tolist'):  # numpy arrays
+            return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
+        elif hasattr(obj, 'isoformat'):  # datetime objects
+            return {"__type__": "datetime", "data": obj.isoformat()}
+        elif hasattr(obj, 'save'):  # PIL Images
+            buffer = BytesIO()
+            obj.save(buffer, format='PNG')
+            return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
+        else:
+            # For unsupported types, convert to string representation
+            return str(obj)
+    
+    def _from_json_safe(self, obj):
+        """Convert JSON-safe format back to Python objects."""
+        if isinstance(obj, dict):
+            if "__type__" in obj:
+                obj_type = obj["__type__"]
+                if obj_type == "ndarray":
+                    try:
+                        import numpy as np
+                        return np.array(obj["data"], dtype=obj["dtype"])
+                    except ImportError:
+                        return obj["data"]  # fallback to list
+                elif obj_type == "datetime":
+                    from datetime import datetime
+                    return datetime.fromisoformat(obj["data"])
+                elif obj_type == "bytes":
+                    return base64.b64decode(obj["data"])
+                elif obj_type == "PIL.Image":
+                    img_bytes = base64.b64decode(obj["data"])
+                    return PIL.Image.open(BytesIO(img_bytes))
+                elif obj_type == "set":
+                    return set(obj["data"])
+                elif obj_type == "tuple":
+                    return tuple(obj["data"])
+            return {k: self._from_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._from_json_safe(item) for item in obj]
+        return obj
 
     def __call__(self, code_action: str) -> CodeOutput:
         """Run the code and determine if it is the final answer."""
@@ -127,13 +212,16 @@ locals().update(vars_dict)
         # - Define the new forward method function
         def forward(self, *args, **kwargs) -> Any:
             import base64
-            import pickle
+            import json
 
             class FinalAnswerException(Exception):
                 def __init__(self, value):
                     self.value = value
 
-            raise FinalAnswerException(base64.b64encode(pickle.dumps(self._forward(*args, **kwargs))).decode())
+            # Use JSON-safe serialization for final answer
+            result = self._forward(*args, **kwargs)
+            json_safe_result = self._parent_executor._to_json_safe(result)
+            raise FinalAnswerException(base64.b64encode(json.dumps(json_safe_result).encode()).decode())
 
         # - Set the new forward method function to the _FinalAnswerTool class
         _FinalAnswerTool.forward = forward
@@ -150,6 +238,8 @@ locals().update(vars_dict)
 
         # Set the new class as the class of the final_answer_tool instance
         final_answer_tool.__class__ = _FinalAnswerTool
+        # Store reference to executor for serialization
+        _FinalAnswerTool._parent_executor = self
 
 
 class E2BExecutor(RemotePythonExecutor):
@@ -182,7 +272,8 @@ class E2BExecutor(RemotePythonExecutor):
         if execution.error:
             # Check if the error is a FinalAnswerException
             if execution.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                final_answer = pickle.loads(base64.b64decode(execution.error.value))
+                json_data = json.loads(base64.b64decode(execution.error.value))
+                final_answer = self._from_json_safe(json_data)
                 return CodeOutput(output=final_answer, logs=execution_logs, is_final_answer=True)
 
             # Construct error message
@@ -398,7 +489,8 @@ class DockerExecutor(RemotePythonExecutor):
                     result = msg_content["data"].get("text/plain", None)
                 elif msg_type == "error":
                     if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                        result = pickle.loads(base64.b64decode(msg_content.get("evalue", "")))
+                        json_data = json.loads(base64.b64decode(msg_content.get("evalue", "")))
+                        result = self._from_json_safe(json_data)
                         is_final_answer = True
                     else:
                         raise AgentError("\n".join(msg_content.get("traceback", [])), self.logger)
@@ -601,7 +693,8 @@ class WasmExecutor(RemotePythonExecutor):
                     error.get("pythonExceptionType") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION
                     and "pythonExceptionValue" in error
                 ):
-                    result = pickle.loads(base64.b64decode(error["pythonExceptionValue"]))
+                    json_data = json.loads(base64.b64decode(error["pythonExceptionValue"]))
+                    result = self._from_json_safe(json_data)
                     is_final_answer = True
                 else:
                     error_message = f"{error.get('name', 'Error')}: {error.get('message', 'Unknown error')}"
