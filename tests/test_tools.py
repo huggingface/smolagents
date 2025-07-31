@@ -14,10 +14,10 @@
 # limitations under the License.
 import inspect
 import os
+import warnings
 from textwrap import dedent
 from typing import Any, Literal
 from unittest.mock import MagicMock, patch
-import warnings
 
 import mcp
 import numpy as np
