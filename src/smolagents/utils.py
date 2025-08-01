@@ -17,7 +17,6 @@
 import ast
 import base64
 import importlib.metadata
-import importlib.util
 import inspect
 import json
 import keyword
