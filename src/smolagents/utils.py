@@ -16,7 +16,7 @@
 # limitations under the License.
 import ast
 import base64
-import importlib.metadata
+import importlib.util
 import inspect
 import json
 import keyword
@@ -41,11 +41,7 @@ __all__ = ["AgentError"]
 
 @lru_cache
 def _is_package_available(package_name: str) -> bool:
-    try:
-        importlib.metadata.version(package_name)
-        return True
-    except importlib.metadata.PackageNotFoundError:
-        return False
+    return importlib.util.find_spec(package_name) is not None
 
 
 BASE_BUILTIN_MODULES = [
