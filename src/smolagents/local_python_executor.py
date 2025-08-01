@@ -837,12 +837,7 @@ def evaluate_call(
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
-        if (
-            hasattr(func, "__name__")
-            and func.__name__.startswith("__")
-            and func.__name__.endswith("__")
-            and (func.__name__ not in static_tools.values())
-        ):
+        if hasattr(func, "__name__") and func.__name__.startswith("__") and func.__name__.endswith("__"):
             raise InterpreterError(f"Forbidden access to dunder function: {func_name}")
         return func(*args, **kwargs)
 
