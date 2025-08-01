@@ -1505,7 +1505,7 @@ class CodeAgent(MultiStepAgent):
         self.authorized_imports = sorted(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         self.max_print_outputs_length = max_print_outputs_length
         self._use_structured_outputs_internally = use_structured_outputs_internally
-        if use_structured_outputs_internally:
+        if self._use_structured_outputs_internally:
             prompt_templates = prompt_templates or yaml.safe_load(
                 importlib.resources.files("smolagents.prompts").joinpath("structured_code_agent.yaml").read_text()
             )
@@ -1513,7 +1513,7 @@ class CodeAgent(MultiStepAgent):
             prompt_templates = prompt_templates or yaml.safe_load(
                 importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
             )
-        if grammar and use_structured_outputs_internally:
+        if grammar and self._use_structured_outputs_internally:
             raise ValueError("You cannot use 'grammar' and 'use_structured_outputs_internally' at the same time.")
 
         if isinstance(code_block_tags, str) and not code_block_tags == "markdown":
@@ -1651,11 +1651,12 @@ class CodeAgent(MultiStepAgent):
                     level=LogLevel.DEBUG,
                 )
 
-            # This adds the end code sequence to the history.
-            # This will nudge ulterior LLM calls to finish with this end code sequence, thus efficiently stopping generation.
-            if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
-                output_text += self.code_block_tags[1]
-                memory_step.model_output_message.content = output_text
+            if not self._use_structured_outputs_internally:
+                # This adds the end code sequence (i.e. the closing code block tag) to the history.
+                # This will nudge subsequent LLM calls to finish with this end code sequence, thus efficiently stopping generation.
+                if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
+                    output_text += self.code_block_tags[1]
+                    memory_step.model_output_message.content = output_text
 
             memory_step.token_usage = chat_message.token_usage
             memory_step.model_output = output_text
