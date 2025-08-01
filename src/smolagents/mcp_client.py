@@ -48,7 +48,7 @@ class MCPClient:
               - "transport": Transport protocol to use, one of:
                 - "streamable-http": (recommended) Streamable HTTP transport.
                 - "sse": Legacy HTTP+SSE transport (deprecated).
-              If "transport" is omitted, the legacy "sse" transport is assumed (a deprecation warning will be issued).
+              If "transport" is omitted, it defaults to "streamable-http". A warning is issued to encourage explicit declaration.
 
             <Deprecated version="1.17.0">
             The HTTP+SSE transport is deprecated and future behavior will default to the Streamable HTTP transport.
@@ -93,12 +93,11 @@ class MCPClient:
             transport = server_parameters.get("transport")
             if transport is None:
                 warnings.warn(
-                    "Passing a dict as server_parameters without specifying the 'transport' key is deprecated. "
-                    "For now, it defaults to the legacy 'sse' (HTTP+SSE) transport, but this default will change "
-                    "to 'streamable-http' in version 1.20. Please add the 'transport' key explicitly. ",
+                    "Passing a dict as server_parameters without specifying the 'transport' key now defaults to 'streamable-http'. "
+                    "To silence this warning, explicitly pass transport='streamable-http'.",
                     FutureWarning,
                 )
-                transport = "sse"
+                transport = "streamable-http"
                 server_parameters["transport"] = transport
             if transport not in {"sse", "streamable-http"}:
                 raise ValueError(

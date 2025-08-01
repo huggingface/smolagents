@@ -58,3 +58,22 @@ def test_multiple_servers(echo_server_script: str):
         assert tools[1].name == "echo_tool"
         assert tools[0].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
         assert tools[1].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
+
+
+def test_default_transport_is_streamable_http(monkeypatch):
+    """Test that MCPClient defaults to 'streamable-http' transport when not specified."""
+    captured_parameters = {}
+
+    # Patch MCPAdapt to capture the server_parameters passed to it
+    def mock_init(self, server_parameters, *args, **kwargs):
+        nonlocal captured_parameters
+        captured_parameters = server_parameters
+        self.__enter__ = lambda: []  # mock tools
+        self.__exit__ = lambda *args: None
+
+    monkeypatch.setattr("smolagents.mcp_client.MCPAdapt.__init__", mock_init)
+
+    with pytest.warns(FutureWarning, match="now defaults to 'streamable-http'"):
+        MCPClient({"url": "http://dummy-url.com"})
+
+    assert captured_parameters["transport"] == "streamable-http"
