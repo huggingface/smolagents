@@ -54,6 +54,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
 def custom_print(*args):
@@ -842,6 +843,7 @@ def evaluate_call(
             and func.__name__.startswith("__")
             and func.__name__.endswith("__")
             and (func.__name__ not in static_tools)
+            and (func.__name__ not in ALLOWED_DUNDER_METHODS)
         ):
             raise InterpreterError(f"Forbidden access to dunder function: {func_name}")
         return func(*args, **kwargs)
