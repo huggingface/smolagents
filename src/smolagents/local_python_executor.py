@@ -54,6 +54,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
 def custom_print(*args):
@@ -844,6 +845,14 @@ def evaluate_call(
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
+        if (
+            hasattr(func, "__name__")
+            and func.__name__.startswith("__")
+            and func.__name__.endswith("__")
+            and (func.__name__ not in static_tools)
+            and (func.__name__ not in ALLOWED_DUNDER_METHODS)
+        ):
+            raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
         return func(*args, **kwargs)
 
 

@@ -2482,3 +2482,79 @@ class TestLocalPythonExecutorSecurity:
         code = "a = (); b = getattr(a, '__class__')"
         with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'getattr'"):
             executor(code)
+
+    @pytest.mark.parametrize(
+        "code, additional_allowed_dunder_methods, expected_dunder_function_error",
+        [
+            ("'string'.__dir__()", [], "__dir__"),
+            ("'string'.__dir__()", ["__dir__"], None),
+            (
+                dedent(
+                    """
+                    def func():
+                        pass
+                    function_class = func.__getattribute__("__class__")
+                    object_class = type.__getattribute__(function_class, '__bases__')[0]
+                    for i, subclass in enumerate(object_class.__subclasses__()):
+                        if 'subprocess.Popen' in str(subclass):
+                            break
+                    subclass(["sh", "-c", ":"]).wait()
+                    """
+                ),
+                [],
+                "__getattribute__",
+            ),
+            (
+                dedent(
+                    """
+                    def func():
+                        pass
+                    function_class = func.__getattribute__("__class__")
+                    object_class = type.__getattribute__(function_class, '__bases__')[0]
+                    for i, subclass in enumerate(object_class.__subclasses__()):
+                        if 'subprocess.Popen' in str(subclass):
+                            break
+                    subclass(["sh", "-c", ":"]).wait()
+                    """
+                ),
+                ["__getattribute__"],
+                "__subclasses__",
+            ),
+            (
+                dedent(
+                    """
+                    def func():
+                        pass
+                    function_class = func.__getattribute__("__class__")
+                    object_class = type.__getattribute__(function_class, '__bases__')[0]
+                    for i, subclass in enumerate(object_class.__subclasses__()):
+                        if 'subprocess.Popen' in str(subclass):
+                            break
+                    subclass(["sh", "-c", ":"]).wait()
+                    """
+                ),
+                ["__getattribute__", "__subclasses__"],
+                None,
+            ),
+        ],
+    )
+    def test_vulnerability_via_dunder_call(
+        self, code, additional_allowed_dunder_methods, expected_dunder_function_error, monkeypatch
+    ):
+        import smolagents.local_python_executor
+
+        monkeypatch.setattr(
+            "smolagents.local_python_executor.ALLOWED_DUNDER_METHODS",
+            smolagents.local_python_executor.ALLOWED_DUNDER_METHODS + additional_allowed_dunder_methods,
+        )
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        expectation = (
+            pytest.raises(
+                InterpreterError, match=f"Forbidden call to dunder function: {expected_dunder_function_error}"
+            )
+            if expected_dunder_function_error
+            else does_not_raise()
+        )
+        with expectation:
+            executor(code)
