@@ -77,7 +77,7 @@ from .monitoring import (
     Monitor,
 )
 from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
-from .tools import BaseTool, Tool, validate_tool_arguments
+from .tools import BaseTool, Tool, ToolRegistry, validate_tool_arguments
 from .utils import (
     AgentError,
     AgentExecutionError,
@@ -361,7 +361,7 @@ class MultiStepAgent(ABC):
         assert all(isinstance(tool, BaseTool) for tool in tools), (
             "All elements must be instance of BaseTool (or a subclass)"
         )
-        self.tools = {tool.name: tool for tool in tools}
+        self.tools = ToolRegistry(tools)
         if add_base_tools:
             self.tools.update(
                 {
