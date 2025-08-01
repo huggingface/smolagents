@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
+import json
 import os
 import re
 import tempfile
@@ -2119,6 +2120,22 @@ print("Ok, calculation done!")""")
         agent = CodeAgent(tools=[CustomFinalAnswerToolWithCustomInputs()], model=model)
         answer = agent.run("Fake task.")
         assert answer == "1CUSTOM2"
+
+    def test_use_structured_outputs_internally(self):
+        expected_code = "print('Hello, world!')"
+        model = MagicMock()
+        # mock structured output generation
+        model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=json.dumps({"thought": "LLM-generated thought", "code": expected_code}),
+        )
+        agent = CodeAgent(
+            tools=[], model=model, use_structured_outputs_internally=True
+        )  # Use structured outputs internally
+        tool_call: ToolCall = next(
+            agent._step_stream(ActionStep(step_number=1, timing="mock_timing", model_output=""))
+        )
+        assert tool_call.arguments == expected_code
 
 
 class TestMultiAgents:
