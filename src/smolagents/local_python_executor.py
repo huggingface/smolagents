@@ -845,7 +845,7 @@ def evaluate_call(
             and (func.__name__ not in static_tools)
             and (func.__name__ not in ALLOWED_DUNDER_METHODS)
         ):
-            raise InterpreterError(f"Forbidden access to dunder function: {func_name}")
+            raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
         return func(*args, **kwargs)
 
 
