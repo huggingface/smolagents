@@ -841,7 +841,7 @@ def evaluate_call(
             hasattr(func, "__name__")
             and func.__name__.startswith("__")
             and func.__name__.endswith("__")
-            and (func.__name__ not in static_tools.values())
+            and (func.__name__ not in static_tools)
         ):
             raise InterpreterError(f"Forbidden access to dunder function: {func_name}")
         return func(*args, **kwargs)
