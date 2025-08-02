@@ -326,9 +326,7 @@ final_answer(pope_current_age)
 
 Above example were using notional tools that might not exist for you. On top of performing computations in the Python code snippets that you create, you only have access to these tools:
 {%- for tool in tools.values() %}
-- {{ tool.name }}: {{ tool.description }}
-    Takes inputs: {{tool.inputs}}
-    Returns an output of type: {{tool.output_type}}
+- {{ tool.to_tool_calling_prompt() }}
 {%- endfor %}
 
 {%- if managed_agents and managed_agents.values() | list %}
@@ -362,9 +360,7 @@ Now Begin! If you solve the task correctly, you will receive a reward of $1,000,
 - 用于插入工具描述。
   ```
   {%- for tool in tools.values() %}
-  - {{ tool.name }}: {{ tool.description }}
-      Takes inputs: {{tool.inputs}}
-      Returns an output of type: {{tool.output_type}}
+  - {{ tool.to_tool_calling_prompt() }}
   {%- endfor %}
   ```
 - 用于插入 managed agent 的描述（如果有）。
