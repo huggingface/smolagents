@@ -1,11 +1,20 @@
+# Smolagents Benchmark Runner
+# ===========================
+#
+# Example usage:
+# python run.py --model-type LiteLLMModel --model-id gpt-4o --provider openai --agent-action-type tool-calling
+# python run.py --model-type InferenceClientModel --model-id gpt-4o --provider openai --agent-action-type code
+
 import argparse
 import datetime
 import json
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Generator
 
 import datasets
 import pandas as pd
@@ -22,6 +31,8 @@ from smolagents import (
     ToolCallingAgent,
     VisitWebpageTool,
 )
+from smolagents.memory import ActionStep, FinalAnswerStep, PlanningStep
+from smolagents.models import ChatMessageStreamDelta
 
 
 load_dotenv()
@@ -130,14 +141,12 @@ def answer_single_question(example, model, answers_file, action_type):
         agent = CodeAgent(
             tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool()],
             model=model,
-            additional_authorized_imports=["numpy", "sympy"],
             max_steps=10,
         )
     elif action_type == "tool-calling":
         agent = ToolCallingAgent(
             tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool(), PythonInterpreterTool()],
             model=model,
-            additional_authorized_imports=["numpy", "sympy"],
             max_steps=10,
         )
 
@@ -152,17 +161,49 @@ def answer_single_question(example, model, answers_file, action_type):
     try:
         if action_type == "vanilla":
             answer = agent([{"role": "user", "content": augmented_question}]).content
-            token_counts = agent.monitor.get_total_token_counts()
+            # For vanilla agents, the agent is just the model and doesn't have a monitor
+            token_counts = {"input": 0, "output": 0}
             intermediate_steps = answer
         else:
             # Run agent 🚀
-            answer = str(agent.run(augmented_question))
+            result = agent.run(augmented_question)
+            try:
+                if isinstance(result, Generator):
+                    steps = list(result)
+                    final_step = steps[-1] if steps else None
+                    if isinstance(final_step, FinalAnswerStep):
+                        answer = final_step.output
+                    elif isinstance(final_step, ActionStep):
+                        answer = final_step.action_output
+                    elif isinstance(final_step, PlanningStep):
+                        answer = final_step.plan
+                    elif isinstance(final_step, ChatMessageStreamDelta):
+                        answer = final_step.content
+                    else:
+                        answer = str(final_step)
+                else:
+                    answer = result if isinstance(result, str) else str(result)
+            except Exception as e:
+                answer = f"Error extracting answer: {str(e)}"
+
             token_counts = agent.monitor.get_total_token_counts()
-            intermediate_steps = [dict(message) for message in agent.write_memory_to_messages()]
+
+            # CRITICAL FIX: Changed dict(message) to message.dict()
+            # ISSUE: Was getting "'ChatMessage' object is not iterable" error in JSON output
+            # CAUSE: ChatMessage objects are not iterable with dict() constructor
+            # SOLUTION: Use the .dict() method provided by ChatMessage class
+            intermediate_steps = [message.dict() for message in agent.write_memory_to_messages()]
 
         end_time = time.time()
+        duration = end_time - start_time
+        answer_preview = str(answer)[:100] + ("..." if len(str(answer)) > 100 else "") if answer else "No answer"
+        print(f"✅ Question processed in {duration:.2f}s - Answer: {answer_preview}")
     except Exception as e:
-        print("Error on ", augmented_question, e)
+        end_time = time.time()
+        duration = end_time - start_time
+        question_preview = str(augmented_question)[:50] + ("..." if len(str(augmented_question)) > 50 else "")
+        print(f"❌ Error after {duration:.2f}s on question: {question_preview}")
+        print(f"   Error details: {str(e)}")
         intermediate_steps = []
         token_counts = {"input": 0, "output": 0}
         answer = str(e)
@@ -183,13 +224,161 @@ def answer_single_question(example, model, answers_file, action_type):
     append_answer(annotated_example, answers_file)
 
 
+# ==============================
+# SCORING SYSTEM (ADDED FEATURE)
+# ==============================
+# This section was added to provide comprehensive benchmark evaluation
+# with multiple scoring metrics and detailed performance analysis.
+
+
+def normalize_answer(answer):
+    """
+    Normalize answer for comparison.
+
+    Removes extra whitespace, converts to lowercase, and strips punctuation
+    to enable more flexible answer matching.
+    """
+    if answer is None:
+        return ""
+    answer = str(answer).strip().lower()
+    # Remove extra whitespace
+    answer = re.sub(r"\s+", " ", answer)
+    # Remove common punctuation at the end
+    answer = re.sub(r"[.!?;,]+$", "", answer)
+    return answer
+
+
+def calculate_exact_match_score(predicted_answer, true_answer):
+    """
+    Calculate exact match score (1.0 for perfect match, 0.0 otherwise).
+
+    This is the strictest scoring metric.
+    """
+    return 1.0 if normalize_answer(predicted_answer) == normalize_answer(true_answer) else 0.0
+
+
+def calculate_contains_score(predicted_answer, true_answer):
+    """Calculate score based on whether the predicted answer contains the true answer."""
+    normalized_pred = normalize_answer(predicted_answer)
+    normalized_true = normalize_answer(true_answer)
+
+    if not normalized_true:
+        return 0.0
+
+    return 1.0 if normalized_true in normalized_pred else 0.0
+
+
+def calculate_benchmark_scores(jsonl_file_path):
+    """Calculate scores for a benchmark result file."""
+    if not os.path.exists(jsonl_file_path):
+        return {"error": "File not found"}
+
+    total_questions = 0
+    exact_matches = 0
+    contains_matches = 0
+
+    with open(jsonl_file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                data = json.loads(line.strip())
+                if not data:
+                    continue
+
+                predicted = data.get("answer", "")
+                true_answer = data.get("true_answer", "")
+
+                total_questions += 1
+                exact_matches += calculate_exact_match_score(predicted, true_answer)
+                contains_matches += calculate_contains_score(predicted, true_answer)
+
+            except json.JSONDecodeError:
+                continue
+
+    if total_questions == 0:
+        return {"error": "No valid questions found"}
+
+    return {
+        "total_questions": total_questions,
+        "exact_match_score": exact_matches / total_questions,
+        "contains_score": contains_matches / total_questions,
+        "exact_matches": exact_matches,
+        "contains_matches": contains_matches,
+    }
+
+
+def save_benchmark_scores(output_dir, model_id, action_type, date, eval_ds):
+    """Calculate and save scores for all benchmarks."""
+    scores_file = f"{output_dir}/benchmark_scores_{model_id.replace('/', '__')}__{action_type}__{date}.json"
+
+    all_scores = {
+        "model_id": model_id,
+        "action_type": action_type,
+        "date": date,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "benchmarks": {},
+    }
+
+    total_questions_all = 0
+    total_exact_matches_all = 0
+    total_contains_matches_all = 0
+
+    print("\n📊 Calculating benchmark scores...")
+
+    for task in eval_ds:
+        jsonl_file = f"{output_dir}/{model_id.replace('/', '__')}__{action_type}__{task}__{date}.jsonl"
+        scores = calculate_benchmark_scores(jsonl_file)
+
+        if "error" not in scores:
+            all_scores["benchmarks"][task] = scores
+            total_questions_all += scores["total_questions"]
+            total_exact_matches_all += scores["exact_matches"]
+            total_contains_matches_all += scores["contains_matches"]
+
+            print(f"  📈 {task.upper()}:")
+            print(f"     Questions: {scores['total_questions']}")
+            print(
+                f"     Exact Match: {scores['exact_match_score']:.1%} ({scores['exact_matches']}/{scores['total_questions']})"
+            )
+            print(
+                f"     Contains: {scores['contains_score']:.1%} ({scores['contains_matches']}/{scores['total_questions']})"
+            )
+        else:
+            print(f"  ❌ {task.upper()}: {scores['error']}")
+
+    # Overall scores
+    if total_questions_all > 0:
+        all_scores["overall"] = {
+            "total_questions": total_questions_all,
+            "exact_match_score": total_exact_matches_all / total_questions_all,
+            "contains_score": total_contains_matches_all / total_questions_all,
+            "exact_matches": total_exact_matches_all,
+            "contains_matches": total_contains_matches_all,
+        }
+
+        print("\n🎯 OVERALL SCORES:")
+        print(f"  Questions: {total_questions_all}")
+        print(
+            f"  Exact Match: {all_scores['overall']['exact_match_score']:.1%} ({total_exact_matches_all}/{total_questions_all})"
+        )
+        print(
+            f"  Contains: {all_scores['overall']['contains_score']:.1%} ({total_contains_matches_all}/{total_questions_all})"
+        )
+
+    # Save scores to file
+    with open(scores_file, "w", encoding="utf-8") as f:
+        json.dump(all_scores, f, indent=2, ensure_ascii=False)
+
+    print(f"\n💾 Scores saved to: {scores_file}")
+    return all_scores
+
+
 def answer_questions(
     eval_ds,
     model,
     date,
     action_type: str = "code",
     output_dir: str = "output",
-    answers_dataset: str = None,
+    answers_dataset: str | None = None,
     push_answers_to_hub: bool = False,
     parallel_workers: int = 32,
 ):
@@ -198,7 +387,8 @@ def answer_questions(
 
     for task in eval_ds:
         file_name = f"{output_dir}/{model_id.replace('/', '__')}__{action_type}__{task}__{date}.jsonl"
-        print(f"Starting processing and writing output to '{file_name}'")
+        print(f"\n🚀 Starting benchmark: {task}")
+        print(f"📄 Writing output to: {file_name}")
         answered_questions = []
         if os.path.exists(file_name):
             with open(file_name, "r") as f:
@@ -206,7 +396,19 @@ def answer_questions(
                     answered_questions.append(json.loads(line)["original_question"])
 
         examples_todo = [example for example in eval_ds[task] if example["question"] not in answered_questions]
-        print(f"Launching {parallel_workers} parallel workers.")
+        total_questions = len(eval_ds[task])
+        remaining_questions = len(examples_todo)
+        completed_questions = total_questions - remaining_questions
+
+        # IMPROVED LOGGING: Added detailed progress tracking with emojis for better readability
+        print(
+            f"📊 Progress: {completed_questions}/{total_questions} questions completed ({remaining_questions} remaining)"
+        )
+        if remaining_questions == 0:
+            print(f"✅ All questions for {task} already completed!")
+            continue
+
+        print(f"👥 Launching {parallel_workers} parallel workers...")
 
         with ThreadPoolExecutor(max_workers=parallel_workers) as exe:
             futures = [
@@ -215,7 +417,7 @@ def answer_questions(
             for f in tqdm(as_completed(futures), total=len(examples_todo), desc="Processing tasks"):
                 f.result()
 
-        print("All tasks processed.")
+        print(f"✅ All tasks for {task} processed.")
 
         if push_answers_to_hub and answers_dataset:
             print("Pushing answers to hub...")
@@ -229,6 +431,9 @@ def answer_questions(
                 split="test",
                 commit_message=f"Upload {config}",
             )
+
+    # Calculate and save benchmark scores
+    save_benchmark_scores(output_dir, model_id, action_type, date, eval_ds)
 
 
 if __name__ == "__main__":
