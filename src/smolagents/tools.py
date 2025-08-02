@@ -216,7 +216,7 @@ class Tool(BaseTool):
                     )
 
     def forward(self, *args, **kwargs):
-        return NotImplementedError("Write this method in your subclass of `Tool`.")
+        raise NotImplementedError("Write this method in your subclass of `Tool`.")
 
     def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
         if not self.is_initialized:
@@ -1041,14 +1041,40 @@ def tool(tool_function: Callable) -> Tool:
 
     # Create and attach the source code of the dynamically created tool class and forward method
     # - Get the source code of tool_function
-    tool_source = inspect.getsource(tool_function)
+    tool_source = textwrap.dedent(inspect.getsource(tool_function))
     # - Remove the tool decorator and function definition line
-    tool_source_body = "\n".join(tool_source.split("\n")[2:])
-    # - Dedent
-    tool_source_body = textwrap.dedent(tool_source_body)
+    lines = tool_source.splitlines()
+    tree = ast.parse(tool_source)
+    #   - Find function definition
+    func_node = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
+    if not func_node:
+        raise ValueError(
+            "No function definition found in the provided source of {tool_function.__name__}. "
+            "Ensure the input is a standard function."
+        )
+    #   - Extract decorator lines
+    decorator_lines = ""
+    if func_node.decorator_list:
+        tool_decorators = [d for d in func_node.decorator_list if isinstance(d, ast.Name) and d.id == "tool"]
+        if len(tool_decorators) > 1:
+            raise ValueError(
+                f"Multiple @tool decorators found on function '{func_node.name}'. Only one @tool decorator is allowed."
+            )
+        if len(tool_decorators) < len(func_node.decorator_list):
+            warnings.warn(
+                f"Function '{func_node.name}' has decorators other than @tool. "
+                "This may cause issues with serialization in the remote executor. See issue #1626."
+            )
+        decorator_start = tool_decorators[0].end_lineno if tool_decorators else 0
+        decorator_end = func_node.decorator_list[-1].end_lineno
+        decorator_lines = "\n".join(lines[decorator_start:decorator_end])
+    #   - Extract tool source body
+    body_start = func_node.body[0].lineno - 1  # AST lineno starts at 1
+    tool_source_body = "\n".join(lines[body_start:])
     # - Create the forward method source, including def line and indentation
-    forward_method_source = f"def forward{str(new_sig)}:\n{textwrap.indent(tool_source_body, '    ')}"
+    forward_method_source = f"def forward{new_sig}:\n{tool_source_body}"
     # - Create the class source
+    indent = " " * 4  # for class method
     class_source = (
         textwrap.dedent(f"""
         class SimpleTool(Tool):
@@ -1061,7 +1087,8 @@ def tool(tool_function: Callable) -> Tool:
                 self.is_initialized = True
 
         """)
-        + textwrap.indent(forward_method_source, "    ")  # indent for class method
+        + textwrap.indent(decorator_lines, indent)
+        + textwrap.indent(forward_method_source, indent)
     )
     # - Store the source code on both class and method for inspection
     SimpleTool.__source__ = class_source
@@ -1261,11 +1288,34 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     return tool_definition_code
 
 
-def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
+def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
+    """Validate tool arguments against tool's input schema.
+
+    Checks that all provided arguments match the tool's expected input types and that
+    all required arguments are present. Supports both dictionary arguments and single
+    value arguments for tools with one input parameter.
+
+    Args:
+        tool (`Tool`): Tool whose input schema will be used for validation.
+        arguments (`Any`): Arguments to validate. Can be a dictionary mapping
+            argument names to values, or a single value for tools with one input.
+
+
+    Raises:
+        ValueError: If an argument is not in the tool's input schema, if a required
+            argument is missing, or if the argument value doesn't match the expected type.
+        TypeError: If an argument has an incorrect type that cannot be converted
+            (e.g., string instead of number, excluding integer to number conversion).
+
+    Note:
+        - Supports type coercion from integer to number
+        - Handles nullable parameters when explicitly marked in the schema
+        - Accepts "any" type as a wildcard that matches all types
+    """
     if isinstance(arguments, dict):
         for key, value in arguments.items():
             if key not in tool.inputs:
-                return f"Argument {key} is not in the tool's input schema."
+                raise ValueError(f"Argument {key} is not in the tool's input schema")
 
             actual_type = _get_json_schema_type(type(value))["type"]
             expected_type = tool.inputs[key]["type"]
@@ -1277,18 +1327,19 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> str | None:
                 and expected_type != "any"
                 and not (actual_type == "null" and expected_type_is_nullable)
             ):
-                return f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'."
+                if actual_type == "integer" and expected_type == "number":
+                    continue
+                raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'")
 
         for key, schema in tool.inputs.items():
             key_is_nullable = schema.get("nullable", False)
             if key not in arguments and not key_is_nullable:
-                return f"Argument {key} is required."
+                raise ValueError(f"Argument {key} is required")
         return None
     else:
         expected_type = list(tool.inputs.values())[0]["type"]
         if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
-            return f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'."
-        return None
+            raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
 
 
 __all__ = [

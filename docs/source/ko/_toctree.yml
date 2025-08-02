@@ -1,7 +1,7 @@
 - title: Get started
   sections:
   - local: index
-    title: Introduction
+    title: 소개
   - local: installation
     title: Installation options
   - local: guided_tour
@@ -21,7 +21,7 @@
 - title: Conceptual guides
   sections:
   - local: conceptual_guides/intro_agents
-    title: 🤖 What are agents?
+    title: 🤖 An introduction to agentic systems
   - local: conceptual_guides/react
     title: 🤔 How do Multi-step agents work?
 - title: Examples

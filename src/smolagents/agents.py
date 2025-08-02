@@ -30,7 +30,6 @@ from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
 
-import jinja2
 import yaml
 from huggingface_hub import create_repo, metadata_update, snapshot_download, upload_folder
 from jinja2 import StrictUndefined, Template
@@ -80,7 +79,6 @@ from .monitoring import (
 from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
 from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
-    AGENT_GRADIO_APP_TEMPLATE,
     AgentError,
     AgentExecutionError,
     AgentGenerationError,
@@ -88,6 +86,7 @@ from .utils import (
     AgentParsingError,
     AgentToolCallError,
     AgentToolExecutionError,
+    create_agent_gradio_app_template,
     extract_code_from_text,
     is_valid_name,
     make_init_file,
@@ -928,14 +927,10 @@ You have been provided with these additional arguments, that you can access dire
         # Make agent.py file with Gradio UI
         agent_name = f"agent_{self.name}" if getattr(self, "name", None) else "agent"
         managed_agent_relative_path = relative_path + "." if relative_path is not None else ""
-        app_template = AGENT_GRADIO_APP_TEMPLATE
-        template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
-        template_env.filters["repr"] = repr
-        template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
-        template = template_env.from_string(app_template)
+        app_template = create_agent_gradio_app_template()
 
         # Render the app.py file from Jinja2 template
-        app_text = template.render(
+        app_text = app_template.render(
             {
                 "agent_name": agent_name,
                 "class_name": class_name,
@@ -1397,13 +1392,9 @@ class ToolCallingAgent(MultiStepAgent):
                     yield tool_output
 
         memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
-        memory_step.model_output = memory_step.model_output or ""
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
-            message = f"Tool call {tool_output.id}: calling '{tool_output.tool_call.name}' with arguments: {tool_output.tool_call.arguments}\n"
-            memory_step.model_output += message
             memory_step.observations += tool_output.observation + "\n"
-        memory_step.model_output = memory_step.model_output.rstrip("\n")
         memory_step.observations = (
             memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
         )
@@ -1439,9 +1430,13 @@ class ToolCallingAgent(MultiStepAgent):
         arguments = self._substitute_state_variables(arguments)
         is_managed_agent = tool_name in self.managed_agents
 
-        error_msg = validate_tool_arguments(tool, arguments)
-        if error_msg:
-            raise AgentToolCallError(error_msg, self.logger)
+        try:
+            validate_tool_arguments(tool, arguments)
+        except (ValueError, TypeError) as e:
+            raise AgentToolCallError(str(e), self.logger) from e
+        except Exception as e:
+            error_msg = f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}"
+            raise AgentToolExecutionError(error_msg, self.logger) from e
 
         try:
             # Call tool with appropriate arguments
