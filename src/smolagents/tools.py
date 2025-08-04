@@ -21,6 +21,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 import textwrap
@@ -46,6 +47,7 @@ from ._function_type_hints_utils import (
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
     _get_json_schema_type,
+    _is_pydantic_model,
     get_imports,
     get_json_schema,
 )
@@ -90,9 +92,123 @@ AUTHORIZED_TYPES = [
     "object",
     "any",
     "null",
+    # Additional types that can appear in Pydantic schemas
+    "enum",  # For enum constraints
 ]
 
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
+
+
+def _validate_value_against_schema(value: Any, schema: dict, param_name: str) -> None:
+    """
+    Validate a value against a JSON schema definition.
+
+    This function provides validation for complex schemas,
+    including those generated from Pydantic models.
+
+    Args:
+        value: The value to validate
+        schema: The JSON schema to validate against
+        param_name: Name of the parameter for error messages
+
+    Raises:
+        ValueError: If the value does not match the schema
+        TypeError: If the value has an incorrect type
+    """
+
+    # Handle nullable values
+    is_nullable = schema.get("nullable", False)
+    if value is None:
+        if is_nullable:
+            return
+        else:
+            raise ValueError(f"Argument '{param_name}' cannot be null")
+
+    # Get the expected type(s)
+    expected_type = schema.get("type")
+    if expected_type is None:
+        # If no type specified, treat as "any"
+        return
+
+    # Get actual type
+    actual_type = _get_json_schema_type(type(value))["type"]
+
+    # Handle "any" type
+    if expected_type == "any":
+        return
+
+    # Handle array types
+    if isinstance(expected_type, list):
+        valid_types = expected_type
+    else:
+        valid_types = [expected_type]
+
+    # Check if actual type matches any of the expected types
+    type_matches = actual_type in valid_types
+
+    # Allow integer to number conversion
+    if not type_matches and actual_type == "integer" and "number" in valid_types:
+        type_matches = True
+
+    if not type_matches:
+        raise TypeError(f"Argument '{param_name}' has type '{actual_type}' but should be one of {valid_types}")
+
+    # Additional validations for specific types
+    if actual_type == "array" and isinstance(value, list):
+        # Validate array items if schema is provided
+        items_schema = schema.get("items")
+        if items_schema:
+            for i, item in enumerate(value):
+                try:
+                    _validate_value_against_schema(item, items_schema, f"{param_name}[{i}]")
+                except (ValueError, TypeError) as e:
+                    raise type(e)(f"In {param_name}[{i}]: {str(e)}")
+
+    elif actual_type == "object" and isinstance(value, dict):
+        # Validate object properties if schema is provided
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+
+        # Check required properties
+        for req_prop in required:
+            if req_prop not in value:
+                raise ValueError(f"Required property '{req_prop}' missing in argument '{param_name}'")
+
+        # Validate each property
+        for prop_name, prop_value in value.items():
+            if prop_name in properties:
+                try:
+                    _validate_value_against_schema(prop_value, properties[prop_name], f"{param_name}.{prop_name}")
+                except (ValueError, TypeError) as e:
+                    raise type(e)(f"In {param_name}.{prop_name}: {str(e)}")
+
+    # Handle enum constraints
+    if "enum" in schema:
+        if value not in schema["enum"]:
+            raise ValueError(f"Argument '{param_name}' value '{value}' is not in allowed values: {schema['enum']}")
+
+    # Handle string constraints
+    if actual_type == "string" and isinstance(value, str):
+        if "minLength" in schema and len(value) < schema["minLength"]:
+            raise ValueError(f"Argument '{param_name}' length {len(value)} is less than minimum {schema['minLength']}")
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            raise ValueError(
+                f"Argument '{param_name}' length {len(value)} is greater than maximum {schema['maxLength']}"
+            )
+        if "pattern" in schema:
+            if not re.match(schema["pattern"], value):
+                raise ValueError(
+                    f"Argument '{param_name}' value '{value}' does not match pattern '{schema['pattern']}'"
+                )
+
+    # Handle numeric constraints
+    if actual_type in ["integer", "number"] and isinstance(value, (int, float)):
+        if "minimum" in schema and value < schema["minimum"]:
+            raise ValueError(f"Argument '{param_name}' value {value} is less than minimum {schema['minimum']}")
+        if "maximum" in schema and value > schema["maximum"]:
+            raise ValueError(f"Argument '{param_name}' value {value} is greater than maximum {schema['maximum']}")
+        if "multipleOf" in schema and value % schema["multipleOf"] != 0:
+            raise ValueError(f"Argument '{param_name}' value {value} is not a multiple of {schema['multipleOf']}")
 
 
 class BaseTool(ABC):
@@ -227,9 +343,20 @@ class Tool(BaseTool):
             potential_kwargs = args[0]
 
             # If the dictionary keys match our input parameters, convert it to kwargs
+            # This handles the case where the dict keys are the parameter names
             if all(key in self.inputs for key in potential_kwargs):
                 args = ()
                 kwargs = potential_kwargs
+            # If we have exactly one input parameter and the dict doesn't match parameter names,
+            # treat the entire dict as the value for that single parameter
+            elif len(self.inputs) == 1:
+                param_name = list(self.inputs.keys())[0]
+                args = ()
+                kwargs = {param_name: potential_kwargs}
+
+        # Convert dictionary arguments to Pydantic model instances if needed
+        if kwargs:
+            kwargs = self._convert_dict_args_to_pydantic_models(kwargs)
 
         if sanitize_inputs_outputs:
             args, kwargs = handle_agent_input_types(*args, **kwargs)
@@ -237,6 +364,55 @@ class Tool(BaseTool):
         if sanitize_inputs_outputs:
             outputs = handle_agent_output_types(outputs, self.output_type)
         return outputs
+
+    def _convert_dict_args_to_pydantic_models(self, kwargs: dict) -> dict:
+        """
+        Convert dictionary arguments to Pydantic model instances when the type hints indicate Pydantic models.
+
+        Args:
+            kwargs: Dictionary of keyword arguments
+
+        Returns:
+            dict: Updated kwargs with Pydantic model instances where appropriate
+
+        Raises:
+            ValueError: If Pydantic model validation fails
+            TypeError: If conversion fails due to type mismatch
+        """
+        try:
+            # Get the forward method signature and type hints
+            signature = inspect.signature(self.forward)
+            type_hints = getattr(self.forward, "__annotations__", {})
+
+            # Process each argument
+            converted_kwargs = {}
+            for param_name, param_value in kwargs.items():
+                if param_name in signature.parameters and param_name in type_hints:
+                    param_type = type_hints[param_name]
+
+                    # Check if the parameter type is a Pydantic model and the value is a dict
+                    if _is_pydantic_model(param_type) and isinstance(param_value, dict):
+                        try:
+                            # Instantiate the Pydantic model from the dictionary
+                            converted_kwargs[param_name] = param_type(**param_value)
+                        except Exception as e:
+                            # Re-raise validation errors with more context
+                            raise ValueError(
+                                f"Failed to create {param_type.__name__} from parameter '{param_name}': {str(e)}"
+                            ) from e
+                    else:
+                        converted_kwargs[param_name] = param_value
+                else:
+                    converted_kwargs[param_name] = param_value
+
+            return converted_kwargs
+
+        except ValueError:
+            # Re-raise ValueError (Pydantic validation errors)
+            raise
+        except Exception as e:
+            # Convert other errors to ValueError for consistency
+            raise ValueError(f"Error in Pydantic model conversion: {e}") from e
 
     def setup(self):
         """
@@ -1039,6 +1215,11 @@ def tool(tool_function: Callable) -> Tool:
     # - Set the signature of the forward method
     SimpleTool.forward.__signature__ = new_sig
 
+    # Preserve the original function's type hints for Pydantic model conversion
+    SimpleTool.forward.__annotations__ = (
+        tool_function.__annotations__.copy() if hasattr(tool_function, "__annotations__") else {}
+    )
+
     # Create and attach the source code of the dynamically created tool class and forward method
     # - Get the source code of tool_function
     tool_source = textwrap.dedent(inspect.getsource(tool_function))
@@ -1293,13 +1474,13 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
 
     Checks that all provided arguments match the tool's expected input types and that
     all required arguments are present. Supports both dictionary arguments and single
-    value arguments for tools with one input parameter.
+    value arguments for tools with one input parameter. Now includes updated support
+    for complex schemas including those from Pydantic models.
 
     Args:
         tool (`Tool`): Tool whose input schema will be used for validation.
         arguments (`Any`): Arguments to validate. Can be a dictionary mapping
             argument names to values, or a single value for tools with one input.
-
 
     Raises:
         ValueError: If an argument is not in the tool's input schema, if a required
@@ -1311,35 +1492,91 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
         - Supports type coercion from integer to number
         - Handles nullable parameters when explicitly marked in the schema
         - Accepts "any" type as a wildcard that matches all types
+        - Updated validation for complex schemas (objects, arrays, enums, constraints)
     """
     if isinstance(arguments, dict):
         for key, value in arguments.items():
             if key not in tool.inputs:
                 raise ValueError(f"Argument {key} is not in the tool's input schema")
 
-            actual_type = _get_json_schema_type(type(value))["type"]
-            expected_type = tool.inputs[key]["type"]
-            expected_type_is_nullable = tool.inputs[key].get("nullable", False)
+            # Get the full schema for this input
+            input_schema = tool.inputs[key]
 
-            # Type is valid if it matches, is "any", or is null for nullable parameters
-            if (
-                (actual_type != expected_type if isinstance(expected_type, str) else actual_type not in expected_type)
-                and expected_type != "any"
-                and not (actual_type == "null" and expected_type_is_nullable)
+            # Use updated validation if the schema is complex
+            if isinstance(input_schema, dict) and (
+                "properties" in input_schema
+                or "items" in input_schema
+                or "enum" in input_schema
+                or any(
+                    constraint in input_schema
+                    for constraint in ["minimum", "maximum", "minLength", "maxLength", "pattern"]
+                )
             ):
-                if actual_type == "integer" and expected_type == "number":
-                    continue
-                raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'")
+                # Use updated validation for complex schemas
+                _validate_value_against_schema(value, input_schema, key)
+            else:
+                # Fall back to original simple validation for backward compatibility
+                from ._function_type_hints_utils import _get_json_schema_type
 
+                actual_type = _get_json_schema_type(type(value))["type"]
+                expected_type = input_schema.get("type") if isinstance(input_schema, dict) else input_schema
+                expected_type_is_nullable = (
+                    input_schema.get("nullable", False) if isinstance(input_schema, dict) else False
+                )
+
+                # Type is valid if it matches, is "any", or is null for nullable parameters
+                if (
+                    (
+                        actual_type != expected_type
+                        if isinstance(expected_type, str)
+                        else actual_type not in expected_type
+                    )
+                    and expected_type != "any"
+                    and not (actual_type == "null" and expected_type_is_nullable)
+                ):
+                    if actual_type == "integer" and expected_type == "number":
+                        continue
+                    expected_display = expected_type if isinstance(expected_type, str) else str(expected_type)
+                    raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{expected_display}'")
+
+        # Check for missing required arguments
         for key, schema in tool.inputs.items():
-            key_is_nullable = schema.get("nullable", False)
+            if isinstance(schema, dict):
+                key_is_nullable = schema.get("nullable", False)
+            else:
+                key_is_nullable = False
             if key not in arguments and not key_is_nullable:
                 raise ValueError(f"Argument {key} is required")
         return None
     else:
-        expected_type = list(tool.inputs.values())[0]["type"]
-        if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
-            raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
+        # Handle single argument case
+        if len(tool.inputs) != 1:
+            raise ValueError("Single argument provided but tool expects multiple arguments")
+
+        input_key = list(tool.inputs.keys())[0]
+        input_schema = tool.inputs[input_key]
+
+        # Use updated validation for complex schemas
+        if isinstance(input_schema, dict) and (
+            "properties" in input_schema
+            or "items" in input_schema
+            or "enum" in input_schema
+            or any(
+                constraint in input_schema
+                for constraint in ["minimum", "maximum", "minLength", "maxLength", "pattern"]
+            )
+        ):
+            _validate_value_against_schema(arguments, input_schema, input_key)
+        else:
+            # Fall back to original simple validation
+            from ._function_type_hints_utils import _get_json_schema_type
+
+            expected_type = input_schema.get("type") if isinstance(input_schema, dict) else input_schema
+            actual_type = _get_json_schema_type(type(arguments))["type"]
+            if actual_type != expected_type and expected_type != "any":
+                if actual_type == "integer" and expected_type == "number":
+                    return
+                raise TypeError(f"Argument has type '{actual_type}' but should be '{expected_type}'")
 
 
 __all__ = [
