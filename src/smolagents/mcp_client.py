@@ -49,6 +49,12 @@ class MCPClient:
                 - "sse": Legacy HTTP+SSE transport (deprecated).
         adapter_kwargs (dict[str, Any], optional):
             Additional keyword arguments to be passed directly to `MCPAdapt`.
+        structured_output (bool, optional, defaults to False):
+            Whether to enable structured output features for MCP tools. If True, enables:
+            - Support for outputSchema in MCP tools
+            - Structured content handling (structuredContent from MCP responses)
+            - JSON parsing fallback for structured data
+            If False, uses the original simple text-only behavior for backwards compatibility.
 
     Example:
         ```python
@@ -59,6 +65,10 @@ class MCPClient:
         # context manager + Streamable HTTP transport:
         with MCPClient({"url": "http://localhost:8000/mcp", "transport": "streamable-http"}) as tools:
             # tools are now available
+
+        # Enable structured output for advanced MCP tools:
+        with MCPClient(server_parameters, structured_output=True) as tools:
+            # tools with structured output support are now available
 
         # manually manage the connection via the mcp_client object:
         try:
@@ -75,6 +85,7 @@ class MCPClient:
         self,
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
         adapter_kwargs: dict[str, Any] | None = None,
+        structured_output: bool = False,
     ):
         try:
             from mcpadapt.core import MCPAdapt
@@ -91,7 +102,7 @@ class MCPClient:
                     f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
                 )
         adapter_kwargs = adapter_kwargs or {}
-        self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter(), **adapter_kwargs)
+        self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter(structured_output=structured_output), **adapter_kwargs)
         self._tools: list[Tool] | None = None
         self.connect()
 

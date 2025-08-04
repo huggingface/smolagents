@@ -119,6 +119,9 @@ class Tool(BaseTool):
       description for your tool.
     - **output_type** (`type`) -- The type of the tool output. This is used by `launch_gradio_demo`
       or to make a nice space from your tool, and also can be used in the generated description for your tool.
+    - **output_schema** (`Dict[str, Any]`, *optional*) -- The JSON schema defining the expected structure of the tool output.
+      This can be included in system prompts to help agents understand the expected output format. Note: This is currently
+      used for informational purposes only and does not perform actual output validation.
 
     You can also override the method [`~Tool.setup`] if your tool has an expensive operation to perform before being
     usable (such as loading a model). [`~Tool.setup`] will be called the first time you use your tool, but not at
@@ -129,6 +132,7 @@ class Tool(BaseTool):
     description: str
     inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
+    output_schema: dict[str, Any] | None = None
 
     def __init__(self, *args, **kwargs):
         self.is_initialized = False
@@ -153,6 +157,14 @@ class Tool(BaseTool):
                 raise TypeError(
                     f"Attribute {attr} should have type {expected_type.__name__}, got {type(attr_value)} instead."
                 )
+
+        # Validate optional output_schema attribute
+        output_schema = getattr(self, "output_schema", None)
+        if output_schema is not None and not isinstance(output_schema, dict):
+            raise TypeError(
+                f"Attribute output_schema should have type dict, got {type(output_schema)} instead."
+            )
+
         # - Validate name
         if not is_valid_name(self.name):
             raise Exception(
@@ -289,6 +301,10 @@ class Tool(BaseTool):
                 output_type = "{self.output_type}"
             """
             ).strip()
+
+            # Add output_schema if it exists
+            if hasattr(self, "output_schema") and self.output_schema is not None:
+                tool_code += f'\n                output_schema = {repr(self.output_schema)}'
             import re
 
             def add_self_argument(source_code: str) -> str:
@@ -324,7 +340,13 @@ class Tool(BaseTool):
 
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
-        return {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
+        tool_dict = {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
+
+        # Add output_schema if it exists
+        if hasattr(self, "output_schema") and self.output_schema is not None:
+            tool_dict["output_schema"] = self.output_schema
+
+        return tool_dict
 
     @classmethod
     def from_dict(cls, tool_dict: dict[str, Any], **kwargs) -> "Tool":
@@ -340,7 +362,14 @@ class Tool(BaseTool):
         """
         if "code" not in tool_dict:
             raise ValueError("Tool dictionary must contain 'code' key with the tool source code")
-        return cls.from_code(tool_dict["code"], **kwargs)
+
+        tool = cls.from_code(tool_dict["code"], **kwargs)
+
+        # Set output_schema if it exists in the dictionary
+        if "output_schema" in tool_dict:
+            tool.output_schema = tool_dict["output_schema"]
+
+        return tool
 
     def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True):
         """
@@ -544,6 +573,10 @@ class Tool(BaseTool):
 
         if not isinstance(tool_class.inputs, dict):
             tool_class.inputs = ast.literal_eval(tool_class.inputs)
+
+        # Handle output_schema if it exists and is a string representation
+        if hasattr(tool_class, "output_schema") and isinstance(tool_class.output_schema, str):
+            tool_class.output_schema = ast.literal_eval(tool_class.output_schema)
 
         return tool_class(**kwargs)
 
@@ -900,7 +933,7 @@ class ToolCollection:
     @classmethod
     @contextmanager
     def from_mcp(
-        cls, server_parameters: "mcp.StdioServerParameters" | dict, trust_remote_code: bool = False
+        cls, server_parameters: "mcp.StdioServerParameters" | dict, trust_remote_code: bool = False, structured_output: bool = False
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
@@ -926,7 +959,13 @@ class ToolCollection:
                 This option should only be set to `True` if you trust the MCP server,
                 and undertand the risks associated with running remote code on your local machine.
                 If set to `False`, loading tools from MCP will fail.
-
+            structured_output (`bool`, *optional*, defaults to `False`):
+                Whether to enable structured output features for MCP tools. If True, enables:
+                - Support for outputSchema in MCP tools
+                - Structured content handling (structuredContent from MCP responses)
+                - JSON parsing fallback for structured data
+                - Output validation against schemas
+                If False, uses the original simple text-only behavior for backwards compatibility.
 
         Returns:
             ToolCollection: A tool collection instance.
@@ -946,6 +985,13 @@ class ToolCollection:
         >>> )
 
         >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
+        >>>     agent.run("Please find a remedy for hangover.")
+        ```
+
+        Example with structured output enabled:
+        ```py
+        >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True, structured_output=True) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
@@ -978,7 +1024,7 @@ class ToolCollection:
                 "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
                 "as it will execute code on your local machine: pass `trust_remote_code=True`."
             )
-        with MCPAdapt(server_parameters, SmolAgentsAdapter()) as tools:
+        with MCPAdapt(server_parameters, SmolAgentsAdapter(structured_output=structured_output)) as tools:
             yield cls(tools)
 
 
@@ -1010,6 +1056,12 @@ def tool(tool_function: Callable) -> Tool:
     SimpleTool.description = tool_json_schema["description"]
     SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
     SimpleTool.output_type = tool_json_schema["return"]["type"]
+
+    # Set output_schema if it exists in the JSON schema
+    if "output_schema" in tool_json_schema:
+        SimpleTool.output_schema = tool_json_schema["output_schema"]
+    elif "return" in tool_json_schema and "schema" in tool_json_schema["return"]:
+        SimpleTool.output_schema = tool_json_schema["return"]["schema"]
 
     @wraps(tool_function)
     def wrapped_function(*args, **kwargs):
