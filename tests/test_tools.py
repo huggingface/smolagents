@@ -15,6 +15,7 @@
 import inspect
 import os
 import warnings
+from enum import Enum
 from textwrap import dedent
 from typing import Any, Literal
 from unittest.mock import MagicMock, patch
@@ -1064,3 +1065,236 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class TestPydanticToolIntegration:
+    """Test Pydantic BaseModel integration with Tool creation and validation."""
+
+    @pytest.fixture
+    def pydantic_available(self):
+        """Check if Pydantic is available for testing."""
+        try:
+            import importlib.util
+
+            if importlib.util.find_spec("pydantic") is None:
+                pytest.skip("Pydantic not available")
+        except ImportError:
+            pytest.skip("Pydantic not available")
+
+    def test_tool_with_pydantic_model(self, pydantic_available):
+        """Test creating a tool that uses Pydantic models as input."""
+        import pydantic
+
+        class PersonInfo(pydantic.BaseModel):
+            """Information about a person."""
+
+            name: str
+            age: int
+            email: str | None = None
+
+        @tool
+        def process_person(person: PersonInfo) -> str:
+            """
+            Process information about a person.
+
+            Args:
+                person: Person information to process
+
+            Returns:
+                A formatted string with the person's information
+            """
+            email_part = f" (email: {person.email})" if person.email else ""
+            return f"Person: {person.name}, age {person.age}{email_part}"
+
+        # Test tool creation
+        assert process_person.name == "process_person"
+        assert isinstance(process_person.inputs, dict)
+        assert "person" in process_person.inputs
+
+        # Check that the Pydantic schema was properly converted
+        person_schema = process_person.inputs["person"]
+        assert isinstance(person_schema, dict)
+
+    def test_pydantic_tool_validation_success(self, pydantic_available):
+        """Test successful validation of Pydantic tool arguments."""
+        import pydantic
+
+        class UserData(pydantic.BaseModel):
+            username: str
+            active: bool = True
+
+        @tool
+        def process_user(user: UserData) -> str:
+            """
+            Process user data.
+
+            Args:
+                user: User data to process
+
+            Returns:
+                User summary
+            """
+            return f"User {user.username} is {'active' if user.active else 'inactive'}"
+
+        # Test with valid input
+        valid_input = {"user": {"username": "alice", "active": True}}
+
+        # Should not raise any exception
+        validate_tool_arguments(process_user, valid_input)
+
+    def test_pydantic_tool_validation_with_optional_fields(self, pydantic_available):
+        """Test validation with optional Pydantic fields."""
+        import pydantic
+
+        class ProfileData(pydantic.BaseModel):
+            name: str
+            bio: str | None = None
+            age: int | None = None
+
+        @tool
+        def create_profile(profile: ProfileData) -> str:
+            """
+            Create a user profile.
+
+            Args:
+                profile: Profile data
+
+            Returns:
+                Profile summary
+            """
+            return f"Profile for {profile.name}"
+
+        # Test with minimal required fields
+        minimal_input = {"profile": {"name": "Bob"}}
+
+        # Should not raise any exception
+        validate_tool_arguments(create_profile, minimal_input)
+
+        # Test with all fields
+        complete_input = {"profile": {"name": "Alice", "bio": "Software engineer", "age": 30}}
+
+        # Should not raise any exception
+        validate_tool_arguments(create_profile, complete_input)
+
+    def test_pydantic_tool_validation_failure(self, pydantic_available):
+        """Test validation failures with Pydantic tool arguments."""
+        import pydantic
+
+        class StrictData(pydantic.BaseModel):
+            count: int
+            message: str
+
+        @tool
+        def process_strict(data: StrictData) -> str:
+            """
+            Process strict data.
+
+            Args:
+                data: Strict data requirements
+
+            Returns:
+                Processing result
+            """
+            return f"Processed {data.count}: {data.message}"
+
+        # Test with missing required field
+        invalid_input = {
+            "data": {
+                "count": 5
+                # missing "message"
+            }
+        }
+
+        # Should raise validation error for missing required field
+        with pytest.raises(ValueError, match="Required property.*missing"):
+            validate_tool_arguments(process_strict, invalid_input)
+
+    def test_pydantic_tool_with_enum_constraints(self, pydantic_available):
+        """Test Pydantic tool with enum field constraints."""
+        import pydantic
+
+        class Priority(str, Enum):
+            LOW = "low"
+            MEDIUM = "medium"
+            HIGH = "high"
+
+        class TaskData(pydantic.BaseModel):
+            title: str
+            priority: Priority = Priority.MEDIUM
+
+        @tool
+        def create_task(task: TaskData) -> str:
+            """
+            Create a task.
+
+            Args:
+                task: Task data
+
+            Returns:
+                Task summary
+            """
+            return f"Task '{task.title}' with priority {task.priority.value}"
+
+        # Test with valid enum value
+        valid_input = {"task": {"title": "Fix bug", "priority": "high"}}
+
+        # Should not raise any exception
+        validate_tool_arguments(create_task, valid_input)
+
+        # Test with invalid enum value
+        invalid_input = {
+            "task": {
+                "title": "Fix bug",
+                "priority": "urgent",  # Not in enum
+            }
+        }
+
+        # Should raise validation error for invalid enum value
+        with pytest.raises(ValueError, match="not in allowed values"):
+            validate_tool_arguments(create_task, invalid_input)
+
+    def test_pydantic_tool_with_nested_models(self, pydantic_available):
+        """Test Pydantic tool with nested model structures."""
+        import pydantic
+
+        class Address(pydantic.BaseModel):
+            street: str
+            city: str
+
+        class Contact(pydantic.BaseModel):
+            name: str
+            address: Address
+
+        @tool
+        def process_contact(contact: Contact) -> str:
+            """
+            Process contact information.
+
+            Args:
+                contact: Contact data
+
+            Returns:
+                Contact summary
+            """
+            return f"{contact.name} lives at {contact.address.street}, {contact.address.city}"
+
+        # Test with valid nested structure
+        valid_input = {"contact": {"name": "John Doe", "address": {"street": "123 Main St", "city": "Anytown"}}}
+
+        # Should not raise any exception
+        validate_tool_arguments(process_contact, valid_input)
+
+        # Test with missing nested field
+        invalid_input = {
+            "contact": {
+                "name": "John Doe",
+                "address": {
+                    "street": "123 Main St"
+                    # missing "city"
+                },
+            }
+        }
+
+        # Should raise validation error for missing nested field
+        with pytest.raises(ValueError, match="Required property.*missing"):
+            validate_tool_arguments(process_contact, invalid_input)

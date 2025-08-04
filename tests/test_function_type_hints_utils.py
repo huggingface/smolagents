@@ -12,11 +12,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any
+from enum import Enum
+from typing import Any, List, Literal, Optional
 
 import pytest
 
-from smolagents._function_type_hints_utils import DocstringParsingException, get_imports, get_json_schema
+from smolagents._function_type_hints_utils import (
+    DocstringParsingException,
+    _get_pydantic_json_schema,
+    _is_pydantic_model,
+    _parse_type_hint,
+    _process_pydantic_schema,
+    get_imports,
+    get_json_schema,
+)
 
 
 @pytest.fixture
@@ -512,3 +521,125 @@ class TestGetCode:
     )
     def test_get_imports(self, code: str, expected: list[str]):
         assert sorted(get_imports(code)) == sorted(expected)
+
+
+class TestPydanticIntegration:
+    """Test Pydantic BaseModel integration with type hint parsing."""
+
+    @pytest.fixture
+    def pydantic_available(self):
+        """Check if Pydantic is available for testing."""
+        try:
+            import importlib.util
+
+            if importlib.util.find_spec("pydantic") is None:
+                pytest.skip("Pydantic not available")
+        except ImportError:
+            pytest.skip("Pydantic not available")
+
+    def test_pydantic_model_detection(self, pydantic_available):
+        """Test that Pydantic models are correctly detected."""
+        import pydantic
+
+        class TestModel(pydantic.BaseModel):
+            name: str
+            age: int
+
+        # Test detection
+        assert _is_pydantic_model(TestModel), "Should detect Pydantic model"
+        assert not _is_pydantic_model(str), "Should not detect regular types as Pydantic"
+        assert not _is_pydantic_model(dict), "Should not detect regular types as Pydantic"
+
+    def test_pydantic_schema_generation(self, pydantic_available):
+        """Test that Pydantic schemas are correctly generated."""
+        import pydantic
+
+        class TestModel(pydantic.BaseModel):
+            name: str
+            age: int
+            email: str | None = None
+
+        # Test schema generation
+        schema = _get_pydantic_json_schema(TestModel)
+        assert isinstance(schema, dict)
+        assert "type" in schema
+        assert "properties" in schema
+        assert "name" in schema["properties"]
+        assert "age" in schema["properties"]
+        assert "email" in schema["properties"]
+
+        # Test schema processing
+        processed_schema = _process_pydantic_schema(schema)
+        assert isinstance(processed_schema, dict)
+        # Should not have $defs after processing
+        assert "$defs" not in processed_schema
+
+    def test_pydantic_type_hint_parsing(self, pydantic_available):
+        """Test that Pydantic models are correctly parsed as type hints."""
+        import pydantic
+
+        class SimpleModel(pydantic.BaseModel):
+            value: str
+            count: int
+
+        result = _parse_type_hint(SimpleModel)
+        assert isinstance(result, dict)
+        assert "type" in result
+        assert "properties" in result
+        assert "value" in result["properties"]
+        assert "count" in result["properties"]
+
+    def test_pydantic_with_complex_types(self, pydantic_available):
+        """Test Pydantic models with complex field types."""
+        import pydantic
+
+        class ComplexModel(pydantic.BaseModel):
+            items: List[str]
+            metadata: Optional[dict] = None
+            status: Literal["active", "inactive"] = "active"
+
+        result = _parse_type_hint(ComplexModel)
+        assert isinstance(result, dict)
+        assert "properties" in result
+        assert "items" in result["properties"]
+        assert "metadata" in result["properties"]
+        assert "status" in result["properties"]
+
+    def test_pydantic_with_enums(self, pydantic_available):
+        """Test Pydantic models with enum constraints."""
+        import pydantic
+
+        class Status(str, Enum):
+            ACTIVE = "active"
+            INACTIVE = "inactive"
+
+        class ModelWithEnum(pydantic.BaseModel):
+            status: Status
+            name: str
+
+        result = _parse_type_hint(ModelWithEnum)
+        assert isinstance(result, dict)
+        assert "properties" in result
+        assert "status" in result["properties"]
+
+    def test_pydantic_schema_with_refs(self, pydantic_available):
+        """Test that $refs in Pydantic schemas are properly resolved."""
+        import pydantic
+
+        class Address(pydantic.BaseModel):
+            street: str
+            city: str
+
+        class Person(pydantic.BaseModel):
+            name: str
+            address: Address
+
+        schema = _get_pydantic_json_schema(Person)
+        processed_schema = _process_pydantic_schema(schema)
+
+        # After processing, refs should be resolved
+        assert "$defs" not in processed_schema
+        if "properties" in processed_schema and "address" in processed_schema["properties"]:
+            address_schema = processed_schema["properties"]["address"]
+            # Should have properties inlined, not a $ref
+            assert "$ref" not in address_schema or "properties" in address_schema

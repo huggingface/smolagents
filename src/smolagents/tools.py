@@ -1516,8 +1516,6 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
                 _validate_value_against_schema(value, input_schema, key)
             else:
                 # Fall back to original simple validation for backward compatibility
-                from ._function_type_hints_utils import _get_json_schema_type
-
                 actual_type = _get_json_schema_type(type(value))["type"]
                 expected_type = input_schema.get("type") if isinstance(input_schema, dict) else input_schema
                 expected_type_is_nullable = (
@@ -1569,8 +1567,6 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
             _validate_value_against_schema(arguments, input_schema, input_key)
         else:
             # Fall back to original simple validation
-            from ._function_type_hints_utils import _get_json_schema_type
-
             expected_type = input_schema.get("type") if isinstance(input_schema, dict) else input_schema
             actual_type = _get_json_schema_type(type(arguments))["type"]
             if actual_type != expected_type and expected_type != "any":
