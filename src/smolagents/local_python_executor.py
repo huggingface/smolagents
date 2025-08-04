@@ -985,12 +985,9 @@ def evaluate_for(
                 if line_result is not None:
                     result = line_result
             except BreakException:
-                break
+                return result
             except ContinueException:
-                continue
-        else:
-            continue
-        break
+                break
     return result
 
 
