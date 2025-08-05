@@ -132,24 +132,7 @@ system_prompt: |-
   Above example were using notional tools that might not exist for you. On top of performing computations in the Python code snippets that you create, you only have access to these tools, behaving like regular python functions:
   {{code_block_opening_tag}}
   {%- for tool in tools.values() %}
-  def {{ tool.name }}({% for arg_name, arg_info in tool.inputs.items() %}{{ arg_name }}: {{ arg_info.type }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{tool.output_type}}:
-      """{{ tool.description }}
-      {% if tool.output_schema %}
-      Important:
-          If this tool is used in your code, you must use the JSON schema below – describing the output of the tool – to access values of the tool output!
-
-      {%- endif %}
-
-      Args:
-      {%- for arg_name, arg_info in tool.inputs.items() %}
-          {{ arg_name }}: {{ arg_info.description }}
-      {%- endfor %}
-      {% if tool.output_schema %}
-      Returns:
-          {{tool.output_type}}: The output object is a dictionary conforming to the following JSON schema:
-              {{ tool.output_schema | tojson(indent=4) | indent(12) }}
-      {%- endif %}
-      """
+  {{ tool.to_code_prompt() }}
   {% endfor %}
   {{code_block_closing_tag}}
 
@@ -175,8 +158,8 @@ system_prompt: |-
   1. Always provide a 'Thought:' sequence, and a '{{code_block_opening_tag}}' sequence ending with '{{code_block_closing_tag}}', else you will fail.
   2. Use only variables that you have defined!
   3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wikipedia_search({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wikipedia_search(query="What is the place where James Bond lives?")'.
-  4. For tools WITHOUT JSON output schemas: Take care to not chain too many sequential tool calls in the same code block, as their output format is unpredictable. For instance, a call to wikipedia_search without a JSON output schema has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
-  5. For tools WITH JSON output schemas: You can confidently chain multiple tool calls and directly access structured output fields in the same code block! When a tool has a JSON output schema, you know exactly what fields and data types to expect, allowing you to write robust code that directly accesses the structured response (e.g., result['field_name']) without needing intermediate print() statements.
+  4. For tools WITHOUT JSON output schema: Take care to not chain too many sequential tool calls in the same code block, as their output format is unpredictable. For instance, a call to wikipedia_search without a JSON output schema has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
+  5. For tools WITH JSON output schema: You can confidently chain multiple tool calls and directly access structured output fields in the same code block! When a tool has a JSON output schema, you know exactly what fields and data types to expect, allowing you to write robust code that directly accesses the structured response (e.g., result['field_name']) without needing intermediate print() statements.
   6. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
   7. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
   8. Never create any notional variables in our code, as having these in your logs will derail you from the true variables.
@@ -218,25 +201,7 @@ planning:
     You can leverage these tools, behaving like regular python functions:
     ```python
     {%- for tool in tools.values() %}
-    def {{ tool.name }}({% for arg_name, arg_info in tool.inputs.items() %}{{ arg_name }}: {{ arg_info.type }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{tool.output_type}}:
-        """{{ tool.description }}
-
-        {% if tool.output_schema %}
-        Important:
-            If this tool is used in your code, you must use the JSON schema below – describing the output of the tool – to access values of the tool output!
-
-        {%- endif %}
-
-        Args:
-        {%- for arg_name, arg_info in tool.inputs.items() %}
-            {{ arg_name }}: {{ arg_info.description }}
-        {%- endfor %}
-        {% if tool.output_schema %}
-        Returns:
-            {{tool.output_type}}: The output object is a dictionary conforming to the following JSON schema:
-                {{ tool.output_schema | tojson(indent=4) | indent(12) }}
-        {%- endif %}
-        """
+    {{ tool.to_code_prompt() }}
     {% endfor %}
     ```
 
@@ -297,25 +262,7 @@ planning:
     You can leverage these tools, behaving like regular python functions:
     ```python
     {%- for tool in tools.values() %}
-    def {{ tool.name }}({% for arg_name, arg_info in tool.inputs.items() %}{{ arg_name }}: {{ arg_info.type }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{tool.output_type}}:
-        """{{ tool.description }}
-
-        {% if tool.output_schema %}
-        Important:
-            If this tool is used in your code, you must use the JSON schema below – describing the output of the tool – to access values of the tool output!
-
-        {%- endif %}
-
-        Args:
-        {%- for arg_name, arg_info in tool.inputs.items() %}
-            {{ arg_name }}: {{ arg_info.description }}
-        {%- endfor %}
-        {% if tool.output_schema %}
-        Returns:
-            {{tool.output_type}}: The output object is a dictionary conforming to the following JSON schema:
-                {{ tool.output_schema | tojson(indent=4) | indent(12) }}
-        {%- endif %}
-        """
+    {{ tool.to_code_prompt() }}
     {% endfor %}
     ```
 

@@ -259,14 +259,32 @@ class Tool(BaseTool):
 
     def to_code_prompt(self) -> str:
         args_signature = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
-        tool_signature = f"({args_signature}) -> {self.output_type}"
+
+        # Use dict type for tools with output schema to indicate structured return
+        has_schema = hasattr(self, 'output_schema') and self.output_schema is not None
+        output_type = "dict" if has_schema else self.output_type
+        tool_signature = f"({args_signature}) -> {output_type}"
         tool_doc = self.description
+
+        # Add important note about output schema if it exists
+        if has_schema:
+            tool_doc += "\n\nImportant: This tool returns structured output! Use the JSON schema below to directly access fields like result['field_name']. NO print() statements needed to inspect the output!"
+
+        # Add arguments documentation
         if self.inputs:
             args_descriptions = "\n".join(
                 f"{arg_name}: {arg_schema['description']}" for arg_name, arg_schema in self.inputs.items()
             )
             args_doc = f"Args:\n{textwrap.indent(args_descriptions, '    ')}"
             tool_doc += f"\n\n{args_doc}"
+
+        # Add returns documentation with output schema if it exists
+        if has_schema:
+            formatted_schema = json.dumps(self.output_schema, indent=4)
+            indented_schema = textwrap.indent(formatted_schema, '        ')
+            returns_doc = f"\nReturns:\n    dict (structured output): This tool ALWAYS returns a dictionary that strictly adheres to the following JSON schema:\n{indented_schema}"
+            tool_doc += f"\n{returns_doc}"
+
         tool_doc = f'"""{tool_doc}\n"""'
         return f"def {self.name}{tool_signature}:\n{textwrap.indent(tool_doc, '    ')}"
 
