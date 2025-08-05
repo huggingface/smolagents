@@ -1850,7 +1850,6 @@ class AmazonBedrockServerModel(ApiModel):
             convert_images_to_image_urls=convert_images_to_image_urls,
             **kwargs,
         )
-
         # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
         # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
         completion_kwargs.pop("toolConfig", None)
@@ -1898,8 +1897,14 @@ class AmazonBedrockServerModel(ApiModel):
         # self.client is created in ApiModel class
         response = self.client.converse(**completion_kwargs)
 
-        # Get first message
-        response["output"]["message"]["content"] = response["output"]["message"]["content"][0]["text"]
+        # Get last message content block in case thinking mode is enabled: discard thinking
+        last_message_content_block = response["output"]["message"]["content"][-1]
+        if "text" not in last_message_content_block:
+            raise KeyError(
+                '"text" field not found in the last element of response["output"]["message"]["content"]. '
+                "Unexpected output format, possibly due to thinking mode changes."
+            )
+        response["output"]["message"]["content"] = last_message_content_block["text"]
 
         self._last_input_token_count = response["usage"]["inputTokens"]
         self._last_output_token_count = response["usage"]["outputTokens"]

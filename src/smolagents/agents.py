@@ -1392,13 +1392,9 @@ class ToolCallingAgent(MultiStepAgent):
                     yield tool_output
 
         memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
-        memory_step.model_output = memory_step.model_output or ""
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
-            message = f"Tool call {tool_output.id}: calling '{tool_output.tool_call.name}' with arguments: {tool_output.tool_call.arguments}\n"
-            memory_step.model_output += message
             memory_step.observations += tool_output.observation + "\n"
-        memory_step.model_output = memory_step.model_output.rstrip("\n")
         memory_step.observations = (
             memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
         )
@@ -1434,9 +1430,13 @@ class ToolCallingAgent(MultiStepAgent):
         arguments = self._substitute_state_variables(arguments)
         is_managed_agent = tool_name in self.managed_agents
 
-        error_msg = validate_tool_arguments(tool, arguments)
-        if error_msg:
-            raise AgentToolCallError(error_msg, self.logger)
+        try:
+            validate_tool_arguments(tool, arguments)
+        except (ValueError, TypeError) as e:
+            raise AgentToolCallError(str(e), self.logger) from e
+        except Exception as e:
+            error_msg = f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}"
+            raise AgentToolExecutionError(error_msg, self.logger) from e
 
         try:
             # Call tool with appropriate arguments

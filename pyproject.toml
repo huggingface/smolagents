@@ -91,6 +91,7 @@ test = [
   "pandas>=2.2.3",
   "pytest>=8.1.0",
   "pytest-datadir",
+  "pytest-timeout",  # For test_all_docs: @pytest.mark.timeout
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
