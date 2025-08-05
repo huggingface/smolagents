@@ -746,53 +746,41 @@ You have been provided with these additional arguments, that you can access usin
             messages.extend(memory_step.to_messages(summary_mode=summary_mode))
 
         if self.max_images is not None:
-            total_images = 0
-
-            # First, count the total number of images in all messages
-            for msg in messages:
+            # Single backward pass: iterate from newest to oldest messages
+            # Keep images until we reach max_images limit, remove the rest
+            images_kept = 0
+            images_removed = 0
+            
+            # Iterate backward through messages (newest first)
+            for msg in reversed(messages):
                 content = msg.content
                 if isinstance(content, list):
-                    for el in content:
-                        if isinstance(el, dict) and el.get("type") == "image":
-                            total_images += 1
-
-            # Calculate how many images need to be removed
-            images_to_remove = total_images - self.max_images
-            if images_to_remove > 0:
-                self.logger.log_markdown(
-                    content=f"Skipping {images_to_remove} images as there are {total_images} images in the memory which exceeds the max_images limit of {self.max_images}",
-                    title="Images to remove:",
-                    level=LogLevel.DEBUG,
-                )
-                removed = 0
-                # Iterate again, removing images from the beginning of the content for each message
-                for msg in messages:
-                    content = msg.content
-                    if isinstance(content, list):
-                        new_content = []
-                        for content_item in content:
-                            # Remove images from the beginning of the content until we've removed enough
-                            if (
-                                isinstance(content_item, dict)
-                                and content_item.get("type") == "image"
-                                and removed < images_to_remove
-                            ):
-                                removed += 1
-                                self.logger.log_markdown(
-                                    content="Skipping image",
-                                    level=LogLevel.DEBUG,
-                                )
+                    new_content = []
+                    # Iterate backward through content items (newest first)
+                    for content_item in reversed(content):
+                        if isinstance(content_item, dict) and content_item.get("type") == "image":
+                            if images_kept < self.max_images:
+                                # Keep this image
+                                new_content.insert(0, content_item)
+                                images_kept += 1
                             else:
-                                new_content.append(content_item)
-                        
-                        if len(new_content) == 0:
-                            new_content = [{"type": "text", "text": "[IMAGES REMOVED]"}]
-                        
-                        msg.content = new_content
-                        
-                        # If we've removed enough images, stop for efficiency
-                        if removed >= images_to_remove:
-                            break
+                                # Remove this image
+                                images_removed += 1
+                        else:
+                            # Keep non-image content
+                            new_content.insert(0, content_item)
+                    
+                    if len(new_content) == 0:
+                        new_content = [{"type": "text", "text": "[IMAGES REMOVED]"}]
+                    
+                    msg.content = new_content
+                    
+            if images_removed > 0:
+                self.logger.log(
+                    Rule(f"[bold]Images removed", style="orange"),
+                    Text(f"Max images ({self.max_images}) limit reached. {images_removed} of {images_kept + images_removed} images removed from the message chain."),
+                    level=LogLevel.INFO,
+                )
 
         return messages
 
