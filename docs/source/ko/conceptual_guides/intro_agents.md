@@ -93,7 +93,7 @@ while llm_should_continue(memory): # 이 루프는 다단계 부분입니다
 이유는 간단합니다. *우리는 컴퓨터가 수행하는 동작을 표현하기 위해 코드 언어를 특별히 설계했습니다.* 
 다시 말해, 에이전트가 사용자의 문제를 해결하기 위해 프로그램을 작성할 때, Python 블록으로 작성하는 것이 JSON 블록으로 작성하는 것보다 더 쉬울까요?
 
-아래 그림은 [실행 가능한 코드 동작이 더 나은 LLM 에이전트를 이끌어냅니다](https://huggingface.co/papers/2402.01030)에서 가져온 것으로, 코드를 사용하여 동작을 작성하는 것의 몇 가지 장점을 보여줍니다:
+아래 그림은 [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030)에서 가져온 것으로, 코드를 사용하여 동작을 작성하는 것의 몇 가지 장점을 보여줍니다:
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_vs_json_actions.png">
 
