@@ -183,7 +183,7 @@ server_parameters = StdioServerParameters(
 
 with MCPClient(server_parameters, structured_output=True) as tools:
     agent = CodeAgent(tools=tools, model=model)
-    result = agent.run("What's the weather like in London?")
+    result = agent.run("What is the temperature in Tokyo in Fahrenheit?")
     print(result)
 ```
 
