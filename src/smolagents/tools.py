@@ -264,7 +264,7 @@ class Tool(BaseTool):
         tool_signature = f"({args_signature}) -> {output_type}"
         tool_doc = self.description
 
-        # Add important note about output schema if it exists
+        # Add an important note for smaller models (e.g. Mistral Small, Gemma 3, etc.) to properly handle structured output.
         if has_schema:
             tool_doc += "\n\nImportant: This tool returns structured output! Use the JSON schema below to directly access fields like result['field_name']. NO print() statements needed to inspect the output!"
 
