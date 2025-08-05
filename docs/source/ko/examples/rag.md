@@ -4,7 +4,7 @@
 
 ## RAG(검색 증강 생성) 소개[[introduction-to-retrieval-augmented-generation-rag]]
 
-검색 증강 생성(Retrieval-Augmented Generation, RAG)은 대규모 언어 모델의 능력과 외부 지식 검색을 결합하여 더 정확하고 사실에 기반하며 문맥에 맞는 응답을 생성합니다. RAG의 핵심은 "대규모 언어 모델을 사용해 사용자 쿼리에 답변을 제공하되, 지식 베이스에서 검색된 정보에 기반하여 답변하는 것"입니다.
+검색 증강 생성(Retrieval-Augmented Generation, RAG)은 대규모 언어 모델의 능력과 외부 지식 검색을 결합하여 더 정확하고 사실에 기반을 두며 문맥에 맞는 응답을 생성합니다. RAG의 핵심은 "대규모 언어 모델을 사용해 사용자 쿼리에 답변을 제공하되, 지식 베이스에서 검색된 정보에 기반하여 답변하는 것"입니다.
 
 ### RAG를 사용하는 이유[[why-use-rag]]
 
@@ -66,7 +66,7 @@ load_dotenv()
 
 ### 2단계: 지식 베이스 준비하기[[step-2-prepare-the-knowledge-base]]
 
-허깅 페이스 설명서가 포함된 데이터셋을 사용하여 검색을 위해 준비하겠습니다:
+허깅 페이스 설명서가 포함된 데이터 세트를 사용하여 검색을 위해 준비하겠습니다:
 
 ```python
 import datasets
@@ -74,13 +74,13 @@ from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.retrievers import BM25Retriever
 
-# 허깅 페이스 설명서 데이터셋 로드
+# 허깅 페이스 설명서 데이터 세트 로드
 knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train")
 
 # Transformers 라이브러리 설명서만 포함하도록 필터링
 knowledge_base = knowledge_base.filter(lambda row: row["source"].startswith("huggingface/transformers"))
 
-# 데이터셋 항목을 메타데이터가 있는 Document 객체로 변환
+# 데이터 세트 항목을 메타데이터가 있는 Document 객체로 변환
 source_docs = [
     Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]})
     for doc in knowledge_base
@@ -201,6 +201,6 @@ Agentic RAG는 전통적인 RAG 파이프라인을 뛰어넘는 중요한 발전
 저희가 보여드린 접근 방식은 다음과 같은 특징이 있습니다:
 - 단일 단계 검색의 한계를 극복합니다.
 - 지식 베이스와의 더 자연스러운 상호작용을 가능하게 합니다.
-- 자체 평가와 쿼리 정제를 통해 지속적으로 개선할 수 있는 프레임워크를 제공합니다.
+- 자체 평가와 쿼리 정제를 통해 지속해서 개선할 수 있는 프레임워크를 제공합니다.
 
 자신만의 Agentic RAG 시스템을 구축할 때에는, 다양한 검색 방법과 에이전트 아키텍처, 지식 소스를 실험하며 사용 사례에 최적화된 구성을 찾아보세요.
