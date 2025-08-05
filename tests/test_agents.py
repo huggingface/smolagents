@@ -463,7 +463,7 @@ class TestAgent:
         assert output == "The image is a cat."
 
     def test_fake_code_agent(self):
-        agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel(), verbosity_level=10)
         output = agent.run("What is 2 multiplied by 3.6452?")
         assert isinstance(output, float)
         assert output == 7.2904
@@ -1045,7 +1045,7 @@ class TestMultiStepAgent:
                     raw="""I don't want to call tools today""",
                 )
 
-        agent_toolcalling = ToolCallingAgent(model=FakeJsonModelNoCall(), tools=[], max_steps=1)
+        agent_toolcalling = ToolCallingAgent(model=FakeJsonModelNoCall(), tools=[], max_steps=1, verbosity_level=10)
         with agent_toolcalling.logger.console.capture() as capture:
             agent_toolcalling.run("Dummy task")
         assert "don't" in capture.get() and "want" in capture.get()
@@ -1057,7 +1057,7 @@ class TestMultiStepAgent:
                     content="""I don't want to write an action today""",
                 )
 
-        agent_code = CodeAgent(model=FakeCodeModelNoCall(), tools=[], max_steps=1)
+        agent_code = CodeAgent(model=FakeCodeModelNoCall(), tools=[], max_steps=1, verbosity_level=10)
         with agent_code.logger.console.capture() as capture:
             agent_code.run("Dummy task")
         assert "don't" in capture.get() and "want" in capture.get()
