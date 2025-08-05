@@ -1,3 +1,7 @@
+- title: Get started
+  sections:
+  - local: index
+    title: 소개
 - title: 예제
   sections:
   - local: examples/text_to_sql
