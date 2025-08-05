@@ -54,6 +54,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
 def custom_print(*args):
@@ -808,10 +809,17 @@ def evaluate_call(
         else:
             args.append(evaluate_ast(arg, state, static_tools, custom_tools, authorized_imports))
 
-    kwargs = {
-        keyword.arg: evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
-        for keyword in call.keywords
-    }
+    kwargs = {}
+    for keyword in call.keywords:
+        if keyword.arg is None:
+            # **kwargs unpacking
+            starred_dict = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
+            if not isinstance(starred_dict, dict):
+                raise InterpreterError(f"Cannot unpack non-dict value in **kwargs: {type(starred_dict).__name__}")
+            kwargs.update(starred_dict)
+        else:
+            # Normal keyword argument
+            kwargs[keyword.arg] = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
 
     if func_name == "super":
         if not args:
@@ -837,6 +845,14 @@ def evaluate_call(
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
+        if (
+            hasattr(func, "__name__")
+            and func.__name__.startswith("__")
+            and func.__name__.endswith("__")
+            and (func.__name__ not in static_tools)
+            and (func.__name__ not in ALLOWED_DUNDER_METHODS)
+        ):
+            raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
         return func(*args, **kwargs)
 
 

@@ -322,9 +322,7 @@ final_answer(pope_current_age)
 
 Above example were using notional tools that might not exist for you. On top of performing computations in the Python code snippets that you create, you only have access to these tools:
 {%- for tool in tools.values() %}
-- {{ tool.name }}: {{ tool.description }}
-    Takes inputs: {{tool.inputs}}
-    Returns an output of type: {{tool.output_type}}
+- {{ tool.to_tool_calling_prompt() }}
 {%- endfor %}
 
 {%- if managed_agents and managed_agents.values() | list %}
@@ -359,9 +357,7 @@ So while you can overwrite this system prompt template by passing your custom pr
 - To insert tool descriptions:
   ```
   {%- for tool in tools.values() %}
-  - {{ tool.name }}: {{ tool.description }}
-      Takes inputs: {{tool.inputs}}
-      Returns an output of type: {{tool.output_type}}
+  - {{ tool.to_tool_calling_prompt() }}
   {%- endfor %}
   ```
 - To insert the descriptions for managed agents if there are any:

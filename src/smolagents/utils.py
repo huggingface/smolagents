@@ -17,19 +17,19 @@
 import ast
 import base64
 import importlib.metadata
-import importlib.util
 import inspect
 import json
 import keyword
 import os
 import re
 import time
-import types
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any
+
+import jinja2
 
 
 if TYPE_CHECKING:
@@ -269,36 +269,6 @@ class ImportFinder(ast.NodeVisitor):
             self.packages.add(base_package)
 
 
-def get_method_source(method):
-    """Get source code for a method, including bound methods."""
-    if isinstance(method, types.MethodType):
-        method = method.__func__
-    return get_source(method)
-
-
-def is_same_method(method1, method2):
-    """Compare two methods by their source code."""
-    try:
-        source1 = get_method_source(method1)
-        source2 = get_method_source(method2)
-
-        # Remove method decorators if any
-        source1 = "\n".join(line for line in source1.split("\n") if not line.strip().startswith("@"))
-        source2 = "\n".join(line for line in source2.split("\n") if not line.strip().startswith("@"))
-
-        return source1 == source2
-    except (TypeError, OSError):
-        return False
-
-
-def is_same_item(item1, item2):
-    """Compare two class items (methods or attributes) for equality."""
-    if callable(item1) and callable(item2):
-        return is_same_method(item1, item2)
-    else:
-        return item1 == item2
-
-
 def instance_to_source(instance, base_cls=None):
     """Convert an instance to its class source code representation."""
     cls = instance.__class__
@@ -320,6 +290,7 @@ def instance_to_source(instance, base_cls=None):
         name: value
         for name, value in cls.__dict__.items()
         if not name.startswith("__")
+        and not name == "_abc_impl"
         and not callable(value)
         and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
     }
@@ -494,13 +465,20 @@ with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
     model=model,
     tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
     managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
-    {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
+    {% for attribute_name, value in agent_dict.items() if attribute_name not in ["class", "model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
     {{ attribute_name }}={{ value|repr }},
     {% endfor %}prompt_templates=prompt_templates
 )
 if __name__ == "__main__":
     GradioUI({{ agent_name }}).launch()
 """.strip()
+
+
+def create_agent_gradio_app_template():
+    env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
+    env.filters["repr"] = repr
+    env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
+    return env.from_string(AGENT_GRADIO_APP_TEMPLATE)
 
 
 class RateLimiter:
