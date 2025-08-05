@@ -161,9 +161,7 @@ class Tool(BaseTool):
         # Validate optional output_schema attribute
         output_schema = getattr(self, "output_schema", None)
         if output_schema is not None and not isinstance(output_schema, dict):
-            raise TypeError(
-                f"Attribute output_schema should have type dict, got {type(output_schema)} instead."
-            )
+            raise TypeError(f"Attribute output_schema should have type dict, got {type(output_schema)} instead.")
 
         # - Validate name
         if not is_valid_name(self.name):
@@ -261,7 +259,7 @@ class Tool(BaseTool):
         args_signature = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
 
         # Use dict type for tools with output schema to indicate structured return
-        has_schema = hasattr(self, 'output_schema') and self.output_schema is not None
+        has_schema = hasattr(self, "output_schema") and self.output_schema is not None
         output_type = "dict" if has_schema else self.output_type
         tool_signature = f"({args_signature}) -> {output_type}"
         tool_doc = self.description
@@ -281,7 +279,7 @@ class Tool(BaseTool):
         # Add returns documentation with output schema if it exists
         if has_schema:
             formatted_schema = json.dumps(self.output_schema, indent=4)
-            indented_schema = textwrap.indent(formatted_schema, '        ')
+            indented_schema = textwrap.indent(formatted_schema, "        ")
             returns_doc = f"\nReturns:\n    dict (structured output): This tool ALWAYS returns a dictionary that strictly adheres to the following JSON schema:\n{indented_schema}"
             tool_doc += f"\n{returns_doc}"
 
@@ -322,7 +320,7 @@ class Tool(BaseTool):
 
             # Add output_schema if it exists
             if hasattr(self, "output_schema") and self.output_schema is not None:
-                tool_code += f'\n                output_schema = {repr(self.output_schema)}'
+                tool_code += f"\n                output_schema = {repr(self.output_schema)}"
             import re
 
             def add_self_argument(source_code: str) -> str:
@@ -951,7 +949,10 @@ class ToolCollection:
     @classmethod
     @contextmanager
     def from_mcp(
-        cls, server_parameters: "mcp.StdioServerParameters" | dict, trust_remote_code: bool = False, structured_output: bool = False
+        cls,
+        server_parameters: "mcp.StdioServerParameters" | dict,
+        trust_remote_code: bool = False,
+        structured_output: bool = False,
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 

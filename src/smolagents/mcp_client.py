@@ -102,7 +102,9 @@ class MCPClient:
                     f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
                 )
         adapter_kwargs = adapter_kwargs or {}
-        self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter(structured_output=structured_output), **adapter_kwargs)
+        self._adapter = MCPAdapt(
+            server_parameters, SmolAgentsAdapter(structured_output=structured_output), **adapter_kwargs
+        )
         self._tools: list[Tool] | None = None
         self.connect()
 
