@@ -116,7 +116,7 @@ class FakeToolCallModel(Model):
         if len(messages) < 3:
             return ChatMessage(
                 role=MessageRole.ASSISTANT,
-                content="",
+                content="I will call the python interpreter.",
                 tool_calls=[
                     ChatMessageToolCall(
                         id="call_0",
@@ -130,7 +130,7 @@ class FakeToolCallModel(Model):
         else:
             return ChatMessage(
                 role=MessageRole.ASSISTANT,
-                content="",
+                content="I will return the final answer.",
                 tool_calls=[
                     ChatMessageToolCall(
                         id="call_1",
@@ -421,10 +421,7 @@ class TestAgent:
         assert "7.2904" in output
         assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
         assert "7.2904" in agent.memory.steps[1].observations
-        assert (
-            agent.memory.steps[2].model_output
-            == "Tool call call_1: calling 'final_answer' with arguments: {'answer': '7.2904'}"
-        )
+        assert agent.memory.steps[2].model_output == "I will return the final answer."
 
     def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
         import PIL.Image
@@ -612,7 +609,6 @@ class TestAgent:
         agent.replay()
 
         str_output = agent_logger.console.export_text()
-        assert "Tool call" in str_output
         assert "arguments" in str_output
 
     def test_code_nontrivial_final_answer_works(self):
@@ -1370,6 +1366,74 @@ class TestMultiStepAgent:
             agent = DummyMultiStepAgent.from_dict(agent_dict, max_steps=30)
         assert agent.max_steps == 30
 
+    def test_multiagent_to_dict_from_dict_roundtrip(self):
+        """Test that to_dict() and from_dict() work correctly for agents with managed agents."""
+        # Create a managed agent
+        managed_agent = CodeAgent(
+            tools=[], model=MagicMock(), name="managed_agent", description="A managed agent for testing", max_steps=5
+        )
+
+        # Create a main agent with the managed agent
+        main_agent = ToolCallingAgent(
+            tools=[],
+            managed_agents=[managed_agent],
+            model=MagicMock(),
+            name="main_agent",
+            description="Main agent with managed agents",
+            max_steps=10,
+        )
+
+        # Convert to dict
+        agent_dict = main_agent.to_dict()
+
+        # Verify managed_agents structure in dict
+        assert "managed_agents" in agent_dict
+        assert isinstance(agent_dict["managed_agents"], list)
+        assert len(agent_dict["managed_agents"]) == 1
+
+        managed_agent_dict = agent_dict["managed_agents"][0]
+        assert managed_agent_dict["name"] == "managed_agent"
+        assert managed_agent_dict["class"] == "CodeAgent"
+        assert managed_agent_dict["description"] == "A managed agent for testing"
+        assert managed_agent_dict["max_steps"] == 5
+
+        # Test round-trip: from_dict should recreate the agent
+        # Mock the model classes directly instead of patching smolagents.models.MagicMock
+        with patch("smolagents.agents.importlib.import_module") as mock_import:
+            # Mock the models module
+            mock_models_module = MagicMock()
+            mock_model_class = MagicMock()
+            mock_model_instance = MagicMock()
+            mock_model_class.from_dict.return_value = mock_model_instance
+            mock_models_module.MagicMock = mock_model_class
+
+            # Mock the agents module
+            mock_agents_module = MagicMock()
+            mock_agents_module.CodeAgent = CodeAgent
+            mock_agents_module.ToolCallingAgent = ToolCallingAgent
+
+            def side_effect(module_name):
+                if module_name == "smolagents.models":
+                    return mock_models_module
+                elif module_name == "smolagents.agents":
+                    return mock_agents_module
+                return MagicMock()
+
+            mock_import.side_effect = side_effect
+
+            recreated_agent = ToolCallingAgent.from_dict(agent_dict)
+
+        # Verify the recreated agent has the same structure
+        assert recreated_agent.name == "main_agent"
+        assert recreated_agent.description == "Main agent with managed agents"
+        assert recreated_agent.max_steps == 10
+        assert len(recreated_agent.managed_agents) == 1
+
+        recreated_managed_agent = list(recreated_agent.managed_agents.values())[0]
+        assert recreated_managed_agent.name == "managed_agent"
+        assert recreated_managed_agent.description == "A managed agent for testing"
+        assert recreated_managed_agent.max_steps == 5
+
 
 class TestToolCallingAgent:
     def test_toolcalling_agent_instructions(self):
@@ -1642,6 +1706,10 @@ class TestToolCallingAgent:
         assert "Error while parsing" in capture.get()
         assert len(agent.memory.steps) == 4
 
+    @pytest.mark.skip(
+        reason="Test is not properly implemented (GH-1255) because fake_tools should have the same name. "
+        "Additionally, it uses CodeAgent instead of ToolCallingAgent (GH-1409)"
+    )
     def test_change_tools_after_init(self):
         from smolagents import tool
 
@@ -1708,7 +1776,6 @@ class TestToolCallingAgent:
                         function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "test_value"}),
                     )
                 ],
-                "expected_model_output": "Tool call call_1: calling 'test_tool' with arguments: {'input': 'test_value'}",
                 "expected_observations": "Processed: test_value",
                 "expected_final_outputs": ["Processed: test_value"],
                 "expected_error": None,
@@ -1727,7 +1794,6 @@ class TestToolCallingAgent:
                         function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value2"}),
                     ),
                 ],
-                "expected_model_output": "Tool call call_1: calling 'test_tool' with arguments: {'input': 'value1'}\nTool call call_2: calling 'test_tool' with arguments: {'input': 'value2'}",
                 "expected_observations": "Processed: value1\nProcessed: value2",
                 "expected_final_outputs": ["Processed: value1", "Processed: value2"],
                 "expected_error": None,
@@ -1757,7 +1823,6 @@ class TestToolCallingAgent:
             # Case 4: Empty tool calls list
             {
                 "tool_calls": [],
-                "expected_model_output": "",
                 "expected_observations": "",
                 "expected_final_outputs": [],
                 "expected_error": None,
@@ -1773,7 +1838,6 @@ class TestToolCallingAgent:
                         ),
                     )
                 ],
-                "expected_model_output": "Tool call call_1: calling 'final_answer' with arguments: {'answer': 'This is the final answer'}",
                 "expected_observations": "This is the final answer",
                 "expected_final_outputs": ["This is the final answer"],
                 "expected_error": None,
@@ -1797,7 +1861,7 @@ class TestToolCallingAgent:
         # Create chat message with the specified tool calls for process_tool_calls
         chat_message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=test_case["tool_calls"])
         # Create a memory step for process_tool_calls
-        memory_step = ActionStep(step_number=10, timing="mock_timing")
+        memory_step = ActionStep(step_number=10, timing="mock_timing", model_output="")
 
         # Process tool calls
         if test_case["expected_error"]:
@@ -1805,7 +1869,7 @@ class TestToolCallingAgent:
                 list(agent.process_tool_calls(chat_message, memory_step))
         else:
             final_outputs = list(agent.process_tool_calls(chat_message, memory_step))
-            assert memory_step.model_output == test_case["expected_model_output"]
+            assert memory_step.model_output == ""
             assert memory_step.observations == test_case["expected_observations"]
             assert [
                 final_output.output for final_output in final_outputs if isinstance(final_output, ToolOutput)
@@ -1970,6 +2034,9 @@ print("Ok, calculation done!")""")
         assert messages
         assert all(m.content.endswith("</code>") for m in messages)
 
+    @pytest.mark.skip(
+        reason="Test is not properly implemented (GH-1255) because fake_tools should have the same name. "
+    )
     def test_change_tools_after_init(self):
         from smolagents import tool
 
@@ -2091,10 +2158,10 @@ print("Ok, calculation done!")""")
         with patch("smolagents.models.InferenceClientModel"):
             agent = CodeAgent.from_dict(
                 agent_dict,
-                additional_authorized_imports=["matplotlib"],
+                additional_authorized_imports=["requests"],
                 executor_kwargs={"max_print_outputs_length": 5_000},
             )
-        assert agent.additional_authorized_imports == ["matplotlib"]
+        assert agent.additional_authorized_imports == ["requests"]
         assert agent.executor_kwargs == {"max_print_outputs_length": 5_000}
 
     def test_custom_final_answer_with_custom_inputs(self):

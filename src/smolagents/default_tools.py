@@ -127,10 +127,10 @@ class DuckDuckGoSearchTool(Tool):
         self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
         self._last_request_time = 0.0
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
         except ImportError as e:
             raise ImportError(
-                "You must install package `duckduckgo_search` to run this tool: for instance run `pip install duckduckgo-search`."
+                "You must install package `ddgs` to run this tool: for instance run `pip install ddgs`."
             ) from e
         self.ddgs = DDGS(**kwargs)
 

@@ -14,6 +14,7 @@
 # limitations under the License.
 import inspect
 import os
+import warnings
 from textwrap import dedent
 from typing import Any, Literal
 from unittest.mock import MagicMock, patch
@@ -121,6 +122,57 @@ class TestTool:
             # Should not raise an exception
             tool = create_tool()
             assert isinstance(tool, Tool)
+
+    @pytest.mark.parametrize(
+        "tool_fixture, expected_output",
+        [
+            ("no_input_tool", 'def no_input_tool() -> string:\n    """Tool with no inputs\n    """'),
+            (
+                "single_input_tool",
+                'def single_input_tool(text: string) -> string:\n    """Tool with one input\n\n    Args:\n        text: Input text\n    """',
+            ),
+            (
+                "multi_input_tool",
+                'def multi_input_tool(text: string, count: integer) -> object:\n    """Tool with multiple inputs\n\n    Args:\n        text: Text input\n        count: Number count\n    """',
+            ),
+            (
+                "multiline_description_tool",
+                'def multiline_description_tool(input: string) -> string:\n    """This is a tool with\n    multiple lines\n    in the description\n\n    Args:\n        input: Some input\n    """',
+            ),
+        ],
+    )
+    def test_tool_to_code_prompt_output_format(self, tool_fixture, expected_output, request):
+        """Test that to_code_prompt generates properly formatted and indented output."""
+        tool = request.getfixturevalue(tool_fixture)
+        code_prompt = tool.to_code_prompt()
+        assert code_prompt == expected_output
+
+    @pytest.mark.parametrize(
+        "tool_fixture, expected_output",
+        [
+            (
+                "no_input_tool",
+                "no_input_tool: Tool with no inputs\n    Takes inputs: {}\n    Returns an output of type: string",
+            ),
+            (
+                "single_input_tool",
+                "single_input_tool: Tool with one input\n    Takes inputs: {'text': {'type': 'string', 'description': 'Input text'}}\n    Returns an output of type: string",
+            ),
+            (
+                "multi_input_tool",
+                "multi_input_tool: Tool with multiple inputs\n    Takes inputs: {'text': {'type': 'string', 'description': 'Text input'}, 'count': {'type': 'integer', 'description': 'Number count'}}\n    Returns an output of type: object",
+            ),
+            (
+                "multiline_description_tool",
+                "multiline_description_tool: This is a tool with\nmultiple lines\nin the description\n    Takes inputs: {'input': {'type': 'string', 'description': 'Some input'}}\n    Returns an output of type: string",
+            ),
+        ],
+    )
+    def test_tool_to_tool_calling_prompt_output_format(self, tool_fixture, expected_output, request):
+        """Test that to_tool_calling_prompt generates properly formatted output."""
+        tool = request.getfixturevalue(tool_fixture)
+        tool_calling_prompt = tool.to_tool_calling_prompt()
+        assert tool_calling_prompt == expected_output
 
     def test_tool_init_with_decorator(self):
         @tool
@@ -606,6 +658,144 @@ class TestTool:
         assert union_type_return_tool_function.output_type == "any"
 
 
+class TestToolDecorator:
+    def test_tool_decorator_source_extraction_with_multiple_decorators(self):
+        """Test that @tool correctly extracts source code with multiple decorators."""
+
+        def dummy_decorator(func):
+            return func
+
+        with pytest.warns(UserWarning, match="has decorators other than @tool"):
+
+            @tool
+            @dummy_decorator
+            def multi_decorator_tool(text: str) -> str:
+                """Tool with multiple decorators.
+
+                Args:
+                    text: Input text
+                """
+                return text.upper()
+
+        # Verify the tool works
+        assert isinstance(multi_decorator_tool, Tool)
+        assert multi_decorator_tool.name == "multi_decorator_tool"
+        assert multi_decorator_tool("hello") == "HELLO"
+
+        # Verify the source code extraction is correct
+        forward_source = multi_decorator_tool.forward.__source__
+        assert "def forward(self, text: str) -> str:" in forward_source
+        assert "return text.upper()" in forward_source
+        # Should not contain decorator lines
+        assert "@tool" not in forward_source
+        assert "@dummy_decorator" not in forward_source
+        # Should not contain definition line
+        assert "def multi_decorator_tool" not in forward_source
+
+    def test_tool_decorator_source_extraction_with_multiline_signature(self):
+        """Test that @tool correctly extracts source code with multiline function signatures."""
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            @tool
+            def multiline_signature_tool(
+                text: str,
+                count: int = 1,
+                uppercase: bool = False,
+                multiline_parameter_1: int = 1_000,
+                multiline_parameter_2: int = 2_000,
+            ) -> str:
+                """Tool with multiline signature.
+
+                Args:
+                    text: Input text
+                    count: Number of repetitions
+                    uppercase: Whether to convert to uppercase
+                    multiline_parameter_1: Dummy parameter
+                    multiline_parameter_2: Dummy parameter
+                """
+                result = text * count
+                return result.upper() if uppercase else result
+
+        # Verify the tool works
+        assert isinstance(multiline_signature_tool, Tool)
+        assert multiline_signature_tool.name == "multiline_signature_tool"
+        assert multiline_signature_tool("hello", 2, True) == "HELLOHELLO"
+
+        # Verify the source code extraction is correct
+        forward_source = multiline_signature_tool.forward.__source__
+        assert (
+            "def forward(self, text: str, count: int=1, uppercase: bool=False, multiline_parameter_1: int=1000, multiline_parameter_2: int=2000) -> str:"
+            in forward_source
+            or "def forward(self, text: str, count: int = 1, uppercase: bool = False, multiline_parameter_1: int = 1000, multiline_parameter_2: int = 2000) -> str:"
+            in forward_source
+        )
+        assert "result = text * count" in forward_source
+        assert "return result.upper() if uppercase else result" in forward_source
+        # Should not contain the original multiline function definition
+        assert "def multiline_signature_tool(" not in forward_source
+        # Should not contain leftover lines from the original multiline function definition
+        assert "            count: int = 1," not in forward_source
+        assert "            count: int=1," not in forward_source
+
+    def test_tool_decorator_source_extraction_with_multiple_decorators_and_multiline(self):
+        """Test that @tool works with both multiple decorators and multiline signatures."""
+
+        def dummy_decorator_1(func):
+            return func
+
+        def dummy_decorator_2(func):
+            return func
+
+        with pytest.warns(UserWarning, match="has decorators other than @tool"):
+
+            @tool
+            @dummy_decorator_1
+            @dummy_decorator_2
+            def complex_tool(
+                text: str,
+                multiplier: int = 2,
+                separator: str = " ",
+                multiline_parameter_1: int = 1_000,
+                multiline_parameter_2: int = 2_000,
+            ) -> str:
+                """Complex tool with multiple decorators and multiline signature.
+
+                Args:
+                    text: Input text
+                    multiplier: How many times to repeat
+                    separator: What to use between repetitions
+                    multiline_parameter_1: Dummy parameter
+                    multiline_parameter_2: Dummy parameter
+                """
+                parts = [text] * multiplier
+                return separator.join(parts)
+
+        # Verify the tool works
+        assert isinstance(complex_tool, Tool)
+        assert complex_tool.name == "complex_tool"
+        assert complex_tool("hello", 3, "-") == "hello-hello-hello"
+
+        # Verify the source code extraction is correct
+        forward_source = complex_tool.forward.__source__
+        assert (
+            "def forward(self, text: str, multiplier: int=2, separator: str=' ', multiline_parameter_1: int=1000, multiline_parameter_2: int=2000) -> str:"
+            in forward_source
+            or "def forward(self, text: str, multiplier: int = 2, separator: str = ' ', multiline_parameter_1: int = 1000, multiline_parameter_2: int = 2000) -> str:"
+            in forward_source
+        )
+        assert "parts = [text] * multiplier" in forward_source
+        assert "return separator.join(parts)" in forward_source
+        # Should not contain any decorator lines
+        assert "@tool" not in forward_source
+        assert "@dummy_decorator_1" not in forward_source
+        assert "@dummy_decorator_2" not in forward_source
+        # Should not contain leftover lines from the original multiline function definition
+        assert "            multiplier: int = 2," not in forward_source
+        assert "            multiplier: int=2," not in forward_source
+
+
 @pytest.fixture
 def mock_server_parameters():
     return MagicMock()
@@ -747,11 +937,16 @@ def test_launch_gradio_demo_does_not_raise(tool_fixture_name, request):
         (bool, True, False),
         (str, "b", False),
         (int, 1, False),
+        (float, 1, False),
         (list, ["a", "b"], False),
         (list[str], ["a", "b"], False),
         (dict[str, str], {"a": "b"}, False),
         (dict[str, str], "b", True),
         (bool, "b", True),
+        (str | int, "a", False),
+        (str | int, 1, False),
+        (str | int, None, True),
+        (str | int, True, True),
     ],
 )
 def test_validate_tool_arguments(tool_input_type, expected_input, expects_error):
@@ -764,8 +959,108 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         """
         return argument_a
 
-    error = validate_tool_arguments(test_tool, {"argument_a": expected_input})
     if expects_error:
-        assert error is not None
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(test_tool, {"argument_a": expected_input})
+
     else:
-        assert error is None
+        # Should not raise any exception
+        validate_tool_arguments(test_tool, {"argument_a": expected_input})
+
+
+@pytest.mark.parametrize(
+    "scenario, type_hint, default, input_value, expected_error_message",
+    [
+        # Required parameters (no default)
+        # - Valid input
+        ("required_unsupported_none", str, ..., "text", None),
+        # - None not allowed
+        ("required_unsupported_none", str, ..., None, "Argument param has type 'null' but should be 'string'"),
+        # - Missing required parameter is not allowed
+        ("required_unsupported_none", str, ..., ..., "Argument param is required"),
+        #
+        # Required parameters but supports None
+        # - Valid input
+        ("required_supported_none", str | None, ..., "text", None),
+        # - None allowed
+        ("required_supported_none", str | None, ..., None, None),
+        # - Missing required parameter is not allowed
+        # TODO: Fix this test case: property is marked as nullable because it can be None, but it can't be missing because it is required
+        # ("required_supported_none", str | None, ..., ..., "Argument param is required"),
+        pytest.param(
+            "required_supported_none",
+            str | None,
+            ...,
+            ...,
+            "Argument param is required",
+            marks=pytest.mark.skip(reason="TODO: Fix this test case"),
+        ),
+        #
+        # Optional parameters (has default, doesn't support None)
+        # - Valid input
+        ("optional_unsupported_none", str, "default", "text", None),
+        # - None not allowed
+        # TODO: Fix this test case: property is marked as nullable because it has a default value, but it can't be None
+        # ("optional_unsupported_none", str, "default", None, "Argument param has type 'null' but should be 'string'"),
+        pytest.param(
+            "optional_unsupported_none",
+            str,
+            "default",
+            None,
+            "Argument param has type 'null' but should be 'string'",
+            marks=pytest.mark.skip(reason="TODO: Fix this test case"),
+        ),
+        # - Missing optional parameter is allowed
+        ("optional_unsupported_none", str, "default", ..., None),
+        #
+        # Optional and supports None parameters with string default
+        # - Valid input
+        ("optional_supported_none_str_default", str | None, "default", "text", None),
+        # - None allowed
+        ("optional_supported_none_str_default", str | None, "default", None, None),
+        # - Missing optional parameter is allowed
+        ("optional_supported_none_str_default", str | None, "default", ..., None),
+        #
+        # Optional and supports None parameters with None default
+        # - Valid input
+        ("optional_supported_none_none_default", str | None, None, "text", None),
+        # - None allowed
+        ("optional_supported_none_none_default", str | None, None, None, None),
+        # - Missing optional parameter is allowed
+        ("optional_supported_none_none_default", str | None, None, ..., None),
+    ],
+)
+def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_value, expected_error_message):
+    """Test validation of tool arguments with focus on nullable properties: optional (with default value) and supporting None value."""
+
+    # Create a tool with the appropriate signature
+    if default is ...:  # Using Ellipsis to indicate no default value
+
+        @tool
+        def test_tool(param: type_hint) -> str:
+            """Test tool.
+
+            Args:
+                param: Input param
+            """
+            return str(param) if param is not None else "NULL"
+    else:
+
+        @tool
+        def test_tool(param: type_hint = default) -> str:
+            """Test tool.
+
+            Args:
+                param: Input param.
+            """
+            return str(param) if param is not None else "NULL"
+
+    # Test with the input dictionary
+    input_dict = {"param": input_value} if input_value is not ... else {}
+
+    if expected_error_message:
+        with pytest.raises((ValueError, TypeError), match=expected_error_message):
+            validate_tool_arguments(test_tool, input_dict)
+    else:
+        # Should not raise any exception
+        validate_tool_arguments(test_tool, input_dict)

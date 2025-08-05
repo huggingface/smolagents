@@ -25,6 +25,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
+from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any
 
@@ -53,6 +54,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
 def custom_print(*args):
@@ -807,10 +809,17 @@ def evaluate_call(
         else:
             args.append(evaluate_ast(arg, state, static_tools, custom_tools, authorized_imports))
 
-    kwargs = {
-        keyword.arg: evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
-        for keyword in call.keywords
-    }
+    kwargs = {}
+    for keyword in call.keywords:
+        if keyword.arg is None:
+            # **kwargs unpacking
+            starred_dict = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
+            if not isinstance(starred_dict, dict):
+                raise InterpreterError(f"Cannot unpack non-dict value in **kwargs: {type(starred_dict).__name__}")
+            kwargs.update(starred_dict)
+        else:
+            # Normal keyword argument
+            kwargs[keyword.arg] = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
 
     if func_name == "super":
         if not args:
@@ -836,6 +845,14 @@ def evaluate_call(
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
+        if (
+            hasattr(func, "__name__")
+            and func.__name__.startswith("__")
+            and func.__name__.endswith("__")
+            and (func.__name__ not in static_tools)
+            and (func.__name__ not in ALLOWED_DUNDER_METHODS)
+        ):
+            raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
         return func(*args, **kwargs)
 
 
@@ -1592,9 +1609,29 @@ class LocalPythonExecutor(PythonExecutor):
             self.max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT
         self.additional_authorized_imports = additional_authorized_imports
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        # TODO: assert self.authorized imports are all installed locally
+        self._check_authorized_imports_are_installed()
         self.static_tools = None
         self.additional_functions = additional_functions or {}
+
+    def _check_authorized_imports_are_installed(self):
+        """
+        Check that all authorized imports are installed on the system.
+
+        Handles wildcard imports ("*") and partial star-pattern imports (e.g., "os.*").
+
+        Raises:
+            InterpreterError: If any of the authorized modules are not installed.
+        """
+        missing_modules = [
+            base_module
+            for imp in self.authorized_imports
+            if imp != "*" and find_spec(base_module := imp.split(".")[0]) is None
+        ]
+        if missing_modules:
+            raise InterpreterError(
+                f"Non-installed authorized modules: {', '.join(missing_modules)}. "
+                f"Please install these modules or remove them from the authorized imports list."
+            )
 
     def __call__(self, code_action: str) -> CodeOutput:
         output, is_final_answer = evaluate_python_code(
