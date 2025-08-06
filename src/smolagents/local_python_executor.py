@@ -21,7 +21,7 @@ import inspect
 import logging
 import math
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Generator, Mapping
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
@@ -1292,6 +1292,41 @@ def evaluate_dictcomp(
     return result
 
 
+def evaluate_generatorexp(
+    genexp: ast.GeneratorExp,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Generator[Any]:
+    def generator():
+        for gen in genexp.generators:
+            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+            for value in iter_value:
+                new_state = state.copy()
+                set_value(
+                    gen.target,
+                    value,
+                    new_state,
+                    static_tools,
+                    custom_tools,
+                    authorized_imports,
+                )
+                if all(
+                    evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                    for if_clause in gen.ifs
+                ):
+                    yield evaluate_ast(
+                        genexp.elt,
+                        new_state,
+                        static_tools,
+                        custom_tools,
+                        authorized_imports,
+                    )
+
+    return generator()
+
+
 def evaluate_delete(
     delete_node: ast.Delete,
     state: dict[str, Any],
@@ -1378,7 +1413,9 @@ def evaluate_ast(
         return expression.value
     elif isinstance(expression, ast.Tuple):
         return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
-    elif isinstance(expression, (ast.ListComp, ast.GeneratorExp)):
+    elif isinstance(expression, ast.GeneratorExp):
+        return evaluate_generatorexp(expression, *common_params)
+    elif isinstance(expression, ast.ListComp):
         return evaluate_listcomp(expression, *common_params)
     elif isinstance(expression, ast.DictComp):
         return evaluate_dictcomp(expression, *common_params)
