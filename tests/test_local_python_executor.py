@@ -532,6 +532,10 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == 0
 
+        code = "cnt = 0\nfor i in range(3):\n    if i == 1:\n        continue\n    cnt += 1\ncnt"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == 2
+
     def test_call_int(self):
         code = "import math\nstr(math.ceil(149))"
         result, _ = evaluate_python_code(code, {"str": lambda x: str(x)}, state={})
