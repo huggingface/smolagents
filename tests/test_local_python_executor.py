@@ -517,6 +517,13 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {10, 19, 20}
 
+    def test_generatorexp(self):
+        code = "x = (i for i in range(3))"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        # assert not isinstance(result, list)
+        assert isinstance(result, types.GeneratorType)
+        assert list(result) == [0, 1, 2]
+
     def test_break(self):
         code = "for i in range(10):\n    if i == 5:\n        break\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
