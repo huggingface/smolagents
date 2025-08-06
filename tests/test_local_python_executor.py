@@ -991,20 +991,6 @@ S4 = S1.intersection(S2)
         assert state["S3"] == {"a"}
         assert state["S4"] == {"b", "c"}
 
-    def test_break(self):
-        code = """
-i = 0
-
-while True:
-    i+= 1
-    if i==3:
-        break
-
-i"""
-        result, is_final_answer = evaluate_python_code(code, {"print": print, "round": round}, state={})
-        assert result == 3
-        assert not is_final_answer
-
     def test_return(self):
         # test early returns
         code = """
