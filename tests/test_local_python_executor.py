@@ -524,6 +524,41 @@ print(check_digits)
         assert isinstance(result, types.GeneratorType)
         assert list(result) == [0, 1, 2]
 
+    def test_generatorexp_with_infinite_sequence(self):
+        """Test that generator expressions handle infinite sequences correctly without hanging."""
+        code = dedent(
+            """\
+            import itertools
+
+            def infinite_counter():
+                return itertools.count()
+
+            # Create a generator expression that filters an infinite sequence
+            even_numbers = (x for x in infinite_counter() if x % 2 == 0)
+
+            # Get just the first 3 even numbers
+            first_three = []
+            gen_iter = iter(even_numbers)
+            for _ in range(3):
+                first_three.append(next(gen_iter))
+
+            result = first_three
+            """
+        )
+
+        state = {}
+        result, _ = evaluate_python_code(code, {"int": int, "iter": iter, "next": next, "range": range}, state=state)
+
+        # Verify we got the expected values
+        assert result == [0, 2, 4]
+
+        # Verify it's actually a generator
+        even_numbers = state["even_numbers"]
+        assert isinstance(even_numbers, types.GeneratorType)
+
+        # If this were a list, the code would hang indefinitely trying to
+        # evaluate the entire infinite sequence upfront
+
     def test_break(self):
         code = "for i in range(10):\n    if i == 5:\n        break\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
