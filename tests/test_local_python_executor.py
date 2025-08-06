@@ -517,15 +517,17 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {10, 19, 20}
 
-    def test_break_continue(self):
+    def test_break(self):
         code = "for i in range(10):\n    if i == 5:\n        break\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == 5
 
-        code = "for i in range(10):\n    if i == 5:\n        continue\ni"
+    def test_pass(self):
+        code = "for i in range(10):\n    if i == 5:\n        pass\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == 9
 
+    def test_continue(self):
         code = "cnt = 0\nfor i in range(10):\n    continue\n    cnt += 1\ncnt"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == 0
