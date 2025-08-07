@@ -400,6 +400,7 @@ class MultiStepAgent(ABC):
         images: list["PIL.Image.Image"] | None = None,
         additional_args: dict | None = None,
         max_steps: int | None = None,
+        return_full_result: bool = False,
     ):
         """
         Run the agent for the given task.
@@ -413,6 +414,7 @@ class MultiStepAgent(ABC):
             images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
             additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
             max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+            return_full_result (`bool`, defaults to `False`): Whether to return the full result of the agent run.
 
         Example:
         ```py
@@ -457,7 +459,7 @@ You have been provided with these additional arguments, that you can access dire
         assert isinstance(steps[-1], FinalAnswerStep)
         output = steps[-1].output
 
-        if self.return_full_result:
+        if self.return_full_result or return_full_result:
             total_input_tokens = 0
             total_output_tokens = 0
             correct_token_usage = True
