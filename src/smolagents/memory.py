@@ -66,19 +66,13 @@ class ActionStep(MemoryStep):
     def dict(self):
         # We overwrite the method to parse the tool_calls and action_output manually
         from smolagents.models import get_dict_from_nested_dataclasses
-        
-        def make_message_dict(msg):
-            msg_dict = get_dict_from_nested_dataclasses(msg)
-            msg_dict["raw"] = make_json_serializable(msg_dict.get("raw"))
-            return msg_dict
-        
         return {
             "step_number": self.step_number,
             "timing": self.timing.dict(),
-            "model_input_messages": [make_message_dict(msg) for msg in self.model_input_messages] if self.model_input_messages else None,
+            "model_input_messages": [make_json_serializable(get_dict_from_nested_dataclasses(msg)) for msg in self.model_input_messages] if self.model_input_messages else None,
             "tool_calls": [tc.dict() for tc in self.tool_calls] if self.tool_calls else [],
             "error": self.error.dict() if self.error else None,
-            "model_output_message": make_message_dict(self.model_output_message) if self.model_output_message else None,
+            "model_output_message": make_json_serializable(get_dict_from_nested_dataclasses(self.model_output_message)) if self.model_output_message else None,
             "model_output": self.model_output,
             "code_action": self.code_action,
             "observations": self.observations,
@@ -161,15 +155,9 @@ class PlanningStep(MemoryStep):
 
     def dict(self):
         from smolagents.models import get_dict_from_nested_dataclasses
-        
-        def make_message_dict(msg):
-            msg_dict = get_dict_from_nested_dataclasses(msg)
-            msg_dict["raw"] = make_json_serializable(msg_dict.get("raw"))
-            return msg_dict
-        
         return {
-            "model_input_messages": [make_message_dict(msg) for msg in self.model_input_messages],
-            "model_output_message": make_message_dict(self.model_output_message),
+            "model_input_messages": [make_json_serializable(get_dict_from_nested_dataclasses(msg)) for msg in self.model_input_messages],
+            "model_output_message": make_json_serializable(get_dict_from_nested_dataclasses(self.model_output_message)),
             "plan": self.plan,
             "timing": self.timing.dict(),
             "token_usage": asdict(self.token_usage) if self.token_usage else None,
