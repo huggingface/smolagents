@@ -239,10 +239,6 @@ class MultiStepAgent(ABC):
         max_steps (`int`, default `20`): Maximum number of steps the agent can take to solve the task.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
-        grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
-            <Deprecated version="1.17.0">
-            Parameter `grammar` is deprecated and will be removed in version 1.20.
-            </Deprecated>
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable | list[Callable]]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
@@ -1472,10 +1468,6 @@ class CodeAgent(MultiStepAgent):
         use_structured_outputs_internally (`bool`, default `False`): Whether to use structured generation at each action step: improves performance for many models.
 
             <Added version="1.17.0"/>
-        grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
-            <Deprecated version="1.17.0">
-            Parameter `grammar` is deprecated and will be removed in version 1.20.
-            </Deprecated>
         code_block_tags (`tuple[str, str]` | `Literal["markdown"]`, *optional*): Opening and closing tags for code blocks (regex strings). Pass a custom tuple, or pass 'markdown' to use ("```(?:python|py)", "\\n```"), leave empty to use ("<code>", "</code>").
         **kwargs: Additional keyword arguments.
     """
