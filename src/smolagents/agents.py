@@ -488,12 +488,12 @@ You have been provided with these additional arguments, that you can access dire
             else:
                 state = "success"
 
-            messages = self.memory.get_full_steps()
+            step_dicts = self.memory.get_full_steps()
 
             return RunResult(
                 output=output,
                 token_usage=token_usage,
-                messages=messages,
+                messages=step_dicts,
                 timing=Timing(start_time=run_start_time, end_time=time.time()),
                 state=state,
             )
