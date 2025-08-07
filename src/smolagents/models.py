@@ -386,27 +386,7 @@ class Model:
         self.tool_name_key = tool_name_key
         self.tool_arguments_key = tool_arguments_key
         self.kwargs = kwargs
-        self._last_input_token_count: int | None = None
-        self._last_output_token_count: int | None = None
         self.model_id: str | None = model_id
-
-    @property
-    def last_input_token_count(self) -> int | None:
-        warnings.warn(
-            "Attribute last_input_token_count is deprecated and will be removed in version 1.20. "
-            "Please use TokenUsage.input_tokens instead.",
-            FutureWarning,
-        )
-        return self._last_input_token_count
-
-    @property
-    def last_output_token_count(self) -> int | None:
-        warnings.warn(
-            "Attribute last_output_token_count is deprecated and will be removed in version 1.20. "
-            "Please use TokenUsage.output_tokens instead.",
-            FutureWarning,
-        )
-        return self._last_output_token_count
 
     def _prepare_completion_kwargs(
         self,
@@ -637,8 +617,6 @@ class VLLMModel(Model):
         )
 
         output_text = out[0].outputs[0].text
-        self._last_input_token_count = len(out[0].prompt_token_ids)
-        self._last_output_token_count = len(out[0].outputs[0].token_ids)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=output_text,
@@ -746,9 +724,6 @@ class MLXModel(Model):
             if any((stop_index := text.rfind(stop)) != -1 for stop in stops):
                 text = text[:stop_index]
                 break
-
-        self._last_input_token_count = len(prompt_ids)
-        self._last_output_token_count = output_tokens
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=text,
@@ -971,9 +946,6 @@ class TransformersModel(Model):
 
         if stop_sequences is not None:
             output_text = remove_stop_sequences(output_text, stop_sequences)
-
-        self._last_input_token_count = count_prompt_tokens
-        self._last_output_token_count = len(generated_tokens)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=output_text,
@@ -1007,7 +979,6 @@ class TransformersModel(Model):
 
         # Get prompt token count once
         count_prompt_tokens = generation_kwargs["inputs"].shape[1]  # type: ignore
-        self._last_input_token_count = count_prompt_tokens
 
         # Start generation in a separate thread
         thread = Thread(target=self.model.generate, kwargs={"streamer": self.streamer, **generation_kwargs})
@@ -1158,9 +1129,6 @@ class LiteLLMModel(ApiModel):
         )
         self._apply_rate_limit()
         response = self.client.completion(**completion_kwargs)
-
-        self._last_input_token_count = response.usage.prompt_tokens
-        self._last_output_token_count = response.usage.completion_tokens
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
@@ -1193,8 +1161,6 @@ class LiteLLMModel(ApiModel):
         self._apply_rate_limit()
         for event in self.client.completion(**completion_kwargs, stream=True, stream_options={"include_usage": True}):
             if getattr(event, "usage", None):
-                self._last_input_token_count = event.usage.prompt_tokens
-                self._last_output_token_count = event.usage.completion_tokens
                 yield ChatMessageStreamDelta(
                     content="",
                     token_usage=TokenUsage(
@@ -1438,9 +1404,6 @@ class InferenceClientModel(ApiModel):
         )
         self._apply_rate_limit()
         response = self.client.chat_completion(**completion_kwargs)
-
-        self._last_input_token_count = response.usage.prompt_tokens
-        self._last_output_token_count = response.usage.completion_tokens
         return ChatMessage.from_dict(
             asdict(response.choices[0].message),
             raw=response,
@@ -1473,8 +1436,6 @@ class InferenceClientModel(ApiModel):
             **completion_kwargs, stream=True, stream_options={"include_usage": True}
         ):
             if getattr(event, "usage", None):
-                self._last_input_token_count = event.usage.prompt_tokens
-                self._last_output_token_count = event.usage.completion_tokens
                 yield ChatMessageStreamDelta(
                     content="",
                     token_usage=TokenUsage(
@@ -1588,8 +1549,6 @@ class OpenAIServerModel(ApiModel):
             **completion_kwargs, stream=True, stream_options={"include_usage": True}
         ):
             if event.usage:
-                self._last_input_token_count = event.usage.prompt_tokens
-                self._last_output_token_count = event.usage.completion_tokens
                 yield ChatMessageStreamDelta(
                     content="",
                     token_usage=TokenUsage(
@@ -1638,10 +1597,6 @@ class OpenAIServerModel(ApiModel):
         )
         self._apply_rate_limit()
         response = self.client.chat.completions.create(**completion_kwargs)
-
-        # Reported that `response.usage` can be None in some cases when using OpenRouter: see GH-1401
-        self._last_input_token_count = getattr(response.usage, "prompt_tokens", 0)
-        self._last_output_token_count = getattr(response.usage, "completion_tokens", 0)
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
@@ -1905,9 +1860,6 @@ class AmazonBedrockServerModel(ApiModel):
                 "Unexpected output format, possibly due to thinking mode changes."
             )
         response["output"]["message"]["content"] = last_message_content_block["text"]
-
-        self._last_input_token_count = response["usage"]["inputTokens"]
-        self._last_output_token_count = response["usage"]["outputTokens"]
         return ChatMessage.from_dict(
             response["output"]["message"],
             raw=response,
