@@ -216,6 +216,12 @@ class MonitoringTester(unittest.TestCase):
         self.assertIsInstance(result.messages, list)
         self.assertGreater(result.timing.duration, 0)
 
+        # Test backward compatibility: messages should be the same as steps
+        self.assertEqual(result.messages, result.steps)
+        result_dict = result.dict()
+        self.assertIn("messages", result_dict)
+        self.assertEqual(result_dict["messages"], result.steps)
+
         # Below 2 lines should be removed when the attributes are removed
         assert agent.monitor.total_input_token_count == 10
         assert agent.monitor.total_output_token_count == 20

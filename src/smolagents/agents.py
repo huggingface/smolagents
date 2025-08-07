@@ -202,22 +202,28 @@ class RunResult:
     Attributes:
         output (Any | None): The final output of the agent run, if available.
         state (Literal["success", "max_steps_error"]): The final state of the agent after the run.
-        messages (list[dict]): The agent's memory, as a list of messages.
+        steps (list[dict]): The agent's memory, as a list of steps.
         token_usage (TokenUsage | None): Count of tokens used during the run.
         timing (Timing): Timing details of the agent run: start time, end time, duration.
     """
 
     output: Any | None
     state: Literal["success", "max_steps_error"]
-    messages: list[dict]
+    steps: list[dict]
     token_usage: TokenUsage | None
     timing: Timing
+
+    @property
+    def messages(self):
+        """Backward compatibility property that returns steps."""
+        logger.warning("The `messages` property is deprecated. Use `steps` instead.")
+        return self.steps
 
     def dict(self):
         return {
             "output": self.output,
             "state": self.state,
-            "messages": self.messages,
+            "messages": self.steps,
             "token_usage": self.token_usage.dict() if self.token_usage is not None else None,
             "timing": self.timing.dict(),
         }
@@ -493,7 +499,7 @@ You have been provided with these additional arguments, that you can access dire
             return RunResult(
                 output=output,
                 token_usage=token_usage,
-                messages=step_dicts,
+                steps=step_dicts,
                 timing=Timing(start_time=run_start_time, end_time=time.time()),
                 state=state,
             )
