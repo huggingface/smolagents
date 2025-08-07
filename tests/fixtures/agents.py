@@ -86,14 +86,12 @@ AGENT_DICTS = {
         "executor_kwargs": {},
         "max_print_outputs_length": None,
     },
-    # Removed: grammar
+    # Removed: grammar, last_input_token_count, last_output_token_count
     "v1.20": {
         "tools": [],
         "model": {
             "class": "InferenceClientModel",
             "data": {
-                "last_input_token_count": None,
-                "last_output_token_count": None,
                 "model_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
                 "provider": None,
             },
