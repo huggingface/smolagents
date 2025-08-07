@@ -359,7 +359,7 @@ def supports_stop_parameter(model_id: str) -> bool:
     """
     Check if the model supports the `stop` parameter.
 
-    Not supported with reasoning models openai/o3 and openai/o4-mini (and their versioned variants).
+    Not supported with reasoning models openai/o3, openai/o4-mini, and the openai/gpt-5 series (and their versioned variants).
 
     Args:
         model_id (`str`): Model identifier (e.g. "openai/o3", "o4-mini-2025-04-16")
@@ -368,8 +368,8 @@ def supports_stop_parameter(model_id: str) -> bool:
         bool: True if the model supports the stop parameter, False otherwise
     """
     model_name = model_id.split("/")[-1]
-    # o3 and o4-mini (including versioned variants, o3-2025-04-16) don't support stop parameter
-    pattern = r"^(o3[-\d]*|o4-mini[-\d]*)$"
+    # o3, o4-mini, and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
+    pattern = r"^(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*)$"
     return not re.match(pattern, model_name)
 
 
