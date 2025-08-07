@@ -213,6 +213,15 @@ class RunResult:
     token_usage: TokenUsage | None
     timing: Timing
 
+    def dict(self):
+        return {
+            "output": self.output,
+            "state": self.state,
+            "messages": self.messages,
+            "token_usage": self.token_usage.dict() if self.token_usage is not None else None,
+            "timing": self.timing.dict(),
+        }
+
 
 StreamEvent: TypeAlias = Union[
     ChatMessageStreamDelta,

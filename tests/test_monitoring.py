@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import unittest
+from dataclasses import asdict
 
 import PIL.Image
 import pytest
@@ -217,6 +219,10 @@ class MonitoringTester(unittest.TestCase):
         # Below 2 lines should be removed when the attributes are removed
         assert agent.monitor.total_input_token_count == 10
         assert agent.monitor.total_output_token_count == 20
+
+        # Test that the output can be json serialized
+        json.dumps(asdict(result))
+        json.dumps(result.messages[0])
 
     def test_run_result_no_token_usage(self):
         agent = CodeAgent(
