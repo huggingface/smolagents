@@ -342,10 +342,6 @@ class Tool(BaseTool):
                 args = ()
                 kwargs = potential_kwargs
 
-        # Convert dictionary arguments to Pydantic model instances if needed
-        if kwargs:
-            kwargs = self._convert_dict_args_to_pydantic_models(kwargs)
-
         if sanitize_inputs_outputs:
             args, kwargs = handle_agent_input_types(*args, **kwargs)
         outputs = self.forward(*args, **kwargs)
