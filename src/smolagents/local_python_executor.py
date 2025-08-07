@@ -21,7 +21,7 @@ import inspect
 import logging
 import math
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Generator, Mapping
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
@@ -54,6 +54,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
 def custom_print(*args):
@@ -844,6 +845,14 @@ def evaluate_call(
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
+        if (
+            hasattr(func, "__name__")
+            and func.__name__.startswith("__")
+            and func.__name__.endswith("__")
+            and (func.__name__ not in static_tools)
+            and (func.__name__ not in ALLOWED_DUNDER_METHODS)
+        ):
+            raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
         return func(*args, **kwargs)
 
 
@@ -976,12 +985,9 @@ def evaluate_for(
                 if line_result is not None:
                     result = line_result
             except BreakException:
-                break
+                return result
             except ContinueException:
-                continue
-        else:
-            continue
-        break
+                break
     return result
 
 
@@ -1286,6 +1292,41 @@ def evaluate_dictcomp(
     return result
 
 
+def evaluate_generatorexp(
+    genexp: ast.GeneratorExp,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Generator[Any]:
+    def generator():
+        for gen in genexp.generators:
+            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+            for value in iter_value:
+                new_state = state.copy()
+                set_value(
+                    gen.target,
+                    value,
+                    new_state,
+                    static_tools,
+                    custom_tools,
+                    authorized_imports,
+                )
+                if all(
+                    evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                    for if_clause in gen.ifs
+                ):
+                    yield evaluate_ast(
+                        genexp.elt,
+                        new_state,
+                        static_tools,
+                        custom_tools,
+                        authorized_imports,
+                    )
+
+    return generator()
+
+
 def evaluate_delete(
     delete_node: ast.Delete,
     state: dict[str, Any],
@@ -1372,7 +1413,9 @@ def evaluate_ast(
         return expression.value
     elif isinstance(expression, ast.Tuple):
         return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
-    elif isinstance(expression, (ast.ListComp, ast.GeneratorExp)):
+    elif isinstance(expression, ast.GeneratorExp):
+        return evaluate_generatorexp(expression, *common_params)
+    elif isinstance(expression, ast.ListComp):
         return evaluate_listcomp(expression, *common_params)
     elif isinstance(expression, ast.DictComp):
         return evaluate_dictcomp(expression, *common_params)

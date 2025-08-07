@@ -1,0 +1,8 @@
+- title: Get started
+  sections:
+  - local: index
+    title: 소개
+- title: 예제
+  sections:
+  - local: examples/text_to_sql
+    title: 스스로 오류를 수정하는 Text-to-SQL
