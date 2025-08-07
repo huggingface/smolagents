@@ -16,11 +16,14 @@ import inspect
 import os
 import textwrap
 import unittest
+from unittest.mock import patch
 
 import pytest
 from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
+from smolagents.agents import CodeAgent
+from smolagents.models import InferenceClientModel
 from smolagents.tools import tool
 from smolagents.utils import get_source, instance_to_source, is_valid_name, parse_code_blobs, parse_json_blob
 
@@ -195,6 +198,31 @@ def test_get_source_ipython_errors_type_error():
         get_source(None)
 
 
+def test_get_source_dill_fallback():
+    def sample_func():
+        pass
+
+    with patch('inspect.getsource', side_effect=OSError("inspect failed")):
+        with patch('IPython.get_ipython', return_value=None):  # Simulate no IPython environment
+            with patch('dill.source.getsource', return_value="def sample_func():\n    pass") as mock_dill:
+                source = get_source(sample_func)
+                assert source == "def sample_func():\n    pass"
+                mock_dill.assert_called_once_with(sample_func)
+
+
+def test_get_source_restores_value_error(ipython_shell):
+    test_code = "def another_func():\n    return 'hello'"
+    ipython_shell.run_cell(test_code, store_history=True)
+    obj = ipython_shell.user_ns["another_func"]
+
+    # Mock inspect.getsource to fail, triggering the fallback logic
+    with patch('inspect.getsource', side_effect=OSError("inspect failed")):
+        # Ensure the IPython history does not contain the object we are looking for
+        ipython_shell.user_ns["In"] = ["print('something else')"]
+        with pytest.raises(ValueError, match="Could not find source code for another_func in IPython history"):
+            get_source(obj)
+
+
 @pytest.mark.parametrize(
     "tool, expected_tool_source", [(ValidTool(), VALID_TOOL_SOURCE), (valid_tool_function, VALID_TOOL_FUNCTION_SOURCE)]
 )
@@ -202,6 +230,38 @@ def test_instance_to_source(tool, expected_tool_source):
     tool_source = instance_to_source(tool, base_cls=Tool)
     assert tool_source == expected_tool_source
 
+
+def test_agent_save_filters_empty_args(tmp_path):
+    # Dummy model for initialization
+    model = InferenceClientModel(model_id="mock-model-id")
+
+    # Agent with arguments that should be filtered out
+    agent = CodeAgent(
+        model=model,
+        tools=[],
+        managed_agents=[],        # empty list
+        planning_interval=None,   # None value
+        name="test_filtering_agent",
+        description="",           # empty string
+    )
+
+    # Save the agent to a temporary directory
+    agent.save(tmp_path)
+
+    # Read the generated app.py file
+    app_py_path = tmp_path / "app.py"
+    assert app_py_path.exists()
+    app_content = app_py_path.read_text()
+
+    # Check that the problematic arguments are NOT in the constructor call
+    assert "managed_agents" not in app_content
+    assert "planning_interval" not in app_content
+    assert "description" not in app_content
+    assert "tools=[]" not in app_content # Should also be filtered if empty
+
+    # Check that essential arguments are present
+    assert "model=model" in app_content
+    assert "name='test_filtering_agent'" in app_content
 
 def test_e2e_class_tool_save(tmp_path):
     class TestTool(Tool):
@@ -259,6 +319,8 @@ def test_e2e_class_tool_save(tmp_path):
 
 def test_e2e_ipython_class_tool_save(tmp_path):
     shell = InteractiveShell.instance()
+    # Using .as_posix() to avoid backslash issues on Windows
+    safe_path = tmp_path.as_posix()
     code_blob = textwrap.dedent(
         f"""\
         from smolagents.tools import Tool
@@ -275,7 +337,7 @@ def test_e2e_ipython_class_tool_save(tmp_path):
                 import IPython  # noqa: F401
 
                 return task
-        TestTool().save("{tmp_path}", make_gradio_app=True)
+        TestTool().save("{safe_path}", make_gradio_app=True)
         """
     )
     assert shell.run_cell(code_blob, store_history=True).success
@@ -366,6 +428,8 @@ def test_e2e_function_tool_save(tmp_path):
 
 def test_e2e_ipython_function_tool_save(tmp_path):
     shell = InteractiveShell.instance()
+    # Using .as_posix() to avoid backslash issues on Windows
+    safe_path = tmp_path.as_posix()
     code_blob = textwrap.dedent(
         f"""
         from smolagents import tool
@@ -382,7 +446,7 @@ def test_e2e_ipython_function_tool_save(tmp_path):
 
             return task
 
-        test_tool.save("{tmp_path}", make_gradio_app=True)
+        test_tool.save("{safe_path}", make_gradio_app=True)
         """
     )
     assert shell.run_cell(code_blob, store_history=True).success

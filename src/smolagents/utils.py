@@ -502,13 +502,18 @@ with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
 
 {{ agent_name }} = {{ class_name }}(
     model=model,
+    {% if tools -%}
     tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    {%- endif %}
+    {% if managed_agents -%}
     managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    {%- endif %}
     {% for attribute_name, value in agent_dict.items() if
         attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements", "class"]
         and value is not none
         and value != []
         and value != {}
+        and value != ""
     -%}
     {{ attribute_name }}={{ value|repr }},
     {% endfor %}
