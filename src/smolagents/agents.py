@@ -702,13 +702,6 @@ You have been provided with these additional arguments, that you can access dire
             timing=Timing(start_time=start_time, end_time=time.time()),
         )
 
-    @property
-    def logs(self):
-        logger.warning(
-            "The 'logs' attribute is deprecated and will soon be removed. Please use 'self.memory.steps' instead."
-        )
-        return [self.memory.system_prompt] + self.memory.steps
-
     @abstractmethod
     def initialize_system_prompt(self) -> str:
         """To be implemented in child classes"""
