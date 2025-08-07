@@ -21,6 +21,7 @@ import inspect
 import logging
 import math
 import re
+from abc import ABC
 from collections.abc import Callable, Generator, Mapping
 from dataclasses import dataclass
 from functools import wraps
@@ -1608,8 +1609,15 @@ class CodeOutput:
     is_final_answer: bool
 
 
-class PythonExecutor:
-    pass
+class PythonExecutor(ABC):
+    def send_tools(self, tools: dict[str, Tool]):
+        raise NotImplementedError("should be implemented in subclass")
+
+    def send_variables(self, variables: dict):
+        raise NotImplementedError("should be implemented in subclass")
+
+    def __call__(self, code_action: str) -> CodeOutput:
+        raise NotImplementedError("should be implemented in subclass")
 
 
 class LocalPythonExecutor(PythonExecutor):
