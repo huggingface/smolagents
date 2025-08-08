@@ -1272,6 +1272,7 @@ class TestPydanticToolIntegration:
         import pydantic
 
         class ProfileData(pydantic.BaseModel):
+            """Profile data for a user."""
             name: str
             bio: str | None = None
             age: int | None = None
@@ -1300,6 +1301,47 @@ class TestPydanticToolIntegration:
 
         # Should not raise any exception
         validate_tool_arguments(create_profile, complete_input)
+
+        # Test that optional fields are properly marked as nullable in schema
+        schema = create_profile.inputs["profile"]
+        properties = schema["properties"]
+        required_fields = schema.get("required", [])
+
+        # Check required field
+        assert "name" in required_fields
+        assert "nullable" not in properties["name"]
+
+        # Check optional fields are marked as nullable
+        assert "bio" not in required_fields
+        assert properties["bio"].get("nullable") is True
+
+        assert "age" not in required_fields
+        assert properties["age"].get("nullable") is True
+
+        # Test with Tool subclass to ensure same behavior
+        class ProfileTool(Tool):
+            name = "profile_tool"
+            description = "Tool with optional fields"
+            inputs = {"profile": ProfileData}
+            output_type = "string"
+
+            def forward(self, profile: ProfileData) -> str:
+                return f"Profile for {profile.name}"
+
+        tool_instance = ProfileTool()
+        schema_class = tool_instance.inputs["profile"]
+        properties_class = schema_class["properties"]
+        required_fields_class = schema_class.get("required", [])
+
+        # Check the Tool subclass generates the same nullable behavior
+        assert "name" in required_fields_class
+        assert "nullable" not in properties_class["name"]
+
+        assert "bio" not in required_fields_class
+        assert properties_class["bio"].get("nullable") is True
+
+        assert "age" not in required_fields_class
+        assert properties_class["age"].get("nullable") is True
 
     def test_pydantic_tool_validation_failure(self, pydantic_available):
         """Test validation failures with Pydantic tool arguments."""
@@ -1333,6 +1375,23 @@ class TestPydanticToolIntegration:
         # Should raise validation error for missing required field
         with pytest.raises(ValueError, match="Required property.*missing"):
             validate_tool_arguments(process_strict, invalid_input)
+
+        # Test Tool subclass with Pydantic model missing docstring
+        class ModelWithoutDocstring(pydantic.BaseModel):
+            field: str
+
+        class InvalidTool(Tool):
+            name = "invalid_tool"
+            description = "Tool with invalid Pydantic model"
+            inputs = {"data": ModelWithoutDocstring}
+            output_type = "string"
+
+            def forward(self, data):
+                return str(data.field)
+
+        # Should raise ValueError for missing docstring
+        with pytest.raises(ValueError, match="must have a docstring to provide a description"):
+            InvalidTool()
 
     def test_pydantic_tool_validation_error(self, pydantic_available):
         """Test that incorrect Pydantic objects and incompatible dicts both raise validation errors."""

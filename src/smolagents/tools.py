@@ -245,7 +245,7 @@ class Tool(BaseTool):
 
     name: str
     description: str
-    inputs: dict[str, dict[str, str | type | bool]]
+    inputs: dict[str, dict[str, str | type | bool | pydantic.BaseModel]]
     output_type: str
 
     def __init__(self, *args, **kwargs):
@@ -284,6 +284,12 @@ class Tool(BaseTool):
             if _is_pydantic_model(input_content):
                 # Convert Pydantic model to schema using the same function as @tool decorator
                 processed_schema = _parse_type_hint(input_content)
+                # Enforce that Pydantic models have descriptions (from docstring)
+                if "description" not in processed_schema:
+                    raise ValueError(
+                        f"Pydantic model '{input_content.__name__}' used in input '{input_name}' "
+                        "must have a docstring to provide a description for the schema."
+                    )
                 processed_inputs[input_name] = processed_schema
             else:
                 processed_inputs[input_name] = input_content

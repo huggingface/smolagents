@@ -66,6 +66,7 @@ def _process_pydantic_schema(schema: dict) -> dict:
     - Resolving $refs to inline definitions
     - Converting enum constraints to proper format
     - Ensuring required fields are properly marked
+    - Converting anyOf patterns with null to nullable: True
 
     Args:
         schema: Raw Pydantic JSON schema
@@ -103,8 +104,50 @@ def _process_pydantic_schema(schema: dict) -> dict:
             # Return primitive values as-is
             return obj
 
+    def convert_anyof_to_nullable(obj):
+        """Convert anyOf patterns with null to nullable: True for smolagents compatibility."""
+        if isinstance(obj, dict):
+            # Check if this is an anyOf pattern with null
+            if "anyOf" in obj and isinstance(obj["anyOf"], list):
+                # Look for a pattern like [{'type': 'string'}, {'type': 'null'}]
+                non_null_types = []
+                has_null = False
+                
+                for item in obj["anyOf"]:
+                    if isinstance(item, dict) and item.get("type") == "null":
+                        has_null = True
+                    elif isinstance(item, dict) and "type" in item:
+                        non_null_types.append(item)
+                
+                # If we have exactly one non-null type and a null type, convert to nullable
+                if has_null and len(non_null_types) == 1:
+                    # Create new schema based on the non-null type
+                    new_obj = non_null_types[0].copy()
+                    
+                    # Copy over any other properties from the original object
+                    for key, value in obj.items():
+                        if key not in ["anyOf"] and key not in new_obj:
+                            new_obj[key] = value
+                    
+                    # Mark as nullable
+                    new_obj["nullable"] = True
+                    
+                    return convert_anyof_to_nullable(new_obj)
+                
+            # Recursively process all values in the dictionary
+            return {k: convert_anyof_to_nullable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            # Recursively process all items in the list
+            return [convert_anyof_to_nullable(item) for item in obj]
+        else:
+            # Return primitive values as-is
+            return obj
+
     # Resolve all $refs in the schema
     processed_schema = resolve_refs(processed_schema)
+    
+    # Convert anyOf patterns to nullable
+    processed_schema = convert_anyof_to_nullable(processed_schema)
 
     # Remove $defs since we have inlined everything
     if "$defs" in processed_schema:
