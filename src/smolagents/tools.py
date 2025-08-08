@@ -615,7 +615,6 @@ class Tool:
                     self.output_type = "audio"
                 else:
                     self.output_type = "any"
-                print(self.inputs, self.output_type)
                 self.is_initialized = True
 
             def sanitize_argument_for_prediction(self, arg):

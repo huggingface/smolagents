@@ -48,9 +48,9 @@ def parse_arguments():
     parser.add_argument(
         "prompt",
         type=str,
-        nargs="?",  # Makes it optional
-        default=None,  # Changed to None to detect when no prompt is provided
-        help="The prompt to run with the agent. If no prompt is provided, interactive mode will be launched to guide you through agent setup",
+        nargs="?",
+        default=None,
+        help="The prompt to run with the agent. If no prompt is provided, interactive mode will be launched to guide user through agent setup",
     )
     parser.add_argument(
         "--model-type",
@@ -110,7 +110,6 @@ def parse_arguments():
 
 def interactive_mode():
     """Run the CLI in interactive mode"""
-    # Create a nice header
     console.print(
         Panel.fit(
             "[bold magenta]🤖 SmolaGents CLI[/]\n[dim]Intelligent agents at your service[/]", border_style="magenta"
@@ -194,7 +193,6 @@ def load_model(
     api_key: str | None = None,
     provider: str | None = None,
 ) -> Model:
-    """Helper function to create the model"""
     if model_type == "OpenAIServerModel":
         return OpenAIServerModel(
             api_key=api_key or os.getenv("FIREWORKS_API_KEY"),
@@ -238,7 +236,6 @@ def run_smolagent(
 
     for tool_name in tools:
         if "/" in tool_name:
-            # Fix the linter error by providing required arguments
             available_tools.append(
                 Tool.from_space(tool_name, name=tool_name.split("/")[-1], description=f"Tool from space: {tool_name}")
             )
