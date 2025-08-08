@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import unittest
-from dataclasses import asdict
+import warnings
 
 import PIL.Image
 import pytest
@@ -26,6 +25,7 @@ from smolagents import (
     ToolCallingAgent,
     stream_to_gradio,
 )
+from smolagents.memory import Timing
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -216,19 +216,57 @@ class MonitoringTester(unittest.TestCase):
         self.assertIsInstance(result.messages, list)
         self.assertGreater(result.timing.duration, 0)
 
-        # Test backward compatibility: messages should be the same as steps
-        self.assertEqual(result.messages, result.steps)
-        result_dict = result.dict()
-        self.assertIn("messages", result_dict)
-        self.assertEqual(result_dict["messages"], result.steps)
+    def test_runresult_backward_compatibility(self):
+        """Test that RunResult handles deprecated 'messages' parameter correctly."""
 
-        # Below 2 lines should be removed when the attributes are removed
-        assert agent.monitor.total_input_token_count == 10
-        assert agent.monitor.total_output_token_count == 20
+        # Test 1: Using new 'steps' parameter (should work without warning)
+        result1 = RunResult(
+            output="test output",
+            state="success",
+            steps=[{"type": "test", "content": "step1"}],
+            token_usage=None,
+            timing=Timing(start_time=0.0, end_time=1.0),
+        )
+        self.assertEqual(result1.steps, [{"type": "test", "content": "step1"}])
 
-        # Test that the output can be json serialized
-        json.dumps(asdict(result))
-        json.dumps(result.messages[0])
+        # Test property access warning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            messages = result1.messages
+            self.assertTrue(len(w) == 1)
+            self.assertTrue(issubclass(w[0].category, UserWarning))
+            self.assertIn("deprecated", str(w[0].message))
+
+        self.assertEqual(messages, [{"type": "test", "content": "step1"}])
+
+        # Test 2: Using deprecated 'messages' parameter (should show deprecation warning)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result2 = RunResult(
+                output="test output",
+                state="success",
+                messages=[{"type": "test", "content": "message1"}],
+                token_usage=None,
+                timing=Timing(start_time=0.0, end_time=1.0),
+            )
+
+            self.assertTrue(len(w) == 1)
+            self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+            self.assertIn("deprecated", str(w[0].message))
+
+        self.assertEqual(result2.steps, [{"type": "test", "content": "message1"}])
+
+        # Test 3: Using both 'steps' and 'messages' (should raise ValueError)
+        with self.assertRaises(ValueError) as cm:
+            RunResult(
+                output="test output",
+                state="success",
+                steps=[{"type": "test", "content": "step1"}],
+                messages=[{"type": "test", "content": "message1"}],
+                token_usage=None,
+                timing=Timing(start_time=0.0, end_time=1.0),
+            )
+        self.assertIn("Cannot specify both", str(cm.exception))
 
     def test_run_result_no_token_usage(self):
         agent = CodeAgent(

@@ -214,6 +214,25 @@ class RunResult:
     token_usage: TokenUsage | None
     timing: Timing
 
+    def __init__(self, output=None, state=None, steps=None, token_usage=None, timing=None, messages=None):
+        # Handle deprecated 'messages' parameter
+        if messages is not None:
+            warnings.warn(
+                "The 'messages' parameter is deprecated and will be removed in a future version. Use 'steps' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if steps is not None:
+                raise ValueError("Cannot specify both 'messages' and 'steps' parameters. Use 'steps' instead.")
+            steps = messages
+
+        # Initialize with dataclass fields
+        self.output = output
+        self.state = state
+        self.steps = steps
+        self.token_usage = token_usage
+        self.timing = timing
+
     @property
     def messages(self):
         """Backward compatibility property that returns steps."""
@@ -225,7 +244,6 @@ class RunResult:
             "output": self.output,
             "state": self.state,
             "steps": self.steps,
-            "messages": self.steps,
             "token_usage": self.token_usage.dict() if self.token_usage is not None else None,
             "timing": self.timing.dict(),
         }
