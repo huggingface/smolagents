@@ -983,7 +983,6 @@ class ToolCollection:
                 - Support for outputSchema in MCP tools
                 - Structured content handling (structuredContent from MCP responses)
                 - JSON parsing fallback for structured data
-                - Output validation against schemas
                 If False, uses the original simple text-only behavior for backwards compatibility.
 
         Returns:
