@@ -96,6 +96,113 @@ class TestEvaluatePythonCode:
         with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'add_two'"):
             evaluate_python_code(code, {}, state=state)
 
+    @pytest.mark.parametrize(
+        "code, expected_result",
+        [
+            # Basic **kwargs unpacking
+            (
+                """
+def test_func(a, b=10, **kwargs):
+    return a + b + sum(kwargs.values())
+
+kwargs_dict = {'x': 5, 'y': 15}
+test_func(1, **kwargs_dict)
+""",
+                31,  # 1 + 10 + 5 + 15
+            ),
+            # **kwargs with regular kwargs
+            (
+                """
+def test_func(a, **kwargs):
+    return a + sum(kwargs.values())
+
+kwargs_dict = {'x': 5, 'y': 15}
+test_func(1, b=20, **kwargs_dict)
+""",
+                41,  # 1 + 20 + 5 + 15
+            ),
+            # Multiple **kwargs unpacking
+            (
+                """
+def test_func(**kwargs):
+    return sum(kwargs.values())
+
+dict1 = {'a': 1, 'b': 2}
+dict2 = {'c': 3, 'd': 4}
+test_func(**dict1, **dict2)
+""",
+                10,  # 1 + 2 + 3 + 4
+            ),
+            # **kwargs with positional args
+            (
+                """
+def test_func(x, y, **kwargs):
+    return x * y + sum(kwargs.values())
+
+params = {'factor': 2, 'offset': 5}
+test_func(3, 4, **params)
+""",
+                19,  # 3 * 4 + 2 + 5
+            ),
+            # Empty **kwargs dict
+            (
+                """
+def test_func(a, **kwargs):
+    return a + len(kwargs)
+
+empty_dict = {}
+test_func(10, **empty_dict)
+""",
+                10,  # 10 + 0
+            ),
+        ],
+    )
+    def test_evaluate_call_starred_kwargs(self, code, expected_result):
+        result, _ = evaluate_python_code(code, {"sum": sum, "len": len}, state={})
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "code, expected_error_message",
+        [
+            # Non-dict value in **kwargs
+            (
+                """
+def test_func(**kwargs):
+    return sum(kwargs.values())
+
+not_a_dict = [1, 2, 3]
+test_func(**not_a_dict)
+""",
+                "Cannot unpack non-dict value in **kwargs: list",
+            ),
+            # **kwargs with non-dict variable
+            (
+                """
+def test_func(**kwargs):
+    return kwargs
+
+test_func(**42)
+""",
+                "Cannot unpack non-dict value in **kwargs: int",
+            ),
+            # **kwargs with None
+            (
+                """
+def test_func(**kwargs):
+    return kwargs
+
+test_func(**None)
+""",
+                "Cannot unpack non-dict value in **kwargs: NoneType",
+            ),
+        ],
+    )
+    def test_evaluate_call_starred_kwargs_errors(self, code, expected_error_message):
+        """Test that **kwargs unpacking raises appropriate errors for non-dict values."""
+        with pytest.raises(InterpreterError) as exception_info:
+            evaluate_python_code(code, {"sum": sum}, state={})
+        assert expected_error_message in str(exception_info.value)
+
     def test_evaluate_class_def(self):
         code = dedent('''\
             class MyClass:
@@ -410,14 +517,66 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {10, 19, 20}
 
-    def test_break_continue(self):
+    def test_generatorexp(self):
+        code = "x = (i for i in range(3))"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        # assert not isinstance(result, list)
+        assert isinstance(result, types.GeneratorType)
+        assert list(result) == [0, 1, 2]
+
+    def test_generatorexp_with_infinite_sequence(self):
+        """Test that generator expressions handle infinite sequences correctly without hanging."""
+        code = dedent(
+            """\
+            import itertools
+
+            def infinite_counter():
+                return itertools.count()
+
+            # Create a generator expression that filters an infinite sequence
+            even_numbers = (x for x in infinite_counter() if x % 2 == 0)
+
+            # Get just the first 3 even numbers
+            first_three = []
+            gen_iter = iter(even_numbers)
+            for _ in range(3):
+                first_three.append(next(gen_iter))
+
+            result = first_three
+            """
+        )
+
+        state = {}
+        result, _ = evaluate_python_code(code, {"int": int, "iter": iter, "next": next, "range": range}, state=state)
+
+        # Verify we got the expected values
+        assert result == [0, 2, 4]
+
+        # Verify it's actually a generator
+        even_numbers = state["even_numbers"]
+        assert isinstance(even_numbers, types.GeneratorType)
+
+        # If this were a list, the code would hang indefinitely trying to
+        # evaluate the entire infinite sequence upfront
+
+    def test_break(self):
         code = "for i in range(10):\n    if i == 5:\n        break\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == 5
 
-        code = "for i in range(10):\n    if i == 5:\n        continue\ni"
+    def test_pass(self):
+        code = "for i in range(10):\n    if i == 5:\n        pass\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == 9
+
+    def test_continue(self):
+        code = "cnt = 0\nfor i in range(10):\n    continue\n    cnt += 1\ncnt"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == 0
+
+        code = "cnt = 0\nfor i in range(3):\n    if i == 1:\n        continue\n    cnt += 1\ncnt"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == 2
 
     def test_call_int(self):
         code = "import math\nstr(math.ceil(149))"
@@ -877,20 +1036,6 @@ S4 = S1.intersection(S2)
         evaluate_python_code(code, {}, state=state)
         assert state["S3"] == {"a"}
         assert state["S4"] == {"b", "c"}
-
-    def test_break(self):
-        code = """
-i = 0
-
-while True:
-    i+= 1
-    if i==3:
-        break
-
-i"""
-        result, is_final_answer = evaluate_python_code(code, {"print": print, "round": round}, state={})
-        assert result == 3
-        assert not is_final_answer
 
     def test_return(self):
         # test early returns
@@ -1796,6 +1941,30 @@ def test_check_import_authorized(module: str, authorized_imports: list[str], exp
 
 
 class TestLocalPythonExecutor:
+    @pytest.mark.parametrize(
+        "additional_authorized_imports, should_raise",
+        [
+            # Valid imports
+            (["math"], None),
+            (["math", "os"], None),  # Multiple valid imports
+            ([], None),  # Empty list of imports
+            (["*"], None),  # Wildcard allows all imports
+            (["os.*"], None),  # Submodule wildcard
+            # Invalid imports
+            (["i_do_not_exist"], True),  # Non-existent module
+            (["math", "i_do_not_exist"], True),  # Mix of valid and invalid
+            (["i_do_not_exist.*"], True),  # Non-existent module with wildcard
+        ],
+    )
+    def test_additional_authorized_imports_are_installed(self, additional_authorized_imports, should_raise):
+        expectation = (
+            pytest.raises(InterpreterError, match="Non-installed authorized modules")
+            if should_raise
+            else does_not_raise()
+        )
+        with expectation:
+            LocalPythonExecutor(additional_authorized_imports=additional_authorized_imports)
+
     def test_state_name(self):
         executor = LocalPythonExecutor(additional_authorized_imports=[])
         assert executor.state.get("__name__") == "__main__"
@@ -2350,4 +2519,80 @@ class TestLocalPythonExecutorSecurity:
         executor = LocalPythonExecutor([])
         code = "a = (); b = getattr(a, '__class__')"
         with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'getattr'"):
+            executor(code)
+
+    @pytest.mark.parametrize(
+        "code, additional_allowed_dunder_methods, expected_dunder_function_error",
+        [
+            ("'string'.__dir__()", [], "__dir__"),
+            ("'string'.__dir__()", ["__dir__"], None),
+            (
+                dedent(
+                    """
+                    def func():
+                        pass
+                    function_class = func.__getattribute__("__class__")
+                    object_class = type.__getattribute__(function_class, '__bases__')[0]
+                    for i, subclass in enumerate(object_class.__subclasses__()):
+                        if 'subprocess.Popen' in str(subclass):
+                            break
+                    subclass(["sh", "-c", ":"]).wait()
+                    """
+                ),
+                [],
+                "__getattribute__",
+            ),
+            (
+                dedent(
+                    """
+                    def func():
+                        pass
+                    function_class = func.__getattribute__("__class__")
+                    object_class = type.__getattribute__(function_class, '__bases__')[0]
+                    for i, subclass in enumerate(object_class.__subclasses__()):
+                        if 'subprocess.Popen' in str(subclass):
+                            break
+                    subclass(["sh", "-c", ":"]).wait()
+                    """
+                ),
+                ["__getattribute__"],
+                "__subclasses__",
+            ),
+            (
+                dedent(
+                    """
+                    def func():
+                        pass
+                    function_class = func.__getattribute__("__class__")
+                    object_class = type.__getattribute__(function_class, '__bases__')[0]
+                    for i, subclass in enumerate(object_class.__subclasses__()):
+                        if 'subprocess.Popen' in str(subclass):
+                            break
+                    subclass(["sh", "-c", ":"]).wait()
+                    """
+                ),
+                ["__getattribute__", "__subclasses__"],
+                None,
+            ),
+        ],
+    )
+    def test_vulnerability_via_dunder_call(
+        self, code, additional_allowed_dunder_methods, expected_dunder_function_error, monkeypatch
+    ):
+        import smolagents.local_python_executor
+
+        monkeypatch.setattr(
+            "smolagents.local_python_executor.ALLOWED_DUNDER_METHODS",
+            smolagents.local_python_executor.ALLOWED_DUNDER_METHODS + additional_allowed_dunder_methods,
+        )
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        expectation = (
+            pytest.raises(
+                InterpreterError, match=f"Forbidden call to dunder function: {expected_dunder_function_error}"
+            )
+            if expected_dunder_function_error
+            else does_not_raise()
+        )
+        with expectation:
             executor(code)

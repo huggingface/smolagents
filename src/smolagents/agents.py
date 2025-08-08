@@ -21,7 +21,6 @@ import re
 import tempfile
 import textwrap
 import time
-import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,7 +29,6 @@ from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
 
-import jinja2
 import yaml
 from huggingface_hub import create_repo, metadata_update, snapshot_download, upload_folder
 from jinja2 import StrictUndefined, Template
@@ -78,9 +76,8 @@ from .monitoring import (
     Monitor,
 )
 from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
-from .tools import Tool, validate_tool_arguments
+from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
-    AGENT_GRADIO_APP_TEMPLATE,
     AgentError,
     AgentExecutionError,
     AgentGenerationError,
@@ -88,6 +85,7 @@ from .utils import (
     AgentParsingError,
     AgentToolCallError,
     AgentToolExecutionError,
+    create_agent_gradio_app_template,
     extract_code_from_text,
     is_valid_name,
     make_init_file,
@@ -241,12 +239,8 @@ class MultiStepAgent(ABC):
         max_steps (`int`, default `20`): Maximum number of steps the agent can take to solve the task.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
-        grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
-            <Deprecated version="1.17.0">
-            Parameter `grammar` is deprecated and will be removed in version 1.20.
-            </Deprecated>
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
-        step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable]`, *optional*): Callbacks that will be called at each step.
+        step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable | list[Callable]]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
@@ -267,9 +261,8 @@ class MultiStepAgent(ABC):
         max_steps: int = 20,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
-        grammar: dict[str, str] | None = None,
         managed_agents: list | None = None,
-        step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable] | None = None,
+        step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable | list[Callable]] | None = None,
         planning_interval: int | None = None,
         name: str | None = None,
         description: str | None = None,
@@ -296,12 +289,6 @@ class MultiStepAgent(ABC):
 
         self.max_steps = max_steps
         self.step_number = 0
-        if grammar is not None:
-            warnings.warn(
-                "Parameter 'grammar' is deprecated and will be removed in version 1.20.",
-                FutureWarning,
-            )
-        self.grammar = grammar
         self.planning_interval = planning_interval
         self.state: dict[str, Any] = {}
         self.name = self._validate_name(name)
@@ -362,7 +349,9 @@ class MultiStepAgent(ABC):
                 agent.output_type = "string"
 
     def _setup_tools(self, tools, add_base_tools):
-        assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
+        assert all(isinstance(tool, BaseTool) for tool in tools), (
+            "All elements must be instance of BaseTool (or a subclass)"
+        )
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(
@@ -396,8 +385,11 @@ class MultiStepAgent(ABC):
                     self.step_callbacks.register(ActionStep, callback)
             # Register callbacks dict for specific step classes
             elif isinstance(step_callbacks, dict):
-                for step_cls, callback in step_callbacks.items():
-                    self.step_callbacks.register(step_cls, callback)
+                for step_cls, callbacks in step_callbacks.items():
+                    if not isinstance(callbacks, list):
+                        callbacks = [callbacks]
+                    for callback in callbacks:
+                        self.step_callbacks.register(step_cls, callback)
             else:
                 raise ValueError("step_callbacks must be a list or a dict")
         # Register monitor update_metrics only for ActionStep for backward compatibility
@@ -435,10 +427,10 @@ class MultiStepAgent(ABC):
         max_steps = max_steps or self.max_steps
         self.task = task
         self.interrupt_switch = False
-        if additional_args is not None:
+        if additional_args:
             self.state.update(additional_args)
             self.task += f"""
-You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
+You have been provided with these additional arguments, that you can access directly using the keys as variables:
 {str(additional_args)}."""
 
         self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
@@ -714,13 +706,6 @@ You have been provided with these additional arguments, that you can access usin
             timing=Timing(start_time=start_time, end_time=time.time()),
         )
 
-    @property
-    def logs(self):
-        logger.warning(
-            "The 'logs' attribute is deprecated and will soon be removed. Please use 'self.memory.steps' instead."
-        )
-        return [self.memory.system_prompt] + self.memory.steps
-
     @abstractmethod
     def initialize_system_prompt(self) -> str:
         """To be implemented in child classes"""
@@ -864,7 +849,10 @@ You have been provided with these additional arguments, that you can access usin
             chat_message: ChatMessage = self.model.generate(messages)
             return chat_message
         except Exception as e:
-            return ChatMessage(role=MessageRole.ASSISTANT, content=f"Error in generating final LLM output:\n{e}")
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=[{"type": "text", "text": f"Error in generating final LLM output: {e}"}],
+            )
 
     def visualize(self):
         """Creates a rich tree visualization of the agent's structure."""
@@ -898,7 +886,7 @@ You have been provided with these additional arguments, that you can access usin
         if self.provide_run_summary:
             answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
             for message in self.write_memory_to_messages(summary_mode=True):
-                content = message["content"]
+                content = message.content
                 answer += "\n" + truncate_content(str(content)) + "\n---"
             answer += "\n</summary_of_work>"
         return answer
@@ -964,14 +952,10 @@ You have been provided with these additional arguments, that you can access usin
         # Make agent.py file with Gradio UI
         agent_name = f"agent_{self.name}" if getattr(self, "name", None) else "agent"
         managed_agent_relative_path = relative_path + "." if relative_path is not None else ""
-        app_template = AGENT_GRADIO_APP_TEMPLATE
-        template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
-        template_env.filters["repr"] = repr
-        template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
-        template = template_env.from_string(app_template)
+        app_template = create_agent_gradio_app_template()
 
         # Render the app.py file from Jinja2 template
-        app_text = template.render(
+        app_text = app_template.render(
             {
                 "agent_name": agent_name,
                 "class_name": class_name,
@@ -1018,7 +1002,6 @@ You have been provided with these additional arguments, that you can access usin
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
             "verbosity_level": int(self.logger.level),
-            "grammar": self.grammar,
             "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
@@ -1047,17 +1030,18 @@ You have been provided with these additional arguments, that you can access usin
             tools.append(Tool.from_code(tool_info["code"]))
         # Load managed agents
         managed_agents = []
-        for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
-            managed_agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_class_name)
-            managed_agents.append(managed_agent_class.from_dict(agent_dict["managed_agents"][managed_agent_name]))
+        for managed_agent_dict in agent_dict["managed_agents"]:
+            agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_dict["class"])
+            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {
             "model": model,
             "tools": tools,
+            "managed_agents": managed_agents,
             "prompt_templates": agent_dict.get("prompt_templates"),
             "max_steps": agent_dict.get("max_steps"),
             "verbosity_level": agent_dict.get("verbosity_level"),
-            "grammar": agent_dict.get("grammar"),
             "planning_interval": agent_dict.get("planning_interval"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
@@ -1343,6 +1327,11 @@ class ToolCallingAgent(MultiStepAgent):
             yield output
             if isinstance(output, ToolOutput):
                 if output.is_final_answer:
+                    if len(chat_message.tool_calls) > 1:
+                        raise AgentExecutionError(
+                            "If you want to return an answer, please do not perform any other tool calls than the final answer tool call!",
+                            self.logger,
+                        )
                     if got_final_answer:
                         raise AgentToolExecutionError(
                             "You returned multiple final answers. Please return only one single final answer!",
@@ -1434,13 +1423,9 @@ class ToolCallingAgent(MultiStepAgent):
                     yield tool_output
 
         memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
-        memory_step.model_output = memory_step.model_output or ""
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
-            message = f"Tool call {tool_output.id}: calling '{tool_output.tool_call.name}' with arguments: {tool_output.tool_call.arguments}\n"
-            memory_step.model_output += message
             memory_step.observations += tool_output.observation + "\n"
-        memory_step.model_output = memory_step.model_output.rstrip("\n")
         memory_step.observations = (
             memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
         )
@@ -1476,9 +1461,13 @@ class ToolCallingAgent(MultiStepAgent):
         arguments = self._substitute_state_variables(arguments)
         is_managed_agent = tool_name in self.managed_agents
 
-        error_msg = validate_tool_arguments(tool, arguments)
-        if error_msg:
-            raise AgentToolCallError(error_msg, self.logger)
+        try:
+            validate_tool_arguments(tool, arguments)
+        except (ValueError, TypeError) as e:
+            raise AgentToolCallError(str(e), self.logger) from e
+        except Exception as e:
+            error_msg = f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}"
+            raise AgentToolExecutionError(error_msg, self.logger) from e
 
         try:
             # Call tool with appropriate arguments
@@ -1549,7 +1538,7 @@ class CodeAgent(MultiStepAgent):
         self.authorized_imports = sorted(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         self.max_print_outputs_length = max_print_outputs_length
         self._use_structured_outputs_internally = use_structured_outputs_internally
-        if use_structured_outputs_internally:
+        if self._use_structured_outputs_internally:
             prompt_templates = prompt_templates or yaml.safe_load(
                 importlib.resources.files("smolagents.prompts").joinpath("structured_code_agent.yaml").read_text()
             )
@@ -1557,8 +1546,6 @@ class CodeAgent(MultiStepAgent):
             prompt_templates = prompt_templates or yaml.safe_load(
                 importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
             )
-        if grammar and use_structured_outputs_internally:
-            raise ValueError("You cannot use 'grammar' and 'use_structured_outputs_internally' at the same time.")
 
         if isinstance(code_block_tags, str) and not code_block_tags == "markdown":
             raise ValueError("Only 'markdown' is supported for a string argument to `code_block_tags`.")
@@ -1574,7 +1561,6 @@ class CodeAgent(MultiStepAgent):
             tools=tools,
             model=model,
             prompt_templates=prompt_templates,
-            grammar=grammar,
             planning_interval=planning_interval,
             max_images=max_images,
             **kwargs,
@@ -1661,8 +1647,6 @@ class CodeAgent(MultiStepAgent):
             stop_sequences.append(self.code_block_tags[1])
         try:
             additional_args: dict[str, Any] = {}
-            if self.grammar:
-                additional_args["grammar"] = self.grammar
             if self._use_structured_outputs_internally:
                 additional_args["response_format"] = CODEAGENT_RESPONSE_FORMAT
             if self.stream_outputs:
@@ -1696,11 +1680,12 @@ class CodeAgent(MultiStepAgent):
                     level=LogLevel.DEBUG,
                 )
 
-            # This adds the end code sequence to the history.
-            # This will nudge ulterior LLM calls to finish with this end code sequence, thus efficiently stopping generation.
-            if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
-                output_text += self.code_block_tags[1]
-                memory_step.model_output_message.content = output_text
+            if not self._use_structured_outputs_internally:
+                # This adds the end code sequence (i.e. the closing code block tag) to the history.
+                # This will nudge subsequent LLM calls to finish with this end code sequence, thus efficiently stopping generation.
+                if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
+                    output_text += self.code_block_tags[1]
+                    memory_step.model_output_message.content = output_text
 
             memory_step.token_usage = chat_message.token_usage
             memory_step.model_output = output_text

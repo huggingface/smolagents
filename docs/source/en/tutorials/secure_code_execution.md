@@ -80,7 +80,7 @@ run_capture_exception(harmful_command)
 
 
 # Imports like os will not be performed unless explicitly added to `additional_authorized_imports`
-harmful_command="import os; exit_code = os.system("echo Bad command")"
+harmful_command="import os; exit_code = os.system('echo Bad command')"
 run_capture_exception(harmful_command)
 # >>> ERROR: Code execution failed at line 'import os' due to: InterpreterError: Import of os is not allowed. Authorized imports are: ['statistics', 'numpy', 'itertools', 'time', 'queue', 'collections', 'math', 'random', 're', 'datetime', 'stat', 'unicodedata']
 
@@ -116,7 +116,7 @@ For high-security applications or when using less trusted models, you should con
 When working with AI agents that execute code, security is paramount. There are two main approaches to sandboxing code execution in smolagents, each with different security properties and capabilities:
 
 
-![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/remote_execution.png)
+![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png)
 
 1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"` or `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
 

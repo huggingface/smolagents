@@ -17,7 +17,6 @@
 
 from __future__ import annotations
 
-import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
@@ -46,14 +45,10 @@ class MCPClient:
             - A `dict` with at least:
               - "url": URL of the server.
               - "transport": Transport protocol to use, one of:
-                - "streamable-http": (recommended) Streamable HTTP transport.
+                - "streamable-http": Streamable HTTP transport (default).
                 - "sse": Legacy HTTP+SSE transport (deprecated).
-              If "transport" is omitted, the legacy "sse" transport is assumed (a deprecation warning will be issued).
-
-            <Deprecated version="1.17.0">
-            The HTTP+SSE transport is deprecated and future behavior will default to the Streamable HTTP transport.
-            Please pass explicitly the "transport" key.
-            </Deprecated>
+        adapter_kwargs (dict[str, Any], optional):
+            Additional keyword arguments to be passed directly to `MCPAdapt`.
 
     Example:
         ```python
@@ -79,6 +74,7 @@ class MCPClient:
     def __init__(
         self,
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
+        adapter_kwargs: dict[str, Any] | None = None,
     ):
         try:
             from mcpadapt.core import MCPAdapt
@@ -88,19 +84,14 @@ class MCPClient:
         if isinstance(server_parameters, dict):
             transport = server_parameters.get("transport")
             if transport is None:
-                warnings.warn(
-                    "Passing a dict as server_parameters without specifying the 'transport' key is deprecated. "
-                    "For now, it defaults to the legacy 'sse' (HTTP+SSE) transport, but this default will change "
-                    "to 'streamable-http' in version 1.20. Please add the 'transport' key explicitly. ",
-                    FutureWarning,
-                )
-                transport = "sse"
+                transport = "streamable-http"
                 server_parameters["transport"] = transport
             if transport not in {"sse", "streamable-http"}:
                 raise ValueError(
                     f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
                 )
-        self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter())
+        adapter_kwargs = adapter_kwargs or {}
+        self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter(), **adapter_kwargs)
         self._tools: list[Tool] | None = None
         self.connect()
 

@@ -344,25 +344,41 @@ class TestInferenceClientModel:
 
 class TestLiteLLMModel:
     @pytest.mark.parametrize(
-        "model_id, error_flag",
+        "model_id",
         [
-            ("groq/llama-3.3-70b", "Invalid API Key"),
-            ("cerebras/llama-3.3-70b", "The api_key client option must be set"),
-            ("mistral/mistral-tiny", "The api_key client option must be set"),
+            "groq/llama-3.3-70b",
+            "cerebras/llama-3.3-70b",
+            "mistral/mistral-tiny",
         ],
     )
-    def test_call_different_providers_without_key(self, model_id, error_flag):
+    def test_call_different_providers_without_key(self, model_id):
+        # Different litellm versions produce different error messages for missing API keys
+        # This test checks for the presence of any common authentication-related error phrases
+        possible_error_messages = [
+            "Missing API Key",
+            "Wrong API Key",
+            "Invalid API Key",
+            "The api_key client option must be set",
+            "AuthenticationError",
+            "Unauthorized",
+        ]
         model = LiteLLMModel(model_id=model_id)
         messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
+        # Test generate method
         with pytest.raises(Exception) as e:
-            # This should raise 401 error because of missing API key, not fail for any "bad format" reason
             model.generate(messages)
-        assert error_flag in str(e)
+        error_message = str(e)
+        assert any(possible_error_message in error_message for possible_error_message in possible_error_messages), (
+            f"Error message '{error_message}' does not contain any expected phrases"
+        )
+        # Test generate_stream method
         with pytest.raises(Exception) as e:
-            # This should raise 401 error because of missing API key, not fail for any "bad format" reason
             for el in model.generate_stream(messages):
                 assert el.content is not None
-        assert error_flag in str(e)
+        error_message = str(e)
+        assert any(possible_error_message in error_message for possible_error_message in possible_error_messages), (
+            f"Error message '{error_message}' does not contain any expected phrases"
+        )
 
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
@@ -558,6 +574,34 @@ def test_get_clean_message_list_basic():
     assert result[0]["content"][0]["text"] == "Hello!"
     assert result[1]["role"] == "assistant"
     assert result[1]["content"][0]["text"] == "Hi there!"
+
+
+@pytest.mark.parametrize(
+    "messages,expected_roles,expected_texts",
+    [
+        (
+            [
+                {"role": "user", "content": [{"type": "text", "text": "Hello!"}]},
+                {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]},
+            ],
+            ["user", "assistant"],
+            ["Hello!", "Hi there!"],
+        ),
+        (
+            [
+                {"role": "user", "content": [{"type": "text", "text": "How are you?"}]},
+            ],
+            ["user"],
+            ["How are you?"],
+        ),
+    ],
+)
+def test_get_clean_message_list_with_dicts(messages, expected_roles, expected_texts):
+    result = get_clean_message_list(messages)
+    assert len(result) == len(messages)
+    for i, msg in enumerate(result):
+        assert msg["role"] == expected_roles[i]
+        assert msg["content"][0]["text"] == expected_texts[i]
 
 
 def test_get_clean_message_list_role_conversions():

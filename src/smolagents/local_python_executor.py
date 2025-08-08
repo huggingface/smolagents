@@ -21,10 +21,12 @@ import inspect
 import logging
 import math
 import re
-from collections.abc import Callable, Mapping
+from abc import ABC, abstractmethod
+from collections.abc import Callable, Generator, Mapping
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
+from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any
 
@@ -53,6 +55,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
 def custom_print(*args):
@@ -807,10 +810,17 @@ def evaluate_call(
         else:
             args.append(evaluate_ast(arg, state, static_tools, custom_tools, authorized_imports))
 
-    kwargs = {
-        keyword.arg: evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
-        for keyword in call.keywords
-    }
+    kwargs = {}
+    for keyword in call.keywords:
+        if keyword.arg is None:
+            # **kwargs unpacking
+            starred_dict = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
+            if not isinstance(starred_dict, dict):
+                raise InterpreterError(f"Cannot unpack non-dict value in **kwargs: {type(starred_dict).__name__}")
+            kwargs.update(starred_dict)
+        else:
+            # Normal keyword argument
+            kwargs[keyword.arg] = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
 
     if func_name == "super":
         if not args:
@@ -836,6 +846,14 @@ def evaluate_call(
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
+        if (
+            hasattr(func, "__name__")
+            and func.__name__.startswith("__")
+            and func.__name__.endswith("__")
+            and (func.__name__ not in static_tools)
+            and (func.__name__ not in ALLOWED_DUNDER_METHODS)
+        ):
+            raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
         return func(*args, **kwargs)
 
 
@@ -968,12 +986,9 @@ def evaluate_for(
                 if line_result is not None:
                     result = line_result
             except BreakException:
-                break
+                return result
             except ContinueException:
-                continue
-        else:
-            continue
-        break
+                break
     return result
 
 
@@ -1278,6 +1293,41 @@ def evaluate_dictcomp(
     return result
 
 
+def evaluate_generatorexp(
+    genexp: ast.GeneratorExp,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Generator[Any]:
+    def generator():
+        for gen in genexp.generators:
+            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+            for value in iter_value:
+                new_state = state.copy()
+                set_value(
+                    gen.target,
+                    value,
+                    new_state,
+                    static_tools,
+                    custom_tools,
+                    authorized_imports,
+                )
+                if all(
+                    evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                    for if_clause in gen.ifs
+                ):
+                    yield evaluate_ast(
+                        genexp.elt,
+                        new_state,
+                        static_tools,
+                        custom_tools,
+                        authorized_imports,
+                    )
+
+    return generator()
+
+
 def evaluate_delete(
     delete_node: ast.Delete,
     state: dict[str, Any],
@@ -1364,7 +1414,9 @@ def evaluate_ast(
         return expression.value
     elif isinstance(expression, ast.Tuple):
         return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
-    elif isinstance(expression, (ast.ListComp, ast.GeneratorExp)):
+    elif isinstance(expression, ast.GeneratorExp):
+        return evaluate_generatorexp(expression, *common_params)
+    elif isinstance(expression, ast.ListComp):
         return evaluate_listcomp(expression, *common_params)
     elif isinstance(expression, ast.DictComp):
         return evaluate_dictcomp(expression, *common_params)
@@ -1557,8 +1609,15 @@ class CodeOutput:
     is_final_answer: bool
 
 
-class PythonExecutor:
-    pass
+class PythonExecutor(ABC):
+    @abstractmethod
+    def send_tools(self, tools: dict[str, Tool]) -> None: ...
+
+    @abstractmethod
+    def send_variables(self, variables: dict[str, Any]) -> None: ...
+
+    @abstractmethod
+    def __call__(self, code_action: str) -> CodeOutput: ...
 
 
 class LocalPythonExecutor(PythonExecutor):
@@ -1592,9 +1651,29 @@ class LocalPythonExecutor(PythonExecutor):
             self.max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT
         self.additional_authorized_imports = additional_authorized_imports
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        # TODO: assert self.authorized imports are all installed locally
+        self._check_authorized_imports_are_installed()
         self.static_tools = None
         self.additional_functions = additional_functions or {}
+
+    def _check_authorized_imports_are_installed(self):
+        """
+        Check that all authorized imports are installed on the system.
+
+        Handles wildcard imports ("*") and partial star-pattern imports (e.g., "os.*").
+
+        Raises:
+            InterpreterError: If any of the authorized modules are not installed.
+        """
+        missing_modules = [
+            base_module
+            for imp in self.authorized_imports
+            if imp != "*" and find_spec(base_module := imp.split(".")[0]) is None
+        ]
+        if missing_modules:
+            raise InterpreterError(
+                f"Non-installed authorized modules: {', '.join(missing_modules)}. "
+                f"Please install these modules or remove them from the authorized imports list."
+            )
 
     def __call__(self, code_action: str) -> CodeOutput:
         output, is_final_answer = evaluate_python_code(
@@ -1608,7 +1687,7 @@ class LocalPythonExecutor(PythonExecutor):
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
 
-    def send_variables(self, variables: dict):
+    def send_variables(self, variables: dict[str, Any]):
         self.state.update(variables)
 
     def send_tools(self, tools: dict[str, Tool]):

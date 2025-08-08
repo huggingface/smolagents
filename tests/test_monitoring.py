@@ -42,7 +42,7 @@ class FakeLLMModel(Model):
         if tools_to_call_from is not None:
             return ChatMessage(
                 role=MessageRole.ASSISTANT,
-                content="",
+                content="I will call the final_answer tool.",
                 tool_calls=[
                     ChatMessageToolCall(
                         id="fake_id",

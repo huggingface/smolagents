@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.20.0.dev0"
+version = "1.22.0.dev0"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" },
@@ -48,11 +48,11 @@ litellm = [
   "litellm>=1.60.2",
 ]
 mcp = [
-  "mcpadapt>=0.1.8",  # Support Streamable HTTP transport
+  "mcpadapt>=0.1.11",  # Support Image and Audio content
   "mcp",
 ]
 mlx-lm = [
-  "mlx-lm"
+  "mlx-lm",
 ]
 openai = [
   "openai>=1.58.1"
@@ -64,7 +64,7 @@ telemetry = [
   "openinference-instrumentation-smolagents>=0.1.4"
 ]
 toolkit = [
-  "duckduckgo-search>=6.3.7",  # DuckDuckGoSearchTool
+  "ddgs>=9.0.0",  # DuckDuckGoSearchTool
   "markdownify>=0.14.1",  # VisitWebpageTool
 ]
 transformers = [
@@ -91,10 +91,12 @@ test = [
   "pandas>=2.2.3",
   "pytest>=8.1.0",
   "pytest-datadir",
+  "pytest-timeout",  # For test_all_docs: @pytest.mark.timeout
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
   "Wikipedia-API>=0.8.1",
+  "mlx[cpu]",  # GH-1588
 ]
 dev = [
   "smolagents[quality,test]",
