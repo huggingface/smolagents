@@ -247,7 +247,10 @@ def run_smolagent(
 
     if action_type == "code":
         agent: MultiStepAgent = CodeAgent(
-            tools=available_tools, model=model, additional_authorized_imports=imports, stream_outputs=True
+            tools=available_tools,
+            model=model,
+            additional_authorized_imports=imports,
+            stream_outputs=True,
         )
     elif action_type == "tool_calling":
         agent: MultiStepAgent = ToolCallingAgent(tools=available_tools, model=model, stream_outputs=True)
