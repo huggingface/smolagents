@@ -343,7 +343,7 @@ def get_tool_call_from_text(text: str, tool_name_key: str, tool_arguments_key: s
         tool_name = tool_call_dictionary[tool_name_key]
     except Exception as e:
         raise ValueError(
-            f"Key {tool_name_key=} not found in the generated tool call. Got keys: {list(tool_call_dictionary.keys())} instead"
+            f"Tool call needs to have a key '{tool_name_key}'. Got keys: {list(tool_call_dictionary.keys())} instead"
         ) from e
     tool_arguments = tool_call_dictionary.get(tool_arguments_key, None)
     if isinstance(tool_arguments, str):
