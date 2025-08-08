@@ -65,29 +65,6 @@ final_answer('This is the final answer.')
 
 
 class MonitoringTester(unittest.TestCase):
-    def test_code_agent_metrics(self):
-        agent = CodeAgent(
-            tools=[],
-            model=FakeLLMModel(),
-            max_steps=1,
-        )
-        agent.run("Fake task")
-
-        self.assertEqual(agent.monitor.total_input_token_count, 10)
-        self.assertEqual(agent.monitor.total_output_token_count, 20)
-
-    def test_toolcalling_agent_metrics(self):
-        agent = ToolCallingAgent(
-            tools=[],
-            model=FakeLLMModel(),
-            max_steps=1,
-        )
-
-        agent.run("Fake task")
-
-        self.assertEqual(agent.monitor.total_input_token_count, 10)
-        self.assertEqual(agent.monitor.total_output_token_count, 20)
-
     def test_code_agent_metrics_max_steps(self):
         class FakeLLMModelMalformedAnswer(Model):
             def generate(self, prompt, **kwargs):
@@ -244,3 +221,16 @@ def test_run_return_full_result(init_return_full_result, run_return_full_result,
         assert result.timing.duration > 0
     else:
         assert isinstance(result, str)
+
+
+@pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
+def test_code_agent_metrics(agent_class):
+    agent = agent_class(
+        tools=[],
+        model=FakeLLMModel(),
+        max_steps=1,
+    )
+    agent.run("Fake task")
+
+    assert agent.monitor.total_input_token_count == 10
+    assert agent.monitor.total_output_token_count == 20
