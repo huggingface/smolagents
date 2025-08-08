@@ -104,6 +104,25 @@ agent = ToolCallingAgent(tools=[], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
+## Using the CLI
+
+You can quickly get started with smolagents using the command line interface:
+
+```bash
+# Run with a direct prompt
+smolagent "What is the capital of France?"
+
+# Run in interactive mode (launches when no prompt is provided)  
+smolagent
+```
+
+The interactive mode provides a guided setup that walks you through:
+- Choosing between CodeAgent and ToolCallingAgent
+- Selecting tools from the available toolbox
+- Configuring your model (type, ID, API settings)
+- Setting up advanced options like additional imports
+- Providing your task prompt
+
 ## Building your agent
 
 To initialize a minimal agent, you need at least these two arguments:

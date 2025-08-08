@@ -50,7 +50,7 @@ def parse_arguments():
         type=str,
         nargs="?",  # Makes it optional
         default=None,  # Changed to None to detect when no prompt is provided
-        help="The prompt to run with the agent",
+        help="The prompt to run with the agent. If no prompt is provided, interactive mode will be launched to guide you through agent setup",
     )
     parser.add_argument(
         "--model-type",
