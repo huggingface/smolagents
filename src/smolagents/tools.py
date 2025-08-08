@@ -231,8 +231,9 @@ class Tool(BaseTool):
       returns the text contained in the file'.
     - **name** (`str`) -- A performative name that will be used for your tool in the prompt to the agent. For instance
       `"text-classifier"` or `"image_generator"`.
-    - **inputs** (`Dict[str, Dict[str, Union[str, type, bool]]]`) -- The dict of modalities expected for the inputs.
-      It has one `type`key and a `description`key.
+    - **inputs** (`Dict[str, dict | type[pydantic.BaseModel]]`) -- The dict of
+      modalities expected for the inputs. Each value can either be a JSON-schema-like dict (with at least a `type`
+      and `description` keys) or a Pydantic `BaseModel` subclass to describe a structured object input.
       This is used by `launch_gradio_demo` or to make a nice space from your tool, and also can be used in the generated
       description for your tool.
     - **output_type** (`type`) -- The type of the tool output. This is used by `launch_gradio_demo`
@@ -245,7 +246,7 @@ class Tool(BaseTool):
 
     name: str
     description: str
-    inputs: dict[str, dict[str, str | type | bool | pydantic.BaseModel]]
+    inputs: dict[str, dict | type[pydantic.BaseModel]]
     output_type: str
 
     def __init__(self, *args, **kwargs):

@@ -1273,6 +1273,7 @@ class TestPydanticToolIntegration:
 
         class ProfileData(pydantic.BaseModel):
             """Profile data for a user."""
+
             name: str
             bio: str | None = None
             age: int | None = None
