@@ -1528,10 +1528,20 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
         return None
     else:
         # Handle single argument case
-        if len(tool.inputs) != 1:
+        # Count only non-nullable (required) parameters
+        required_inputs = []
+        for key, schema in tool.inputs.items():
+            if isinstance(schema, dict):
+                is_nullable = schema.get("nullable", False)
+            else:
+                is_nullable = False
+            if not is_nullable:
+                required_inputs.append(key)
+        
+        if len(required_inputs) != 1:
             raise ValueError("Single argument provided but tool expects multiple arguments")
 
-        input_key = list(tool.inputs.keys())[0]
+        input_key = required_inputs[0]
         input_schema = tool.inputs[input_key]
 
         _validate_value_against_schema(arguments, input_schema, input_key)
