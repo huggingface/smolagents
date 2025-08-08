@@ -109,19 +109,12 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 You can quickly get started with smolagents using the command line interface:
 
 ```bash
-# Run with a direct prompt
-smolagent "What is the capital of France?"
+# Run with direct prompt and options
+smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
 
-# Run in interactive mode (launches when no prompt is provided)  
+# Run in interactive mode: launches when no prompt is provided, will guide you through argument selection
 smolagent
 ```
-
-The interactive mode provides a guided setup that walks you through:
-- Choosing between CodeAgent and ToolCallingAgent
-- Selecting tools from the available toolbox
-- Configuring your model (type, ID, API settings)
-- Setting up advanced options like additional imports
-- Providing your task prompt
 
 ## Building your agent
 
