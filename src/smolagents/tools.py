@@ -120,23 +120,29 @@ def _validate_value_against_schema(value: Any, schema: dict, param_name: str) ->
         if is_nullable:
             return
         else:
-            raise ValueError(f"Argument '{param_name}' cannot be null")
+            # For non-nullable parameters, produce type mismatch error with expected type
+            expected_type = schema.get("type", "unknown")
+            raise TypeError(f"Argument {param_name} has type 'null' but should be '{expected_type}'")
 
     # Get the expected type(s)
     expected_type = schema.get("type")
-
-    # Get actual type
-    actual_type = _get_json_schema_type(type(value))["type"]
-
-    # Handle "any" type
-    if expected_type == "any":
+    
+    # Handle anyOf schemas (e.g., from Pydantic nullable fields)
+    if expected_type is None and "anyOf" in schema:
+        # Extract types from anyOf
+        valid_types = []
+        for any_of_schema in schema["anyOf"]:
+            if "type" in any_of_schema:
+                valid_types.append(any_of_schema["type"])
+    elif expected_type == "any":
         return
-
-    # Handle array types
-    if isinstance(expected_type, list):
+    elif isinstance(expected_type, list):
         valid_types = expected_type
     else:
         valid_types = [expected_type]
+
+    # Get actual type
+    actual_type = _get_json_schema_type(type(value))["type"]
 
     # Check if actual type matches any of the expected types
     type_matches = actual_type in valid_types

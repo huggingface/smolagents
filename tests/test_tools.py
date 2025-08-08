@@ -1008,7 +1008,7 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
             str,
             "default",
             None,
-            "Argument param has type 'null' but should be 'string'",
+            "Argument 'param' cannot be 'null'",
             marks=pytest.mark.skip(reason="TODO: Fix this test case"),
         ),
         # - Missing optional parameter is allowed
@@ -1032,7 +1032,15 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
     ],
 )
 def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_value, expected_error_message):
-    """Test validation of tool arguments with focus on nullable properties: optional (with default value) and supporting None value."""
+    """Test validation of tool arguments with focus on nullable properties: optional (with default value) and supporting None value.
+
+    Args:
+        scenario: The scenario to test
+        type_hint: The type hint for the parameter
+        default: The default value for the parameter
+        input_value: The input value for the parameter
+        expected_error_message: The expected error message
+    """
 
     # Create a tool with the appropriate signature
     if default is ...:  # Using Ellipsis to indicate no default value
@@ -1058,6 +1066,8 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
 
     # Test with the input dictionary
     input_dict = {"param": input_value} if input_value is not ... else {}
+
+    print("INPUT", input_dict, type_hint, default)
 
     if expected_error_message:
         with pytest.raises((ValueError, TypeError), match=expected_error_message):
