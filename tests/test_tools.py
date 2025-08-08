@@ -1092,38 +1092,88 @@ class TestPydanticToolIntegration:
             pytest.skip("Pydantic not available")
 
     def test_tool_with_pydantic_model(self, pydantic_available):
-        """Test creating a tool that uses Pydantic models as input."""
+        """Test creating a tool that uses complex nested Pydantic models with constraints."""
         import pydantic
+        from pydantic import Field
+
+        class Address(pydantic.BaseModel):
+            """Address information."""
+            street: str = Field(..., min_length=1, max_length=200, description="Street address")
+            city: str = Field(..., min_length=1, max_length=100, description="City name")
+            postal_code: str = Field(..., pattern=r"^\d{5}(-\d{4})?$", description="US postal code")
+            country: str = Field(default="US", description="Country code")
 
         class PersonInfo(pydantic.BaseModel):
             """Information about a person."""
-
-            name: str
-            age: int
-            email: str | None = None
+            name: str = Field(..., min_length=1, max_length=100, description="Person's full name")
+            age: int = Field(..., ge=0, le=150, description="Age in years")
+            email: str | None = Field(None, pattern=r"^[^@]+@[^@]+\.[^@]+$", description="Email address")
+            address: Address = Field(..., description="Primary address")
+            secondary_addresses: list[Address] = Field(default_factory=list, max_length=3, description="Additional addresses")
+            is_active: bool = Field(default=True, description="Whether the person is active")
 
         @tool
         def process_person(person: PersonInfo) -> str:
             """
-            Process information about a person.
+            Process comprehensive information about a person including nested address data.
 
             Args:
-                person: Person information to process
+                person: Complete person information with address details
 
             Returns:
-                A formatted string with the person's information
+                A formatted string with the person's information including addresses
             """
+            addr = person.address
+            addr_str = f"{addr.street}, {addr.city}, {addr.postal_code}, {addr.country}"
             email_part = f" (email: {person.email})" if person.email else ""
-            return f"Person: {person.name}, age {person.age}{email_part}"
+            secondary_count = len(person.secondary_addresses)
+            secondary_part = f" with {secondary_count} additional addresses" if secondary_count > 0 else ""
+            status = "active" if person.is_active else "inactive"
+            return f"Person: {person.name}, age {person.age}{email_part}, {status}, at {addr_str}{secondary_part}"
 
         # Test tool creation
         assert process_person.name == "process_person"
         assert isinstance(process_person.inputs, dict)
         assert "person" in process_person.inputs
 
-        # Check that the Pydantic schema was properly converted
+        # Check that the complex nested Pydantic schema was properly converted
         person_schema = process_person.inputs["person"]
         assert isinstance(person_schema, dict)
+        assert person_schema["type"] == "object"
+
+        # Verify nested address schema is properly included
+        properties = person_schema["properties"]
+        assert "address" in properties
+        address_schema = properties["address"]
+        assert address_schema["type"] == "object"
+        assert "properties" in address_schema
+
+        # Verify address properties have constraints
+        address_props = address_schema["properties"]
+        assert "street" in address_props
+        street_schema = address_props["street"]
+        assert street_schema["type"] == "string"
+        assert street_schema["minLength"] == 1
+        assert street_schema["maxLength"] == 200
+
+        # Verify postal code has pattern constraint
+        postal_schema = address_props["postal_code"]
+        assert postal_schema["type"] == "string"
+        assert "pattern" in postal_schema
+        assert postal_schema["pattern"] == r"^\d{5}(-\d{4})?$"
+
+        # Verify age has numerical constraints
+        age_schema = properties["age"]
+        assert age_schema["type"] == "integer"
+        assert age_schema["minimum"] == 0
+        assert age_schema["maximum"] == 150
+
+        # Verify array handling for secondary addresses
+        secondary_schema = properties["secondary_addresses"]
+        assert secondary_schema["type"] == "array"
+        assert secondary_schema["maxItems"] == 3
+        assert "items" in secondary_schema
+        assert secondary_schema["items"]["type"] == "object"
 
     def test_pydantic_tool_validation_success(self, pydantic_available):
         """Test successful validation of Pydantic tool arguments."""

@@ -107,7 +107,7 @@ def _validate_value_against_schema(value: Any, schema: dict, param_name: str) ->
     Args:
         value: The value to validate
         schema: The JSON schema to validate against
-        param_name: Name of the parameter for error messages
+        param_name: Name of the parameter, used for error messages
 
     Raises:
         ValueError: If the value does not match the schema
@@ -126,7 +126,7 @@ def _validate_value_against_schema(value: Any, schema: dict, param_name: str) ->
 
     # Get the expected type(s)
     expected_type = schema.get("type")
-    
+
     # Handle anyOf schemas (e.g., from Pydantic nullable fields)
     if expected_type is None and "anyOf" in schema:
         # Extract types from anyOf

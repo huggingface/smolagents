@@ -37,6 +37,8 @@ from typing import (
     get_type_hints,
 )
 
+import pydantic
+
 
 IMPORT_TO_PACKAGE_MAPPING = {
     "wikipediaapi": "wikipedia-api",
@@ -53,18 +55,7 @@ def _is_pydantic_model(type_hint: type) -> bool:
     Returns:
         bool: True if the type is a Pydantic BaseModel, False otherwise
     """
-    try:
-        # Check if pydantic is available
-        import pydantic
-
-        # Check if the type is a class and inherits from BaseModel
-        return inspect.isclass(type_hint) and issubclass(type_hint, pydantic.BaseModel)
-    except ImportError:
-        # pydantic not available
-        return False
-    except TypeError:
-        # Not a class or other type error
-        return False
+    return inspect.isclass(type_hint) and issubclass(type_hint, pydantic.BaseModel)
 
 
 def _get_pydantic_json_schema(model_class: type) -> dict:
