@@ -21,7 +21,7 @@ import inspect
 import logging
 import math
 import re
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from dataclasses import dataclass
 from functools import wraps
@@ -1610,14 +1610,17 @@ class CodeOutput:
 
 
 class PythonExecutor(ABC):
-    def send_tools(self, tools: dict[str, Tool]):
-        raise NotImplementedError("should be implemented in subclass")
+    @abstractmethod
+    def send_tools(self, tools: dict[str, Tool]) -> None:
+        pass
 
-    def send_variables(self, variables: dict):
-        raise NotImplementedError("should be implemented in subclass")
+    @abstractmethod
+    def send_variables(self, variables: dict[str, Any]) -> None:
+        pass
 
+    @abstractmethod
     def __call__(self, code_action: str) -> CodeOutput:
-        raise NotImplementedError("should be implemented in subclass")
+        pass
 
 
 class LocalPythonExecutor(PythonExecutor):
@@ -1687,7 +1690,7 @@ class LocalPythonExecutor(PythonExecutor):
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
 
-    def send_variables(self, variables: dict):
+    def send_variables(self, variables: dict[str, Any]):
         self.state.update(variables)
 
     def send_tools(self, tools: dict[str, Tool]):
