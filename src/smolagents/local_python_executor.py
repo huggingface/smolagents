@@ -1611,16 +1611,13 @@ class CodeOutput:
 
 class PythonExecutor(ABC):
     @abstractmethod
-    def send_tools(self, tools: dict[str, Tool]) -> None:
-        pass
+    def send_tools(self, tools: dict[str, Tool]) -> None: ...
 
     @abstractmethod
-    def send_variables(self, variables: dict[str, Any]) -> None:
-        pass
+    def send_variables(self, variables: dict[str, Any]) -> None: ...
 
     @abstractmethod
-    def __call__(self, code_action: str) -> CodeOutput:
-        pass
+    def __call__(self, code_action: str) -> CodeOutput: ...
 
 
 class LocalPythonExecutor(PythonExecutor):
