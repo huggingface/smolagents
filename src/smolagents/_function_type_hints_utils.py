@@ -60,17 +60,17 @@ def _is_pydantic_model(type_hint: type) -> bool:
 
 def _get_pydantic_json_schema(model_class: type) -> dict:
     """
-    Get JSON schema from a Pydantic BaseModel.
+    Get JSON schema from a Pydantic BaseModel with inlined definitions.
 
     Args:
         model_class: The Pydantic model class
 
     Returns:
-        dict: JSON schema for the model
+        dict: JSON schema for the model with inlined definitions (no $refs)
     """
     try:
-        # Get the schema using Pydantic's built-in method
-        schema = model_class.model_json_schema()
+        # Use serialization mode to get inlined schema without $refs
+        schema = model_class.model_json_schema(mode="serialization")
         return schema
     except Exception as e:
         raise TypeHintParsingException(f"Failed to get Pydantic schema for {model_class}: {e}")

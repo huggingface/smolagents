@@ -1098,6 +1098,7 @@ class TestPydanticToolIntegration:
 
         class Address(pydantic.BaseModel):
             """Address information."""
+
             street: str = Field(..., min_length=1, max_length=200, description="Street address")
             city: str = Field(..., min_length=1, max_length=100, description="City name")
             postal_code: str = Field(..., pattern=r"^\d{5}(-\d{4})?$", description="US postal code")
@@ -1105,11 +1106,14 @@ class TestPydanticToolIntegration:
 
         class PersonInfo(pydantic.BaseModel):
             """Information about a person."""
+
             name: str = Field(..., min_length=1, max_length=100, description="Person's full name")
             age: int = Field(..., ge=0, le=150, description="Age in years")
             email: str | None = Field(None, pattern=r"^[^@]+@[^@]+\.[^@]+$", description="Email address")
             address: Address = Field(..., description="Primary address")
-            secondary_addresses: list[Address] = Field(default_factory=list, max_length=3, description="Additional addresses")
+            secondary_addresses: list[Address] = Field(
+                default_factory=list, max_length=3, description="Additional addresses"
+            )
             is_active: bool = Field(default=True, description="Whether the person is active")
 
         @tool
@@ -1174,6 +1178,67 @@ class TestPydanticToolIntegration:
         assert secondary_schema["maxItems"] == 3
         assert "items" in secondary_schema
         assert secondary_schema["items"]["type"] == "object"
+
+        class ProcessPersonTool(Tool):
+            name = "process_person_class"
+            description = (
+                "Process comprehensive information about a person including nested address data using Tool subclass"
+            )
+            inputs = {"person": PersonInfo}
+            output_type = "string"
+
+            def forward(self, person: PersonInfo) -> str:
+                addr = person.address
+                addr_str = f"{addr.street}, {addr.city}, {addr.postal_code}, {addr.country}"
+                email_part = f" (email: {person.email})" if person.email else ""
+                secondary_count = len(person.secondary_addresses)
+                secondary_part = f" with {secondary_count} additional addresses" if secondary_count > 0 else ""
+                status = "active" if person.is_active else "inactive"
+                return f"Person: {person.name}, age {person.age}{email_part}, {status}, at {addr_str}{secondary_part}"
+
+        # Instantiate the class-based tool
+        process_person_class = ProcessPersonTool()
+
+        # Verify Tool subclass creates the same schema structure
+        assert process_person_class.name == "process_person_class"
+        assert isinstance(process_person_class.inputs, dict)
+        assert "person" in process_person_class.inputs
+
+        # Check that the Tool subclass generated the same complex nested Pydantic schema
+        person_schema_class = process_person_class.inputs["person"]
+        assert isinstance(person_schema_class, dict)
+        assert person_schema_class["type"] == "object"
+
+        # Verify the schemas are equivalent between decorator and class approaches
+        properties_class = person_schema_class["properties"]
+
+        # Compare key properties to ensure both approaches generate the same schema
+        assert set(properties.keys()) == set(properties_class.keys())
+
+        # Verify nested address schema is identical
+        address_schema_class = properties_class["address"]
+        assert address_schema_class["type"] == "object"
+        assert "properties" in address_schema_class
+
+        # Compare address properties
+        address_props_class = address_schema_class["properties"]
+        assert set(address_props.keys()) == set(address_props_class.keys())
+
+        # Verify constraints are preserved in class approach
+        street_schema_class = address_props_class["street"]
+        assert street_schema_class["type"] == "string"
+        assert street_schema_class["minLength"] == 1
+        assert street_schema_class["maxLength"] == 200
+
+        postal_schema_class = address_props_class["postal_code"]
+        assert postal_schema_class["type"] == "string"
+        assert "pattern" in postal_schema_class
+        assert postal_schema_class["pattern"] == r"^\d{5}(-\d{4})?$"
+
+        age_schema_class = properties_class["age"]
+        assert age_schema_class["type"] == "integer"
+        assert age_schema_class["minimum"] == 0
+        assert age_schema_class["maximum"] == 150
 
     def test_pydantic_tool_validation_success(self, pydantic_available):
         """Test successful validation of Pydantic tool arguments."""
@@ -1268,6 +1333,107 @@ class TestPydanticToolIntegration:
         # Should raise validation error for missing required field
         with pytest.raises(ValueError, match="Required property.*missing"):
             validate_tool_arguments(process_strict, invalid_input)
+
+    def test_pydantic_tool_validation_error(self, pydantic_available):
+        """Test that incorrect Pydantic objects and incompatible dicts both raise validation errors."""
+        import pydantic
+        from pydantic import Field, ValidationError
+
+        class ContactInfo(pydantic.BaseModel):
+            email: str = Field(..., pattern=r"^[^@]+@[^@]+\.[^@]+$", description="Valid email address")
+            phone: str = Field(..., min_length=10, max_length=15, description="Phone number")
+
+        class UserProfile(pydantic.BaseModel):
+            name: str = Field(..., min_length=1, max_length=50, description="User name")
+            age: int = Field(..., ge=18, le=120, description="User age")
+            contact: ContactInfo = Field(..., description="Contact information")
+            active: bool = Field(default=True, description="Is user active")
+
+        @tool
+        def create_user_profile(profile: UserProfile) -> str:
+            """
+            Create a user profile with validation.
+
+            Args:
+                profile: User profile data with contact info
+
+            Returns:
+                Profile creation result
+            """
+            return f"Created profile for {profile.name}, age {profile.age}"
+
+        # Test 1: Invalid dictionary - constraint violations
+        invalid_dict_constraints = {
+            "profile": {
+                "name": "",  # violates min_length=1
+                "age": 15,  # violates ge=18
+                "contact": {
+                    "email": "invalid-email",  # violates email pattern
+                    "phone": "123",  # violates min_length=10
+                },
+                "active": True,
+            }
+        }
+
+        # Should raise validation error for constraint violations
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(create_user_profile, invalid_dict_constraints)
+
+        # Test 2: Invalid dictionary - missing required fields
+        invalid_dict_missing = {
+            "profile": {
+                "name": "John Doe"
+                # missing required 'age' and 'contact' fields
+            }
+        }
+
+        # Should raise validation error for missing required fields
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(create_user_profile, invalid_dict_missing)
+
+        # Test 3: Invalid dictionary - wrong types
+        invalid_dict_types = {
+            "profile": {
+                "name": "John Doe",
+                "age": "not-a-number",  # wrong type
+                "contact": {"email": "john@example.com", "phone": "1234567890"},
+            }
+        }
+
+        # Should raise validation error for wrong types
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(create_user_profile, invalid_dict_types)
+
+        # Test 4: Invalid nested dictionary structure
+        invalid_dict_nested = {
+            "profile": {
+                "name": "John Doe",
+                "age": 25,
+                "contact": "not-an-object",  # should be an object
+            }
+        }
+
+        # Should raise validation error for invalid nested structure
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(create_user_profile, invalid_dict_nested)
+
+        # Test 5: Direct Pydantic validation error during conversion
+        # This tests the _convert_dict_args_to_pydantic_models method
+        try:
+            # This should trigger a ValidationError during Pydantic model creation
+            invalid_contact_data = {
+                "email": "bad-email-format",
+                "phone": "123",  # too short
+            }
+            invalid_profile_data = {"name": "John Doe", "age": 25, "contact": invalid_contact_data}
+
+            # Try to create the tool with invalid data - this should fail
+            create_user_profile(profile=invalid_profile_data)
+            assert False, "Expected ValidationError but none was raised"
+
+        except (ValidationError, ValueError, TypeError):
+            # This is expected - the validation should catch the errors
+            assert True
 
     def test_pydantic_tool_with_enum_constraints(self, pydantic_available):
         """Test Pydantic tool with enum field constraints."""
