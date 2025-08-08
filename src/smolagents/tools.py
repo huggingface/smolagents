@@ -276,10 +276,9 @@ class Tool(BaseTool):
             raise Exception(
                 f"Invalid Tool name '{self.name}': must be a valid Python identifier and not a reserved keyword"
             )
-        
-        # Validate inputs (handle Pydantic models directly)
+        # Validate inputs
         from ._function_type_hints_utils import _is_pydantic_model, _parse_type_hint
-        
+
         processed_inputs = {}
         for input_name, input_content in self.inputs.items():
             if _is_pydantic_model(input_content):
@@ -288,10 +287,10 @@ class Tool(BaseTool):
                 processed_inputs[input_name] = processed_schema
             else:
                 processed_inputs[input_name] = input_content
-        
+
         # Update the inputs with processed versions
         self.inputs = processed_inputs
-        
+
         # Now validate all processed inputs
         for input_name, input_content in self.inputs.items():
             assert isinstance(input_content, dict), f"Input '{input_name}' should be a dictionary."
