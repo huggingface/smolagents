@@ -120,7 +120,7 @@ with MCPClient({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-htt
 
 #### Structured Output and Output Schema Support
 
-The latest MCP specifications (2025-06-18+) include support for `outputSchema`, which enables tools to return structured data with defined schemas. `smolagents` takes advantage of these structured output capabilities, allowing agents to work with tools that return complex data structures, JSON objects, and other structured formats. With this feature, the agent's LLMs can "see" the structure of the tool output before calling a tool, enabling more intelligent and context-aware interactions.
+The latest [MCP specifications (2025-06-18+)](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#structured-content) include support for `outputSchema`, which enables tools to return structured data with defined schemas. `smolagents` takes advantage of these structured output capabilities, allowing agents to work with tools that return complex data structures, JSON objects, and other structured formats. With this feature, the agent's LLMs can "see" the structure of the tool output before calling a tool, enabling more intelligent and context-aware interactions.
 
 To enable structured output support, pass `structured_output=True` when initializing the `MCPClient`:
 
