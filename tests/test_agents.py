@@ -2287,7 +2287,7 @@ final_answer("Final report.")
             ):
                 return ChatMessage(
                     role=MessageRole.ASSISTANT,
-                    content="Here is the secret content: FLAG1",
+                    content="Here is the secret content: SECRET_FLAG",
                     tool_calls=[
                         ChatMessageToolCall(
                             id="call_0",
@@ -2330,7 +2330,7 @@ final_answer("Final report.")
         with web_agent.logger.console.capture() as capture:
             report = manager_toolcalling_agent.run("Fake question.")
         assert report == "Final report."
-        assert "FLAG1" in capture.get()  # Check that managed agent's output is properly logged
+        assert "SECRET_FLAG" in capture.get()  # Check that managed agent's output is properly logged
 
         # Test that visualization works
         with manager_toolcalling_agent.logger.console.capture() as capture:
