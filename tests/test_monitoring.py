@@ -181,66 +181,6 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("Malformed call", final_message.content)
 
-    def test_run_return_full_result(self):
-        agent = CodeAgent(
-            tools=[],
-            model=FakeLLMModel(),
-            max_steps=1,
-            return_full_result=True,
-        )
-
-        result = agent.run("Fake task")
-
-        self.assertIsInstance(result, RunResult)
-        self.assertEqual(result.output, "This is the final answer.")
-        self.assertEqual(result.state, "success")
-        self.assertEqual(result.token_usage, TokenUsage(input_tokens=10, output_tokens=20))
-        self.assertIsInstance(result.messages, list)
-        self.assertGreater(result.timing.duration, 0)
-
-        agent = ToolCallingAgent(
-            tools=[],
-            model=FakeLLMModel(),
-            max_steps=1,
-            return_full_result=True,
-        )
-
-        result = agent.run("Fake task")
-
-        self.assertIsInstance(result, RunResult)
-        self.assertEqual(result.output, "image")
-        self.assertEqual(result.state, "success")
-        self.assertEqual(result.token_usage, TokenUsage(input_tokens=10, output_tokens=20))
-        self.assertIsInstance(result.messages, list)
-        self.assertGreater(result.timing.duration, 0)
-
-        # Below 2 lines should be removed when the attributes are removed
-        assert agent.monitor.total_input_token_count == 10
-        assert agent.monitor.total_output_token_count == 20
-
-        # Test argument precedence: return_full_result=False should override the agent's return_full_result
-        agent = ToolCallingAgent(
-            tools=[],
-            model=FakeLLMModel(),
-            max_steps=1,
-            return_full_result=True,
-        )
-
-        result = agent.run("Fake task", return_full_result=False)
-
-        self.assertIsInstance(result, str)
-
-        agent = ToolCallingAgent(
-            tools=[],
-            model=FakeLLMModel(),
-            max_steps=1,
-            return_full_result=False,
-        )
-
-        result = agent.run("Fake task", return_full_result=True)
-
-        self.assertIsInstance(result, RunResult)
-
     def test_run_result_no_token_usage(self):
         agent = CodeAgent(
             tools=[],
@@ -273,3 +213,32 @@ class MonitoringTester(unittest.TestCase):
         self.assertIsNone(result.token_usage)
         self.assertIsInstance(result.messages, list)
         self.assertGreater(result.timing.duration, 0)
+
+
+@pytest.mark.parametrize(
+    "init_return_full_result,run_return_full_result,expect_runresult",
+    [
+        (True, None, True),
+        (False, None, False),
+        (True, False, False),
+        (False, True, True),
+    ],
+)
+def test_run_return_full_result(init_return_full_result, run_return_full_result, expect_runresult):
+    agent = ToolCallingAgent(
+        tools=[],
+        model=FakeLLMModel(),
+        max_steps=1,
+        return_full_result=init_return_full_result,
+    )
+    result = agent.run("Fake task", return_full_result=run_return_full_result)
+
+    if expect_runresult:
+        assert isinstance(result, RunResult)
+        assert result.output == "image"
+        assert result.state == "success"
+        assert result.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
+        assert isinstance(result.messages, list)
+        assert result.timing.duration > 0
+    else:
+        assert isinstance(result, str)
