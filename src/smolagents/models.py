@@ -811,7 +811,7 @@ class TransformersModel(Model):
         max_new_tokens = kwargs.get("max_new_tokens") or kwargs.get("max_tokens")
         if not max_new_tokens:
             kwargs["max_new_tokens"] = default_max_tokens
-            logger.warning(
+            warnings.warn(
                 f"`max_new_tokens` not provided, using this default value for `max_new_tokens`: {default_max_tokens}"
             )
 

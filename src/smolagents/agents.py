@@ -21,6 +21,7 @@ import re
 import tempfile
 import textwrap
 import time
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -216,13 +217,14 @@ class RunResult:
     @property
     def messages(self):
         """Backward compatibility property that returns steps."""
-        logger.warning("The `messages` property is deprecated. Use `steps` instead.")
+        warnings.warn("The `messages` property is deprecated. Use `steps` instead.")
         return self.steps
 
     def dict(self):
         return {
             "output": self.output,
             "state": self.state,
+            "steps": self.steps,
             "messages": self.steps,
             "token_usage": self.token_usage.dict() if self.token_usage is not None else None,
             "timing": self.timing.dict(),
