@@ -1537,9 +1537,9 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
                 is_nullable = False
             if not is_nullable:
                 required_inputs.append(key)
-        
+
         if len(required_inputs) != 1:
-            raise ValueError("Single argument provided but tool expects multiple arguments")
+            raise ValueError(f"Single argument provided but {tool.name} expects multiple arguments")
 
         input_key = required_inputs[0]
         input_schema = tool.inputs[input_key]
