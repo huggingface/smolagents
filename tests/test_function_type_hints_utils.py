@@ -19,7 +19,6 @@ import pytest
 
 from smolagents._function_type_hints_utils import (
     DocstringParsingException,
-    _get_pydantic_json_schema,
     _is_pydantic_model,
     _parse_type_hint,
     _process_pydantic_schema,
@@ -560,7 +559,7 @@ class TestPydanticIntegration:
             email: str | None = None
 
         # Test schema generation
-        schema = _get_pydantic_json_schema(TestModel)
+        schema = TestModel.model_json_schema()
         assert isinstance(schema, dict)
         assert "type" in schema
         assert "properties" in schema
@@ -634,7 +633,7 @@ class TestPydanticIntegration:
             name: str
             address: Address
 
-        schema = _get_pydantic_json_schema(Person)
+        schema = Person.model_json_schema()
         processed_schema = _process_pydantic_schema(schema)
 
         # After processing, refs should be resolved

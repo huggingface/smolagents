@@ -58,24 +58,6 @@ def _is_pydantic_model(type_hint: type) -> bool:
     return inspect.isclass(type_hint) and issubclass(type_hint, pydantic.BaseModel)
 
 
-def _get_pydantic_json_schema(model_class: type) -> dict:
-    """
-    Get JSON schema from a Pydantic BaseModel with inlined definitions.
-
-    Args:
-        model_class: The Pydantic model class
-
-    Returns:
-        dict: JSON schema for the model with inlined definitions (no $refs)
-    """
-    try:
-        # Use serialization mode to get inlined schema without $refs
-        schema = model_class.model_json_schema(mode="serialization")
-        return schema
-    except Exception as e:
-        raise TypeHintParsingException(f"Failed to get Pydantic schema for {model_class}: {e}")
-
-
 def _process_pydantic_schema(schema: dict) -> dict:
     """
     Process a Pydantic JSON schema to make it compatible with smolagents.
@@ -419,7 +401,7 @@ def _parse_type_hint(hint: type) -> dict:
         # Check if this is a Pydantic model before falling back to regular type parsing
         if _is_pydantic_model(hint):
             # Get the Pydantic schema and process it
-            pydantic_schema = _get_pydantic_json_schema(hint)
+            pydantic_schema = hint.model_json_schema()
             processed_schema = _process_pydantic_schema(pydantic_schema)
             return processed_schema
 
