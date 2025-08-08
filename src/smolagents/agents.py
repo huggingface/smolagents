@@ -402,7 +402,7 @@ class MultiStepAgent(ABC):
         additional_args: dict | None = None,
         max_steps: int | None = None,
         return_full_result: bool | None = None,
-    ):
+    ) -> Any | RunResult:
         """
         Run the agent for the given task.
 
