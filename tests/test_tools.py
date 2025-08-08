@@ -32,6 +32,8 @@ from .utils.markers import require_run_all
 
 
 class ToolTesterMixin:
+    tool: Tool
+
     def test_inputs_output(self):
         assert hasattr(self.tool, "inputs")
         assert hasattr(self.tool, "output_type")
@@ -64,7 +66,7 @@ class ToolTesterMixin:
     @pytest.fixture
     def create_inputs(self, shared_datadir):
         def _create_inputs(tool_inputs: dict[str, dict[str | type, str]]) -> dict[str, Any]:
-            inputs = {}
+            inputs: dict[str, Any] = {}
 
             for input_name, input_desc in tool_inputs.items():
                 input_type = input_desc["type"]
@@ -184,7 +186,7 @@ class TestTool:
                 a: The first argument
                 b: The second one
             """
-            return b + 2, a
+            return b + 2.0
 
         assert coolfunc.output_type == "number"
 
@@ -213,7 +215,7 @@ class TestTool:
         with pytest.raises(Exception) as e:
 
             @tool
-            def coolfunc(a: str, b: int):
+            def coolfunc(a: str, b: str):
                 """Cool function
 
                 Args:
@@ -228,7 +230,7 @@ class TestTool:
         with pytest.raises(Exception) as e:
 
             @tool
-            def coolfunc(a: str, b: int) -> int:
+            def coolfunc(a: str, b: str) -> str:
                 """Cool function
 
                 Args:
@@ -319,7 +321,7 @@ class TestTool:
             inputs = {"string_input": {"type": "string", "description": "input description"}}
             output_type = "string"
 
-            def __init__(self, url: str | None = "none"):
+            def __init__(self, url: str = "none"):
                 super().__init__(self)
                 self.url = url
 
@@ -500,7 +502,7 @@ class TestTool:
 
     def test_tool_supports_array(self):
         @tool
-        def get_weather(locations: list[str], months: tuple[str, str] | None = None) -> dict[str, float]:
+        def get_weather(locations: list[str], months: tuple[str, str] | None = None) -> None:
             """
             Get weather in the next days at given locations.
 
