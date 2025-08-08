@@ -218,6 +218,29 @@ class MonitoringTester(unittest.TestCase):
         assert agent.monitor.total_input_token_count == 10
         assert agent.monitor.total_output_token_count == 20
 
+        # Test argument precedence: return_full_result=False should override the agent's return_full_result
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_result=True,
+        )
+
+        result = agent.run("Fake task", return_full_result=False)
+
+        self.assertIsInstance(result, str)
+
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_result=False,
+        )
+
+        result = agent.run("Fake task", return_full_result=True)
+
+        self.assertIsInstance(result, RunResult)
+
     def test_run_result_no_token_usage(self):
         agent = CodeAgent(
             tools=[],
