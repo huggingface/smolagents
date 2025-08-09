@@ -217,53 +217,51 @@ class TestRunResult:
                 timing=Timing(start_time=0.0, end_time=1.0),
             )
 
+    @pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
+    def test_no_token_usage(self, agent_class):
+        agent = agent_class(
+            tools=[],
+            model=FakeLLMModel(give_token_usage=False),
+            max_steps=1,
+            return_full_result=True,
+        )
 
-@pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
-def test_run_result_no_token_usage(agent_class):
-    agent = agent_class(
-        tools=[],
-        model=FakeLLMModel(give_token_usage=False),
-        max_steps=1,
-        return_full_result=True,
-    )
+        result = agent.run("Fake task")
 
-    result = agent.run("Fake task")
-
-    assert isinstance(result, RunResult)
-    assert result.output == "This is the final answer."
-    assert result.state == "success"
-    assert result.token_usage is None
-    assert isinstance(result.messages, list)
-    assert result.timing.duration > 0
-
-
-@pytest.mark.parametrize(
-    "init_return_full_result,run_return_full_result,expect_runresult",
-    [
-        (True, None, True),
-        (False, None, False),
-        (True, False, False),
-        (False, True, True),
-    ],
-)
-def test_run_return_full_result(init_return_full_result, run_return_full_result, expect_runresult):
-    agent = ToolCallingAgent(
-        tools=[],
-        model=FakeLLMModel(),
-        max_steps=1,
-        return_full_result=init_return_full_result,
-    )
-    result = agent.run("Fake task", return_full_result=run_return_full_result)
-
-    if expect_runresult:
         assert isinstance(result, RunResult)
         assert result.output == "This is the final answer."
         assert result.state == "success"
-        assert result.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
+        assert result.token_usage is None
         assert isinstance(result.messages, list)
         assert result.timing.duration > 0
-    else:
-        assert isinstance(result, str)
+
+    @pytest.mark.parametrize(
+        "init_return_full_result,run_return_full_result,expect_runresult",
+        [
+            (True, None, True),
+            (False, None, False),
+            (True, False, False),
+            (False, True, True),
+        ],
+    )
+    def test_full_result(self, init_return_full_result, run_return_full_result, expect_runresult):
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_result=init_return_full_result,
+        )
+        result = agent.run("Fake task", return_full_result=run_return_full_result)
+
+        if expect_runresult:
+            assert isinstance(result, RunResult)
+            assert result.output == "This is the final answer."
+            assert result.state == "success"
+            assert result.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
+            assert isinstance(result.messages, list)
+            assert result.timing.duration > 0
+        else:
+            assert isinstance(result, str)
 
 
 @pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
