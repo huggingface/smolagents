@@ -2,7 +2,11 @@
   sections:
   - local: index
     title: 소개
-- title: 예제
+- title: Conceptual guides
+  sections:
+  - local: conceptual_guides/react
+    title: 🤔 멀티스텝 에이전트는 어떻게 동작하나요?
+- title: Examples
   sections:
   - local: examples/text_to_sql
     title: 스스로 오류를 수정하는 Text-to-SQL
