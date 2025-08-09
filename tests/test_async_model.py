@@ -24,8 +24,7 @@ class TestModels(unittest.IsolatedAsyncioTestCase):
             model_id="gpt4o",
         )
 
-        generation_stream = client(inputs="Hello, who are you?")
-        self.assertIsInstance(generation_stream, typing.AsyncGenerator)
+        generation_stream = await client(messages=[{"role": "user", "content": "Hello, world!"}])
 
         async for chunk in generation_stream:
             self.assertIsInstance(chunk, str)

@@ -472,7 +472,7 @@ class AsyncModel:
         raise NotImplementedError("This method must be implemented in child classes")
 
     async def __call__(self, *args, **kwargs):
-        return self.generate(*args, **kwargs)
+        return await self.generate(*args, **kwargs)
 
     def parse_tool_calls(self, message: ChatMessage) -> ChatMessage:
         """Sometimes APIs do not return the tool call as a specific object, so we need to parse it."""
