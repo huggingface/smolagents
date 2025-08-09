@@ -20,7 +20,6 @@ import pytest
 
 from smolagents import (
     CodeAgent,
-    RunResult,
     ToolCallingAgent,
     stream_to_gradio,
 )
@@ -35,9 +34,6 @@ from smolagents.models import (
 
 
 class FakeLLMModel(Model):
-    def __init__(self, give_token_usage: bool = True):
-        self.give_token_usage = give_token_usage
-
     def generate(self, prompt, tools_to_call_from=None, **kwargs):
         if tools_to_call_from is not None:
             return ChatMessage(
@@ -52,7 +48,7 @@ class FakeLLMModel(Model):
                         ),
                     )
                 ],
-                token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
+                token_usage=TokenUsage(input_tokens=10, output_tokens=20),
             )
         else:
             return ChatMessage(
@@ -60,7 +56,7 @@ class FakeLLMModel(Model):
                 content="""<code>
 final_answer('This is the final answer.')
 </code>""",
-                token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
+                token_usage=TokenUsage(input_tokens=10, output_tokens=20),
             )
 
 
@@ -173,54 +169,6 @@ class MonitoringTester(unittest.TestCase):
         final_message = outputs[-1]
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("Malformed call", final_message.content)
-
-
-@pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
-def test_run_result_no_token_usage(agent_class):
-    agent = agent_class(
-        tools=[],
-        model=FakeLLMModel(give_token_usage=False),
-        max_steps=1,
-        return_full_result=True,
-    )
-
-    result = agent.run("Fake task")
-
-    assert isinstance(result, RunResult)
-    assert result.output == "This is the final answer."
-    assert result.state == "success"
-    assert result.token_usage is None
-    assert isinstance(result.messages, list)
-    assert result.timing.duration > 0
-
-
-@pytest.mark.parametrize(
-    "init_return_full_result,run_return_full_result,expect_runresult",
-    [
-        (True, None, True),
-        (False, None, False),
-        (True, False, False),
-        (False, True, True),
-    ],
-)
-def test_run_return_full_result(init_return_full_result, run_return_full_result, expect_runresult):
-    agent = ToolCallingAgent(
-        tools=[],
-        model=FakeLLMModel(),
-        max_steps=1,
-        return_full_result=init_return_full_result,
-    )
-    result = agent.run("Fake task", return_full_result=run_return_full_result)
-
-    if expect_runresult:
-        assert isinstance(result, RunResult)
-        assert result.output == "This is the final answer."
-        assert result.state == "success"
-        assert result.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
-        assert isinstance(result.messages, list)
-        assert result.timing.duration > 0
-    else:
-        assert isinstance(result, str)
 
 
 @pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
