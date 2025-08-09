@@ -206,6 +206,10 @@ class RunResult:
         steps (list[dict]): The agent's memory, as a list of steps.
         token_usage (TokenUsage | None): Count of tokens used during the run.
         timing (Timing): Timing details of the agent run: start time, end time, duration.
+        messages (list[dict]): The agent's memory, as a list of messages.
+            <Deprecated version="1.22.0">
+            Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.
+            </Deprecated>
     """
 
     output: Any | None
