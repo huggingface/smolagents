@@ -3,7 +3,7 @@ import sys
 import typing
 import unittest
 
-from smolagents.asynchronous import AsyncOpenaAIClient
+from smolagents.asynchronous.models import AsyncAzureOpenAIServerModel
 
 
 class TestModels(unittest.IsolatedAsyncioTestCase):
@@ -11,16 +11,17 @@ class TestModels(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(True)
 
     async def test_client_has_expected_method(self):
-        self.assertTrue(hasattr(AzureOpenAIClient, '_prepare_inputs'))
-        self.assertTrue(hasattr(AzureOpenAIClient, 'generate'))
-        self.assertTrue(hasattr(AzureOpenAIClient, '__call__'))
+        self.assertTrue(hasattr(AsyncAzureOpenAIServerModel, 'create_client'))
+        self.assertTrue(hasattr(AsyncAzureOpenAIServerModel, 'generate'))
+        self.assertTrue(hasattr(AsyncAzureOpenAIServerModel, 'generate_stream'))
+        self.assertTrue(hasattr(AsyncAzureOpenAIServerModel, '_apply_rate_limit'))
 
     async def test_generate_returns_string(self):
-        client = AzureOpenAIClient(
+        client = AsyncAzureOpenAIServerModel(
             api_key=os.environ.get('AZURE_OPENAI_API_KEY'),
             azure_endpoint=os.environ.get('AZURE_OPENAI_ENDPOINT'),
             api_version=os.environ.get('AZURE_OPENAI_API_VERSION'),
-            model_name="gpt4o",
+            model_id="gpt4o",
         )
 
         generation_stream = client(inputs="Hello, who are you?")
