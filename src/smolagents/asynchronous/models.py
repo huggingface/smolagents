@@ -1510,6 +1510,7 @@ class AsyncOpenAIServerModel(AsyncApiModel):
             "organization": organization,
             "project": project,
         }
+
         super().__init__(
             model_id=model_id,
             custom_role_conversions=custom_role_conversions,
@@ -1525,7 +1526,8 @@ class AsyncOpenAIServerModel(AsyncApiModel):
                 "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
             ) from e
 
-        return openai.OpenAI(**self.client_kwargs)
+        return openai.AsyncOpenAI(**self.client_kwargs)
+
 
     async def generate_stream(
         self,
@@ -1534,7 +1536,7 @@ class AsyncOpenAIServerModel(AsyncApiModel):
         response_format: dict[str, str] | None = None,
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
-    ) -> Generator[ChatMessageStreamDelta]:
+    ) -> AsyncGenerator[ChatMessageStreamDelta]:
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -1546,9 +1548,12 @@ class AsyncOpenAIServerModel(AsyncApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        async for event in self.client.chat.completions.create(
+
+        response = await self.client.chat.completions.create(
             **completion_kwargs, stream=True, stream_options={"include_usage": True}
-        ):
+        )
+
+        async for event in response:
             if event.usage:
                 yield ChatMessageStreamDelta(
                     content="",
@@ -1632,7 +1637,7 @@ class AsyncAzureOpenAIServerModel(AsyncOpenAIServerModel):
             Additional keyword arguments to pass to the Azure OpenAI API.
     """
 
-    def __init__(
+    def  __init__(
         self,
         model_id: str,
         azure_endpoint: str | None = None,
@@ -1665,7 +1670,7 @@ class AsyncAzureOpenAIServerModel(AsyncOpenAIServerModel):
                 "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
             ) from e
 
-        return openai.AzureOpenAI(**self.client_kwargs)
+        return openai.AsyncAzureOpenAI(**self.client_kwargs)
 
 
 AzureOpenAIModel = AsyncAzureOpenAIServerModel
@@ -1806,6 +1811,7 @@ class AsyncAmazonBedrockServerModel(AsyncApiModel):
             convert_images_to_image_urls=convert_images_to_image_urls,
             **kwargs,
         )
+
         # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
         # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
         completion_kwargs.pop("toolConfig", None)
@@ -1816,6 +1822,14 @@ class AsyncAmazonBedrockServerModel(AsyncApiModel):
             for content in message.get("content", []):
                 if "type" in content:
                     del content["type"]
+
+        messages = completion_kwargs.get("messages", messages)
+
+        for message in messages:
+            if isinstance(message["content"], str):
+                message["content"] = [{"text": message["content"]}]
+
+        completion_kwargs["messages"] = messages
 
         return {
             "modelId": self.model_id,
@@ -1852,7 +1866,6 @@ class AsyncAmazonBedrockServerModel(AsyncApiModel):
         self._apply_rate_limit()
         # self.client is created in ApiModel class
         response = await self.client.converse(**completion_kwargs)
-
         # Get last message content block in case thinking mode is enabled: discard thinking
         last_message_content_block = response["output"]["message"]["content"][-1]
         if "text" not in last_message_content_block:
@@ -1870,6 +1883,28 @@ class AsyncAmazonBedrockServerModel(AsyncApiModel):
             ),
         )
 
+    async def generate_stream(
+            self,
+            messages: list[ChatMessage | dict],
+            stop_sequences: list[str] | None = None,
+            response_format: dict[str, str] | None = None,
+            tools_to_call_from: list[Tool] | None = None,
+            **kwargs,
+    ) -> AsyncGenerator[ChatMessageStreamDelta]:
+        completion_kwargs: dict = self._prepare_completion_kwargs(
+            messages=messages,
+            tools_to_call_from=tools_to_call_from,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+        self._apply_rate_limit()
+        print(completion_kwargs)
+        response = self.client.converse_stream(**completion_kwargs)
+        print(response)
+        async for message in response["stream"]:
+            yield message
+            print(message)
 
 AsyncAmazonBedrockModel = AsyncAmazonBedrockServerModel
 
@@ -1893,3 +1928,56 @@ __all__ = [
     "AsyncAmazonBedrockModel",
     "ChatMessage",
 ]
+
+
+if __name__ == "__main__":
+    async def main():
+        messages = [
+            {
+                "role": "user",
+                "content": "Who are you?",
+            }
+        ]
+
+        client = AsyncAmazonBedrockServerModel(
+            model_id="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            client_kwargs={
+                'region_name': 'us-west-2',
+                'aws_secret_access_key': os.environ['CLAUDE_SECRET_KEY'],
+                'aws_access_key_id': os.environ['CLAUDE_ACCESS_KEY']
+            }
+        )
+
+        response = client.generate_stream(messages)
+        async for message in response:
+            print(message)
+        raise ValueError
+        client = AsyncOpenAIServerModel(
+            model_id="gpt-4o",
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
+
+        response = client.generate_stream(messages)
+
+        print("#### OpenAI Response ####")
+        async for message in response:
+            print(message)
+
+
+        # Azure OpenAI
+        client = AsyncAzureOpenAIServerModel(
+            model_id="gpt4d1",
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        )
+
+        response = client.generate_stream(messages=messages)
+        print("#### Azure OpenAI Client ####")
+        async for message in response:
+            print(message)
+
+
+
+    import asyncio
+    asyncio.run(main())
