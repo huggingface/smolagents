@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import unittest
-import warnings
 
 import PIL.Image
 import pytest
@@ -176,7 +175,9 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("Malformed call", final_message.content)
 
-    def test_runresult_backward_compatibility(self):
+
+class TestRunResult:
+    def test_backward_compatibility(self):
         """Test that RunResult handles deprecated 'messages' parameter correctly."""
 
         # Test 1: Using new 'steps' parameter (should work without warning)
@@ -187,21 +188,15 @@ class MonitoringTester(unittest.TestCase):
             token_usage=None,
             timing=Timing(start_time=0.0, end_time=1.0),
         )
-        self.assertEqual(result1.steps, [{"type": "test", "content": "step1"}])
+        assert result1.steps == [{"type": "test", "content": "step1"}]
 
         # Test property access warning
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.warns(FutureWarning, match="deprecated"):
             messages = result1.messages
-            self.assertTrue(len(w) == 1)
-            self.assertTrue(issubclass(w[0].category, FutureWarning))
-            self.assertIn("deprecated", str(w[0].message))
-
-        self.assertEqual(messages, [{"type": "test", "content": "step1"}])
+        assert messages == [{"type": "test", "content": "step1"}]
 
         # Test 2: Using deprecated 'messages' parameter (should show deprecation warning)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.warns(FutureWarning, match="deprecated"):
             result2 = RunResult(
                 output="test output",
                 state="success",
@@ -209,15 +204,10 @@ class MonitoringTester(unittest.TestCase):
                 token_usage=None,
                 timing=Timing(start_time=0.0, end_time=1.0),
             )
-
-            self.assertTrue(len(w) == 1)
-            self.assertTrue(issubclass(w[0].category, FutureWarning))
-            self.assertIn("deprecated", str(w[0].message))
-
-        self.assertEqual(result2.steps, [{"type": "test", "content": "message1"}])
+        assert result2.steps == [{"type": "test", "content": "message1"}]
 
         # Test 3: Using both 'steps' and 'messages' (should raise ValueError)
-        with self.assertRaises(ValueError) as cm:
+        with pytest.raises(ValueError, match="Cannot specify both"):
             RunResult(
                 output="test output",
                 state="success",
@@ -226,7 +216,6 @@ class MonitoringTester(unittest.TestCase):
                 token_usage=None,
                 timing=Timing(start_time=0.0, end_time=1.0),
             )
-        self.assertIn("Cannot specify both", str(cm.exception))
 
 
 @pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
