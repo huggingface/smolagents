@@ -380,6 +380,7 @@ class Model:
         tool_name_key: str = "name",
         tool_arguments_key: str = "arguments",
         model_id: str | None = None,
+        supports_images: bool = False,
         **kwargs,
     ):
         self.flatten_messages_as_text = flatten_messages_as_text
@@ -387,6 +388,7 @@ class Model:
         self.tool_arguments_key = tool_arguments_key
         self.kwargs = kwargs
         self.model_id: str | None = model_id
+        self.supports_images = supports_images
 
     def _prepare_completion_kwargs(
         self,
