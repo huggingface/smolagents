@@ -242,7 +242,7 @@ uv pip install "smolagents[all]"
 </hfoptions>
 
 ## 설치 확인[[verifying-installation]]
-설치 후, 다음을 실행하여 `smolagents`가 올바르게 설치되었는지 확인할 수 있습니다:
+설치 후, 다음 코드를 실행해 `smolagents`가 올바르게 설치되었는지 확인할 수 있습니다:
 ```python
 import smolagents
 print(smolagents.__version__)
