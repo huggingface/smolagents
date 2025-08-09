@@ -240,7 +240,11 @@ class RunResult:
     @property
     def messages(self):
         """Backward compatibility property that returns steps."""
-        warnings.warn("The `messages` property is deprecated. Use `steps` instead.")
+        warnings.warn(
+            "Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
         return self.steps
 
     def dict(self):
