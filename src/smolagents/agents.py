@@ -221,13 +221,13 @@ class RunResult:
     def __init__(self, output=None, state=None, steps=None, token_usage=None, timing=None, messages=None):
         # Handle deprecated 'messages' parameter
         if messages is not None:
+            if steps is not None:
+                raise ValueError("Cannot specify both 'messages' and 'steps' parameters. Use 'steps' instead.")
             warnings.warn(
                 "Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.",
                 FutureWarning,
                 stacklevel=2,
             )
-            if steps is not None:
-                raise ValueError("Cannot specify both 'messages' and 'steps' parameters. Use 'steps' instead.")
             steps = messages
 
         # Initialize with dataclass fields
