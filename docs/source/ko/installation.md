@@ -249,7 +249,7 @@ print(smolagents.__version__)
 ```
 
 ## 다음 단계[[next-steps]]
-`smolagents`를 성공적으로 설치했다면 다음을 수행할 수 있습니다:
+`smolagents`를 설치를 성공적으로 마치셨다면, 다음 리소스를 통해 다양한 기능을 탐색해보세요.
 - 기본 사항을 배우기 위해 [guided tour](./guided_tour)를 따라해보세요.
 - 실용적인 예제를 위해 [how-to guides](./examples/text_to_sql)를 탐색해보세요.
 - 고수준 설명을 위해 [conceptual guides](./conceptual_guides/intro_agents)를 읽어보세요.
