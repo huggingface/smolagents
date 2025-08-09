@@ -47,9 +47,7 @@ class FakeLLMModel(Model):
                     ChatMessageToolCall(
                         id="fake_id",
                         type="function",
-                        function=ChatMessageToolCallFunction(
-                            name="final_answer", arguments={"answer": "This is the final answer."}
-                        ),
+                        function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "image"}),
                     )
                 ],
                 token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
@@ -65,6 +63,29 @@ final_answer('This is the final answer.')
 
 
 class MonitoringTester(unittest.TestCase):
+    def test_code_agent_metrics(self):
+        agent = CodeAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+        )
+        agent.run("Fake task")
+
+        self.assertEqual(agent.monitor.total_input_token_count, 10)
+        self.assertEqual(agent.monitor.total_output_token_count, 20)
+
+    def test_toolcalling_agent_metrics(self):
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+        )
+
+        agent.run("Fake task")
+
+        self.assertEqual(agent.monitor.total_input_token_count, 10)
+        self.assertEqual(agent.monitor.total_output_token_count, 20)
+
     def test_code_agent_metrics_max_steps(self):
         class FakeLLMModelMalformedAnswer(Model):
             def generate(self, prompt, **kwargs):
@@ -119,23 +140,9 @@ class MonitoringTester(unittest.TestCase):
         self.assertIn("This is the final answer.", final_message.content)
 
     def test_streaming_agent_image_output(self):
-        class FakeLLMModelImage(Model):
-            def generate(self, prompt, **kwargs):
-                return ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content="I will call the final_answer tool.",
-                    tool_calls=[
-                        ChatMessageToolCall(
-                            id="fake_id",
-                            type="function",
-                            function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "image"}),
-                        )
-                    ],
-                )
-
         agent = ToolCallingAgent(
             tools=[],
-            model=FakeLLMModelImage(),
+            model=FakeLLMModel(),
             max_steps=1,
             verbosity_level=100,
         )
@@ -174,63 +181,72 @@ class MonitoringTester(unittest.TestCase):
         self.assertEqual(final_message.role, "assistant")
         self.assertIn("Malformed call", final_message.content)
 
+    def test_run_return_full_result(self):
+        agent = CodeAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_result=True,
+        )
 
-@pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
-def test_run_result_no_token_usage(agent_class):
-    agent = agent_class(
-        tools=[],
-        model=FakeLLMModel(give_token_usage=False),
-        max_steps=1,
-        return_full_result=True,
-    )
+        result = agent.run("Fake task")
 
-    result = agent.run("Fake task")
+        self.assertIsInstance(result, RunResult)
+        self.assertEqual(result.output, "This is the final answer.")
+        self.assertEqual(result.state, "success")
+        self.assertEqual(result.token_usage, TokenUsage(input_tokens=10, output_tokens=20))
+        self.assertIsInstance(result.messages, list)
+        self.assertGreater(result.timing.duration, 0)
 
-    assert isinstance(result, RunResult)
-    assert result.output == "This is the final answer."
-    assert result.state == "success"
-    assert result.token_usage is None
-    assert isinstance(result.messages, list)
-    assert result.timing.duration > 0
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_result=True,
+        )
 
+        result = agent.run("Fake task")
 
-@pytest.mark.parametrize(
-    "init_return_full_result,run_return_full_result,expect_runresult",
-    [
-        (True, None, True),
-        (False, None, False),
-        (True, False, False),
-        (False, True, True),
-    ],
-)
-def test_run_return_full_result(init_return_full_result, run_return_full_result, expect_runresult):
-    agent = ToolCallingAgent(
-        tools=[],
-        model=FakeLLMModel(),
-        max_steps=1,
-        return_full_result=init_return_full_result,
-    )
-    result = agent.run("Fake task", return_full_result=run_return_full_result)
+        self.assertIsInstance(result, RunResult)
+        self.assertEqual(result.output, "image")
+        self.assertEqual(result.state, "success")
+        self.assertEqual(result.token_usage, TokenUsage(input_tokens=10, output_tokens=20))
+        self.assertIsInstance(result.messages, list)
+        self.assertGreater(result.timing.duration, 0)
 
-    if expect_runresult:
-        assert isinstance(result, RunResult)
-        assert result.output == "This is the final answer."
-        assert result.state == "success"
-        assert result.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
-        assert isinstance(result.messages, list)
-        assert result.timing.duration > 0
-    else:
-        assert isinstance(result, str)
+        # Below 2 lines should be removed when the attributes are removed
+        assert agent.monitor.total_input_token_count == 10
+        assert agent.monitor.total_output_token_count == 20
 
+    def test_run_result_no_token_usage(self):
+        agent = CodeAgent(
+            tools=[],
+            model=FakeLLMModel(give_token_usage=False),
+            max_steps=1,
+            return_full_result=True,
+        )
 
-@pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
-def test_code_agent_metrics(agent_class):
-    agent = agent_class(
-        tools=[],
-        model=FakeLLMModel(),
-        max_steps=1,
-    )
-    agent.run("Fake task")
+        result = agent.run("Fake task")
 
-    assert agent.monitor.total_input_token_count == 10
-    assert agent.monitor.total_output_token_count == 20
+        self.assertIsInstance(result, RunResult)
+        self.assertEqual(result.output, "This is the final answer.")
+        self.assertEqual(result.state, "success")
+        self.assertIsNone(result.token_usage)
+        self.assertIsInstance(result.messages, list)
+        self.assertGreater(result.timing.duration, 0)
+
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(give_token_usage=False),
+            max_steps=1,
+            return_full_result=True,
+        )
+
+        result = agent.run("Fake task")
+
+        self.assertIsInstance(result, RunResult)
+        self.assertEqual(result.output, "image")
+        self.assertEqual(result.state, "success")
+        self.assertIsNone(result.token_usage)
+        self.assertIsInstance(result.messages, list)
+        self.assertGreater(result.timing.duration, 0)
