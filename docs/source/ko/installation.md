@@ -37,7 +37,7 @@ source .venv/bin/activate
 
 ## 기본 설치[[basic-installation]]
 
-`smolagents` 핵심 라이브러리를 설치하세요:
+`smolagents` 핵심 라이브러리를 설치합니다:
 
 <hfoptions id="installation">
 <hfoption id="pip">
@@ -250,8 +250,8 @@ print(smolagents.__version__)
 
 ## 다음 단계[[next-steps]]
 `smolagents`를 성공적으로 설치했다면 다음을 수행할 수 있습니다:
-- 기본 사항을 배우기 위해 [guided tour](./guided_tour)를 따라해보세요.
-- 실용적인 예제를 위해 [how-to guides](./examples/text_to_sql)를 탐색해보세요.
-- 고수준 설명을 위해 [conceptual guides](./conceptual_guides/intro_agents)를 읽어보세요.
-- 에이전트 구축에 대한 심화 튜토리얼을 위해 [tutorials](./tutorials/building_good_agents)를 확인해보세요.
-- 클래스와 함수에 대한 자세한 정보를 위해 [API reference](./reference/index)를 탐색해보세요.
+- [안내서](./guided_tour)를 따라 기본 개념을 배워보세요.
+- 실용적인 예제를 보고 싶다면 [사용법 가이드](./examples/text_to_sql)를 살펴보세요.
+- 고수준 설명을 보려면 [개념 가이드](./conceptual_guides/intro_agents)를 읽어보세요.
+- 에이전트 구축에 대한 심화 튜토리얼은 [튜토리얼](./tutorials/building_good_agents)를 확인해보세요.
+- 클래스와 함수에 대한 자세한 정보를 확인하고 싶으시면 [API 레퍼런스](./reference/index)를 살펴보세요.
