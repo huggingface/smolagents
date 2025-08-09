@@ -345,6 +345,15 @@ class DockerExecutor(RemotePythonExecutor):
 
             self.base_url = f"http://{host}:{port}"
 
+            # Wait for Jupyter to start
+            for _ in range(10):
+                try:
+                    if requests.get(f"{self.base_url}/api", timeout=2).status_code == 200:
+                        break
+                except:
+                    pass
+                time.sleep(1)
+
             # Create new kernel via HTTP
             r = requests.post(f"{self.base_url}/api/kernels")
             if r.status_code != 201:
