@@ -292,6 +292,7 @@ class MultiStepAgent(ABC):
             Each function should:
             - Take the final answer and the agent's memory as arguments.
             - Return a boolean indicating whether the final answer is valid.
+        return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
     """
 
     def __init__(
@@ -443,7 +444,8 @@ class MultiStepAgent(ABC):
         images: list["PIL.Image.Image"] | None = None,
         additional_args: dict | None = None,
         max_steps: int | None = None,
-    ):
+        return_full_result: bool | None = None,
+    ) -> Any | RunResult:
         """
         Run the agent for the given task.
 
@@ -456,6 +458,8 @@ class MultiStepAgent(ABC):
             images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
             additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
             max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+            return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
+                If `None` (default), the agent's `self.return_full_result` setting is used.
 
         Example:
         ```py
@@ -500,7 +504,8 @@ You have been provided with these additional arguments, that you can access dire
         assert isinstance(steps[-1], FinalAnswerStep)
         output = steps[-1].output
 
-        if self.return_full_result:
+        return_full_result = return_full_result if return_full_result is not None else self.return_full_result
+        if return_full_result:
             total_input_tokens = 0
             total_output_tokens = 0
             correct_token_usage = True
