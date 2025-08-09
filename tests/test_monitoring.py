@@ -194,7 +194,7 @@ class MonitoringTester(unittest.TestCase):
             warnings.simplefilter("always")
             messages = result1.messages
             self.assertTrue(len(w) == 1)
-            self.assertTrue(issubclass(w[0].category, UserWarning))
+            self.assertTrue(issubclass(w[0].category, FutureWarning))
             self.assertIn("deprecated", str(w[0].message))
 
         self.assertEqual(messages, [{"type": "test", "content": "step1"}])
@@ -211,7 +211,7 @@ class MonitoringTester(unittest.TestCase):
             )
 
             self.assertTrue(len(w) == 1)
-            self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+            self.assertTrue(issubclass(w[0].category, FutureWarning))
             self.assertIn("deprecated", str(w[0].message))
 
         self.assertEqual(result2.steps, [{"type": "test", "content": "message1"}])
