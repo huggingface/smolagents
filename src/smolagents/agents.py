@@ -218,7 +218,7 @@ class RunResult:
         # Handle deprecated 'messages' parameter
         if messages is not None:
             warnings.warn(
-                "The 'messages' parameter is deprecated and will be removed in a future version. Use 'steps' instead.",
+                "Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.",
                 FutureWarning,
                 stacklevel=2,
             )
