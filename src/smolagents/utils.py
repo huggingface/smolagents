@@ -30,7 +30,7 @@ from textwrap import dedent
 from typing import TYPE_CHECKING, Any
 
 import jinja2
-
+import asyncio
 
 if TYPE_CHECKING:
     from smolagents.memory import AgentLogger
@@ -506,3 +506,15 @@ class RateLimiter:
         if elapsed < self._interval:
             time.sleep(self._interval - elapsed)
         self._last_call = time.time()
+
+    async def athrottle(self) -> None:
+        """Asynchronous throttle (does not block the event loop)."""
+        if not self._enabled:
+            return
+        async with self._async_lock:
+            now = time.monotonic()
+            elapsed = now - self._last_call
+            delay = self._interval - elapsed
+            if delay > 0:
+                await asyncio.sleep(delay)
+            self._last_call = time.monotonic()

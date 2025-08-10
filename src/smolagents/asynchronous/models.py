@@ -20,16 +20,11 @@ from typing import TYPE_CHECKING, Any
 
 from smolagents.monitoring import TokenUsage
 from smolagents.tools import Tool
-from smolagents.utils import encode_image_base64, make_image_url, parse_json_blob
+from smolagents.utils import encode_image_base64, make_image_url, parse_json_blob, RateLimiter
 from smolagents.models import ChatMessageToolCallStreamDelta, ChatMessageToolCallFunction
 from smolagents import ChatMessage, ChatMessageToolCall, ChatMessageStreamDelta, parse_json_if_needed, MessageRole
 if TYPE_CHECKING:
     pass
-
-try:
-    from .utils import RateLimiter
-except ImportError:
-    from utils import RateLimiter
 
 
 logger = logging.getLogger(__name__)
