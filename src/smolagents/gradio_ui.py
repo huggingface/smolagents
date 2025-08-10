@@ -1,3 +1,4 @@
+#src/smolagents/gradio_ui.py
 #!/usr/bin/env python
 # coding=utf-8
 # Copyright 2024 The HuggingFace Inc. team. All rights reserved.
