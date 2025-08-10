@@ -11,15 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import logging
-import os
 import re
 import uuid
 from collections.abc import AsyncGenerator
 from copy import deepcopy
-from dataclasses import asdict, dataclass
-from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from smolagents.monitoring import TokenUsage

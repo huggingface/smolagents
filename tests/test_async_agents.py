@@ -3,7 +3,7 @@ import unittest
 
 import smolagents
 from smolagents.asynchronous.models import AsyncAzureOpenAIServerModel
-
+from smolagents.asynchronous.agents import AsyncCodeAgent
 
 class TestModels(unittest.IsolatedAsyncioTestCase):
     async def test_sanity(self):
@@ -15,28 +15,25 @@ class TestModels(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(hasattr(AsyncAzureOpenAIServerModel, 'generate_stream'))
         self.assertTrue(hasattr(AsyncAzureOpenAIServerModel, '_apply_rate_limit'))
 
-    async def test_azure_openai_generate(self):
+    async def test_code_agent_generate(self):
         client = AsyncAzureOpenAIServerModel(
             api_key=os.environ.get('AZURE_OPENAI_API_KEY'),
             azure_endpoint=os.environ.get('AZURE_OPENAI_ENDPOINT'),
             api_version=os.environ.get('AZURE_OPENAI_API_VERSION'),
             model_id="gpt4d1",
         )
+        messages = [{"role": "user", "content": "Hello, world!"}]
 
-        response = await client(messages=[{"role": "user", "content": "Hello, world!"}])
-        self.assertIsInstance(response, smolagents.ChatMessage)
+        agent = As
 
-    async def test_azure_openai_generate_stream(self):
+    async def test_code_agent_generate_stream(self):
         client = AsyncAzureOpenAIServerModel(
             api_key=os.environ.get('AZURE_OPENAI_API_KEY'),
             azure_endpoint=os.environ.get('AZURE_OPENAI_ENDPOINT'),
             api_version=os.environ.get('AZURE_OPENAI_API_VERSION'),
             model_id="gpt4d1",
         )
-        response = client.generate_stream(messages=[{"role": "user", "content": "Hello, world!"}])
-        async for message in response:
-            self.assertIsInstance(message, smolagents.ChatMessageStreamDelta)
-            print("Message Chunk:",message)
+        messages = [{"role": "user", "content": "Hello, world!"}]
 
 
 

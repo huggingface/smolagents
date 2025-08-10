@@ -1163,7 +1163,7 @@ class AsyncMultiStepAgent(ABC):
             )
 
 
-class ToolCallingAgent(AsyncMultiStepAgent):
+class AsyncToolCallingAgent(AsyncMultiStepAgent):
     """
     This agent uses JSON-like tool calls, using method `model.get_tool_call` to leverage the LLM engine's tool calling capabilities.
 
@@ -1458,7 +1458,7 @@ class ToolCallingAgent(AsyncMultiStepAgent):
             raise AgentToolExecutionError(error_msg, self.logger) from e
 
 
-class CodeAgent(AsyncMultiStepAgent):
+class AsyncCodeAgent(AsyncMultiStepAgent):
     """
     In this agent, the tool calls will be formulated by the LLM in code format, then parsed and executed.
 
@@ -1589,7 +1589,7 @@ class CodeAgent(AsyncMultiStepAgent):
 
     async def _step_stream(
         self, memory_step: ActionStep
-    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
+    ) -> AsyncGenerator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Yields ChatMessageStreamDelta during the run if streaming is enabled.
