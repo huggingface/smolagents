@@ -1,3 +1,4 @@
+#src/smolagents/mcp_client.py
 #!/usr/bin/env python
 # coding=utf-8
 
