@@ -54,6 +54,22 @@ class TestModels(unittest.IsolatedAsyncioTestCase):
         result = await agent.run("롯데 뉴스 알려줘", stream=False)
         print(result)
 
+    async def test_code_agent_generate_with_tools_stream(self):
+        from smolagents.default_tools import DuckDuckGoSearchTool
+        client = AsyncAzureOpenAIServerModel(
+            api_key=os.environ.get('AZURE_OPENAI_API_KEY'),
+            azure_endpoint=os.environ.get('AZURE_OPENAI_ENDPOINT'),
+            api_version=os.environ.get('AZURE_OPENAI_API_VERSION'),
+            model_id="gpt4d1",
+        )
+
+        tools = [DuckDuckGoSearchTool()]
+        agent = AsyncCodeAgent(model=client, tools=tools)
+        result = await agent.run("롯데뉴스", stream=True)
+        async for line in result:
+            print("Chunk:",line)
+
+
 
 
 if __name__ == '__main__':
