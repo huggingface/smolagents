@@ -21,6 +21,8 @@ import re
 import tempfile
 import textwrap
 import time
+from collections.abc import AsyncGenerator
+
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -496,7 +498,7 @@ class AsyncMultiStepAgent(ABC):
 
     async def _run_stream(
         self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
-    ) -> T.AsyncGenerator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta, None]:
+    ) -> AsyncGenerator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
         self.step_number = 1
         returned_final_answer = False
         action_step = None
@@ -594,7 +596,7 @@ class AsyncMultiStepAgent(ABC):
 
     async def _generate_planning_step(
         self, task, is_first_step: bool, step: int
-    ) -> T.AsyncGenerator[ChatMessageStreamDelta | PlanningStep, None]:
+    ) -> AsyncGenerator[ChatMessageStreamDelta | PlanningStep]:
         start_time = time.time()
         input_tokens, output_tokens = 0, 0
         if is_first_step:
@@ -735,7 +737,7 @@ class AsyncMultiStepAgent(ABC):
 
     async def _step_stream(
         self, memory_step: ActionStep
-    ) -> T.AsyncGenerator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput| NotImplementedError, None]:
+    ) -> [ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput| NotImplementedError]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Yields ChatMessageStreamDelta during the run if streaming is enabled.
@@ -1225,7 +1227,7 @@ class AsyncToolCallingAgent(AsyncMultiStepAgent):
 
     async def _step_stream(
         self, memory_step: ActionStep
-    ) -> T.AsyncGenerator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput, None]:
+    ) -> AsyncGenerator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Yields ChatMessageStreamDelta during the run if streaming is enabled.
