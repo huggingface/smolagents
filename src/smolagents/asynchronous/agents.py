@@ -69,14 +69,14 @@ from .models import (
     agglomerate_stream_deltas,
     parse_json_if_needed,
 )
-from .monitoring import (
+from smolagents.monitoring import (
     YELLOW_HEX,
     AgentLogger,
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
-from .tools import BaseTool, Tool, validate_tool_arguments
+from smolagents.remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
+from smolagents.tools import BaseTool, Tool, validate_tool_arguments
 from smolagents.utils import (
     AgentError,
     AgentExecutionError,
