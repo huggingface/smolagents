@@ -1,3 +1,4 @@
+#src/smolagents/agent_types.py
 # coding=utf-8
 # Copyright 2024 HuggingFace Inc.
 #
