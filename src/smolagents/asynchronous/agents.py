@@ -39,7 +39,6 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-
 if TYPE_CHECKING:
     import PIL.Image
 import typing as T
@@ -497,7 +496,7 @@ class AsyncMultiStepAgent(ABC):
 
     async def _run_stream(
         self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
-    ) -> T.AsyncGenerator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
+    ) -> T.AsyncGenerator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta, None]:
         self.step_number = 1
         returned_final_answer = False
         action_step = None
@@ -595,7 +594,7 @@ class AsyncMultiStepAgent(ABC):
 
     async def _generate_planning_step(
         self, task, is_first_step: bool, step: int
-    ) -> T.AsyncGenerator[ChatMessageStreamDelta | PlanningStep]:
+    ) -> T.AsyncGenerator[ChatMessageStreamDelta | PlanningStep, None]:
         start_time = time.time()
         input_tokens, output_tokens = 0, 0
         if is_first_step:
@@ -736,7 +735,7 @@ class AsyncMultiStepAgent(ABC):
 
     async def _step_stream(
         self, memory_step: ActionStep
-    ) -> T.AsyncGenerator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput| NotImplementedError]:
+    ) -> T.AsyncGenerator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput| NotImplementedError, None]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Yields ChatMessageStreamDelta during the run if streaming is enabled.
@@ -1226,7 +1225,7 @@ class AsyncToolCallingAgent(AsyncMultiStepAgent):
 
     async def _step_stream(
         self, memory_step: ActionStep
-    ) -> T.AsyncGenerator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
+    ) -> T.AsyncGenerator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput, None]:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Yields ChatMessageStreamDelta during the run if streaming is enabled.

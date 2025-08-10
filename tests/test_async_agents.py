@@ -22,9 +22,10 @@ class TestModels(unittest.IsolatedAsyncioTestCase):
             api_version=os.environ.get('AZURE_OPENAI_API_VERSION'),
             model_id="gpt4d1",
         )
-        messages = [{"role": "user", "content": "Hello, world!"}]
 
-        agent = As
+        agent = AsyncCodeAgent(model=client, tools=[])
+        result = await agent.run("Hello, world!", stream=False)
+        print(result)
 
     async def test_code_agent_generate_stream(self):
         client = AsyncAzureOpenAIServerModel(
@@ -33,7 +34,6 @@ class TestModels(unittest.IsolatedAsyncioTestCase):
             api_version=os.environ.get('AZURE_OPENAI_API_VERSION'),
             model_id="gpt4d1",
         )
-        messages = [{"role": "user", "content": "Hello, world!"}]
 
 
 
