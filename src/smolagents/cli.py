@@ -1,3 +1,4 @@
+#src/smolagents/cli.py
 #!/usr/bin/env python
 # coding=utf-8
 
