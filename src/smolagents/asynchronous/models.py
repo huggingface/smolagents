@@ -25,7 +25,8 @@ from typing import TYPE_CHECKING, Any
 from smolagents.monitoring import TokenUsage
 from smolagents.tools import Tool
 from smolagents.utils import encode_image_base64, make_image_url, parse_json_blob
-
+from smolagents.models import ChatMessageToolCallStreamDelta, ChatMessageToolCallFunction
+from smolagents import ChatMessage, ChatMessageToolCall, ChatMessageStreamDelta, parse_json_if_needed, MessageRole
 if TYPE_CHECKING:
     pass
 
@@ -63,115 +64,6 @@ CODEAGENT_RESPONSE_FORMAT = {
         "strict": True,
     },
 }
-
-
-def get_dict_from_nested_dataclasses(obj, ignore_key=None):
-    def convert(obj):
-        if hasattr(obj, "__dataclass_fields__"):
-            return {k: convert(v) for k, v in asdict(obj).items() if k != ignore_key}
-        return obj
-
-    return convert(obj)
-
-
-@dataclass
-class ChatMessageToolCallFunction:
-    arguments: Any
-    name: str
-    description: str | None = None
-
-
-@dataclass
-class ChatMessageToolCall:
-    function: ChatMessageToolCallFunction
-    id: str
-    type: str
-
-    def __str__(self) -> str:
-        return f"Call: {self.id}: Calling {str(self.function.name)} with arguments: {str(self.function.arguments)}"
-
-
-class MessageRole(str, Enum):
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
-    TOOL_CALL = "tool-call"
-    TOOL_RESPONSE = "tool-response"
-
-    @classmethod
-    def roles(cls):
-        return [r.value for r in cls]
-
-
-@dataclass
-class ChatMessage:
-    role: MessageRole
-    content: str | list[dict[str, Any]] | None = None
-    tool_calls: list[ChatMessageToolCall] | None = None
-    raw: Any | None = None  # Stores the raw output from the API
-    token_usage: TokenUsage | None = None
-
-    def model_dump_json(self):
-        return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
-
-    @classmethod
-    def from_dict(cls, data: dict, raw: Any | None = None, token_usage: TokenUsage | None = None) -> "ChatMessage":
-        if data.get("tool_calls"):
-            tool_calls = [
-                ChatMessageToolCall(
-                    function=ChatMessageToolCallFunction(**tc["function"]), id=tc["id"], type=tc["type"]
-                )
-                for tc in data["tool_calls"]
-            ]
-            data["tool_calls"] = tool_calls
-        return cls(
-            role=data["role"],
-            content=data.get("content"),
-            tool_calls=data.get("tool_calls"),
-            raw=raw,
-            token_usage=token_usage,
-        )
-
-    def dict(self):
-        return get_dict_from_nested_dataclasses(self)
-
-    def render_as_markdown(self) -> str:
-        rendered = str(self.content) or ""
-        if self.tool_calls:
-            rendered += "\n".join(
-                [
-                    json.dumps({"tool": tool.function.name, "arguments": tool.function.arguments})
-                    for tool in self.tool_calls
-                ]
-            )
-        return rendered
-
-
-def parse_json_if_needed(arguments: str | dict) -> str | dict:
-    if isinstance(arguments, dict):
-        return arguments
-    else:
-        try:
-            return json.loads(arguments)
-        except Exception:
-            return arguments
-
-
-@dataclass
-class ChatMessageToolCallStreamDelta:
-    """Represents a streaming delta for tool calls during generation."""
-
-    index: int | None = None
-    id: str | None = None
-    type: str | None = None
-    function: ChatMessageToolCallFunction | None = None
-
-
-@dataclass
-class ChatMessageStreamDelta:
-    content: str | None = None
-    tool_calls: list[ChatMessageToolCallStreamDelta] | None = None
-    token_usage: TokenUsage | None = None
 
 
 def agglomerate_stream_deltas(
@@ -274,7 +166,7 @@ def remove_stop_sequences(content: str, stop_sequences: list[str]) -> str:
 
 def get_clean_message_list(
         message_list: list[ChatMessage | dict],
-        role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
+        role_conversions=None,
         convert_images_to_image_urls: bool = False,
         flatten_messages_as_text: bool = False,
 ) -> list[dict[str, Any]]:
@@ -288,6 +180,8 @@ def get_clean_message_list(
         convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
         flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
     """
+    if role_conversions is None:
+        role_conversions = {}
     output_message_list: list[dict[str, Any]] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
     for message in message_list:
@@ -522,7 +416,7 @@ class AsyncModel:
         return model_dictionary
 
     @classmethod
-    def from_dict(cls, model_dictionary: dict[str, Any]) -> "Model":
+    def from_dict(cls, model_dictionary: dict[str, Any]) -> "AsyncModel":
         return cls(**{k: v for k, v in model_dictionary.items()})
 
     async def generate_stream(

@@ -1,8 +1,7 @@
 import os
-import sys
-import typing
 import unittest
 
+import smolagents
 from smolagents.asynchronous.models import AsyncAzureOpenAIServerModel
 
 
@@ -24,10 +23,9 @@ class TestModels(unittest.IsolatedAsyncioTestCase):
             model_id="gpt4o",
         )
 
-        generation_stream = await client(messages=[{"role": "user", "content": "Hello, world!"}])
+        response = await client(messages=[{"role": "user", "content": "Hello, world!"}])
+        self.assertIsInstance(response, smolagents.ChatMessage)
 
-        async for chunk in generation_stream:
-            self.assertIsInstance(chunk, str)
 
 
 if __name__ == '__main__':
