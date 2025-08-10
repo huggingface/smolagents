@@ -1676,7 +1676,7 @@ class AsyncCodeAgent(AsyncMultiStepAgent):
         ### Execute action ###
         self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
         try:
-            code_output = self.python_executor(code_action)
+            code_output = await self.python_executor.run_async(code_action)
             execution_outputs_console = []
             if len(code_output.logs) > 0:
                 execution_outputs_console += [

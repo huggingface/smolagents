@@ -36,6 +36,10 @@ from .utils import BASE_BUILTIN_MODULES, truncate_content
 
 logger = logging.getLogger(__name__)
 
+from concurrent.futures import ProcessPoolExecutor
+import asyncio
+from functools import partial
+
 
 class InterpreterError(ValueError):
     """
@@ -1525,6 +1529,13 @@ class FinalAnswerException(Exception):
         self.value = value
 
 
+async def evaluate_python_code_async(code: str, **kwargs):
+    """
+    동기 evaluate_python_code를 별도 스레드에서 실행하고 await로 결과를 받는다.
+    이벤트 루프는 블로킹되지 않는다.
+    """
+    return await asyncio.to_thread(evaluate_python_code, code, **kwargs)
+
 def evaluate_python_code(
     code: str,
     static_tools: dict[str, Callable] | None = None,
@@ -1683,6 +1694,18 @@ class LocalPythonExecutor(PythonExecutor):
             state=self.state,
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
+        )
+        logs = str(self.state["_print_outputs"])
+        return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
+
+    async def run_async(self, code_action: str) -> CodeOutput:
+        output, is_final_answer = await evaluate_python_code_async(
+            code_action,
+            static_tools=self.static_tools,
+            custom_tools=self.custom_tools,
+            state=self.state,
+            authorized_imports=self.authorized_imports,
+            max_print_outputs_length=self.max_print_outputs_length
         )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
