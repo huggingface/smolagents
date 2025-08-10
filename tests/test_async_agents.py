@@ -65,7 +65,7 @@ class TestModels(unittest.IsolatedAsyncioTestCase):
 
         tools = [DuckDuckGoSearchTool()]
         agent = AsyncCodeAgent(model=client, tools=tools)
-        result = await agent.run("롯데뉴스", stream=True)
+        result = await agent.run("News for the LLM", stream=True)
         async for line in result:
             print("Chunk:",line)
 
