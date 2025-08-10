@@ -20,6 +20,7 @@ import difflib
 import inspect
 import logging
 import math
+import os
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
@@ -32,13 +33,12 @@ from typing import Any
 
 from .tools import Tool
 from .utils import BASE_BUILTIN_MODULES, truncate_content
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+from functools import partial
 
 
 logger = logging.getLogger(__name__)
-
-from concurrent.futures import ProcessPoolExecutor
-import asyncio
-from functools import partial
 
 
 class InterpreterError(ValueError):
@@ -1528,13 +1528,34 @@ class FinalAnswerException(Exception):
     def __init__(self, value):
         self.value = value
 
+from multiprocessing import cpu_count
 
-async def evaluate_python_code_async(code: str, **kwargs):
+
+NUM_WORKERS = os.getenv("NUM_WORKERS", cpu_count()//4)
+_EXECUTOR = ThreadPoolExecutor(max_workers=NUM_WORKERS)
+_SEMAPHORE = asyncio.Semaphore(NUM_WORKERS*4)
+
+async def evaluate_python_code_async(
+    code: str,
+    *,
+    timeout: float | None = None,
+    **kwargs,
+):
     """
-    동기 evaluate_python_code를 별도 스레드에서 실행하고 await로 결과를 받는다.
-    이벤트 루프는 블로킹되지 않는다.
+    동기 evaluate_python_code를 전용 스레드 풀에서 실행하고 await로 결과를 받는다.
+    - timeout: 초 단위 타임아웃(옵션). None이면 무제한.
+    - kwargs: evaluate_python_code에 그대로 전달 (state/static_tools/custom_tools/...)
     """
-    return await asyncio.to_thread(evaluate_python_code, code, **kwargs)
+    async def _run_in_pool():
+        loop = asyncio.get_running_loop()
+        fn = partial(evaluate_python_code, code, **kwargs)
+        return await loop.run_in_executor(_EXECUTOR, fn)
+
+    async with _SEMAPHORE:
+        if timeout is not None:
+            return await asyncio.wait_for(_run_in_pool(), timeout=timeout)
+        return await _run_in_pool()
+
 
 def evaluate_python_code(
     code: str,
