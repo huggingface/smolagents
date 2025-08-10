@@ -24,10 +24,16 @@ from typing import TYPE_CHECKING, Any
 
 from smolagents.monitoring import TokenUsage
 from smolagents.tools import Tool
-from smolagents.utils import RateLimiter, encode_image_base64, make_image_url, parse_json_blob
+from smolagents.utils import encode_image_base64, make_image_url, parse_json_blob
 
 if TYPE_CHECKING:
     pass
+
+try:
+    from .utils import RateLimiter
+except ImportError:
+    from utils import RateLimiter
+
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +181,8 @@ def agglomerate_stream_deltas(
     Agglomerate a list of stream deltas into a single stream delta.
     """
     accumulated_tool_calls: dict[int, ChatMessageToolCallStreamDelta] = {}
-    accumulated_content = ""
+
+    chunks = []
     total_input_tokens = 0
     total_output_tokens = 0
     for stream_delta in stream_deltas:
@@ -183,7 +190,7 @@ def agglomerate_stream_deltas(
             total_input_tokens += stream_delta.token_usage.input_tokens
             total_output_tokens += stream_delta.token_usage.output_tokens
         if stream_delta.content:
-            accumulated_content += stream_delta.content
+            chunks.append(stream_delta.content)
         if stream_delta.tool_calls:
             for tool_call_delta in stream_delta.tool_calls:  # ?ormally there should be only one call at a time
                 # Extend accumulated_tool_calls list to accommodate the new tool call if needed
@@ -210,7 +217,7 @@ def agglomerate_stream_deltas(
 
     return ChatMessage(
         role=role,
-        content=accumulated_content,
+        content="".join(chunks),
         tool_calls=[
             ChatMessageToolCall(
                 function=ChatMessageToolCallFunction(
@@ -518,6 +525,15 @@ class AsyncModel:
     def from_dict(cls, model_dictionary: dict[str, Any]) -> "Model":
         return cls(**{k: v for k, v in model_dictionary.items()})
 
+    async def generate_stream(
+            self,
+            messages: list[ChatMessage | dict],
+            stop_sequences: list[str] | None = None,
+            response_format: dict[str, str] | None = None,
+            tools_to_call_from: list[Tool] | None = None,
+            **kwargs,
+    ) -> AsyncGenerator[ChatMessageStreamDelta|NotImplementedError]:
+        yield NotImplementedError("This method should be implemented in child classes")
 
 class AsyncApiModel(AsyncModel):
     """
@@ -556,9 +572,9 @@ class AsyncApiModel(AsyncModel):
         """Create the API client for the specific service."""
         raise NotImplementedError("Subclasses must implement this method to create a client")
 
-    def _apply_rate_limit(self):
+    async def _apply_rate_limit(self):
         """Apply rate limiting before making API calls."""
-        self.rate_limiter.throttle()
+        await self.rate_limiter.athrottle()
 
 
 class AsyncOpenAIServerModel(AsyncApiModel):
@@ -641,7 +657,7 @@ class AsyncOpenAIServerModel(AsyncApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit()
 
         response = await self.client.chat.completions.create(
             **completion_kwargs, stream=True, stream_options={"include_usage": True}
@@ -695,7 +711,7 @@ class AsyncOpenAIServerModel(AsyncApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit()
         response = await self.client.chat.completions.create(**completion_kwargs)
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
@@ -874,7 +890,7 @@ class AsyncAnthropicAwsBedrock(AsyncApiModel):
                 message["content"] = [{"type": "text", "text": message["content"]}]
             elif isinstance(message["content"], list):
                 for content in message["content"]:
-                    if not isinstance(content["type"], dict):
+                    if not isinstance(content, dict):
                         continue
                     if "type" not in content:
                         content["type"] = "text"
@@ -921,7 +937,7 @@ class AsyncAnthropicAwsBedrock(AsyncApiModel):
             max_tokens=max_tokens,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit()
         response = await self.client.messages.create(**completion_kwargs)
         response = response.to_dict()
 
@@ -953,7 +969,7 @@ class AsyncAnthropicAwsBedrock(AsyncApiModel):
             stream=True,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit()
         response = await self.client.messages.create(**completion_kwargs)
         async for event in response:
             _type = event.type
@@ -1035,7 +1051,7 @@ class AsyncGoogleGemini(AsyncApiModel):
                 message["content"] = [{"type": "text", "text": message["content"]}]
             elif isinstance(message["content"], list):
                 for content in message["content"]:
-                    if not isinstance(content["type"], dict):
+                    if not isinstance(content, dict):
                         continue
                     if "type" not in content:
                         content["type"] = "text"
@@ -1153,70 +1169,6 @@ __all__ = [
     "AsyncAzureOpenAIServerModel",
     "AzureOpenAIModel",
     "AsyncAnthropicAwsBedrock",
+    "AsyncGoogleGemini",
     "ChatMessage",
 ]
-
-if __name__ == "__main__":
-    async def main():
-        messages = [
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": "What is the most important things in life?"}],
-            }
-        ]
-
-        client = AsyncGoogleGemini(
-            model_id="gemini-2.5-flash",
-            client_kwargs={
-                "api_key": os.getenv("GEMINI_API_KEY")
-            }
-        )
-
-
-        response = client.generate_stream(messages)
-        async for chunk in response:
-            print(chunk.content, end="")
-
-        client = AsyncAnthropicAwsBedrock(
-            model_id="anthropic.claude-3-5-sonnet-20241022-v2:0",
-            client_kwargs={
-                'aws_region': 'us-west-2',
-                'aws_secret_key': os.environ['CLAUDE_SECRET_KEY'],
-                'aws_access_key': os.environ['CLAUDE_ACCESS_KEY']
-            }
-        )
-        print("#### AWS Anthropic AwsBedrock response ####")
-        response = client.generate_stream(messages)
-        async for chunk in response:
-            print(chunk.content, end="")
-
-        response = await client.generate(messages)
-        print(response.content)
-
-        client = AsyncOpenAIServerModel(
-            model_id="gpt-4o",
-            api_key=os.getenv("OPENAI_API_KEY")
-        )
-
-        response = await client.generate(messages)
-
-        print("#### OpenAI Response ####")
-        print(response.content)
-
-        # Azure OpenAI
-        client = AsyncAzureOpenAIServerModel(
-            model_id="gpt4d1",
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-        )
-
-        response = await client.generate(messages=messages)
-
-        print("#### Azure OpenAI Client ####")
-        print(response.content)
-
-
-    import asyncio
-
-    asyncio.run(main())
