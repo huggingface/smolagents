@@ -1,3 +1,4 @@
+#src/smolagents/vision_web_browser.py
 import argparse
 from io import BytesIO
 from time import sleep
