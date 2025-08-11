@@ -1,10 +1,10 @@
 # 멀티 에이전트 시스템 오케스트레이션 🤖🤝🤖
 
-[[open-in-colab]]
+[[Colab에서 열기]]
 
 이 노트북에서는 **멀티 에이전트 웹 브라우저**를 만들어보겠습니다. 이는 웹을 사용하여 문제를 해결하기 위해 여러 에이전트가 협력하는 에이전트 시스템입니다!
 
-간단한 계층 구조로 구성됩니다:
+멀티 에이전트는 간단한 계층 구조로 구성됩니다.
 
 ```
               +----------------+
@@ -22,13 +22,13 @@ Code Interpreter            +------------------+
 ```
 이 시스템을 설정해보겠습니다. 
 
-아래 줄을 실행하여 필요한 종속성을 설치합니다:
+다음 명령어를 실행하여 필요한 종속성을 설치합니다.
 
 ```py
 !pip install smolagents[toolkit] --upgrade -q
 ```
 
-Inference Providers를 호출하기 위해 HF에 로그인해보겠습니다:
+Inference Providers를 사용하기 위해 Hugging Face에 로그인합니다:
 
 ```py
 from huggingface_hub import login
@@ -49,8 +49,8 @@ model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
 
 웹 브라우징을 위해 Google 검색과 동등한 기능을 제공하는 기본 [`WebSearchTool`] 도구를 이미 사용할 수 있습니다.
 
-하지만 `WebSearchTool`에서 찾은 페이지를 들여다볼 수 있는 기능도 필요합니다.
-이를 위해 라이브러리에 내장된 `VisitWebpageTool`을 가져올 수도 있지만, 작동 방식을 보기 위해 다시 구축해보겠습니다.
+하지만 `WebSearchTool`에서 찾은 페이지를 확인할 수 있는 기능도 필요합니다.
+이를 위해 라이브러리에 내장된 `VisitWebpageTool`을 사용할 수도 있지만, 작동 원리를 이해하기 위해 직접 구현해보겠습니다.
 
 그래서 `markdownify`를 사용하여 `VisitWebpageTool` 도구를 처음부터 만들어보겠습니다.
 
@@ -64,12 +64,12 @@ from smolagents import tool
 
 @tool
 def visit_webpage(url: str) -> str:
-    """주어진 URL의 웹페이지를 방문하고 그 내용을 마크다운 문자열로 반환합니다.
+    """주어진 URL의 웹페이지에 접속하여 그 내용을 마크다운 형식의 반환합니다.
 
-    Args:
+    매개변수:
         url: 방문할 웹페이지의 URL.
 
-    Returns:
+    반환값:
         마크다운으로 변환된 웹페이지 내용, 또는 요청이 실패할 경우 오류 메시지.
     """
     try:
@@ -102,7 +102,7 @@ print(visit_webpage("https://en.wikipedia.org/wiki/Hugging_Face")[:500])
 이제 `search`와 `visit_webpage` 도구가 모두 준비되었으므로, 이를 사용하여 웹 에이전트를 생성할 수 있습니다.
 
 이 에이전트에 어떤 구성을 선택할까요?
-- 웹 브라우징은 병렬 도구 호출이 필요하지 않은 단일 타임라인 작업이므로, JSON 도구 호출이 잘 작동합니다. 따라서 `ToolCallingAgent`를 선택합니다.
+- 웹 브라우징은 병렬 도구 호출이 필요없는 단일 타임라인 작업이므로, JSON 도구 호출 방식이 적합합니다. 따라서 `ToolCallingAgent`를 선택합니다.
 - 또한 웹 검색은 올바른 답을 찾기 전에 많은 페이지를 탐색해야 하는 경우가 있으므로, `max_steps`를 10으로 늘리는 것이 좋습니다.
 
 ```py
@@ -142,7 +142,7 @@ manager_agent = CodeAgent(
 )
 ```
 
-이게 전부입니다! 이제 시스템을 실행해보겠습니다! 계산과 연구가 모두 필요한 질문을 선택합니다:
+이게 전부입니다! 이제 시스템을 실행해보겠습니다! 계산과 연구가 모두 필요한 질문을 선택합니다.
 
 ```py
 answer = manager_agent.run("If LLM training continues to scale up at the current rhythm until 2030, what would be the electric power in GW required to power the biggest training runs by 2030? What would that correspond to, compared to some countries? Please provide a source for any numbers used.")
@@ -170,6 +170,6 @@ translates to about 2,660,762 GWh/year.
 
 [스케일링 가설](https://gwern.net/scaling-hypothesis)이 계속 참이라면 상당히 큰 발전소가 필요할 것 같습니다.
 
-저희 에이전트들이 작업 해결을 위해 효율적으로 협력했습니다! ✅
+에이전트들이 작업을 해결하기 위해 효율적으로 협력했습니다! ✅
 
-💡 이 오케스트레이션을 더 많은 에이전트로 쉽게 확장할 수 있습니다: 하나는 코드 실행을, 하나는 웹 검색을, 하나는 파일 로딩을 처리하는 식으로...
+💡 이 오케스트레이션을 더 많은 에이전트로 쉽게 확장할 수 있습니다: 하나는 코드 실행을, 다른 하나는 웹 검색을,  또 다른 하나는 파일 처리를 담당하는 식으로...
