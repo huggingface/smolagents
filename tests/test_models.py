@@ -776,7 +776,7 @@ class TestGetToolCallFromText:
         with pytest.raises(ValueError) as exc_info:
             get_tool_call_from_text(text, "name", "arguments")
         error_msg = str(exc_info.value)
-        assert "Key tool_name_key='name' not found" in error_msg
+        assert "Tool call needs to have a key 'name'" in error_msg
         assert "'action', 'arguments'" in error_msg
 
     def test_get_tool_call_from_text_json_object_args(self):

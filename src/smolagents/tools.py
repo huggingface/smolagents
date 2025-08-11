@@ -614,7 +614,7 @@ class Tool(BaseTool):
                 # If api_name is not defined, take the first of the available APIs for this space
                 if api_name is None:
                     api_name = list(space_description.keys())[0]
-                    logger.warning(
+                    warnings.warn(
                         f"Since `api_name` was not defined, it was automatically set to the first available API: `{api_name}`."
                     )
                 self.api_name = api_name
@@ -919,14 +919,8 @@ class ToolCollection:
                 - A `dict` with at least:
                   - "url": URL of the server.
                   - "transport": Transport protocol to use, one of:
-                    - "streamable-http": (recommended) Streamable HTTP transport.
+                    - "streamable-http": Streamable HTTP transport (default).
                     - "sse": Legacy HTTP+SSE transport (deprecated).
-                  If "transport" is omitted, the legacy "sse" transport is assumed (a deprecation warning will be issued).
-
-                <Deprecated version="1.17.0">
-                The HTTP+SSE transport is deprecated and future behavior will default to the Streamable HTTP transport.
-                Please pass explicitly the "transport" key.
-                </Deprecated>
             trust_remote_code (`bool`, *optional*, defaults to `False`):
                 Whether to trust the execution of code from tools defined on the MCP server.
                 This option should only be set to `True` if you trust the MCP server,
@@ -973,13 +967,7 @@ class ToolCollection:
         if isinstance(server_parameters, dict):
             transport = server_parameters.get("transport")
             if transport is None:
-                warnings.warn(
-                    "Passing a dict as server_parameters without specifying the 'transport' key is deprecated. "
-                    "For now, it defaults to the legacy 'sse' (HTTP+SSE) transport, but this default will change "
-                    "to 'streamable-http' in version 1.20. Please add the 'transport' key explicitly. ",
-                    FutureWarning,
-                )
-                transport = "sse"
+                transport = "streamable-http"
                 server_parameters["transport"] = transport
             if transport not in {"sse", "streamable-http"}:
                 raise ValueError(

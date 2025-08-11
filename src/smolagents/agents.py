@@ -203,16 +203,58 @@ class RunResult:
     Attributes:
         output (Any | None): The final output of the agent run, if available.
         state (Literal["success", "max_steps_error"]): The final state of the agent after the run.
-        messages (list[dict]): The agent's memory, as a list of messages.
+        steps (list[dict]): The agent's memory, as a list of steps.
         token_usage (TokenUsage | None): Count of tokens used during the run.
         timing (Timing): Timing details of the agent run: start time, end time, duration.
+        messages (list[dict]): The agent's memory, as a list of messages.
+            <Deprecated version="1.22.0">
+            Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.
+            </Deprecated>
     """
 
     output: Any | None
     state: Literal["success", "max_steps_error"]
-    messages: list[dict]
+    steps: list[dict]
     token_usage: TokenUsage | None
     timing: Timing
+
+    def __init__(self, output=None, state=None, steps=None, token_usage=None, timing=None, messages=None):
+        # Handle deprecated 'messages' parameter
+        if messages is not None:
+            if steps is not None:
+                raise ValueError("Cannot specify both 'messages' and 'steps' parameters. Use 'steps' instead.")
+            warnings.warn(
+                "Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            steps = messages
+
+        # Initialize with dataclass fields
+        self.output = output
+        self.state = state
+        self.steps = steps
+        self.token_usage = token_usage
+        self.timing = timing
+
+    @property
+    def messages(self):
+        """Backward compatibility property that returns steps."""
+        warnings.warn(
+            "Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return self.steps
+
+    def dict(self):
+        return {
+            "output": self.output,
+            "state": self.state,
+            "steps": self.steps,
+            "token_usage": self.token_usage.dict() if self.token_usage is not None else None,
+            "timing": self.timing.dict(),
+        }
 
 
 StreamEvent: TypeAlias = Union[
@@ -240,10 +282,6 @@ class MultiStepAgent(ABC):
         max_steps (`int`, default `20`): Maximum number of steps the agent can take to solve the task.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
-        grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
-            <Deprecated version="1.17.0">
-            Parameter `grammar` is deprecated and will be removed in version 1.20.
-            </Deprecated>
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable | list[Callable]]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
@@ -254,6 +292,7 @@ class MultiStepAgent(ABC):
             Each function should:
             - Take the final answer and the agent's memory as arguments.
             - Return a boolean indicating whether the final answer is valid.
+        return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
     """
 
     def __init__(
@@ -265,7 +304,6 @@ class MultiStepAgent(ABC):
         max_steps: int = 20,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
-        grammar: dict[str, str] | None = None,
         managed_agents: list | None = None,
         step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable | list[Callable]] | None = None,
         planning_interval: int | None = None,
@@ -293,12 +331,6 @@ class MultiStepAgent(ABC):
 
         self.max_steps = max_steps
         self.step_number = 0
-        if grammar is not None:
-            warnings.warn(
-                "Parameter 'grammar' is deprecated and will be removed in version 1.20.",
-                FutureWarning,
-            )
-        self.grammar = grammar
         self.planning_interval = planning_interval
         self.state: dict[str, Any] = {}
         self.name = self._validate_name(name)
@@ -412,7 +444,8 @@ class MultiStepAgent(ABC):
         images: list["PIL.Image.Image"] | None = None,
         additional_args: dict | None = None,
         max_steps: int | None = None,
-    ):
+        return_full_result: bool | None = None,
+    ) -> Any | RunResult:
         """
         Run the agent for the given task.
 
@@ -425,6 +458,8 @@ class MultiStepAgent(ABC):
             images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
             additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
             max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+            return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
+                If `None` (default), the agent's `self.return_full_result` setting is used.
 
         Example:
         ```py
@@ -469,7 +504,8 @@ You have been provided with these additional arguments, that you can access dire
         assert isinstance(steps[-1], FinalAnswerStep)
         output = steps[-1].output
 
-        if self.return_full_result:
+        return_full_result = return_full_result if return_full_result is not None else self.return_full_result
+        if return_full_result:
             total_input_tokens = 0
             total_output_tokens = 0
             correct_token_usage = True
@@ -491,12 +527,12 @@ You have been provided with these additional arguments, that you can access dire
             else:
                 state = "success"
 
-            messages = self.memory.get_full_steps()
+            step_dicts = self.memory.get_full_steps()
 
             return RunResult(
                 output=output,
                 token_usage=token_usage,
-                messages=messages,
+                steps=step_dicts,
                 timing=Timing(start_time=run_start_time, end_time=time.time()),
                 state=state,
             )
@@ -713,13 +749,6 @@ You have been provided with these additional arguments, that you can access dire
             token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens),
             timing=Timing(start_time=start_time, end_time=time.time()),
         )
-
-    @property
-    def logs(self):
-        logger.warning(
-            "The 'logs' attribute is deprecated and will soon be removed. Please use 'self.memory.steps' instead."
-        )
-        return [self.memory.system_prompt] + self.memory.steps
 
     @abstractmethod
     def initialize_system_prompt(self) -> str:
@@ -977,7 +1006,6 @@ You have been provided with these additional arguments, that you can access dire
             "prompt_templates": self.prompt_templates,
             "max_steps": self.max_steps,
             "verbosity_level": int(self.logger.level),
-            "grammar": self.grammar,
             "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
@@ -1018,7 +1046,6 @@ You have been provided with these additional arguments, that you can access dire
             "prompt_templates": agent_dict.get("prompt_templates"),
             "max_steps": agent_dict.get("max_steps"),
             "verbosity_level": agent_dict.get("verbosity_level"),
-            "grammar": agent_dict.get("grammar"),
             "planning_interval": agent_dict.get("planning_interval"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
@@ -1301,6 +1328,11 @@ class ToolCallingAgent(MultiStepAgent):
             yield output
             if isinstance(output, ToolOutput):
                 if output.is_final_answer:
+                    if len(chat_message.tool_calls) > 1:
+                        raise AgentExecutionError(
+                            "If you want to return an answer, please do not perform any other tool calls than the final answer tool call!",
+                            self.logger,
+                        )
                     if got_final_answer:
                         raise AgentToolExecutionError(
                             "You returned multiple final answers. Please return only one single final answer!",
@@ -1477,10 +1509,6 @@ class CodeAgent(MultiStepAgent):
         use_structured_outputs_internally (`bool`, default `False`): Whether to use structured generation at each action step: improves performance for many models.
 
             <Added version="1.17.0"/>
-        grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
-            <Deprecated version="1.17.0">
-            Parameter `grammar` is deprecated and will be removed in version 1.20.
-            </Deprecated>
         code_block_tags (`tuple[str, str]` | `Literal["markdown"]`, *optional*): Opening and closing tags for code blocks (regex strings). Pass a custom tuple, or pass 'markdown' to use ("```(?:python|py)", "\\n```"), leave empty to use ("<code>", "</code>").
         **kwargs: Additional keyword arguments.
     """
@@ -1497,7 +1525,6 @@ class CodeAgent(MultiStepAgent):
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
-        grammar: dict[str, str] | None = None,
         code_block_tags: str | tuple[str, str] | None = None,
         **kwargs,
     ):
@@ -1505,7 +1532,7 @@ class CodeAgent(MultiStepAgent):
         self.authorized_imports = sorted(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         self.max_print_outputs_length = max_print_outputs_length
         self._use_structured_outputs_internally = use_structured_outputs_internally
-        if use_structured_outputs_internally:
+        if self._use_structured_outputs_internally:
             prompt_templates = prompt_templates or yaml.safe_load(
                 importlib.resources.files("smolagents.prompts").joinpath("structured_code_agent.yaml").read_text()
             )
@@ -1513,8 +1540,6 @@ class CodeAgent(MultiStepAgent):
             prompt_templates = prompt_templates or yaml.safe_load(
                 importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
             )
-        if grammar and use_structured_outputs_internally:
-            raise ValueError("You cannot use 'grammar' and 'use_structured_outputs_internally' at the same time.")
 
         if isinstance(code_block_tags, str) and not code_block_tags == "markdown":
             raise ValueError("Only 'markdown' is supported for a string argument to `code_block_tags`.")
@@ -1530,7 +1555,6 @@ class CodeAgent(MultiStepAgent):
             tools=tools,
             model=model,
             prompt_templates=prompt_templates,
-            grammar=grammar,
             planning_interval=planning_interval,
             **kwargs,
         )
@@ -1616,8 +1640,6 @@ class CodeAgent(MultiStepAgent):
             stop_sequences.append(self.code_block_tags[1])
         try:
             additional_args: dict[str, Any] = {}
-            if self.grammar:
-                additional_args["grammar"] = self.grammar
             if self._use_structured_outputs_internally:
                 additional_args["response_format"] = CODEAGENT_RESPONSE_FORMAT
             if self.stream_outputs:
@@ -1651,11 +1673,12 @@ class CodeAgent(MultiStepAgent):
                     level=LogLevel.DEBUG,
                 )
 
-            # This adds the end code sequence to the history.
-            # This will nudge ulterior LLM calls to finish with this end code sequence, thus efficiently stopping generation.
-            if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
-                output_text += self.code_block_tags[1]
-                memory_step.model_output_message.content = output_text
+            if not self._use_structured_outputs_internally:
+                # This adds the end code sequence (i.e. the closing code block tag) to the history.
+                # This will nudge subsequent LLM calls to finish with this end code sequence, thus efficiently stopping generation.
+                if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
+                    output_text += self.code_block_tags[1]
+                    memory_step.model_output_message.content = output_text
 
             memory_step.token_usage = chat_message.token_usage
             memory_step.model_output = output_text
