@@ -13,7 +13,7 @@ ReAct라는 이름은 "추론(Reason)"과 "행동(Act)"을 결합한 것입니�
 While 루프 (ReAct 루프):
 
 - `agent.write_memory_to_messages()`를 사용하여 에이전트 로그를 LLM이 읽을 수 있는 [채팅 메시지](https://huggingface.co/docs/transformers/en/chat_templating) 목록에 작성합니다.
-- 이 메시지를 `Model` 객체에 전송하여 완료 결과를 얻습니다. 에이전트는 완료 결과를 파싱하여 액션(`ToolCallingAgent`의 경우 JSON blob, `CodeAgent`의 경우 코드 스니펫)을 추출합니다.
+- 이 메시지를 `Model` 객체에 전송하여 응답을 받습니다. 에이전트는 응답을 파싱하여 액션(`ToolCallingAgent`의 경우 JSON blob, `CodeAgent`의 경우 코드 스니펫)을 추출합니다.
 - 액션을 실행하고 결과를 메모리에 기록합니다(`ActionStep`).
 - 각 단계가 끝날 때마다 `agent.step_callbacks`에 정의된 모든 콜백 함수를 실행합니다.
 
