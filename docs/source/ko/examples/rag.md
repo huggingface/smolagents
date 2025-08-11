@@ -10,7 +10,7 @@
 
 RAG는 기본 대규모 언어 모델이나 미세 조정된 모델을 사용하는 것에 비해 몇 가지 중요한 장점을 제공합니다:
 
-1. **사실 기반 생성**: 답변의 근거를 검색 결과에 두어 환각 현상을 줄입니다.
+1. **사실 기반 생성**: 검색된 사실에 응답의 근거를 둠으로써 환각 현상을 줄입니다.
 2. **도메인 특화**: 모델을 다시 훈련시키지 않고도 특정 도메인의 지식을 제공합니다.
 3. **최신 지식 반영**: 모델의 훈련 시점 이후의 정보에도 접근할 수 있습니다.
 4. **투명성**: 생성된 콘텐츠의 출처를 인용할 수 있습니다.
@@ -44,7 +44,7 @@ RAG는 기본 대규모 언어 모델이나 미세 조정된 모델을 사용하
 
 ## Agentic RAG 시스템 구축하기[[building-an-agentic-rag-system]]
 
-단계별로 완전한 Agentic RAG 시스템을 구축해 보겠습니다. 허깅 페이스 Transformers 라이브러리 설명서에서 정보를 검색하여 질문에 답할 수 있는 에이전트를 만들 것입니다.
+이제 단계별로 Agentic RAG 시스템을 구축해 보겠습니다. 이 예제에서는 허깅 페이스 Transformers 라이브러리 설명서를 검색해 질문에 답할 수 있는 에이전트를 만들 것입니다.
 
 아래 코드 스니펫을 따라 하거나, smolagents GitHub 리포지토리에서 전체 예제를 확인할 수 있습니다: [examples/rag.py](https://github.com/huggingface/smolagents/blob/main/examples/rag.py).
 
@@ -66,7 +66,7 @@ load_dotenv()
 
 ### 2단계: 지식 베이스 준비하기[[step-2-prepare-the-knowledge-base]]
 
-허깅 페이스 설명서가 포함된 데이터 세트를 사용하여 검색을 위해 준비하겠습니다:
+허깅 페이스 설명서가 포함된 데이터 세트를 사용하여 검색을 위해 준비해 보겠습니다:
 
 ```python
 import datasets
@@ -101,7 +101,7 @@ print(f"Knowledge base prepared with {len(docs_processed)} document chunks")
 
 ### 3단계: 검색 도구 만들기[[step-3-create-a-retriever-tool]]
 
-이제 에이전트가 지식 베이스에서 정보를 검색하는 데 사용할 수 있는 사용자 정의 도구를 만들겠습니다:
+이제 에이전트가 지식 베이스에서 정보를 검색하는 데 사용할 수 있는 사용자 정의 도구를 만들어 보겠습니다:
 
 ```python
 from smolagents import Tool
@@ -148,7 +148,7 @@ retriever_tool = RetrieverTool(docs_processed)
 
 ### 4단계: 고급 검색 에이전트 만들기[[step-4-create-an-advanced-retrieval-agent]]
 
-이제 검색 도구를 사용하여 질문에 답할 수 있는 에이전트를 만들겠습니다:
+다음으로 앞서 만든 검색 도구를 활용해 질문에 답할 수 있는 에이전트를 구성해 봅시다.
 
 ```python
 from smolagents import InferenceClientModel, CodeAgent
@@ -170,7 +170,7 @@ agent = CodeAgent(
 
 ### 5단계: 에이전트를 실행하여 질문에 답하기[[step-5-run-the-agent-to-answer-questions]]
 
-에이전트를 사용하여 Transformers에 대한 질문에 답해 보겠습니다:
+마지막으로 에이전트를 실행해 Transformers 관련 질문에 답해 보겠습니다.
 
 ```python
 # 정보 검색이 필요한 질문하기
@@ -200,7 +200,7 @@ Agentic RAG는 전통적인 RAG 파이프라인을 뛰어넘는 중요한 발전
 
 저희가 보여드린 접근 방식은 다음과 같은 특징이 있습니다:
 - 단일 단계 검색의 한계를 극복합니다.
-- 지식 베이스와의 상호작용이 더 자연스러워집니다.
+- 지식 베이스와의 더 자연스러운 상호작용을 가능하게 합니다.
 - 자체 평가와 쿼리 정제를 통해 지속해서 개선할 수 있는 프레임워크를 제공합니다.
 
 자신만의 Agentic RAG 시스템을 구축할 때에는, 다양한 검색 방법과 에이전트 아키텍처, 지식 소스를 실험하며 사용 사례에 최적화된 구성을 찾아보세요.
