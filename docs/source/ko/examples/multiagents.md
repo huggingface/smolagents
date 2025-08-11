@@ -36,7 +36,7 @@ from huggingface_hub import login
 login()
 ```
 
-⚡️ 저희 에이전트는 HF의 Inference API를 사용하는 `InferenceClientModel` 클래스를 통해 [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct)로 구동됩니다. Inference API를 사용하면 모든 OS 모델을 빠르고 쉽게 실행할 수 있습니다.
+⚡️ 에이전트는 Hugging Face의 Inference API를 사용하는 `InferenceClientModel` 클래스를 통해 [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct)로 구동됩니다. Inference API를 사용하면 모든 오픈소스 모델을 빠르고 쉽게 실행할 수 있습니다.
 
 > [!TIP]
 > Inference Providers는 서버리스 추론 파트너가 지원하는 수백 개의 모델에 대한 액세스를 제공합니다. 지원되는 프로바이더 목록은 [여기](https://huggingface.co/docs/inference-providers/index)에서 확인할 수 있습니다.
@@ -52,7 +52,7 @@ model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
 하지만 `WebSearchTool`에서 찾은 페이지를 확인할 수 있는 기능도 필요합니다.
 이를 위해 라이브러리에 내장된 `VisitWebpageTool`을 사용할 수도 있지만, 작동 원리를 이해하기 위해 직접 구현해보겠습니다.
 
-그래서 `markdownify`를 사용하여 `VisitWebpageTool` 도구를 처음부터 만들어보겠습니다.
+`markdownify`를 사용하여 `VisitWebpageTool` 도구를 처음부터 만들어보겠습니다.
 
 ```py
 import re
@@ -145,27 +145,26 @@ manager_agent = CodeAgent(
 이게 전부입니다! 이제 시스템을 실행해보겠습니다! 계산과 연구가 모두 필요한 질문을 선택합니다.
 
 ```py
-answer = manager_agent.run("If LLM training continues to scale up at the current rhythm until 2030, what would be the electric power in GW required to power the biggest training runs by 2030? What would that correspond to, compared to some countries? Please provide a source for any numbers used.")
+answer = manager_agent.run("LLM 훈련이 현재 속도로 2030년까지 계속 확장된다면, 2030년까지 가장 큰 훈련 실행에 전력을 공급하는 데 필요한 전력량은 GW 단위로 얼마가 될까요? 이는 일부 국가들과 비교했을 때 무엇에 해당할까요? 사용된 모든 수치에 대한 출처를 제공해주세요.")
 ```
 
-We get this report as the answer:
+답변으로 이런 보고서를 받습니다.
 ```
-Based on current growth projections and energy consumption estimates, if LLM trainings continue to scale up at the 
-current rhythm until 2030:
+현재 성장 전망과 에너지 소비량 추정에 따르면,
+2030년까지 LLM 교육이 현재 속도로 계속 확장된다면 다음과 같이 예상됩니다.
 
-1. The electric power required to power the biggest training runs by 2030 would be approximately 303.74 GW, which 
-translates to about 2,660,762 GWh/year.
+1. 2030년까지 가장 큰 훈련 실행에 전력을 공급하는 데 필요한 전력량은 약 303.74 GW가 될 것이며, 
+이는 연간 약 2,660,762 GWh로 환산됩니다.
 
-2. Comparing this to countries' electricity consumption:
-   - It would be equivalent to about 34% of China's total electricity consumption.
-   - It would exceed the total electricity consumption of India (184%), Russia (267%), and Japan (291%).
-   - It would be nearly 9 times the electricity consumption of countries like Italy or Mexico.
+2. 국가별 전력 소비량 비교
+   - 중국 총 전력 소비량의 약 34%에 해당합니다.
+   - 인도(184%), 러시아(267%), 일본(291%)의 총 전력 소비량을 초과할 것입니다.
+   - 이탈리아나 멕시코 같은 국가들의 전력 소비량의 거의 9배가 됩니다.
 
-3. Source of numbers:
-   - The initial estimate of 5 GW for future LLM training comes from AWS CEO Matt Garman.
-   - The growth projection used a CAGR of 79.80% from market research by Springs.
-   - Country electricity consumption data is from the U.S. Energy Information Administration, primarily for the year 
-2021.
+3. 수치 출처
+   - 미래 LLM 훈련을 위한 5 GW의 초기 추정치는 AWS CEO Matt Garman에서 나온 것입니다.
+   - 성장 예측은 Springs의 시장 조사에서 79.80%의 CAGR을 사용했습니다.
+   - 국가 전력 소비 데이터는 주로 2021년 기준으로 미국 에너지 정보 관리청에서 나온 것입니다.
 ```
 
 [스케일링 가설](https://gwern.net/scaling-hypothesis)이 계속 참이라면 상당히 큰 발전소가 필요할 것 같습니다.
