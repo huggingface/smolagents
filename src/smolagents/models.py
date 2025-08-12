@@ -403,8 +403,8 @@ class Model:
         Prepare parameters required for model invocation.
 
         Parameter priority (highest to lowest):
-        1. Explicitly passed kwargs
-        2. self.kwargs (model defaults)
+        1. self.kwargs (model defaults)
+        2. Explicitly passed kwargs
         3. Specific parameters (stop_sequences, response_format, etc.)
         """
         # Clean and standardize the message list
@@ -429,10 +429,10 @@ class Model:
             completion_kwargs["tools"] = [get_tool_json_schema(tool) for tool in tools_to_call_from]
             if tool_choice is not None:
                 completion_kwargs["tool_choice"] = tool_choice
-        # Override with self.kwargs
-        completion_kwargs.update(self.kwargs)
         # Override with passed-in kwargs
         completion_kwargs.update(kwargs)
+        # Override with self.kwargs
+        completion_kwargs.update(self.kwargs)
         return completion_kwargs
 
     def generate(
