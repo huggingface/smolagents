@@ -12,6 +12,18 @@ contains the API docs for the underlying classes.
 
 ## Models
 
+### Base Model
+
+The `Model` class serves as the foundation for all model implementations, providing the core interface that custom models must implement to work with agents.
+
+[[autodoc]] Model
+
+### API Model
+
+The `ApiModel` class serves as the foundation for all API-based model implementations, providing common functionality for external API interactions, rate limiting, and client management that API-specific models inherit.
+
+[[autodoc]] ApiModel
+
 ### TransformersModel
 
 For convenience, we have added a `TransformersModel` that implements the points above by building a local `transformers` pipeline for the model_id given at initialization.
