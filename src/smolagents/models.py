@@ -374,6 +374,37 @@ def supports_stop_parameter(model_id: str) -> bool:
 
 
 class Model:
+    """Base class for all language model implementations.
+
+    This abstract class defines the core interface that all model implementations must follow
+    to work with agents. It provides common functionality for message handling, tool integration,
+    and model configuration while allowing subclasses to implement their specific generation logic.
+
+    Parameters:
+        flatten_messages_as_text (`bool`, default `False`):
+            Whether to flatten complex message content into plain text format.
+        tool_name_key (`str`, default `"name"`):
+            The key used to extract tool names from model responses.
+        tool_arguments_key (`str`, default `"arguments"`):
+            The key used to extract tool arguments from model responses.
+        model_id (`str`, *optional*):
+            Identifier for the specific model being used.
+        **kwargs:
+            Additional keyword arguments to forward to the model completion call.
+
+    Note:
+        This is an abstract base class. Subclasses must implement the `generate()` method
+        to provide actual model inference capabilities.
+
+    Example:
+        ```python
+        class CustomModel(Model):
+            def generate(self, messages, **kwargs):
+                # Implementation specific to your model
+                pass
+        ```
+    """
+
     def __init__(
         self,
         flatten_messages_as_text: bool = False,
