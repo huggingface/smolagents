@@ -31,7 +31,6 @@ from pathlib import Path
 from queue import Queue
 from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
 
-import jinja2
 import yaml
 from huggingface_hub import create_repo, metadata_update, snapshot_download, upload_folder
 from jinja2 import StrictUndefined, Template
@@ -78,16 +77,20 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor
-from .tools import ReceiveMessagesTool, SendMessageTool, Tool, validate_tool_arguments
+
+from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
+from .tools import BaseTool, Tool, validate_tool_arguments, ReceiveMessagesTool, SendMessageTool,
+
 from .utils import (
-    AGENT_GRADIO_APP_TEMPLATE,
     AgentError,
     AgentMaxRuntimeError,
     AgentMaxStepsError,
     AgentParsingError,
     AgentToolCallError,
     AgentToolExecutionError,
+    create_agent_gradio_app_template,
+    extract_code_from_text,
+
     is_valid_name,
     make_init_file,
     parse_code_blobs,
@@ -213,16 +216,58 @@ class RunResult:
     Attributes:
         output (Any | None): The final output of the agent run, if available.
         state (Literal["success", "max_steps_error"]): The final state of the agent after the run.
-        messages (list[dict]): The agent's memory, as a list of messages.
+        steps (list[dict]): The agent's memory, as a list of steps.
         token_usage (TokenUsage | None): Count of tokens used during the run.
         timing (Timing): Timing details of the agent run: start time, end time, duration.
+        messages (list[dict]): The agent's memory, as a list of messages.
+            <Deprecated version="1.22.0">
+            Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.
+            </Deprecated>
     """
 
     output: Any | None
     state: Literal["success", "max_steps_error"]
-    messages: list[dict]
+    steps: list[dict]
     token_usage: TokenUsage | None
     timing: Timing
+
+    def __init__(self, output=None, state=None, steps=None, token_usage=None, timing=None, messages=None):
+        # Handle deprecated 'messages' parameter
+        if messages is not None:
+            if steps is not None:
+                raise ValueError("Cannot specify both 'messages' and 'steps' parameters. Use 'steps' instead.")
+            warnings.warn(
+                "Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            steps = messages
+
+        # Initialize with dataclass fields
+        self.output = output
+        self.state = state
+        self.steps = steps
+        self.token_usage = token_usage
+        self.timing = timing
+
+    @property
+    def messages(self):
+        """Backward compatibility property that returns steps."""
+        warnings.warn(
+            "Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return self.steps
+
+    def dict(self):
+        return {
+            "output": self.output,
+            "state": self.state,
+            "steps": self.steps,
+            "token_usage": self.token_usage.dict() if self.token_usage is not None else None,
+            "timing": self.timing.dict(),
+        }
 
 
 StreamEvent: TypeAlias = Union[
@@ -251,10 +296,6 @@ class MultiStepAgent(ABC):
         max_runtime (`int`, default `300`): Maximum runtime allowed for `run()` in seconds.
         add_base_tools (`bool`, default `False`): Whether to add the base tools to the agent's tools.
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
-        grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
-            <Deprecated version="1.17.0">
-            Parameter `grammar` is deprecated and will be removed in version 1.20.
-            </Deprecated>
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable | list[Callable]]`, *optional*): Callbacks that will be called at each step.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
@@ -265,6 +306,7 @@ class MultiStepAgent(ABC):
             Each function should:
             - Take the final answer and the agent's memory as arguments.
             - Return a boolean indicating whether the final answer is valid.
+        return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
     """
 
     def __init__(
@@ -279,7 +321,6 @@ class MultiStepAgent(ABC):
         max_runtime: int = 300,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
-        grammar: dict[str, str] | None = None,
         managed_agents: list | None = None,
         step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable | list[Callable]] | None = None,
         planning_interval: int | None = None,
@@ -320,12 +361,6 @@ class MultiStepAgent(ABC):
         self.max_steps = max_steps
         self.max_runtime = max_runtime
         self.step_number = 0
-        if grammar is not None:
-            warnings.warn(
-                "Parameter 'grammar' is deprecated and will be removed in version 1.20.",
-                FutureWarning,
-            )
-        self.grammar = grammar
         self.planning_interval = planning_interval
         self.state: dict[str, Any] = {}
         self.name = self._validate_name(name)
@@ -442,7 +477,9 @@ class MultiStepAgent(ABC):
                 agent.output_type = "string"
 
     def _setup_tools(self, tools, add_base_tools):
-        assert all(isinstance(tool, Tool) for tool in tools), "All elements must be instance of Tool (or a subclass)"
+        assert all(isinstance(tool, BaseTool) for tool in tools), (
+            "All elements must be instance of BaseTool (or a subclass)"
+        )
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(
@@ -492,8 +529,12 @@ class MultiStepAgent(ABC):
         reset: bool = True,
         images: list["PIL.Image.Image"] | None = None,
         additional_args: dict | None = None,
+        max_steps: int | None = None,
+        return_full_result: bool | None = None,
+    ) -> Any | RunResult:
         max_runtime: int | None = None,  # Maximum runtime in seconds
     ):
+
         """
         Run the agent in a decentralized manner, processing tasks from its queue.
         The vanilla method use a centralized ReAct loop, but this method allows for decentralized processing.
@@ -502,9 +543,17 @@ class MultiStepAgent(ABC):
             task (`str`, *optional*): Initial task to perform.
             reset (`bool`): Whether to reset the conversation or keep it going.
             images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
-            additional_args (`dict`, *optional*): Additional variables for the agent.
-            max_runtime (`int`, *optional*): Maximum runtime in seconds before terminating. If None, uses
-            the agent's `max_runtime` attribute.
+            additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
+            max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+            return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
+                If `None` (default), the agent's `self.return_full_result` setting is used.
+
+        Example:
+        ```py
+        from smolagents import CodeAgent
+        agent = CodeAgent(tools=[])
+        agent.run("What is the result of 2 power 3.7384?")
+        ```
         """
 
         self.task = task
@@ -513,8 +562,9 @@ class MultiStepAgent(ABC):
         if additional_args:
             self.state.update(additional_args)
             self.task += f"""
-            You have been provided with these additional arguments, that you can access using the keys as variables in your python code:
-            {str(additional_args)}."""
+You have been provided with these additional arguments, that you can access directly using the keys as variables:
+{str(additional_args)}."""
+
 
         self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
         if reset:
@@ -540,17 +590,48 @@ class MultiStepAgent(ABC):
             self.python_executor.send_variables(variables=self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
-        # Decentralized loop: process messages and tasks
-        if max_runtime is None:
-            max_runtime = self.max_runtime
+        if stream:
+            # The steps are returned as they are executed through a generator to iterate on.
+            return self._run_stream(task=self.task, max_steps=max_steps, images=images)
+        run_start_time = time.time()
+        # Outputs are returned only at the end. We only look at the last step.
 
-        start_time = time.time()
-        try:
-            while True:
-                if max_runtime is not None and time.time() - start_time >= max_runtime:
-                    raise AgentMaxRuntimeError("Reached maximum runtime.", self.logger)
+        steps = list(self._run_stream(task=self.task, max_steps=max_steps, images=images))
+        assert isinstance(steps[-1], FinalAnswerStep)
+        output = steps[-1].output
 
-                self.step_number += 1
+        return_full_result = return_full_result if return_full_result is not None else self.return_full_result
+        if return_full_result:
+            total_input_tokens = 0
+            total_output_tokens = 0
+            correct_token_usage = True
+            for step in self.memory.steps:
+                if isinstance(step, (ActionStep, PlanningStep)):
+                    if step.token_usage is None:
+                        correct_token_usage = False
+                        break
+                    else:
+                        total_input_tokens += step.token_usage.input_tokens
+                        total_output_tokens += step.token_usage.output_tokens
+            if correct_token_usage:
+                token_usage = TokenUsage(input_tokens=total_input_tokens, output_tokens=total_output_tokens)
+            else:
+                token_usage = None
+
+            if self.memory.steps and isinstance(getattr(self.memory.steps[-1], "error", None), AgentMaxStepsError):
+                state = "max_steps_error"
+            else:
+                state = "success"
+
+            step_dicts = self.memory.get_full_steps()
+
+            return RunResult(
+                output=output,
+                token_usage=token_usage,
+                steps=step_dicts,
+                timing=Timing(start_time=run_start_time, end_time=time.time()),
+                state=state,
+            )
 
                 if self.step_number > self.max_steps:
                     raise AgentMaxStepsError("Reached maximum number of steps.", self.logger)
@@ -805,13 +886,6 @@ class MultiStepAgent(ABC):
             if span:
                 span.end()
 
-    @property
-    def logs(self):
-        logger.warning(
-            "The 'logs' attribute is deprecated and will soon be removed. Please use 'self.memory.steps' instead."
-        )
-        return [self.memory.system_prompt] + self.memory.steps
-
     @abstractmethod
     def initialize_system_prompt(self) -> str:
         """To be implemented in child classes"""
@@ -1030,57 +1104,10 @@ class MultiStepAgent(ABC):
         # Make agent.py file with Gradio UI
         agent_name = f"agent_{self.name}" if getattr(self, "name", None) else "agent"
         managed_agent_relative_path = relative_path + "." if relative_path is not None else ""
-
-        app_template = AGENT_GRADIO_APP_TEMPLATE
-
-        app_template = textwrap.dedent(
-            """
-            import yaml
-            import os
-            from smolagents import GradioUI, {{ class_name }}, {{ agent_dict['model']['class'] }}
-
-            # Get current directory path
-            CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-            {% for tool in tools.values() -%}
-            from {{managed_agent_relative_path}}tools.{{ tool.name }} import {{ tool.__class__.__name__ }} as {{ tool.name | camelcase }}
-            {% endfor %}
-            {% for managed_agent in managed_agents.values() -%}
-            from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app import agent_{{ managed_agent.name }}
-            {% endfor %}
-
-            model = {{ agent_dict['model']['class'] }}(
-            {% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
-                {{ key }}={{ agent_dict['model']['data'][key]|repr }},
-            {% endfor %})
-
-            {% for tool in tools.values() -%}
-            {{ tool.name }} = {{ tool.name | camelcase }}()
-            {% endfor %}
-
-            with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
-                prompt_templates = yaml.safe_load(stream)
-
-            {{ agent_name }} = {{ class_name }}(
-                model=model,
-                tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
-                managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
-                {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
-                {{ attribute_name }}={{ value|repr }},
-                {% endfor %}prompt_templates=prompt_templates
-            )
-            if __name__ == "__main__":
-                GradioUI({{ agent_name }}).launch()
-            """
-        ).strip()
-
-        template_env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
-        template_env.filters["repr"] = repr
-        template_env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
-        template = template_env.from_string(app_template)
+        app_template = create_agent_gradio_app_template()
 
         # Render the app.py file from Jinja2 template
-        app_text = template.render(
+        app_text = app_template.render(
             {
                 "agent_name": agent_name,
                 "class_name": class_name,
@@ -1128,7 +1155,6 @@ class MultiStepAgent(ABC):
             "max_steps": self.max_steps,
             "max_runtime": self.max_runtime,
             "verbosity_level": int(self.logger.level),
-            "grammar": self.grammar,
             "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
@@ -1157,18 +1183,19 @@ class MultiStepAgent(ABC):
             tools.append(Tool.from_code(tool_info["code"]))
         # Load managed agents
         managed_agents = []
-        for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
-            managed_agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_class_name)
-            managed_agents.append(managed_agent_class.from_dict(agent_dict["managed_agents"][managed_agent_name]))
+        for managed_agent_dict in agent_dict["managed_agents"]:
+            agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_dict["class"])
+            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {
             "model": model,
             "tools": tools,
+            "managed_agents": managed_agents,
             "prompt_templates": agent_dict.get("prompt_templates"),
             "max_steps": agent_dict.get("max_steps"),
             "max_runtime": agent_dict.get("max_runtime"),
             "verbosity_level": agent_dict.get("verbosity_level"),
-            "grammar": agent_dict.get("grammar"),
             "planning_interval": agent_dict.get("planning_interval"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
@@ -1437,8 +1464,99 @@ class ToolCallingAgent(MultiStepAgent):
         )
         return system_prompt
 
-    def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ToolOutput]:
-        raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
+    def _step_stream(
+        self, memory_step: ActionStep
+    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
+        """
+        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
+        Yields ChatMessageStreamDelta during the run if streaming is enabled.
+        At the end, yields either None if the step is not final, or the final answer.
+        """
+        memory_messages = self.write_memory_to_messages()
+
+        input_messages = memory_messages.copy()
+
+        # Add new step in logs
+        memory_step.model_input_messages = input_messages
+
+        try:
+            if self.stream_outputs and hasattr(self.model, "generate_stream"):
+                output_stream = self.model.generate_stream(
+                    input_messages,
+                    stop_sequences=["Observation:", "Calling tools:"],
+                    tools_to_call_from=self.tools_and_managed_agents,
+                )
+
+                chat_message_stream_deltas: list[ChatMessageStreamDelta] = []
+                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
+                    for event in output_stream:
+                        chat_message_stream_deltas.append(event)
+                        live.update(
+                            Markdown(agglomerate_stream_deltas(chat_message_stream_deltas).render_as_markdown())
+                        )
+                        yield event
+                chat_message = agglomerate_stream_deltas(chat_message_stream_deltas)
+            else:
+                chat_message: ChatMessage = self.model.generate(
+                    input_messages,
+                    stop_sequences=["Observation:", "Calling tools:"],
+                    tools_to_call_from=self.tools_and_managed_agents,
+                )
+                if chat_message.content is None and chat_message.raw is not None:
+                    log_content = str(chat_message.raw)
+                else:
+                    log_content = str(chat_message.content) or ""
+
+                self.logger.log_markdown(
+                    content=log_content,
+                    title="Output message of the LLM:",
+                    level=LogLevel.DEBUG,
+                )
+
+            # Record model output
+            memory_step.model_output_message = chat_message
+            memory_step.model_output = chat_message.content
+            memory_step.token_usage = chat_message.token_usage
+        except Exception as e:
+            raise AgentGenerationError(f"Error while generating output:\n{e}", self.logger) from e
+
+        if chat_message.tool_calls is None or len(chat_message.tool_calls) == 0:
+            try:
+                chat_message = self.model.parse_tool_calls(chat_message)
+            except Exception as e:
+                raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
+        else:
+            for tool_call in chat_message.tool_calls:
+                tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+        final_answer, got_final_answer = None, False
+        for output in self.process_tool_calls(chat_message, memory_step):
+            yield output
+            if isinstance(output, ToolOutput):
+                if output.is_final_answer:
+                    if len(chat_message.tool_calls) > 1:
+                        raise AgentExecutionError(
+                            "If you want to return an answer, please do not perform any other tool calls than the final answer tool call!",
+                            self.logger,
+                        )
+                    if got_final_answer:
+                        raise AgentToolExecutionError(
+                            "You returned multiple final answers. Please return only one single final answer!",
+                            self.logger,
+                        )
+                    final_answer = output.output
+                    got_final_answer = True
+
+                    # Manage state variables
+                    if isinstance(final_answer, str) and final_answer in self.state.keys():
+                        final_answer = self.state[final_answer]
+        yield ActionOutput(
+            output=final_answer,
+            is_final_answer=got_final_answer,
+        )
+
+   # def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ToolOutput]:
+    #    raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
+
 
     def process_tool_calls(
         self, chat_message: ChatMessage, memory_step: ActionStep
@@ -1515,13 +1633,9 @@ class ToolCallingAgent(MultiStepAgent):
                     yield tool_output
 
         memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
-        memory_step.model_output = memory_step.model_output or ""
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
-            message = f"Tool call {tool_output.id}: calling '{tool_output.tool_call.name}' with arguments: {tool_output.tool_call.arguments}\n"
-            memory_step.model_output += message
             memory_step.observations += tool_output.observation + "\n"
-        memory_step.model_output = memory_step.model_output.rstrip("\n")
         memory_step.observations = (
             memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
         )
@@ -1565,9 +1679,13 @@ class ToolCallingAgent(MultiStepAgent):
         arguments = self._substitute_state_variables(arguments)
         is_managed_agent = tool_name in self.managed_agents
 
-        error_msg = validate_tool_arguments(tool, arguments)
-        if error_msg:
-            raise AgentToolCallError(error_msg, self.logger)
+        try:
+            validate_tool_arguments(tool, arguments)
+        except (ValueError, TypeError) as e:
+            raise AgentToolCallError(str(e), self.logger) from e
+        except Exception as e:
+            error_msg = f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}"
+            raise AgentToolExecutionError(error_msg, self.logger) from e
 
         try:
             # Call tool with appropriate arguments
@@ -1616,10 +1734,6 @@ class CodeAgent(MultiStepAgent):
         use_structured_outputs_internally (`bool`, default `False`): Whether to use structured generation at each action step: improves performance for many models.
 
             <Added version="1.17.0"/>
-        grammar (`dict[str, str]`, *optional*): Grammar used to parse the LLM output.
-            <Deprecated version="1.17.0">
-            Parameter `grammar` is deprecated and will be removed in version 1.20.
-            </Deprecated>
         code_block_tags (`tuple[str, str]` | `Literal["markdown"]`, *optional*): Opening and closing tags for code blocks (regex strings). Pass a custom tuple, or pass 'markdown' to use ("```(?:python|py)", "\\n```"), leave empty to use ("<code>", "</code>").
         **kwargs: Additional keyword arguments.
     """
@@ -1638,7 +1752,6 @@ class CodeAgent(MultiStepAgent):
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
-        grammar: dict[str, str] | None = None,
         code_block_tags: str | tuple[str, str] | None = None,
         **kwargs,
     ):
@@ -1646,7 +1759,7 @@ class CodeAgent(MultiStepAgent):
         self.authorized_imports = sorted(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
         self.max_print_outputs_length = max_print_outputs_length
         self._use_structured_outputs_internally = use_structured_outputs_internally
-        if use_structured_outputs_internally:
+        if self._use_structured_outputs_internally:
             prompt_templates = prompt_templates or yaml.safe_load(
                 importlib.resources.files("smolagents.prompts").joinpath("structured_code_agent.yaml").read_text()
             )
@@ -1654,8 +1767,6 @@ class CodeAgent(MultiStepAgent):
             prompt_templates = prompt_templates or yaml.safe_load(
                 importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
             )
-        if grammar and use_structured_outputs_internally:
-            raise ValueError("You cannot use 'grammar' and 'use_structured_outputs_internally' at the same time.")
 
         if isinstance(code_block_tags, str) and not code_block_tags == "markdown":
             raise ValueError("Only 'markdown' is supported for a string argument to `code_block_tags`.")
@@ -1693,7 +1804,6 @@ class CodeAgent(MultiStepAgent):
             agent_id=agent_id,  # Pass to parent
             queue_dict=queue_dict,  # Pass to parent
             prompt_templates=prompt_templates,
-            grammar=grammar,
             planning_interval=planning_interval,
             **kwargs,
         )
@@ -1782,8 +1892,149 @@ class CodeAgent(MultiStepAgent):
         )
         return system_prompt
 
-    def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ActionOutput]:
-        raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
+    def _step_stream(
+        self, memory_step: ActionStep
+    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
+        """
+        Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
+        Yields ChatMessageStreamDelta during the run if streaming is enabled.
+        At the end, yields either None if the step is not final, or the final answer.
+        """
+        memory_messages = self.write_memory_to_messages()
+
+        input_messages = memory_messages.copy()
+        ### Generate model output ###
+        memory_step.model_input_messages = input_messages
+        stop_sequences = ["Observation:", "Calling tools:"]
+        if self.code_block_tags[1] not in self.code_block_tags[0]:
+            # If the closing tag is contained in the opening tag, adding it as a stop sequence would cut short any code generation
+            stop_sequences.append(self.code_block_tags[1])
+        try:
+            additional_args: dict[str, Any] = {}
+            if self._use_structured_outputs_internally:
+                additional_args["response_format"] = CODEAGENT_RESPONSE_FORMAT
+            if self.stream_outputs:
+                output_stream = self.model.generate_stream(
+                    input_messages,
+                    stop_sequences=stop_sequences,
+                    **additional_args,
+                )
+                chat_message_stream_deltas: list[ChatMessageStreamDelta] = []
+                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
+                    for event in output_stream:
+                        chat_message_stream_deltas.append(event)
+                        live.update(
+                            Markdown(agglomerate_stream_deltas(chat_message_stream_deltas).render_as_markdown())
+                        )
+                        yield event
+                chat_message = agglomerate_stream_deltas(chat_message_stream_deltas)
+                memory_step.model_output_message = chat_message
+                output_text = chat_message.content
+            else:
+                chat_message: ChatMessage = self.model.generate(
+                    input_messages,
+                    stop_sequences=stop_sequences,
+                    **additional_args,
+                )
+                memory_step.model_output_message = chat_message
+                output_text = chat_message.content
+                self.logger.log_markdown(
+                    content=output_text,
+                    title="Output message of the LLM:",
+                    level=LogLevel.DEBUG,
+                )
+
+            if not self._use_structured_outputs_internally:
+                # This adds the end code sequence (i.e. the closing code block tag) to the history.
+                # This will nudge subsequent LLM calls to finish with this end code sequence, thus efficiently stopping generation.
+                if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
+                    output_text += self.code_block_tags[1]
+                    memory_step.model_output_message.content = output_text
+
+            memory_step.token_usage = chat_message.token_usage
+            memory_step.model_output = output_text
+        except Exception as e:
+            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
+
+        ### Parse output ###
+        try:
+            if self._use_structured_outputs_internally:
+                code_action = json.loads(output_text)["code"]
+                code_action = extract_code_from_text(code_action, self.code_block_tags) or code_action
+            else:
+                code_action = parse_code_blobs(output_text, self.code_block_tags)
+            code_action = fix_final_answer_code(code_action)
+            memory_step.code_action = code_action
+        except Exception as e:
+            error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
+            raise AgentParsingError(error_msg, self.logger)
+
+        tool_call = ToolCall(
+            name="python_interpreter",
+            arguments=code_action,
+            id=f"call_{len(self.memory.steps)}",
+        )
+        yield tool_call
+        memory_step.tool_calls = [tool_call]
+
+        ### Execute action ###
+        self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
+        try:
+            code_output = self.python_executor(code_action)
+            execution_outputs_console = []
+            if len(code_output.logs) > 0:
+                execution_outputs_console += [
+                    Text("Execution logs:", style="bold"),
+                    Text(code_output.logs),
+                ]
+            observation = "Execution logs:\n" + code_output.logs
+        except Exception as e:
+            if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
+                execution_logs = str(self.python_executor.state["_print_outputs"])
+                if len(execution_logs) > 0:
+                    execution_outputs_console = [
+                        Text("Execution logs:", style="bold"),
+                        Text(execution_logs),
+                    ]
+                    memory_step.observations = "Execution logs:\n" + execution_logs
+                    self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
+            error_msg = str(e)
+            if "Import of " in error_msg and " is not allowed" in error_msg:
+                self.logger.log(
+                    "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
+                    level=LogLevel.INFO,
+                )
+            raise AgentExecutionError(error_msg, self.logger)
+
+        truncated_output = truncate_content(str(code_output.output))
+        observation += "Last output from code snippet:\n" + truncated_output
+        memory_step.observations = observation
+
+        if not code_output.is_final_answer:
+            execution_outputs_console += [
+                Text(
+                    f"Out: {truncated_output}",
+                ),
+            ]
+        self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
+        memory_step.action_output = code_output.output
+        yield ActionOutput(output=code_output.output, is_final_answer=code_output.is_final_answer)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the agent to a dictionary representation.
+
+        Returns:
+            `dict`: Dictionary representation of the agent.
+        """
+        agent_dict = super().to_dict()
+        agent_dict["authorized_imports"] = self.authorized_imports
+        agent_dict["executor_type"] = self.executor_type
+        agent_dict["executor_kwargs"] = self.executor_kwargs
+        agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
+        return agent_dict
+      
+  #  def _step_stream(self, memory_step: ActionStep) -> Generator[ChatMessageStreamDelta | ActionOutput]:
+   #     raise NotImplementedError("Decentralized agents process tasks via messages, not steps.")
 
     @classmethod
     def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "CodeAgent":

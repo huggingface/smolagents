@@ -1,0 +1,36 @@
+{
+  "model_id": "gpt-4o",
+  "action_type": "vanilla",
+  "date": "2025-07-25",
+  "timestamp": "2025-07-25T04:38:48.273720",
+  "benchmarks": {
+    "gaia": {
+      "total_questions": 32,
+      "exact_match_score": 0.0625,
+      "contains_score": 0.3125,
+      "exact_matches": 2.0,
+      "contains_matches": 10.0
+    },
+    "math": {
+      "total_questions": 50,
+      "exact_match_score": 0.0,
+      "contains_score": 0.66,
+      "exact_matches": 0.0,
+      "contains_matches": 33.0
+    },
+    "simpleqa": {
+      "total_questions": 50,
+      "exact_match_score": 0.06,
+      "contains_score": 0.06,
+      "exact_matches": 3.0,
+      "contains_matches": 3.0
+    }
+  },
+  "overall": {
+    "total_questions": 132,
+    "exact_match_score": 0.03787878787878788,
+    "contains_score": 0.3484848484848485,
+    "exact_matches": 5.0,
+    "contains_matches": 46.0
+  }
+}

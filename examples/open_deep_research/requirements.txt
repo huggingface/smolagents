@@ -12,7 +12,6 @@ openai>=1.52.2
 openpyxl
 pandas>=2.2.3
 pathvalidate>=3.2.1
-pdfminer>=20191125
 pdfminer.six>=20240706
 Pillow>=11.0.0
 puremagic>=1.28
