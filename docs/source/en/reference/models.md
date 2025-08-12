@@ -12,38 +12,6 @@ contains the API docs for the underlying classes.
 
 ## Models
 
-### Your custom Model
-
-You're free to create and use your own models to power your agent.
-
-You could subclass the base `Model` class to create a model for your agent.
-The main criteria is to subclass the `generate` method, with these two criteria:
-1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns an object with a `.content` attribute.
-2. It stops generating outputs at the sequences passed in the argument `stop_sequences`.
-
-For defining your LLM, you can make a `CustomModel` class that inherits from the base `Model` class.
-It should have a generate method that takes a list of [messages](./chat_templating) and returns an object with a .content attribute containing the text. The `generate` method also needs to accept a `stop_sequences` argument that indicates when to stop generating.
-
-```python
-from huggingface_hub import login, InferenceClient
-
-login("<YOUR_HUGGINGFACEHUB_API_TOKEN>")
-
-model_id = "meta-llama/Llama-3.3-70B-Instruct"
-
-client = InferenceClient(model=model_id)
-
-class CustomModel(Model):
-    def generate(messages, stop_sequences=["Task"]):
-        response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1024)
-        answer = response.choices[0].message
-        return answer
-
-custom_model = CustomModel()
-```
-
-Additionally, `generate` can also take a `grammar` argument to allow [constrained generation](https://huggingface.co/docs/text-generation-inference/conceptual/guidance) in order to force properly-formatted agent outputs.
-
 ### TransformersModel
 
 For convenience, we have added a `TransformersModel` that implements the points above by building a local `transformers` pipeline for the model_id given at initialization.
@@ -230,3 +198,37 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 > You must have `vllm` installed on your machine. Please run `pip install smolagents[vllm]` if it's not the case.
 
 [[autodoc]] VLLMModel
+
+### Custom Model
+
+You're free to create and use your own models to power your agent.
+
+You could subclass the base `Model` class to create a model for your agent.
+The main criteria is to subclass the `generate` method, with these two criteria:
+1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns an object with a `.content` attribute.
+2. It stops generating outputs at the sequences passed in the argument `stop_sequences`.
+
+For defining your LLM, you can make a `CustomModel` class that inherits from the base `Model` class.
+It should have a generate method that takes a list of [messages](./chat_templating) and returns an object with a .content attribute containing the text. The `generate` method also needs to accept a `stop_sequences` argument that indicates when to stop generating.
+
+```python
+from huggingface_hub import login, InferenceClient
+
+from smolagents import Model
+
+login("<YOUR_HUGGINGFACEHUB_API_TOKEN>")
+
+model_id = "meta-llama/Llama-3.3-70B-Instruct"
+
+client = InferenceClient(model=model_id)
+
+class CustomModel(Model):
+    def generate(messages, stop_sequences=["Task"]):
+        response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1024)
+        answer = response.choices[0].message
+        return answer
+
+custom_model = CustomModel()
+```
+
+Additionally, `generate` can also take a `grammar` argument to allow [constrained generation](https://huggingface.co/docs/text-generation-inference/conceptual/guidance) in order to force properly-formatted agent outputs.
