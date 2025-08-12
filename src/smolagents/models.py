@@ -678,8 +678,8 @@ class MLXModel(Model):
             Additional keyword arguments to pass to the `mlx.lm.load` method when loading the model and tokenizer.
         apply_chat_template_kwargs (dict, *optional*):
             Additional keyword arguments to pass to the `apply_chat_template` method of the tokenizer.
-        kwargs (dict, *optional*):
-            Any additional keyword arguments that you want to use in model.generate(), for instance `max_tokens`.
+        **kwargs:
+            Additional keyword arguments to forward to the model stream_generate call, for instance `max_tokens`.
 
     Example:
     ```python
@@ -787,7 +787,7 @@ class TransformersModel(Model):
         model_kwargs (`dict[str, Any]`, *optional*):
             Additional keyword arguments to pass to `AutoModel.from_pretrained` (like revision, model_args, config, etc.).
         **kwargs:
-            Additional keyword arguments to pass to `model.generate()`, for instance `max_new_tokens` or `device`.
+            Additional keyword arguments to forward to the model generate call, for instance `max_new_tokens` or `device`.
     Raises:
         ValueError:
             If the model name is not provided.
@@ -1052,7 +1052,8 @@ class ApiModel(Model):
             Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
         requests_per_minute (`float`, **optional**):
             Rate limit in requests per minute.
-        **kwargs: Additional keyword arguments to pass to the parent class.
+        **kwargs:
+            Additional keyword arguments to forward to the model completion call.
     """
 
     def __init__(
@@ -1093,7 +1094,7 @@ class LiteLLMModel(ApiModel):
         flatten_messages_as_text (`bool`, *optional*): Whether to flatten messages as text.
             Defaults to `True` for models that start with "ollama", "groq", "cerebras".
         **kwargs:
-            Additional keyword arguments to pass to the OpenAI API.
+            Additional keyword arguments to forward to the LiteLLM completion call.
     """
 
     def __init__(
@@ -1244,7 +1245,7 @@ class LiteLLMRouterModel(LiteLLMModel):
         flatten_messages_as_text (`bool`, *optional*): Whether to flatten messages as text.
             Defaults to `True` for models that start with "ollama", "groq", "cerebras".
         **kwargs:
-            Additional keyword arguments to pass to the LiteLLM Router completion method.
+            Additional keyword arguments to forward to the LiteLLM Router completion call.
 
     Example:
     ```python
@@ -1351,7 +1352,7 @@ class InferenceClientModel(ApiModel):
             Base URL to run inference. This is a duplicated argument from `model` to make [`InferenceClientModel`]
             follow the same pattern as `openai.OpenAI` client. Cannot be used if `model` is set. Defaults to None.
         **kwargs:
-            Additional keyword arguments to pass to the Hugging Face InferenceClient.
+            Additional keyword arguments to forward to the Hugging Face InferenceClient completion call.
 
     Raises:
         ValueError:
@@ -1518,7 +1519,7 @@ class OpenAIServerModel(ApiModel):
         flatten_messages_as_text (`bool`, default `False`):
             Whether to flatten messages as text.
         **kwargs:
-            Additional keyword arguments to pass to the OpenAI API.
+            Additional keyword arguments to forward to the OpenAI API completion call, for instance `temperature`.
     """
 
     def __init__(
@@ -1659,7 +1660,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
         **kwargs:
-            Additional keyword arguments to pass to the Azure OpenAI API.
+            Additional keyword arguments to forward to the Azure OpenAI API completion call.
     """
 
     def __init__(
@@ -1735,8 +1736,8 @@ class AmazonBedrockServerModel(ApiModel):
             Defaults to converting all roles to "user" role to enable using all the Bedrock models.
         flatten_messages_as_text (`bool`, default `False`):
             Whether to flatten messages as text.
-        **kwargs
-            Additional keyword arguments passed directly to the underlying API calls.
+        **kwargs:
+            Additional keyword arguments to forward to the model converse call.
 
     Examples:
         Creating a model instance with default settings:
