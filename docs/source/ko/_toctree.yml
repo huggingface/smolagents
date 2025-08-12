@@ -2,32 +2,10 @@
   sections:
   - local: index
     title: 소개
-  - local: installation
-    title: Installation options
-  - local: guided_tour
-    title: Guided tour
-- title: Tutorials
-  sections:
-  - local: tutorials/building_good_agents
-    title: ✨ Building good agents
-  - local: tutorials/inspect_runs
-    title: 📊 Inspect your agent runs using telemetry
-  - local: tutorials/tools
-    title: 🛠️ Tools - in-depth guide
-  - local: tutorials/secure_code_execution
-    title: 🛡️ Secure code execution
-  - local: tutorials/memory
-    title: 📚 Manage your agent's memory
-- title: Conceptual guides
-  sections:
-  - local: conceptual_guides/intro_agents
-    title: 🤖 An introduction to agentic systems
-  - local: conceptual_guides/react
-    title: 🤔 How do Multi-step agents work?
-- title: Examples
+- title: 예제
   sections:
   - local: examples/text_to_sql
-    title: Self-correcting Text-to-SQL
+    title: 스스로 오류를 수정하는 Text-to-SQL
   - local: examples/rag
     title: Master your knowledge base with agentic RAG
   - local: examples/multiagents
