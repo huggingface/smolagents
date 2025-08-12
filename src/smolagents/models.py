@@ -373,6 +373,17 @@ def supports_stop_parameter(model_id: str) -> bool:
     return not re.match(pattern, model_name)
 
 
+class _ParameterRemove:
+    """Sentinel value to indicate a parameter should be removed."""
+
+    def __repr__(self):
+        return "REMOVE_PARAMETER"
+
+
+# Singleton instance for removing parameters
+REMOVE_PARAMETER = _ParameterRemove()
+
+
 class Model:
     def __init__(
         self,
@@ -432,7 +443,11 @@ class Model:
         # Override with passed-in kwargs
         completion_kwargs.update(kwargs)
         # Override with self.kwargs
-        completion_kwargs.update(self.kwargs)
+        for kwarg_name, kwarg_value in self.kwargs.items():
+            if kwarg_value is REMOVE_PARAMETER:
+                completion_kwargs.pop(kwarg_name, None)  # Remove parameter if present
+            else:
+                completion_kwargs[kwarg_name] = kwarg_value  # Set/override parameter
         return completion_kwargs
 
     def generate(
