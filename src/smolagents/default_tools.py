@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -635,12 +635,80 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+class SendMessageTool(Tool):
+    """Tool for sending a message to another agent's queue."""
+
+    name = "send_message"
+    description = "Send a message to another agent via the shared queue_dict."
+    inputs = {
+        "target_id": {"type": "integer", "description": "ID of the recipient agent"},
+        "message": {"type": "any", "description": "Message to send"},
+    }
+    output_type = "null"
+
+    def __init__(self, queue_dict: dict, agent_id: int, logger=None):
+        super().__init__()
+        self.queue_dict = queue_dict
+        self.agent_id = agent_id
+        self.logger = logger
+
+    def forward(self, target_id: int, message: Any) -> None:
+        from .monitoring import LogLevel
+
+        if target_id in self.queue_dict:
+            self.queue_dict[target_id].put(message)
+            if self.logger is not None:
+                self.logger.log(
+                    f"Agent {self.agent_id} sent message to Agent {target_id}",
+                    level=LogLevel.INFO,
+                )
+        else:
+            if self.logger is not None:
+                self.logger.log(
+                    f"Agent {self.agent_id} failed to send message: Target {target_id} not found",
+                    level=LogLevel.WARNING,
+                )
+            raise ValueError(f"Target {target_id} not found in queue_dict")
+
+
+class ReceiveMessagesTool(Tool):
+    """Tool for receiving all messages from the current agent's queue."""
+
+    name = "receive_messages"
+    description = "Retrieve all messages for the current agent from its queue."
+    inputs = {}
+    output_type = "array"
+
+    def __init__(self, queue_dict: dict, agent_id: int, logger=None, process_message: Callable | None = None):
+        super().__init__()
+        self.queue_dict = queue_dict
+        self.agent_id = agent_id
+        self.logger = logger
+        self.process_message = process_message
+        self.queue = queue_dict[agent_id]
+
+    def forward(self) -> list[Any]:
+        from .monitoring import LogLevel
+
+        messages = []
+        while not self.queue.empty():
+            msg = self.queue.get()
+            if self.logger is not None:
+                self.logger.log(f"Agent {self.agent_id} received message: {msg}", level=LogLevel.INFO)
+            if self.process_message is not None:
+                self.process_message(msg)
+            messages.append(msg)
+        return messages
+
+
 TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
         PythonInterpreterTool,
         DuckDuckGoSearchTool,
         VisitWebpageTool,
+        SendMessageTool,
+        ReceiveMessagesTool,
     ]
 }
 
@@ -655,4 +723,6 @@ __all__ = [
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
+    "SendMessageTool",
+    "ReceiveMessagesTool",
 ]

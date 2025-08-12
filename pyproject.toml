@@ -5,7 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "smolagents"
 version = "1.22.0.dev0"
+
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
+
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" },
 ]
@@ -17,7 +19,8 @@ dependencies = [
   "rich>=13.9.4",
   "jinja2>=3.1.4",
   "pillow>=10.0.1",  # Security fix for CVE-2023-4863: https://pillow.readthedocs.io/en/stable/releasenotes/10.0.1.html
-  "python-dotenv"
+  "python-dotenv",
+  "multiprocess"  # Added for message queue support in multi-agent system
 ]
 
 [project.optional-dependencies]
@@ -58,8 +61,9 @@ openai = [
   "openai>=1.58.1"
 ]
 telemetry = [
+  "langfuse>=2.0.0",
   "arize-phoenix",
-  "opentelemetry-sdk", 
+  "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
   "openinference-instrumentation-smolagents>=0.1.4"
 ]

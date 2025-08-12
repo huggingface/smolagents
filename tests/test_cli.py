@@ -1,3 +1,4 @@
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -11,6 +12,17 @@ from smolagents.models import InferenceClientModel, LiteLLMModel, OpenAIServerMo
 def set_env_vars(monkeypatch):
     monkeypatch.setenv("FIREWORKS_API_KEY", "test_fireworks_api_key")
     monkeypatch.setenv("HF_TOKEN", "test_hf_api_key")
+
+
+def test_multi_agent_cli():
+    result = subprocess.run(
+        ["smolagent", "test task", "--num-agents", "2", "--model-id", "mock-model"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "Agent 0 running" in result.stdout
+    assert "Agent 1 running" in result.stdout
 
 
 def test_load_model_openai_server_model(set_env_vars):
@@ -63,9 +75,29 @@ def test_cli_main(capsys):
     with patch("smolagents.cli.load_model") as mock_load_model:
         mock_load_model.return_value = "mock_model"
         with patch("smolagents.cli.CodeAgent") as mock_code_agent:
-            from smolagents.cli import run_smolagent
 
-            run_smolagent("test_prompt", [], "InferenceClientModel", "test_model_id", provider="hf-inference")
+            class DummyProcess:
+                def __init__(self, target, args):
+                    self.target = target
+                    self.args = args
+
+                def start(self):
+                    self.target(*self.args)
+
+                def join(self):
+                    pass
+
+            with patch("smolagents.cli.Process", DummyProcess):
+                from smolagents.cli import run_smolagent
+
+                run_smolagent(
+                    "test_prompt",
+                    [],
+                    "InferenceClientModel",
+                    "test_model_id",
+                    1,
+                    provider="hf-inference",
+                )
     # load_model
     assert len(mock_load_model.call_args_list) == 1
     assert mock_load_model.call_args.args == ("InferenceClientModel", "test_model_id")
@@ -73,17 +105,17 @@ def test_cli_main(capsys):
     # CodeAgent
     assert len(mock_code_agent.call_args_list) == 1
     assert mock_code_agent.call_args.args == ()
-    assert mock_code_agent.call_args.kwargs == {
-        "tools": [],
-        "model": "mock_model",
-        "additional_authorized_imports": None,
-    }
+    assert mock_code_agent.call_args.kwargs["tools"] == []
+    assert mock_code_agent.call_args.kwargs["model"] == "mock_model"
+    assert mock_code_agent.call_args.kwargs["additional_authorized_imports"] is None
+    assert mock_code_agent.call_args.kwargs["agent_id"] == 0
+    assert "queue_dict" in mock_code_agent.call_args.kwargs
     # agent.run
     assert len(mock_code_agent.return_value.run.call_args_list) == 1
     assert mock_code_agent.return_value.run.call_args.args == ("test_prompt",)
     # print
     captured = capsys.readouterr()
-    assert "Running agent with these tools: []" in captured.out
+    assert "Agent 0 running with tools: []" in captured.out
 
 
 def test_vision_web_browser_main():

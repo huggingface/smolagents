@@ -21,8 +21,10 @@ import inspect
 import logging
 import math
 import re
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
+
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
@@ -56,6 +58,8 @@ DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
+DEFAULT_EXECUTION_TIMEOUT = 300  # seconds
+
 
 
 def custom_print(*args):
@@ -1396,6 +1400,9 @@ def evaluate_ast(
         raise InterpreterError(
             f"Reached the max number of operations of {MAX_OPERATIONS}. Maybe there is an infinite loop somewhere in the code, or you're just asking too many calculations."
         )
+    if "_start_time" in state and "_timeout" in state and state["_timeout"] is not None:
+        if time.time() - state["_start_time"] > state["_timeout"]:
+            raise InterpreterError(f"Maximum execution time of {state['_timeout']} seconds exceeded")
     state["_operations_count"]["counter"] += 1
     common_params = (state, static_tools, custom_tools, authorized_imports)
     if isinstance(expression, ast.Assign):
@@ -1532,6 +1539,7 @@ def evaluate_python_code(
     state: dict[str, Any] | None = None,
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
     max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
+    timeout: int | None = DEFAULT_EXECUTION_TIMEOUT,
 ):
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
@@ -1552,6 +1560,7 @@ def evaluate_python_code(
             A dictionary mapping variable names to values. The `state` should contain the initial inputs but will be
             updated by this function to contain all variables as they are evaluated.
             The print outputs will be stored in the state under the key "_print_outputs".
+        timeout (`int`, *optional*): Maximum execution time in seconds. If `None`, no timeout is enforced.
     """
     try:
         expression = ast.parse(code)
@@ -1565,6 +1574,8 @@ def evaluate_python_code(
 
     if state is None:
         state = {}
+    state["_start_time"] = time.time()
+    state["_timeout"] = timeout
     static_tools = static_tools.copy() if static_tools is not None else {}
     custom_tools = custom_tools if custom_tools is not None else {}
     result = None
@@ -1643,6 +1654,7 @@ class LocalPythonExecutor(PythonExecutor):
         additional_authorized_imports: list[str],
         max_print_outputs_length: int | None = None,
         additional_functions: dict[str, Callable] | None = None,
+        execution_timeout: int | None = DEFAULT_EXECUTION_TIMEOUT,
     ):
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}
@@ -1654,6 +1666,7 @@ class LocalPythonExecutor(PythonExecutor):
         self._check_authorized_imports_are_installed()
         self.static_tools = None
         self.additional_functions = additional_functions or {}
+        self.execution_timeout = execution_timeout
 
     def _check_authorized_imports_are_installed(self):
         """
@@ -1683,6 +1696,7 @@ class LocalPythonExecutor(PythonExecutor):
             state=self.state,
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
+            timeout=self.execution_timeout,
         )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)

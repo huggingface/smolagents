@@ -48,8 +48,9 @@ def add_two(x):
 
 class TestEvaluatePythonCode:
     def assertDictEqualNoPrint(self, dict1, dict2):
-        assert {k: v for k, v in dict1.items() if k != "_print_outputs"} == {
-            k: v for k, v in dict2.items() if k != "_print_outputs"
+        ignored_keys = {"_print_outputs", "_start_time", "_timeout"}
+        assert {k: v for k, v in dict1.items() if k not in ignored_keys} == {
+            k: v for k, v in dict2.items() if k not in ignored_keys
         }
 
     def test_evaluate_assign(self):
