@@ -82,7 +82,7 @@ class RemotePythonExecutor(PythonExecutor):
             code_output = self.run_code_raise_errors(code)
             self.logger.log(code_output.logs)
 
-    def send_variables(self, variables: dict):
+    def send_variables(self, variables: dict[str, Any]):
         """
         Send variables to the kernel namespace using pickle.
         """

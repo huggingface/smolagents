@@ -517,14 +517,66 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {10, 19, 20}
 
-    def test_break_continue(self):
+    def test_generatorexp(self):
+        code = "x = (i for i in range(3))"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        # assert not isinstance(result, list)
+        assert isinstance(result, types.GeneratorType)
+        assert list(result) == [0, 1, 2]
+
+    def test_generatorexp_with_infinite_sequence(self):
+        """Test that generator expressions handle infinite sequences correctly without hanging."""
+        code = dedent(
+            """\
+            import itertools
+
+            def infinite_counter():
+                return itertools.count()
+
+            # Create a generator expression that filters an infinite sequence
+            even_numbers = (x for x in infinite_counter() if x % 2 == 0)
+
+            # Get just the first 3 even numbers
+            first_three = []
+            gen_iter = iter(even_numbers)
+            for _ in range(3):
+                first_three.append(next(gen_iter))
+
+            result = first_three
+            """
+        )
+
+        state = {}
+        result, _ = evaluate_python_code(code, {"int": int, "iter": iter, "next": next, "range": range}, state=state)
+
+        # Verify we got the expected values
+        assert result == [0, 2, 4]
+
+        # Verify it's actually a generator
+        even_numbers = state["even_numbers"]
+        assert isinstance(even_numbers, types.GeneratorType)
+
+        # If this were a list, the code would hang indefinitely trying to
+        # evaluate the entire infinite sequence upfront
+
+    def test_break(self):
         code = "for i in range(10):\n    if i == 5:\n        break\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == 5
 
-        code = "for i in range(10):\n    if i == 5:\n        continue\ni"
+    def test_pass(self):
+        code = "for i in range(10):\n    if i == 5:\n        pass\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == 9
+
+    def test_continue(self):
+        code = "cnt = 0\nfor i in range(10):\n    continue\n    cnt += 1\ncnt"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == 0
+
+        code = "cnt = 0\nfor i in range(3):\n    if i == 1:\n        continue\n    cnt += 1\ncnt"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == 2
 
     def test_call_int(self):
         code = "import math\nstr(math.ceil(149))"
@@ -984,20 +1036,6 @@ S4 = S1.intersection(S2)
         evaluate_python_code(code, {}, state=state)
         assert state["S3"] == {"a"}
         assert state["S4"] == {"b", "c"}
-
-    def test_break(self):
-        code = """
-i = 0
-
-while True:
-    i+= 1
-    if i==3:
-        break
-
-i"""
-        result, is_final_answer = evaluate_python_code(code, {"print": print, "round": round}, state={})
-        assert result == 3
-        assert not is_final_answer
 
     def test_return(self):
         # test early returns
@@ -2481,4 +2519,80 @@ class TestLocalPythonExecutorSecurity:
         executor = LocalPythonExecutor([])
         code = "a = (); b = getattr(a, '__class__')"
         with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'getattr'"):
+            executor(code)
+
+    @pytest.mark.parametrize(
+        "code, additional_allowed_dunder_methods, expected_dunder_function_error",
+        [
+            ("'string'.__dir__()", [], "__dir__"),
+            ("'string'.__dir__()", ["__dir__"], None),
+            (
+                dedent(
+                    """
+                    def func():
+                        pass
+                    function_class = func.__getattribute__("__class__")
+                    object_class = type.__getattribute__(function_class, '__bases__')[0]
+                    for i, subclass in enumerate(object_class.__subclasses__()):
+                        if 'subprocess.Popen' in str(subclass):
+                            break
+                    subclass(["sh", "-c", ":"]).wait()
+                    """
+                ),
+                [],
+                "__getattribute__",
+            ),
+            (
+                dedent(
+                    """
+                    def func():
+                        pass
+                    function_class = func.__getattribute__("__class__")
+                    object_class = type.__getattribute__(function_class, '__bases__')[0]
+                    for i, subclass in enumerate(object_class.__subclasses__()):
+                        if 'subprocess.Popen' in str(subclass):
+                            break
+                    subclass(["sh", "-c", ":"]).wait()
+                    """
+                ),
+                ["__getattribute__"],
+                "__subclasses__",
+            ),
+            (
+                dedent(
+                    """
+                    def func():
+                        pass
+                    function_class = func.__getattribute__("__class__")
+                    object_class = type.__getattribute__(function_class, '__bases__')[0]
+                    for i, subclass in enumerate(object_class.__subclasses__()):
+                        if 'subprocess.Popen' in str(subclass):
+                            break
+                    subclass(["sh", "-c", ":"]).wait()
+                    """
+                ),
+                ["__getattribute__", "__subclasses__"],
+                None,
+            ),
+        ],
+    )
+    def test_vulnerability_via_dunder_call(
+        self, code, additional_allowed_dunder_methods, expected_dunder_function_error, monkeypatch
+    ):
+        import smolagents.local_python_executor
+
+        monkeypatch.setattr(
+            "smolagents.local_python_executor.ALLOWED_DUNDER_METHODS",
+            smolagents.local_python_executor.ALLOWED_DUNDER_METHODS + additional_allowed_dunder_methods,
+        )
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        expectation = (
+            pytest.raises(
+                InterpreterError, match=f"Forbidden call to dunder function: {expected_dunder_function_error}"
+            )
+            if expected_dunder_function_error
+            else does_not_raise()
+        )
+        with expectation:
             executor(code)
