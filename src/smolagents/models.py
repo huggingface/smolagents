@@ -1887,14 +1887,14 @@ class AmazonBedrockServerModel(ApiModel):
         # self.client is created in ApiModel class
         response = self.client.converse(**completion_kwargs)
 
-        # Get last message content block in case thinking mode is enabled: discard thinking
-        last_message_content_block = response["output"]["message"]["content"][-1]
-        if "text" not in last_message_content_block:
-            raise KeyError(
-                '"text" field not found in the last element of response["output"]["message"]["content"]. '
-                "Unexpected output format, possibly due to thinking mode changes."
-            )
-        response["output"]["message"]["content"] = last_message_content_block["text"]
+        # Get content blocks with "text" key: in case thinking blocks are present, discard them
+        message_content_blocks_with_text = [
+            block for block in response["output"]["message"]["content"] if "text" in block
+        ]
+        if not message_content_blocks_with_text:
+            raise KeyError("No message content blocks with 'text' key found in response")
+        # Keep the last one
+        response["output"]["message"]["content"] = message_content_blocks_with_text[-1]["text"]
         return ChatMessage.from_dict(
             response["output"]["message"],
             raw=response,
