@@ -562,7 +562,9 @@ class VLLMModel(Model):
             The Hugging Face model ID to be used for inference.
             This can be a path or model identifier from the Hugging Face model hub.
         model_kwargs (`dict[str, Any]`, *optional*):
-            Additional keyword arguments to forward to the underlying vLLM model, such as `revision`, `max_model_len`, etc.
+            Additional keyword arguments to forward to the vLLM LLM instantiation, such as `revision`, `max_model_len`, etc.
+        **kwargs:
+            Additional keyword arguments to forward to the underlying vLLM model generate call.
     """
 
     def __init__(
@@ -645,6 +647,7 @@ class VLLMModel(Model):
             prompt,
             sampling_params=sampling_params,
             guided_options_request=guided_options_request,
+            **completion_kwargs,
         )
 
         output_text = out[0].outputs[0].text
