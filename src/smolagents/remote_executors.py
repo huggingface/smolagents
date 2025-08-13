@@ -159,8 +159,8 @@ locals().update(vars_dict)
             obj.save(buffer, format='PNG')
             return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
         else:
-            # For unsupported types, convert to string representation
-            return str(obj)
+            # Raise an exception for unsupported types
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
     
     def _from_json_safe(self, obj):
         """Convert JSON-safe format back to Python objects."""
