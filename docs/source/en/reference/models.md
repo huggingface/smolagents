@@ -12,6 +12,9 @@ contains the API docs for the underlying classes.
 
 ## Models
 
+All model classes in smolagents support passing additional keyword arguments (like `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time.
+These parameters are automatically forwarded to the underlying model's completion calls, allowing you to configure model behavior such as creativity, response length, and sampling strategies.
+
 ### Base Model
 
 The `Model` class serves as the foundation for all model implementations, providing the core interface that custom models must implement to work with agents.
@@ -39,6 +42,16 @@ print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], st
 >>> What a
 ```
 
+You can pass any keyword arguments supported by the underlying model (such as `temperature`, `max_new_tokens`, `top_p`, etc.) directly at instantiation time. These are forwarded to the model completion call:
+
+```python
+model = TransformersModel(
+    model_id="HuggingFaceTB/SmolLM-135M-Instruct",
+    temperature=0.7,
+    max_new_tokens=1000
+)
+```
+
 > [!TIP]
 > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
 
@@ -48,7 +61,7 @@ print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], st
 
 The `InferenceClientModel` wraps huggingface_hub's [InferenceClient](https://huggingface.co/docs/huggingface_hub/main/en/guides/inference) for the execution of the LLM. It supports all [Inference Providers](https://huggingface.co/docs/inference-providers/index) available on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
 
-You can also set a rate limit in requests per minute by using the `requests_per_minute` argument.
+You can also set a rate limit in requests per minute by using the `requests_per_minute` argument:
 
 ```python
 from smolagents import InferenceClientModel
@@ -63,6 +76,18 @@ print(model(messages))
 ```text
 >>> Of course! If you change your mind, feel free to reach out. Take care!
 ```
+
+You can pass any keyword arguments supported by the underlying model (such as `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time. These are forwarded to the model completion call:
+
+```python
+model = InferenceClientModel(
+    provider="novita",
+    requests_per_minute=60,
+    temperature=0.8,
+    max_tokens=500
+)
+```
+
 [[autodoc]] InferenceClientModel
 
 ### LiteLLMModel
@@ -129,6 +154,19 @@ model = OpenAIServerModel(
     model_id="gpt-4o",
     api_base="https://api.openai.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
+)
+```
+
+You can pass any keyword arguments supported by the underlying model (such as `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time. These are forwarded to the model completion call:
+
+```py
+model = OpenAIServerModel(
+    model_id="gpt-4o",
+    api_base="https://api.openai.com/v1",
+    api_key=os.environ["OPENAI_API_KEY"],
+    temperature=0.7,
+    max_tokens=1000,
+    top_p=0.9,
 )
 ```
 
