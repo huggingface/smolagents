@@ -2,7 +2,7 @@
 #   uv run structured_output_tool.py
 #
 # Modify the smolagents dependency to point to the local smolagents repo or
-# remove `@ file:///Users/chahn/smolagents`
+# remove `@ file:///<path-to-smolagents>`
 #
 # /// script
 # requires-python = ">=3.10"
