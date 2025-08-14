@@ -486,8 +486,6 @@ def evaluate_function_def(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Callable:
-    if func_def.name in static_tools:
-        raise InterpreterError(f"Cannot define function '{func_def.name}': doing this would override an existing tool!")
     custom_tools[func_def.name] = create_function(func_def, state, static_tools, custom_tools, authorized_imports)
     return custom_tools[func_def.name]
 
