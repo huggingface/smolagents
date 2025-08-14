@@ -7,7 +7,7 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#   "smolagents[mcp,litellm] @ file:///Users/chahn/smolagents",
+#   "smolagents[mcp,litellm] @ file:///<path-to-smolagents>",
 #   "pydantic",
 # ]
 # ///
