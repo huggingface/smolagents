@@ -346,13 +346,19 @@ class DockerExecutor(RemotePythonExecutor):
             self.base_url = f"http://{host}:{port}"
 
             # Wait for Jupyter to start
-            for _ in range(10):
+            retries = 0
+            jupyter_ready = False
+            while not jupyter_ready and retries < 10:
                 try:
                     if requests.get(f"{self.base_url}/api", timeout=2).status_code == 200:
-                        break
+                        jupyter_ready = True
+                    else:
+                        self.logger.log(f"Jupyter not ready, waiting...", level=LogLevel.INFO)
                 except:
-                    pass
-                time.sleep(1)
+                    self.logger.log(f"Jupyter not ready, waiting...", level=LogLevel.INFO)
+                if not jupyter_ready:
+                    time.sleep(1)
+                    retries += 1
 
             # Create new kernel via HTTP
             r = requests.post(f"{self.base_url}/api/kernels")
