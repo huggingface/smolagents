@@ -6,18 +6,18 @@
   sections:
   - local: examples/text_to_sql
     title: 스스로 오류를 수정하는 Text-to-SQL
-  - local: examples/rag
-    title: Master your knowledge base with agentic RAG
+  - local: in_translation
+    title: (번역중) Master your knowledge base with agentic RAG
   - local: examples/multiagents
     title: 멀티 에이전트 시스템 오케스트레이션
-  - local: examples/web_browser
-    title: Build a web browser agent using vision models
-  - local: examples/using_different_models
-    title: Using different models
-  - local: examples/plan_customization
-    title: "Human-in-the-Loop: Customize agent plan interactively"
-  - local: examples/async_agent
-    title: Async Applications with Agents
+  - local: in_translation
+    title: (번역중) Build a web browser agent using vision models
+  - local: in_translation
+    title: (번역중) Using different models
+  - local: in_translation
+    title: (번역중) "Human-in-the-Loop: Customize agent plan interactively"
+  - local: in_translation
+    title: (번역중) Async Applications with Agents
 - title: Reference
   sections:
   - local: reference/agents
