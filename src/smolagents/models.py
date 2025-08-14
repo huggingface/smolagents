@@ -1164,6 +1164,12 @@ class LiteLLMModel(ApiModel):
         )
         self._apply_rate_limit()
         response = self.client.completion(**completion_kwargs)
+        if not response.choices:
+            raise RuntimeError(
+                f"Unexpected API response: model '{self.model_id}' returned no choices. "
+                " This may indicate a possible API or upstream issue. "
+                f"Response details: {response.model_dump()}"
+            )
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
