@@ -118,6 +118,62 @@ with MCPClient({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-htt
     agent.run("Please find a remedy for hangover.")
 ```
 
+You can also manually manage the connection lifecycle with the try...finally pattern:
+
+```python
+from smolagents import MCPClient, CodeAgent
+from mcp import StdioServerParameters
+import os
+
+# Initialize server parameters
+server_parameters = StdioServerParameters(
+    command="uvx",
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+# Manually manage the connection
+try:
+    mcp_client = MCPClient(server_parameters)
+    tools = mcp_client.get_tools()
+
+    # Use the tools with your agent
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    result = agent.run("What are the recent therapeutic approaches for Alzheimer's disease?")
+
+    # Process the result as needed
+    print(f"Agent response: {result}")
+finally:
+    # Always ensure the connection is properly closed
+    mcp_client.disconnect()
+```
+
+You can also connect to multiple MCP servers at once by passing a list of server parameters:
+```python
+from smolagents import MCPClient, CodeAgent
+from mcp import StdioServerParameters
+import os
+
+server_params1 = StdioServerParameters(
+    command="uvx",
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+server_params2 = {"url": "http://127.0.0.1:8000/sse"}
+
+with MCPClient([server_params1, server_params2]) as tools:
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    agent.run("Please analyze the latest research and suggest remedies for headaches.")
+```
+
+> [!WARNING]
+> **Security Warning:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
+> Using MCP servers comes with security risks:
+> - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
+> - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
+> - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
+
 #### Structured Output and Output Schema Support
 
 The latest [MCP specifications (2025-06-18+)](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#structured-content) include support for `outputSchema`, which enables tools to return structured data with defined schemas. `smolagents` takes advantage of these structured output capabilities, allowing agents to work with tools that return complex data structures, JSON objects, and other structured formats. With this feature, the agent's LLMs can "see" the structure of the tool output before calling a tool, enabling more intelligent and context-aware interactions.
@@ -190,62 +246,6 @@ with MCPClient(server_parameters, structured_output=True) as tools:
 When structured output is enabled, the `CodeAgent` system prompt is enhanced to include JSON schema information for tools, helping the agent understand the expected structure of tool outputs and access the data appropriately.
 
 **Backwards Compatibility**: The `structured_output` parameter defaults to `False` to maintain backwards compatibility. Existing code will continue to work without changes, receiving simple text outputs as before.
-
-You can also manually manage the connection lifecycle with the try...finally pattern:
-
-```python
-from smolagents import MCPClient, CodeAgent
-from mcp import StdioServerParameters
-import os
-
-# Initialize server parameters
-server_parameters = StdioServerParameters(
-    command="uvx",
-    args=["--quiet", "pubmedmcp@0.1.3"],
-    env={"UV_PYTHON": "3.12", **os.environ},
-)
-
-# Manually manage the connection
-try:
-    mcp_client = MCPClient(server_parameters)
-    tools = mcp_client.get_tools()
-
-    # Use the tools with your agent
-    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
-    result = agent.run("What are the recent therapeutic approaches for Alzheimer's disease?")
-
-    # Process the result as needed
-    print(f"Agent response: {result}")
-finally:
-    # Always ensure the connection is properly closed
-    mcp_client.disconnect()
-```
-
-You can also connect to multiple MCP servers at once by passing a list of server parameters:
-```python
-from smolagents import MCPClient, CodeAgent
-from mcp import StdioServerParameters
-import os
-
-server_params1 = StdioServerParameters(
-    command="uvx",
-    args=["--quiet", "pubmedmcp@0.1.3"],
-    env={"UV_PYTHON": "3.12", **os.environ},
-)
-
-server_params2 = {"url": "http://127.0.0.1:8000/sse"}
-
-with MCPClient([server_params1, server_params2]) as tools:
-    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
-    agent.run("Please analyze the latest research and suggest remedies for headaches.")
-```
-
-> [!WARNING]
-> **Security Warning:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
-> Using MCP servers comes with security risks:
-> - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
-> - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
-> - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
 
 ### Import a Space as a tool
 
