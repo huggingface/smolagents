@@ -50,7 +50,6 @@ from ._function_type_hints_utils import (
     _get_json_schema_type,
     get_imports,
     get_json_schema,
-    get_type_hints,
 )
 from .agent_types import AgentAudio, AgentImage, handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
@@ -559,9 +558,8 @@ class Tool(BaseTool):
 
     def _convert_dict_args_to_pydantic_models(self, args: tuple, kwargs: dict) -> tuple[tuple, dict]:
         """Ultra-simplified version using TypeAdapter for all conversions."""
-        hints = get_type_hints(self.forward)
-
-        if not hints:
+        annotations = getattr(self.forward, "__annotations__", {}) or {}
+        if not annotations:
             return args, kwargs
 
         sig = inspect.signature(self.forward)
@@ -586,8 +584,8 @@ class Tool(BaseTool):
                 raise TypeError(f"Failed to convert argument '{param_name}' to {expected_type.__name__}: {e}")
 
         # Convert all arguments
-        new_args = [convert_value(arg, hints.get(params[i]), params[i]) for i, arg in enumerate(args)]
-        new_kwargs = {k: convert_value(v, hints.get(k), k) for k, v in kwargs.items()}
+        new_args = [convert_value(arg, annotations.get(params[i]), params[i]) for i, arg in enumerate(args)]
+        new_kwargs = {k: convert_value(v, annotations.get(k), k) for k, v in kwargs.items()}
 
         return tuple(new_args), new_kwargs
 
