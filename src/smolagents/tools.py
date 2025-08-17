@@ -571,9 +571,11 @@ class Tool(BaseTool):
 
         def convert_value(value, expected_type, param_name):
             """Convert a single value to its expected type if needed."""
-            # Skip if already the right type or not a BaseModel
-            if isinstance(value, expected_type) or not (
-                inspect.isclass(expected_type) and issubclass(expected_type, BaseModel)
+            # Skip if expected_type is Any or already the right type or not a BaseModel
+            if (
+                expected_type is Any
+                or (expected_type is not None and isinstance(value, expected_type))
+                or not (inspect.isclass(expected_type) and issubclass(expected_type, BaseModel))
             ):
                 return value
             try:
