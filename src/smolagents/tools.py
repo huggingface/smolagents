@@ -34,7 +34,6 @@ from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import pydantic
 from huggingface_hub import (
     CommitOperationAdd,
     create_commit,
@@ -43,6 +42,7 @@ from huggingface_hub import (
     hf_hub_download,
     metadata_update,
 )
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
@@ -50,6 +50,7 @@ from ._function_type_hints_utils import (
     _get_json_schema_type,
     get_imports,
     get_json_schema,
+    get_type_hints,
 )
 from .agent_types import AgentAudio, AgentImage, handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
@@ -246,7 +247,7 @@ class Tool(BaseTool):
 
     name: str
     description: str
-    inputs: dict[str, dict | type[pydantic.BaseModel]]
+    inputs: dict[str, dict | type[BaseModel]]
     output_type: str
 
     def __init__(self, *args, **kwargs):
@@ -557,62 +558,34 @@ class Tool(BaseTool):
         )
 
     def _convert_dict_args_to_pydantic_models(self, args: tuple, kwargs: dict) -> tuple[tuple, dict]:
-        """
-        Convert dict arguments to Pydantic BaseModel instances when the corresponding
-        forward() parameter type annotations are Pydantic models.
+        """Ultra-simplified version using TypeAdapter for all conversions."""
+        hints = get_type_hints(self.forward)
 
-        This enables passing plain dictionaries for complex, nested inputs while still
-        benefiting from Pydantic validation and custom validators at call time.
-        """
-        annotations = getattr(self.forward, "__annotations__", {}) or {}
-        if not annotations:
+        if not hints:
             return args, kwargs
 
-        signature = inspect.signature(self.forward)
-        parameter_names = [name for name in signature.parameters.keys() if name != "self"]
+        sig = inspect.signature(self.forward)
+        params = list(sig.parameters.keys())
+        if params and params[0] == "self":
+            params = params[1:]
 
-        # Convert positional args
-        new_args = list(args)
-        for index, param_name in enumerate(parameter_names[: len(new_args)]):
-            expected_type = annotations.get(param_name)
-            if inspect.isclass(expected_type) and issubclass(expected_type, pydantic.BaseModel):
-                value = new_args[index]
-                if isinstance(value, expected_type):
-                    continue
-                if isinstance(value, dict):
-                    try:
-                        if hasattr(expected_type, "model_validate"):
-                            new_args[index] = expected_type.model_validate(value)  # pydantic v2
-                        else:
-                            new_args[index] = expected_type(**value)  # pydantic v1 fallback
-                    except Exception as e:  # pragma: no cover - exercised in tests
-                        # Re-raise Pydantic ValidationError as-is to keep error details
-                        if isinstance(e, pydantic.ValidationError):
-                            raise e
-                        raise TypeError(f"Failed to convert argument '{param_name}' to {expected_type.__name__}: {e}")
+        def convert_value(value, expected_type, param_name):
+            """Convert a single value to its expected type if needed."""
+            # Skip if already the right type or not a BaseModel
+            if isinstance(value, expected_type) or not (
+                inspect.isclass(expected_type) and issubclass(expected_type, BaseModel)
+            ):
+                return value
+            try:
+                return TypeAdapter(expected_type).validate_python(value)
+            except ValidationError:
+                raise  # Re-raise validation errors
+            except Exception as e:
+                raise TypeError(f"Failed to convert argument '{param_name}' to {expected_type.__name__}: {e}")
 
-        # Convert keyword args
-        new_kwargs = dict(kwargs)
-        for param_name, value in list(new_kwargs.items()):
-            expected_type = annotations.get(param_name)
-            if inspect.isclass(expected_type) and issubclass(expected_type, pydantic.BaseModel):
-                if isinstance(value, expected_type):
-                    continue
-                if isinstance(value, dict):
-                    try:
-                        if hasattr(expected_type, "model_validate"):
-                            new_kwargs[param_name] = expected_type.model_validate(value)  # pydantic v2
-                        else:
-                            new_kwargs[param_name] = expected_type(**value)  # pydantic v1 fallback
-                    except Exception as e:  # pragma: no cover - exercised in tests
-                        try:
-                            import pydantic as _p
-
-                            if isinstance(e, _p.ValidationError):
-                                raise
-                        except Exception:
-                            pass
-                        raise TypeError(f"Failed to convert argument '{param_name}' to {expected_type.__name__}: {e}")
+        # Convert all arguments
+        new_args = [convert_value(arg, hints.get(params[i]), params[i]) for i, arg in enumerate(args)]
+        new_kwargs = {k: convert_value(v, hints.get(k), k) for k, v in kwargs.items()}
 
         return tuple(new_args), new_kwargs
 
