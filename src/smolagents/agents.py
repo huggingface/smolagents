@@ -21,6 +21,7 @@ import re
 import tempfile
 import textwrap
 import time
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -202,16 +203,58 @@ class RunResult:
     Attributes:
         output (Any | None): The final output of the agent run, if available.
         state (Literal["success", "max_steps_error"]): The final state of the agent after the run.
-        messages (list[dict]): The agent's memory, as a list of messages.
+        steps (list[dict]): The agent's memory, as a list of steps.
         token_usage (TokenUsage | None): Count of tokens used during the run.
         timing (Timing): Timing details of the agent run: start time, end time, duration.
+        messages (list[dict]): The agent's memory, as a list of messages.
+            <Deprecated version="1.22.0">
+            Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.
+            </Deprecated>
     """
 
     output: Any | None
     state: Literal["success", "max_steps_error"]
-    messages: list[dict]
+    steps: list[dict]
     token_usage: TokenUsage | None
     timing: Timing
+
+    def __init__(self, output=None, state=None, steps=None, token_usage=None, timing=None, messages=None):
+        # Handle deprecated 'messages' parameter
+        if messages is not None:
+            if steps is not None:
+                raise ValueError("Cannot specify both 'messages' and 'steps' parameters. Use 'steps' instead.")
+            warnings.warn(
+                "Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            steps = messages
+
+        # Initialize with dataclass fields
+        self.output = output
+        self.state = state
+        self.steps = steps
+        self.token_usage = token_usage
+        self.timing = timing
+
+    @property
+    def messages(self):
+        """Backward compatibility property that returns steps."""
+        warnings.warn(
+            "Parameter 'messages' is deprecated and will be removed in version 1.25. Please use 'steps' instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return self.steps
+
+    def dict(self):
+        return {
+            "output": self.output,
+            "state": self.state,
+            "steps": self.steps,
+            "token_usage": self.token_usage.dict() if self.token_usage is not None else None,
+            "timing": self.timing.dict(),
+        }
 
 
 StreamEvent: TypeAlias = Union[
@@ -249,6 +292,7 @@ class MultiStepAgent(ABC):
             Each function should:
             - Take the final answer and the agent's memory as arguments.
             - Return a boolean indicating whether the final answer is valid.
+        return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
     """
 
     def __init__(
@@ -401,7 +445,8 @@ class MultiStepAgent(ABC):
         images: list["PIL.Image.Image"] | None = None,
         additional_args: dict | None = None,
         max_steps: int | None = None,
-    ):
+        return_full_result: bool | None = None,
+    ) -> Any | RunResult:
         """
         Run the agent for the given task.
 
@@ -414,6 +459,8 @@ class MultiStepAgent(ABC):
             images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
             additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
             max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+            return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
+                If `None` (default), the agent's `self.return_full_result` setting is used.
 
         Example:
         ```py
@@ -458,7 +505,8 @@ You have been provided with these additional arguments, that you can access dire
         assert isinstance(steps[-1], FinalAnswerStep)
         output = steps[-1].output
 
-        if self.return_full_result:
+        return_full_result = return_full_result if return_full_result is not None else self.return_full_result
+        if return_full_result:
             total_input_tokens = 0
             total_output_tokens = 0
             correct_token_usage = True
@@ -480,12 +528,12 @@ You have been provided with these additional arguments, that you can access dire
             else:
                 state = "success"
 
-            messages = self.memory.get_full_steps()
+            step_dicts = self.memory.get_full_steps()
 
             return RunResult(
                 output=output,
                 token_usage=token_usage,
-                messages=messages,
+                steps=step_dicts,
                 timing=Timing(start_time=run_start_time, end_time=time.time()),
                 state=state,
             )

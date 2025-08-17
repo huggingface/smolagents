@@ -34,7 +34,7 @@ class DefaultToolTests(unittest.TestCase):
         arguments = {"url": "https://en.wikipedia.org/wiki/United_States_Secretary_of_Homeland_Security"}
         result = VisitWebpageTool()(arguments)
         assert isinstance(result, str)
-        assert "* [About Wikipedia](/wiki/Wikipedia:About)" in result  # Proper wikipedia pages have an About
+        assert "United States Secretary of Homeland Security - Wikipedia\n\n[Jump to content]" in result
 
     @require_run_all
     def test_ddgs_with_kwargs(self):

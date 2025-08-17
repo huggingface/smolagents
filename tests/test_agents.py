@@ -42,6 +42,7 @@ from smolagents.agents import (
     AgentToolCallError,
     CodeAgent,
     MultiStepAgent,
+    RunResult,
     ToolCall,
     ToolCallingAgent,
     ToolOutput,
@@ -795,6 +796,124 @@ class DummyMultiStepAgent(MultiStepAgent):
 
     def initialize_system_prompt(self):
         pass
+
+
+class FakeLLMModel(Model):
+    def __init__(self, give_token_usage: bool = True):
+        self.give_token_usage = give_token_usage
+
+    def generate(self, prompt, tools_to_call_from=None, **kwargs):
+        if tools_to_call_from is not None:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="I will call the final_answer tool.",
+                tool_calls=[
+                    ChatMessageToolCall(
+                        id="fake_id",
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            name="final_answer", arguments={"answer": "This is the final answer."}
+                        ),
+                    )
+                ],
+                token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
+            )
+        else:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="""<code>
+final_answer('This is the final answer.')
+</code>""",
+                token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
+            )
+
+
+class TestRunResult:
+    def test_backward_compatibility(self):
+        """Test that RunResult handles deprecated 'messages' parameter correctly."""
+
+        # Test 1: Using new 'steps' parameter (should work without warning)
+        result1 = RunResult(
+            output="test output",
+            state="success",
+            steps=[{"type": "test", "content": "step1"}],
+            token_usage=None,
+            timing=Timing(start_time=0.0, end_time=1.0),
+        )
+        assert result1.steps == [{"type": "test", "content": "step1"}]
+
+        # Test property access warning
+        with pytest.warns(FutureWarning, match="deprecated"):
+            messages = result1.messages
+        assert messages == [{"type": "test", "content": "step1"}]
+
+        # Test 2: Using deprecated 'messages' parameter (should show deprecation warning)
+        with pytest.warns(FutureWarning, match="deprecated"):
+            result2 = RunResult(
+                output="test output",
+                state="success",
+                messages=[{"type": "test", "content": "message1"}],
+                token_usage=None,
+                timing=Timing(start_time=0.0, end_time=1.0),
+            )
+        assert result2.steps == [{"type": "test", "content": "message1"}]
+
+        # Test 3: Using both 'steps' and 'messages' (should raise ValueError)
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            RunResult(
+                output="test output",
+                state="success",
+                steps=[{"type": "test", "content": "step1"}],
+                messages=[{"type": "test", "content": "message1"}],
+                token_usage=None,
+                timing=Timing(start_time=0.0, end_time=1.0),
+            )
+
+    @pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
+    def test_no_token_usage(self, agent_class):
+        agent = agent_class(
+            tools=[],
+            model=FakeLLMModel(give_token_usage=False),
+            max_steps=1,
+            return_full_result=True,
+        )
+
+        result = agent.run("Fake task")
+
+        assert isinstance(result, RunResult)
+        assert result.output == "This is the final answer."
+        assert result.state == "success"
+        assert result.token_usage is None
+        assert isinstance(result.messages, list)
+        assert result.timing.duration > 0
+
+    @pytest.mark.parametrize(
+        "init_return_full_result,run_return_full_result,expect_runresult",
+        [
+            (True, None, True),
+            (False, None, False),
+            (True, False, False),
+            (False, True, True),
+        ],
+    )
+    def test_full_result(self, init_return_full_result, run_return_full_result, expect_runresult):
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_result=init_return_full_result,
+        )
+        result = agent.run("Fake task", return_full_result=run_return_full_result)
+
+        if expect_runresult:
+            assert isinstance(result, RunResult)
+            assert result.output == "This is the final answer."
+            assert result.state == "success"
+            assert result.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
+            assert isinstance(result.messages, list)
+            assert result.timing.duration > 0
+        else:
+            assert isinstance(result, str)
 
 
 class TestMultiStepAgent:
