@@ -1037,7 +1037,7 @@ def tool(tool_function: Callable) -> Tool:
     func_node = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
     if not func_node:
         raise ValueError(
-            "No function definition found in the provided source of {tool_function.__name__}. "
+            f"No function definition found in the provided source of {tool_function.__name__}. "
             "Ensure the input is a standard function."
         )
     #   - Extract decorator lines
