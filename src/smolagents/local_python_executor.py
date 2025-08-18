@@ -24,7 +24,6 @@ import re
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
-
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
@@ -59,7 +58,6 @@ MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 DEFAULT_EXECUTION_TIMEOUT = 300  # seconds
-
 
 
 def custom_print(*args):

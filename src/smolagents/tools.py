@@ -1123,10 +1123,10 @@ def tool(tool_function: Callable) -> Tool:
             def __init__(self):
                 self.is_initialized = True
 
-        """)
+        """
+        )
         + textwrap.indent(decorator_lines, indent)
         + textwrap.indent(forward_method_source, indent)
-
     )
     # - Store the source code on both class and method for inspection
     SimpleTool.__source__ = class_source
