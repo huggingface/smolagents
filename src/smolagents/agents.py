@@ -28,6 +28,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
+from queue import Queue
 from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
 
 import yaml
@@ -77,7 +78,7 @@ from .monitoring import (
     Monitor,
 )
 from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
-from .tools import BaseTool, Tool, validate_tool_arguments
+from .tools import BaseTool, ReceiveMessagesTool, SendMessageTool, Tool, validate_tool_arguments
 from .utils import (
     AgentError,
     AgentExecutionError,
@@ -295,6 +296,8 @@ class MultiStepAgent(ABC):
         return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
     """
 
+    # TODO: Add max_runtime
+
     def __init__(
         self,
         tools: list[Tool],
@@ -313,6 +316,8 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
+        agent_id: int = 0,
+        queue_dict: dict | dict = {},
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -345,6 +350,16 @@ class MultiStepAgent(ABC):
 
         self.task: str | None = None
         self.memory = AgentMemory(self.system_prompt)
+
+        self.agent_id = agent_id
+        if queue_dict is None:
+            queue_dict = {agent_id: Queue()}
+        else:
+            queue_dict.setdefault(agent_id, Queue())
+        self.queue_dict = queue_dict
+        self.queue = queue_dict[agent_id]
+        self._send_message_tool = SendMessageTool(queue_dict)
+        self._receive_messages_tool = ReceiveMessagesTool(agent_id, queue_dict)
 
         if logger is None:
             self.logger = AgentLogger(level=verbosity_level)

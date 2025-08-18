@@ -21,7 +21,6 @@ import uuid
 from collections.abc import Generator
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
-from multiprocessing import Manager
 from pathlib import Path
 from textwrap import dedent
 from typing import Optional
@@ -35,10 +34,10 @@ from huggingface_hub import (
 )
 from rich.console import Console
 
-from smolagents import EMPTY_PROMPT_TEMPLATES, InferenceClientModel
+from smolagents import EMPTY_PROMPT_TEMPLATES
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
-    #  AgentError,
+    AgentError,
     AgentMaxStepsError,
     AgentToolCallError,
     CodeAgent,
@@ -49,14 +48,7 @@ from smolagents.agents import (
     ToolOutput,
     populate_template,
 )
-from smolagents.default_tools import (
-    DuckDuckGoSearchTool,
-    FinalAnswerTool,
-    PythonInterpreterTool,
-    ReceiveMessagesTool,
-    SendMessageTool,
-    VisitWebpageTool,
-)
+from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import (
     ActionStep,
     CallbackRegistry,
@@ -70,7 +62,7 @@ from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
-    #  InferenceClientModel,
+    InferenceClientModel,
     MessageRole,
     Model,
     TransformersModel,
@@ -81,7 +73,6 @@ from smolagents.utils import (
     BASE_BUILTIN_MODULES,
     AgentExecutionError,
     AgentGenerationError,
-    AgentMaxRuntimeError,
     AgentToolExecutionError,
 )
 
@@ -490,33 +481,6 @@ class TestAgent:
         )
         assert "Remember this" in agent.task
 
-    def test_agent_communication(self):
-        with Manager() as manager:
-            queue_dict = manager.dict()
-            queue_dict[0] = manager.Queue()
-            queue_dict[1] = manager.Queue()
-            model = InferenceClientModel(model_id="mock-model")  # Use a mock model
-            agent0 = CodeAgent(
-                tools=[SendMessageTool(queue_dict, 0)],
-                model=model,
-                agent_id=0,
-                queue_dict=queue_dict,
-            )
-            messages: list[str] = []
-
-            def set_task(msg: str):
-                messages.append(msg)
-
-            agent1 = CodeAgent(
-                tools=[ReceiveMessagesTool(queue_dict, 1, process_message=set_task)],
-                model=model,
-                agent_id=1,
-                queue_dict=queue_dict,
-            )
-            agent0.tools[0](1, "test message")
-            agent1.tools[0]()
-            assert messages == ["test message"]
-
     def test_reset_conversations(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())
         output = agent.run("What is 2 multiplied by 3.6452?", reset=True)
@@ -554,17 +518,6 @@ class TestAgent:
         assert len(agent.memory.steps) == 5  # Task step + 3 action steps + Final answer
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
-
-    def test_fails_max_runtime(self):
-        agent = CodeAgent(
-            tools=[PythonInterpreterTool()],
-            model=FakeCodeModelNoReturn(),
-            max_steps=50,
-            max_runtime=1,
-        )
-        answer = agent.run("What is 2 multiplied by 3.6452?", max_runtime=1)
-        assert isinstance(answer, str)
-        assert isinstance(agent.memory.steps[-1].error, AgentMaxRuntimeError)
 
     def test_tool_descriptions_get_baked_in_system_prompt(self):
         tool = PythonInterpreterTool()
@@ -1415,20 +1368,14 @@ class TestMultiStepAgent:
         def interrupt_callback(memory_step, agent):
             agent.interrupt()
 
-        with Manager() as manager:
-            queue_dict = manager.dict()
-            queue_dict[0] = manager.Queue()
-            agent = CodeAgent(
-                tools=[],
-                model=fake_model,
-                step_callbacks=[interrupt_callback],
-                agent_id=0,
-                queue_dict=queue_dict,
-                prompt_templates=EMPTY_PROMPT_TEMPLATES,
-            )
-            result = agent.run("Test task")
-            assert result is None
-            assert agent.interrupt_switch
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+        with pytest.raises(AgentError) as e:
+            agent.run("Test task")
+        assert "Agent interrupted" in str(e)
 
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",

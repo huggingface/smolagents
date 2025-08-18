@@ -2,6 +2,7 @@
 logs
 tmp
 wandb
+make_test_log.xml
 
 #Test gaia
 wb/
