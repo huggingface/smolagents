@@ -374,6 +374,37 @@ def supports_stop_parameter(model_id: str) -> bool:
 
 
 class Model:
+    """Base class for all language model implementations.
+
+    This abstract class defines the core interface that all model implementations must follow
+    to work with agents. It provides common functionality for message handling, tool integration,
+    and model configuration while allowing subclasses to implement their specific generation logic.
+
+    Parameters:
+        flatten_messages_as_text (`bool`, default `False`):
+            Whether to flatten complex message content into plain text format.
+        tool_name_key (`str`, default `"name"`):
+            The key used to extract tool names from model responses.
+        tool_arguments_key (`str`, default `"arguments"`):
+            The key used to extract tool arguments from model responses.
+        model_id (`str`, *optional*):
+            Identifier for the specific model being used.
+        **kwargs:
+            Additional keyword arguments to forward to the underlying model completion call.
+
+    Note:
+        This is an abstract base class. Subclasses must implement the `generate()` method
+        to provide actual model inference capabilities.
+
+    Example:
+        ```python
+        class CustomModel(Model):
+            def generate(self, messages, **kwargs):
+                # Implementation specific to your model
+                pass
+        ```
+    """
+
     def __init__(
         self,
         flatten_messages_as_text: bool = False,
@@ -531,7 +562,9 @@ class VLLMModel(Model):
             The Hugging Face model ID to be used for inference.
             This can be a path or model identifier from the Hugging Face model hub.
         model_kwargs (`dict[str, Any]`, *optional*):
-            Additional keyword arguments to pass to the vLLM model (like revision, max_model_len, etc.).
+            Additional keyword arguments to forward to the vLLM LLM instantiation, such as `revision`, `max_model_len`, etc.
+        **kwargs:
+            Additional keyword arguments to forward to the underlying vLLM model generate call.
     """
 
     def __init__(
@@ -614,6 +647,7 @@ class VLLMModel(Model):
             prompt,
             sampling_params=sampling_params,
             guided_options_request=guided_options_request,
+            **completion_kwargs,
         )
 
         output_text = out[0].outputs[0].text
@@ -647,8 +681,8 @@ class MLXModel(Model):
             Additional keyword arguments to pass to the `mlx.lm.load` method when loading the model and tokenizer.
         apply_chat_template_kwargs (dict, *optional*):
             Additional keyword arguments to pass to the `apply_chat_template` method of the tokenizer.
-        kwargs (dict, *optional*):
-            Any additional keyword arguments that you want to use in model.generate(), for instance `max_tokens`.
+        **kwargs:
+            Additional keyword arguments to forward to the underlying MLX model stream_generate call, for instance `max_tokens`.
 
     Example:
     ```python
@@ -756,7 +790,7 @@ class TransformersModel(Model):
         model_kwargs (`dict[str, Any]`, *optional*):
             Additional keyword arguments to pass to `AutoModel.from_pretrained` (like revision, model_args, config, etc.).
         **kwargs:
-            Additional keyword arguments to pass to `model.generate()`, for instance `max_new_tokens` or `device`.
+            Additional keyword arguments to forward to the underlying Transformers model generate call, such as `max_new_tokens` or `device`.
     Raises:
         ValueError:
             If the model name is not provided.
@@ -1021,7 +1055,8 @@ class ApiModel(Model):
             Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
         requests_per_minute (`float`, **optional**):
             Rate limit in requests per minute.
-        **kwargs: Additional keyword arguments to pass to the parent class.
+        **kwargs:
+            Additional keyword arguments to forward to the underlying model completion call.
     """
 
     def __init__(
@@ -1062,7 +1097,7 @@ class LiteLLMModel(ApiModel):
         flatten_messages_as_text (`bool`, *optional*): Whether to flatten messages as text.
             Defaults to `True` for models that start with "ollama", "groq", "cerebras".
         **kwargs:
-            Additional keyword arguments to pass to the OpenAI API.
+            Additional keyword arguments to forward to the underlying LiteLLM completion call.
     """
 
     def __init__(
@@ -1129,6 +1164,12 @@ class LiteLLMModel(ApiModel):
         )
         self._apply_rate_limit()
         response = self.client.completion(**completion_kwargs)
+        if not response.choices:
+            raise RuntimeError(
+                f"Unexpected API response: model '{self.model_id}' returned no choices. "
+                " This may indicate a possible API or upstream issue. "
+                f"Response details: {response.model_dump()}"
+            )
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
@@ -1213,7 +1254,7 @@ class LiteLLMRouterModel(LiteLLMModel):
         flatten_messages_as_text (`bool`, *optional*): Whether to flatten messages as text.
             Defaults to `True` for models that start with "ollama", "groq", "cerebras".
         **kwargs:
-            Additional keyword arguments to pass to the LiteLLM Router completion method.
+            Additional keyword arguments to forward to the underlying LiteLLM Router completion call.
 
     Example:
     ```python
@@ -1320,7 +1361,7 @@ class InferenceClientModel(ApiModel):
             Base URL to run inference. This is a duplicated argument from `model` to make [`InferenceClientModel`]
             follow the same pattern as `openai.OpenAI` client. Cannot be used if `model` is set. Defaults to None.
         **kwargs:
-            Additional keyword arguments to pass to the Hugging Face InferenceClient.
+            Additional keyword arguments to forward to the underlying Hugging Face InferenceClient completion call.
 
     Raises:
         ValueError:
@@ -1487,7 +1528,7 @@ class OpenAIServerModel(ApiModel):
         flatten_messages_as_text (`bool`, default `False`):
             Whether to flatten messages as text.
         **kwargs:
-            Additional keyword arguments to pass to the OpenAI API.
+            Additional keyword arguments to forward to the underlying OpenAI API completion call, for instance `temperature`.
     """
 
     def __init__(
@@ -1628,7 +1669,7 @@ class AzureOpenAIServerModel(OpenAIServerModel):
             Custom role conversion mapping to convert message roles in others.
             Useful for specific models that do not support specific message roles like "system".
         **kwargs:
-            Additional keyword arguments to pass to the Azure OpenAI API.
+            Additional keyword arguments to forward to the underlying Azure OpenAI API completion call.
     """
 
     def __init__(
@@ -1704,8 +1745,8 @@ class AmazonBedrockServerModel(ApiModel):
             Defaults to converting all roles to "user" role to enable using all the Bedrock models.
         flatten_messages_as_text (`bool`, default `False`):
             Whether to flatten messages as text.
-        **kwargs
-            Additional keyword arguments passed directly to the underlying API calls.
+        **kwargs:
+            Additional keyword arguments to forward to the underlying Amazon Bedrock model converse call.
 
     Examples:
         Creating a model instance with default settings:
@@ -1852,14 +1893,14 @@ class AmazonBedrockServerModel(ApiModel):
         # self.client is created in ApiModel class
         response = self.client.converse(**completion_kwargs)
 
-        # Get last message content block in case thinking mode is enabled: discard thinking
-        last_message_content_block = response["output"]["message"]["content"][-1]
-        if "text" not in last_message_content_block:
-            raise KeyError(
-                '"text" field not found in the last element of response["output"]["message"]["content"]. '
-                "Unexpected output format, possibly due to thinking mode changes."
-            )
-        response["output"]["message"]["content"] = last_message_content_block["text"]
+        # Get content blocks with "text" key: in case thinking blocks are present, discard them
+        message_content_blocks_with_text = [
+            block for block in response["output"]["message"]["content"] if "text" in block
+        ]
+        if not message_content_blocks_with_text:
+            raise KeyError("No message content blocks with 'text' key found in response")
+        # Keep the last one
+        response["output"]["message"]["content"] = message_content_blocks_with_text[-1]["text"]
         return ChatMessage.from_dict(
             response["output"]["message"],
             raw=response,
