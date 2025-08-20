@@ -53,7 +53,7 @@ Full documentation is available [here](https://huggingface.co/docs/smolagents/in
 Install the package with default tools:
 
 ```bash
-pip install smolagents[toolkit]
+pip install "smolagents[toolkit]"
 ```
 
 Set your Hugging Face API key:
