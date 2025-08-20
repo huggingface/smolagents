@@ -61,7 +61,7 @@ telemetry = [
   "arize-phoenix",
   "opentelemetry-sdk", 
   "opentelemetry-exporter-otlp",
-  "openinference-instrumentation-smolagents>=0.1.4"
+  "openinference-instrumentation-smolagents>=0.1.15"  # Use new TokenUsage structure
 ]
 toolkit = [
   "ddgs>=9.0.0",  # DuckDuckGoSearchTool
