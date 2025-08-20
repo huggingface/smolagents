@@ -1,4 +1,5 @@
 """Message store implementation for decentralized agents."""
+
 import json
 import uuid
 from datetime import datetime
@@ -16,19 +17,20 @@ class MessageStore:
     def post_message(self, message: Dict) -> str:
         """Post a new message to the store."""
         msg_id = str(uuid.uuid4())
-        message.update({
-            "id": msg_id,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        message.update(
+            {
+                "id": msg_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         with self.messages_file.open("a") as f:
             f.write(json.dumps(message) + "\n")
         return msg_id
 
-    def get_messages(self,
-                    agent_id: str,
-                    last_seen: Optional[str] = None,
-                    thread_id: Optional[str] = None) -> List[Dict]:
+    def get_messages(
+        self, agent_id: str, last_seen: Optional[str] = None, thread_id: Optional[str] = None
+    ) -> List[Dict]:
         """Get messages visible to the given agent."""
         if not self.messages_file.exists():
             return []

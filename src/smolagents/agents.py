@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     import PIL.Image
 
 from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
-from .default_tools import TOOL_MAPPING, FinalAnswerTool
+from .default_tools import TOOL_MAPPING, FinalAnswerTool, ReceiveMessagesTool, SendMessageTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import (
     ActionStep,
@@ -78,7 +78,7 @@ from .monitoring import (
     Monitor,
 )
 from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
-from .tools import BaseTool, ReceiveMessagesTool, SendMessageTool, Tool, validate_tool_arguments
+from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
     AgentError,
     AgentExecutionError,
@@ -351,6 +351,13 @@ class MultiStepAgent(ABC):
         self.task: str | None = None
         self.memory = AgentMemory(self.system_prompt)
 
+        # Set up logger first so it's available for tools
+        if logger is None:
+            self.logger = AgentLogger(level=verbosity_level)
+        else:
+            self.logger = logger
+
+        # Set up messaging
         self.agent_id = agent_id
         if queue_dict is None:
             queue_dict = {agent_id: Queue()}
@@ -358,13 +365,10 @@ class MultiStepAgent(ABC):
             queue_dict.setdefault(agent_id, Queue())
         self.queue_dict = queue_dict
         self.queue = queue_dict[agent_id]
-        self._send_message_tool = SendMessageTool(queue_dict)
-        self._receive_messages_tool = ReceiveMessagesTool(agent_id, queue_dict)
-
-        if logger is None:
-            self.logger = AgentLogger(level=verbosity_level)
-        else:
-            self.logger = logger
+        self._send_message_tool = SendMessageTool(queue_dict=queue_dict, agent_id=self.agent_id, logger=self.logger)
+        self._receive_messages_tool = ReceiveMessagesTool(
+            queue_dict=queue_dict, agent_id=self.agent_id, logger=self.logger
+        )
 
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)

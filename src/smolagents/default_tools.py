@@ -647,6 +647,13 @@ class SendMessageTool(Tool):
     output_type = "null"
 
     def __init__(self, queue_dict: dict, agent_id: int, logger=None):
+        """Initialize SendMessageTool.
+
+        Args:
+            queue_dict (dict): Dictionary mapping agent IDs to their message queues
+            agent_id (int): ID of the sending agent
+            logger (AgentLogger, optional): Logger for recording message activity
+        """
         super().__init__()
         self.queue_dict = queue_dict
         self.agent_id = agent_id
@@ -680,6 +687,14 @@ class ReceiveMessagesTool(Tool):
     output_type = "array"
 
     def __init__(self, queue_dict: dict, agent_id: int, logger=None, process_message: Callable | None = None):
+        """Initialize ReceiveMessagesTool.
+
+        Args:
+            queue_dict (dict): Dictionary mapping agent IDs to their message queues
+            agent_id (int): ID of the receiving agent
+            logger (AgentLogger, optional): Logger for recording message activity
+            process_message (Callable, optional): Function to process each received message
+        """
         super().__init__()
         self.queue_dict = queue_dict
         self.agent_id = agent_id
@@ -707,8 +722,6 @@ TOOL_MAPPING = {
         PythonInterpreterTool,
         DuckDuckGoSearchTool,
         VisitWebpageTool,
-        SendMessageTool,
-        ReceiveMessagesTool,
     ]
 }
 

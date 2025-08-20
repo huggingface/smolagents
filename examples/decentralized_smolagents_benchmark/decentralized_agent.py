@@ -18,11 +18,9 @@ def setup_logging(run_dir: Path) -> None:
     logging.basicConfig(
         level=logging.INFO,
         format='{"timestamp":"%(asctime)s", "level":"%(levelname)s", "message":%(message)s}',
-        handlers=[
-            logging.FileHandler(run_dir / "run.log"),
-            logging.StreamHandler(sys.stdout)
-        ]
+        handlers=[logging.FileHandler(run_dir / "run.log"), logging.StreamHandler(sys.stdout)],
     )
+
 
 def main(args: argparse.Namespace) -> int:
     """Main entry point."""
@@ -33,27 +31,16 @@ def main(args: argparse.Namespace) -> int:
 
     # Setup logging
     setup_logging(run_dir)
-    logging.info(json.dumps({
-        "event": "run_started",
-        "run_id": run_id,
-        "args": vars(args)
-    }))
+    logging.info(json.dumps({"event": "run_started", "run_id": run_id, "args": vars(args)}))
 
     # Create message store and team
     message_store = MessageStore(run_id)
     agents = create_team(
-        message_store=message_store,
-        model_type=args.model_type,
-        model_id=args.model_id,
-        provider=args.provider
+        message_store=message_store, model_type=args.model_type, model_id=args.model_id, provider=args.provider
     )
 
     # Post initial task
-    message_store.post_message({
-        "sender": "system",
-        "content": args.question,
-        "thread_id": "main"
-    })
+    message_store.post_message({"sender": "system", "content": args.question, "thread_id": "main"})
 
     # Start agent threads
     threads = []
@@ -79,14 +66,12 @@ def main(args: argparse.Namespace) -> int:
 
     if final_answer:
         print(f"FinalAnswer: {final_answer}")
-        logging.info(json.dumps({
-            "event": "final_answer",
-            "answer": final_answer
-        }))
+        logging.info(json.dumps({"event": "final_answer", "answer": final_answer}))
         return 0
     else:
         print("No consensus reached on final answer", file=sys.stderr)
         return 1
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -97,4 +82,3 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     sys.exit(main(args))
-

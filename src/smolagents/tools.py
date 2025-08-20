@@ -794,48 +794,6 @@ def launch_gradio_demo(tool: Tool):
     ).launch()
 
 
-class SendMessageTool(Tool):
-    """Tool to send a message to another agent via the shared ``queue_dict``."""
-
-    name = "send_message"
-    description = "Send a message to another agent using the shared queues."
-    inputs = {
-        "target_id": {"type": "integer", "description": "ID of the target agent."},
-        "message": {"type": "any", "description": "The message to send."},
-    }
-    output_type = "null"
-
-    def __init__(self, queue_dict: dict[int, Any]):
-        self.queue_dict = queue_dict
-        super().__init__()
-
-    def forward(self, target_id: int, message: Any) -> None:
-        if target_id not in self.queue_dict:
-            raise ValueError(f"Target {target_id} not found in queue_dict")
-        self.queue_dict[target_id].put(message)
-
-
-class ReceiveMessagesTool(Tool):
-    """Tool to retrieve and clear all messages for the current agent."""
-
-    name = "receive_messages"
-    description = "Retrieve all messages queued for this agent."
-    inputs = {}
-    output_type = "array"
-
-    def __init__(self, agent_id: int, queue_dict: dict[int, Any]):
-        self.agent_id = agent_id
-        self.queue_dict = queue_dict
-        super().__init__()
-
-    def forward(self) -> list[Any]:
-        messages: list[Any] = []
-        queue = self.queue_dict[self.agent_id]
-        while not queue.empty():
-            messages.append(queue.get())
-        return messages
-
-
 def load_tool(
     repo_id,
     model_repo_id: str | None = None,
@@ -1387,6 +1345,4 @@ __all__ = [
     "load_tool",
     "launch_gradio_demo",
     "ToolCollection",
-    "SendMessageTool",
-    "ReceiveMessagesTool",
 ]

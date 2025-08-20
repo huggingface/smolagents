@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
 from importlib.util import find_spec
+from queue import Queue
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any
 
@@ -82,6 +83,7 @@ BASE_PYTHON_TOOLS = {
     "list": list,
     "dict": dict,
     "tuple": tuple,
+    "Queue": Queue,
     "round": round,
     "ceil": math.ceil,
     "floor": math.floor,
@@ -1462,11 +1464,23 @@ def evaluate_ast(
     elif isinstance(expression, ast.FormattedValue):
         # Formatted value (part of f-string) -> evaluate the content and format it
         value = evaluate_ast(expression.value, *common_params)
+        if expression.conversion >= 0:  # Convert value according to conversion type
+            # str (s) = 115, repr (r) = 114, ascii (a) = 97
+            if expression.conversion == 115:  # str
+                value = str(value)
+            elif expression.conversion == 114:  # repr
+                value = repr(value)
+            elif expression.conversion == 97:  # ascii
+                value = ascii(value)
         # Early return if no format spec
         if not expression.format_spec:
             return value
-        # Apply format specification
+        # Apply format specification - handle both strings and JoinedStr nodes
         format_spec = evaluate_ast(expression.format_spec, *common_params)
+        if isinstance(format_spec, ast.JoinedStr):
+            format_spec = "".join([str(evaluate_ast(v, *common_params)) for v in format_spec.values])
+        if format_spec is None:
+            return value
         return format(value, format_spec)
     elif isinstance(expression, ast.If):
         # If -> execute the right branch
@@ -1530,13 +1544,18 @@ class FinalAnswerException(Exception):
         self.value = value
 
 
+def get_max_length(length: int | None) -> int:
+    """Helper to get a valid max length, defaulting to DEFAULT_MAX_LEN_OUTPUT if None"""
+    return length if length is not None else DEFAULT_MAX_LEN_OUTPUT
+
+
 def evaluate_python_code(
     code: str,
     static_tools: dict[str, Callable] | None = None,
     custom_tools: dict[str, Callable] | None = None,
     state: dict[str, Any] | None = None,
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
-    max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
+    max_print_outputs_length: int | None = DEFAULT_MAX_LEN_OUTPUT,
     timeout: int | None = DEFAULT_EXECUTION_TIMEOUT,
 ):
     """
@@ -1588,27 +1607,28 @@ def evaluate_python_code(
 
         static_tools["final_answer"] = final_answer
 
+    current_node = None  # Keep track of the current node for error reporting
     try:
         for node in expression.body:
+            current_node = node  # Update current node before evaluation
             result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
         state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=max_print_outputs_length
+            str(state["_print_outputs"]), max_length=get_max_length(max_print_outputs_length)
         )
         is_final_answer = False
         return result, is_final_answer
     except FinalAnswerException as e:
         state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=max_print_outputs_length
+            str(state["_print_outputs"]), max_length=get_max_length(max_print_outputs_length)
         )
         is_final_answer = True
         return e.value, is_final_answer
     except Exception as e:
         state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=max_print_outputs_length
+            str(state["_print_outputs"]), max_length=get_max_length(max_print_outputs_length)
         )
-        raise InterpreterError(
-            f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
-        )
+        error_loc = ast.get_source_segment(code, current_node) if current_node else "unknown line"
+        raise InterpreterError(f"Code execution failed at line '{error_loc}' due to: {type(e).__name__}: {e}")
 
 
 @dataclass

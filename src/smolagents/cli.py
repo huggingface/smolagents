@@ -14,11 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 import argparse
 import os
-from multiprocessing import Manager, Process
 
 from dotenv import load_dotenv
 
@@ -30,13 +27,13 @@ leopard_prompt = "How many seconds would it take for a leopard at full speed to 
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Run multiple CodeAgents with direct communication")
+    parser = argparse.ArgumentParser(description="Run a CodeAgent with all specified parameters")
     parser.add_argument(
         "prompt",
         type=str,
         nargs="?",  # Makes it optional
         default=leopard_prompt,
-        help="The prompt to run with the first agent",
+        help="The prompt to run with the agent",
     )
     parser.add_argument(
         "--model-type",
@@ -60,13 +57,7 @@ def parse_arguments():
         "--tools",
         nargs="*",
         default=["web_search"],
-        help="Space-separated list of tools that the agents can use (e.g., 'tool1 tool2 tool3')",
-    )
-    parser.add_argument(
-        "--num-agents",
-        type=int,
-        default=2,
-        help="Number of agents to run",
+        help="Space-separated list of tools that the agent can use (e.g., 'tool1 tool2 tool3')",
     )
     parser.add_argument(
         "--verbosity-level",
@@ -118,28 +109,27 @@ def load_model(
     elif model_type == "InferenceClientModel":
         return InferenceClientModel(
             model_id=model_id,
-            token=api_key or os.getenv("HF_TOKEN"),
+            token=api_key or os.getenv("HF_API_KEY"),
             provider=provider,
         )
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
 
 
-def start_agent(
-    agent_id: int,
-    queue_dict: dict,
-    prompt: str | None,
+def run_smolagent(
+    prompt: str,
     tools: list[str],
     model_type: str,
     model_id: str,
-    api_base: str | None,
-    api_key: str | None,
-    imports: list[str] | None,
-    provider: str | None,
-    verbosity_level: int,
+    api_base: str | None = None,
+    api_key: str | None = None,
+    imports: list[str] | None = None,
+    provider: str | None = None,
 ) -> None:
     load_dotenv()
+
     model = load_model(model_type, model_id, api_base=api_base, api_key=api_key, provider=provider)
+
     available_tools = []
     for tool_name in tools:
         if "/" in tool_name:
@@ -149,57 +139,11 @@ def start_agent(
                 available_tools.append(TOOL_MAPPING[tool_name]())
             else:
                 raise ValueError(f"Tool {tool_name} is not recognized either as a default tool or a Space.")
-    print(f"Agent {agent_id} running with tools: {tools}")
-    agent = CodeAgent(
-        tools=available_tools,
-        model=model,
-        agent_id=agent_id,
-        queue_dict=queue_dict,
-        additional_authorized_imports=imports,
-        verbosity_level=verbosity_level,
-    )
+
+    print(f"Running agent with these tools: {tools}")
+    agent = CodeAgent(tools=available_tools, model=model, additional_authorized_imports=imports)
+
     agent.run(prompt)
-
-
-def run_smolagent(
-    prompt: str,
-    tools: list[str],
-    model_type: str,
-    model_id: str,
-    num_agents: int,
-    api_base: str | None = None,
-    api_key: str | None = None,
-    imports: list[str] | None = None,
-    provider: str | None = None,
-    verbosity_level: int = 1,
-) -> None:
-    with Manager() as manager:
-        queue_dict = manager.dict()
-        for i in range(num_agents):
-            queue_dict[i] = manager.Queue()
-        processes = [
-            Process(
-                target=start_agent,
-                args=(
-                    i,
-                    queue_dict,
-                    prompt if i == 0 else None,  # Initial task for Agent 0
-                    tools,
-                    model_type,
-                    model_id,
-                    api_base,
-                    api_key,
-                    imports,
-                    provider,
-                    verbosity_level,
-                ),
-            )
-            for i in range(num_agents)
-        ]
-        for p in processes:
-            p.start()
-        for p in processes:
-            p.join()
 
 
 def main() -> None:
@@ -209,12 +153,10 @@ def main() -> None:
         args.tools,
         args.model_type,
         args.model_id,
-        args.num_agents,
         provider=args.provider,
         api_base=args.api_base,
         api_key=args.api_key,
         imports=args.imports,
-        verbosity_level=args.verbosity_level,
     )
 
 
