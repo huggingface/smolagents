@@ -1,6 +1,5 @@
 """Agent definitions and utilities for decentralized team."""
 
-import importlib
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -18,12 +17,15 @@ from scripts.text_web_browser import (
     VisitTool,
 )
 from scripts.visual_qa import visualizer
-from smolagents import GoogleSearchTool, ToolCallingAgent
+from smolagents import GoogleSearchTool, LiteLLMModel, ToolCallingAgent
 from smolagents.default_tools import PythonInterpreterTool
 from smolagents.tools import Tool
 
 from .message_store import MessageStore
 
+
+# evaluation roles
+custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
 
 # Browser configuration
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
@@ -142,42 +144,60 @@ Your responsibilities:
     text_limit = 100000
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
 
+    # Initialize model
+    model_params: dict[str, Any] = {
+        "model_id": model_id,
+        "custom_role_conversions": custom_role_conversions,
+    }
+    if model_id == "o1":
+        model_params["reasoning_effort"] = "high"
+        model_params["max_completion_tokens"] = 8192
+    else:
+        model_params["max_tokens"] = 4096
+
+    model = LiteLLMModel(**model_params)
+
+    ti_tool = TextInspectorTool(model, text_limit)
+
     # Create directory for browser downloads if needed
     os.makedirs(BROWSER_CONFIG["downloads_folder"], exist_ok=True)
 
-    # Initialize model
-    model_cls = importlib.import_module("smolagents.models").LiteLLMModel
-    model = model_cls(model_name=model_id, provider_name=provider)
+    # Create base tools that are shared between code and web tools
+    shared_tools = [visualizer, ti_tool]
 
-    # Create tool instances for each agent type
-    code_tools = [Tool(PythonInterpreterTool())]
-
-    # Full web tools suite
+        # Base web tools
     web_tools = [
-        Tool(GoogleSearchTool(provider="serper")),
-        Tool(VisitTool(browser)),
-        Tool(PageUpTool(browser)),
-        Tool(PageDownTool(browser)),
-        Tool(FinderTool(browser)),
-        Tool(FindNextTool(browser)),
-        Tool(ArchiveSearchTool(browser)),
-        Tool(TextInspectorTool(model, text_limit)),
-        Tool(visualizer),
+        GoogleSearchTool(provider="serper"),
+        VisitTool(browser),
+        PageUpTool(browser),
+        PageDownTool(browser),
+        FinderTool(browser),
+        FindNextTool(browser),
+        ArchiveSearchTool(browser),
     ]
+
+    # Base code tools
+    code_tools = [PythonInterpreterTool()]
+
+    # Add shared tools to both collections
+    code_tools.extend(shared_tools)
+    web_tools.extend(shared_tools)
 
     reader_tools = [
         Tool.from_code("""
 from smolagents.tools import Tool
 class FileReaderTool(Tool):
     '''Tool for reading file contents'''
+    name = "file_reader"
     inputs = {
         "file_path": {
             "type": "string",
             "description": "Path to the file to read"
         }
     }
+    output_type = "string"
     description = "Read contents of a file"
-    def __call__(self, file_path: str) -> str:
+    def forward(self, file_path: str) -> str:
         '''Read contents of a file'''
         with open(file_path) as f:
             return f.read()
@@ -202,7 +222,7 @@ class FileReaderTool(Tool):
         AgentConfig(
             name="DeepResearchAgent",
             role="Deep analysis specialist",
-            tools=web_tools + code_tools,
+            tools=list(set(web_tools + code_tools)),
             model=model,
             system_prompt=base_prompt + "\nYou specialize in deep research and exploring multiple hypotheses.",
         ),
