@@ -305,7 +305,7 @@ class DockerExecutor(RemotePythonExecutor):
                         f.write(
                             dedent(
                                 """\
-                                FROM python:3.12-slim
+                                FROM python:3.12-bullseye
 
                                 RUN pip install jupyter_kernel_gateway jupyter_client
 
