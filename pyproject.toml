@@ -46,7 +46,6 @@ gradio = [
 ]
 litellm = [
   "litellm>=1.60.2",
-  "openai<1.100.0",
 ]
 mcp = [
   "mcpadapt>=0.1.11",  # Support Image and Audio content
