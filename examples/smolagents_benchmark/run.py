@@ -3,7 +3,7 @@
 #
 # Example usage:
 # python run.py --model-type LiteLLMModel --model-id gpt-4o --provider openai --agent-action-type tool-calling
-# python run.py --model-type InferenceClientModel --model-id gpt-4o --provider openai --agent-action-type code
+# python run.py --model-type LiteLLMModel --model-id gpt-4o --provider openai --agent-action-type code
 
 import argparse
 import datetime
