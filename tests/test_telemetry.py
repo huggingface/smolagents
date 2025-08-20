@@ -19,6 +19,8 @@ from typing import Generator
 
 import pytest
 
+from .utils.markers import require_run_all
+
 
 # Add this at the module level to skip all tests if OpenTelemetry is not available
 pytest.importorskip("opentelemetry", reason="requires opentelemetry")
@@ -61,6 +63,7 @@ def instrument(
     in_memory_span_exporter.clear()
 
 
+@require_run_all
 class TestOpenTelemetry:
     def test_model(self, in_memory_span_exporter: InMemorySpanExporter):
         model = InferenceClientModel()
