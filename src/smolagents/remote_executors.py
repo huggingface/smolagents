@@ -255,6 +255,7 @@ class DockerExecutor(RemotePythonExecutor):
         image_name: str = "jupyter-kernel",
         build_new_image: bool = True,
         container_run_kwargs: dict[str, Any] | None = None,
+        dockerfile_content: str | None = None,
     ):
         """
         Initialize the Docker-based Jupyter Kernel Gateway executor.
@@ -267,6 +268,7 @@ class DockerExecutor(RemotePythonExecutor):
             image_name: Name of the Docker image to use. If the image doesn't exist, it will be built.
             build_new_image: If True, the image will be rebuilt even if it already exists.
             container_run_kwargs: Additional keyword arguments to pass to the Docker container run command.
+            dockerfile_content: Custom Dockerfile content. If None, uses default.
         """
         super().__init__(additional_imports, logger)
         try:
@@ -279,6 +281,17 @@ class DockerExecutor(RemotePythonExecutor):
         self.host = host
         self.port = port
         self.image_name = image_name
+
+        self.dockerfile_content = dockerfile_content or dedent(
+            """\
+            FROM python:3.12-bullseye
+
+            RUN pip install jupyter_kernel_gateway jupyter_client
+
+            EXPOSE 8888
+            CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
+            """
+        )
 
         # Initialize Docker
         try:
@@ -302,18 +315,7 @@ class DockerExecutor(RemotePythonExecutor):
                 dockerfile_path = Path(__file__).parent / "Dockerfile"
                 if not dockerfile_path.exists():
                     with open(dockerfile_path, "w") as f:
-                        f.write(
-                            dedent(
-                                """\
-                                FROM python:3.12-bullseye
-
-                                RUN pip install jupyter_kernel_gateway jupyter_client
-
-                                EXPOSE 8888
-                                CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
-                                """
-                            )
-                        )
+                        f.write(self.dockerfile_content)
                 _, build_logs = self.client.images.build(
                     path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
                 )
