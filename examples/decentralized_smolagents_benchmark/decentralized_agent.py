@@ -45,7 +45,15 @@ def main(args: argparse.Namespace) -> int:
     # Start agent threads
     threads = []
     for agent in agents:
-        thread = threading.Thread(target=agent.run)
+
+        def run_agent():
+            try:
+                while not consensus_event.is_set():
+                    agent.run_step()
+            except Exception as e:
+                logging.error(f"Agent error: {e}")
+
+        thread = threading.Thread(target=run_agent)
         thread.start()
         threads.append(thread)
 
