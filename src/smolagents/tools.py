@@ -952,7 +952,7 @@ class ToolCollection:
         cls,
         server_parameters: "mcp.StdioServerParameters" | dict,
         trust_remote_code: bool = False,
-        structured_output: bool = False,
+        structured_output: bool | None = None,
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
@@ -1021,6 +1021,18 @@ class ToolCollection:
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
+        # Handle future warning for structured_output default value change
+        if structured_output is None:
+            warnings.warn(
+                "The 'structured_output' parameter was not specified and currently defaults to False. "
+                "In a future release, the default will change to True. "
+                "To suppress this warning, explicitly set structured_output=True (new behavior) or structured_output=False (current behavior). "
+                "See documentation at https://huggingface.co/docs/smolagents/tutorials/tools#structured-output-and-output-schema-support for more details.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            structured_output = False
+
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter

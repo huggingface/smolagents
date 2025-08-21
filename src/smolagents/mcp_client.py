@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
@@ -85,8 +86,20 @@ class MCPClient:
         self,
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
         adapter_kwargs: dict[str, Any] | None = None,
-        structured_output: bool = False,
+        structured_output: bool | None = None,
     ):
+        # Handle future warning for structured_output default value change
+        if structured_output is None:
+            warnings.warn(
+                "The 'structured_output' parameter was not specified and currently defaults to False. "
+                "In a future release, the default will change to True. "
+                "To suppress this warning, explicitly set structured_output=True (new behavior) or structured_output=False (current behavior). "
+                "See documentation at https://huggingface.co/docs/smolagents/tutorials/tools#structured-output-and-output-schema-support for more details.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            structured_output = False
+
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter

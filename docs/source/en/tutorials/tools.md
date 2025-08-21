@@ -245,7 +245,9 @@ with MCPClient(server_parameters, structured_output=True) as tools:
 
 When structured output is enabled, the `CodeAgent` system prompt is enhanced to include JSON schema information for tools, helping the agent understand the expected structure of tool outputs and access the data appropriately.
 
-**Backwards Compatibility**: The `structured_output` parameter defaults to `False` to maintain backwards compatibility. Existing code will continue to work without changes, receiving simple text outputs as before.
+**Backwards Compatibility**: The `structured_output` parameter currently defaults to `False` to maintain backwards compatibility. Existing code will continue to work without changes, receiving simple text outputs as before.
+
+**Future Change**: In a future release, the default value of `structured_output` will change from `False` to `True`. It is recommended to explicitly set `structured_output=True` to opt into the enhanced functionality, which provides better tool output handling and improved agent performance. Use `structured_output=False` only if you specifically need to maintain the current text-only behavior.
 
 ### Import a Space as a tool
 
