@@ -1,7 +1,12 @@
+#!/usr/bin/env python
+# Example usage: python run.py --model-type LiteLLMModel --model-id gpt-4o --provider openai
+"""Benchmarking script for decentralized agent implementation."""
+
 import argparse
 import datetime
 import json
 import os
+import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -12,18 +17,6 @@ import pandas as pd
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-from smolagents import (
-    EMPTY_PROMPT_TEMPLATES,
-    AgentError,
-    CodeAgent,
-    GoogleSearchTool,
-    InferenceClientModel,
-    LiteLLMModel,
-    PythonInterpreterTool,
-    ToolCallingAgent,
-    VisitWebpageTool,
-)
-
 
 load_dotenv()
 os.makedirs("output", exist_ok=True)
@@ -32,7 +25,7 @@ APPEND_ANSWER_LOCK = threading.Lock()
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Runs an agent powered by the given model on smolagent benchmark.")
+    parser = argparse.ArgumentParser(description="Runs decentralized agent team on smolagent benchmark.")
     parser.add_argument(
         "--date",
         type=str,
@@ -44,13 +37,11 @@ def parse_arguments():
         type=str,
         default="smolagents/benchmark-v1",
     )
-    # The eval dataset is gated, so you must first visit its page to request access: https://huggingface.co/datasets/smolagents-benchmark/benchmark-v1
     parser.add_argument(
         "--model-type",
         type=str,
-        default="InferenceClientModel",
-        choices=["LiteLLMModel", "InferenceClientModel"],
-        help="The model type to use (LiteLLMModel or InferenceClientModel)",
+        required=True,
+        help="The model type to use for the decentralized agents",
     )
     parser.add_argument(
         "--model-id",
@@ -62,20 +53,13 @@ def parse_arguments():
         "--provider",
         type=str,
         default="hf-inference",
-        help="The provider for InferenceClientModel - will not be used for LiteLLMModel",
-    )
-    parser.add_argument(
-        "--agent-action-type",
-        type=str,
-        default="code",
-        choices=["code", "tool-calling", "vanilla"],
-        help="The agent action type: 'code', 'tool-calling', or 'vanilla' to use the vanilla llm",
+        help="The provider for the model",
     )
     parser.add_argument(
         "--parallel-workers",
         type=int,
-        default=8,
-        help="The number of processes to run in parallel",
+        default=4,
+        help="The number of concurrent benchmark runs",
     )
     parser.add_argument(
         "--num-examples",
@@ -97,182 +81,182 @@ def parse_arguments():
 
 
 def load_eval_dataset(eval_dataset, num_examples=None):
-    # Choose the tasks to evaluate on:
-    # tasks = ["gaia"]
-    # or evaluate on all tasks: ["gaia", "math", "simpleqa"]
+    """Load the evaluation dataset."""
+    # Get all available tasks
     tasks = datasets.get_dataset_config_names(eval_dataset)
-    print(tasks)
+    print(f"Available tasks: {tasks}")
 
-    if num_examples is None:
-        split = "test"
-    else:
-        split = f"test[:{num_examples}]"
-    eval_ds = {task: datasets.load_dataset(eval_dataset, task, split=split) for task in tasks}
-    print(pd.DataFrame(eval_ds["simpleqa"]).head())
-    return eval_ds
+    # Load each task's dataset
+    all_data = []
+    for task in tasks:
+        dataset = datasets.load_dataset(eval_dataset, task, split="test")
+        data_list = list(dataset)
+        print(f"Loaded {len(data_list)} examples for {task}")
 
+        # Add task information to each item
+        for item in data_list:
+            item["task"] = task
+            item["source"] = task  # Add source field to match original format
 
-def serialize_agent_error(obj):
-    if isinstance(obj, AgentError):
-        return {"error_type": obj.__class__.__name__, "message": obj.message}
-    else:
-        return str(obj)
+        all_data.extend(data_list)
 
+    df = pd.DataFrame(all_data)
 
-def append_answer(entry: dict, jsonl_file: str) -> None:
-    jsonl_file = Path(jsonl_file)
-    jsonl_file.parent.mkdir(parents=True, exist_ok=True)
+    if num_examples is not None:
+        # Sample num_examples from each task
+        df = (
+            df.groupby("task")
+            .apply(lambda x: x.sample(n=min(num_examples, len(x)), random_state=42))
+            .reset_index(drop=True)
+        )
 
-    def convert_to_serializable(obj):
-        if hasattr(obj, "dict"):
-            return obj.dict()
-        else:
-            raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
-
-    with APPEND_ANSWER_LOCK, open(jsonl_file, "a", encoding="utf-8") as fp:
-        fp.write(json.dumps(entry, default=convert_to_serializable) + "\n")
-    assert os.path.exists(jsonl_file), "File not found!"
+    return df
 
 
-def answer_single_question(example, model, answers_file, action_type):
-    from multiprocessing import Manager
+def run_decentralized_agent(row, args):
+    """Run decentralized agent on a single benchmark example."""
+    start_time = time.time()
 
-    with Manager() as manager:
-        queue_dict = manager.dict()
-        queue_dict[0] = manager.Queue()
+    try:
+        # Prepare question from the dataset row
+        question = row["question"]
+        if row.get("context"):
+            question = f"Context: {row['context']}\n\nQuestion: {question}"
 
-        if action_type == "vanilla":
-            agent = model
-        elif action_type == "code":
-            agent = CodeAgent(
-                tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool()],
-                model=model,
-                agent_id=0,
-                queue_dict=queue_dict,
-                prompt_templates=EMPTY_PROMPT_TEMPLATES,
-                additional_authorized_imports=["numpy", "sympy"],
-                max_steps=10,
-            )
-        elif action_type == "tool-calling":
-            agent = ToolCallingAgent(
-                tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool(), PythonInterpreterTool()],
-                model=model,
-                agent_id=0,
-                queue_dict=queue_dict,
-                prompt_templates=EMPTY_PROMPT_TEMPLATES,
-                additional_authorized_imports=["numpy", "sympy"],
-                max_steps=10,
-            )
+        # Run the decentralized agent process
+        cmd = [
+            "python",
+            str(Path(__file__).parent / "decentralized_agent.py"),
+            "--model-type",
+            args.model_type,
+            "--model-id",
+            args.model_id,
+            "--provider",
+            args.provider,
+            question,
+        ]
 
-        augmented_question = example["question"]
-        if example["source"] == "SimpleQA":
-            augmented_question += " Answer with only the final number."
-        if example["source"] == "MATH":
-            augmented_question += " Write code, not latex."
+        # Run the process and capture output
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-        start_time = time.time()
+        # Parse the final answer from output
+        final_answer = None
+        for line in result.stdout.split("\n"):
+            if line.startswith("FinalAnswer: "):
+                final_answer = line.replace("FinalAnswer: ", "").strip()
+                break
 
-        try:
-            if action_type == "vanilla":
-                answer = agent([{"role": "user", "content": augmented_question}]).content
-                token_counts = agent.monitor.get_total_token_counts()
-                intermediate_steps = answer
-            else:
-                # Run agent 🚀
-                answer = str(agent.run(augmented_question))
-                token_counts = agent.monitor.get_total_token_counts()
-                intermediate_steps = [dict(message) for message in agent.write_memory_to_messages()]
+        if not final_answer:
+            raise Exception("No final answer reached")
 
-            end_time = time.time()
-        except Exception as e:
-            print("Error on ", augmented_question, e)
-            intermediate_steps = []
-            token_counts = {"input": 0, "output": 0}
-            answer = str(e)
-        end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        annotated_example = {
-            "model_id": model.model_id,
-            "agent_action_type": action_type,
-            "question": augmented_question,
-            "original_question": example["question"],
-            "answer": answer,
-            "true_answer": example["true_answer"],
-            "source": example["source"],
-            "intermediate_steps": intermediate_steps,
-            "start_time": start_time,
-            "end_time": end_time,
-            "token_counts": token_counts,
-        }
-        append_answer(annotated_example, answers_file)
+        # Calculate metrics
+        duration = time.time() - start_time
+        success = True
+        error = None
+
+    except Exception as e:
+        duration = time.time() - start_time
+        success = False
+        error = str(e)
+        final_answer = None
+
+    # Prepare result dictionary
+    result = {
+        "task": row["task"],
+        "question_id": row["id"],
+        "success": success,
+        "error": error,
+        "duration": duration,
+        "answer": final_answer,
+        "model_type": args.model_type,
+        "model_id": args.model_id,
+        "provider": args.provider,
+        "timestamp": datetime.datetime.now().isoformat(),
+    }
+
+    # Save result to output file
+    output_file = Path("output") / f"results_{args.date}.jsonl"
+    with APPEND_ANSWER_LOCK:
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_file, "a") as f:
+            json.dump(result, f)
+            f.write("\n")
+
+    return result
 
 
-def answer_questions(
-    eval_ds,
-    model,
-    date,
-    action_type: str = "code",
-    output_dir: str = "output",
-    answers_dataset: str = None,
-    push_answers_to_hub: bool = False,
-    parallel_workers: int = 32,
-):
-    date = date or datetime.date.today().isoformat()
-    model_id = model.model_id
+def main():
+    """Main benchmarking function."""
+    args = parse_arguments()
 
-    for task in eval_ds:
-        file_name = f"{output_dir}/{model_id.replace('/', '__')}__{action_type}__{task}__{date}.jsonl"
-        print(f"Starting processing and writing output to '{file_name}'")
-        answered_questions = []
-        if os.path.exists(file_name):
-            with open(file_name, "r") as f:
-                for line in f:
-                    answered_questions.append(json.loads(line)["original_question"])
+    # Set date if not provided
+    if args.date is None:
+        args.date = datetime.datetime.now().strftime("%Y-%m-%d")
 
-        examples_todo = [example for example in eval_ds[task] if example["question"] not in answered_questions]
-        print(f"Launching {parallel_workers} parallel workers.")
+    # Load dataset
+    print(f"Loading dataset {args.eval_dataset}...")
+    df = load_eval_dataset(args.eval_dataset, args.num_examples)
 
-        with ThreadPoolExecutor(max_workers=parallel_workers) as exe:
-            futures = [
-                exe.submit(answer_single_question, example, model, file_name, action_type) for example in examples_todo
-            ]
-            for f in tqdm(as_completed(futures), total=len(examples_todo), desc="Processing tasks"):
-                f.result()
+    # If num_examples is specified, sample from each task
+    if args.num_examples is not None:
+        df = (
+            df.groupby("task")
+            .apply(lambda x: x.sample(n=min(args.num_examples, len(x)), random_state=42))
+            .reset_index(drop=True)
+        )
 
-        print("All tasks processed.")
+    print(f"\nLoaded {len(df)} examples total:")
+    for task in df["task"].unique():
+        task_count = len(df[df["task"] == task])
+        print(f"- {task}: {task_count} examples")
 
-        if push_answers_to_hub and answers_dataset:
-            print("Pushing answers to hub...")
-            ds = datasets.Dataset.from_pandas(pd.read_json(file_name, lines=True), split="test", preserve_index=False)
-            config = f"{model_id.replace('/', '__')}__{action_type}__{task}"
-            data_dir = f"{model_id}/{action_type}/{task}/{date}"
-            ds.push_to_hub(
-                answers_dataset,
-                config_name=config,
-                data_dir=data_dir,
-                split="test",
-                commit_message=f"Upload {config}",
-            )
+    # Run benchmark
+    results = []
+    with ThreadPoolExecutor(max_workers=args.parallel_workers) as executor:
+        futures = []
+
+        # Group examples by task for better progress tracking
+        for task in df["task"].unique():
+            task_df = df[df["task"] == task]
+            print(f"\n🚀 Starting benchmark for {task} with {len(task_df)} examples...")
+
+            for _, row in task_df.iterrows():
+                future = executor.submit(run_decentralized_agent, row, args)
+                futures.append(future)
+
+        # Process results with progress bar
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Processing examples"):
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                print(f"Error processing example: {str(e)}")
+
+    # Calculate and print summary statistics per task
+    print("\n📊 Results Summary:")
+    for task in df["task"].unique():
+        task_results = [r for r in results if r["task"] == task]
+        task_success = sum(1 for r in task_results if r["success"])
+        task_duration = sum(r["duration"] for r in task_results) / len(task_results) if task_results else 0
+
+        print(f"\n{task}:")
+        print(f"  Total examples: {len(task_results)}")
+        print(f"  Success rate: {task_success / len(task_results):.2%}")
+        print(f"  Average duration: {task_duration:.2f}s")
+
+    # Overall statistics
+    total_success = sum(1 for r in results if r["success"])
+    avg_duration = sum(r["duration"] for r in results) / len(results) if results else 0
+
+    print("\n📈 Overall Statistics:")
+    print(f"  Total examples: {len(results)}")
+    print(f"  Success rate: {total_success / len(results):.2%}")
+    print(f"  Average duration: {avg_duration:.2f}s")
+
+    # Push results to hub if requested
+    if args.push_answers_to_hub:
+        print("\n🚀 Pushing results to hub not yet implemented")
 
 
 if __name__ == "__main__":
-    args = parse_arguments()
-
-    eval_ds = load_eval_dataset(args.eval_dataset, num_examples=args.num_examples)
-
-    if args.model_type == "LiteLLMModel":
-        model = LiteLLMModel(
-            model_id=args.model_id,
-            max_completion_tokens=8192,
-        )
-    else:
-        model = InferenceClientModel(model_id=args.model_id, provider=args.provider, max_tokens=8192)
-
-    answer_questions(
-        eval_ds,
-        model,
-        args.date,
-        action_type=args.agent_action_type,
-        answers_dataset=args.answers_dataset,
-        push_answers_to_hub=args.push_answers_to_hub,
-        parallel_workers=args.parallel_workers,
-    )
+    main()

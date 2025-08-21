@@ -48,41 +48,43 @@ def main(args: argparse.Namespace) -> int:
     # Start agent threads
     threads = []
     consensus_event = threading.Event()
-    final_answer = [None]  # Use list to allow modification in thread
+    final_answer: list[str | None] = [None]  # Use list to allow modification in thread
     timeout = 30  # Timeout in seconds for simple questions
 
     def check_consensus():
-        """Monitor for consensus and stop other agents when reached."""
-        agent_configs = [agent.config for agent in agents]
-        N = len(agent_configs)
-        required_yes = (N // 2) + 1  # strict majority of all agents
+        """Monitor for emergent consensus through decentralized pattern detection."""
+        from scripts.consensus_protocol import ConsensusProtocol
+
+        protocol = ConsensusProtocol()
 
         start_time = time.time()
         while time.time() - start_time < timeout:
+            # Get all relevant messages
             messages = message_store.get_messages(agent_id="system")
-            for msg in messages:
-                if msg.get("type") == "final_answer_proposal":
-                    votes = message_store.count_votes(msg["id"])
-                    if votes["yes"] >= required_yes:
-                        final_answer[0] = msg["content"]
-                        consensus_event.set()
-                        return
+
+            # Analyze for emerging consensus
+            has_consensus, consensus_value, confidence = protocol.analyze_conversation(messages)
+
+            if has_consensus:
+                final_answer[0] = consensus_value
+                consensus_event.set()
+                logging.info(
+                    json.dumps({"event": "consensus_reached", "confidence": confidence, "value": consensus_value})
+                )
+                return
+
             time.sleep(0.1)  # Avoid tight polling
 
-        # Timeout reached, check if we have a proposal with highest votes
-        messages = message_store.get_messages(agent_id="system")
-        best_proposal = None
-        max_votes = 0
+        # No strong consensus emerged within timeout
+        # Do one final check with a lower confidence threshold
+        protocol.confidence_threshold = 0.5  # Lower threshold for final check
+        has_consensus, consensus_value, confidence = protocol.analyze_conversation(messages)
 
-        for msg in messages:
-            if msg.get("type") == "final_answer_proposal":
-                votes = message_store.count_votes(msg["id"])
-                if votes["yes"] > max_votes:
-                    max_votes = votes["yes"]
-                    best_proposal = msg
-
-        if best_proposal and max_votes > N // 2:  # At least half of agents agree
-            final_answer[0] = best_proposal["content"]
+        if has_consensus:
+            final_answer[0] = consensus_value
+            logging.info(
+                json.dumps({"event": "weak_consensus_reached", "confidence": confidence, "value": consensus_value})
+            )
         consensus_event.set()
 
     # Start consensus monitor thread
