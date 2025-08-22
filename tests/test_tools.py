@@ -815,6 +815,8 @@ def mock_smolagents_adapter():
         yield mock
 
 
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:Parameter 'structured_output':FutureWarning")
 class TestToolCollection:
     def test_from_mcp(self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter):
         with ToolCollection.from_mcp(mock_server_parameters, trust_remote_code=True) as tool_collection:
