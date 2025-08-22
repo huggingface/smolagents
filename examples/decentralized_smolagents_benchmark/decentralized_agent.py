@@ -16,6 +16,30 @@ from typing import List, Optional
 from scripts.agents import create_team
 from scripts.message_store import MessageStore
 
+# Langfuse instrumentation setup
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    
+    from langfuse import Langfuse
+    from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+    
+    # Initialize Langfuse client
+    langfuse_client = Langfuse()
+    if langfuse_client.auth_check():
+        print("✅ Langfuse client authenticated successfully")
+        SmolagentsInstrumentor().instrument()
+        print("✅ SmolagentsInstrumentor enabled")
+    else:
+        print("⚠️ Langfuse authentication failed - tracing disabled")
+        langfuse_client = None
+except ImportError as e:
+    print(f"⚠️ Langfuse not available: {e}")
+    langfuse_client = None
+except Exception as e:
+    print(f"⚠️ Langfuse setup error: {e}")
+    langfuse_client = None
+
 
 def normalize_text(text: str) -> str:
     """Normalize text for comparison by removing extra whitespace and converting to lowercase."""
@@ -105,8 +129,6 @@ def check_semantic_consensus(answers: List[str], min_agreement: int = 3) -> Opti
         # Return the most detailed answer from the consensus group
         return max(largest_group, key=len)
 
-    return None
-
 
 def setup_logging(run_dir: Path) -> None:
     """Setup JSON logging to file."""
@@ -121,7 +143,14 @@ def main(args: argparse.Namespace) -> int:
     """Main entry point."""
     # Create run directory
     run_id = str(uuid.uuid4())
-    script_dir = Path(__file__).parent
+
+    # Handle the case where __file__ might not be defined
+    try:
+        script_dir = Path(__file__).parent
+    except NameError:
+        # Fallback if __file__ is not defined
+        script_dir = Path(sys.argv[0]).parent.absolute() if sys.argv[0] else Path.cwd()
+
     run_dir = script_dir / "runs" / run_id
     run_dir.mkdir(parents=True)
 
@@ -146,7 +175,7 @@ def main(args: argparse.Namespace) -> int:
     threads = []
     consensus_event = threading.Event()
     final_answer = [None]  # Use list to allow modification in thread
-    timeout = 30  # Extended timeout for complex questions
+    timeout = 120  # Extended timeout for complex questions
 
     def check_consensus():
         """Monitor for consensus and stop other agents when reached."""

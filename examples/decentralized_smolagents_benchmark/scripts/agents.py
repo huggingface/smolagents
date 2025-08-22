@@ -8,6 +8,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 from scripts.text_inspector_tool import TextInspectorTool
 from scripts.text_web_browser import (
@@ -30,11 +31,13 @@ from .message_store import MessageStore
 # evaluation roles
 custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
 
+script_dir = Path(__file__).parent.parent
+
 # Browser configuration
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
 BROWSER_CONFIG = {
     "viewport_size": 1024 * 5,
-    "downloads_folder": "downloads_folder",
+    "downloads_folder": script_dir / "downloads_folder",
     "request_kwargs": {
         "headers": {"User-Agent": user_agent},
         "timeout": 300,
@@ -54,7 +57,7 @@ COMMUNICATION CHANNELS:
    - Use @all for team-wide announcements
 
 2. Direct Messages:
-   - Use send_message tool for private agent-to-agent communication
+   - Use send_message tool for private agent-to-agent communication. You are encouraged to communicate with other agents to get help from them.
    - Valid target_ids: 0=CodeAgent, 1=WebSearchAgent, 2=DeepResearchAgent, 3=DocumentReaderAgent
    - Use receive_messages tool to check your private messages
    - Useful for detailed discussions or sharing sensitive information

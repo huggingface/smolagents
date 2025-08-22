@@ -155,9 +155,10 @@ def run_decentralized_agent(row, args):
             question = f"Context: {row['context']}\n\nQuestion: {question}"
 
         # Run the decentralized agent process
+        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "decentralized_agent.py")
         cmd = [
             "python",
-            str(Path(__file__).parent / "decentralized_agent.py"),
+            script_path,
             "--model-type",
             args.model_type,
             "--model-id",
@@ -193,6 +194,18 @@ def run_decentralized_agent(row, args):
         success = True
         error = None
 
+    except subprocess.TimeoutExpired as e:
+        duration = time.time() - start_time
+        success = False
+        error = f"Process timed out after duration {duration}, error: {str(e)}"
+        final_answer = None
+    except subprocess.CalledProcessError as e:
+        duration = time.time() - start_time
+        success = False
+        error_output = e.stderr.strip() if e.stderr else "No stderr output"
+        stdout_output = e.stdout.strip() if e.stdout else "No stdout output"
+        error = f"Process failed with exit code {e.returncode}. Stderr: {error_output}. Stdout: {stdout_output}"
+        final_answer = None
     except Exception as e:
         duration = time.time() - start_time
         success = False
@@ -463,7 +476,7 @@ def main():
         print("\n🚀 Pushing results to hub not yet implemented")
 
     # Calculate and save benchmark scores with proper variables
-    output_dir = "output"
+    output_dir = output_path
     model_id = f"decentralized-{args.model_type}-{args.model_id}"
     action_type = "decentralized-consensus"
     date = args.date
