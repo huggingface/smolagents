@@ -15,7 +15,7 @@ langfuse_test.py
 
 # Data
 data
-#outputs
+output/
 data/
 
 # Apple

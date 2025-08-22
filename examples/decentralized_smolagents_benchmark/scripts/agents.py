@@ -254,7 +254,9 @@ class PollCreatingFinalAnswerTool(FinalAnswerTool):
         question = "Do you approve this final answer?"
 
         print(f"🗳️ Creating poll: {self.agent_name} proposes: {answer[:50]}...")
-        result = self.message_store.create_poll(question=question, proposal=answer, proposer=self.agent_name, thread_id="main")
+        result = self.message_store.create_poll(
+            question=question, proposal=answer, proposer=self.agent_name, thread_id="main"
+        )
 
         if isinstance(result, dict) and "error" in result:
             return f"Cannot create poll: {result.get('error')}"
@@ -484,7 +486,7 @@ class DecentralizedAgent:
                             "content": poll,
                             "thread_id": "main",
                             "type": "poll",
-                            "sender": poll.get("proposer", "unknown")
+                            "sender": poll.get("proposer", "unknown"),
                         }
                         # try:
                         self._handle_poll_vote(mock_poll_msg)
@@ -524,6 +526,7 @@ class DecentralizedAgent:
         except Exception as e:
             print(f"Error in agent {self.config.name}: {e}")
             import traceback
+
             traceback.print_exc()
             self.turn_count += 1
             return True  # Continue despite errors
@@ -613,6 +616,7 @@ class DecentralizedAgent:
         except Exception as e:
             print(f"ERROR {self.config.name}: Exception in _handle_poll_vote: {e}")
             import traceback
+
             traceback.print_exc()
 
         # Check vote counts for logging
