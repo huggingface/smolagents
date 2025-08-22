@@ -1024,9 +1024,9 @@ class ToolCollection:
         # Handle future warning for structured_output default value change
         if structured_output is None:
             warnings.warn(
-                "The 'structured_output' parameter was not specified and currently defaults to False. "
-                "In a future release, the default will change to True. "
-                "To suppress this warning, explicitly set structured_output=True (new behavior) or structured_output=False (current behavior). "
+                "Parameter 'structured_output' was not specified. "
+                "Currently it defaults to False, but in version 1.25, the default will change to True. "
+                "To suppress this warning, explicitly set structured_output=True (new behavior) or structured_output=False (legacy behavior). "
                 "See documentation at https://huggingface.co/docs/smolagents/tutorials/tools#structured-output-and-output-schema-support for more details.",
                 FutureWarning,
                 stacklevel=2,
