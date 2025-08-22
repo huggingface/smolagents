@@ -50,8 +50,8 @@ def structured_output_server_script():
     )
 
 
-# Ignore FutureWarning about structured_output default value change - this test intentionally uses default behavior
-@pytest.mark.filterwarnings("ignore::FutureWarning")
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:Parameter 'structured_output':FutureWarning")
 def test_mcp_client_with_syntax(echo_server_script: str):
     """Test the MCPClient with the context manager syntax."""
     server_parameters = StdioServerParameters(command="python", args=["-c", echo_server_script])
@@ -100,8 +100,8 @@ def test_mcp_client_without_structured_output(structured_output_server_script: s
         assert parsed_result["name"] == "Alice"
 
 
-# Ignore FutureWarning about structured_output default value change - this test intentionally uses default behavior
-@pytest.mark.filterwarnings("ignore::FutureWarning")
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:Parameter 'structured_output':FutureWarning")
 def test_mcp_client_try_finally_syntax(echo_server_script: str):
     """Test the MCPClient with the try ... finally syntax."""
     server_parameters = StdioServerParameters(command="python", args=["-c", echo_server_script])
@@ -115,8 +115,8 @@ def test_mcp_client_try_finally_syntax(echo_server_script: str):
         mcp_client.disconnect()
 
 
-# Ignore FutureWarning about structured_output default value change - this test intentionally uses default behavior
-@pytest.mark.filterwarnings("ignore::FutureWarning")
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:Parameter 'structured_output':FutureWarning")
 def test_multiple_servers(echo_server_script: str):
     """Test the MCPClient with multiple servers."""
     server_parameters = [
