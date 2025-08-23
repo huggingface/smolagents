@@ -47,6 +47,36 @@ from .utils.markers import require_run_all
 
 
 class TestModel:
+    def test_prepare_completion_kwargs_parameter_precedence(self):
+        """Test that self.kwargs have highest precedence and REMOVE_PARAMETER works correctly"""
+        from smolagents.models import REMOVE_PARAMETER
+
+        # Test with self.kwargs having highest precedence
+        model = Model(max_tokens=100, temperature=0.5)
+        completion_kwargs = model._prepare_completion_kwargs(
+            messages=[ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])],
+            max_tokens=50,  # This should be overridden by self.kwargs
+            top_p=0.9,  # This should remain from kwargs
+        )
+
+        # self.kwargs should have highest precedence
+        assert completion_kwargs["max_tokens"] == 100
+        assert completion_kwargs["temperature"] == 0.5
+        assert completion_kwargs["top_p"] == 0.9
+
+        # Test REMOVE_PARAMETER functionality
+        model_with_removal = Model(max_tokens=REMOVE_PARAMETER, temperature=0.7)
+        completion_kwargs = model_with_removal._prepare_completion_kwargs(
+            messages=[ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])],
+            max_tokens=200,  # This should be removed by REMOVE_PARAMETER
+            top_p=0.8,
+        )
+
+        # max_tokens should be removed, temperature should be set
+        assert "max_tokens" not in completion_kwargs
+        assert completion_kwargs["temperature"] == 0.7
+        assert completion_kwargs["top_p"] == 0.8
+
     def test_agglomerate_stream_deltas(self):
         from smolagents.models import (
             ChatMessageStreamDelta,
