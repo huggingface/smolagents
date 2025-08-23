@@ -35,7 +35,7 @@ Both require arguments `model` and list of tools `tools` at initialization.
 ### GradioUI
 
 > [!TIP]
-> You must have `gradio` installed to use the UI. Please run `pip install smolagents[gradio]` if it's not the case.
+> You must have `gradio` installed to use the UI. Please run `pip install 'smolagents[gradio]'` if it's not the case.
 
 [[autodoc]] GradioUI
 

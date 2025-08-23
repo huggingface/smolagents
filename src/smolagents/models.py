@@ -666,7 +666,7 @@ class MLXModel(Model):
     """A class to interact with models loaded using MLX on Apple silicon.
 
     > [!TIP]
-    > You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
+    > You must have `mlx-lm` installed on your machine. Please run `pip install 'smolagents[mlx-lm]'` if it's not the case.
 
     Parameters:
         model_id (str):
@@ -775,7 +775,7 @@ class TransformersModel(Model):
     This model allows you to load and use Hugging Face's models locally using the Transformers library. It supports features like stop sequences and grammar customization.
 
     > [!TIP]
-    > You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
+    > You must have `transformers` and `torch` installed on your machine. Please run `pip install 'smolagents[transformers]'` if it's not the case.
 
     Parameters:
         model_id (`str`):

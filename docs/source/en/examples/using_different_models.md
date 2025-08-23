@@ -29,7 +29,7 @@ with Gemini models by setting the appropriate base URL.
 
 First, install the required dependencies:
 ```bash
-pip install smolagents[openai]
+pip install 'smolagents[openai]'
 ```
 
 Then, [get a Gemini API key](https://ai.google.dev/gemini-api/docs/api-key) and set it in your code:
@@ -57,7 +57,7 @@ You can use the [`OpenAIServerModel`] to connect to OpenRouter by setting the ap
 
 First, install the required dependencies:
 ```bash
-pip install smolagents[openai]
+pip install 'smolagents[openai]'
 ```
 
 Then, [get an OpenRouter API key](https://openrouter.ai/keys) and set it in your code:

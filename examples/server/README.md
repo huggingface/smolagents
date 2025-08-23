@@ -23,7 +23,7 @@ This is a simple web server that provides a chat interface for interacting with 
 1. Install the required packages:
 
 ```bash
-pip install starlette anyio smolagents[mcp] uvicorn
+pip install starlette anyio 'smolagents[mcp]' uvicorn
 ```
 
 2. Optional: If you want to use a specific model, you may need additional dependencies.
