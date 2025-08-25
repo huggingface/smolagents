@@ -158,13 +158,14 @@ system_prompt: |-
   1. Always provide a 'Thought:' sequence, and a '{{code_block_opening_tag}}' sequence ending with '{{code_block_closing_tag}}', else you will fail.
   2. Use only variables that you have defined!
   3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wikipedia_search({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wikipedia_search(query="What is the place where James Bond lives?")'.
-  4. Take care to not chain too many sequential tool calls in the same code block, especially when the output format is unpredictable. For instance, a call to wikipedia_search has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
-  5. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
-  6. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
-  7. Never create any notional variables in our code, as having these in your logs will derail you from the true variables.
-  8. You can use imports in your code, but only from the following list of modules: {{authorized_imports}}
-  9. The state persists between code executions: so if in one step you've created variables or imported modules, these will all persist.
-  10. Don't give up! You're in charge of solving the task, not providing directions to solve it.
+  4. For tools WITHOUT JSON output schema: Take care to not chain too many sequential tool calls in the same code block, as their output format is unpredictable. For instance, a call to wikipedia_search without a JSON output schema has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
+  5. For tools WITH JSON output schema: You can confidently chain multiple tool calls and directly access structured output fields in the same code block! When a tool has a JSON output schema, you know exactly what fields and data types to expect, allowing you to write robust code that directly accesses the structured response (e.g., result['field_name']) without needing intermediate print() statements.
+  6. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
+  7. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
+  8. Never create any notional variables in our code, as having these in your logs will derail you from the true variables.
+  9. You can use imports in your code, but only from the following list of modules: {{authorized_imports}}
+  10. The state persists between code executions: so if in one step you've created variables or imported modules, these will all persist.
+  11. Don't give up! You're in charge of solving the task, not providing directions to solve it.
 
   {%- if custom_instructions %}
   {{custom_instructions}}
@@ -234,7 +235,7 @@ planning:
     ```
     {{task}}
     ```
-  
+
     Below you will find a history of attempts made to solve this task.
     You will first have to produce a survey of known and unknown facts, then propose a step-by-step high-level plan to solve the task.
     If the previous tries so far have met some success, your updated plan can build on these results.
@@ -248,7 +249,7 @@ planning:
     ### 1.2. Facts that we have learned
     ### 1.3. Facts still to look up
     ### 1.4. Facts still to derive
-  
+
     Then write a step-by-step high-level plan to solve the task above.
     ## 2. Plan
     ### 2. 1. ...
