@@ -303,13 +303,7 @@ class Tool(BaseTool):
 
                 return re.sub(pattern, replacement, source_code)
 
-            # Rename the function definition without affecting references in the body
-            forward_source_code = re.sub(
-                rf"def\s+{re.escape(self.name)}\s*\(",
-                "def forward(",
-                forward_source_code,
-                count=1,
-            )
+            forward_source_code = forward_source_code.replace(self.name, "forward")
             forward_source_code = add_self_argument(forward_source_code)
             forward_source_code = forward_source_code.replace("@tool", "").strip()
             tool_code += "\n\n" + textwrap.indent(forward_source_code, "    ")
@@ -1070,8 +1064,7 @@ def tool(tool_function: Callable) -> Tool:
     # - Create the class source
     indent = " " * 4  # for class method
     class_source = (
-        textwrap.dedent(
-            f"""
+        textwrap.dedent(f"""
         class SimpleTool(Tool):
             name: str = "{tool_json_schema["name"]}"
             description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
@@ -1081,8 +1074,7 @@ def tool(tool_function: Callable) -> Tool:
             def __init__(self):
                 self.is_initialized = True
 
-        """
-        )
+        """)
         + textwrap.indent(decorator_lines, indent)
         + textwrap.indent(forward_method_source, indent)
     )

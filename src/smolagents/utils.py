@@ -102,12 +102,6 @@ class AgentMaxStepsError(AgentError):
     pass
 
 
-class AgentMaxRuntimeError(AgentError):
-    """Exception raised when the agent reaches its maximum runtime"""
-
-    pass
-
-
 class AgentToolCallError(AgentExecutionError):
     """Exception raised for errors when incorrect arguments are passed to the tool"""
 

@@ -610,7 +610,7 @@ class MessageStore:
             )
         return None
 
-    # ------------------------------ search (optional) ------------------------
+    # ------------------------------ search ------------------------
     def search(self, query: str, *, thread_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
         q = query.lower().strip()
         out: List[Dict[str, Any]] = []

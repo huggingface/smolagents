@@ -21,14 +21,12 @@ import inspect
 import logging
 import math
 import re
-import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
 from importlib.util import find_spec
-from queue import Queue
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any
 
@@ -58,7 +56,6 @@ DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
-DEFAULT_EXECUTION_TIMEOUT = 300  # seconds
 
 
 def custom_print(*args):
@@ -83,7 +80,6 @@ BASE_PYTHON_TOOLS = {
     "list": list,
     "dict": dict,
     "tuple": tuple,
-    "Queue": Queue,
     "round": round,
     "ceil": math.ceil,
     "floor": math.floor,
@@ -1400,9 +1396,6 @@ def evaluate_ast(
         raise InterpreterError(
             f"Reached the max number of operations of {MAX_OPERATIONS}. Maybe there is an infinite loop somewhere in the code, or you're just asking too many calculations."
         )
-    if "_start_time" in state and "_timeout" in state and state["_timeout"] is not None:
-        if time.time() - state["_start_time"] > state["_timeout"]:
-            raise InterpreterError(f"Maximum execution time of {state['_timeout']} seconds exceeded")
     state["_operations_count"]["counter"] += 1
     common_params = (state, static_tools, custom_tools, authorized_imports)
     if isinstance(expression, ast.Assign):
@@ -1464,23 +1457,11 @@ def evaluate_ast(
     elif isinstance(expression, ast.FormattedValue):
         # Formatted value (part of f-string) -> evaluate the content and format it
         value = evaluate_ast(expression.value, *common_params)
-        if expression.conversion >= 0:  # Convert value according to conversion type
-            # str (s) = 115, repr (r) = 114, ascii (a) = 97
-            if expression.conversion == 115:  # str
-                value = str(value)
-            elif expression.conversion == 114:  # repr
-                value = repr(value)
-            elif expression.conversion == 97:  # ascii
-                value = ascii(value)
         # Early return if no format spec
         if not expression.format_spec:
             return value
-        # Apply format specification - handle both strings and JoinedStr nodes
+        # Apply format specification
         format_spec = evaluate_ast(expression.format_spec, *common_params)
-        if isinstance(format_spec, ast.JoinedStr):
-            format_spec = "".join([str(evaluate_ast(v, *common_params)) for v in format_spec.values])
-        if format_spec is None:
-            return value
         return format(value, format_spec)
     elif isinstance(expression, ast.If):
         # If -> execute the right branch
@@ -1544,19 +1525,13 @@ class FinalAnswerException(Exception):
         self.value = value
 
 
-def get_max_length(length: int | None) -> int:
-    """Helper to get a valid max length, defaulting to DEFAULT_MAX_LEN_OUTPUT if None"""
-    return length if length is not None else DEFAULT_MAX_LEN_OUTPUT
-
-
 def evaluate_python_code(
     code: str,
     static_tools: dict[str, Callable] | None = None,
     custom_tools: dict[str, Callable] | None = None,
     state: dict[str, Any] | None = None,
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
-    max_print_outputs_length: int | None = DEFAULT_MAX_LEN_OUTPUT,
-    timeout: int | None = DEFAULT_EXECUTION_TIMEOUT,
+    max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
 ):
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
@@ -1577,7 +1552,6 @@ def evaluate_python_code(
             A dictionary mapping variable names to values. The `state` should contain the initial inputs but will be
             updated by this function to contain all variables as they are evaluated.
             The print outputs will be stored in the state under the key "_print_outputs".
-        timeout (`int`, *optional*): Maximum execution time in seconds. If `None`, no timeout is enforced.
     """
     try:
         expression = ast.parse(code)
@@ -1591,8 +1565,6 @@ def evaluate_python_code(
 
     if state is None:
         state = {}
-    state["_start_time"] = time.time()
-    state["_timeout"] = timeout
     static_tools = static_tools.copy() if static_tools is not None else {}
     custom_tools = custom_tools if custom_tools is not None else {}
     result = None
@@ -1607,28 +1579,27 @@ def evaluate_python_code(
 
         static_tools["final_answer"] = final_answer
 
-    current_node = None  # Keep track of the current node for error reporting
     try:
         for node in expression.body:
-            current_node = node  # Update current node before evaluation
             result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
         state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=get_max_length(max_print_outputs_length)
+            str(state["_print_outputs"]), max_length=max_print_outputs_length
         )
         is_final_answer = False
         return result, is_final_answer
     except FinalAnswerException as e:
         state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=get_max_length(max_print_outputs_length)
+            str(state["_print_outputs"]), max_length=max_print_outputs_length
         )
         is_final_answer = True
         return e.value, is_final_answer
     except Exception as e:
         state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=get_max_length(max_print_outputs_length)
+            str(state["_print_outputs"]), max_length=max_print_outputs_length
         )
-        error_loc = ast.get_source_segment(code, current_node) if current_node else "unknown line"
-        raise InterpreterError(f"Code execution failed at line '{error_loc}' due to: {type(e).__name__}: {e}")
+        raise InterpreterError(
+            f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
+        )
 
 
 @dataclass
@@ -1672,7 +1643,6 @@ class LocalPythonExecutor(PythonExecutor):
         additional_authorized_imports: list[str],
         max_print_outputs_length: int | None = None,
         additional_functions: dict[str, Callable] | None = None,
-        execution_timeout: int | None = DEFAULT_EXECUTION_TIMEOUT,
     ):
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}
@@ -1684,7 +1654,6 @@ class LocalPythonExecutor(PythonExecutor):
         self._check_authorized_imports_are_installed()
         self.static_tools = None
         self.additional_functions = additional_functions or {}
-        self.execution_timeout = execution_timeout
 
     def _check_authorized_imports_are_installed(self):
         """
@@ -1714,7 +1683,6 @@ class LocalPythonExecutor(PythonExecutor):
             state=self.state,
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
-            timeout=self.execution_timeout,
         )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)

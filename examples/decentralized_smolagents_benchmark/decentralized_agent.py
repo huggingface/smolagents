@@ -16,14 +16,16 @@ from typing import List, Optional
 from scripts.agents import create_team
 from scripts.message_store import MessageStore
 
+
 # Langfuse instrumentation setup
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
-    
+
     from langfuse import Langfuse
     from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-    
+
     # Initialize Langfuse client
     langfuse_client = Langfuse()
     if langfuse_client.auth_check():

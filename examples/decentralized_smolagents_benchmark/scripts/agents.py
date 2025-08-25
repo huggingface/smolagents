@@ -7,8 +7,8 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from scripts.text_inspector_tool import TextInspectorTool
 from scripts.text_web_browser import (
@@ -22,9 +22,10 @@ from scripts.text_web_browser import (
 )
 from scripts.visual_qa import visualizer
 from smolagents import CodeAgent, GoogleSearchTool, LiteLLMModel, ToolCallingAgent
-from smolagents.default_tools import FinalAnswerTool, PythonInterpreterTool, ReceiveMessagesTool, SendMessageTool
+from smolagents.default_tools import FinalAnswerTool, PythonInterpreterTool
 from smolagents.tools import Tool
 
+from .decentralized_tools import FileReaderTool, ReceiveMessagesTool, SendMessageTool
 from .message_store import MessageStore
 
 
@@ -104,6 +105,8 @@ COLLABORATION PROTOCOL:
    - Never leak secrets or tokens. Sandbox untrusted code/data.
 
 Remember: A solution is only accepted when a majority agrees (3/4 agents). Work together to reach consensus!
+
+Finally, make sure that you respect the required format of answer, when you propose one.
 """.strip()
 
 CODE_AGENT_ADDON = """
@@ -198,7 +201,7 @@ COMMUNICATION:
 - Create topic-specific threads for major docs
 - Use private messages for detailed analysis
 - Tag @all for critical documentation updates
-""".strip()
+""".strip()  # Dire que c'est l'id. Etre plus clair dans la description. Voir les agents dans les propriétés l'agent qu'on réinjecte dans le system prompt.
 
 DEEP_RESEARCH_AGENT_ADDON = """
 ROLE: Deep Analysis and Research Specialist
@@ -231,6 +234,12 @@ COMMUNICATION:
 - Tag @all for major research findings
 """.strip()
 
+
+# TODO: mettre les descriptions des tools comme dans chacun des autres tools dans default_tools.
+# Mettre les notifications
+# Post and send messages sous la forme de tools.
+# Ou créer des conversations ids. Et envoyer à la conversation, avec SendMessageTools. 2 tools: SendMessageToChannel (liste agent id + main channel + titre channel) et SendMessageToAgent.
+# Utiliser un poll différent pour les pols et ne pas hériter de FinalAnswerTool. Ne plus l'utiliser et arrêter les agents lorsque c'est fini. Le but est aussi d'avoir une trace complète.
 
 # ---------------End of prompts----------------
 
@@ -429,7 +438,6 @@ class DecentralizedAgent:
 
     def emit_mentions(self, text: str, thread_id: Optional[str]):
         """Handle @mentions in messages."""
-        import re
 
         for match in re.findall(r"@([A-Za-z0-9_-]+)", text or ""):
             # Create a mention notification message
@@ -929,11 +937,8 @@ def create_team(
         "model_id": model_id,
         "custom_role_conversions": custom_role_conversions,
     }
-    if model_id == "o1":
-        model_params["reasoning_effort"] = "high"
-        model_params["max_completion_tokens"] = 8192
-    else:
-        model_params["max_tokens"] = 4096
+
+    model_params["max_tokens"] = 8192
 
     model = LiteLLMModel(**model_params)
 
@@ -963,26 +968,8 @@ def create_team(
     code_tools.extend(shared_tools)
     web_tools.extend(shared_tools)
 
-    reader_tools = [
-        Tool.from_code("""
-from smolagents.tools import Tool
-class FileReaderTool(Tool):
-    '''Tool for reading file contents'''
-    name = "file_reader"
-    inputs = {
-        "file_path": {
-            "type": "string",
-            "description": "Path to the file to read"
-        }
-    }
-    output_type = "string"
-    description = "Read contents of a file"
-    def forward(self, file_path: str) -> str:
-        '''Read contents of a file'''
-        with open(file_path) as f:
-            return f.read()
-    """)
-    ]
+    # Use simple file reader tool
+    reader_tools = [FileReaderTool()]
 
     configs = [
         AgentConfig(
@@ -1037,17 +1024,3 @@ class FileReaderTool(Tool):
         )
         for config in configs
     ]
-
-
-# --------------------------- Mentions & parsing -----------------------------
-
-
-def emit_mentions(message_store: MessageStore, text: str, thread_id: Optional[str]):
-    for m in re.findall(r"@([A-Za-z0-9_-]+)", text or ""):
-        message_store.append_message(
-            sender="system",
-            recipients=[m],
-            thread_id=thread_id or "main",
-            msg_type="mention",
-            content={"note": f"You were mentioned in #{thread_id or 'main'}.", "original_text": text},
-        )

@@ -284,7 +284,6 @@ planning:
     {%- endif %}
 
     Now write your updated facts survey below, then your new plan.
-    
 managed_agent:
   task: |-
       You're a helpful agent named '{{name}}'.

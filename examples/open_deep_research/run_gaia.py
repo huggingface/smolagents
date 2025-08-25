@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from langfuse import get_client
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -50,6 +52,25 @@ from smolagents import (
 
 
 load_dotenv(override=True)
+
+langfuse = get_client()
+
+# Verify connection
+if langfuse.auth_check():
+    print("Langfuse client is authenticated and ready!")
+else:
+    print("Authentication failed. Please check your credentials and host.")
+
+from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+
+
+with langfuse.start_as_current_span(name="another-operation"):
+    # Add to the current trace
+    langfuse.update_current_trace(session_id="zero_shot_1", user_id="cvt8")
+
+
+SmolagentsInstrumentor().instrument()
+
 login(os.getenv("HF_TOKEN"))
 
 append_answer_lock = threading.Lock()

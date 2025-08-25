@@ -19,6 +19,7 @@ from typing import Generator
 import datasets
 import pandas as pd
 from dotenv import load_dotenv
+from langfuse import get_client
 from tqdm import tqdm
 
 from smolagents import (
@@ -36,6 +37,25 @@ from smolagents.models import ChatMessageStreamDelta
 
 
 load_dotenv()
+
+langfuse = get_client()
+
+# Verify connection
+if langfuse.auth_check():
+    print("Langfuse client is authenticated and ready!")
+else:
+    print("Authentication failed. Please check your credentials and host.")
+
+from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+
+
+with langfuse.start_as_current_span(name="another-operation"):
+    # Add to the current trace
+    langfuse.update_current_trace(session_id="zero_shot_1", user_id="cvt8")
+
+
+SmolagentsInstrumentor().instrument()
+
 os.makedirs("output", exist_ok=True)
 
 APPEND_ANSWER_LOCK = threading.Lock()

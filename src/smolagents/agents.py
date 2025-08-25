@@ -28,7 +28,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from queue import Queue
 from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
 
 import yaml
@@ -46,7 +45,7 @@ if TYPE_CHECKING:
     import PIL.Image
 
 from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
-from .default_tools import TOOL_MAPPING, FinalAnswerTool, ReceiveMessagesTool, SendMessageTool
+from .default_tools import TOOL_MAPPING, FinalAnswerTool
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import (
     ActionStep,
@@ -296,8 +295,6 @@ class MultiStepAgent(ABC):
         return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
     """
 
-    # TODO: Add max_runtime
-
     def __init__(
         self,
         tools: list[Tool],
@@ -316,8 +313,6 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
-        agent_id: int = 0,
-        queue_dict: dict | dict = {},
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -351,24 +346,10 @@ class MultiStepAgent(ABC):
         self.task: str | None = None
         self.memory = AgentMemory(self.system_prompt)
 
-        # Set up logger first so it's available for tools
         if logger is None:
             self.logger = AgentLogger(level=verbosity_level)
         else:
             self.logger = logger
-
-        # Set up messaging
-        self.agent_id = agent_id
-        if queue_dict is None:
-            queue_dict = {agent_id: Queue()}
-        else:
-            queue_dict.setdefault(agent_id, Queue())
-        self.queue_dict = queue_dict
-        self.queue = queue_dict[agent_id]
-        self._send_message_tool = SendMessageTool(queue_dict=queue_dict, agent_id=self.agent_id, logger=self.logger)
-        self._receive_messages_tool = ReceiveMessagesTool(
-            queue_dict=queue_dict, agent_id=self.agent_id, logger=self.logger
-        )
 
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)
