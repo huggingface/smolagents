@@ -18,10 +18,10 @@
     title: (번역중) "Human-in-the-Loop: Customize agent plan interactively"
   - local: in_translation
     title: (번역중) Async Applications with Agents
-- title: Reference
+- title: 참고문헌
   sections:
   - local: reference/agents
-    title: Agent-related objects
+    title: 에이전트
   - local: reference/models
     title: Model-related objects
   - title: Tools
