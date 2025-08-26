@@ -16,7 +16,7 @@ Smolagents는 실험적인 API로 언제든지 변경될 수 있습니다. API�
   - [`CodeAgent`]는 Python 코드로 도구 호출을 작성합니다.(이것이 기본값입니다.)
   - [`ToolCallingAgent`]는 JSON 형식으로 도구 호출을 작성합니다.
 
-두 경우 모두 초기화 시 `model`과 도구 목록인 `tools`를 인자로 요구합니다.
+두 경우 모두 초기화 시 `model`과 도구 목록인 `tools`를 인수로 요구합니다.
 
 ### 에이전트 클래스[[smolagents.MultiStepAgent]]
 
