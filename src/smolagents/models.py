@@ -789,8 +789,12 @@ class TransformersModel(Model):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
         model_kwargs (`dict[str, Any]`, *optional*):
             Additional keyword arguments to pass to `AutoModel.from_pretrained` (like revision, model_args, config, etc.).
+        max_new_tokens (`int`, default `4096`):
+            Maximum number of new tokens to generate, ignoring the number of tokens in the prompt.
+        max_tokens (`int`, *optional*):
+            Alias for `max_new_tokens`. If provided, this value takes precedence.
         **kwargs:
-            Additional keyword arguments to forward to the underlying Transformers model generate call, such as `max_new_tokens` or `device`.
+            Additional keyword arguments to forward to the underlying Transformers model generate call, such as `device`.
     Raises:
         ValueError:
             If the model name is not provided.
@@ -816,6 +820,8 @@ class TransformersModel(Model):
         torch_dtype: str | None = None,
         trust_remote_code: bool = False,
         model_kwargs: dict[str, Any] | None = None,
+        max_new_tokens: int = 4096,
+        max_tokens: int | None = None,
         **kwargs,
     ):
         try:
@@ -841,13 +847,7 @@ class TransformersModel(Model):
             )
             model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 
-        default_max_tokens = 4096
-        max_new_tokens = kwargs.get("max_new_tokens") or kwargs.get("max_tokens")
-        if not max_new_tokens:
-            kwargs["max_new_tokens"] = default_max_tokens
-            warnings.warn(
-                f"`max_new_tokens` not provided, using this default value for `max_new_tokens`: {default_max_tokens}"
-            )
+        max_new_tokens = max_tokens if max_tokens is not None else max_new_tokens
 
         if device_map is None:
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
@@ -881,7 +881,9 @@ class TransformersModel(Model):
                 raise e
         except Exception as e:
             raise ValueError(f"Failed to load tokenizer and model for {model_id=}: {e}") from e
-        super().__init__(flatten_messages_as_text=not self._is_vlm, model_id=model_id, **kwargs)
+        super().__init__(
+            flatten_messages_as_text=not self._is_vlm, model_id=model_id, max_new_tokens=max_new_tokens, **kwargs
+        )
 
     def make_stopping_criteria(self, stop_sequences: list[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
