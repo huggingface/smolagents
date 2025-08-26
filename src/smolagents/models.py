@@ -533,6 +533,7 @@ class Model:
             "timeout",
             "api_base",
             "torch_dtype",
+            "dtype",
             "device_map",
             "organization",
             "project",
@@ -783,8 +784,8 @@ class TransformersModel(Model):
             For example, `"Qwen/Qwen2.5-Coder-32B-Instruct"`.
         device_map (`str`, *optional*):
             The device_map to initialize your model with.
-        torch_dtype (`str`, *optional*):
-            The torch_dtype to initialize your model with.
+        dtype (`str`, *optional*):
+            The dtype to initialize your model with.
         trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
         model_kwargs (`dict[str, Any]`, *optional*):
@@ -817,7 +818,7 @@ class TransformersModel(Model):
         self,
         model_id: str | None = None,
         device_map: str | None = None,
-        torch_dtype: str | None = None,
+        dtype: str | None = None,
         trust_remote_code: bool = False,
         model_kwargs: dict[str, Any] | None = None,
         max_new_tokens: int = 4096,
@@ -854,11 +855,16 @@ class TransformersModel(Model):
         logger.info(f"Using device: {device_map}")
         self._is_vlm = False
         self.model_kwargs = model_kwargs or {}
+
+        # BC: previously the type was set through `torch_dtype`. `dtype` is now prefered
+        torch_dtype = kwargs.pop("torch_dtype", None)
+        dtype = dtype or torch_dtype
+
         try:
             self.model = AutoModelForImageTextToText.from_pretrained(
                 model_id,
                 device_map=device_map,
-                torch_dtype=torch_dtype,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
                 **self.model_kwargs,
             )
@@ -871,7 +877,7 @@ class TransformersModel(Model):
                 self.model = AutoModelForCausalLM.from_pretrained(
                     model_id,
                     device_map=device_map,
-                    torch_dtype=torch_dtype,
+                    dtype=dtype,
                     trust_remote_code=trust_remote_code,
                     **self.model_kwargs,
                 )
@@ -886,8 +892,9 @@ class TransformersModel(Model):
         )
 
     def make_stopping_criteria(self, stop_sequences: list[str], tokenizer) -> "StoppingCriteriaList":
-        from transformers import StoppingCriteria, StoppingCriteriaList
+        warnings.warn("`make_stopping_criteria` is deprecated, pass `stop_strings` directly to `generate` instead")
 
+        from transformers import StoppingCriteria, StoppingCriteriaList
         class StopOnStrings(StoppingCriteria):
             def __init__(self, stop_strings: list[str], tokenizer):
                 self.stop_strings = stop_strings
@@ -939,18 +946,14 @@ class TransformersModel(Model):
             return_dict=True,
         )
         prompt_tensor = prompt_tensor.to(self.model.device)  # type: ignore
-        if hasattr(prompt_tensor, "input_ids"):
-            prompt_tensor = prompt_tensor["input_ids"]
 
         model_tokenizer = self.processor.tokenizer if hasattr(self, "processor") else self.tokenizer
-        stopping_criteria = (
-            self.make_stopping_criteria(stop_sequences, tokenizer=model_tokenizer) if stop_sequences else None
-        )
         completion_kwargs["max_new_tokens"] = max_new_tokens
         return dict(
-            inputs=prompt_tensor,
+            **prompt_tensor,
             use_cache=True,
-            stopping_criteria=stopping_criteria,
+            stop_strings=stop_sequences,
+            tokenizer=model_tokenizer,
             **completion_kwargs,
         )
 
@@ -970,7 +973,7 @@ class TransformersModel(Model):
             tools_to_call_from=tools_to_call_from,
             **kwargs,
         )
-        count_prompt_tokens = generation_kwargs["inputs"].shape[1]  # type: ignore
+        count_prompt_tokens = generation_kwargs["input_ids"].shape[1]  # type: ignore
         out = self.model.generate(
             **generation_kwargs,
         )
@@ -987,7 +990,11 @@ class TransformersModel(Model):
             content=output_text,
             raw={
                 "out": output_text,
-                "completion_kwargs": {key: value for key, value in generation_kwargs.items() if key != "inputs"},
+                "completion_kwargs": {
+                    key: value
+                    for key, value in generation_kwargs.items()
+                    if key not in ("input_ids", "attention_mask")
+                },
             },
             token_usage=TokenUsage(
                 input_tokens=count_prompt_tokens,
@@ -1014,7 +1021,7 @@ class TransformersModel(Model):
         )
 
         # Get prompt token count once
-        count_prompt_tokens = generation_kwargs["inputs"].shape[1]  # type: ignore
+        count_prompt_tokens = generation_kwargs["input_ids"].shape[1]  # type: ignore
 
         # Start generation in a separate thread
         thread = Thread(target=self.model.generate, kwargs={"streamer": self.streamer, **generation_kwargs})
