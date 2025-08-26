@@ -53,7 +53,7 @@ Full documentation can be found [here](https://huggingface.co/docs/smolagents/in
 
 First install the package with a default set of tools:
 ```bash
-pip install smolagents[toolkit]
+pip install "smolagents[toolkit]"
 ```
 Then define your agent, give it the tools it needs and run it!
 ```py

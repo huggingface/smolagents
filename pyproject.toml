@@ -48,7 +48,7 @@ litellm = [
   "litellm>=1.60.2",
 ]
 mcp = [
-  "mcpadapt>=0.1.11",  # Support Image and Audio content
+  "mcpadapt>=0.1.13",  # Support structured output
   "mcp",
 ]
 mlx-lm = [
@@ -59,9 +59,9 @@ openai = [
 ]
 telemetry = [
   "arize-phoenix",
-  "opentelemetry-sdk", 
+  "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
-  "openinference-instrumentation-smolagents>=0.1.4"
+  "openinference-instrumentation-smolagents>=0.1.15"  # Use new TokenUsage structure
 ]
 toolkit = [
   "ddgs>=9.0.0",  # DuckDuckGoSearchTool

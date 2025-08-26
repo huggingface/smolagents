@@ -120,6 +120,9 @@ To initialize a minimal agent, you need at least these two arguments:
 
 Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), [Amazon Bedrock](https://aws.amazon.com/bedrock/?nc1=h_ls), or [mlx-lm](https://pypi.org/project/mlx-lm/).
 
+All model classes support passing additional keyword arguments (like `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time.
+These parameters are automatically forwarded to the underlying model's completion calls, allowing you to configure model behavior such as creativity, response length, and sampling strategies.
+
 <hfoptions id="Pick a LLM">
 <hfoption id="Inference Providers">
 
@@ -130,7 +133,7 @@ To access gated models or rise your rate limits with a PRO account, you need to 
 ```python
 from smolagents import CodeAgent, InferenceClientModel
 
-model_id = "meta-llama/Llama-3.3-70B-Instruct" 
+model_id = "meta-llama/Llama-3.3-70B-Instruct"
 
 model = InferenceClientModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to InferenceClientModel to use a default model
 # you can also specify a particular provider e.g. provider="together" or provider="sambanova"
@@ -377,6 +380,8 @@ A tool is an atomic function to be used by an agent. To be used by an LLM, it al
 You can for instance check the [`PythonInterpreterTool`]: it has a name, a description, input descriptions, an output type, and a `forward` method to perform the action.
 
 When the agent is initialized, the tool attributes are used to generate a tool description which is baked into the agent's system prompt. This lets the agent know which tools it can use and why.
+
+**Schema Information**: For tools that have an `output_schema` defined (such as MCP tools with structured output), the `CodeAgent` system prompt automatically includes the JSON schema information. This helps the agent understand the expected structure of tool outputs and access the data appropriately.
 
 ### Default toolbox
 

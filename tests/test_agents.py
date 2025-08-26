@@ -1276,44 +1276,38 @@ class TestMultiStepAgent:
                     assert content == expected_content
 
     @pytest.mark.parametrize(
-        "images, expected_messages_list",
+        "expected_messages_list",
         [
-            (
-                None,
+            [
                 [
-                    [
-                        ChatMessage(
-                            role=MessageRole.SYSTEM,
-                            content=[{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
-                        ),
-                        ChatMessage(
-                            role=MessageRole.USER,
-                            content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
-                        ),
-                    ]
-                ],
-            ),
-            (
-                ["image1.png"],
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=[{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
+                    ),
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                    ),
+                ]
+            ],
+            [
                 [
-                    [
-                        ChatMessage(
-                            role=MessageRole.SYSTEM,
-                            content=[
-                                {"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"},
-                                {"type": "image", "image": "image1.png"},
-                            ],
-                        ),
-                        ChatMessage(
-                            role=MessageRole.USER,
-                            content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
-                        ),
-                    ]
-                ],
-            ),
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=[
+                            {"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"},
+                            {"type": "image", "image": "image1.png"},
+                        ],
+                    ),
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                    ),
+                ]
+            ],
         ],
     )
-    def test_provide_final_answer(self, images, expected_messages_list):
+    def test_provide_final_answer(self, expected_messages_list):
         fake_model = MagicMock()
         fake_model.generate.return_value = ChatMessage(
             role=MessageRole.ASSISTANT,
@@ -1327,7 +1321,7 @@ class TestMultiStepAgent:
             model=fake_model,
         )
         task = "Test task"
-        final_answer = agent.provide_final_answer(task, images=images).content
+        final_answer = agent.provide_final_answer(task).content
         expected_message_texts = {
             "FINAL_ANSWER_SYSTEM_PROMPT": agent.prompt_templates["final_answer"]["pre_messages"],
             "FINAL_ANSWER_USER_PROMPT": populate_template(
