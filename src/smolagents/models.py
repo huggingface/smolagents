@@ -895,6 +895,7 @@ class TransformersModel(Model):
         warnings.warn("`make_stopping_criteria` is deprecated, pass `stop_strings` directly to `generate` instead")
 
         from transformers import StoppingCriteria, StoppingCriteriaList
+
         class StopOnStrings(StoppingCriteria):
             def __init__(self, stop_strings: list[str], tokenizer):
                 self.stop_strings = stop_strings
