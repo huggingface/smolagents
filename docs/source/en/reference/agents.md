@@ -71,6 +71,10 @@ Smolagents use memory to store information across multiple steps.
 
 [[autodoc]] smolagents.remote_executors.E2BExecutor
 
+#### ModalExecutor
+
+[[autodoc]] smolagents.remote_executors.ModalExecutor
+
 #### DockerExecutor
 
 [[autodoc]] smolagents.remote_executors.DockerExecutor
