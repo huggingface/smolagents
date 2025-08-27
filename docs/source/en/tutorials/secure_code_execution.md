@@ -118,7 +118,7 @@ When working with AI agents that execute code, security is paramount. There are 
 
 ![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png)
 
-1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"`, `executor_type="modal"` , or
+1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"`, `executor_type="modal"`, or
 `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
 
 2. **Running the entire agentic system in a sandbox**: This approach (right side of diagram) runs the entire agentic system, including the agent, model, and tools, within a sandbox environment. This provides better isolation but requires more manual setup and may require passing sensitive credentials (like API keys) to the sandbox environment.
@@ -223,7 +223,7 @@ print(execution_logs)
 
 #### Installation
 
-1. Create an Modal account at [e2b.dev](https://modal.com/signup)
+1. Create a Modal account at [modal.com](https://modal.com/signup)
 2. Install the required packages:
 ```bash
 pip install 'smolagents[modal]'
@@ -231,7 +231,7 @@ pip install 'smolagents[modal]'
 
 #### Running your agent in Modal: quick start
 
-We provide a simple way to use an E2B Sandbox: simply add `executor_type="modal"` to the agent initialization, as follows:
+We provide a simple way to use an Modal Sandbox: simply add `executor_type="modal"` to the agent initialization, as follows:
 
 ```py
 from smolagents import InferenceClientModel, CodeAgent

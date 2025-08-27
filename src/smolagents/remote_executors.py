@@ -441,7 +441,7 @@ class DockerExecutor(RemotePythonExecutor):
             self.base_url = f"http://{host}:{port}"
 
             # Create new kernel via HTTP
-            self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels", logger)
+            self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels", self.logger)
 
             ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
             self.ws = create_connection(ws_url)
@@ -482,7 +482,8 @@ class ModalExecutor(RemotePythonExecutor):
     Args:
         additional_imports: Additional imports to install.
         logger (`Logger`): Logger to use for output and errors.
-        app (`str`): App name.
+        app_name (`str`): App name.
+        port (`int`): Port for jupyter to bind to.
         create_kwargs (`dict`, optional): Keyword arguments to pass to creating the sandbox. See
             `modal.Sandbox.create` [docs](https://modal.com/docs/reference/modal.Sandbox#create) for all the
             keyword arguments.
