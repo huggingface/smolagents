@@ -28,7 +28,7 @@
 
 ### LLM 엔진으로의 정보 흐름을 개선하세요[[improve-the-information-flow-to-the-llm-engine]]
 
-LLM은 문 밑으로 쪽지만 주고받을 수 있는 밀폐된 방에 갇힌 *똑똑한* 로봇이라고 생각하면 됩니다.
+LLM은 쪽지를 통해서만 소통할 수 있는 밀폐된 방 안의 *똑똑한* 로봇이라고 생각하면 됩니다.
 
 프롬프트에 명시하지 않으면 무슨 일이 일어났는지 전혀 알 수 없습니다.
 
@@ -49,11 +49,11 @@ import datetime
 from smolagents import tool
 
 def get_weather_report_at_coordinates(coordinates, date_time):
-    # Dummy function, returns a list of [temperature in °C, risk of rain on a scale 0-1, wave height in m]
+    # 더미 함수, [섭씨 온도, 0-1 척도의 비 올 확률, 미터 단위 파도 높이] 리스트를 반환
     return [28.0, 0.35, 0.85]
 
 def convert_location_to_coordinates(location):
-    # Returns dummy coordinates
+    # 더미 좌표를 반환
     return [3.3, -42.0]
 
 @tool
@@ -100,9 +100,9 @@ def get_weather_api(location: str, date_time: str) -> str:
 
 LLM의 부담을 덜어주려면 이런 질문을 해보세요: "만약 내가 아무것도 모르는 상태에서 이 도구를 처음 사용한다면, 실수했을 때 스스로 고치기가 얼마나 쉬울까?"
 
-### 에이전트에 더 많은 인수 제공[[give-more-arguments-to-the-agent]]
+### 에이전트에 더 많은 매개변수 제공[[give-more-arguments-to-the-agent]]
 
-작업을 설명하는 단순한 문자열 외에 에이전트에 추가 객체를 전달하려면 `additional_args` 인수를 사용하여 모든 유형의 객체를 전달할 수 있습니다:
+작업을 설명하는 단순한 문자열 외에 에이전트에 추가 객체를 전달하려면 `additional_args` 매개변수를 사용하여 모든 유형의 객체를 전달할 수 있습니다:
 
 ```py
 from smolagents import CodeAgent, InferenceClientModel
@@ -116,13 +116,13 @@ agent.run(
     additional_args={"mp3_sound_file_url":'https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/recording.mp3'}
 )
 ```
-예를 들어, `additional_args` 인수를 통해 에이전트가 활용할 수 있도록 원하는 이미지나 문자열을 전달할 수 있습니다.
+예를 들어, `additional_args` 매개변수를 통해 에이전트가 활용할 수 있도록 원하는 이미지나 문자열을 전달할 수 있습니다.
 
 ## 에이전트 디버깅 방법[[how-to-debug-your-agent]]
 
 ### 1. 더 강력한 LLM 사용[[use-a-stronger-llm]]
 
-에이전트 워크플로우에서 일부 오류는 실제 오류이고, 다른 일부는 LLM 엔진이 제대로 추론하지 못한 탓입니다.
+에이전트 워크플로우에서 발생하는 오류 중 일부는 실제 오류이고, 다른 일부는 LLM 엔진이 제대로 추론하지 못한 탓입니다.
 예를 들어, 자동차 그림을 만들어 달라고 요청한 `CodeAgent`에 대한 다음 추적을 고려해보세요:
 ```
 ==================================================================================================== New task ====================================================================================================
@@ -164,7 +164,7 @@ Final answer:
 
 더 구체적인 안내가 필요할까요?
 
-- 지침이 항상 에이전트에게 주어져야 하는 경우(일반적으로 시스템 프롬프트가 작동한다고 이해하는 것처럼): 에이전트 초기화 시 `instructions` 인수 아래에 문자열로 전달할 수 있습니다.
+- 지침이 항상 에이전트에게 주어져야 하는 경우(일반적으로 시스템 프롬프트가 작동한다고 이해하는 것처럼): 에이전트 초기화 시 `instructions` 매개변수 아래에 문자열로 전달할 수 있습니다.
 - 해결할 특정 작업에 관한 것이라면: 이 모든 세부 사항을 작업에 추가하세요. 작업은 수십 페이지처럼 매우 길 수 있습니다.
 - 특정 도구 사용 방법에 관한 것이라면: 해당 도구의 `description` 속성에 포함시키세요.
 
@@ -385,7 +385,7 @@ agent.prompt_templates["system_prompt"] = agent.prompt_templates["system_prompt"
 
 이는 [`ToolCallingAgent`]에서도 작동합니다.
 
-하지만 일반적으로 다음과 같이 에이전트 초기화 시 `instructions` 인수를 전달하는 것이 더 간단합니다:
+하지만 일반적으로 다음과 같이 에이전트 초기화 시 `instructions` 매개변수를 전달하는 것이 더 간단합니다:
 ```py
 agent = CodeAgent(tools=[], model=InferenceClientModel(model_id=model_id), instructions="Always talk like a 5 year old.")
 ```
