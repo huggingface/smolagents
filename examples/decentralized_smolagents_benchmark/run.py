@@ -19,28 +19,30 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 
-load_dotenv()
+# Langfuse instrumentation setup
+try:
+    from dotenv import load_dotenv
 
-from langfuse import get_client
+    load_dotenv()
 
+    from langfuse import Langfuse
+    from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 
-langfuse = get_client()
-
-# Verify connection
-if langfuse.auth_check():
-    print("Langfuse client is authenticated and ready!")
-else:
-    print("Authentication failed. Please check your credentials and host.")
-
-from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-
-
-with langfuse.start_as_current_span(name="another-operation"):
-    # Add to the current trace
-    langfuse.update_current_trace(session_id="zero_shot_1", user_id="cvt8")
-
-
-SmolagentsInstrumentor().instrument()
+    # Initialize Langfuse client
+    langfuse_client = Langfuse()
+    if langfuse_client.auth_check():
+        print("✅ Langfuse client authenticated successfully")
+        SmolagentsInstrumentor().instrument()
+        print("✅ SmolagentsInstrumentor enabled")
+    else:
+        print("⚠️ Langfuse authentication failed - tracing disabled")
+        langfuse_client = None
+except ImportError as e:
+    print(f"⚠️ Langfuse not available: {e}")
+    langfuse_client = None
+except Exception as e:
+    print(f"⚠️ Langfuse setup error: {e}")
+    langfuse_client = None
 
 
 script_dir = Path(__file__).parent
@@ -133,7 +135,7 @@ def load_eval_dataset(eval_dataset, num_examples=None):
     if num_examples is not None:
         # Sample num_examples from each task
         df = (
-            df.groupby("task")
+            df.groupby("task", group_keys=False)
             .apply(lambda x: x.sample(n=min(num_examples, len(x)), random_state=42))
             .reset_index(drop=True)
         )
@@ -418,7 +420,7 @@ def main():
     # If num_examples is specified, sample from each task
     if args.num_examples is not None:
         df = (
-            df.groupby("task")
+            df.groupby("task", group_keys=False)
             .apply(lambda x: x.sample(n=min(args.num_examples, len(x)), random_state=42))
             .reset_index(drop=True)
         )

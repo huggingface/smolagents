@@ -122,3 +122,17 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             },
         ]
         return self.model(messages).content
+
+
+class FileReaderTool(Tool):
+    """Tool for reading file contents."""
+
+    name = "file_reader"
+    inputs = {"file_path": {"type": "string", "description": "Path to the file to read"}}
+    output_type = "string"
+    description = "Read contents of a file"
+
+    def forward(self, file_path: str) -> str:
+        """Read contents of a file."""
+        with open(file_path) as f:
+            return f.read()

@@ -1,17 +1,13 @@
 """Message store implementation for decentralized agents."""
 
 import json
+import logging
 import threading
-import time
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
-from hashlib import sha256
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
-
-
-ISO = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def now_ts() -> str:
@@ -32,24 +28,14 @@ class MessageStore:
         self._lock = threading.Lock()
         self._configured_agents = list(agent_names or [])
 
-        # Message deduplication and rate limiting
-        self.recent_messages = {}  # Store recent message hashes
-        self.message_timestamps = {}  # Store timestamps for rate limiting
-        self.rate_limit_window = 2.0  # seconds
-        self.max_similar_messages = 2  # Max similar messages in window
+        logging.info(json.dumps({
+            "event": "message_store_initialized",
+            "run_id": run_id,
+            "agent_count": len(self._configured_agents),
+            "messages_file": str(self.messages_file)
+        }))
 
-        # simple duplicate guard (best‑effort in‑memory)
-        self._recent_hashes: Dict[str, float] = {}
-        self._dedup_window_sec = 2.0
 
-    def post_message(self, message: Dict) -> str:
-        """Post a new message to the store."""
-        msg_id = str(uuid.uuid4())
-        message.update({"id": msg_id, "timestamp": now_ts()})
-
-        with self.messages_file.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(message) + "\n")
-        return msg_id
 
     def get_messages(
         self,
@@ -84,7 +70,7 @@ class MessageStore:
                     continue
 
                 # Check message visibility
-                recipients = msg.get("recipients", [])
+                recipients = msg.get("recipients", [])  # Now guaranteed to be a list from append_message
                 sender = msg.get("sender", "")
                 content_str = str(msg.get("content", ""))
 
@@ -109,84 +95,11 @@ class MessageStore:
 
         return sorted(messages, key=lambda m: m.get("timestamp", ""))
 
-    # --- Core append & read -------------------------------------------------
 
-    def _compute_message_hash(self, sender: str, content: Any, msg_type: str) -> str:
-        """Compute a hash of the message content for deduplication."""
-        content_str = str(content) if isinstance(content, (dict, list)) else content
-        hash_content = f"{sender}:{msg_type}:{content_str}"
-        return sha256(hash_content.encode()).hexdigest()
 
-    def _is_duplicate_message(self, msg_hash: str, timestamp: float) -> bool:
-        """Check if a message is a duplicate within the rate limit window."""
-        with self._lock:
-            # Clean up old messages
-            current_time = time.time()
-            cutoff_time = current_time - self.rate_limit_window
 
-            self.message_timestamps = {h: ts for h, ts in self.message_timestamps.items() if ts > cutoff_time}
 
-            # Check if we've seen too many similar messages recently
-            similar_messages = sum(
-                1 for h, ts in self.message_timestamps.items() if h == msg_hash and ts > cutoff_time
-            )
 
-            if similar_messages >= self.max_similar_messages:
-                return True
-
-            # Record this message
-            self.message_timestamps[msg_hash] = timestamp
-            return False
-
-    def append_message_with_dedup(
-        self,
-        sender: str,
-        content: Any,
-        recipients: Optional[List[str]] = None,
-        thread_id: Optional[str] = None,
-        msg_type: Optional[str] = None,
-        reply_to: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Append a message with deduplication and rate limiting."""
-        msg_type = msg_type or "message"
-        current_time = time.time()
-
-        # For votes and final answer proposals, skip deduplication
-        if msg_type not in ["vote", "final_answer_proposal", "poll"]:
-            msg_hash = self._compute_message_hash(sender, content, msg_type)
-            if self._is_duplicate_message(msg_hash, current_time):
-                return None  # Skip duplicate message
-
-        return self.append_message(
-            sender=sender,
-            content=content,
-            recipients=recipients,
-            thread_id=thread_id,
-            msg_type=msg_type,
-            reply_to=reply_to,
-        )
-
-    def tail(self, k: int = 200) -> List[Dict[str, Any]]:
-        """Return last k messages by timestamp."""
-        msgs = list(self._iter_messages())[-k:]
-        msgs.sort(key=lambda m: m.get("timestamp", ""))
-        return msgs
-
-    def get_mentions(self, agent_id: str, since_ts: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get all messages that mention the specified agent."""
-        mentions = []
-        mention_pattern = f"@{agent_id}"
-
-        with self._lock:
-            for msg in self._iter_messages():
-                if since_ts and msg.get("timestamp", "") <= since_ts:
-                    continue
-
-                content_str = str(msg.get("content", ""))
-                if mention_pattern in content_str:
-                    mentions.append(msg)
-
-        return sorted(mentions, key=lambda m: m.get("timestamp", ""))
 
     def get_thread_messages(self, thread_id: str, agent_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all messages from a specific thread, filtered by agent visibility if specified."""
@@ -226,7 +139,7 @@ class MessageStore:
 
                 # Agent visibility check
                 if agent_id:
-                    recipients = msg.get("recipients", [])
+                    recipients = msg.get("recipients", [])  # Now guaranteed to be a list from append_message
                     sender = msg.get("sender", "")
                     content_str = str(msg.get("content", ""))
 
@@ -262,7 +175,7 @@ class MessageStore:
 
                 msg_type = msg.get("type", "message")
                 sender = msg.get("sender", "")
-                recipients = msg.get("recipients", [])
+                recipients = msg.get("recipients", [])  # Now guaranteed to be a list from append_message
                 content_str = str(msg.get("content", ""))
                 thread_id = msg.get("thread_id", "main")
 
@@ -305,11 +218,7 @@ class MessageStore:
 
         return notifications
 
-    def mark_as_read(self, agent_id: str, message_ids: List[str]) -> None:
-        """Mark messages as read by an agent (for future read/unread functionality)."""
-        # This could be extended to track read status in a separate file or database
-        # For now, this is a placeholder for future implementation
-        pass
+
 
     def get_active_threads(self, agent_id: Optional[str] = None, since_ts: Optional[str] = None) -> List[str]:
         """Get list of active thread IDs, optionally filtered by agent visibility."""
@@ -322,7 +231,7 @@ class MessageStore:
 
                 if agent_id:
                     # Apply agent visibility filtering
-                    recipients = msg.get("recipients", [])
+                    recipients = msg.get("recipients", [])  # Now guaranteed to be a list from append_message
                     sender = msg.get("sender", "")
                     content_str = str(msg.get("content", ""))
 
@@ -381,6 +290,18 @@ class MessageStore:
     ) -> Dict[str, Any]:
         """Append a message to the log and return the full record."""
         with self._lock:
+            # Ensure recipients is always properly defined
+            if recipients is None:
+                # Default behavior: most messages should be visible to all agents
+                if msg_type in ["task", "poll", "final_answer", "channel_message"]:
+                    recipients = ["@all"]
+                elif msg_type == "private_message":
+                    # This should have been specified, but default to empty for safety
+                    recipients = []
+                else:
+                    # Default to public for unknown message types
+                    recipients = ["@all"]
+
             msg_id = str(uuid.uuid4())
             record = {
                 "id": msg_id,
@@ -388,10 +309,22 @@ class MessageStore:
                 "sender": sender,
                 "type": msg_type or (content.get("type") if isinstance(content, dict) else None),
                 "content": content,
-                "recipients": recipients,
+                "recipients": recipients,  # Now guaranteed to be a list
                 "thread_id": thread_id,
                 "reply_to": reply_to,
             }
+
+            # Log message creation with proper recipients
+            logging.info(json.dumps({
+                "event": "message_posted",
+                "message_id": msg_id,
+                "sender": sender,
+                "type": msg_type,
+                "thread_id": thread_id,
+                "recipients": recipients,
+                "content_preview": str(content)[:100]
+            }))
+
             self._append_line(record)
             return record
 
@@ -447,6 +380,13 @@ class MessageStore:
         if active_polls:
             print("🚫 Cannot create poll: There is already an active poll in progress")
             print(f"   Active poll ID: {active_polls[0].get('poll_id')} by {active_polls[0].get('proposer')}")
+            logging.info(json.dumps({
+                "event": "poll_creation_blocked",
+                "reason": "active_poll_exists",
+                "blocked_proposer": proposer,
+                "active_poll_id": active_polls[0].get('poll_id'),
+                "active_poll_proposer": active_polls[0].get('proposer')
+            }))
             # Return the existing active poll instead of creating a new one
             return {"error": "Poll already active", "active_poll": active_polls[0]}
 
@@ -456,6 +396,17 @@ class MessageStore:
 
         # Log poll creation with explicit threshold
         print(f"🗳️  Creating poll: {thr} out of {n_agents} agents must vote YES for consensus")
+        logging.info(json.dumps({
+            "event": "poll_created",
+            "poll_id": poll_id,
+            "proposer": proposer,
+            "question": question,
+            "proposal_preview": str(proposal)[:200],
+            "threshold": thr,
+            "total_agents": n_agents,
+            "options": options or ["YES", "NO"],
+            "thread_id": thread_id
+        }))
 
         payload = {
             "type": "poll",
@@ -487,6 +438,16 @@ class MessageStore:
         v = vote.upper()
         if v not in {"YES", "NO"}:
             raise ValueError("vote must be 'YES' or 'NO'")
+
+        logging.info(json.dumps({
+            "event": "vote_recorded",
+            "poll_id": poll_id,
+            "voter": voter,
+            "vote": v,
+            "confidence": confidence,
+            "rationale": rationale[:200] if rationale else ""
+        }))
+
         return self.append_message(
             sender=voter,
             content={
@@ -565,17 +526,44 @@ class MessageStore:
         info = self.count_votes(poll_id)
         poll = info.get("poll")
         if not poll or info.get("closed"):
+            logging.info(json.dumps({
+                "event": "poll_finalization_skipped",
+                "poll_id": poll_id,
+                "reason": "poll_not_found_or_closed",
+                "has_poll": bool(poll),
+                "is_closed": info.get("closed", False)
+            }))
             return None
 
         # Ensure poll is a dict before accessing its attributes
         if not isinstance(poll, dict):
+            logging.error(json.dumps({
+                "event": "poll_finalization_error",
+                "poll_id": poll_id,
+                "error": "poll_is_not_dict",
+                "poll_type": type(poll).__name__
+            }))
             return None
 
         tally = info["tally"]
+        logging.info(json.dumps({
+            "event": "poll_finalization_check",
+            "poll_id": poll_id,
+            "yes_votes": tally["YES"],
+            "no_votes": tally["NO"],
+            "threshold": tally["threshold"],
+            "eligible_voters": tally["eligible"]
+        }))
 
         # Check if poll should be deleted due to too many NO votes
         if tally["NO"] >= 2:  # Delete poll if 2+ NO votes
             print(f"🗑️  Deleting poll {poll_id} due to {tally['NO']} NO votes (threshold: 2)")
+            logging.info(json.dumps({
+                "event": "poll_deleted",
+                "poll_id": poll_id,
+                "no_votes": tally["NO"],
+                "reason": "too_many_no_votes"
+            }))
             # Mark poll as closed/deleted
             self.append_message(
                 sender="Coordinator",
@@ -588,6 +576,14 @@ class MessageStore:
         # Check if poll passed with enough YES votes
         if tally["YES"] >= tally["threshold"]:
             print(f"✅ Poll {poll_id} passed with {tally['YES']} YES votes (threshold: {tally['threshold']})")
+            logging.info(json.dumps({
+                "event": "poll_passed",
+                "poll_id": poll_id,
+                "yes_votes": tally["YES"],
+                "threshold": tally["threshold"],
+                "proposer": poll.get("proposer"),
+                "answer_preview": str(poll.get("proposal", ""))[:200]
+            }))
             # mark closed (shadow append)
             self.append_message(
                 sender=poll.get("proposer", "system"),
@@ -608,19 +604,15 @@ class MessageStore:
                 msg_type="final_answer",
                 reply_to=poll_id,
             )
+
+        logging.info(json.dumps({
+            "event": "poll_not_ready",
+            "poll_id": poll_id,
+            "yes_votes": tally["YES"],
+            "no_votes": tally["NO"],
+            "threshold": tally["threshold"],
+            "reason": "insufficient_votes"
+        }))
         return None
 
-    # ------------------------------ search ------------------------
-    def search(self, query: str, *, thread_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        q = query.lower().strip()
-        out: List[Dict[str, Any]] = []
-        for msg in self._iter_messages() or []:
-            if thread_id and msg.get("thread_id") != thread_id:
-                continue
-            blob = json.dumps(msg, ensure_ascii=False).lower()
-            if q in blob:
-                out.append(msg)
-                if len(out) >= limit:
-                    break
-        out.sort(key=lambda m: m.get("timestamp", ""))
-        return out
+
