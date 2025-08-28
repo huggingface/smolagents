@@ -511,27 +511,27 @@ class ModalExecutor(RemotePythonExecutor):
         if create_kwargs is None:
             create_kwargs = {}
 
-        create_kwargs_ = {
+        create_kwargs = {
             "image": modal.Image.debian_slim().uv_pip_install("jupyter_kernel_gateway", "ipykernel"),
             "timeout": 60 * 5,
             **create_kwargs,
         }
 
-        if "app" not in create_kwargs_:
-            create_kwargs_["app"] = modal.App.lookup(app_name, create_if_missing=True)
+        if "app" not in create_kwargs:
+            create_kwargs["app"] = modal.App.lookup(app_name, create_if_missing=True)
 
-        if "encrypted_ports" not in create_kwargs_:
-            create_kwargs_["encrypted_ports"] = [port]
+        if "encrypted_ports" not in create_kwargs:
+            create_kwargs["encrypted_ports"] = [port]
         else:
-            create_kwargs_["encrypted_ports"] = create_kwargs_["encrypted_ports"] + [port]
+            create_kwargs["encrypted_ports"] = create_kwargs["encrypted_ports"] + [port]
 
         token = secrets.token_urlsafe(16)
         default_secrets = [modal.Secret.from_dict({"KG_AUTH_TOKEN": token})]
 
-        if "secrets" not in create_kwargs_:
-            create_kwargs_["secrets"] = default_secrets
+        if "secrets" not in create_kwargs:
+            create_kwargs["secrets"] = default_secrets
         else:
-            create_kwargs_["secrets"] = create_kwargs_["secrets"] + default_secrets
+            create_kwargs["secrets"] = create_kwargs["secrets"] + default_secrets
 
         entrypoint = [
             "jupyter",
@@ -544,7 +544,7 @@ class ModalExecutor(RemotePythonExecutor):
         self.logger.log("Starting Modal sandbox", level=LogLevel.INFO)
         self.sandbox = modal.Sandbox.create(
             *entrypoint,
-            **create_kwargs_,
+            **create_kwargs,
         )
 
         tunnel = self.sandbox.tunnels()[port]
