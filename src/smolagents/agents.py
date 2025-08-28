@@ -76,7 +76,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor, ModalExecutor
+from .remote_executors import DockerExecutor, E2BExecutor, ModalExecutor, WasmExecutor
 from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
     AgentError,

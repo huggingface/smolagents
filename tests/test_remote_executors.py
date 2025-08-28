@@ -10,7 +10,7 @@ from rich.console import Console
 from smolagents.default_tools import FinalAnswerTool, WikipediaSearchTool
 from smolagents.local_python_executor import CodeOutput
 from smolagents.monitoring import AgentLogger, LogLevel
-from smolagents.remote_executors import DockerExecutor, E2BExecutor, RemotePythonExecutor, WasmExecutor, ModalExecutor
+from smolagents.remote_executors import DockerExecutor, E2BExecutor, ModalExecutor, RemotePythonExecutor, WasmExecutor
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
