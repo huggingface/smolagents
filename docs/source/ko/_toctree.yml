@@ -15,7 +15,7 @@
   - local: in_translation
     title: (번역중) Using different models
   - local: in_translation
-    title: (번역중) "Human-in-the-Loop: Customize agent plan interactively"
+    title: "(번역중) Human-in-the-Loop: Customize agent plan interactively"
   - local: in_translation
     title: (번역중) Async Applications with Agents
 - title: Reference
