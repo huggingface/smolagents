@@ -231,7 +231,7 @@ pip install 'smolagents[modal]'
 
 #### Running your agent in Modal: quick start
 
-We provide a simple way to use an Modal Sandbox: simply add `executor_type="modal"` to the agent initialization, as follows:
+We provide a simple way to use a Modal Sandbox: simply add `executor_type="modal"` to the agent initialization, as follows:
 
 ```py
 from smolagents import InferenceClientModel, CodeAgent
