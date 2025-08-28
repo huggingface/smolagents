@@ -545,7 +545,7 @@ class TestTransformersModel:
             assert model.model == mocks["transformers.AutoModelForCausalLM.from_pretrained"].return_value
             assert mocks["transformers.AutoModelForCausalLM.from_pretrained"].call_args.kwargs == {
                 "device_map": "cpu",
-                "torch_dtype": "float16",
+                "dtype": "float16",
                 "trust_remote_code": True,
             }
             assert model.tokenizer == mocks["transformers.AutoTokenizer.from_pretrained"].return_value
@@ -555,7 +555,7 @@ class TestTransformersModel:
             assert model.model == mocks["transformers.AutoModelForImageTextToText.from_pretrained"].return_value
             assert mocks["transformers.AutoModelForImageTextToText.from_pretrained"].call_args.kwargs == {
                 "device_map": "cpu",
-                "torch_dtype": "float16",
+                "dtype": "float16",
                 "trust_remote_code": True,
             }
             assert model.processor == mocks["transformers.AutoProcessor.from_pretrained"].return_value
