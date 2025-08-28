@@ -521,7 +521,7 @@ class ModalExecutor(RemotePythonExecutor):
             create_kwargs_["app"] = modal.App.lookup(app_name, create_if_missing=True)
 
         if "encrypted_ports" not in create_kwargs_:
-            create_kwargs_["encrypted_ports"] = [self.port]
+            create_kwargs_["encrypted_ports"] = [port]
         else:
             create_kwargs_["encrypted_ports"] = create_kwargs_["encrypted_ports"] + [port]
 
