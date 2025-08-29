@@ -2,6 +2,8 @@
   sections:
   - local: index
     title: 소개
+  - local: guided_tour
+    title: 안내서
 - title: 예제
   sections:
   - local: examples/text_to_sql
