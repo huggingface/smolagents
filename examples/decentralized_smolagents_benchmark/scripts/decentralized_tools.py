@@ -159,6 +159,10 @@ class SendMessageToChannel(Tool):
     def forward(self, thread_id: str, message: str, recipients: Optional[str] = None) -> str:
         """Send a message to the specified channel/thread with auto-creation."""
         try:
+            # Ensure thread_id is a string to prevent type errors
+            if not isinstance(thread_id, str):
+                thread_id = str(thread_id)
+
             # Process the thread_id to determine channel type and auto-create if needed
             processed_channel_id, auto_recipients = self._process_channel_id(thread_id)
 
@@ -197,6 +201,10 @@ class SendMessageToChannel(Tool):
 
     def _process_channel_id(self, thread_id: str) -> tuple[str, Optional[List[str]]]:
         """Process thread_id to determine channel and auto-create if needed."""
+
+        # Ensure thread_id is a string to avoid 'int is not iterable' errors
+        if not isinstance(thread_id, str):
+            thread_id = str(thread_id)
 
         # If thread_id contains agent names (has comma or ends with 'Agent'), it's an agent-based channel
         if ',' in thread_id or thread_id.endswith('Agent'):
@@ -269,6 +277,10 @@ class SendMessageToChannel(Tool):
 
     def _generate_topic_description(self, topic: str) -> str:
         """Generate a description for topic-based channels."""
+        # Ensure topic is a string to prevent type errors
+        if not isinstance(topic, str):
+            topic = str(topic)
+
         topic_descriptions = {
             "research": "Web research and information gathering",
             "analysis": "Deep analysis and data examination",
@@ -499,15 +511,24 @@ class CreateFinalAnswerPollTool(Tool):
     description = """Create a poll to propose a final answer to the user's original question.
     Use this when you have a confident, complete answer that should be presented to the user.
     The proposal will be voted on by all agents, and if it reaches majority consensus (N//2 + 1 votes),
-    it will be returned as the final answer to the user. Only one poll can be active at a time."""
+    it will be returned as the final answer to the user.
+    
+    CRITICAL FORMAT INSTRUCTIONS:
+    Always carefully follow the format required by the question. This could be for instance:
+    - For math problems: final_answer should be ONLY the number, expression, or mathematical result (e.g., "7", "3.14", "$50")
+    - For factual questions: final_answer should be ONLY the specific fact requested (e.g., "1925", "John Smith", "Paris")
+    - For yes/no questions: final_answer should be ONLY "Yes" or "No"
+    - Do NOT include explanations, reasoning, or phrases like "The answer is..." in final_answer
+    - Put all explanations in supporting_evidence, not in final_answer
+    """
     inputs = {
         "final_answer": {
             "type": "string",
-            "description": "Your proposed final answer to the user's question - should be complete and well-reasoned",
+            "description": "ONLY the core answer - no explanations or reasoning. For math: just the number/result. For facts: just the specific requested information. For yes/no: just 'Yes' or 'No'.",
         },
         "supporting_evidence": {
             "type": "string",
-            "description": "Supporting evidence, reasoning, or sources for your answer",
+            "description": "Supporting evidence, reasoning, calculations, or sources for your answer. Include all explanations HERE, not in final_answer.",
             "nullable": True,
         },
     }
@@ -534,8 +555,13 @@ class CreateFinalAnswerPollTool(Tool):
                 else final_answer
             )
 
+            # Store the clean final answer separately in the poll for proper extraction
             result = self.message_store.create_poll(
-                question=question, proposal=full_proposal, proposer=self.agent_name, thread_id="main"
+                question=question,
+                proposal=full_proposal,
+                proposer=self.agent_name,
+                thread_id="main",
+                final_answer=final_answer  # Store clean answer separately
             )
 
             poll_id = result.get("content", {}).get("poll_id", "unknown")
@@ -549,9 +575,10 @@ class VoteOnPollTool(Tool):
     """Tool for voting on active polls with detailed evaluation."""
 
     name = "vote_on_poll"
-    description = """Vote on the currently active poll. Provide your vote (YES/NO), confidence level,
+    description = """Vote on a specific active poll. Provide the poll ID, your vote (YES/NO), confidence level,
     and detailed rationale based on your expertise. Your vote helps reach team consensus on important decisions."""
     inputs = {
+        "poll_id": {"type": "string", "description": "ID of the poll you want to vote on", "nullable": True},
         "vote": {"type": "string", "description": "Your vote: 'YES' to approve or 'NO' to reject the proposal"},
         "confidence": {
             "type": "number",
@@ -569,8 +596,8 @@ class VoteOnPollTool(Tool):
         self.message_store = message_store
         self.agent_name = agent_name
 
-    def forward(self, vote: str, confidence: float, rationale: str) -> str:
-        """Vote on the active poll."""
+    def forward(self, vote: str, confidence: float, rationale: str, poll_id: Optional[str] = None) -> str:
+        """Vote on an active poll."""
         try:
             # Validate vote
             vote = vote.upper()
@@ -582,9 +609,25 @@ class VoteOnPollTool(Tool):
             if not active_polls:
                 return "❌ No active polls to vote on."
 
-            poll = active_polls[0]  # Take the first (should be only one)
-            poll_id = poll.get("poll_id")
+            # Find the specific poll to vote on
+            target_poll = None
+            if poll_id:
+                # Vote on specific poll ID
+                for poll in active_polls:
+                    if poll.get("poll_id") == poll_id:
+                        target_poll = poll
+                        break
+                if not target_poll:
+                    return f"❌ Poll with ID {poll_id} not found or is not active."
+            else:
+                # If no poll_id specified and only one active poll, use it
+                if len(active_polls) == 1:
+                    target_poll = active_polls[0]
+                else:
+                    poll_list = "\n".join([f"- {p.get('poll_id', 'unknown')}: {p.get('question', 'Unknown question')[:60]}..." for p in active_polls])
+                    return f"❌ Multiple active polls found. Please specify poll_id parameter:\n{poll_list}"
 
+            poll_id = target_poll.get("poll_id")
             if not poll_id:
                 return "❌ Invalid poll ID."
 
@@ -592,7 +635,7 @@ class VoteOnPollTool(Tool):
             vote_info = self.message_store.count_votes(poll_id)
             voters = vote_info.get("votes_by_voter", {})
             if self.agent_name in voters:
-                return f"❌ You have already voted on this poll. Current vote: {voters[self.agent_name].get('vote')}"
+                return f"❌ You have already voted on poll {poll_id}. Current vote: {voters[self.agent_name].get('vote')}"
 
             # Record vote
             result = self.message_store.record_vote(
@@ -601,10 +644,10 @@ class VoteOnPollTool(Tool):
                 vote=vote,
                 confidence=confidence,
                 rationale=rationale,
-                thread_id=poll.get("thread_id", "main"),
+                thread_id=target_poll.get("thread_id", "main"),
             )
 
-            return f"✅ Vote recorded: {vote} (confidence: {confidence:.1f}) - {rationale[:50]} - result: {result}..."
+            return f"✅ Vote recorded on poll {poll_id}: {vote} (confidence: {confidence:.1f}) - {rationale[:50]}..."
 
         except Exception as e:
             return f"❌ Failed to record vote: {str(e)}"
@@ -657,41 +700,6 @@ class ViewActivePollsTool(Tool):
 
 
 # =============================================================================
-# FINAL ANSWER TOOL (Extended for decentralized consensus)
-# =============================================================================
-
-
-class DecentralizedFinalAnswerTool(FinalAnswerTool):
-    """Extended FinalAnswerTool that creates polls for final answers in decentralized mode."""
-
-    def __init__(self, message_store: MessageStore, agent_name: str):
-        super().__init__()
-        self.message_store = message_store
-        self.agent_name = agent_name
-
-    def forward(self, answer: str) -> str:
-        """Instead of directly returning the answer, create a poll for team consensus."""
-        try:
-            # Check if there are any active polls
-            active_polls = self.message_store.get_active_polls()
-            if active_polls:
-                return "Cannot propose final answer: There is already an active poll in progress. Wait for current poll to conclude or vote on it first."
-
-            # Create a final answer poll instead of directly returning the answer
-            question = "Should this be our final answer to the user?"
-
-            result = self.message_store.create_poll(
-                question=question, proposal=answer, proposer=self.agent_name, thread_id="main"
-            )
-
-            poll_id = result.get("content", {}).get("poll_id", "unknown")
-            return f"Final answer poll created (ID: {poll_id}). Waiting for team consensus..."
-
-        except Exception as e:
-            return f"Failed to create final answer poll: {str(e)}"
-
-
-# =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
@@ -712,6 +720,5 @@ def create_decentralized_tools(message_store: MessageStore, agent_name: str) -> 
         VoteOnPollTool(message_store, agent_name),
         ViewActivePollsTool(message_store, agent_name),
         # Final answer tool (decentralized version)
-        DecentralizedFinalAnswerTool(message_store, agent_name),
         CreateChannel(message_store, agent_name),
     ]

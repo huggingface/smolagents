@@ -6,7 +6,9 @@ class TextInspectorTool(Tool):
     name = "inspect_file_as_text"
     description = """
 You cannot load files yourself: instead call this tool to read a file as markdown text and ask questions about it.
-This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".flac", ".pdf", ".docx"], and all other types of text files. IT DOES NOT HANDLE IMAGES."""
+This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".flac", ".pdf", ".docx"], and all other types of text files. IT DOES NOT HANDLE IMAGES.
+
+IMPORTANT: If you have a URL to a file (like a .docx, .xlsx, .pptx, .wav, .mp3, .m4a, .png file), you MUST first use the 'download_file' tool to download it locally, then use this tool with the downloaded file path. For .pdf, .txt, .htm files, use 'visit_page' tool instead."""
 
     inputs = {
         "file_path": {
@@ -130,7 +132,7 @@ class FileReaderTool(Tool):
     name = "file_reader"
     inputs = {"file_path": {"type": "string", "description": "Path to the file to read"}}
     output_type = "string"
-    description = "Read contents of a file"
+    description = "Read raw text contents of a file. IMPORTANT: If you have a URL to a file, first use 'download_file' tool to download it, then use this tool with the downloaded file path."
 
     def forward(self, file_path: str) -> str:
         """Read contents of a file."""

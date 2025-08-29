@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Example run: python examples/decentralized_smolagents_benchmark/decentralized_agent.py --model-type LiteLLMModel --model-id gpt-4o --provider openai "What is the half of the speed of a Leopard?"
-"""Minimal entry point for decentralized agent team execution."""
+"""Entry point for decentralized agent team execution."""
 
 import argparse
 import json
@@ -14,14 +14,16 @@ from scripts.message_store import MessageStore
 
 
 QUESTION_ADDON= """
-IMPORTANT: Before answering, please:
-1. Use read_notifications to check if there are any ongoing team discussions or polls
-2. Use view_active_polls to see if there are any polls you should vote on
+CRITICAL WORKFLOW - FOLLOW IN ORDER:
+1. FIRST: Use read_notifications to check for active polls and team discussions
+2. If there are active polls: Vote on them using vote_on_poll BEFORE doing anything else
 3. Use read_messages to see what other agents have contributed
-4. If there's an active poll about the final answer, vote on it using vote_on_poll
-5. If no poll exists yet and you're confident in an answer, create a final answer poll using create_final_answer_poll
+4. If no active polls exist and you have a confident answer: create a final answer poll using create_final_answer_poll
+5. Work collaboratively with your team!
 
-Work collaboratively with your team!"""
+It is critical to respect the format of the answer.
+
+VOTING IS MANDATORY: If you see active polls in notifications, you MUST vote on them first!"""
 
 
 # Langfuse instrumentation setup
@@ -83,9 +85,10 @@ def main(args: argparse.Namespace) -> int:
     """Main entry point - simplified execution."""
     print(f"🚀 Starting decentralized agent team for: {args.question}")
 
-    # Create message store
+    # Create message store with proper agent names for correct voting thresholds
     run_id = str(uuid.uuid4())[:8]  # Short run ID
-    message_store = MessageStore(run_id)
+    agent_names = ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]
+    message_store = MessageStore(run_id, agent_names=agent_names)
 
     # Handle the case where __file__ might not be defined
     try:
@@ -101,25 +104,63 @@ def main(args: argparse.Namespace) -> int:
     setup_logging(run_dir)
     logging.info(json.dumps({"event": "run_started", "run_id": run_id, "args": vars(args)}))
 
-    # Create the decentralized agent team
-    decentralized_team = DecentralizedAgents(
-        message_store=message_store,
-        model_type=args.model_type,
-        model_id=args.model_id,
-        provider=args.provider,
-        run_id=run_id
-    )
+    try:
+        # Create the decentralized agent team
+        logging.info(json.dumps({"event": "creating_team", "run_id": run_id}))
+        decentralized_team = DecentralizedAgents(
+            message_store=message_store,
+            model_type=args.model_type,
+            model_id=args.model_id,
+            provider=args.provider,
+            run_id=run_id
+        )
 
-    # Run the team on the task with enhanced collaboration instructions
-    enhanced_task = f"{args.question}\n\n{QUESTION_ADDON}"
-    result = decentralized_team.run(enhanced_task)
+        # Run the team on the task with enhanced collaboration instructions
+        enhanced_task = f"{args.question}\n\n{QUESTION_ADDON}"
+        logging.info(json.dumps({"event": "starting_execution", "run_id": run_id, "question": args.question}))
+        result = decentralized_team.run(enhanced_task)
+        
+        logging.info(json.dumps({
+            "event": "execution_completed", 
+            "run_id": run_id, 
+            "status": result.get("status", "unknown"),
+            "has_answer": "answer" in result
+        }))
 
-    # Output the result
-    if result["status"] in ["success", "success_early", "success_fallback"]:
-        print(json.dumps({"answer": result["answer"]}))
-        return 0
-    else:
-        print(f"\n❌ Team execution failed: {result.get('error', 'No valid results')}")
+        # Output the result
+        if result["status"] in ["success", "success_early", "success_fallback"]:
+            print(json.dumps({"answer": result["answer"]}))
+            return 0
+        else:
+            error_msg = result.get('error', 'No valid results')
+            logging.error(json.dumps({
+                "event": "execution_failed", 
+                "run_id": run_id, 
+                "error": error_msg,
+                "result": result
+            }))
+            print(f"\n❌ Team execution failed: {error_msg}")
+            return 1
+            
+    except Exception as e:
+        # Catch any unexpected errors and log them with full context
+        logging.error(json.dumps({
+            "event": "unexpected_error",
+            "run_id": run_id,
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "question": args.question
+        }))
+        
+        # Also log the full stack trace for debugging
+        import traceback
+        logging.error(json.dumps({
+            "event": "error_traceback",
+            "run_id": run_id,
+            "traceback": traceback.format_exc()
+        }))
+        
+        print(f"\n❌ Unexpected error: {e}")
         return 1
 
 

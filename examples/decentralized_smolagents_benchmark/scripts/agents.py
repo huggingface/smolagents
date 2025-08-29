@@ -18,6 +18,7 @@ except ImportError:
 from scripts.text_inspector_tool import FileReaderTool, TextInspectorTool
 from scripts.text_web_browser import (
     ArchiveSearchTool,
+    DownloadTool,
     FinderTool,
     FindNextTool,
     PageDownTool,
@@ -68,6 +69,21 @@ COMMUNICATION TOOLS AVAILABLE:
 8. vote_on_poll: Vote on active polls
 9. view_active_polls: See what polls are currently active
 
+FILE HANDLING WORKFLOW:
+CRITICAL: When working with files from URLs, follow this exact sequence:
+1. For .docx, .xlsx, .pptx, .wav, .mp3, .m4a, .png files from URLs:
+   - FIRST: Use 'download_file' tool to download the file locally
+   - THEN: Use 'inspect_file_as_text' with the downloaded file path for analysis
+   - For .png files: Use visualizer tool after downloading
+
+2. For .pdf, .txt, .htm files from URLs:
+   - Use 'visit_page' tool directly (do NOT use download_file)
+
+3. For already local files (existing paths):
+   - Use 'inspect_file_as_text' or 'file_reader' directly
+
+NEVER try to use text inspection tools on URLs directly - this will cause errors!
+
 COMMUNICATION CHANNELS:
 1. Public Messages (Message Store):
    - Post in the main thread or create topic-specific threads (#topic)
@@ -103,8 +119,8 @@ COLLABORATION PROTOCOL:
 3. For Proposals:
    - Use create_general_poll to propose intermediate solutions
    - Use create_final_answer_poll to propose final answers that would be sent to the user
-   - CRITICAL: Check view_active_polls first - only one active poll allowed at a time!
-   - If a poll exists, vote on it using vote_on_poll - DO NOT create competing polls
+   - Multiple polls can be active simultaneously - you can create additional polls if needed
+   - When voting, specify the poll_id if multiple polls are active
    - Polls with 2+ NO votes are automatically deleted to allow new proposals
    - Always include evidence and reasoning in proposals
    - Required votes for consensus: floor(N/2)+1 = 3
@@ -112,6 +128,7 @@ COLLABORATION PROTOCOL:
 4. Voting Guidelines:
    - Check notifications regularly for polls needing votes
    - Vote honestly based on your expertise using vote_on_poll
+   - When multiple polls are active, specify poll_id parameter when voting
    - Include confidence level (0.0-1.0) and rationale
    - Suggest improvements if voting NO
 
@@ -124,6 +141,8 @@ COLLABORATION PROTOCOL:
    - Combine expertise with other agents through discussion
    - Be responsive to team communications
    - Never leak secrets or tokens. Sandbox untrusted code/data.
+   - CRITICAL: Always check for and vote on active polls using read_notifications and vote_on_poll
+   - You can create multiple polls and vote on all relevant polls
 
 COMMUNICATION APPROACH:
 - Use send_message_to_channel to share deep analysis in #analysis threads
@@ -147,135 +166,47 @@ KEY COMMUNICATION PATTERNS:
 
 Remember: A solution is only accepted when a majority agrees (3/4 agents). Work together to reach consensus!
 
-Finally, make sure that you respect the required format of answer, when you propose one.
+CRITICAL: make sure that you respect the required format of answer, when you propose one.
+
+ANSWER FORMAT REQUIREMENTS:
+- For MATH problems: final_answer must be ONLY the number, expression, or result (e.g., "7", "12.5", "$100", "x = 3")
+- For FACTUAL questions: final_answer must be ONLY the specific fact requested (e.g., "1925", "John Smith", "Paris", "Blue")
+- For YES/NO questions: final_answer must be ONLY "Yes" or "No" 
+- Do NOT include phrases like "The answer is...", "approximately...", "roughly..." in final_answer
+- Do NOT include units unless specifically requested (e.g., if asked "how many", answer "5" not "5 items")
+- Put ALL explanations, reasoning, and context in supporting_evidence, NOT in final_answer
+- The final_answer field will be returned directly to the user, so keep it clean and minimal
 
 Your success depends on active communication. Use the messaging and notification tools regularly to coordinate with your team!
 """.strip()
 
-CODE_AGENT_ADDON = """
-ROLE: Python Code Execution Specialist
+def _generate_agent_addon(agent_config: dict, all_agents: List[dict]) -> str:
+    """Generate dynamic agent addon based on configuration and team composition."""
+    
+    # Get other agents for collaboration patterns
+    other_agents = [a for a in all_agents if a['name'] != agent_config['name']]
+    
+    collaboration_patterns = []
+    for i, other_agent in enumerate(other_agents, 1):
+        pattern = f"{i}. With {other_agent['full_role']} (@{other_agent['name']}):\n"
+        pattern += f"   - {other_agent['collaboration_with'][agent_config['name']]}"
+        collaboration_patterns.append(pattern)
+    
+    addon = f"""
+ROLE: {agent_config['full_role']}
 Primary Responsibilities:
-- Write, test, and execute Python code
-- Create small, testable functions with docstrings
-- Run smoke tests and validate changes
-- Handle code-related questions and implementation
+{chr(10).join(f"- {resp}" for resp in agent_config['responsibilities'])}
 
 COLLABORATION PATTERNS:
-1. With Research Agent (@WebSearchAgent):
-   - Receive algorithm suggestions and requirements
-   - Implement solutions based on their research
-   - Share code execution results
-
-2. With Doc Agent (@DocumentReaderAgent):
-   - Get specifications and requirements
-   - Implement documented patterns
-   - Help validate technical documentation
-
-3. With Deep Research Agent (@DeepResearchAgent):
-   - Implement complex algorithms
-   - Run experiments and benchmarks
-   - Validate hypotheses through code
+{chr(10).join(collaboration_patterns)}
 
 COMMUNICATION:
-- Create #implementation threads for coding tasks
-- Use private messages for detailed technical discussions
-- Share code outputs in public threads for review
-- Tag @all for major implementation decisions
+{chr(10).join(f"- {comm}" for comm in agent_config['communication_patterns'])}
+
+{agent_config.get('special_instructions', '')}
 """.strip()
-
-
-RESEARCH_AGENT_ADDON = """
-ROLE: Fast Web Research Specialist
-Primary Responsibilities:
-- Quick information gathering and triage
-- Web search and source evaluation
-- Initial hypothesis formation
-- Fact verification and cross-referencing
-
-COLLABORATION PATTERNS:
-1. With Code Agent (@CodeAgent):
-   - Share algorithm ideas and implementations
-   - Provide real-world examples and use cases
-   - Verify technical information
-
-2. With Doc Agent (@DocumentReaderAgent):
-   - Cross-reference findings with documentation
-   - Validate technical specifications
-   - Share relevant external resources
-
-3. With Deep Research Agent (@DeepResearchAgent):
-   - Share initial findings for deeper analysis
-   - Collaborate on hypothesis validation
-   - Cross-verify conclusions
-
-COMMUNICATION:
-- Create #research threads for new topics
-- Share quick findings in #main
-- Use private messages for hypothesis discussion
-- Tag @all for significant discoveries
-""".strip()
-
-DOC_AGENT_ADDON = """
-ROLE: Document Analysis Specialist
-Primary Responsibilities:
-- Analyze and structure documentation
-- Extract key information and references
-- Maintain precise citations and sources
-- Track technical specifications
-
-COLLABORATION PATTERNS:
-1. With Code Agent (@CodeAgent):
-   - Share technical specifications
-   - Validate implementation against documentation
-   - Track API changes and requirements
-
-2. With Research Agent (@WebSearchAgent):
-   - Compare documentation with external sources
-   - Validate technical claims
-   - Share relevant documentation sections
-
-3. With Deep Research Agent (@DeepResearchAgent):
-   - Provide detailed technical background
-   - Support hypothesis validation
-   - Share comprehensive documentation analysis
-
-COMMUNICATION:
-- Maintain #documentation thread
-- Create topic-specific threads for major docs
-- Use private messages for detailed analysis
-- Tag @all for critical documentation updates
-""".strip()  # Dire que c'est l'id. Etre plus clair dans la description. Voir les agents dans les propriétés l'agent qu'on réinjecte dans le system prompt.
-
-DEEP_RESEARCH_AGENT_ADDON = """
-ROLE: Deep Analysis and Research Specialist
-Primary Responsibilities:
-- Conduct thorough investigations
-- Develop and test complex hypotheses
-- Synthesize information from multiple sources
-- Validate conclusions rigorously
-
-COLLABORATION PATTERNS:
-1. With Code Agent (@CodeAgent):
-   - Design complex experiments
-   - Analyze implementation approaches
-   - Validate results mathematically
-
-2. With Research Agent (@WebSearchAgent):
-   - Expand on initial research findings
-   - Develop comprehensive analysis
-   - Cross-validate information sources
-
-3. With Doc Agent (@DocumentReaderAgent):
-   - Deep dive into technical documentation
-   - Analyze architectural decisions
-   - Validate against specifications
-
-COMMUNICATION:
-- Maintain #analysis thread for deep dives
-- Create hypothesis-specific threads
-- Use private messages for complex discussions
-- Tag @all for major research findings
-""".strip()
+    
+    return addon
 
 
 # TODO: mettre les descriptions des tools comme dans chacun des autres tools dans default_tools.
@@ -433,6 +364,7 @@ class DecentralizedAgents:
         web_tools = [
             GoogleSearchTool(provider="serper"),
             VisitTool(browser),
+            DownloadTool(browser),
             PageUpTool(browser),
             PageDownTool(browser),
             FinderTool(browser),
@@ -451,51 +383,177 @@ class DecentralizedAgents:
         web_tools.extend(shared_tools)
         reader_tools.extend(shared_tools)
 
-        # Add decentralized tools to each agent's tool set
-        code_agent_tools = code_tools + create_decentralized_tools(self.message_store, "CodeAgent")
-        web_agent_tools = web_tools + create_decentralized_tools(self.message_store, "WebSearchAgent")
-        deep_agent_tools = list(set(web_tools + code_tools)) + create_decentralized_tools(
-            self.message_store, "DeepResearchAgent"
-        )
-        doc_agent_tools = reader_tools + create_decentralized_tools(self.message_store, "DocumentReaderAgent")
-
-        configs = [
-            AgentConfig(
-                name="CodeAgent",
-                role="Python code execution specialist",
-                tools=code_agent_tools,
-                model=model,
-                system_prompt=base_prompt + "\n" + CODE_AGENT_ADDON,
-                keywords=["code", "python", "execution"],
-                agent_type="code",
-            ),
-            AgentConfig(
-                name="WebSearchAgent",
-                role="Fast web research specialist",
-                tools=web_agent_tools,
-                model=model,
-                system_prompt=base_prompt + "\n" + RESEARCH_AGENT_ADDON,
-                agent_type="tool_calling",
-            ),
-            AgentConfig(
-                name="DeepResearchAgent",
-                role="Deep analysis specialist",
-                tools=deep_agent_tools,
-                model=model,
-                system_prompt=base_prompt + "\n" + DEEP_RESEARCH_AGENT_ADDON,
-                keywords=["research", "deep", "analysis", "hypothesis"],
-                agent_type="code",
-            ),
-            AgentConfig(
-                name="DocumentReaderAgent",
-                role="Document analysis specialist",
-                tools=doc_agent_tools,
-                model=model,
-                system_prompt=base_prompt + "\n" + DOC_AGENT_ADDON,
-                keywords=["document", "pdf", "extract", "page"],
-                agent_type="tool_calling",
-            ),
+        # Define agent configurations with enhanced role descriptions
+        agent_definitions = [
+            {
+                'name': 'CodeAgent',
+                'full_role': 'Python Code Execution and Algorithm Implementation Specialist',
+                'short_role': 'Python code execution specialist',
+                'responsibilities': [
+                    'Write, test, and execute Python code with proper error handling',
+                    'Create modular, testable functions with comprehensive docstrings',
+                    'Implement mathematical algorithms and computational solutions', 
+                    'Run validation tests and smoke tests on code changes',
+                    'Optimize code performance and debug complex issues',
+                    'Handle numerical computations and data processing tasks'
+                ],
+                'communication_patterns': [
+                    'Create #implementation threads for coding tasks and technical discussions',
+                    'Use private messages for detailed algorithmic discussions',
+                    'Share code execution results and outputs in public threads for team review',
+                    'Tag @all for major implementation decisions requiring team input',
+                    'Provide code examples and executable demonstrations of solutions'
+                ],
+                'special_instructions': '''MATH PROBLEM FORMAT:
+When solving math problems and creating final answer polls:
+- Use Python to calculate exact results with proper precision
+- Extract ONLY the numerical result for final_answer (e.g., "7", "12.5", "3/4")
+- Do NOT include "The answer is..." or explanations in final_answer
+- Show all calculations, code, and reasoning in supporting_evidence
+- Follow the specific format requested by the question (decimal, fraction, etc.)
+- Validate results through multiple calculation methods when possible''',
+                'tools': code_tools,
+                'agent_type': 'code',
+                'keywords': ["code", "python", "execution", "algorithm", "computation"]
+            },
+            {
+                'name': 'WebSearchAgent',
+                'full_role': 'Fast Web Research and Information Gathering Specialist',
+                'short_role': 'Fast web research specialist',
+                'responsibilities': [
+                    'Conduct rapid, targeted web searches for relevant information',
+                    'Evaluate source credibility and cross-reference findings',
+                    'Perform initial fact-checking and information triage',
+                    'Gather real-time data and current information from multiple sources',
+                    'Identify trending topics and recent developments',
+                    'Extract key facts and summarize findings concisely'
+                ],
+                'communication_patterns': [
+                    'Create #research threads for new investigation topics',
+                    'Share quick findings and preliminary results in #main channel',
+                    'Use private messages for hypothesis formation and validation discussions',
+                    'Tag @all for significant discoveries that impact the entire team',
+                    'Provide source links and credibility assessments with all findings'
+                ],
+                'special_instructions': '''RESEARCH METHODOLOGY:
+- Always verify information from multiple independent sources
+- Prioritize recent, authoritative sources over outdated information  
+- Include source URLs and publication dates in all research findings
+- Flag conflicting information and present different perspectives
+- Focus on factual accuracy over speed when sources conflict''',
+                'tools': web_tools,
+                'agent_type': 'tool_calling',
+                'keywords': ["research", "web", "search", "facts", "verification"]
+            },
+            {
+                'name': 'DeepResearchAgent', 
+                'full_role': 'Comprehensive Analysis and Advanced Research Specialist',
+                'short_role': 'Deep analysis and advanced research specialist',
+                'responsibilities': [
+                    'Conduct thorough, multi-layered investigations and analysis',
+                    'Develop and rigorously test complex hypotheses and theories',
+                    'Synthesize information from diverse sources into coherent insights',
+                    'Perform advanced reasoning and logical validation of conclusions',
+                    'Design and execute comprehensive research methodologies',
+                    'Validate findings through multiple analytical approaches'
+                ],
+                'communication_patterns': [
+                    'Maintain #analysis thread for deep analytical discussions',
+                    'Create hypothesis-specific threads for focused investigation',
+                    'Use private messages for complex theoretical discussions',
+                    'Tag @all for major research breakthroughs and validated findings',
+                    'Present comprehensive analysis with supporting evidence and methodology'
+                ],
+                'special_instructions': '''ANALYSIS FRAMEWORK:
+- Apply systematic analytical frameworks to complex problems
+- Present multiple perspectives and consider alternative explanations  
+- Use both web research and code execution to validate hypotheses
+- Document reasoning processes and analytical methodologies clearly
+- Integrate quantitative and qualitative analysis approaches
+- Challenge assumptions and test edge cases thoroughly''',
+                'tools': list(set(web_tools + code_tools)),
+                'agent_type': 'code',
+                'keywords': ["research", "deep", "analysis", "hypothesis", "validation", "synthesis"]
+            },
+            {
+                'name': 'DocumentReaderAgent',
+                'full_role': 'Document Analysis and Technical Specification Specialist', 
+                'short_role': 'Document analysis and technical specification specialist',
+                'responsibilities': [
+                    'Analyze and extract key information from technical documents',
+                    'Maintain precise citations and track information sources',
+                    'Structure complex documentation into digestible summaries',
+                    'Validate technical specifications against implementation requirements',
+                    'Cross-reference multiple documents for consistency and completeness',
+                    'Identify critical details and potential implementation considerations'
+                ],
+                'communication_patterns': [
+                    'Maintain #documentation thread for document-related discussions',
+                    'Create topic-specific threads for major document analyses', 
+                    'Use private messages for detailed technical specification reviews',
+                    'Tag @all for critical documentation updates affecting team decisions',
+                    'Provide structured summaries with precise page/section references'
+                ],
+                'special_instructions': '''DOCUMENTATION STANDARDS:
+- Always include precise citations with page numbers or section references
+- Highlight contradictions or ambiguities found in documents
+- Extract both explicit information and implied requirements  
+- Cross-reference claims against other available documentation
+- Focus on actionable information that impacts problem-solving
+- Maintain clear separation between documented facts and interpretations''',
+                'tools': reader_tools,
+                'agent_type': 'tool_calling',
+                'keywords': ["document", "pdf", "extract", "page", "specification", "analysis"]
+            }
         ]
+
+        # Define collaboration patterns between agents
+        collaboration_matrix = {
+            'CodeAgent': {
+                'WebSearchAgent': 'Receive algorithm suggestions, implementation requirements, and real-world examples to guide development',
+                'DocumentReaderAgent': 'Get technical specifications, API documentation, and implementation patterns to follow standards',
+                'DeepResearchAgent': 'Implement complex algorithms, run validation experiments, and execute computational analyses'
+            },
+            'WebSearchAgent': {
+                'CodeAgent': 'Share algorithm ideas, provide implementation examples, and verify technical information through search',
+                'DocumentReaderAgent': 'Cross-reference web findings with official documentation and validate external claims',
+                'DeepResearchAgent': 'Provide initial research foundation for deeper analysis and hypothesis development'
+            },
+            'DeepResearchAgent': {
+                'CodeAgent': 'Design computational experiments, request algorithm implementations, and validate results mathematically',
+                'WebSearchAgent': 'Expand on initial findings, request targeted searches, and cross-validate information sources',
+                'DocumentReaderAgent': 'Deep dive into technical documentation, analyze architectural decisions, and validate against specifications'
+            },
+            'DocumentReaderAgent': {
+                'CodeAgent': 'Share technical specifications, validate implementations against documentation, and track API requirements', 
+                'WebSearchAgent': 'Compare documentation with external sources, validate technical claims, and share relevant sections',
+                'DeepResearchAgent': 'Provide detailed technical background, support hypothesis validation with documented evidence'
+            }
+        }
+
+        # Add collaboration information to agent definitions
+        for agent_def in agent_definitions:
+            agent_def['collaboration_with'] = collaboration_matrix[agent_def['name']]
+
+        # Add decentralized tools to each agent's tool set and create configs
+        configs = []
+        for agent_def in agent_definitions:
+            # Add decentralized communication tools
+            agent_tools = agent_def['tools'] + create_decentralized_tools(self.message_store, agent_def['name'])
+            
+            # Generate dynamic addon
+            agent_addon = _generate_agent_addon(agent_def, agent_definitions)
+            
+            config = AgentConfig(
+                name=agent_def['name'],
+                role=agent_def['short_role'],
+                tools=agent_tools,
+                model=model,
+                system_prompt=base_prompt + "\n" + agent_addon,
+                keywords=agent_def['keywords'],
+                agent_type=agent_def['agent_type'],
+            )
+            configs.append(config)
 
         return [
             DecentralizedAgent(
@@ -664,15 +722,32 @@ Work collaboratively with your team!"""
             end_time = time.time()
             duration = end_time - start_time
 
+            # Special handling for the "int is not iterable" error we're hunting
+            error_str = str(e)
+            if "not iterable" in error_str:
+                import traceback
+                logging.error(json.dumps({
+                    "event": "type_iteration_error_caught",
+                    "run_id": self.run_id,
+                    "agent_name": agent.config.name,
+                    "error": error_str,
+                    "error_type": type(e).__name__,
+                    "duration_seconds": round(duration, 2),
+                    "full_traceback": traceback.format_exc(),
+                    "task_preview": task[:300] + "..." if len(task) > 300 else task
+                }))
+                print(f"🔍 FOUND TYPE ERROR in {agent.config.name}: {error_str}")
+            else:
+                logging.error(json.dumps({
+                    "event": "agent_failed",
+                    "run_id": self.run_id,
+                    "agent_name": agent.config.name,
+                    "error": error_str,
+                    "error_type": type(e).__name__,
+                    "duration_seconds": round(duration, 2)
+                }))
+
             print(f"❌ {agent.config.name} failed: {e}")
-            logging.error(json.dumps({
-                "event": "agent_failed",
-                "run_id": self.run_id,
-                "agent_name": agent.config.name,
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "duration_seconds": round(duration, 2)
-            }))
 
             return {
                 "agent_name": agent.config.name,
@@ -683,11 +758,26 @@ Work collaboratively with your team!"""
             }
 
     def _check_for_consensus(self) -> Optional[str]:
-        """Check if agents reached consensus through polling."""
+        """Check if agents reached consensus through polling.
+        
+        IMPORTANT: This method ensures that when multiple polls reach consensus,
+        the answer from the FIRST poll (chronologically) is returned, not just
+        any successful poll. This maintains consistency with the FinalAnswerTool
+        behavior and ensures reproducible results.
+        
+        Processing order:
+        1. First check for any existing final_answer messages (from previously finalized polls)
+        2. Then check active polls in chronological order (oldest created first)
+        3. Return the answer from the first successful poll encountered
+        
+        Returns:
+            str: The final answer from the first successful poll, or None if no consensus
+        """
         logging.info(json.dumps({"event": "consensus_check_started", "run_id": self.run_id}))
 
         try:
-            # Look for finalized polls with final answers
+            # First, look for any existing finalized polls with final answers
+            # These are final answers from polls that already achieved voting threshold
             all_messages = list(self.message_store._iter_messages())
             logging.info(json.dumps({
                 "event": "messages_retrieved",
@@ -695,43 +785,55 @@ Work collaboratively with your team!"""
                 "message_count": len(all_messages)
             }))
 
+            # Look for the first final_answer message (first poll that achieved threshold)
             for msg in all_messages:
                 if isinstance(msg, dict):
                     content = msg.get("content", {})
                     if isinstance(content, dict) and content.get("type") == "final_answer":
                         answer = content.get("answer", "")
+                        poll_id = content.get("poll_id", "unknown")
                         logging.info(json.dumps({
-                            "event": "final_answer_found",
+                            "event": "existing_final_answer_found",
                             "run_id": self.run_id,
                             "message_id": msg.get("id"),
-                            "answer": str(answer)[:200]
+                            "poll_id": poll_id,
+                            "answer": str(answer)[:200],
+                            "note": "first_finalized_poll_in_message_history"
                         }))
+                        print(f"✅ Using answer from first finalized poll: {answer}")
                         return answer
 
             # Check for active polls that might need finalization
+            # IMPORTANT: We check all active polls to see which one FIRST achieves
+            # the voting threshold (N//2+1), regardless of creation order
             active_polls = self.message_store.get_active_polls()
+            
             print(f"🔍 Found {len(active_polls)} active polls")
             logging.info(json.dumps({
                 "event": "active_polls_check",
                 "run_id": self.run_id,
-                "poll_count": len(active_polls)
+                "poll_count": len(active_polls),
+                "processing_strategy": "first_to_achieve_threshold"
             }))
 
+            first_successful_answer = None
+            first_successful_poll_id = None
+            
             for poll in active_polls:
                 if isinstance(poll, dict):
                     poll_id = poll.get("poll_id")
-                    print(f"🗳️ Checking poll {poll_id}")
+                    print(f"🗳️ Checking if poll {poll_id} has achieved voting threshold")
                     logging.info(json.dumps({
-                        "event": "poll_check_started",
+                        "event": "poll_threshold_check",
                         "run_id": self.run_id,
                         "poll_id": poll_id,
                         "poll_question": poll.get("question", "")
                     }))
 
                     if poll_id:
-                        # Try to finalize the poll
+                        # Check if this poll has achieved the voting threshold
                         result = self.message_store.finalize_poll_if_ready(poll_id)
-                        print(f"📊 Poll finalization result: {result}")
+                        print(f"📊 Poll {poll_id} finalization result: {result}")
                         logging.info(json.dumps({
                             "event": "poll_finalization_attempted",
                             "run_id": self.run_id,
@@ -743,14 +845,28 @@ Work collaboratively with your team!"""
                             answer_content = result.get("content", {})
                             if isinstance(answer_content, dict):
                                 answer = answer_content.get("answer", "")
-                                print(f"✅ Consensus reached: {answer}")
-                                logging.info(json.dumps({
-                                    "event": "consensus_reached",
-                                    "run_id": self.run_id,
-                                    "poll_id": poll_id,
-                                    "answer": str(answer)[:200]
-                                }))
-                                return answer
+                                if first_successful_answer is None:
+                                    # This is the FIRST poll to achieve the voting threshold
+                                    first_successful_answer = answer
+                                    first_successful_poll_id = poll_id
+                                    print(f"✅ First poll to achieve consensus: {poll_id} -> {answer}")
+                                    logging.info(json.dumps({
+                                        "event": "first_poll_achieved_threshold",
+                                        "run_id": self.run_id,
+                                        "poll_id": poll_id,
+                                        "answer": str(answer)[:200],
+                                        "strategy": "first_to_reach_vote_threshold"
+                                    }))
+                                else:
+                                    # Another poll also achieved threshold, but we keep the first one
+                                    print(f"ℹ️ Poll {poll_id} also achieved consensus, but {first_successful_poll_id} was first")
+                                    logging.info(json.dumps({
+                                        "event": "subsequent_poll_achieved_threshold",
+                                        "run_id": self.run_id,
+                                        "poll_id": poll_id,
+                                        "first_successful_poll": first_successful_poll_id,
+                                        "answer_ignored": str(answer)[:200]
+                                    }))
                         elif result and result.get("deleted"):
                             print(f"🗑️ Poll {poll_id} was deleted due to insufficient support")
                             logging.info(json.dumps({
@@ -759,6 +875,16 @@ Work collaboratively with your team!"""
                                 "poll_id": poll_id,
                                 "reason": "insufficient_support"
                             }))
+            
+            # Return the answer from the first poll that achieved the voting threshold
+            if first_successful_answer is not None:
+                logging.info(json.dumps({
+                    "event": "returning_first_threshold_answer",
+                    "run_id": self.run_id,
+                    "winning_poll_id": first_successful_poll_id,
+                    "answer": str(first_successful_answer)[:200]
+                }))
+                return first_successful_answer
 
         except Exception as e:
             print(f"⚠️ Error checking consensus: {e}")

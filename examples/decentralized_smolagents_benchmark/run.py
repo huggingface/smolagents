@@ -173,8 +173,31 @@ def run_decentralized_agent(row, args):
         # Run the process and capture output
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-        # Parse the final answer from JSON output
+        # Parse the final answer and run_id from JSON output
         final_answer = None
+        run_id = None
+        
+        # First, check stderr for run_id from logging output
+        if result.stderr:
+            for line in result.stderr.split("\n"):
+                line = line.strip()
+                if '"run_id"' in line and '"event"' in line:
+                    try:
+                        # Parse the JSON structure
+                        parsed = json.loads(line)
+                        if 'message' in parsed and isinstance(parsed['message'], dict):
+                            if 'run_id' in parsed['message']:
+                                run_id = parsed['message']['run_id']
+                                break
+                    except json.JSONDecodeError:
+                        # Try regex as fallback
+                        import re
+                        match = re.search(r'"run_id":\s*"([^"]+)"', line)
+                        if match:
+                            run_id = match.group(1)
+                            break
+        
+        # Parse final answer from stdout
         for line in result.stdout.split("\n"):
             line = line.strip()
             if line:
@@ -201,6 +224,7 @@ def run_decentralized_agent(row, args):
         success = False
         error = f"Process timed out after duration {duration}, error: {str(e)}"
         final_answer = None
+        run_id = None  # Set run_id to None for timeout cases
     except subprocess.CalledProcessError as e:
         duration = time.time() - start_time
         success = False
@@ -208,11 +232,13 @@ def run_decentralized_agent(row, args):
         stdout_output = e.stdout.strip() if e.stdout else "No stdout output"
         error = f"Process failed with exit code {e.returncode}. Stderr: {error_output}. Stdout: {stdout_output}"
         final_answer = None
+        run_id = None  # Set run_id to None for process error cases
     except Exception as e:
         duration = time.time() - start_time
         success = False
         error = str(e)
         final_answer = None
+        run_id = None  # Set run_id to None for error cases
 
     # Prepare result dictionary matching the expected format
     model_id = f"decentralized-{args.model_type}-{args.model_id}"
@@ -228,6 +254,7 @@ def run_decentralized_agent(row, args):
         "model_type": args.model_type,
         "model_id": args.model_id,
         "provider": args.provider,
+        "run_id": run_id,  # Add the extracted run_id
         "timestamp": datetime.datetime.now().isoformat(),
     }
 
@@ -243,6 +270,7 @@ def run_decentralized_agent(row, args):
         "start_time": start_time,
         "end_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "duration": duration,
+        "run_id": run_id,  # Add run_id here too
     }
 
     # Save result to general output file

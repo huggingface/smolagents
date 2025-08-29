@@ -821,17 +821,28 @@ class MarkdownConverter:
             return self.convert_response(source, **kwargs)
 
     def convert_local(self, path: str, **kwargs: Any) -> DocumentConverterResult:  # TODO: deal with kwargs
+        # Normalize and resolve the path to handle relative paths properly
+        normalized_path = os.path.abspath(os.path.expanduser(path))
+        
+        # Check if the file exists before proceeding
+        if not os.path.exists(normalized_path) or not os.path.isfile(normalized_path):
+            # Return an error result instead of crashing
+            return DocumentConverterResult(
+                title="File Not Found",
+                text_content=f"Error: File not found at path '{path}' (resolved to '{normalized_path}')"
+            )
+        
         # Prepare a list of extensions to try (in order of priority)
         ext = kwargs.get("file_extension")
         extensions = [ext] if ext is not None else []
 
         # Get extension alternatives from the path and puremagic
-        base, ext = os.path.splitext(path)
+        base, ext = os.path.splitext(normalized_path)
         self._append_ext(extensions, ext)
-        self._append_ext(extensions, self._guess_ext_magic(path))
+        self._append_ext(extensions, self._guess_ext_magic(normalized_path))
 
-        # Convert
-        return self._convert(path, extensions, **kwargs)
+        # Convert using the normalized path
+        return self._convert(normalized_path, extensions, **kwargs)
 
     # TODO what should stream's type be?
     def convert_stream(self, stream: Any, **kwargs: Any) -> DocumentConverterResult:  # TODO: deal with kwargs
@@ -983,8 +994,11 @@ class MarkdownConverter:
     def _guess_ext_magic(self, path):
         """Use puremagic (a Python implementation of libmagic) to guess a file's extension based on the first few bytes."""
         # Use puremagic to guess
-        if not os.path.isfile(path):
-            raise ValueError(f"Invalid file path passed to _guess_ext_magic: {path}")
+        if not path or not os.path.exists(path) or not os.path.isfile(path):
+            # Log the issue but don't raise an error - just return None to continue processing
+            print(f"Warning: Invalid or non-existent file path in _guess_ext_magic: {path}")
+            return None
+            
         try:
             guesses = puremagic.magic_file(path)
             if len(guesses) > 0:

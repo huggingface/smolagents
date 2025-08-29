@@ -69,10 +69,49 @@ class MessageStore:
                 if thread_id and msg.get("thread_id") != thread_id:
                     continue
 
-                # Check message visibility
-                recipients = msg.get("recipients", [])  # Now guaranteed to be a list from append_message
+                # Check message visibility with enhanced error logging
+                recipients = msg.get("recipients", [])
+                
+                # Enhanced type safety check with detailed logging
+                if not isinstance(recipients, (list, tuple)):
+                    logging.warning(json.dumps({
+                        "event": "type_safety_fix_applied",
+                        "location": "get_messages",
+                        "message_id": msg.get("id", "unknown"),
+                        "recipients_type": type(recipients).__name__,
+                        "recipients_value": str(recipients),
+                        "sender": msg.get("sender", "unknown"),
+                        "timestamp": msg.get("timestamp", "unknown")
+                    }))
+                    if recipients is None:
+                        recipients = []
+                    else:
+                        recipients = [str(recipients)]  # Convert single value to list
+                
                 sender = msg.get("sender", "")
                 content_str = str(msg.get("content", ""))
+                
+                # Additional safety check for the actual operation
+                try:
+                    # Test the operations that could fail
+                    visibility_test = (
+                        not recipients or "@all" in recipients or agent_id in recipients
+                    )
+                except TypeError as e:
+                    # Log detailed error information if the type check above missed something
+                    logging.error(json.dumps({
+                        "event": "type_error_caught",
+                        "location": "get_messages_visibility_check",
+                        "error": str(e),
+                        "message_id": msg.get("id", "unknown"),
+                        "recipients": recipients,
+                        "recipients_type": type(recipients).__name__,
+                        "agent_id": agent_id,
+                        "sender": sender,
+                        "run_id": self.run_id
+                    }))
+                    # Default to not visible if we can't determine visibility
+                    continue
 
                 # Message visibility logic:
                 # 1. Public messages (empty recipients or @all)
@@ -139,17 +178,53 @@ class MessageStore:
 
                 # Agent visibility check
                 if agent_id:
-                    recipients = msg.get("recipients", [])  # Now guaranteed to be a list from append_message
+                    recipients = msg.get("recipients", [])
+                    
+                    # Enhanced type safety check with detailed logging
+                    if not isinstance(recipients, (list, tuple)):
+                        logging.warning(json.dumps({
+                            "event": "type_safety_fix_applied",
+                            "location": "search_messages",
+                            "message_id": msg.get("id", "unknown"),
+                            "recipients_type": type(recipients).__name__,
+                            "recipients_value": str(recipients),
+                            "sender": msg.get("sender", "unknown"),
+                            "query": query,
+                            "timestamp": msg.get("timestamp", "unknown")
+                        }))
+                        if recipients is None:
+                            recipients = []
+                        else:
+                            recipients = [str(recipients)]  # Convert single value to list
+                    
                     sender = msg.get("sender", "")
                     content_str = str(msg.get("content", ""))
 
-                    visible = (
-                        not recipients
-                        or "@all" in recipients  # Public
-                        or agent_id in recipients  # Direct message
-                        or f"@{agent_id}" in content_str  # Mentioned
-                        or sender == agent_id  # Own message
-                    )
+                    # Additional safety check for the actual operations
+                    try:
+                        visible = (
+                            not recipients
+                            or "@all" in recipients  # Public
+                            or agent_id in recipients  # Direct message
+                            or f"@{agent_id}" in content_str  # Mentioned
+                            or sender == agent_id  # Own message
+                        )
+                    except TypeError as e:
+                        # Log detailed error information if the type check above missed something
+                        logging.error(json.dumps({
+                            "event": "type_error_caught",
+                            "location": "search_messages_visibility_check",
+                            "error": str(e),
+                            "message_id": msg.get("id", "unknown"),
+                            "recipients": recipients,
+                            "recipients_type": type(recipients).__name__,
+                            "agent_id": agent_id,
+                            "sender": sender,
+                            "query": query,
+                            "run_id": self.run_id
+                        }))
+                        # Default to not visible if we can't determine visibility
+                        continue
                     if not visible:
                         continue
 
@@ -175,7 +250,25 @@ class MessageStore:
 
                 msg_type = msg.get("type", "message")
                 sender = msg.get("sender", "")
-                recipients = msg.get("recipients", [])  # Now guaranteed to be a list from append_message
+                recipients = msg.get("recipients", [])
+                
+                # Enhanced type safety check with detailed logging
+                if not isinstance(recipients, (list, tuple)):
+                    logging.warning(json.dumps({
+                        "event": "type_safety_fix_applied",
+                        "location": "get_notifications",
+                        "message_id": msg.get("id", "unknown"),
+                        "recipients_type": type(recipients).__name__,
+                        "recipients_value": str(recipients),
+                        "sender": sender,
+                        "agent_id": agent_id,
+                        "timestamp": msg.get("timestamp", "unknown")
+                    }))
+                    if recipients is None:
+                        recipients = []
+                    else:
+                        recipients = [str(recipients)]  # Convert single value to list
+                
                 content_str = str(msg.get("content", ""))
                 thread_id = msg.get("thread_id", "main")
 
@@ -183,19 +276,36 @@ class MessageStore:
                 if sender == agent_id:
                     continue
 
-                # Direct messages
-                if agent_id in recipients:
-                    notifications["direct_messages"].append(msg)
+                # Additional safety check for the actual operations
+                try:
+                    # Direct messages
+                    if agent_id in recipients:
+                        notifications["direct_messages"].append(msg)
 
-                # Mentions
-                if f"@{agent_id}" in content_str:
-                    notifications["mentions"].append(msg)
+                    # Mentions
+                    if f"@{agent_id}" in content_str:
+                        notifications["mentions"].append(msg)
 
-                # Thread updates (public messages in threads agent is following)
-                if not recipients or "@all" in recipients:
-                    if thread_id not in notifications["thread_updates"]:
-                        notifications["thread_updates"][thread_id] = []
-                    notifications["thread_updates"][thread_id].append(msg)
+                    # Thread updates (public messages in threads agent is following)
+                    if not recipients or "@all" in recipients:
+                        if thread_id not in notifications["thread_updates"]:
+                            notifications["thread_updates"][thread_id] = []
+                        notifications["thread_updates"][thread_id].append(msg)
+                        
+                except TypeError as e:
+                    # Log detailed error information if the type check above missed something
+                    logging.error(json.dumps({
+                        "event": "type_error_caught",
+                        "location": "get_notifications_processing",
+                        "error": str(e),
+                        "message_id": msg.get("id", "unknown"),
+                        "recipients": recipients,
+                        "recipients_type": type(recipients).__name__,
+                        "agent_id": agent_id,
+                        "sender": sender,
+                        "run_id": self.run_id
+                    }))
+                    continue  # Skip this message if we can't process it safely
 
                 # Polls needing votes
                 if msg_type == "poll":
@@ -231,17 +341,52 @@ class MessageStore:
 
                 if agent_id:
                     # Apply agent visibility filtering
-                    recipients = msg.get("recipients", [])  # Now guaranteed to be a list from append_message
+                    recipients = msg.get("recipients", [])
+                    
+                    # Enhanced type safety check with detailed logging
+                    if not isinstance(recipients, (list, tuple)):
+                        logging.warning(json.dumps({
+                            "event": "type_safety_fix_applied",
+                            "location": "get_active_threads",
+                            "message_id": msg.get("id", "unknown"),
+                            "recipients_type": type(recipients).__name__,
+                            "recipients_value": str(recipients),
+                            "sender": msg.get("sender", "unknown"),
+                            "agent_id": agent_id,
+                            "timestamp": msg.get("timestamp", "unknown")
+                        }))
+                        if recipients is None:
+                            recipients = []
+                        else:
+                            recipients = [str(recipients)]  # Convert single value to list
+                    
                     sender = msg.get("sender", "")
                     content_str = str(msg.get("content", ""))
 
-                    visible = (
-                        not recipients
-                        or "@all" in recipients  # Public
-                        or agent_id in recipients  # Direct message
-                        or f"@{agent_id}" in content_str  # Mentioned
-                        or sender == agent_id  # Own message
-                    )
+                    # Additional safety check for the actual operations
+                    try:
+                        visible = (
+                            not recipients
+                            or "@all" in recipients  # Public
+                            or agent_id in recipients  # Direct message
+                            or f"@{agent_id}" in content_str  # Mentioned
+                            or sender == agent_id  # Own message
+                        )
+                    except TypeError as e:
+                        # Log detailed error information if the type check above missed something
+                        logging.error(json.dumps({
+                            "event": "type_error_caught",
+                            "location": "get_active_threads_visibility_check",
+                            "error": str(e),
+                            "message_id": msg.get("id", "unknown"),
+                            "recipients": recipients,
+                            "recipients_type": type(recipients).__name__,
+                            "agent_id": agent_id,
+                            "sender": sender,
+                            "run_id": self.run_id
+                        }))
+                        # Skip this message if we can't process it safely
+                        continue
                     if not visible:
                         continue
 
@@ -341,14 +486,24 @@ class MessageStore:
 
     # ------------------------------ POLLS ------------------------------------
     def get_active_polls(self) -> List[Dict[str, Any]]:
-        """Get all currently active (open) polls - excludes closed and deleted polls."""
+        """Get all currently active (open) polls.
+        
+        IMPORTANT: Polls are NOT sorted by timestamp. The first poll to achieve
+        voting consensus (N//2+1 votes) should provide the final answer, regardless
+        of creation order.
+        
+        Returns:
+            List[Dict]: Active polls in message iteration order
+        """
         import json
 
         active_polls = []
         for msg in self._iter_messages() or []:
             if not isinstance(msg, dict):
                 continue
+            
             content = msg.get("content", {})
+            
             if isinstance(content, dict) and content.get("type") == "poll":
                 status = content.get("status")
                 if status == "open":  # Only open polls are active
@@ -363,6 +518,7 @@ class MessageStore:
                             active_polls.append(parsed_content)
                 except json.JSONDecodeError:
                     pass  # Skip invalid JSON
+        
         return active_polls
 
     def create_poll(
@@ -374,24 +530,25 @@ class MessageStore:
         options: Optional[List[str]] = None,
         threshold: Optional[int] = None,
         thread_id: Optional[str] = None,
+        final_answer: Optional[str] = None,  # Store clean final answer separately
     ) -> Dict[str, Any]:
         # Check if there are any active polls - only allow one poll at a time
-        active_polls = self.get_active_polls()
-        if active_polls:
-            print("🚫 Cannot create poll: There is already an active poll in progress")
-            print(f"   Active poll ID: {active_polls[0].get('poll_id')} by {active_polls[0].get('proposer')}")
-            logging.info(json.dumps({
-                "event": "poll_creation_blocked",
-                "reason": "active_poll_exists",
-                "blocked_proposer": proposer,
-                "active_poll_id": active_polls[0].get('poll_id'),
-                "active_poll_proposer": active_polls[0].get('proposer')
-            }))
+       # active_polls = self.get_active_polls()
+       # if active_polls:
+        #    print("🚫 Cannot create poll: There is already an active poll in progress")
+         #   print(f"   Active poll ID: {active_polls[0].get('poll_id')} by {active_polls[0].get('proposer')}")
+          #  logging.info(json.dumps({
+           #     "event": "poll_creation_blocked",
+            #    "reason": "active_poll_exists",
+             #   "blocked_proposer": proposer,
+              #  "active_poll_id": active_polls[0].get('poll_id'),
+               # "active_poll_proposer": active_polls[0].get('proposer')
+           # }))
             # Return the existing active poll instead of creating a new one
-            return {"error": "Poll already active", "active_poll": active_polls[0]}
+            #return {"error": "Poll already active", "active_poll": active_polls[0]}
 
         poll_id = str(uuid.uuid4())
-        n_agents = len(self.get_all_agents()) or len(self._configured_agents) or 1
+        n_agents = len(self.get_all_agents()) or len(self._configured_agents) or 4  # Default to 4 agents
         thr = threshold if threshold is not None else majority_plus_one(n_agents)
 
         # Log poll creation with explicit threshold
@@ -405,7 +562,9 @@ class MessageStore:
             "threshold": thr,
             "total_agents": n_agents,
             "options": options or ["YES", "NO"],
-            "thread_id": thread_id
+            "thread_id": thread_id,
+            "configured_agents": self._configured_agents,  # Debug info
+            "detected_agents": self.get_all_agents()  # Debug info
         }))
 
         payload = {
@@ -418,6 +577,11 @@ class MessageStore:
             "status": "open",
             "proposer": proposer,
         }
+
+        # Store clean final answer if provided (for final answer polls)
+        if final_answer is not None:
+            payload["final_answer"] = final_answer
+
         return self.append_message(
             sender=proposer,
             content=payload,
@@ -592,12 +756,13 @@ class MessageStore:
                 reply_to=poll_id,
             )
             # emit final answer
+            clean_answer = poll.get("final_answer") or poll.get("proposal", "No proposal found")
             return self.append_message(
                 sender="Coordinator",
                 content={
                     "type": "final_answer",
                     "poll_id": poll_id,
-                    "answer": poll.get("proposal", "No proposal found"),
+                    "answer": clean_answer,
                     "tally": tally,
                     "source_proposer": poll.get("proposer"),
                 },
