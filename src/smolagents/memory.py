@@ -261,13 +261,23 @@ class AgentMemory:
             elif isinstance(step, ActionStep):
                 logger.log_rule(f"Step {step.step_number}", level=LogLevel.ERROR)
                 if detailed and step.model_input_messages is not None:
-                    logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
+                    # Convert ChatMessage objects to dicts for logging
+                    messages_as_dicts = [
+                        msg.dict() if hasattr(msg, 'dict') else dict(msg) 
+                        for msg in step.model_input_messages
+                    ]
+                    logger.log_messages(messages_as_dicts, level=LogLevel.ERROR)
                 if step.model_output is not None:
                     logger.log_markdown(title="Agent output:", content=step.model_output, level=LogLevel.ERROR)
             elif isinstance(step, PlanningStep):
                 logger.log_rule("Planning step", level=LogLevel.ERROR)
                 if detailed and step.model_input_messages is not None:
-                    logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
+                    # Convert ChatMessage objects to dicts for logging
+                    messages_as_dicts = [
+                        msg.dict() if hasattr(msg, 'dict') else dict(msg) 
+                        for msg in step.model_input_messages
+                    ]
+                    logger.log_messages(messages_as_dicts, level=LogLevel.ERROR)
                 logger.log_markdown(title="Agent output:", content=step.plan, level=LogLevel.ERROR)
 
     def return_full_code(self) -> str:
