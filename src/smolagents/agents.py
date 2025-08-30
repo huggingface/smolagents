@@ -385,6 +385,7 @@ class MultiStepAgent(ABC):
                     "additional_args": {
                         "type": "object",
                         "description": "Dictionary of extra inputs to pass to the managed agent, e.g. images, dataframes, or any other contextual data it may need.",
+                        "nullable": True,
                     },
                 }
                 agent.output_type = "string"
