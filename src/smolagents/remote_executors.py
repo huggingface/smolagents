@@ -19,16 +19,20 @@ import inspect
 import json
 import os
 import pickle
+import re
+import secrets
 import subprocess
 import tempfile
 import time
+from contextlib import closing
 from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
-from typing import Any
+from typing import Any, Optional
 
 import PIL.Image
 import requests
+from requests.exceptions import RequestException
 
 from .default_tools import FinalAnswerTool
 from .local_python_executor import CodeOutput, PythonExecutor
@@ -37,7 +41,7 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
-__all__ = ["E2BExecutor", "DockerExecutor", "WasmExecutor"]
+__all__ = ["E2BExecutor", "ModalExecutor", "DockerExecutor", "WasmExecutor"]
 
 
 try:
@@ -241,6 +245,95 @@ class E2BExecutor(RemotePythonExecutor):
             self.logger.log_error(f"Error during cleanup: {e}")
 
 
+def _websocket_send_execute_request(code: str, ws) -> str:
+    """Send code execution request to kernel."""
+    import uuid
+
+    # Generate a unique message ID
+    msg_id = str(uuid.uuid4())
+
+    # Create execute request
+    execute_request = {
+        "header": {
+            "msg_id": msg_id,
+            "username": "anonymous",
+            "session": str(uuid.uuid4()),
+            "msg_type": "execute_request",
+            "version": "5.0",
+        },
+        "parent_header": {},
+        "metadata": {},
+        "content": {
+            "code": code,
+            "silent": False,
+            "store_history": True,
+            "user_expressions": {},
+            "allow_stdin": False,
+        },
+    }
+
+    ws.send(json.dumps(execute_request))
+    return msg_id
+
+
+def _websocket_run_code_raise_errors(code: str, ws, logger) -> CodeOutput:
+    """Run code over a websocket."""
+    try:
+        # Send execute request
+        msg_id = _websocket_send_execute_request(code, ws)
+
+        # Collect output and results
+        outputs = []
+        result = None
+        is_final_answer = False
+
+        while True:
+            msg = json.loads(ws.recv())
+            parent_msg_id = msg.get("parent_header", {}).get("msg_id")
+            # Skip unrelated messages
+            if parent_msg_id != msg_id:
+                continue
+            msg_type = msg.get("msg_type", "")
+            msg_content = msg.get("content", {})
+            if msg_type == "stream":
+                outputs.append(msg_content["text"])
+            elif msg_type == "execute_result":
+                result = msg_content["data"].get("text/plain", None)
+            elif msg_type == "error":
+                if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
+                    result = pickle.loads(base64.b64decode(msg_content.get("evalue", "")))
+                    is_final_answer = True
+                else:
+                    raise AgentError("\n".join(msg_content.get("traceback", [])), logger)
+            elif msg_type == "status" and msg_content["execution_state"] == "idle":
+                break
+
+        return CodeOutput(output=result, logs="".join(outputs), is_final_answer=is_final_answer)
+
+    except Exception as e:
+        logger.log_error(f"Code execution failed: {e}")
+        raise
+
+
+def _create_kernel_http(crate_kernel_endpoint: str, logger) -> str:
+    """Create kernel using http."""
+
+    r = requests.post(crate_kernel_endpoint)
+    if r.status_code != 201:
+        error_details = {
+            "status_code": r.status_code,
+            "headers": dict(r.headers),
+            "url": r.url,
+            "body": r.text,
+            "request_method": r.request.method,
+            "request_headers": dict(r.request.headers),
+            "request_body": r.request.body,
+        }
+        logger.log_error(f"Failed to create kernel. Details: {json.dumps(error_details, indent=2)}")
+        raise RuntimeError(f"Failed to create kernel: Status {r.status_code}\nResponse: {r.text}") from None
+    return r.json()["id"]
+
+
 class DockerExecutor(RemotePythonExecutor):
     """
     Executes Python code using Jupyter Kernel Gateway in a Docker container.
@@ -255,6 +348,7 @@ class DockerExecutor(RemotePythonExecutor):
         image_name: str = "jupyter-kernel",
         build_new_image: bool = True,
         container_run_kwargs: dict[str, Any] | None = None,
+        dockerfile_content: str | None = None,
     ):
         """
         Initialize the Docker-based Jupyter Kernel Gateway executor.
@@ -267,6 +361,7 @@ class DockerExecutor(RemotePythonExecutor):
             image_name: Name of the Docker image to use. If the image doesn't exist, it will be built.
             build_new_image: If True, the image will be rebuilt even if it already exists.
             container_run_kwargs: Additional keyword arguments to pass to the Docker container run command.
+            dockerfile_content: Custom Dockerfile content. If None, uses default.
         """
         super().__init__(additional_imports, logger)
         try:
@@ -279,6 +374,17 @@ class DockerExecutor(RemotePythonExecutor):
         self.host = host
         self.port = port
         self.image_name = image_name
+
+        self.dockerfile_content = dockerfile_content or dedent(
+            """\
+            FROM python:3.12-bullseye
+
+            RUN pip install jupyter_kernel_gateway jupyter_client ipykernel
+
+            EXPOSE 8888
+            CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
+            """
+        )
 
         # Initialize Docker
         try:
@@ -302,18 +408,7 @@ class DockerExecutor(RemotePythonExecutor):
                 dockerfile_path = Path(__file__).parent / "Dockerfile"
                 if not dockerfile_path.exists():
                     with open(dockerfile_path, "w") as f:
-                        f.write(
-                            dedent(
-                                """\
-                                FROM python:3.12-slim
-
-                                RUN pip install jupyter_kernel_gateway jupyter_client
-
-                                EXPOSE 8888
-                                CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
-                                """
-                            )
-                        )
+                        f.write(self.dockerfile_content)
                 _, build_logs = self.client.images.build(
                     path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
                 )
@@ -346,21 +441,7 @@ class DockerExecutor(RemotePythonExecutor):
             self.base_url = f"http://{host}:{port}"
 
             # Create new kernel via HTTP
-            r = requests.post(f"{self.base_url}/api/kernels")
-            if r.status_code != 201:
-                error_details = {
-                    "status_code": r.status_code,
-                    "headers": dict(r.headers),
-                    "url": r.url,
-                    "body": r.text,
-                    "request_method": r.request.method,
-                    "request_headers": dict(r.request.headers),
-                    "request_body": r.request.body,
-                }
-                self.logger.log_error(f"Failed to create kernel. Details: {json.dumps(error_details, indent=2)}")
-                raise RuntimeError(f"Failed to create kernel: Status {r.status_code}\nResponse: {r.text}") from None
-
-            self.kernel_id = r.json()["id"]
+            self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels", self.logger)
 
             ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
             self.ws = create_connection(ws_url)
@@ -374,72 +455,8 @@ class DockerExecutor(RemotePythonExecutor):
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
-    def run_code_raise_errors(self, code_action: str) -> CodeOutput:
-        try:
-            # Send execute request
-            msg_id = self._send_execute_request(code_action)
-
-            # Collect output and results
-            outputs = []
-            result = None
-            is_final_answer = False
-
-            while True:
-                msg = json.loads(self.ws.recv())
-                parent_msg_id = msg.get("parent_header", {}).get("msg_id")
-                # Skip unrelated messages
-                if parent_msg_id != msg_id:
-                    continue
-                msg_type = msg.get("msg_type", "")
-                msg_content = msg.get("content", {})
-                if msg_type == "stream":
-                    outputs.append(msg_content["text"])
-                elif msg_type == "execute_result":
-                    result = msg_content["data"].get("text/plain", None)
-                elif msg_type == "error":
-                    if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                        result = pickle.loads(base64.b64decode(msg_content.get("evalue", "")))
-                        is_final_answer = True
-                    else:
-                        raise AgentError("\n".join(msg_content.get("traceback", [])), self.logger)
-                elif msg_type == "status" and msg_content["execution_state"] == "idle":
-                    break
-
-            return CodeOutput(output=result, logs="".join(outputs), is_final_answer=is_final_answer)
-
-        except Exception as e:
-            self.logger.log_error(f"Code execution failed: {e}")
-            raise
-
-    def _send_execute_request(self, code: str) -> str:
-        """Send code execution request to kernel."""
-        import uuid
-
-        # Generate a unique message ID
-        msg_id = str(uuid.uuid4())
-
-        # Create execute request
-        execute_request = {
-            "header": {
-                "msg_id": msg_id,
-                "username": "anonymous",
-                "session": str(uuid.uuid4()),
-                "msg_type": "execute_request",
-                "version": "5.0",
-            },
-            "parent_header": {},
-            "metadata": {},
-            "content": {
-                "code": code,
-                "silent": False,
-                "store_history": True,
-                "user_expressions": {},
-                "allow_stdin": False,
-            },
-        }
-
-        self.ws.send(json.dumps(execute_request))
-        return msg_id
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
+        return _websocket_run_code_raise_errors(code, self.ws, self.logger)
 
     def cleanup(self):
         """Clean up the Docker container and resources."""
@@ -456,6 +473,123 @@ class DockerExecutor(RemotePythonExecutor):
     def delete(self):
         """Ensure cleanup on deletion."""
         self.cleanup()
+
+
+class ModalExecutor(RemotePythonExecutor):
+    """
+    Executes Python code using Modal.
+
+    Args:
+        additional_imports: Additional imports to install.
+        logger (`Logger`): Logger to use for output and errors.
+        app_name (`str`): App name.
+        port (`int`): Port for jupyter to bind to.
+        create_kwargs (`dict`, optional): Keyword arguments to pass to creating the sandbox. See
+            `modal.Sandbox.create` [docs](https://modal.com/docs/reference/modal.Sandbox#create) for all the
+            keyword arguments.
+    """
+
+    _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+    def __init__(
+        self,
+        additional_imports: list[str],
+        logger,
+        app_name: str = "smolagent-executor",
+        port: int = 8888,
+        create_kwargs: Optional[dict] = None,
+    ):
+        super().__init__(additional_imports, logger)
+        self.port = port
+        try:
+            import modal
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                """Please install 'modal' extra to use ModalExecutor: `pip install 'smolagents[modal]'`"""
+            )
+
+        if create_kwargs is None:
+            create_kwargs = {}
+
+        create_kwargs = {
+            "image": modal.Image.debian_slim().uv_pip_install("jupyter_kernel_gateway", "ipykernel"),
+            "timeout": 60 * 5,
+            **create_kwargs,
+        }
+
+        if "app" not in create_kwargs:
+            create_kwargs["app"] = modal.App.lookup(app_name, create_if_missing=True)
+
+        if "encrypted_ports" not in create_kwargs:
+            create_kwargs["encrypted_ports"] = [port]
+        else:
+            create_kwargs["encrypted_ports"] = create_kwargs["encrypted_ports"] + [port]
+
+        token = secrets.token_urlsafe(16)
+        default_secrets = [modal.Secret.from_dict({"KG_AUTH_TOKEN": token})]
+
+        if "secrets" not in create_kwargs:
+            create_kwargs["secrets"] = default_secrets
+        else:
+            create_kwargs["secrets"] = create_kwargs["secrets"] + default_secrets
+
+        entrypoint = [
+            "jupyter",
+            "kernelgateway",
+            "--KernelGatewayApp.ip='0.0.0.0'",
+            f"--KernelGatewayApp.port={port}",
+            "--KernelGatewayApp.allow_origin='*'",
+        ]
+
+        self.logger.log("Starting Modal sandbox", level=LogLevel.INFO)
+        self.sandbox = modal.Sandbox.create(
+            *entrypoint,
+            **create_kwargs,
+        )
+
+        tunnel = self.sandbox.tunnels()[port]
+        self.logger.log(f"Waiting for Modal sandbox on {tunnel.host}:{port}", level=LogLevel.INFO)
+        self._wait_for_server(tunnel.host, token)
+
+        self.logger.log("Starting Jupyter kernel", level=LogLevel.INFO)
+        kernel_id = _create_kernel_http(f"https://{tunnel.host}/api/kernels?token={token}", logger)
+        self.ws_url = f"wss://{tunnel.host}/api/kernels/{kernel_id}/channels?token={token}"
+        self.installed_packages = self.install_packages(additional_imports)
+
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
+        from websocket import create_connection
+
+        with closing(create_connection(self.ws_url)) as ws:
+            return _websocket_run_code_raise_errors(code, ws, self.logger)
+
+    def cleanup(self):
+        if hasattr(self, "sandbox"):
+            self.sandbox.terminate()
+
+    def delete(self):
+        """Ensure cleanup on deletion."""
+        self.cleanup()
+
+    def _wait_for_server(self, host: str, token: str):
+        """Wait for server to start up."""
+        n_retries = 0
+        while True:
+            try:
+                resp = requests.get(f"https://{host}/api/kernelspecs?token={token}")
+                if resp.status_code == 200:
+                    break
+            except RequestException:
+                n_retries += 1
+                if n_retries % 10 == 0:
+                    self.logger.log("Waiting for server to startup, retrying...", level=LogLevel.INFO)
+                if n_retries > 60:
+                    raise RuntimeError("Unable to connect to sandbox")
+                time.sleep(1.0)
+
+    @classmethod
+    def _strip_ansi_colors(cls, text: str) -> str:
+        """Remove ansi colors from text."""
+        return cls._ANSI_ESCAPE.sub("", text)
 
 
 class WasmExecutor(RemotePythonExecutor):
