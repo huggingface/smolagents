@@ -353,9 +353,9 @@ class DockerExecutor(RemotePythonExecutor):
                     if requests.get(f"{self.base_url}/api", timeout=2).status_code == 200:
                         jupyter_ready = True
                     else:
-                        self.logger.log(f"Jupyter not ready, waiting...", level=LogLevel.INFO)
-                except:
-                    self.logger.log(f"Jupyter not ready, waiting...", level=LogLevel.INFO)
+                        self.logger.log("Jupyter not ready, waiting...", level=LogLevel.INFO)
+                except requests.RequestException:
+                    self.logger.log("Jupyter not ready, waiting...", level=LogLevel.INFO)
                 if not jupyter_ready:
                     time.sleep(1)
                     retries += 1
