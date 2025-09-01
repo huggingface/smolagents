@@ -32,8 +32,10 @@ limitations under the License.
 
 `smolagents` is a lightweight library for building autonomous agents that solve tasks using code and tools. Agents run as independent processes and communicate directly via message queues using the `SendMessageTool` and `ReceiveMessagesTool`. Each agent maintains its own queue in a shared dictionary for decentralized task processing.
 
+
 ✨ **Simplicity**: The core logic fits in ~1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)), keeping abstractions minimal.
 🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/), Docker, or Pyodide+Deno WebAssembly sandbox.
+
 
 🤗 **Hub integrations**: Share or pull tools and agents to/from the Hub for instant collaboration (see [Tool.from_hub](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_hub)).
 
@@ -257,7 +259,7 @@ We’ve benchmarked [`CodeAgent`](https://huggingface.co/docs/smolagents/referen
 
 
 Security is a critical consideration when working with code-executing agents. Our library provides:
-- Sandboxed execution options using [E2B](https://e2b.dev/), Docker, or Pyodide+Deno WebAssembly sandbox
+- Sandboxed execution options using [E2B](https://e2b.dev/), [Modal](https://modal.com/), Docker, or Pyodide+Deno WebAssembly sandbox
 - Best practices for running agent code securely
 
 See our [Security Policy](SECURITY.md) for vulnerability reporting and secure execution guidelines.
