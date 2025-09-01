@@ -18,6 +18,10 @@
     title: (번역중) "Human-in-the-Loop: Customize agent plan interactively"
   - local: in_translation
     title: (번역중) Async Applications with Agents
+- title: 튜토리얼
+  sections:
+  - local: tutorials/inspect_runs
+    title: 에이전트 실행 검사하기
 - title: Reference
   sections:
   - local: reference/agents
