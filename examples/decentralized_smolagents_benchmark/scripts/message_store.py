@@ -72,7 +72,7 @@ class MessageStore:
                 # Check message visibility with enhanced error logging
                 recipients = msg.get("recipients", [])
                 
-                # Enhanced type safety check with detailed logging
+                # Enhanced type safety check with detailed logging - BULLETPROOF VERSION
                 if not isinstance(recipients, (list, tuple)):
                     logging.warning(json.dumps({
                         "event": "type_safety_fix_applied",
@@ -85,8 +85,14 @@ class MessageStore:
                     }))
                     if recipients is None:
                         recipients = []
+                    elif isinstance(recipients, (int, float, bool)):
+                        # Convert problematic types to empty list for safety
+                        recipients = []
                     else:
                         recipients = [str(recipients)]  # Convert single value to list
+                
+                # Ensure recipients is a list of strings
+                recipients = [str(r) for r in recipients if r is not None]
                 
                 sender = msg.get("sender", "")
                 content_str = str(msg.get("content", ""))
@@ -180,7 +186,7 @@ class MessageStore:
                 if agent_id:
                     recipients = msg.get("recipients", [])
                     
-                    # Enhanced type safety check with detailed logging
+                    # Enhanced type safety check with detailed logging - BULLETPROOF VERSION
                     if not isinstance(recipients, (list, tuple)):
                         logging.warning(json.dumps({
                             "event": "type_safety_fix_applied",
@@ -194,8 +200,14 @@ class MessageStore:
                         }))
                         if recipients is None:
                             recipients = []
+                        elif isinstance(recipients, (int, float, bool)):
+                            # Convert problematic types to empty list for safety
+                            recipients = []
                         else:
                             recipients = [str(recipients)]  # Convert single value to list
+                    
+                    # Ensure recipients is a list of strings
+                    recipients = [str(r) for r in recipients if r is not None]
                     
                     sender = msg.get("sender", "")
                     content_str = str(msg.get("content", ""))
@@ -252,7 +264,7 @@ class MessageStore:
                 sender = msg.get("sender", "")
                 recipients = msg.get("recipients", [])
                 
-                # Enhanced type safety check with detailed logging
+                # Enhanced type safety check with detailed logging - BULLETPROOF VERSION
                 if not isinstance(recipients, (list, tuple)):
                     logging.warning(json.dumps({
                         "event": "type_safety_fix_applied",
@@ -266,8 +278,14 @@ class MessageStore:
                     }))
                     if recipients is None:
                         recipients = []
+                    elif isinstance(recipients, (int, float, bool)):
+                        # Convert problematic types to empty list for safety
+                        recipients = []
                     else:
                         recipients = [str(recipients)]  # Convert single value to list
+                
+                # Ensure recipients is a list of strings
+                recipients = [str(r) for r in recipients if r is not None]
                 
                 content_str = str(msg.get("content", ""))
                 thread_id = msg.get("thread_id", "main")
@@ -343,7 +361,7 @@ class MessageStore:
                     # Apply agent visibility filtering
                     recipients = msg.get("recipients", [])
                     
-                    # Enhanced type safety check with detailed logging
+                    # Enhanced type safety check with detailed logging - BULLETPROOF VERSION
                     if not isinstance(recipients, (list, tuple)):
                         logging.warning(json.dumps({
                             "event": "type_safety_fix_applied",
@@ -357,8 +375,14 @@ class MessageStore:
                         }))
                         if recipients is None:
                             recipients = []
+                        elif isinstance(recipients, (int, float, bool)):
+                            # Convert problematic types to empty list for safety
+                            recipients = []
                         else:
                             recipients = [str(recipients)]  # Convert single value to list
+                    
+                    # Ensure recipients is a list of strings
+                    recipients = [str(r) for r in recipients if r is not None]
                     
                     sender = msg.get("sender", "")
                     content_str = str(msg.get("content", ""))
@@ -394,6 +418,93 @@ class MessageStore:
                 threads.add(thread_id)
 
         return sorted(list(threads))
+
+    def get_channels_info(self, agent_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get detailed information about all channels visible to the agent."""
+        channels = {}
+        
+        with self._lock:
+            for msg in self._iter_messages():
+                msg_type = msg.get("type", "message")
+                thread_id = msg.get("thread_id", "main")
+                
+                # Skip if agent filtering is enabled and message not visible to agent
+                if agent_id:
+                    recipients = msg.get("recipients", [])
+                    
+                    # Enhanced type safety check - BULLETPROOF VERSION
+                    if not isinstance(recipients, (list, tuple)):
+                        if recipients is None:
+                            recipients = []
+                        elif isinstance(recipients, (int, float, bool)):
+                            # Convert problematic types to empty list for safety
+                            recipients = []
+                        else:
+                            recipients = [str(recipients)]
+                    
+                    # Ensure recipients is a list of strings
+                    recipients = [str(r) for r in recipients if r is not None]
+                    
+                    sender = msg.get("sender", "")
+                    content_str = str(msg.get("content", ""))
+                    
+                    try:
+                        visible = (
+                            not recipients
+                            or "@all" in recipients  # Public
+                            or agent_id in recipients  # Direct message
+                            or f"@{agent_id}" in content_str  # Mentioned
+                            or sender == agent_id  # Own message
+                        )
+                    except TypeError:
+                        continue  # Skip problematic messages
+                    
+                    if not visible:
+                        continue
+                
+                # Initialize channel info if not exists
+                if thread_id not in channels:
+                    channels[thread_id] = {
+                        "channel_id": thread_id,
+                        "subject": None,
+                        "description": None,
+                        "creator": None,
+                        "created_at": None,
+                        "members": set(),
+                        "last_activity": None,
+                        "message_count": 0,
+                        "is_created_channel": False
+                    }
+                
+                # Update channel info
+                channels[thread_id]["message_count"] += 1
+                channels[thread_id]["last_activity"] = msg.get("timestamp", "")
+                
+                # Extract channel creation info
+                if msg_type == "channel_created":
+                    content = msg.get("content", {})
+                    if isinstance(content, dict):
+                        channels[thread_id].update({
+                            "subject": content.get("subject") or content.get("channel_id", thread_id),
+                            "description": content.get("description", ""),
+                            "creator": content.get("creator") or msg.get("sender", ""),
+                            "created_at": msg.get("timestamp", ""),
+                            "is_created_channel": True
+                        })
+                        initial_members = content.get("initial_members", [])
+                        if initial_members:
+                            channels[thread_id]["members"].update(initial_members)
+                
+                # Add message sender to members
+                sender = msg.get("sender", "")
+                if sender and sender not in ["system", "Coordinator"]:
+                    channels[thread_id]["members"].add(sender)
+        
+        # Convert sets to lists for JSON serialization
+        for channel in channels.values():
+            channel["members"] = sorted(list(channel["members"]))
+        
+        return channels
 
     def _append_line(self, obj: Dict[str, Any]) -> None:
         line = json.dumps(obj, ensure_ascii=False)
@@ -435,7 +546,7 @@ class MessageStore:
     ) -> Dict[str, Any]:
         """Append a message to the log and return the full record."""
         with self._lock:
-            # Ensure recipients is always properly defined
+            # Ensure recipients is always properly defined and type-safe
             if recipients is None:
                 # Default behavior: most messages should be visible to all agents
                 if msg_type in ["task", "poll", "final_answer", "channel_message"]:
@@ -446,6 +557,25 @@ class MessageStore:
                 else:
                     # Default to public for unknown message types
                     recipients = ["@all"]
+            elif not isinstance(recipients, (list, tuple)):
+                # Convert non-list types to proper format
+                if isinstance(recipients, (int, float, bool)):
+                    # These types are problematic - convert to empty list for safety
+                    logging.warning(json.dumps({
+                        "event": "problematic_recipients_type_fixed",
+                        "location": "append_message",
+                        "recipients_type": type(recipients).__name__,
+                        "recipients_value": str(recipients),
+                        "sender": sender,
+                        "msg_type": msg_type
+                    }))
+                    recipients = []
+                else:
+                    # Convert to list
+                    recipients = [str(recipients)]
+            
+            # Ensure all recipients are strings
+            recipients = [str(r) for r in recipients if r is not None]
 
             msg_id = str(uuid.uuid4())
             record = {

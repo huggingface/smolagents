@@ -13,17 +13,7 @@ from scripts.agents import DecentralizedAgents
 from scripts.message_store import MessageStore
 
 
-QUESTION_ADDON= """
-CRITICAL WORKFLOW - FOLLOW IN ORDER:
-1. FIRST: Use read_notifications to check for active polls and team discussions
-2. If there are active polls: Vote on them using vote_on_poll BEFORE doing anything else
-3. Use read_messages to see what other agents have contributed
-4. If no active polls exist and you have a confident answer: create a final answer poll using create_final_answer_poll
-5. Work collaboratively with your team!
-
-It is critical to respect the format of the answer.
-
-VOTING IS MANDATORY: If you see active polls in notifications, you MUST vote on them first!"""
+QUESTION_ADDON= """It is critical to respect the format of the answer when it is asked. """
 
 
 # Langfuse instrumentation setup
@@ -116,7 +106,7 @@ def main(args: argparse.Namespace) -> int:
         )
 
         # Run the team on the task with enhanced collaboration instructions
-        enhanced_task = f"{args.question}\n\n{QUESTION_ADDON}"
+        enhanced_task = f"{args.question}"
         logging.info(json.dumps({"event": "starting_execution", "run_id": run_id, "question": args.question}))
         result = decentralized_team.run(enhanced_task)
         

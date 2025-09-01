@@ -129,7 +129,7 @@ COLLABORATION PROTOCOL:
    - Check notifications regularly for polls needing votes
    - Vote honestly based on your expertise using vote_on_poll
    - When multiple polls are active, specify poll_id parameter when voting
-   - Include confidence level (0.0-1.0) and rationale
+   - Include confidence level (scoring from 0.0 to 1.0) and rationale
    - Suggest improvements if voting NO
 
 5. Best Practices:
@@ -167,6 +167,7 @@ KEY COMMUNICATION PATTERNS:
 Remember: A solution is only accepted when a majority agrees (3/4 agents). Work together to reach consensus!
 
 CRITICAL: make sure that you respect the required format of answer, when you propose one.
+MUCH CRITICAL: Never call the FinalAnswerTool, use create_final_answer_poll instead.to propose final answers.
 
 ANSWER FORMAT REQUIREMENTS:
 - For MATH problems: final_answer must be ONLY the number, expression, or result (e.g., "7", "12.5", "$100", "x = 3")
