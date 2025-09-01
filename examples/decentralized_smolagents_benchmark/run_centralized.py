@@ -476,9 +476,9 @@ def create_agent_team(model: Model):
     code_tools.extend(shared_tools)
     reader_tools.extend(shared_tools)
 
-    # Create 4 specialized agents
+    # Create 4 specialized agents with detailed descriptions
     
-    # Agent 1: Code Execution Specialist
+    # Agent 1: Python Code Execution and Algorithm Implementation Specialist
     code_agent = CodeAgent(
         model=model,
         tools=code_tools,
@@ -487,30 +487,80 @@ def create_agent_team(model: Model):
         additional_authorized_imports=["*"],
         planning_interval=3,
         name="CodeAgent",
-        description="Specialist in Python code execution, mathematical computations, and algorithm implementation"
+        description="""Python Code Execution and Algorithm Implementation Specialist.
+        
+Responsibilities:
+- Write, test, and execute Python code with proper error handling and validation
+- Create modular, testable functions with comprehensive docstrings and documentation
+- Implement mathematical algorithms, computational solutions, and numerical analysis
+- Run validation tests and smoke tests on code changes to ensure reliability
+- Optimize code performance, debug complex issues, and handle edge cases
+- Handle numerical computations, data processing tasks, and statistical analysis
+- Extract precise numerical results for mathematical problems (e.g., "7", "12.5", "3/4")
+- Validate results through multiple calculation methods when possible
+
+Special focus on mathematical problem solving:
+- Use Python to calculate exact results with proper precision
+- Show all calculations, code, and reasoning processes
+- Follow specific format requirements (decimal, fraction, etc.)
+- Provide executable demonstrations of solutions"""
     )
 
-    # Agent 2: Web Research Specialist  
+    # Agent 2: Fast Web Research and Information Gathering Specialist
     web_research_agent = ToolCallingAgent(
         model=model,
         tools=web_tools,
         max_steps=15,
         verbosity_level=1,
         name="WebResearchAgent",
-        description="Expert in web research, information gathering, and fact verification from online sources"
+        description="""Fast Web Research and Information Gathering Specialist.
+        
+Responsibilities:
+- Conduct rapid, targeted web searches for relevant and up-to-date information
+- Evaluate source credibility, authority, and reliability of information sources
+- Perform thorough fact-checking and information verification from multiple sources
+- Gather real-time data, current information, and recent developments
+- Identify trending topics, breaking news, and emerging information patterns
+- Extract key facts, summarize findings concisely, and present structured results
+- Cross-reference findings against multiple independent sources for accuracy
+- Provide source URLs, publication dates, and credibility assessments
+
+Research methodology:
+- Always verify information from multiple independent, authoritative sources
+- Prioritize recent, peer-reviewed, and official sources over outdated information
+- Include comprehensive source attribution with URLs and publication dates
+- Flag conflicting information and present different perspectives objectively
+- Focus on factual accuracy over speed when sources present contradictory claims"""
     )
 
-    # Agent 3: Document Analysis Specialist
+    # Agent 3: Document Analysis and Technical Specification Specialist
     document_agent = ToolCallingAgent(
         model=model,
         tools=reader_tools,
         max_steps=10,
         verbosity_level=1,
         name="DocumentAgent",
-        description="Specialist in document analysis, text extraction, and technical specification review"
+        description="""Document Analysis and Technical Specification Specialist.
+        
+Responsibilities:
+- Analyze and extract critical information from technical documents, PDFs, and specifications
+- Maintain precise citations with page numbers, section references, and source attribution
+- Structure complex documentation into digestible, actionable summaries and insights
+- Validate technical specifications against implementation requirements and standards
+- Cross-reference multiple documents for consistency, completeness, and accuracy
+- Identify critical details, potential implementation considerations, and technical constraints
+- Extract both explicit information and implied requirements from documentation
+- Highlight contradictions, ambiguities, and gaps found in documents
+
+Documentation standards:
+- Always include precise citations with page numbers or section references
+- Maintain clear separation between documented facts and personal interpretations
+- Focus on actionable information that directly impacts problem-solving and decision-making
+- Cross-reference claims against other available documentation and external sources
+- Present structured analysis with clear organization and logical flow"""
     )
 
-    # Agent 4: Deep Analysis Specialist (has access to both code and web tools)
+    # Agent 4: Comprehensive Analysis and Advanced Research Specialist
     analysis_tools = list(set(web_tools + code_tools))
     analysis_agent = CodeAgent(
         model=model,
@@ -520,10 +570,28 @@ def create_agent_team(model: Model):
         additional_authorized_imports=["*"],
         planning_interval=4,
         name="AnalysisAgent",
-        description="Expert in comprehensive analysis, hypothesis testing, and multi-source information synthesis"
+        description="""Comprehensive Analysis and Advanced Research Specialist.
+        
+Responsibilities:
+- Conduct thorough, multi-layered investigations and comprehensive analysis of complex problems
+- Develop, test, and rigorously validate complex hypotheses and theoretical frameworks
+- Synthesize information from diverse sources into coherent, actionable insights and conclusions
+- Perform advanced reasoning, logical validation, and critical evaluation of findings
+- Design and execute comprehensive research methodologies with systematic approaches
+- Validate findings through multiple analytical approaches and cross-verification methods
+- Integrate quantitative computational analysis with qualitative research insights
+- Challenge assumptions, test edge cases, and explore alternative explanations
+
+Advanced analytical framework:
+- Apply systematic analytical frameworks and methodologies to complex, multi-faceted problems
+- Present multiple perspectives and consider alternative explanations and interpretations
+- Use both web research and code execution capabilities to validate hypotheses comprehensively
+- Document reasoning processes, analytical methodologies, and decision-making criteria clearly
+- Integrate diverse analytical approaches including statistical, computational, and theoretical methods
+- Maintain objectivity while exploring creative and innovative solution approaches"""
     )
 
-    # Create the manager agent with access to all agents
+    # Create the manager agent with comprehensive coordination capabilities
     manager_agent = CodeAgent(
         model=model,
         tools=shared_tools,  # Manager has minimal tools, delegates to agents
@@ -533,7 +601,27 @@ def create_agent_team(model: Model):
         planning_interval=5,
         managed_agents=[code_agent, web_research_agent, document_agent, analysis_agent],
         name="ManagerAgent",
-        description="Centralized manager coordinating specialized agents to solve complex problems"
+        description="""Centralized Manager and Team Coordination Specialist.
+        
+Primary Role:
+- Orchestrate and coordinate the work of 4 specialized agents to solve complex, multi-faceted problems
+- Strategically delegate tasks to the most appropriate agent based on their expertise and capabilities
+- Synthesize results from multiple agents into comprehensive, well-reasoned final answers
+- Ensure quality control and consistency across all agent contributions and outputs
+- Manage workflow optimization, resource allocation, and inter-agent communication
+
+Coordination Responsibilities:
+- CodeAgent: Delegate mathematical computations, algorithm implementation, and code execution tasks
+- WebResearchAgent: Assign web research, fact-checking, and real-time information gathering tasks  
+- DocumentAgent: Direct document analysis, technical specification review, and citation extraction
+- AnalysisAgent: Coordinate comprehensive analysis, hypothesis testing, and multi-source synthesis
+
+Management Strategy:
+- Break down complex problems into specialized subtasks aligned with agent expertise
+- Ensure comprehensive coverage of all problem aspects through strategic task distribution
+- Validate and cross-check results from multiple agents for accuracy and consistency
+- Integrate diverse perspectives and methodologies into cohesive, evidence-based solutions
+- Maintain high standards for accuracy, completeness, and methodological rigor"""
     )
 
     return manager_agent
