@@ -11,27 +11,12 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-from smolagents.default_tools import PythonInterpreterTool
-from smolagents.tools import Tool
-
-import json
-import logging
-import os
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-
+from typing import List
 
 import datasets
 import pandas as pd
 from dotenv import load_dotenv
-from tqdm import tqdm
-
-from scripts.text_inspector_tool import TextInspectorTool, FileReaderTool
+from scripts.text_inspector_tool import FileReaderTool, TextInspectorTool
 from scripts.text_web_browser import (
     ArchiveSearchTool,
     DownloadTool,
@@ -42,8 +27,8 @@ from scripts.text_web_browser import (
     SimpleTextBrowser,
     VisitTool,
 )
-from scripts.text_inspector_tool import FileReaderTool
 from scripts.visual_qa import visualizer
+from tqdm import tqdm
 
 from smolagents import (
     CodeAgent,
@@ -52,7 +37,8 @@ from smolagents import (
     Model,
     ToolCallingAgent,
 )
-
+from smolagents.default_tools import PythonInterpreterTool
+from smolagents.tools import Tool
 
 
 # Langfuse instrumentation setup
@@ -116,6 +102,7 @@ RESPONSE FORMAT:
 Always structure your responses with clear sections and evidence-based conclusions."""
 
 APPEND_ANSWER_LOCK = threading.Lock()
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Runs centralized agent team on smolagent benchmark.")
@@ -217,7 +204,7 @@ def run_centralized_agents(row, args, model):
     try:
         # Create the centralized agent
         agent = create_agent_team(model)
-        
+
         # Prepare question from the dataset row
         question = row["question"]
         if row.get("context"):
@@ -228,17 +215,17 @@ def run_centralized_agents(row, args, model):
         result = agent.run(question)
         print(f"Agent result type: {type(result)}")
         print(f"Agent result: {str(result)[:200]}")
-        
+
         # Extract final answer from result
-        if hasattr(result, 'content'):
+        if hasattr(result, "content"):
             final_answer = result.content
-        elif hasattr(result, 'final_answer'):
+        elif hasattr(result, "final_answer"):
             final_answer = result.final_answer
         elif isinstance(result, str):
             final_answer = result
         else:
             final_answer = str(result)
-            
+
         print(f"Final answer: {final_answer}")
 
         # Calculate metrics
@@ -446,6 +433,7 @@ def save_benchmark_scores(output_dir, model_id, action_type, date, eval_ds):
     print(f"\n💾 Scores saved to: {scores_file}")
     return all_scores
 
+
 def create_agent_team(model: Model):
     """Create a centralized multi-agent system with a manager and 4 specialized agents."""
     text_limit = 100000
@@ -477,7 +465,7 @@ def create_agent_team(model: Model):
     reader_tools.extend(shared_tools)
 
     # Create 4 specialized agents with detailed descriptions
-    
+
     # Agent 1: Python Code Execution and Algorithm Implementation Specialist
     code_agent = CodeAgent(
         model=model,
@@ -488,7 +476,7 @@ def create_agent_team(model: Model):
         planning_interval=3,
         name="CodeAgent",
         description="""Python Code Execution and Algorithm Implementation Specialist.
-        
+
 Responsibilities:
 - Write, test, and execute Python code with proper error handling and validation
 - Create modular, testable functions with comprehensive docstrings and documentation
@@ -502,8 +490,8 @@ Responsibilities:
 Special focus on mathematical problem solving:
 - Use Python to calculate exact results with proper precision
 - Show all calculations, code, and reasoning processes
-- Follow specific format requirements (decimal, fraction, etc.)
-- Provide executable demonstrations of solutions"""
+- Follow specific format requirements (decimal, fraction, etc.)       
+- Provide executable demonstrations of solutions""",
     )
 
     # Agent 2: Fast Web Research and Information Gathering Specialist
@@ -514,7 +502,7 @@ Special focus on mathematical problem solving:
         verbosity_level=1,
         name="WebResearchAgent",
         description="""Fast Web Research and Information Gathering Specialist.
-        
+
 Responsibilities:
 - Conduct rapid, targeted web searches for relevant and up-to-date information
 - Evaluate source credibility, authority, and reliability of information sources
@@ -530,7 +518,7 @@ Research methodology:
 - Prioritize recent, peer-reviewed, and official sources over outdated information
 - Include comprehensive source attribution with URLs and publication dates
 - Flag conflicting information and present different perspectives objectively
-- Focus on factual accuracy over speed when sources present contradictory claims"""
+- Focus on factual accuracy over speed when sources present contradictory claims""",
     )
 
     # Agent 3: Document Analysis and Technical Specification Specialist
@@ -541,7 +529,7 @@ Research methodology:
         verbosity_level=1,
         name="DocumentAgent",
         description="""Document Analysis and Technical Specification Specialist.
-        
+
 Responsibilities:
 - Analyze and extract critical information from technical documents, PDFs, and specifications
 - Maintain precise citations with page numbers, section references, and source attribution
@@ -557,7 +545,7 @@ Documentation standards:
 - Maintain clear separation between documented facts and personal interpretations
 - Focus on actionable information that directly impacts problem-solving and decision-making
 - Cross-reference claims against other available documentation and external sources
-- Present structured analysis with clear organization and logical flow"""
+- Present structured analysis with clear organization and logical flow""",
     )
 
     # Agent 4: Comprehensive Analysis and Advanced Research Specialist
@@ -571,7 +559,7 @@ Documentation standards:
         planning_interval=4,
         name="AnalysisAgent",
         description="""Comprehensive Analysis and Advanced Research Specialist.
-        
+
 Responsibilities:
 - Conduct thorough, multi-layered investigations and comprehensive analysis of complex problems
 - Develop, test, and rigorously validate complex hypotheses and theoretical frameworks
@@ -588,7 +576,7 @@ Advanced analytical framework:
 - Use both web research and code execution capabilities to validate hypotheses comprehensively
 - Document reasoning processes, analytical methodologies, and decision-making criteria clearly
 - Integrate diverse analytical approaches including statistical, computational, and theoretical methods
-- Maintain objectivity while exploring creative and innovative solution approaches"""
+- Maintain objectivity while exploring creative and innovative solution approaches""",
     )
 
     # Create the manager agent with comprehensive coordination capabilities
@@ -602,7 +590,7 @@ Advanced analytical framework:
         managed_agents=[code_agent, web_research_agent, document_agent, analysis_agent],
         name="ManagerAgent",
         description="""Centralized Manager and Team Coordination Specialist.
-        
+
 Primary Role:
 - Orchestrate and coordinate the work of 4 specialized agents to solve complex, multi-faceted problems
 - Strategically delegate tasks to the most appropriate agent based on their expertise and capabilities
@@ -612,7 +600,7 @@ Primary Role:
 
 Coordination Responsibilities:
 - CodeAgent: Delegate mathematical computations, algorithm implementation, and code execution tasks
-- WebResearchAgent: Assign web research, fact-checking, and real-time information gathering tasks  
+- WebResearchAgent: Assign web research, fact-checking, and real-time information gathering tasks
 - DocumentAgent: Direct document analysis, technical specification review, and citation extraction
 - AnalysisAgent: Coordinate comprehensive analysis, hypothesis testing, and multi-source synthesis
 
@@ -621,11 +609,10 @@ Management Strategy:
 - Ensure comprehensive coverage of all problem aspects through strategic task distribution
 - Validate and cross-check results from multiple agents for accuracy and consistency
 - Integrate diverse perspectives and methodologies into cohesive, evidence-based solutions
-- Maintain high standards for accuracy, completeness, and methodological rigor"""
+- Maintain high standards for accuracy, completeness, and methodological rigor""",
     )
 
     return manager_agent
-
 
 
 def main():
