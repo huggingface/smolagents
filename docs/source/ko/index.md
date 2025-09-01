@@ -37,7 +37,7 @@ smolagents를 단 몇 분 만에 시작해보세요! 이 가이드는 첫 번째
 pip으로 smolagents를 설치하세요:
 
 ```bash
-pip install smolagents[toolkit]  # 웹 검색과 같은 기본 도구 포함
+pip install 'smolagents[toolkit]'  # 웹 검색과 같은 기본 도구 포함
 ```
 
 ### 첫 에이전트 만들기[[create-your-first-agent]]
@@ -86,11 +86,11 @@ print(result)
 # Hugging Face의 특정 모델 사용
 model = InferenceClientModel(model_id="meta-llama/Llama-2-70b-chat-hf")
 
-# OpenAI/Anthropic 사용 (smolagents[litellm] 필요)
+# OpenAI/Anthropic 사용 ('smolagents[litellm]' 필요)
 from smolagents import LiteLLMModel
 model = LiteLLMModel(model_id="gpt-4")
 
-# 로컬 모델 사용 (smolagents[transformers] 필요)
+# 로컬 모델 사용 ('smolagents[transformers]' 필요)
 from smolagents import TransformersModel
 model = TransformersModel(model_id="meta-llama/Llama-2-7b-chat-hf")
 ```

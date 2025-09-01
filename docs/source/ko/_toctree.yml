@@ -6,8 +6,6 @@
   sections:
   - local: examples/text_to_sql
     title: 스스로 오류를 수정하는 Text-to-SQL
-  - local: in_translation
-    title: (번역중) Master your knowledge base with agentic RAG
   - local: examples/multiagents
     title: 멀티 에이전트 시스템 오케스트레이션
   - local: in_translation
