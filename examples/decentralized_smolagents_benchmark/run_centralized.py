@@ -597,6 +597,7 @@ Primary Role:
 - Synthesize results from multiple agents into comprehensive, well-reasoned final answers
 - Ensure quality control and consistency across all agent contributions and outputs
 - Manage workflow optimization, resource allocation, and inter-agent communication
+- Don't hesitate to ask all agents for their input and expertise.
 
 Coordination Responsibilities:
 - CodeAgent: Delegate mathematical computations, algorithm implementation, and code execution tasks
