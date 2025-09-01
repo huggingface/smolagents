@@ -412,7 +412,7 @@ class DownloadTool(Tool):
     description = """
 Download a file at a given URL to inspect its contents. Use this tool for files with extensions: [".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".png", ".docx"]
 
-WORKFLOW: 
+WORKFLOW:
 1. Use this tool to download the file locally
 2. Then use 'inspect_file_as_text' tool with the returned file path to read and analyze the content
 3. For images (.png), use the visualizer tool after downloading
@@ -426,48 +426,50 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types use visit_p
         self.browser = browser
 
     def forward(self, url: str) -> str:
-        import requests
         import os
-        import pathvalidate
         import uuid
         from urllib.parse import urlparse
+
+        import pathvalidate
+        import requests
 
         try:
             if "arxiv" in url:
                 url = url.replace("abs", "pdf")
-            
+
             response = requests.get(url, stream=True, timeout=30)
             response.raise_for_status()
-            
+
             content_type = response.headers.get("content-type", "")
-            
+
             # Try to get filename from URL or Content-Disposition header
             fname = None
             if "Content-Disposition" in response.headers:
                 import re
+
                 cd = response.headers["Content-Disposition"]
                 filename_match = re.search(r'filename="?([^"]+)"?', cd)
                 if filename_match:
                     fname = pathvalidate.sanitize_filename(filename_match.group(1)).strip()
-            
+
             if not fname:
                 # Extract from URL path
                 parsed_url = urlparse(url)
                 path_fname = os.path.basename(parsed_url.path)
                 if path_fname:
                     fname = pathvalidate.sanitize_filename(path_fname).strip()
-            
+
             if not fname:
                 # Generate filename from content type
                 extension = mimetypes.guess_extension(content_type)
                 if not extension:
                     extension = ".download"
                 fname = f"file_{str(uuid.uuid4())[:8]}{extension}"
-            
+
             # Ensure downloads directory exists
             downloads_dir = self.browser.downloads_folder or "./downloads"
             os.makedirs(downloads_dir, exist_ok=True)
-            
+
             # Create unique path to avoid overwriting
             download_path = os.path.join(downloads_dir, fname)
             suffix = 0
@@ -476,27 +478,19 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types use visit_p
                 base, ext = os.path.splitext(fname)
                 new_fname = f"{base}__{suffix}{ext}"
                 download_path = os.path.join(downloads_dir, new_fname)
-            
+
             # Download the file
             with open(download_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
-            
+
             # Get file extension to check restrictions
             _, extension = os.path.splitext(download_path)
             extension = extension.lower()
-            
-            if extension in [".pdf", ".txt", ".htm", ".html"]:
-                # Clean up the downloaded file since it shouldn't be downloaded
-                try:
-                    os.remove(download_path)
-                except:
-                    pass
-                raise Exception("Do not use this tool for pdf or txt or html files: use visit_page instead.")
 
             return f"File was downloaded and saved under path {download_path}."
-            
+
         except requests.RequestException as e:
             return f"Error downloading file: Network error - {str(e)}"
         except Exception as e:

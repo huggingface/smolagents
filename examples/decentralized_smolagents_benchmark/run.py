@@ -176,7 +176,7 @@ def run_decentralized_agent(row, args):
         # Parse the final answer and run_id from JSON output
         final_answer = None
         run_id = None
-        
+
         # First, check stderr for run_id from logging output
         if result.stderr:
             for line in result.stderr.split("\n"):
@@ -185,18 +185,19 @@ def run_decentralized_agent(row, args):
                     try:
                         # Parse the JSON structure
                         parsed = json.loads(line)
-                        if 'message' in parsed and isinstance(parsed['message'], dict):
-                            if 'run_id' in parsed['message']:
-                                run_id = parsed['message']['run_id']
+                        if "message" in parsed and isinstance(parsed["message"], dict):
+                            if "run_id" in parsed["message"]:
+                                run_id = parsed["message"]["run_id"]
                                 break
                     except json.JSONDecodeError:
                         # Try regex as fallback
                         import re
+
                         match = re.search(r'"run_id":\s*"([^"]+)"', line)
                         if match:
                             run_id = match.group(1)
                             break
-        
+
         # Parse final answer from stdout
         for line in result.stdout.split("\n"):
             line = line.strip()

@@ -823,15 +823,15 @@ class MarkdownConverter:
     def convert_local(self, path: str, **kwargs: Any) -> DocumentConverterResult:  # TODO: deal with kwargs
         # Normalize and resolve the path to handle relative paths properly
         normalized_path = os.path.abspath(os.path.expanduser(path))
-        
+
         # Check if the file exists before proceeding
         if not os.path.exists(normalized_path) or not os.path.isfile(normalized_path):
             # Return an error result instead of crashing
             return DocumentConverterResult(
                 title="File Not Found",
-                text_content=f"Error: File not found at path '{path}' (resolved to '{normalized_path}')"
+                text_content=f"Error: File not found at path '{path}' (resolved to '{normalized_path}')",
             )
-        
+
         # Prepare a list of extensions to try (in order of priority)
         ext = kwargs.get("file_extension")
         extensions = [ext] if ext is not None else []
@@ -998,7 +998,7 @@ class MarkdownConverter:
             # Log the issue but don't raise an error - just return None to continue processing
             print(f"Warning: Invalid or non-existent file path in _guess_ext_magic: {path}")
             return None
-            
+
         try:
             guesses = puremagic.magic_file(path)
             if len(guesses) > 0:

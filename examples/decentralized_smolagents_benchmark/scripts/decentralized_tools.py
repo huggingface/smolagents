@@ -12,7 +12,6 @@ This module provides tools for agents to:
 import re
 from typing import Any, Dict, List, Optional
 
-from smolagents.default_tools import FinalAnswerTool
 from smolagents.tools import Tool
 
 from .message_store import MessageStore
@@ -58,8 +57,10 @@ class SendMessageToAgent(Tool):
         except Exception as e:
             return f"❌ Failed to send message to {target_agent}: {str(e)}"
 
+
 class CreateChannel(Tool):
     """Tool for creating a new channel for group discussions."""
+
     name = "create_channel"
     description = """Create a new channel for team discussions on specific topics.
     Channels help organize conversations by topic or participant group.
@@ -78,7 +79,7 @@ class CreateChannel(Tool):
             "type": "string",
             "description": "Optional comma-separated list of agent names to initially notify about this channel",
             "nullable": True,
-        }
+        },
     }
     output_type = "object"
 
@@ -87,21 +88,23 @@ class CreateChannel(Tool):
         self.message_store = message_store
         self.agent_name = agent_name
 
-    def forward(self, channel_subject: str, channel_description: str, initial_members: Optional[str] = None) -> Dict[str, Any]:
+    def forward(
+        self, channel_subject: str, channel_description: str, initial_members: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Create a new channel for team discussions with auto-generated unique ID."""
         try:
-            import uuid
             import re
-            
+            import uuid
+
             # Generate a unique channel ID based on subject and timestamp
             # Clean the subject to make it URL/ID friendly
-            clean_subject = re.sub(r'[^a-zA-Z0-9\-_]', '-', channel_subject.lower().strip())
-            clean_subject = re.sub(r'-+', '-', clean_subject).strip('-')
-            
+            clean_subject = re.sub(r"[^a-zA-Z0-9\-_]", "-", channel_subject.lower().strip())
+            clean_subject = re.sub(r"-+", "-", clean_subject).strip("-")
+
             # Generate unique ID with subject and short UUID
             short_uuid = str(uuid.uuid4())[:8]
             channel_id = f"{clean_subject}-{short_uuid}"
-            
+
             # Parse initial members
             member_list = None
             if initial_members:
@@ -114,10 +117,10 @@ class CreateChannel(Tool):
                 "subject": channel_subject,
                 "description": channel_description,
                 "creator": self.agent_name,
-                "initial_members": member_list or []
+                "initial_members": member_list or [],
             }
 
-            result = self.message_store.append_message(
+            self.message_store.append_message(
                 sender=self.agent_name,
                 content=channel_message,
                 recipients=member_list or ["@all"],
@@ -126,21 +129,18 @@ class CreateChannel(Tool):
             )
 
             member_info = f" with members: {', '.join(member_list)}" if member_list else ""
-            
+
             return {
                 "channel_id": channel_id,
                 "subject": channel_subject,
                 "description": channel_description,
                 "creator": self.agent_name,
                 "initial_members": member_list or [],
-                "message": f"📢 Channel created: '{channel_id}' - {channel_description}{member_info}"
+                "message": f"📢 Channel created: '{channel_id}' - {channel_description}{member_info}",
             }
 
         except Exception as e:
-            return {
-                "error": f"❌ Failed to create channel: {str(e)}",
-                "channel_id": None
-            }
+            return {"error": f"❌ Failed to create channel: {str(e)}", "channel_id": None}
 
 
 class SendMessageToChannel(Tool):
@@ -227,14 +227,11 @@ class SendMessageToChannel(Tool):
                 "recipients": recipient_list,
                 "mentions": mentioned_agents,
                 "message": f"📢 Message sent to #{processed_channel_id}{recipient_info}: {message[:50]}...",
-                "message_id": result.get("id")
+                "message_id": result.get("id"),
             }
 
         except Exception as e:
-            return {
-                "error": f"❌ Failed to send message to #{thread_id}: {str(e)}",
-                "channel_id": None
-            }
+            return {"error": f"❌ Failed to send message to #{thread_id}: {str(e)}", "channel_id": None}
 
     def _process_channel_id(self, thread_id: str) -> tuple[str, Optional[List[str]]]:
         """Process thread_id to determine channel and auto-create if needed."""
@@ -244,10 +241,10 @@ class SendMessageToChannel(Tool):
             thread_id = str(thread_id)
 
         # If thread_id contains agent names (has comma or ends with 'Agent'), it's an agent-based channel
-        if ',' in thread_id or thread_id.endswith('Agent'):
+        if "," in thread_id or thread_id.endswith("Agent"):
             # Extract agent names
-            if ',' in thread_id:
-                agent_names = [name.strip() for name in thread_id.split(',') if name.strip()]
+            if "," in thread_id:
+                agent_names = [name.strip() for name in thread_id.split(",") if name.strip()]
             else:
                 agent_names = [thread_id.strip()]
 
@@ -259,7 +256,7 @@ class SendMessageToChannel(Tool):
                 self._auto_create_channel(
                     channel_id=channel_id,
                     description=f"Private discussion group for: {', '.join(agent_names)}",
-                    members=agent_names
+                    members=agent_names,
                 )
 
             return channel_id, agent_names
@@ -273,7 +270,7 @@ class SendMessageToChannel(Tool):
                 self._auto_create_channel(
                     channel_id=thread_id,
                     description=description,
-                    members=None  # Public channel
+                    members=None,  # Public channel
                 )
 
             return thread_id, None
@@ -296,7 +293,7 @@ class SendMessageToChannel(Tool):
                 "description": description,
                 "creator": self.agent_name,
                 "auto_created": True,
-                "initial_members": members or []
+                "initial_members": members or [],
             }
 
             self.message_store.append_message(
@@ -328,7 +325,7 @@ class SendMessageToChannel(Tool):
             "testing": "Testing and validation discussions",
             "review": "Code and content review sessions",
             "brainstorm": "Brainstorming and ideation",
-            "debug": "Debugging and troubleshooting"
+            "debug": "Debugging and troubleshooting",
         }
 
         # Try to match common topics
@@ -366,7 +363,7 @@ class ReadMessagesTool(Tool):
             "nullable": True,
         },
         "thread_id": {
-            "type": "string", 
+            "type": "string",
             "description": "Optional channel/thread ID to filter messages from specific discussions",
             "nullable": True,
         },
@@ -374,7 +371,7 @@ class ReadMessagesTool(Tool):
             "type": "boolean",
             "description": "Whether to mark messages as read after retrieving them (default: True)",
             "nullable": True,
-        }
+        },
     }
     output_type = "array"
 
@@ -383,15 +380,17 @@ class ReadMessagesTool(Tool):
         self.message_store = message_store
         self.agent_name = agent_name
 
-    def forward(self, since_timestamp: Optional[str] = None, thread_id: Optional[str] = None, mark_as_read: bool = True) -> List[Dict[str, Any]]:
+    def forward(
+        self, since_timestamp: Optional[str] = None, thread_id: Optional[str] = None, mark_as_read: bool = True
+    ) -> List[Dict[str, Any]]:
         """Read all messages for this agent with enhanced filtering."""
         try:
             messages = self.message_store.get_messages(
-                agent_id=self.agent_name, 
-                last_seen_ts=since_timestamp, 
+                agent_id=self.agent_name,
+                last_seen_ts=since_timestamp,
                 thread_id=thread_id,
-                include_mentions=True, 
-                include_private=True
+                include_mentions=True,
+                include_private=True,
             )
 
             if not messages:
@@ -409,17 +408,18 @@ class ReadMessagesTool(Tool):
                     "timestamp": msg.get("timestamp"),
                     "recipients": msg.get("recipients"),
                     "is_mention": f"@{self.agent_name}" in str(msg.get("content", "")),
-                    "is_private": self.agent_name in msg.get("recipients", [])
+                    "is_private": self.agent_name in msg.get("recipients", []),
                 }
                 formatted_messages.append(formatted_msg)
 
             # Sort by timestamp (oldest first)
             formatted_messages.sort(key=lambda m: m.get("timestamp", ""))
-            
+
             return formatted_messages
-            
+
         except Exception as e:
             return [{"error": f"Failed to read messages: {str(e)}"}]
+
 
 class ReadNotificationsTool(Tool):
     """Tool for checking notifications including mentions, direct messages, and polls."""
@@ -471,7 +471,7 @@ class ReadNotificationsTool(Tool):
                         )
 
             notifications["polls_needing_votes"] = polls_needing_votes
-            
+
             # Add channel information to thread updates
             if "thread_updates" in notifications:
                 channels_info = self.message_store.get_channels_info(agent_id=self.agent_name)
@@ -482,10 +482,10 @@ class ReadNotificationsTool(Tool):
                             "channel_info": {
                                 "subject": channels_info[thread_id].get("subject", thread_id),
                                 "description": channels_info[thread_id].get("description", ""),
-                                "members": channels_info[thread_id].get("members", [])
-                            }
+                                "members": channels_info[thread_id].get("members", []),
+                            },
                         }
-            
+
             return notifications
 
         except Exception as e:
@@ -512,7 +512,7 @@ class ListChannelsTool(Tool):
             "type": "string",
             "description": "Optional timestamp to filter channels by recent activity (ISO format)",
             "nullable": True,
-        }
+        },
     }
     output_type = "array"
 
@@ -525,18 +525,18 @@ class ListChannelsTool(Tool):
         """List all channels visible to this agent with filtering options."""
         try:
             channels_info = self.message_store.get_channels_info(agent_id=self.agent_name)
-            
+
             channels_list = []
             for channel_id, info in channels_info.items():
                 # Filter by activity if timestamp provided
                 if since_timestamp and info.get("last_activity", "") <= since_timestamp:
                     if not include_inactive:
                         continue
-                
+
                 # Skip channels with very low activity if not including inactive
                 if not include_inactive and info.get("message_count", 0) < 2:
                     continue
-                
+
                 channel_data = {
                     "channel_id": channel_id,
                     "subject": info.get("subject", channel_id),
@@ -548,13 +548,13 @@ class ListChannelsTool(Tool):
                     "message_count": info.get("message_count", 0),
                     "last_activity": info.get("last_activity", ""),
                     "is_created_channel": info.get("is_created_channel", False),
-                    "is_member": self.agent_name in info.get("members", [])
+                    "is_member": self.agent_name in info.get("members", []),
                 }
                 channels_list.append(channel_data)
-            
+
             # Sort by last activity (most recent first)
             channels_list.sort(key=lambda x: x.get("last_activity", ""), reverse=True)
-            
+
             return channels_list
 
         except Exception as e:
@@ -630,8 +630,8 @@ class CreateGeneralPollTool(Tool):
         """Create a general poll for team decision-making."""
         try:
             # Check if there are any active polls
-            #active_polls = self.message_store.get_active_polls()
-            #if active_polls:
+            # active_polls = self.message_store.get_active_polls()
+            # if active_polls:
             #    return f"🚫 Cannot create poll: There is already an active poll in progress (ID: {active_polls[0].get('poll_id')})"
 
             result = self.message_store.create_poll(
@@ -654,7 +654,7 @@ class CreateFinalAnswerPollTool(Tool):
     The proposal will be voted on by all agents, and if it reaches majority consensus (N//2 + 1 votes),
     it will be returned as the final answer to the user.
     Do not put here elements like, "I will do...", just the answer.
-    
+
     CRITICAL FORMAT INSTRUCTIONS:
     Always carefully follow the format required by the question. This could be for instance:
     - For math problems: final_answer should be ONLY the number, expression, or mathematical result (e.g., "7", "3.14", "$50")
@@ -685,8 +685,8 @@ class CreateFinalAnswerPollTool(Tool):
         """Create a poll for a final answer proposal."""
         try:
             # Check if there are any active polls
-            #active_polls = self.message_store.get_active_polls()
-            #if active_polls:
+            # active_polls = self.message_store.get_active_polls()
+            # if active_polls:
             #    return f"🚫 Cannot create final answer poll: There is already an active poll in progress (ID: {active_polls[0].get('poll_id')})"
 
             # Create question and proposal for final answer
@@ -703,7 +703,7 @@ class CreateFinalAnswerPollTool(Tool):
                 proposal=full_proposal,
                 proposer=self.agent_name,
                 thread_id="main",
-                final_answer=final_answer  # Store clean answer separately
+                final_answer=final_answer,  # Store clean answer separately
             )
 
             poll_id = result.get("content", {}).get("poll_id", "unknown")
@@ -766,7 +766,12 @@ class VoteOnPollTool(Tool):
                 if len(active_polls) == 1:
                     target_poll = active_polls[0]
                 else:
-                    poll_list = "\n".join([f"- {p.get('poll_id', 'unknown')}: {p.get('question', 'Unknown question')[:60]}..." for p in active_polls])
+                    poll_list = "\n".join(
+                        [
+                            f"- {p.get('poll_id', 'unknown')}: {p.get('question', 'Unknown question')[:60]}..."
+                            for p in active_polls
+                        ]
+                    )
                     return f"❌ Multiple active polls found. Please specify poll_id parameter:\n{poll_list}"
 
             poll_id = target_poll.get("poll_id")
@@ -777,10 +782,12 @@ class VoteOnPollTool(Tool):
             vote_info = self.message_store.count_votes(poll_id)
             voters = vote_info.get("votes_by_voter", {})
             if self.agent_name in voters:
-                return f"❌ You have already voted on poll {poll_id}. Current vote: {voters[self.agent_name].get('vote')}"
+                return (
+                    f"❌ You have already voted on poll {poll_id}. Current vote: {voters[self.agent_name].get('vote')}"
+                )
 
             # Record vote
-            result = self.message_store.record_vote(
+            self.message_store.record_vote(
                 poll_id=poll_id,
                 voter=self.agent_name,
                 vote=vote,

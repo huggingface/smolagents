@@ -13,7 +13,7 @@ from scripts.agents import DecentralizedAgents
 from scripts.message_store import MessageStore
 
 
-QUESTION_ADDON= """It is critical to respect the format of the answer when it is asked. """
+QUESTION_ADDON = """It is critical to respect the format of the answer when it is asked. """
 
 
 # Langfuse instrumentation setup
@@ -52,10 +52,10 @@ def setup_logging(run_dir: Path) -> None:
 
     # Create formatters
     json_formatter = logging.Formatter('{"timestamp":"%(asctime)s", "level":"%(levelname)s", "message":%(message)s}')
-    #console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    # console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
     # File handler with JSON format
-    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(json_formatter)
 
@@ -102,54 +102,56 @@ def main(args: argparse.Namespace) -> int:
             model_type=args.model_type,
             model_id=args.model_id,
             provider=args.provider,
-            run_id=run_id
+            run_id=run_id,
         )
 
         # Run the team on the task with enhanced collaboration instructions
         enhanced_task = f"{args.question}"
         logging.info(json.dumps({"event": "starting_execution", "run_id": run_id, "question": args.question}))
         result = decentralized_team.run(enhanced_task)
-        
-        logging.info(json.dumps({
-            "event": "execution_completed", 
-            "run_id": run_id, 
-            "status": result.get("status", "unknown"),
-            "has_answer": "answer" in result
-        }))
+
+        logging.info(
+            json.dumps(
+                {
+                    "event": "execution_completed",
+                    "run_id": run_id,
+                    "status": result.get("status", "unknown"),
+                    "has_answer": "answer" in result,
+                }
+            )
+        )
 
         # Output the result
         if result["status"] in ["success", "success_early", "success_fallback"]:
             print(json.dumps({"answer": result["answer"]}))
             return 0
         else:
-            error_msg = result.get('error', 'No valid results')
-            logging.error(json.dumps({
-                "event": "execution_failed", 
-                "run_id": run_id, 
-                "error": error_msg,
-                "result": result
-            }))
+            error_msg = result.get("error", "No valid results")
+            logging.error(
+                json.dumps({"event": "execution_failed", "run_id": run_id, "error": error_msg, "result": result})
+            )
             print(f"\n❌ Team execution failed: {error_msg}")
             return 1
-            
+
     except Exception as e:
         # Catch any unexpected errors and log them with full context
-        logging.error(json.dumps({
-            "event": "unexpected_error",
-            "run_id": run_id,
-            "error_type": type(e).__name__,
-            "error_message": str(e),
-            "question": args.question
-        }))
-        
+        logging.error(
+            json.dumps(
+                {
+                    "event": "unexpected_error",
+                    "run_id": run_id,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "question": args.question,
+                }
+            )
+        )
+
         # Also log the full stack trace for debugging
         import traceback
-        logging.error(json.dumps({
-            "event": "error_traceback",
-            "run_id": run_id,
-            "traceback": traceback.format_exc()
-        }))
-        
+
+        logging.error(json.dumps({"event": "error_traceback", "run_id": run_id, "traceback": traceback.format_exc()}))
+
         print(f"\n❌ Unexpected error: {e}")
         return 1
 
