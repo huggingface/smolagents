@@ -5,6 +5,7 @@ wandb
 make_test_log.xml
 runs/
 runs_old/
+runs_v0/
 
 #Test gaia
 wb/
