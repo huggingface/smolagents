@@ -76,7 +76,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor, WasmExecutor
+from .remote_executors import DockerExecutor, E2BExecutor, ModalExecutor, WasmExecutor
 from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
     AgentError,
@@ -497,10 +497,11 @@ You have been provided with these additional arguments, that you can access dire
         if stream:
             # The steps are returned as they are executed through a generator to iterate on.
             return self._run_stream(task=self.task, max_steps=max_steps, images=images)
-        run_start_time = time.time()
-        # Outputs are returned only at the end. We only look at the last step.
 
+        run_start_time = time.time()
         steps = list(self._run_stream(task=self.task, max_steps=max_steps, images=images))
+
+        # Outputs are returned only at the end. We only look at the last step.
         assert isinstance(steps[-1], FinalAnswerStep)
         output = steps[-1].output
 
@@ -606,7 +607,7 @@ You have been provided with these additional arguments, that you can access dire
                 self.step_number += 1
 
         if not returned_final_answer and self.step_number == max_steps + 1:
-            final_answer = self._handle_max_steps_reached(task, images)
+            final_answer = self._handle_max_steps_reached(task)
             yield action_step
         yield FinalAnswerStep(handle_agent_output_types(final_answer))
 
@@ -621,9 +622,9 @@ You have been provided with these additional arguments, that you can access dire
         memory_step.timing.end_time = time.time()
         self.step_callbacks.callback(memory_step, agent=self)
 
-    def _handle_max_steps_reached(self, task: str, images: list["PIL.Image.Image"]) -> Any:
+    def _handle_max_steps_reached(self, task: str) -> Any:
         action_step_start_time = time.time()
-        final_answer = self.provide_final_answer(task, images)
+        final_answer = self.provide_final_answer(task)
         final_memory_step = ActionStep(
             step_number=self.step_number,
             error=AgentMaxStepsError("Reached max steps.", self.logger),
@@ -811,7 +812,7 @@ You have been provided with these additional arguments, that you can access dire
             )
         return rationale.strip(), action.strip()
 
-    def provide_final_answer(self, task: str, images: list["PIL.Image.Image"] | None = None) -> ChatMessage:
+    def provide_final_answer(self, task: str) -> ChatMessage:
         """
         Provide the final answer to the task, based on the logs of the agent's interactions.
 
@@ -833,8 +834,6 @@ You have been provided with these additional arguments, that you can access dire
                 ],
             )
         ]
-        if images:
-            messages[0].content += [{"type": "image", "image": image} for image in images]
         messages += self.write_memory_to_messages()[1:]
         messages.append(
             ChatMessage(
@@ -1502,7 +1501,7 @@ class CodeAgent(MultiStepAgent):
         prompt_templates ([`~agents.PromptTemplates`], *optional*): Prompt templates.
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
-        executor_type (`Literal["local", "e2b", "docker", "wasm"]`, default `"local"`): Type of code executor.
+        executor_type (`Literal["local", "e2b", "modal", "docker", "wasm"]`, default `"local"`): Type of code executor.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
@@ -1520,7 +1519,7 @@ class CodeAgent(MultiStepAgent):
         prompt_templates: PromptTemplates | None = None,
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
-        executor_type: Literal["local", "e2b", "docker", "wasm"] = "local",
+        executor_type: Literal["local", "e2b", "modal", "docker", "wasm"] = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
@@ -1568,7 +1567,7 @@ class CodeAgent(MultiStepAgent):
                 "Caution: you set an authorization for all imports, meaning your agent can decide to import any package it deems necessary. This might raise issues if the package is not installed in your environment.",
                 level=LogLevel.INFO,
             )
-        if executor_type not in {"local", "e2b", "docker", "wasm"}:
+        if executor_type not in {"local", "e2b", "modal", "docker", "wasm"}:
             raise ValueError(f"Unsupported executor type: {executor_type}")
         self.executor_type = executor_type
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
@@ -1598,6 +1597,7 @@ class CodeAgent(MultiStepAgent):
                 "e2b": E2BExecutor,
                 "docker": DockerExecutor,
                 "wasm": WasmExecutor,
+                "modal": ModalExecutor,
             }
             return remote_executors[self.executor_type](
                 self.additional_authorized_imports, self.logger, **self.executor_kwargs
