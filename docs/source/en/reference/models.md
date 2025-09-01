@@ -53,7 +53,7 @@ model = TransformersModel(
 ```
 
 > [!TIP]
-> You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
+> You must have `transformers` and `torch` installed on your machine. Please run `pip install 'smolagents[transformers]'` if it's not the case.
 
 [[autodoc]] TransformersModel
 
@@ -228,7 +228,7 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 ```
 
 > [!TIP]
-> You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
+> You must have `mlx-lm` installed on your machine. Please run `pip install 'smolagents[mlx-lm]'` if it's not the case.
 
 [[autodoc]] MLXModel
 
@@ -245,7 +245,7 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 ```
 
 > [!TIP]
-> You must have `vllm` installed on your machine. Please run `pip install smolagents[vllm]` if it's not the case.
+> You must have `vllm` installed on your machine. Please run `pip install 'smolagents[vllm]'` if it's not the case.
 
 [[autodoc]] VLLMModel
 
