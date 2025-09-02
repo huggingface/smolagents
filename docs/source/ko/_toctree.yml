@@ -4,6 +4,10 @@
     title: 소개
   - local: guided_tour
     title: 안내서
+- title: 튜토리얼
+  sections:
+  - title: 좋은 에이전트 구축하기
+    local: tutorials/building_good_agents
 - title: 예제
   sections:
   - local: examples/text_to_sql
@@ -30,7 +34,3 @@
       local: reference/tools
     - title: Built-in Tools
       local: reference/default_tools
-  - title: 튜토리얼
-    sections:
-    - title: 좋은 에이전트 구축하기
-      local: tutorials/building_good_agents
