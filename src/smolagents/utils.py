@@ -446,7 +446,7 @@ from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app 
 {% endfor %}
 
 model = {{ agent_dict['model']['class'] }}(
-{% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
+{% for key in agent_dict['model']['data'] if key != 'class' -%}
     {{ key }}={{ agent_dict['model']['data'][key]|repr }},
 {% endfor %})
 

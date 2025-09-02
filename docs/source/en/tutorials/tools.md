@@ -174,6 +174,81 @@ with MCPClient([server_params1, server_params2]) as tools:
 > - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
 > - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
 
+#### Structured Output and Output Schema Support
+
+The latest [MCP specifications (2025-06-18+)](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#structured-content) include support for `outputSchema`, which enables tools to return structured data with defined schemas. `smolagents` takes advantage of these structured output capabilities, allowing agents to work with tools that return complex data structures, JSON objects, and other structured formats. With this feature, the agent's LLMs can "see" the structure of the tool output before calling a tool, enabling more intelligent and context-aware interactions.
+
+To enable structured output support, pass `structured_output=True` when initializing the `MCPClient`:
+
+```python
+from smolagents import MCPClient, CodeAgent
+
+# Enable structured output support
+with MCPClient(server_parameters, structured_output=True) as tools:
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    agent.run("Get weather information for Paris")
+```
+
+When `structured_output=True`, the following features are enabled:
+- **Output Schema Support**: Tools can define JSON schemas for their outputs
+- **Structured Content Handling**: Support for `structuredContent` in MCP responses
+- **JSON Parsing**: Automatic parsing of structured data from tool responses
+
+Here's an example using a weather MCP server with structured output:
+
+```python
+# demo/weather.py - Example MCP server with structured output
+from pydantic import BaseModel, Field
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("Weather Service")
+
+class WeatherInfo(BaseModel):
+    location: str = Field(description="The location name")
+    temperature: float = Field(description="Temperature in Celsius")
+    conditions: str = Field(description="Weather conditions")
+    humidity: int = Field(description="Humidity percentage", ge=0, le=100)
+
+@mcp.tool(
+    name="get_weather_info",
+    description="Get weather information for a location as structured data.",
+    # structured_output=True is enabled by default in FastMCP
+)
+def get_weather_info(city: str) -> WeatherInfo:
+    """Get weather information for a city."""
+    return WeatherInfo(
+        location=city,
+        temperature=22.5,
+        conditions="partly cloudy",
+        humidity=65
+    )
+```
+
+Agent using output schema and structured output:
+
+```python
+from smolagents import MCPClient, CodeAgent
+
+# Using the weather server with structured output
+from mcp import StdioServerParameters
+
+server_parameters = StdioServerParameters(
+    command="python",
+    args=["demo/weather.py"]
+)
+
+with MCPClient(server_parameters, structured_output=True) as tools:
+    agent = CodeAgent(tools=tools, model=model)
+    result = agent.run("What is the temperature in Tokyo in Fahrenheit?")
+    print(result)
+```
+
+When structured output is enabled, the `CodeAgent` system prompt is enhanced to include JSON schema information for tools, helping the agent understand the expected structure of tool outputs and access the data appropriately.
+
+**Backwards Compatibility**: The `structured_output` parameter currently defaults to `False` to maintain backwards compatibility. Existing code will continue to work without changes, receiving simple text outputs as before.
+
+**Future Change**: In a future release, the default value of `structured_output` will change from `False` to `True`. It is recommended to explicitly set `structured_output=True` to opt into the enhanced functionality, which provides better tool output handling and improved agent performance. Use `structured_output=False` only if you specifically need to maintain the current text-only behavior.
+
 ### Import a Space as a tool
 
 You can directly import a Gradio Space from the Hub as a tool using the [`Tool.from_space`] method!
@@ -296,6 +371,13 @@ server_parameters = StdioServerParameters(
 )
 
 with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], model=model, add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
+
+To enable structured output support with ToolCollection, add the `structured_output=True` parameter:
+```py
+with ToolCollection.from_mcp(server_parameters, trust_remote_code=True, structured_output=True) as tool_collection:
     agent = CodeAgent(tools=[*tool_collection.tools], model=model, add_base_tools=True)
     agent.run("Please find a remedy for hangover.")
 ```

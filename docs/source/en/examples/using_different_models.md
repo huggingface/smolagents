@@ -18,6 +18,9 @@ This guide will show you how to use different model types with your agents.
 8. [`AzureOpenAIServerModel`]: Uses Azure's OpenAI service
 9. [`AmazonBedrockServerModel`]: Connects to AWS Bedrock's API
 
+All model classes support passing additional keyword arguments (like `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time.
+These parameters are automatically forwarded to the underlying model's completion calls, allowing you to configure model behavior such as creativity, response length, and sampling strategies.
+
 ## Using Google Gemini Models
 
 As explained in the Google Gemini API documentation (https://ai.google.dev/gemini-api/docs/openai),
@@ -26,7 +29,7 @@ with Gemini models by setting the appropriate base URL.
 
 First, install the required dependencies:
 ```bash
-pip install smolagents[openai]
+pip install 'smolagents[openai]'
 ```
 
 Then, [get a Gemini API key](https://ai.google.dev/gemini-api/docs/api-key) and set it in your code:
@@ -54,7 +57,7 @@ You can use the [`OpenAIServerModel`] to connect to OpenRouter by setting the ap
 
 First, install the required dependencies:
 ```bash
-pip install smolagents[openai]
+pip install 'smolagents[openai]'
 ```
 
 Then, [get an OpenRouter API key](https://openrouter.ai/keys) and set it in your code:

@@ -120,6 +120,9 @@ To initialize a minimal agent, you need at least these two arguments:
 
 Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), [Amazon Bedrock](https://aws.amazon.com/bedrock/?nc1=h_ls), or [mlx-lm](https://pypi.org/project/mlx-lm/).
 
+All model classes support passing additional keyword arguments (like `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time.
+These parameters are automatically forwarded to the underlying model's completion calls, allowing you to configure model behavior such as creativity, response length, and sampling strategies.
+
 <hfoptions id="Pick a LLM">
 <hfoption id="Inference Providers">
 
@@ -130,7 +133,7 @@ To access gated models or rise your rate limits with a PRO account, you need to 
 ```python
 from smolagents import CodeAgent, InferenceClientModel
 
-model_id = "meta-llama/Llama-3.3-70B-Instruct" 
+model_id = "meta-llama/Llama-3.3-70B-Instruct"
 
 model = InferenceClientModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>") # You can choose to not pass any model_id to InferenceClientModel to use a default model
 # you can also specify a particular provider e.g. provider="together" or provider="sambanova"
@@ -144,7 +147,7 @@ agent.run(
 <hfoption id="Local Transformers Model">
 
 ```python
-# !pip install smolagents[transformers]
+# !pip install 'smolagents[transformers]'
 from smolagents import CodeAgent, TransformersModel
 
 model_id = "meta-llama/Llama-3.2-3B-Instruct"
@@ -162,7 +165,7 @@ agent.run(
 To use `LiteLLMModel`, you need to set the environment variable `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, or pass `api_key` variable upon initialization.
 
 ```python
-# !pip install smolagents[litellm]
+# !pip install 'smolagents[litellm]'
 from smolagents import CodeAgent, LiteLLMModel
 
 model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-latest", api_key="YOUR_ANTHROPIC_API_KEY") # Could use 'gpt-4o'
@@ -176,7 +179,7 @@ agent.run(
 <hfoption id="Ollama">
 
 ```python
-# !pip install smolagents[litellm]
+# !pip install 'smolagents[litellm]'
 from smolagents import CodeAgent, LiteLLMModel
 
 model = LiteLLMModel(
@@ -200,7 +203,7 @@ To connect to Azure OpenAI, you can either use `AzureOpenAIServerModel` directly
 To initialize an instance of `AzureOpenAIServerModel`, you need to pass your model deployment name and then either pass the `azure_endpoint`, `api_key`, and `api_version` arguments, or set the environment variables `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `OPENAI_API_VERSION`.
 
 ```python
-# !pip install smolagents[openai]
+# !pip install 'smolagents[openai]'
 from smolagents import CodeAgent, AzureOpenAIServerModel
 
 model = AzureOpenAIServerModel(model_id="gpt-4o-mini")
@@ -243,7 +246,7 @@ The `AmazonBedrockServerModel` class provides native integration with Amazon Bed
 Basic Usage:
 
 ```python
-# !pip install smolagents[aws_sdk]
+# !pip install 'smolagents[bedrock]'
 from smolagents import CodeAgent, AmazonBedrockServerModel
 
 model = AmazonBedrockServerModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
@@ -309,7 +312,7 @@ agent.run("Explain the concept of quantum computing")
 <hfoption id="mlx-lm">
 
 ```python
-# !pip install smolagents[mlx-lm]
+# !pip install 'smolagents[mlx-lm]'
 from smolagents import CodeAgent, MLXModel
 
 mlx_model = MLXModel("mlx-community/Qwen2.5-Coder-32B-Instruct-4bit")
@@ -378,6 +381,8 @@ You can for instance check the [`PythonInterpreterTool`]: it has a name, a descr
 
 When the agent is initialized, the tool attributes are used to generate a tool description which is baked into the agent's system prompt. This lets the agent know which tools it can use and why.
 
+**Schema Information**: For tools that have an `output_schema` defined (such as MCP tools with structured output), the `CodeAgent` system prompt automatically includes the JSON schema information. This helps the agent understand the expected structure of tool outputs and access the data appropriately.
+
 ### Default toolbox
 
 If you install `smolagents` with the "toolkit" extra, it comes with a default toolbox for empowering agents, that you can add to your agent upon initialization with argument `add_base_tools=True`:
@@ -389,7 +394,7 @@ If you install `smolagents` with the "toolkit" extra, it comes with a default to
 You can manually use a tool by calling it with its arguments.
 
 ```python
-# !pip install smolagents[toolkit]
+# !pip install 'smolagents[toolkit]'
 from smolagents import WebSearchTool
 
 search_tool = WebSearchTool()
