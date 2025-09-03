@@ -38,7 +38,7 @@ docker = [
   "websocket-client",
 ]
 e2b = [
-  "e2b-code-interpreter>=2.0.0",
+  "e2b-code-interpreter>=1.0.3",
   "python-dotenv>=1.0.1",
 ]
 gradio = [
