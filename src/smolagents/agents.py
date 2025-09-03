@@ -677,7 +677,7 @@ You have been provided with these additional arguments, that you can access dire
                         plan_message.token_usage.output_tokens,
                     )
                     if plan_message.token_usage
-                    else (None, None)
+                    else (0, 0)
                 )
             plan = textwrap.dedent(
                 f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
