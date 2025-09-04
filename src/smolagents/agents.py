@@ -1535,15 +1535,23 @@ class CodeAgent(MultiStepAgent):
                 importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
             )
 
-        if isinstance(code_block_tags, str) and not code_block_tags == "markdown":
-            raise ValueError("Only 'markdown' is supported for a string argument to `code_block_tags`.")
-        self.code_block_tags = (
-            code_block_tags
-            if isinstance(code_block_tags, tuple)
-            else ("```python", "```")
-            if code_block_tags == "markdown"
-            else ("<code>", "</code>")
-        )
+        if isinstance(code_block_tags, str):
+            if code_block_tags == "markdown":
+                self.code_block_tags = ("```python", "```")  # Markdown default
+            elif code_block_tags == "html":
+                self.code_block_tags = ("<code>", "</code>")  # HTML option
+            else:
+                raise ValueError(
+                    "Only 'markdown' or 'html' are supported as string arguments for code_block_tags."
+                )
+        elif isinstance(code_block_tags, tuple):
+            self.code_block_tags = code_block_tags  # Use the tuple directly
+        else:
+            # Default to Markdown if nothing is passed
+            self.code_block_tags = ("```python", "```")
+
+        # --- remove from kwargs so parent doesn't see it ---
+        kwargs.pop("code_block_tags", None)
 
         super().__init__(
             tools=tools,
