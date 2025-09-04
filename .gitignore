@@ -2,10 +2,21 @@
 logs
 tmp
 wandb
+make_test_log.xml
+runs/
+runs_old/
+runs_v0/
+
+#Test gaia
+wb/
+pdb5wb7.ent
+downloads_folder/
+model_performance_comparison.png
+langfuse_test.py
 
 # Data
 data
-outputs
+output/
 data/
 
 # Apple
@@ -148,8 +159,11 @@ interpreter_workspace/
 # Archive
 archive/
 savedir/
-output/
+#output/
 tool_output/
 
 # Gradio runtime
 .gradio/
+
+#Other cache
+.ruff_cache/

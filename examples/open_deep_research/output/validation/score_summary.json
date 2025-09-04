@@ -1,0 +1,42 @@
+{
+  "total_questions": 165,
+  "correct_answers": 58,
+  "accuracy": 0.3515151515151515,
+  "error_rate": 0.0,
+  "parsing_error_rate": 0.0,
+  "iteration_limit_rate": 0.0,
+  "timestamp": "2025-07-25T14:39:15.850326",
+  "answers_file": "generate-traces-03_gaia_gpt4o.jsonl",
+  "task_performance": {
+    "total": {
+      "1": 53,
+      "2": 86,
+      "3": 26
+    },
+    "correct": {
+      "1": 25,
+      "2": 30,
+      "3": 3
+    },
+    "accuracy": {
+      "1": 0.472,
+      "2": 0.349,
+      "3": 0.115
+    },
+    "errors": {
+      "1": 0,
+      "2": 0,
+      "3": 0
+    },
+    "parsing_errors": {
+      "1": 0,
+      "2": 0,
+      "3": 0
+    },
+    "iteration_limits": {
+      "1": 0,
+      "2": 0,
+      "3": 0
+    }
+  }
+}
