@@ -393,6 +393,8 @@ But generally it's just simpler to pass argument `instructions` upon agent inita
 agent = CodeAgent(tools=[], model=InferenceClientModel(model_id=model_id), instructions="Always talk like a 5 year old.")
 ```
 
+Note that `instructions` are appended to the system prompt, not replacing it.
+
 
 ### 4. Extra planning
 
