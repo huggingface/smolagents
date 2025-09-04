@@ -671,14 +671,10 @@ You have been provided with these additional arguments, that you can access dire
             else:
                 plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
                 plan_message_content = plan_message.content
-                input_tokens, output_tokens = (
-                    (
-                        plan_message.token_usage.input_tokens,
-                        plan_message.token_usage.output_tokens,
-                    )
-                    if plan_message.token_usage
-                    else (0, 0)
-                )
+                input_tokens, output_tokens = 0, 0
+                if plan_message.token_usage:
+                    input_tokens = plan_message.token_usage.input_tokens
+                    output_tokens = plan_message.token_usage.output_tokens
             plan = textwrap.dedent(
                 f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
             )
