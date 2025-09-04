@@ -135,8 +135,8 @@ class DuckDuckGoSearchTool(Tool):
                 "You must install package `ddgs` to run this tool: for instance run `pip install ddgs`."
             ) from e
         # Pass timeout to DDGS if supported
-        if 'timeout' not in kwargs:
-            kwargs['timeout'] = timeout
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = timeout
         self.ddgs = DDGS(**kwargs)
 
     def forward(self, query: str) -> str:
@@ -332,7 +332,7 @@ class ApiWebSearchTool(Tool):
             raise Exception(f"Search request timed out after {self.timeout} seconds. Please try again.")
         except requests.exceptions.RequestException as e:
             raise Exception(f"Search request failed: {str(e)}")
-        
+
         data = response.json()
         results = self.extract_results(data)
         return self.format_markdown(results)
@@ -402,7 +402,7 @@ class WebSearchTool(Tool):
             raise Exception(f"DuckDuckGo search timed out after {self.timeout} seconds. Please try again.")
         except requests.exceptions.RequestException as e:
             raise Exception(f"DuckDuckGo search failed: {str(e)}")
-        
+
         parser = self._create_duckduckgo_parser()
         parser.feed(response.text)
         return parser.results
@@ -469,7 +469,7 @@ class WebSearchTool(Tool):
             raise Exception(f"Bing search timed out after {self.timeout} seconds. Please try again.")
         except requests.exceptions.RequestException as e:
             raise Exception(f"Bing search failed: {str(e)}")
-        
+
         root = ET.fromstring(response.text)
         items = root.findall(".//item")
         results = [
@@ -617,8 +617,8 @@ class WikipediaSearchTool(Tool):
         self.extract_format = extract_format_map[extract_format]
 
         self.wiki = wikipediaapi.Wikipedia(
-            user_agent=self.user_agent, 
-            language=self.language, 
+            user_agent=self.user_agent,
+            language=self.language,
             extract_format=self.extract_format,
             timeout=self.timeout,
         )
