@@ -26,7 +26,6 @@ import tempfile
 import time
 from contextlib import closing
 from io import BytesIO
-from pathlib import Path
 from textwrap import dedent
 from typing import Any, Optional
 
@@ -410,13 +409,8 @@ class DockerExecutor(RemotePythonExecutor):
 
             if build_new_image:
                 self.logger.log(f"Building Docker image {self.image_name}...", level=LogLevel.INFO)
-                dockerfile_path = Path(__file__).parent / "Dockerfile"
-                if not dockerfile_path.exists():
-                    with open(dockerfile_path, "w") as f:
-                        f.write(self.dockerfile_content)
-                _, build_logs = self.client.images.build(
-                    path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
-                )
+                dockerfile_obj = BytesIO(self.dockerfile_content.encode("utf-8"))
+                _, build_logs = self.client.images.build(fileobj=dockerfile_obj, tag=self.image_name)
                 for log_chunk in build_logs:
                     # Only log non-empty messages
                     if log_message := log_chunk.get("stream", "").rstrip():
