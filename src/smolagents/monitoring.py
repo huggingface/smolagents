@@ -210,7 +210,7 @@ class AgentLogger:
         )
 
     def log_messages(self, messages: list[dict], level: LogLevel = LogLevel.DEBUG) -> None:
-        messages_as_string = "\n".join([json.dumps(dict(message), indent=4) for message in messages])
+        messages_as_string = "\n".join([json.dumps(message.dict(), indent=4) for message in messages])
         self.log(
             Syntax(
                 messages_as_string,
