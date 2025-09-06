@@ -18,4 +18,4 @@
   isExpanded: false
   sections:
   - local: reference/default_tools
-    title: 기본 도구
+    title: Default Tools
