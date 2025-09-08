@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from PIL import Image
 
@@ -66,7 +68,9 @@ def test_action_step_dict():
     action_step_dict = action_step.dict()
     # Check each key individually for better test failure messages
     assert "model_input_messages" in action_step_dict
-    assert action_step_dict["model_input_messages"] == [ChatMessage(role=MessageRole.USER, content="Hello")]
+    assert action_step_dict["model_input_messages"] == [
+        {"role": MessageRole.USER, "content": "Hello", "tool_calls": None, "raw": None, "token_usage": None}
+    ]
 
     assert "tool_calls" in action_step_dict
     assert len(action_step_dict["tool_calls"]) == 1
@@ -226,3 +230,44 @@ def test_system_prompt_step_to_messages():
             assert isinstance(content, dict)
             assert "type" in content
             assert "text" in content
+
+
+def test_memory_step_json_serialization():
+    """Test that memory steps can be JSON serialized without raw fields."""
+
+    # Create a mock ChatCompletion-like object (this is what was causing the error)
+    class MockChatCompletion:
+        def __init__(self):
+            self.id = "chatcmpl-test"
+            self.choices = []
+
+    # Create a ChatMessage with raw field containing the non-serializable object
+    chat_message = ChatMessage(role=MessageRole.ASSISTANT, content="Test response", raw=MockChatCompletion())
+
+    # Test ActionStep serialization
+    action_step = ActionStep(
+        step_number=1,
+        timing=Timing(start_time=123456, end_time=123457),
+        model_output_message=chat_message,
+        model_input_messages=[chat_message],
+    )
+
+    step_dict = action_step.dict()
+    json_str = json.dumps(step_dict)
+    # Raw field should be present but serializable
+    assert "raw" in json_str
+    assert "MockChatCompletion" in json_str
+
+    # Test PlanningStep serialization
+    planning_step = PlanningStep(
+        model_input_messages=[chat_message],
+        model_output_message=chat_message,
+        plan="Test plan",
+        timing=Timing(start_time=123456, end_time=123457),
+    )
+
+    planning_dict = planning_step.dict()
+    json_str = json.dumps(planning_dict)
+    # Raw field should be present but serializable
+    assert "raw" in json_str
+    assert "MockChatCompletion" in json_str

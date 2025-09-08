@@ -80,7 +80,7 @@ run_capture_exception(harmful_command)
 
 
 # Imports like os will not be performed unless explicitly added to `additional_authorized_imports`
-harmful_command="import os; exit_code = os.system("echo Bad command")"
+harmful_command="import os; exit_code = os.system('echo Bad command')"
 run_capture_exception(harmful_command)
 # >>> ERROR: Code execution failed at line 'import os' due to: InterpreterError: Import of os is not allowed. Authorized imports are: ['statistics', 'numpy', 'itertools', 'time', 'queue', 'collections', 'math', 'random', 're', 'datetime', 'stat', 'unicodedata']
 
@@ -116,9 +116,10 @@ For high-security applications or when using less trusted models, you should con
 When working with AI agents that execute code, security is paramount. There are two main approaches to sandboxing code execution in smolagents, each with different security properties and capabilities:
 
 
-![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/remote_execution.png)
+![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png)
 
-1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"` or `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
+1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="e2b"`, `executor_type="modal"`, or
+`executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
 
 2. **Running the entire agentic system in a sandbox**: This approach (right side of diagram) runs the entire agentic system, including the agent, model, and tools, within a sandbox environment. This provides better isolation but requires more manual setup and may require passing sensitive credentials (like API keys) to the sandbox environment.
 
@@ -141,9 +142,7 @@ We provide a simple way to use an E2B Sandbox: simply add `executor_type="e2b"` 
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b")
-
-with agent:
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="e2b") as agent:
     agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
@@ -220,6 +219,33 @@ execution_logs = run_code_raise_errors(sandbox, agent_code)
 print(execution_logs)
 ```
 
+### Modal setup
+
+#### Installation
+
+1. Create a Modal account at [modal.com](https://modal.com/signup)
+2. Install the required packages:
+```bash
+pip install 'smolagents[modal]'
+```
+
+#### Running your agent in Modal: quick start
+
+We provide a simple way to use a Modal Sandbox: simply add `executor_type="modal"` to the agent initialization, as follows:
+
+```py
+from smolagents import InferenceClientModel, CodeAgent
+
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="modal") as agent:
+    agent.run("What is the 42th Fibonacci number?")
+```
+
+> [!TIP]
+> Using the agent as a context manager (with the `with` statement) ensures that the Modal sandbox is cleaned immediately after the agent completes its task.
+> Alternatively, you can manually call the agent's `cleanup()` method.
+
+The agent state and generated code from the `InferenceClientModel` are sent to a Modal sandbox, which can securely execute code inside them.
+
 ### Docker setup
 
 #### Installation
@@ -237,9 +263,7 @@ Similar to the E2B Sandbox above, to quickly get started with Docker, simply add
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
-agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker")
-
-with agent:
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker") as agent:
     agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
@@ -373,6 +397,28 @@ print(response)
 
 finally:
     sandbox.cleanup()
+```
+
+### WebAssembly setup
+
+WebAssembly (Wasm) is a binary instruction format that allows code to be run in a safe, sandboxed environment.
+It is designed to be fast, efficient, and secure, making it an excellent choice for executing potentially untrusted code.
+
+The `WasmExecutor` uses [Pyodide](https://pyodide.org/) and [Deno](https://docs.deno.com/).
+
+#### Installation
+
+1. [Install Deno on your system](https://docs.deno.com/runtime/getting_started/installation/)
+
+#### Running your agent in WebAssembly: quick start
+
+Simply pass `executor_type="wasm"` to the agent initialization, like:
+```py
+from smolagents import InferenceClientModel, CodeAgent
+
+agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="wasm")
+
+agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
 ### Best practices for sandboxes

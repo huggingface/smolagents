@@ -100,19 +100,38 @@ class UserInputTool(Tool):
 
 
 class DuckDuckGoSearchTool(Tool):
+    """Web search tool that performs searches using the DuckDuckGo search engine.
+
+    Args:
+        max_results (`int`, default `10`): Maximum number of search results to return.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
+        **kwargs: Additional keyword arguments for the `DDGS` client.
+
+    Examples:
+        ```python
+        >>> from smolagents import DuckDuckGoSearchTool
+        >>> web_search_tool = DuckDuckGoSearchTool(max_results=5, rate_limit=2.0)
+        >>> results = web_search_tool("Hugging Face")
+        >>> print(results)
+        ```
+    """
+
     name = "web_search"
     description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results."""
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results=10, **kwargs):
+    def __init__(self, max_results: int = 10, rate_limit: float | None = 1.0, **kwargs):
         super().__init__()
         self.max_results = max_results
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
         except ImportError as e:
             raise ImportError(
-                "You must install package `duckduckgo_search` to run this tool: for instance run `pip install duckduckgo-search`."
+                "You must install package `ddgs` to run this tool: for instance run `pip install ddgs`."
             ) from e
         self.ddgs = DDGS(**kwargs)
 
@@ -131,8 +150,22 @@ class DuckDuckGoSearchTool(Tool):
         return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
     
     def _sync_search(self, query: str):
-        """Helper method to run sync search in thread."""
+        """Helper method to run sync search in thread with rate limiting."""
+        self._enforce_rate_limit()
         return self.ddgs.text(query, max_results=self.max_results)
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        # No rate limit enforced
+        if not self.rate_limit:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
 
 
 class GoogleSearchTool(Tool):
@@ -230,26 +263,73 @@ class GoogleSearchTool(Tool):
 
 
 class ApiWebSearchTool(Tool):
+    """Web search tool that performs API-based searches.
+    By default, it uses the Brave Search API.
+
+    This tool implements a rate limiting mechanism to ensure compliance with API usage policies.
+    By default, it limits requests to 1 query per second.
+
+    Args:
+        endpoint (`str`): API endpoint URL. Defaults to Brave Search API.
+        api_key (`str`): API key for authentication.
+        api_key_name (`str`): Environment variable name containing the API key. Defaults to "BRAVE_API_KEY".
+        headers (`dict`, *optional*): Headers for API requests.
+        params (`dict`, *optional*): Parameters for API requests.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
+
+    Examples:
+        ```python
+        >>> from smolagents import ApiWebSearchTool
+        >>> web_search_tool = ApiWebSearchTool(rate_limit=50.0)
+        >>> results = web_search_tool("Hugging Face")
+        >>> print(results)
+        ```
+    """
+
     name = "web_search"
     description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, URLs, and descriptions."
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
     def __init__(
-        self, endpoint: str = "", api_key: str = "", api_key_name: str = "", headers: dict = None, params: dict = None
+        self,
+        endpoint: str = "",
+        api_key: str = "",
+        api_key_name: str = "",
+        headers: dict = None,
+        params: dict = None,
+        rate_limit: float | None = 1.0,
     ):
         import os
 
         super().__init__()
         self.endpoint = endpoint or "https://api.search.brave.com/res/v1/web/search"
-        self.api_key = api_key or os.getenv(api_key_name)
+        self.api_key_name = api_key_name or "BRAVE_API_KEY"
+        self.api_key = api_key or os.getenv(self.api_key_name)
         self.headers = headers or {"X-Subscription-Token": self.api_key}
         self.params = params or {"count": 10}
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        # No rate limit enforced
+        if not self.rate_limit:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
 
     async def forward(self, query: str) -> str:
         import aiohttp
         import asyncio
 
+        self._enforce_rate_limit()
         params = {**self.params, "q": query}
         
         try:
@@ -440,9 +520,7 @@ class VisitWebpageTool(Tool):
         if len(content) <= max_length:
             return content
         return (
-            content[: max_length // 2]
-            + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
-            + content[-max_length // 2 :]
+            content[:max_length] + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
         )
 
     async def forward(self, url: str) -> str:
@@ -480,16 +558,18 @@ class VisitWebpageTool(Tool):
 
 class WikipediaSearchTool(Tool):
     """
-    WikipediaSearchTool searches Wikipedia and returns a summary or full text of the given topic, along with the page URL.
+    Search Wikipedia and return the summary or full text of the requested article, along with the page URL.
 
     Attributes:
-        user_agent (str): A custom user-agent string to identify the project. This is required as per Wikipedia API policies, read more here: http://github.com/martin-majlis/Wikipedia-API/blob/master/README.rst
-        language (str): The language in which to retrieve Wikipedia articles.
-                http://meta.wikimedia.org/wiki/List_of_Wikipedias
-        content_type (str): Defines the content to fetch. Can be "summary" for a short summary or "text" for the full article.
-        extract_format (str): Defines the output format. Can be `"WIKI"` or `"HTML"`.
+        user_agent (`str`): Custom user-agent string to identify the project. This is required as per Wikipedia API policies.
+            See: https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
+        language (`str`, default `"en"`): Language in which to retrieve Wikipedia article.
+            See: http://meta.wikimedia.org/wiki/List_of_Wikipedias
+        content_type (`Literal["summary", "text"]`, default `"text"`): Type of content to fetch. Can be "summary" for a short summary or "text" for the full article.
+        extract_format (`Literal["HTML", "WIKI"]`, default `"WIKI"`): Extraction format of the output. Can be `"WIKI"` or `"HTML"`.
 
     Example:
+        ```python
         >>> from smolagents import CodeAgent, InferenceClientModel, WikipediaSearchTool
         >>> agent = CodeAgent(
         >>>     tools=[
@@ -503,6 +583,7 @@ class WikipediaSearchTool(Tool):
         >>>     model=InferenceClientModel(),
         >>> )
         >>> agent.run("Python_(programming_language)")
+        ```
     """
 
     name = "wikipedia_search"
@@ -632,6 +713,7 @@ TOOL_MAPPING = {
 }
 
 __all__ = [
+    "ApiWebSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",

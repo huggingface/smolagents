@@ -20,6 +20,65 @@ def test_tool():
 
 
 @pytest.fixture
+def no_input_tool():
+    class NoInputTool(Tool):
+        name = "no_input_tool"
+        description = "Tool with no inputs"
+        inputs = {}
+        output_type = "string"
+
+        def forward(self):
+            return "test"
+
+    return NoInputTool()
+
+
+@pytest.fixture
+def single_input_tool():
+    class SingleInputTool(Tool):
+        name = "single_input_tool"
+        description = "Tool with one input"
+        inputs = {"text": {"type": "string", "description": "Input text"}}
+        output_type = "string"
+
+        def forward(self, text):
+            return "test"
+
+    return SingleInputTool()
+
+
+@pytest.fixture
+def multi_input_tool():
+    class MultiInputTool(Tool):
+        name = "multi_input_tool"
+        description = "Tool with multiple inputs"
+        inputs = {
+            "text": {"type": "string", "description": "Text input"},
+            "count": {"type": "integer", "description": "Number count"},
+        }
+        output_type = "object"
+
+        def forward(self, text, count):
+            return "test"
+
+    return MultiInputTool()
+
+
+@pytest.fixture
+def multiline_description_tool():
+    class MultilineDescriptionTool(Tool):
+        name = "multiline_description_tool"
+        description = "This is a tool with\nmultiple lines\nin the description"
+        inputs = {"input": {"type": "string", "description": "Some input"}}
+        output_type = "string"
+
+        def forward(self, input):
+            return "test"
+
+    return MultilineDescriptionTool()
+
+
+@pytest.fixture
 def example_tool():
     @tool
     def valid_tool_function(input: str) -> str:

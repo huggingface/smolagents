@@ -10,7 +10,7 @@ can vary as the APIs or underlying models are prone to change.
 To learn more about agents and tools make sure to read the [introductory guide](../index). This page
 contains the API docs for the underlying classes.
 
-## Tools
+## Tool Base Classes
 
 ### load_tool
 
@@ -28,40 +28,6 @@ contains the API docs for the underlying classes.
 
 [[autodoc]] launch_gradio_demo
 
-## Default tools
-
-### PythonInterpreterTool
-
-[[autodoc]] PythonInterpreterTool
-
-### FinalAnswerTool
-
-[[autodoc]] FinalAnswerTool
-
-### UserInputTool
-
-[[autodoc]] UserInputTool
-
-### WebSearchTool
-
-[[autodoc]] WebSearchTool
-
-### DuckDuckGoSearchTool
-
-[[autodoc]] DuckDuckGoSearchTool
-
-### GoogleSearchTool
-
-[[autodoc]] GoogleSearchTool
-
-### VisitWebpageTool
-
-[[autodoc]] VisitWebpageTool
-
-### SpeechToTextTool
-
-[[autodoc]] SpeechToTextTool
-
 ## ToolCollection
 
 [[autodoc]] ToolCollection
@@ -73,7 +39,7 @@ contains the API docs for the underlying classes.
 ## Agent Types
 
 Agents can handle any type of object in-between tools; tools, being completely multimodal, can accept and return
-text, image, audio, video, among other types. In order to increase compatibility between tools, as well as to 
+text, image, audio, video, among other types. In order to increase compatibility between tools, as well as to
 correctly render these returns in ipython (jupyter, colab, ipython notebooks, ...), we implement wrapper classes
 around these types.
 

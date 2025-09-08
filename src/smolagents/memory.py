@@ -1,8 +1,9 @@
+import inspect
 from dataclasses import asdict, dataclass
 from logging import getLogger
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable, Type
 
-from smolagents.models import ChatMessage, MessageRole
+from smolagents.models import ChatMessage, MessageRole, get_dict_from_nested_dataclasses
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.utils import AgentError, make_json_serializable
 
@@ -12,6 +13,9 @@ if TYPE_CHECKING:
 
     from smolagents.models import ChatMessage
     from smolagents.monitoring import AgentLogger
+
+
+__all__ = ["AgentMemory"]
 
 
 logger = getLogger(__name__)
@@ -51,7 +55,7 @@ class ActionStep(MemoryStep):
     tool_calls: list[ToolCall] | None = None
     error: AgentError | None = None
     model_output_message: ChatMessage | None = None
-    model_output: str | None = None
+    model_output: str | list[dict[str, Any]] | None = None
     code_action: str | None = None
     observations: str | None = None
     observations_images: list["PIL.Image.Image"] | None = None
@@ -64,10 +68,16 @@ class ActionStep(MemoryStep):
         return {
             "step_number": self.step_number,
             "timing": self.timing.dict(),
-            "model_input_messages": self.model_input_messages,
+            "model_input_messages": [
+                make_json_serializable(get_dict_from_nested_dataclasses(msg)) for msg in self.model_input_messages
+            ]
+            if self.model_input_messages
+            else None,
             "tool_calls": [tc.dict() for tc in self.tool_calls] if self.tool_calls else [],
             "error": self.error.dict() if self.error else None,
-            "model_output_message": self.model_output_message.dict() if self.model_output_message else None,
+            "model_output_message": make_json_serializable(get_dict_from_nested_dataclasses(self.model_output_message))
+            if self.model_output_message
+            else None,
             "model_output": self.model_output,
             "code_action": self.code_action,
             "observations": self.observations,
@@ -147,6 +157,19 @@ class PlanningStep(MemoryStep):
     plan: str
     timing: Timing
     token_usage: TokenUsage | None = None
+
+    def dict(self):
+        return {
+            "model_input_messages": [
+                make_json_serializable(get_dict_from_nested_dataclasses(msg)) for msg in self.model_input_messages
+            ],
+            "model_output_message": make_json_serializable(
+                get_dict_from_nested_dataclasses(self.model_output_message)
+            ),
+            "plan": self.plan,
+            "timing": self.timing.dict(),
+            "token_usage": asdict(self.token_usage) if self.token_usage else None,
+        }
 
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         if summary_mode:
@@ -254,4 +277,40 @@ class AgentMemory:
         )
 
 
-__all__ = ["AgentMemory"]
+class CallbackRegistry:
+    """Registry for callbacks that are called at each step of the agent's execution.
+
+    Callbacks are registered by passing a step class and a callback function.
+    """
+
+    def __init__(self):
+        self._callbacks: dict[Type[MemoryStep], list[Callable]] = {}
+
+    def register(self, step_cls: Type[MemoryStep], callback: Callable):
+        """Register a callback for a step class.
+
+        Args:
+            step_cls (Type[MemoryStep]): Step class to register the callback for.
+            callback (Callable): Callback function to register.
+        """
+        if step_cls not in self._callbacks:
+            self._callbacks[step_cls] = []
+        self._callbacks[step_cls].append(callback)
+
+    def callback(self, memory_step, **kwargs):
+        """Call callbacks registered for a step type.
+
+        Args:
+            memory_step (MemoryStep): Step to call the callbacks for.
+            **kwargs: Additional arguments to pass to callbacks that accept them.
+                Typically, includes the agent instance.
+
+        Notes:
+            For backwards compatibility, callbacks with a single parameter signature
+            receive only the memory_step, while callbacks with multiple parameters
+            receive both the memory_step and any additional kwargs.
+        """
+        # For compatibility with old callbacks that only take the step as an argument
+        for cls in memory_step.__class__.__mro__:
+            for cb in self._callbacks.get(cls, []):
+                cb(memory_step) if len(inspect.signature(cb).parameters) == 1 else cb(memory_step, **kwargs)

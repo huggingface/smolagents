@@ -19,7 +19,7 @@ jobs:
     with:
       commit_sha: ${{ github.sha }}
       package: smolagents
-      languages: en
+      languages: en hi ko zh
       notebook_folder: smolagents_doc
       # additional_args: --not_python_module # use this arg if repository is documentation only
     secrets:

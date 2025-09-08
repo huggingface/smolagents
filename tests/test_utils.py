@@ -22,7 +22,14 @@ from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
 from smolagents.tools import tool
-from smolagents.utils import get_source, instance_to_source, is_valid_name, parse_code_blobs, parse_json_blob
+from smolagents.utils import (
+    create_agent_gradio_app_template,
+    get_source,
+    instance_to_source,
+    is_valid_name,
+    parse_code_blobs,
+    parse_json_blob,
+)
 
 
 class ValidTool(Tool):
@@ -95,29 +102,44 @@ class SimpleTool(Tool):
 class AgentTextTests(unittest.TestCase):
     def test_parse_code_blobs(self):
         with pytest.raises(ValueError):
-            parse_code_blobs("Wrong blob!")
+            parse_code_blobs("Wrong blob!", ("<code>", "</code>"))
 
         # Parsing mardkwon with code blobs should work
-        output = parse_code_blobs("""
+        output = parse_code_blobs(
+            """
 Here is how to solve the problem:
 <code>
 import numpy as np
 </code>
-""")
+""",
+            ("<code>", "</code>"),
+        )
         assert output == "import numpy as np"
 
-        # Parsing code blobs should work
+        # Parsing pure python code blobs should work
         code_blob = "import numpy as np"
-        output = parse_code_blobs(code_blob)
+        output = parse_code_blobs(code_blob, ("```python", "```"))
         assert output == code_blob
 
         # Allow whitespaces after header
-        output = parse_code_blobs("<code>    \ncode_a\n</code>")
+        output = parse_code_blobs("<code>    \ncode_a\n</code>", ("<code>", "</code>"))
         assert output == "code_a"
+
+        # Parsing markdown with code blobs should work
+        output = parse_code_blobs(
+            """
+Here is how to solve the problem:
+```python
+import numpy as np
+```
+""",
+            ("<code>", "</code>"),
+        )
+        assert output == "import numpy as np"
 
     def test_multiple_code_blobs(self):
         test_input = "<code>\nFoo\n</code>\n\n<code>\ncode_a\n</code>\n\n<code>\ncode_b\n</code>"
-        result = parse_code_blobs(test_input)
+        result = parse_code_blobs(test_input, ("<code>", "</code>"))
         assert result == "Foo\n\ncode_a\n\ncode_b"
 
 
@@ -493,3 +515,40 @@ def test_parse_json_blob_with_invalid_json(raw_json):
 def test_is_valid_name(name, expected):
     """Test the is_valid_name function with various inputs."""
     assert is_valid_name(name) is expected
+
+
+def test_agent_gradio_app_template_excludes_class_keyword():
+    """Test that the AGENT_GRADIO_APP_TEMPLATE excludes 'class' from agent kwargs."""
+
+    # Mock agent_dict with 'class' key that should be excluded
+    agent_dict = {
+        "model": {"class": "CodeAgent", "data": {}},
+        "class": "CodeAgent",  # This should be excluded to prevent SyntaxError
+        "some_valid_attr": "value",
+        "tools": [],
+        "managed_agents": {},
+        "requirements": [],
+        "prompt_templates": {},
+    }
+
+    template = create_agent_gradio_app_template()
+    result = template.render(
+        agent_name="test_agent",
+        class_name="CodeAgent",
+        agent_dict=agent_dict,
+        tools={},
+        managed_agents={},
+        managed_agent_relative_path="",
+    )
+
+    # Should contain valid attribute but not 'class='  as a keyword argument
+    assert "some_valid_attr='value'," in result
+    assert "class=" not in result
+
+    # Verify the generated code is syntactically valid Python
+    import ast
+
+    try:
+        ast.parse(result)
+    except SyntaxError as e:
+        pytest.fail(f"Generated app.py contains syntax error: {e}")

@@ -91,9 +91,7 @@ system_prompt: |-
 
   Above example were using notional tools that might not exist for you. You only have access to these tools:
   {%- for tool in tools.values() %}
-  - {{ tool.name }}: {{ tool.description }}
-      Takes inputs: {{tool.inputs}}
-      Returns an output of type: {{tool.output_type}}
+  - {{ tool.to_tool_calling_prompt() }}
   {%- endfor %}
 
   {%- if managed_agents and managed_agents.values() | list %}
@@ -115,8 +113,7 @@ system_prompt: |-
   Here are the rules you should always follow to solve your task:
   1. ALWAYS provide a tool call, else you will fail.
   2. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
-  3. Call a tool only when needed: do not call the search agent if you do not need information, try to solve the task yourself.
-  If no tool call is needed, use final_answer tool to return your answer.
+  3. Call a tool only when needed: do not call the search agent if you do not need information, try to solve the task yourself. If no tool call is needed, use final_answer tool to return your answer.
   4. Never re-do a tool call that you previously did with the exact same parameters.
 
   Now Begin!
@@ -148,9 +145,7 @@ planning:
 
     You can leverage these tools:
     {%- for tool in tools.values() %}
-    - {{ tool.name }}: {{ tool.description }}
-        Takes inputs: {{tool.inputs}}
-        Returns an output of type: {{tool.output_type}}
+    - {{ tool.to_tool_calling_prompt() }}
     {%- endfor %}
 
     {%- if managed_agents and managed_agents.values() | list %}
@@ -159,7 +154,6 @@ planning:
     You can also include any relevant variables or context using the 'additional_args' argument.
     Here is a list of the team members that you can call:
     {%- for agent in managed_agents.values() %}
-    - {{ agent.name }}: {{ agent.description }}
     - {{ agent.name }}: {{ agent.description }}
       - Takes inputs: {{agent.inputs}}
       - Returns an output of type: {{agent.output_type}}
@@ -204,9 +198,7 @@ planning:
 
     You can leverage these tools:
     {%- for tool in tools.values() %}
-    - {{ tool.name }}: {{ tool.description }}
-        Takes inputs: {{tool.inputs}}
-        Returns an output of type: {{tool.output_type}}
+    - {{ tool.to_tool_calling_prompt() }}
     {%- endfor %}
 
     {%- if managed_agents and managed_agents.values() | list %}

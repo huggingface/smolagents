@@ -28,10 +28,6 @@ Both require arguments `model` and list of tools `tools` at initialization.
 
 [[autodoc]] ToolCallingAgent
 
-### ManagedAgent
-
-_This class is deprecated since 1.8.0: now you simply need to pass attributes `name` and `description` to a normal agent to make it callable by a manager agent._
-
 ### stream_to_gradio
 
 [[autodoc]] stream_to_gradio
@@ -39,7 +35,7 @@ _This class is deprecated since 1.8.0: now you simply need to pass attributes `n
 ### GradioUI
 
 > [!TIP]
-> You must have `gradio` installed to use the UI. Please run `pip install smolagents[gradio]` if it's not the case.
+> You must have `gradio` installed to use the UI. Please run `pip install 'smolagents[gradio]'` if it's not the case.
 
 [[autodoc]] GradioUI
 
@@ -58,3 +54,31 @@ _This class is deprecated since 1.8.0: now you simply need to pass attributes `n
 Smolagents use memory to store information across multiple steps.
 
 [[autodoc]] smolagents.memory.AgentMemory
+
+## Python code executors
+
+[[autodoc]] smolagents.local_python_executor.PythonExecutor
+
+### Local Python executor
+
+[[autodoc]] smolagents.local_python_executor.LocalPythonExecutor
+
+### Remote Python executors
+
+[[autodoc]] smolagents.remote_executors.RemotePythonExecutor
+
+#### E2BExecutor
+
+[[autodoc]] smolagents.remote_executors.E2BExecutor
+
+#### ModalExecutor
+
+[[autodoc]] smolagents.remote_executors.ModalExecutor
+
+#### DockerExecutor
+
+[[autodoc]] smolagents.remote_executors.DockerExecutor
+
+#### WasmExecutor
+
+[[autodoc]] smolagents.remote_executors.WasmExecutor

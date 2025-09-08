@@ -16,19 +16,20 @@
 # limitations under the License.
 import ast
 import base64
-import importlib.metadata
 import importlib.util
 import inspect
 import json
 import keyword
 import os
 import re
-import types
+import time
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any
+
+import jinja2
 
 
 if TYPE_CHECKING:
@@ -40,11 +41,7 @@ __all__ = ["AgentError"]
 
 @lru_cache
 def _is_package_available(package_name: str) -> bool:
-    try:
-        importlib.metadata.version(package_name)
-        return True
-    except importlib.metadata.PackageNotFoundError:
-        return False
+    return importlib.util.find_spec(package_name) is not None
 
 
 BASE_BUILTIN_MODULES = [
@@ -154,8 +151,8 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
     try:
         first_accolade_index = json_blob.find("{")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_data = json_blob[first_accolade_index : last_accolade_index + 1]
-        json_data = json.loads(json_data, strict=False)
+        json_str = json_blob[first_accolade_index : last_accolade_index + 1]
+        json_data = json.loads(json_str, strict=False)
         return json_data, json_blob[:first_accolade_index]
     except IndexError:
         raise ValueError("The model output does not contain any JSON blob.")
@@ -172,16 +169,16 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
         )
 
 
-def extract_code_from_text(text: str) -> str | None:
+def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
     """Extract code from the LLM's output."""
-    pattern = r"<code>(.*?)</code>"
+    pattern = rf"{code_block_tags[0]}(.*?){code_block_tags[1]}"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)
     return None
 
 
-def parse_code_blobs(text: str) -> str:
+def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     """Extract code blocs from the LLM's output.
 
     If a valid code block is passed, it returns it directly.
@@ -195,7 +192,9 @@ def parse_code_blobs(text: str) -> str:
     Raises:
         ValueError: If no valid code block is found in the text.
     """
-    matches = extract_code_from_text(text)
+    matches = extract_code_from_text(text, code_block_tags)
+    if not matches:  # Fallback to markdown pattern
+        matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
     if matches:
         return matches
     # Maybe the LLM outputted a code blob directly
@@ -209,27 +208,27 @@ def parse_code_blobs(text: str) -> str:
         raise ValueError(
             dedent(
                 f"""
-                Your code snippet is invalid, because the regex pattern <code>(.*?)</code> was not found in it.
+                Your code snippet is invalid, because the regex pattern {code_block_tags[0]}(.*?){code_block_tags[1]} was not found in it.
                 Here is your code snippet:
                 {text}
                 It seems like you're trying to return the final answer, you can do it as follows:
-                <code>
+                {code_block_tags[0]}
                 final_answer("YOUR FINAL ANSWER HERE")
-                </code>
+                {code_block_tags[1]}
                 """
             ).strip()
         )
     raise ValueError(
         dedent(
             f"""
-            Your code snippet is invalid, because the regex pattern <code>(.*?)</code> was not found in it.
+            Your code snippet is invalid, because the regex pattern {code_block_tags[0]}(.*?){code_block_tags[1]} was not found in it.
             Here is your code snippet:
             {text}
             Make sure to include code with the correct pattern, for instance:
             Thoughts: Your thoughts
-            <code>
+            {code_block_tags[0]}
             # Your python code here
-            </code>
+            {code_block_tags[1]}
             """
         ).strip()
     )
@@ -266,36 +265,6 @@ class ImportFinder(ast.NodeVisitor):
             self.packages.add(base_package)
 
 
-def get_method_source(method):
-    """Get source code for a method, including bound methods."""
-    if isinstance(method, types.MethodType):
-        method = method.__func__
-    return get_source(method)
-
-
-def is_same_method(method1, method2):
-    """Compare two methods by their source code."""
-    try:
-        source1 = get_method_source(method1)
-        source2 = get_method_source(method2)
-
-        # Remove method decorators if any
-        source1 = "\n".join(line for line in source1.split("\n") if not line.strip().startswith("@"))
-        source2 = "\n".join(line for line in source2.split("\n") if not line.strip().startswith("@"))
-
-        return source1 == source2
-    except (TypeError, OSError):
-        return False
-
-
-def is_same_item(item1, item2):
-    """Compare two class items (methods or attributes) for equality."""
-    if callable(item1) and callable(item2):
-        return is_same_method(item1, item2)
-    else:
-        return item1 == item2
-
-
 def instance_to_source(instance, base_cls=None):
     """Convert an instance to its class source code representation."""
     cls = instance.__class__
@@ -317,6 +286,7 @@ def instance_to_source(instance, base_cls=None):
         name: value
         for name, value in cls.__dict__.items()
         if not name.startswith("__")
+        and not name == "_abc_impl"
         and not callable(value)
         and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
     }
@@ -459,3 +429,80 @@ def make_init_file(folder: str | Path):
 
 def is_valid_name(name: str) -> bool:
     return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False
+
+
+AGENT_GRADIO_APP_TEMPLATE = """import yaml
+import os
+from smolagents import GradioUI, {{ class_name }}, {{ agent_dict['model']['class'] }}
+
+# Get current directory path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+{% for tool in tools.values() -%}
+from {{managed_agent_relative_path}}tools.{{ tool.name }} import {{ tool.__class__.__name__ }} as {{ tool.name | camelcase }}
+{% endfor %}
+{% for managed_agent in managed_agents.values() -%}
+from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app import agent_{{ managed_agent.name }}
+{% endfor %}
+
+model = {{ agent_dict['model']['class'] }}(
+{% for key in agent_dict['model']['data'] if key != 'class' -%}
+    {{ key }}={{ agent_dict['model']['data'][key]|repr }},
+{% endfor %})
+
+{% for tool in tools.values() -%}
+{{ tool.name }} = {{ tool.name | camelcase }}()
+{% endfor %}
+
+with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
+    prompt_templates = yaml.safe_load(stream)
+
+{{ agent_name }} = {{ class_name }}(
+    model=model,
+    tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
+    {% for attribute_name, value in agent_dict.items() if attribute_name not in ["class", "model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
+    {{ attribute_name }}={{ value|repr }},
+    {% endfor %}prompt_templates=prompt_templates
+)
+if __name__ == "__main__":
+    GradioUI({{ agent_name }}).launch()
+""".strip()
+
+
+def create_agent_gradio_app_template():
+    env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
+    env.filters["repr"] = repr
+    env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
+    return env.from_string(AGENT_GRADIO_APP_TEMPLATE)
+
+
+class RateLimiter:
+    """Simple rate limiter that enforces a minimum delay between consecutive requests.
+
+    This class is useful for limiting the rate of operations such as API requests,
+    by ensuring that calls to `throttle()` are spaced out by at least a given interval
+    based on the desired requests per minute.
+
+    If no rate is specified (i.e., `requests_per_minute` is None), rate limiting
+    is disabled and `throttle()` becomes a no-op.
+
+    Args:
+        requests_per_minute (`float | None`): Maximum number of allowed requests per minute.
+            Use `None` to disable rate limiting.
+    """
+
+    def __init__(self, requests_per_minute: float | None = None):
+        self._enabled = requests_per_minute is not None
+        self._interval = 60.0 / requests_per_minute if self._enabled else 0.0
+        self._last_call = 0.0
+
+    def throttle(self):
+        """Pause execution to respect the rate limit, if enabled."""
+        if not self._enabled:
+            return
+        now = time.time()
+        elapsed = now - self._last_call
+        if elapsed < self._interval:
+            time.sleep(self._interval - elapsed)
+        self._last_call = time.time()
