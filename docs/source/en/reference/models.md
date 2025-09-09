@@ -12,37 +12,20 @@ contains the API docs for the underlying classes.
 
 ## Models
 
-### Your custom Model
+All model classes in smolagents support passing additional keyword arguments (like `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time.
+These parameters are automatically forwarded to the underlying model's completion calls, allowing you to configure model behavior such as creativity, response length, and sampling strategies.
 
-You're free to create and use your own models to power your agent.
+### Base Model
 
-You could subclass the base `Model` class to create a model for your agent.
-The main criteria is to subclass the `generate` method, with these two criteria:
-1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns an object with a `.content` attribute.
-2. It stops generating outputs at the sequences passed in the argument `stop_sequences`.
+The `Model` class serves as the foundation for all model implementations, providing the core interface that custom models must implement to work with agents.
 
-For defining your LLM, you can make a `CustomModel` class that inherits from the base `Model` class.
-It should have a generate method that takes a list of [messages](./chat_templating) and returns an object with a .content attribute containing the text. The `generate` method also needs to accept a `stop_sequences` argument that indicates when to stop generating.
+[[autodoc]] Model
 
-```python
-from huggingface_hub import login, InferenceClient
+### API Model
 
-login("<YOUR_HUGGINGFACEHUB_API_TOKEN>")
+The `ApiModel` class serves as the foundation for all API-based model implementations, providing common functionality for external API interactions, rate limiting, and client management that API-specific models inherit.
 
-model_id = "meta-llama/Llama-3.3-70B-Instruct"
-
-client = InferenceClient(model=model_id)
-
-class CustomModel(Model):
-    def generate(messages, stop_sequences=["Task"]):
-        response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1024)
-        answer = response.choices[0].message
-        return answer
-
-custom_model = CustomModel()
-```
-
-Additionally, `generate` can also take a `grammar` argument to allow [constrained generation](https://huggingface.co/docs/text-generation-inference/conceptual/guidance) in order to force properly-formatted agent outputs.
+[[autodoc]] ApiModel
 
 ### TransformersModel
 
@@ -59,8 +42,18 @@ print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], st
 >>> What a
 ```
 
+You can pass any keyword arguments supported by the underlying model (such as `temperature`, `max_new_tokens`, `top_p`, etc.) directly at instantiation time. These are forwarded to the model completion call:
+
+```python
+model = TransformersModel(
+    model_id="HuggingFaceTB/SmolLM-135M-Instruct",
+    temperature=0.7,
+    max_new_tokens=1000
+)
+```
+
 > [!TIP]
-> You must have `transformers` and `torch` installed on your machine. Please run `pip install smolagents[transformers]` if it's not the case.
+> You must have `transformers` and `torch` installed on your machine. Please run `pip install 'smolagents[transformers]'` if it's not the case.
 
 [[autodoc]] TransformersModel
 
@@ -68,7 +61,7 @@ print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], st
 
 The `InferenceClientModel` wraps huggingface_hub's [InferenceClient](https://huggingface.co/docs/huggingface_hub/main/en/guides/inference) for the execution of the LLM. It supports all [Inference Providers](https://huggingface.co/docs/inference-providers/index) available on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
 
-You can also set a rate limit in requests per minute by using the `requests_per_minute` argument.
+You can also set a rate limit in requests per minute by using the `requests_per_minute` argument:
 
 ```python
 from smolagents import InferenceClientModel
@@ -83,6 +76,18 @@ print(model(messages))
 ```text
 >>> Of course! If you change your mind, feel free to reach out. Take care!
 ```
+
+You can pass any keyword arguments supported by the underlying model (such as `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time. These are forwarded to the model completion call:
+
+```python
+model = InferenceClientModel(
+    provider="novita",
+    requests_per_minute=60,
+    temperature=0.8,
+    max_tokens=500
+)
+```
+
 [[autodoc]] InferenceClientModel
 
 ### LiteLLMModel
@@ -152,6 +157,19 @@ model = OpenAIServerModel(
 )
 ```
 
+You can pass any keyword arguments supported by the underlying model (such as `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time. These are forwarded to the model completion call:
+
+```py
+model = OpenAIServerModel(
+    model_id="gpt-4o",
+    api_base="https://api.openai.com/v1",
+    api_key=os.environ["OPENAI_API_KEY"],
+    temperature=0.7,
+    max_tokens=1000,
+    top_p=0.9,
+)
+```
+
 [[autodoc]] OpenAIServerModel
 
 ### AzureOpenAIServerModel
@@ -210,7 +228,7 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 ```
 
 > [!TIP]
-> You must have `mlx-lm` installed on your machine. Please run `pip install smolagents[mlx-lm]` if it's not the case.
+> You must have `mlx-lm` installed on your machine. Please run `pip install 'smolagents[mlx-lm]'` if it's not the case.
 
 [[autodoc]] MLXModel
 
@@ -227,6 +245,40 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 ```
 
 > [!TIP]
-> You must have `vllm` installed on your machine. Please run `pip install smolagents[vllm]` if it's not the case.
+> You must have `vllm` installed on your machine. Please run `pip install 'smolagents[vllm]'` if it's not the case.
 
 [[autodoc]] VLLMModel
+
+### Custom Model
+
+You're free to create and use your own models to power your agent.
+
+You could subclass the base `Model` class to create a model for your agent.
+The main criteria is to subclass the `generate` method, with these two criteria:
+1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns an object with a `.content` attribute.
+2. It stops generating outputs at the sequences passed in the argument `stop_sequences`.
+
+For defining your LLM, you can make a `CustomModel` class that inherits from the base `Model` class.
+It should have a generate method that takes a list of [messages](./chat_templating) and returns an object with a .content attribute containing the text. The `generate` method also needs to accept a `stop_sequences` argument that indicates when to stop generating.
+
+```python
+from huggingface_hub import login, InferenceClient
+
+from smolagents import Model
+
+login("<YOUR_HUGGINGFACEHUB_API_TOKEN>")
+
+model_id = "meta-llama/Llama-3.3-70B-Instruct"
+
+client = InferenceClient(model=model_id)
+
+class CustomModel(Model):
+    def generate(messages, stop_sequences=["Task"]):
+        response = client.chat_completion(messages, stop=stop_sequences, max_tokens=1024)
+        answer = response.choices[0].message
+        return answer
+
+custom_model = CustomModel()
+```
+
+Additionally, `generate` can also take a `grammar` argument to allow [constrained generation](https://huggingface.co/docs/text-generation-inference/conceptual/guidance) in order to force properly-formatted agent outputs.
