@@ -24,9 +24,9 @@ import time
 from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
-from typing import Any
+from typing import Any, Optional
+from datetime import datetime
 
-import PIL.Image
 import requests
 
 from .default_tools import FinalAnswerTool
@@ -35,16 +35,179 @@ from .monitoring import LogLevel
 from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
-
 __all__ = ["E2BExecutor", "DockerExecutor", "WasmExecutor"]
-
 
 try:
     from dotenv import load_dotenv
-
     load_dotenv()
 except ModuleNotFoundError:
     pass
+
+
+class JsonSerializer:
+    """Centralized JSON serialization/deserialization for remote executors."""
+    
+    @staticmethod
+    def to_json_safe(obj):
+        """Convert Python objects to JSON-serializable format."""
+        if isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        elif isinstance(obj, dict):
+            return {k: JsonSerializer.to_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [JsonSerializer.to_json_safe(item) for item in obj]
+        elif isinstance(obj, tuple):
+            return {"__type__": "tuple", "data": [JsonSerializer.to_json_safe(item) for item in obj]}
+        elif isinstance(obj, set):
+            return {"__type__": "set", "data": [JsonSerializer.to_json_safe(item) for item in obj]}
+        elif isinstance(obj, bytes):
+            return {"__type__": "bytes", "data": base64.b64encode(obj).decode()}
+        elif isinstance(obj, datetime):
+            return {"__type__": "datetime", "data": obj.isoformat()}
+        
+        # Optional imports with proper guards
+        try:
+            import numpy as np
+            if isinstance(obj, np.ndarray):
+                return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
+        except ImportError:
+            pass
+        
+        try:
+            import PIL.Image
+            if isinstance(obj, PIL.Image.Image):
+                buffer = BytesIO()
+                obj.save(buffer, format='PNG')
+                return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
+        except ImportError:
+            pass
+        
+        # For unsupported types, convert to string representation
+        return {"__type__": "str_repr", "data": str(obj)}
+    
+    @staticmethod
+    def from_json_safe(obj):
+        """Convert JSON-safe format back to Python objects."""
+        if isinstance(obj, dict):
+            if "__type__" in obj:
+                obj_type = obj["__type__"]
+                if obj_type == "tuple":
+                    return tuple(JsonSerializer.from_json_safe(item) for item in obj["data"])
+                elif obj_type == "set":
+                    return set(JsonSerializer.from_json_safe(item) for item in obj["data"])
+                elif obj_type == "bytes":
+                    return base64.b64decode(obj["data"])
+                elif obj_type == "datetime":
+                    return datetime.fromisoformat(obj["data"])
+                elif obj_type == "str_repr":
+                    return obj["data"]
+                elif obj_type == "ndarray":
+                    try:
+                        import numpy as np
+                        return np.array(obj["data"], dtype=obj["dtype"])
+                    except ImportError:
+                        return obj["data"]  # fallback to list
+                elif obj_type == "PIL.Image":
+                    try:
+                        import PIL.Image
+                        img_bytes = base64.b64decode(obj["data"])
+                        return PIL.Image.open(BytesIO(img_bytes))
+                    except ImportError:
+                        return obj["data"]  # fallback to base64 string
+            return {k: JsonSerializer.from_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [JsonSerializer.from_json_safe(item) for item in obj]
+        return obj
+    
+    @staticmethod
+    def get_deserialization_code():
+        """Get the deserialization code to inject into remote environments."""
+        return '''
+def _from_json_safe(obj):
+    """Deserialize JSON-safe objects back to Python objects."""
+    if isinstance(obj, dict):
+        if "__type__" in obj:
+            obj_type = obj["__type__"]
+            if obj_type == "tuple":
+                return tuple(_from_json_safe(item) for item in obj["data"])
+            elif obj_type == "set":
+                return set(_from_json_safe(item) for item in obj["data"])
+            elif obj_type == "bytes":
+                return base64.b64decode(obj["data"])
+            elif obj_type == "datetime":
+                from datetime import datetime
+                return datetime.fromisoformat(obj["data"])
+            elif obj_type == "str_repr":
+                return obj["data"]
+            elif obj_type == "ndarray":
+                try:
+                    import numpy as np
+                    return np.array(obj["data"], dtype=obj["dtype"])
+                except ImportError:
+                    return obj["data"]  # fallback to list
+            elif obj_type == "PIL.Image":
+                try:
+                    import PIL.Image
+                    from io import BytesIO
+                    img_bytes = base64.b64decode(obj["data"])
+                    return PIL.Image.open(BytesIO(img_bytes))
+                except ImportError:
+                    return obj["data"]  # fallback to base64 string
+        return {k: _from_json_safe(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_from_json_safe(item) for item in obj]
+    return obj
+'''
+    
+    @staticmethod
+    def get_serialization_code():
+        """Get the serialization code for use in patched tools."""
+        return '''
+def _to_json_safe(obj):
+    """Convert Python objects to JSON-serializable format."""
+    if isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    elif isinstance(obj, dict):
+        return {k: _to_json_safe(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_to_json_safe(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return {"__type__": "tuple", "data": [_to_json_safe(item) for item in obj]}
+    elif isinstance(obj, set):
+        return {"__type__": "set", "data": [_to_json_safe(item) for item in obj]}
+    elif isinstance(obj, bytes):
+        return {"__type__": "bytes", "data": base64.b64encode(obj).decode()}
+    
+    # Handle datetime
+    try:
+        from datetime import datetime
+        if isinstance(obj, datetime):
+            return {"__type__": "datetime", "data": obj.isoformat()}
+    except ImportError:
+        pass
+    
+    # Handle numpy arrays with proper import guard
+    try:
+        import numpy as np
+        if isinstance(obj, np.ndarray):
+            return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
+    except ImportError:
+        pass
+    
+    # Handle PIL images with proper import guard
+    try:
+        import PIL.Image
+        if isinstance(obj, PIL.Image.Image):
+            from io import BytesIO
+            buffer = BytesIO()
+            obj.save(buffer, format='PNG')
+            return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
+    except ImportError:
+        pass
+    
+    # For unsupported types, convert to string representation
+    return {"__type__": "str_repr", "data": str(obj)}
+'''
 
 
 class RemotePythonExecutor(PythonExecutor):
@@ -55,6 +218,7 @@ class RemotePythonExecutor(PythonExecutor):
         self.logger = logger
         self.logger.log("Initializing executor, hold on...")
         self.installed_packages = []
+        self.serializer = JsonSerializer()
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
@@ -64,17 +228,24 @@ class RemotePythonExecutor(PythonExecutor):
         raise NotImplementedError
 
     def send_tools(self, tools: dict[str, Tool]):
-        # Filter out non-Tool objects (like executor instances from managed_agents)
-        try:
-            from smolagents.tools import Tool as ToolClass
-        except ImportError:
-            # Fallback for different import paths
-            from .tools import Tool as ToolClass
-        
-        filtered_tools = {name: tool for name, tool in tools.items() if isinstance(tool, ToolClass)}
+        # Only process Tool instances, not executor instances
+        # This filtering is necessary because managed_agents might pass executor instances
+        filtered_tools = {}
+        for name, tool in tools.items():
+            # Check if it's actually a Tool instance
+            if hasattr(tool, 'to_dict') and callable(getattr(tool, 'to_dict')):
+                try:
+                    # Verify it has the expected Tool interface
+                    tool_dict = tool.to_dict()
+                    if 'requirements' in tool_dict:
+                        filtered_tools[name] = tool
+                except (AttributeError, TypeError):
+                    # Skip items that don't have the proper Tool interface
+                    continue
         
         if "final_answer" in filtered_tools:
             self._patch_final_answer_with_exception(filtered_tools["final_answer"])
+        
         # Install tool packages
         packages_to_install = {
             pkg
@@ -84,13 +255,14 @@ class RemotePythonExecutor(PythonExecutor):
         }
         if packages_to_install:
             self.installed_packages += self.install_packages(list(packages_to_install))
+        
         # Get tool definitions
         code = get_tools_definition_code(filtered_tools)
         if code:
             code_output = self.run_code_raise_errors(code)
             self.logger.log(code_output.logs)
 
-    def send_variables(self, variables: dict):
+    def send_variables(self, variables: dict[str, Any]):
         """
         Send variables to the kernel namespace using JSON-safe serialization.
         """
@@ -98,97 +270,20 @@ class RemotePythonExecutor(PythonExecutor):
             return
         
         # Convert variables to JSON-serializable format
-        json_safe_vars = self._to_json_safe(variables)
+        json_safe_vars = self.serializer.to_json_safe(variables)
         encoded_vars = base64.b64encode(json.dumps(json_safe_vars).encode()).decode()
         
+        # Generate code with deserialization function
         code = f"""
 import json, base64
-import numpy as np
-from datetime import datetime
-from io import BytesIO
-import PIL.Image
 
-def _from_json_safe(obj):
-    if isinstance(obj, dict):
-        if "__type__" in obj:
-            obj_type = obj["__type__"]
-            if obj_type == "ndarray":
-                return np.array(obj["data"], dtype=obj["dtype"])
-            elif obj_type == "datetime":
-                return datetime.fromisoformat(obj["data"])
-            elif obj_type == "bytes":
-                return base64.b64decode(obj["data"])
-            elif obj_type == "PIL.Image":
-                img_bytes = base64.b64decode(obj["data"])
-                return PIL.Image.open(BytesIO(img_bytes))
-            elif obj_type == "set":
-                return set(obj["data"])
-            elif obj_type == "tuple":
-                return tuple(obj["data"])
-        return {{k: _from_json_safe(v) for k, v in obj.items()}}
-    elif isinstance(obj, list):
-        return [_from_json_safe(item) for item in obj]
-    return obj
+{self.serializer.get_deserialization_code()}
 
 vars_dict = json.loads(base64.b64decode('{encoded_vars}'))
 vars_dict = _from_json_safe(vars_dict)
 locals().update(vars_dict)
 """
         self.run_code_raise_errors(code)
-    
-    def _to_json_safe(self, obj):
-        """Convert Python objects to JSON-serializable format."""
-        if isinstance(obj, (str, int, float, bool, type(None))):
-            return obj
-        elif isinstance(obj, dict):
-            return {k: self._to_json_safe(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [self._to_json_safe(item) for item in obj]
-        elif isinstance(obj, tuple):
-            return {"__type__": "tuple", "data": [self._to_json_safe(item) for item in obj]}
-        elif isinstance(obj, set):
-            return {"__type__": "set", "data": [self._to_json_safe(item) for item in obj]}
-        elif isinstance(obj, bytes):
-            return {"__type__": "bytes", "data": base64.b64encode(obj).decode()}
-        elif hasattr(obj, 'tolist'):  # numpy arrays
-            return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
-        elif hasattr(obj, 'isoformat'):  # datetime objects
-            return {"__type__": "datetime", "data": obj.isoformat()}
-        elif hasattr(obj, 'save'):  # PIL Images
-            buffer = BytesIO()
-            obj.save(buffer, format='PNG')
-            return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
-        else:
-            # Raise an exception for unsupported types
-            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-    
-    def _from_json_safe(self, obj):
-        """Convert JSON-safe format back to Python objects."""
-        if isinstance(obj, dict):
-            if "__type__" in obj:
-                obj_type = obj["__type__"]
-                if obj_type == "ndarray":
-                    try:
-                        import numpy as np
-                        return np.array(obj["data"], dtype=obj["dtype"])
-                    except ImportError:
-                        return obj["data"]  # fallback to list
-                elif obj_type == "datetime":
-                    from datetime import datetime
-                    return datetime.fromisoformat(obj["data"])
-                elif obj_type == "bytes":
-                    return base64.b64decode(obj["data"])
-                elif obj_type == "PIL.Image":
-                    img_bytes = base64.b64decode(obj["data"])
-                    return PIL.Image.open(BytesIO(img_bytes))
-                elif obj_type == "set":
-                    return set(obj["data"])
-                elif obj_type == "tuple":
-                    return tuple(obj["data"])
-            return {k: self._from_json_safe(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [self._from_json_safe(item) for item in obj]
-        return obj
 
     def __call__(self, code_action: str) -> CodeOutput:
         """Run the code and determine if it is the final answer."""
@@ -218,57 +313,32 @@ locals().update(vars_dict)
             pass
 
         # Add a new forward method that raises the FinalAnswerException
-        # - Define the new forward method function
+        # Define the new forward method function
         def forward(self, *args, **kwargs) -> Any:
             import base64
             import json
-            from datetime import datetime
-            from io import BytesIO
 
             class FinalAnswerException(Exception):
                 def __init__(self, value):
                     self.value = value
 
-            def _to_json_safe(obj):
-                """Convert Python objects to JSON-serializable format."""
-                if isinstance(obj, (str, int, float, bool, type(None))):
-                    return obj
-                elif isinstance(obj, dict):
-                    return {k: _to_json_safe(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [_to_json_safe(item) for item in obj]
-                elif isinstance(obj, tuple):
-                    return {"__type__": "tuple", "data": [_to_json_safe(item) for item in obj]}
-                elif isinstance(obj, set):
-                    return {"__type__": "set", "data": [_to_json_safe(item) for item in obj]}
-                elif isinstance(obj, bytes):
-                    return {"__type__": "bytes", "data": base64.b64encode(obj).decode()}
-                elif hasattr(obj, 'tolist'):  # numpy arrays
-                    return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
-                elif hasattr(obj, 'isoformat'):  # datetime objects
-                    return {"__type__": "datetime", "data": obj.isoformat()}
-                elif hasattr(obj, 'save'):  # PIL Images
-                    buffer = BytesIO()
-                    obj.save(buffer, format='PNG')
-                    return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
-                else:
-                    # For unsupported types, convert to string representation
-                    return str(obj)
-
-            # Use JSON-safe serialization for final answer
+            # Inject serialization code
+            exec(f'''{JsonSerializer.get_serialization_code()}''')
+            
+            # Use the injected _to_json_safe function
             result = self._forward(*args, **kwargs)
-            json_safe_result = _to_json_safe(result)
+            json_safe_result = locals()['_to_json_safe'](result)
             raise FinalAnswerException(base64.b64encode(json.dumps(json_safe_result).encode()).decode())
 
-        # - Set the new forward method function to the _FinalAnswerTool class
+        # Set the new forward method function to the _FinalAnswerTool class
         _FinalAnswerTool.forward = forward
 
         # Rename the original forward method to _forward
-        # - Get the original forward method function from the final_answer_tool instance
+        # Get the original forward method function from the final_answer_tool instance
         original_forward_function = final_answer_tool.forward.__func__
-        # - Set the new _forward method function to the _FinalAnswerTool class
+        # Set the new _forward method function to the _FinalAnswerTool class
         _FinalAnswerTool._forward = original_forward_function
-        # - Update the source code of the new forward method to match the original but with the new name
+        # Update the source code of the new forward method to match the original but with the new name
         _FinalAnswerTool._forward.__source__ = inspect.getsource(original_forward_function).replace(
             "def forward(", "def _forward("
         )
@@ -295,7 +365,12 @@ class E2BExecutor(RemotePythonExecutor):
             raise ModuleNotFoundError(
                 """Please install 'e2b' extra to use E2BExecutor: `pip install 'smolagents[e2b]'`"""
             )
-        self.sandbox = Sandbox(**kwargs)
+        # Support both e2b v1 and v2 constructors
+        # v2 exposes Sandbox.create(...), while v1 uses Sandbox(...)
+        if hasattr(Sandbox, "create"):
+            self.sandbox = Sandbox.create(**kwargs)
+        else:
+            self.sandbox = Sandbox(**kwargs)
         self.installed_packages = self.install_packages(additional_imports)
         self.logger.log("E2B is running", level=LogLevel.INFO)
 
@@ -308,7 +383,7 @@ class E2BExecutor(RemotePythonExecutor):
             # Check if the error is a FinalAnswerException
             if execution.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
                 json_data = json.loads(base64.b64decode(execution.error.value))
-                final_answer = self._from_json_safe(json_data)
+                final_answer = self.serializer.from_json_safe(json_data)
                 return CodeOutput(output=final_answer, logs=execution_logs, is_final_answer=True)
 
             # Construct error message
@@ -333,9 +408,20 @@ class E2BExecutor(RemotePythonExecutor):
                 img_data = getattr(result, attribute_name, None)
                 if img_data is not None:
                     decoded_bytes = base64.b64decode(img_data.encode("utf-8"))
-                    return CodeOutput(
-                        output=PIL.Image.open(BytesIO(decoded_bytes)), logs=execution_logs, is_final_answer=False
-                    )
+                    try:
+                        import PIL.Image
+                        return CodeOutput(
+                            output=PIL.Image.open(BytesIO(decoded_bytes)), 
+                            logs=execution_logs, 
+                            is_final_answer=False
+                        )
+                    except ImportError:
+                        # Return raw bytes if PIL not available
+                        return CodeOutput(
+                            output=decoded_bytes, 
+                            logs=execution_logs, 
+                            is_final_answer=False
+                        )
             # Handle other data formats
             for attribute_name in [
                 "chart",
@@ -367,6 +453,95 @@ class E2BExecutor(RemotePythonExecutor):
             self.logger.log_error(f"Error during cleanup: {e}")
 
 
+def _websocket_send_execute_request(code: str, ws) -> str:
+    """Send code execution request to kernel."""
+    import uuid
+
+    # Generate a unique message ID
+    msg_id = str(uuid.uuid4())
+
+    # Create execute request
+    execute_request = {
+        "header": {
+            "msg_id": msg_id,
+            "username": "anonymous",
+            "session": str(uuid.uuid4()),
+            "msg_type": "execute_request",
+            "version": "5.0",
+        },
+        "parent_header": {},
+        "metadata": {},
+        "content": {
+            "code": code,
+            "silent": False,
+            "store_history": True,
+            "user_expressions": {},
+            "allow_stdin": False,
+        },
+    }
+
+    ws.send(json.dumps(execute_request))
+    return msg_id
+
+
+def _websocket_run_code_raise_errors(code: str, ws, logger, serializer: JsonSerializer) -> CodeOutput:
+    """Run code over a websocket."""
+    try:
+        # Send execute request
+        msg_id = _websocket_send_execute_request(code, ws)
+
+        # Collect output and results
+        outputs = []
+        result = None
+        is_final_answer = False
+
+        while True:
+            msg = json.loads(ws.recv())
+            parent_msg_id = msg.get("parent_header", {}).get("msg_id")
+            # Skip unrelated messages
+            if parent_msg_id != msg_id:
+                continue
+            msg_type = msg.get("msg_type", "")
+            msg_content = msg.get("content", {})
+            if msg_type == "stream":
+                outputs.append(msg_content["text"])
+            elif msg_type == "execute_result":
+                result = msg_content["data"].get("text/plain", None)
+            elif msg_type == "error":
+                if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
+                    json_data = json.loads(base64.b64decode(msg_content.get("evalue", "")))
+                    result = serializer.from_json_safe(json_data)
+                    is_final_answer = True
+                else:
+                    raise AgentError("\n".join(msg_content.get("traceback", [])), logger)
+            elif msg_type == "status" and msg_content["execution_state"] == "idle":
+                break
+
+        return CodeOutput(output=result, logs="".join(outputs), is_final_answer=is_final_answer)
+
+    except Exception as e:
+        logger.log_error(f"Code execution failed: {e}")
+        raise
+
+
+def _create_kernel_http(create_kernel_endpoint: str, logger) -> str:
+    """Create kernel using http."""
+    r = requests.post(create_kernel_endpoint)
+    if r.status_code != 201:
+        error_details = {
+            "status_code": r.status_code,
+            "headers": dict(r.headers),
+            "url": r.url,
+            "body": r.text,
+            "request_method": r.request.method,
+            "request_headers": dict(r.request.headers),
+            "request_body": r.request.body,
+        }
+        logger.log_error(f"Failed to create kernel. Details: {json.dumps(error_details, indent=2)}")
+        raise RuntimeError(f"Failed to create kernel: Status {r.status_code}\nResponse: {r.text}") from None
+    return r.json()["id"]
+
+
 class DockerExecutor(RemotePythonExecutor):
     """
     Executes Python code using Jupyter Kernel Gateway in a Docker container.
@@ -381,6 +556,7 @@ class DockerExecutor(RemotePythonExecutor):
         image_name: str = "jupyter-kernel",
         build_new_image: bool = True,
         container_run_kwargs: dict[str, Any] | None = None,
+        dockerfile_content: str | None = None,
     ):
         """
         Initialize the Docker-based Jupyter Kernel Gateway executor.
@@ -393,6 +569,7 @@ class DockerExecutor(RemotePythonExecutor):
             image_name: Name of the Docker image to use. If the image doesn't exist, it will be built.
             build_new_image: If True, the image will be rebuilt even if it already exists.
             container_run_kwargs: Additional keyword arguments to pass to the Docker container run command.
+            dockerfile_content: Custom Dockerfile content. If None, uses default.
         """
         super().__init__(additional_imports, logger)
         try:
@@ -405,6 +582,17 @@ class DockerExecutor(RemotePythonExecutor):
         self.host = host
         self.port = port
         self.image_name = image_name
+
+        self.dockerfile_content = dockerfile_content or dedent(
+            """\
+            FROM python:3.12-bullseye
+
+            RUN pip install jupyter_kernel_gateway jupyter_client ipykernel
+
+            EXPOSE 8888
+            CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
+            """
+        )
 
         # Initialize Docker
         try:
@@ -428,18 +616,7 @@ class DockerExecutor(RemotePythonExecutor):
                 dockerfile_path = Path(__file__).parent / "Dockerfile"
                 if not dockerfile_path.exists():
                     with open(dockerfile_path, "w") as f:
-                        f.write(
-                            dedent(
-                                """\
-                                FROM python:3.12-slim
-
-                                RUN pip install jupyter_kernel_gateway jupyter_client
-
-                                EXPOSE 8888
-                                CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
-                                """
-                            )
-                        )
+                        f.write(self.dockerfile_content)
                 _, build_logs = self.client.images.build(
                     path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
                 )
@@ -471,22 +648,11 @@ class DockerExecutor(RemotePythonExecutor):
 
             self.base_url = f"http://{host}:{port}"
 
-            # Create new kernel via HTTP
-            r = requests.post(f"{self.base_url}/api/kernels")
-            if r.status_code != 201:
-                error_details = {
-                    "status_code": r.status_code,
-                    "headers": dict(r.headers),
-                    "url": r.url,
-                    "body": r.text,
-                    "request_method": r.request.method,
-                    "request_headers": dict(r.request.headers),
-                    "request_body": r.request.body,
-                }
-                self.logger.log_error(f"Failed to create kernel. Details: {json.dumps(error_details, indent=2)}")
-                raise RuntimeError(f"Failed to create kernel: Status {r.status_code}\nResponse: {r.text}") from None
+            # Wait for Jupyter to start
+            self._wait_for_server()
 
-            self.kernel_id = r.json()["id"]
+            # Create new kernel via HTTP
+            self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels", self.logger)
 
             ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
             self.ws = create_connection(ws_url)
@@ -500,73 +666,8 @@ class DockerExecutor(RemotePythonExecutor):
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
-    def run_code_raise_errors(self, code_action: str) -> CodeOutput:
-        try:
-            # Send execute request
-            msg_id = self._send_execute_request(code_action)
-
-            # Collect output and results
-            outputs = []
-            result = None
-            is_final_answer = False
-
-            while True:
-                msg = json.loads(self.ws.recv())
-                parent_msg_id = msg.get("parent_header", {}).get("msg_id")
-                # Skip unrelated messages
-                if parent_msg_id != msg_id:
-                    continue
-                msg_type = msg.get("msg_type", "")
-                msg_content = msg.get("content", {})
-                if msg_type == "stream":
-                    outputs.append(msg_content["text"])
-                elif msg_type == "execute_result":
-                    result = msg_content["data"].get("text/plain", None)
-                elif msg_type == "error":
-                    if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                        json_data = json.loads(base64.b64decode(msg_content.get("evalue", "")))
-                        result = self._from_json_safe(json_data)
-                        is_final_answer = True
-                    else:
-                        raise AgentError("\n".join(msg_content.get("traceback", [])), self.logger)
-                elif msg_type == "status" and msg_content["execution_state"] == "idle":
-                    break
-
-            return CodeOutput(output=result, logs="".join(outputs), is_final_answer=is_final_answer)
-
-        except Exception as e:
-            self.logger.log_error(f"Code execution failed: {e}")
-            raise
-
-    def _send_execute_request(self, code: str) -> str:
-        """Send code execution request to kernel."""
-        import uuid
-
-        # Generate a unique message ID
-        msg_id = str(uuid.uuid4())
-
-        # Create execute request
-        execute_request = {
-            "header": {
-                "msg_id": msg_id,
-                "username": "anonymous",
-                "session": str(uuid.uuid4()),
-                "msg_type": "execute_request",
-                "version": "5.0",
-            },
-            "parent_header": {},
-            "metadata": {},
-            "content": {
-                "code": code,
-                "silent": False,
-                "store_history": True,
-                "user_expressions": {},
-                "allow_stdin": False,
-            },
-        }
-
-        self.ws.send(json.dumps(execute_request))
-        return msg_id
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
+        return _websocket_run_code_raise_errors(code, self.ws, self.logger, self.serializer)
 
     def cleanup(self):
         """Clean up the Docker container and resources."""
@@ -583,6 +684,21 @@ class DockerExecutor(RemotePythonExecutor):
     def delete(self):
         """Ensure cleanup on deletion."""
         self.cleanup()
+
+    def _wait_for_server(self):
+        retries = 0
+        jupyter_ready = False
+        while not jupyter_ready and retries < 10:
+            try:
+                if requests.get(f"{self.base_url}/api/kernelspecs", timeout=2).status_code == 200:
+                    jupyter_ready = True
+                else:
+                    self.logger.log("Jupyter not ready, waiting...", level=LogLevel.INFO)
+            except requests.RequestException:
+                self.logger.log("Jupyter not ready, waiting...", level=LogLevel.INFO)
+            if not jupyter_ready:
+                time.sleep(1)
+                retries += 1
 
 
 class WasmExecutor(RemotePythonExecutor):
@@ -729,7 +845,7 @@ class WasmExecutor(RemotePythonExecutor):
                     and "pythonExceptionValue" in error
                 ):
                     json_data = json.loads(base64.b64decode(error["pythonExceptionValue"]))
-                    result = self._from_json_safe(json_data)
+                    result = self.serializer.from_json_safe(json_data)
                     is_final_answer = True
                 else:
                     error_message = f"{error.get('name', 'Error')}: {error.get('message', 'Unknown error')}"
@@ -744,7 +860,19 @@ class WasmExecutor(RemotePythonExecutor):
             if isinstance(result, dict) and result.get("type") == "image":
                 image_data = result.get("data", "")
                 decoded_bytes = base64.b64decode(image_data.encode("utf-8"))
-                return PIL.Image.open(BytesIO(decoded_bytes)), execution_logs
+                try:
+                    import PIL.Image
+                    return CodeOutput(
+                        output=PIL.Image.open(BytesIO(decoded_bytes)), 
+                        logs=execution_logs, 
+                        is_final_answer=is_final_answer
+                    )
+                except ImportError:
+                    return CodeOutput(
+                        output=decoded_bytes, 
+                        logs=execution_logs, 
+                        is_final_answer=is_final_answer
+                    )
 
             return CodeOutput(output=result, logs=execution_logs, is_final_answer=is_final_answer)
 
