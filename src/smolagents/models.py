@@ -368,8 +368,8 @@ def supports_stop_parameter(model_id: str) -> bool:
         bool: True if the model supports the stop parameter, False otherwise
     """
     model_name = model_id.split("/")[-1]
-    # o3, o4-mini, and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
-    pattern = r"^(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*)$"
+    # o3, o4-mini, grok-3-mini, grok-4 and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
+    pattern = r"^(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*|(xai\.)?grok-3(-mini)?[-\d]*|(xai\.)?grok-4[-\d]*)$"
     return not re.match(pattern, model_name)
 
 
