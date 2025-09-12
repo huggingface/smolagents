@@ -373,6 +373,17 @@ def supports_stop_parameter(model_id: str) -> bool:
     return not re.match(pattern, model_name)
 
 
+class _ParameterRemove:
+    """Sentinel value to indicate a parameter should be removed."""
+
+    def __repr__(self):
+        return "REMOVE_PARAMETER"
+
+
+# Singleton instance for removing parameters
+REMOVE_PARAMETER = _ParameterRemove()
+
+
 class Model:
     """Base class for all language model implementations.
 
@@ -431,12 +442,12 @@ class Model:
         **kwargs,
     ) -> dict[str, Any]:
         """
-        Prepare parameters required for model invocation, handling parameter priorities.
+        Prepare parameters required for model invocation.
 
-        Parameter priority from high to low:
-        1. Explicitly passed kwargs
-        2. Specific parameters (stop_sequences, response_format, etc.)
-        3. Default values in self.kwargs
+        Parameter priority (highest to lowest):
+        1. self.kwargs (model defaults)
+        2. Explicitly passed kwargs
+        3. Specific parameters (stop_sequences, response_format, etc.)
         """
         # Clean and standardize the message list
         flatten_messages_as_text = kwargs.pop("flatten_messages_as_text", self.flatten_messages_as_text)
@@ -446,32 +457,28 @@ class Model:
             convert_images_to_image_urls=convert_images_to_image_urls,
             flatten_messages_as_text=flatten_messages_as_text,
         )
-        # Use self.kwargs as the base configuration
+        # Start with messages
         completion_kwargs = {
-            **self.kwargs,
             "messages": messages_as_dicts,
         }
-
-        # Handle specific parameters
-        if stop_sequences is not None:
+        # Override with specific parameters
+        if stop_sequences is not None and supports_stop_parameter(self.model_id or ""):
             # Some models do not support stop parameter
-            if supports_stop_parameter(self.model_id or ""):
-                completion_kwargs["stop"] = stop_sequences
+            completion_kwargs["stop"] = stop_sequences
         if response_format is not None:
             completion_kwargs["response_format"] = response_format
-
-        # Handle tools parameter
         if tools_to_call_from:
-            tools_config = {
-                "tools": [get_tool_json_schema(tool) for tool in tools_to_call_from],
-            }
+            completion_kwargs["tools"] = [get_tool_json_schema(tool) for tool in tools_to_call_from]
             if tool_choice is not None:
-                tools_config["tool_choice"] = tool_choice
-            completion_kwargs.update(tools_config)
-
-        # Finally, use the passed-in kwargs to override all settings
+                completion_kwargs["tool_choice"] = tool_choice
+        # Override with passed-in kwargs
         completion_kwargs.update(kwargs)
-
+        # Override with self.kwargs
+        for kwarg_name, kwarg_value in self.kwargs.items():
+            if kwarg_value is REMOVE_PARAMETER:
+                completion_kwargs.pop(kwarg_name, None)  # Remove parameter if present
+            else:
+                completion_kwargs[kwarg_name] = kwarg_value  # Set/override parameter
         return completion_kwargs
 
     def generate(
@@ -1916,6 +1923,7 @@ class AmazonBedrockServerModel(ApiModel):
 AmazonBedrockModel = AmazonBedrockServerModel
 
 __all__ = [
+    "REMOVE_PARAMETER",
     "MessageRole",
     "tool_role_conversions",
     "get_clean_message_list",

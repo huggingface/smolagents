@@ -2,9 +2,37 @@
   sections:
   - local: index
     title: 소개
+  - local: installation
+    title: 설치 옵션
+#  - local: guided_tour
+#    title: 안내서
+- title: 튜토리얼
+  sections:
+  - title: 좋은 에이전트 구축하기
+    local: tutorials/building_good_agents
 - title: 예제
   sections:
   - local: examples/text_to_sql
     title: 스스로 오류를 수정하는 Text-to-SQL
   - local: examples/multiagents
     title: 멀티 에이전트 시스템 오케스트레이션
+#  - local: in_translation
+#    title: (번역중) Build a web browser agent using vision models
+#  - local: in_translation
+#    title: (번역중) Using different models
+#  - local: in_translation
+#    title: "(번역중) Human-in-the-Loop: Customize agent plan interactively"
+#  - local: in_translation
+#    title: (번역중) Async Applications with Agents
+#- title: Reference
+#  sections:
+#  - local: reference/agents
+#    title: Agent-related objects
+#  - local: reference/models
+#    title: Model-related objects
+#  - title: Tools
+#    sections:
+#    - title: Tool-related objects
+#      local: reference/tools
+#    - title: Built-in Tools
+#      local: reference/default_tools

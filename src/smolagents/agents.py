@@ -665,20 +665,16 @@ You have been provided with these additional arguments, that you can access dire
                             plan_message_content += event.content
                             live.update(Markdown(plan_message_content))
                             if event.token_usage:
-                                output_tokens += event.token_usage.output_tokens
                                 input_tokens = event.token_usage.input_tokens
+                                output_tokens += event.token_usage.output_tokens
                         yield event
             else:
                 plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
                 plan_message_content = plan_message.content
-                input_tokens, output_tokens = (
-                    (
-                        plan_message.token_usage.input_tokens,
-                        plan_message.token_usage.output_tokens,
-                    )
-                    if plan_message.token_usage
-                    else (None, None)
-                )
+                input_tokens, output_tokens = 0, 0
+                if plan_message.token_usage:
+                    input_tokens = plan_message.token_usage.input_tokens
+                    output_tokens = plan_message.token_usage.output_tokens
             plan = textwrap.dedent(
                 f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
             )
@@ -727,17 +723,16 @@ You have been provided with these additional arguments, that you can access dire
                             plan_message_content += event.content
                             live.update(Markdown(plan_message_content))
                             if event.token_usage:
-                                output_tokens += event.token_usage.output_tokens
                                 input_tokens = event.token_usage.input_tokens
+                                output_tokens += event.token_usage.output_tokens
                         yield event
             else:
                 plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
                 plan_message_content = plan_message.content
-                if plan_message.token_usage is not None:
-                    input_tokens, output_tokens = (
-                        plan_message.token_usage.input_tokens,
-                        plan_message.token_usage.output_tokens,
-                    )
+                input_tokens, output_tokens = 0, 0
+                if plan_message.token_usage:
+                    input_tokens = plan_message.token_usage.input_tokens
+                    output_tokens = plan_message.token_usage.output_tokens
             plan = textwrap.dedent(
                 f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message_content}\n```"""
             )
