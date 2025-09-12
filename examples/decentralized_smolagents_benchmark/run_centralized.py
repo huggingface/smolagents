@@ -442,7 +442,8 @@ def create_agent_team(model: Model):
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
 
     # Create base tools that are shared between agents
-    shared_tools = [visualizer, ti_tool]
+    #shared_tools = [visualizer, ti_tool]
+    shared_tools = []
 
     # Define tool sets for different agent types
     web_tools: List[Tool] = [
@@ -457,7 +458,7 @@ def create_agent_team(model: Model):
     ]
 
     code_tools: List[Tool] = [PythonInterpreterTool()]
-    reader_tools: List[Tool] = [FileReaderTool()]
+    reader_tools: List[Tool] = [FileReaderTool(), visualizer, ti_tool]
 
     # Add shared tools to each tool set
     web_tools.extend(shared_tools)

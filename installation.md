@@ -20,9 +20,9 @@ uv pip install -e "smolagents[dev] @ ."
 ```
 
 3. Pass Hugging Face key as an environment variable: run `export HF_TOKEN=your_huggingface_api_key_here`
-You can also set mistral-AI API keys.
+You can also set mistral-AI API keys. For commodity, put all the keys that you need in a .env file. For instance
+
 ```bash
-For commodity, put all the keys that you need in a .env file. For instance
 LANGFUSE_PUBLIC_KEY=
 LANGFUSE_SECRET_KEY=
 LANGFUSE_HOST="https://cloud.langfuse.com"
