@@ -14,4 +14,4 @@ style:
 	
 # Run smolagents tests
 test:
-	pytest ./tests/
+	pytest ./tests/ --junitxml=make_test_log.xml

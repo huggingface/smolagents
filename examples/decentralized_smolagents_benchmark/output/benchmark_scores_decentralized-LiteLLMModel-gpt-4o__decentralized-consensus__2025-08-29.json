@@ -1,0 +1,36 @@
+{
+  "model_id": "decentralized-LiteLLMModel-gpt-4o",
+  "action_type": "decentralized-consensus",
+  "date": "2025-08-29",
+  "timestamp": "2025-08-29T15:42:55.958115",
+  "benchmarks": {
+    "gaia": {
+      "total_questions": 32,
+      "exact_match_score": 0.25,
+      "contains_score": 0.25,
+      "exact_matches": 8.0,
+      "contains_matches": 8.0
+    },
+    "math": {
+      "total_questions": 50,
+      "exact_match_score": 0.4,
+      "contains_score": 0.46,
+      "exact_matches": 20.0,
+      "contains_matches": 23.0
+    },
+    "simpleqa": {
+      "total_questions": 50,
+      "exact_match_score": 0.82,
+      "contains_score": 0.86,
+      "exact_matches": 41.0,
+      "contains_matches": 43.0
+    }
+  },
+  "overall": {
+    "total_questions": 132,
+    "exact_match_score": 0.5227272727272727,
+    "contains_score": 0.5606060606060606,
+    "exact_matches": 69.0,
+    "contains_matches": 74.0
+  }
+}

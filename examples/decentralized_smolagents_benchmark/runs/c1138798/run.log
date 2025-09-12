@@ -1,0 +1,187 @@
+{"timestamp":"2025-09-01 20:04:45,500", "level":"INFO", "message":{"event": "run_started", "run_id": "c1138798", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "In what year did Patty Berg become the first woman to hit a hole-in-one during a USGA competition at the U.S. Women's Open?"}}}
+{"timestamp":"2025-09-01 20:04:45,500", "level":"INFO", "message":{"event": "creating_team", "run_id": "c1138798"}}
+{"timestamp":"2025-09-01 20:04:46,551", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "c1138798", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 20:04:46,551", "level":"INFO", "message":{"event": "starting_execution", "run_id": "c1138798", "question": "In what year did Patty Berg become the first woman to hit a hole-in-one during a USGA competition at the U.S. Women's Open?"}}
+{"timestamp":"2025-09-01 20:04:46,551", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "c1138798", "task": "In what year did Patty Berg become the first woman to hit a hole-in-one during a USGA competition at the U.S. Women's Open?"}}
+{"timestamp":"2025-09-01 20:04:46,551", "level":"INFO", "message":{"event": "message_posted", "message_id": "21f3ef60-0367-461b-9d33-ed5be2ffcb36", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "In what year did Patty Berg become the first woman to hit a hole-in-one during a USGA competition at"}}
+{"timestamp":"2025-09-01 20:04:46,552", "level":"INFO", "message":{"event": "task_posted", "run_id": "c1138798", "message_id": "21f3ef60-0367-461b-9d33-ed5be2ffcb36", "task": "In what year did Patty Berg become the first woman to hit a hole-in-one during a USGA competition at the U.S. Women's Open?"}}
+{"timestamp":"2025-09-01 20:04:46,552", "level":"INFO", "message":{"event": "agent_started", "run_id": "c1138798", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 20:04:46,559", "level":"INFO", "message":{"event": "agent_started", "run_id": "c1138798", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 20:04:46,563", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:46,568", "level":"INFO", "message":{"event": "agent_started", "run_id": "c1138798", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 20:04:46,569", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:46,569", "level":"INFO", "message":{"event": "agent_started", "run_id": "c1138798", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 20:04:46,575", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:46,581", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:47,551", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:48,024", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:48,569", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:48,574", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:49,245", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:49,249", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:49,389", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:49,415", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:49,942", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:50,965", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:50,969", "level":"INFO", "message":{"event": "message_posted", "message_id": "a538c2d4-0812-4ba3-8bf0-3e9e2fce67a2", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "There are no active polls regarding the task on Patty Berg's first hole-in-one. I will proceed to re"}}
+{"timestamp":"2025-09-01 20:04:50,971", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:51,351", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:52,257", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:52,268", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:52,515", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:52,519", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:52,927", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:52,929", "level":"INFO", "message":{"event": "message_posted", "message_id": "dbc12d8d-3b63-479c-b761-ea5e0155a67c", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Could you please find out in what year Patty Berg became the first woman to hit a hole-in-one during"}}
+{"timestamp":"2025-09-01 20:04:52,931", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:54,014", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:54,021", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:54,131", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:54,134", "level":"INFO", "message":{"event": "poll_created", "poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1959\n\n**Supporting Evidence:**\nPatty Berg became the first woman to hit a hole-in-one during a USGA competition at the U.S. Women's Open in 1959. This information is corroborated by multiple sources, ", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:04:54,134", "level":"INFO", "message":{"event": "message_posted", "message_id": "8be9d3eb-9908-4048-a61f-f4283eb6e8e8", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'f1e327e7-45ab-4613-934d-0ce9a3be3ca1', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:04:54,136", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:54,834", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:54,840", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:55,590", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:55,593", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The year 1959 is consistently reported across multiple credible sources, including Wikipedia and official golf records, highlighting Patty Berg's achievement in the U.S. Women's Open as the first woma"}}
+{"timestamp":"2025-09-01 20:04:55,593", "level":"INFO", "message":{"event": "message_posted", "message_id": "c0dc4aa2-a15f-4986-b9a5-2bba895d9285", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'f1e327e7-45ab-4613-934d-0ce9a3be3ca1', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:04:55,595", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:55,876", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:56,519", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:56,525", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:56,619", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:57,707", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:57,711", "level":"INFO", "message":{"event": "message_posted", "message_id": "f050168b-4158-4700-b940-ed3f15455dc9", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Could you please help find the year when Patty Berg became the first woman to hit a hole-in-one duri"}}
+{"timestamp":"2025-09-01 20:04:57,712", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:58,056", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:58,059", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.9, "rationale": "The information provided by the WebSearchAgent seems credible and is supported by multiple sources, including Wikipedia and official USGA records. I see no reason to doubt this information."}}
+{"timestamp":"2025-09-01 20:04:58,059", "level":"INFO", "message":{"event": "message_posted", "message_id": "a6ad3503-4d0c-4501-814c-099c09bde73a", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'f1e327e7-45ab-4613-934d-0ce9a3be3ca1', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:04:58,061", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:58,067", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:58,070", "level":"INFO", "message":{"event": "message_posted", "message_id": "ab46e1d8-4dba-4306-859f-b630af433a5e", "sender": "WebSearchAgent", "type": "private_message", "thread_id": null, "recipients": ["DocumentReaderAgent"], "content_preview": "Hi! I've found that Patty Berg became the first woman to hit a hole-in-one during a USGA competition"}}
+{"timestamp":"2025-09-01 20:04:58,072", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:58,955", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:58,963", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:58,989", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:59,015", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:59,688", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:59,691", "level":"INFO", "message":{"event": "message_posted", "message_id": "e127f0e3-c3b0-42b4-824e-e650366cae24", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["DocumentReaderAgent"], "content_preview": "I've verified that Patty Berg became the first woman to hit a hole-in-one during a USGA competition "}}
+{"timestamp":"2025-09-01 20:04:59,693", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:04:59,819", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:04:59,824", "level":"INFO", "message":{"event": "poll_created", "poll_id": "ab86f3b2-f34c-4306-9eb7-0af6f6780aeb", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1959\n\n**Supporting Evidence:**\nAccording to multiple sources, including Wikipedia and USGA, Patty Berg became the first woman to hit a hole-in-one during a USGA competition at the U.S. Women's Open in", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:04:59,824", "level":"INFO", "message":{"event": "message_posted", "message_id": "65c2d7f1-e993-45a2-971d-41709e3378fa", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'ab86f3b2-f34c-4306-9eb7-0af6f6780aeb', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:04:59,826", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:00,753", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:00,758", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "voter": "CodeAgent", "vote": "YES", "confidence": 0.95, "rationale": "The information from WebSearchAgent is backed by multiple credible sources such as Wikipedia and official USGA records, which makes it reliable."}}
+{"timestamp":"2025-09-01 20:05:00,758", "level":"INFO", "message":{"event": "message_posted", "message_id": "98cbe6f0-ec88-4bfe-9914-2601856650f9", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'f1e327e7-45ab-4613-934d-0ce9a3be3ca1', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:05:00,760", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:01,165", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:01,170", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:01,267", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:01,275", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:01,542", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:01,545", "level":"INFO", "message":{"event": "message_posted", "message_id": "de020361-ed16-4785-9df6-c6150f8cceef", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The poll already has enough supporting votes, confirming the answer as 1959 for the year Patty Berg "}}
+{"timestamp":"2025-09-01 20:05:01,547", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:02,633", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:02,637", "level":"INFO", "message":{"event": "agent_completed", "run_id": "c1138798", "agent_name": "DocumentReaderAgent", "duration_seconds": 16.06, "result_type": "AgentText", "result_preview": "1959"}}
+{"timestamp":"2025-09-01 20:05:02,638", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:02,643", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:02,906", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:02,916", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "ab86f3b2-f34c-4306-9eb7-0af6f6780aeb", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The proposed answer using the year 1959 stands verified by multiple credible sources, including both Wikipedia and USGA records. This provides a high level of confidence in its accuracy."}}
+{"timestamp":"2025-09-01 20:05:02,916", "level":"INFO", "message":{"event": "message_posted", "message_id": "e1db4cce-6a40-4ea5-a249-d393f4ab0363", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'ab86f3b2-f34c-4306-9eb7-0af6f6780aeb', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:05:02,925", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:03,822", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:03,829", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:05,818", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:05,821", "level":"INFO", "message":{"event": "agent_completed", "run_id": "c1138798", "agent_name": "DeepResearchAgent", "duration_seconds": 19.25, "result_type": "AgentText", "result_preview": "1959"}}
+{"timestamp":"2025-09-01 20:05:05,822", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "c1138798"}}
+{"timestamp":"2025-09-01 20:05:05,822", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "c1138798", "message_count": 13}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "c1138798", "poll_count": 2, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "c1138798", "poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "yes_votes": 3, "threshold": 3, "proposer": "WebSearchAgent", "answer_preview": "1959\n\n**Supporting Evidence:**\nPatty Berg became the first woman to hit a hole-in-one during a USGA competition at the U.S. Women's Open in 1959. This information is corroborated by multiple sources, "}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "message_posted", "message_id": "af3d0255-9554-4119-a206-ef127b87e879", "sender": "WebSearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'f1e327e7-45ab-4613-934d-0ce9a3be3ca1', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "message_posted", "message_id": "32c95383-03fc-4725-8a7b-76f5c4e47425", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': 'f1e327e7-45ab-4613-934d-0ce9a3be3ca1', 'answer': '1959', 'tally"}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "c1138798", "poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "result": "{'id': '32c95383-03fc-4725-8a7b-76f5c4e47425', 'timestamp': '2025-09-01T18:05:05.823Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': 'f1e327e7-45ab-4"}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "c1138798", "poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "answer": "1959", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "c1138798", "poll_id": "ab86f3b2-f34c-4306-9eb7-0af6f6780aeb", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "ab86f3b2-f34c-4306-9eb7-0af6f6780aeb", "yes_votes": 1, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "ab86f3b2-f34c-4306-9eb7-0af6f6780aeb", "yes_votes": 1, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "c1138798", "poll_id": "ab86f3b2-f34c-4306-9eb7-0af6f6780aeb", "result": null}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "c1138798", "winning_poll_id": "f1e327e7-45ab-4613-934d-0ce9a3be3ca1", "answer": "1959"}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "c1138798", "after_agent": "DeepResearchAgent", "completed_agents": 2, "final_answer": "1959"}}
+{"timestamp":"2025-09-01 20:05:05,823", "level":"INFO", "message":{"event": "run_completed", "run_id": "c1138798", "status": "success_early", "duration_seconds": 19.27}}
+{"timestamp":"2025-09-01 20:05:06,304", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:06,307", "level":"INFO", "message":{"event": "poll_created", "poll_id": "014bca42-e162-4c9b-a187-0a48cd358fdb", "proposer": "CodeAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1959\n\n**Supporting Evidence:**\nPatty Berg became the first woman to hit a hole-in-one during a USGA competition at the U.S. Women's Open in 1959. This is corroborated by multiple credible sources, inc", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:05:06,307", "level":"INFO", "message":{"event": "message_posted", "message_id": "4f05c3ab-bd41-44ae-9e4f-5d906898ad09", "sender": "CodeAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '014bca42-e162-4c9b-a187-0a48cd358fdb', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:05:06,309", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:06,900", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:06,904", "level":"INFO", "message":{"event": "message_posted", "message_id": "83f96321-ee6b-49fd-a2d2-be4d8eee4d8b", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The final answer has been confirmed: Patty Berg became the first woman to hit a hole-in-one during a"}}
+{"timestamp":"2025-09-01 20:05:06,906", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:07,756", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:07,761", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:08,597", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:08,604", "level":"INFO", "message":{"event": "poll_created", "poll_id": "8ffc622d-61ec-4606-a84b-bdd5057be4be", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1959\n\n**Supporting Evidence:**\nPatty Berg became the first woman to hit a hole-in-one during a USGA competition at the U.S. Women's Open in 1959. This was confirmed by multiple credible sources, inclu", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:05:08,605", "level":"INFO", "message":{"event": "message_posted", "message_id": "1d6711e0-d217-4cae-b6a1-a7b232ab8d71", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '8ffc622d-61ec-4606-a84b-bdd5057be4be', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:05:08,607", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:09,376", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:09,379", "level":"INFO", "message":{"event": "agent_completed", "run_id": "c1138798", "agent_name": "CodeAgent", "duration_seconds": 22.83, "result_type": "AgentText", "result_preview": "1959"}}
+{"timestamp":"2025-09-01 20:05:10,943", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:10,946", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "8ffc622d-61ec-4606-a84b-bdd5057be4be", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The provided year 1959 is consistently backed by numerous credible sources, positioning it as a reliable answer to the question regarding Patty Berg's accomplishment."}}
+{"timestamp":"2025-09-01 20:05:10,946", "level":"INFO", "message":{"event": "message_posted", "message_id": "d2fb4e88-043d-462f-947d-f82f22ba1cee", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '8ffc622d-61ec-4606-a84b-bdd5057be4be', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:05:10,948", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:12,436", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:12,444", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:16,893", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:16,905", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "014bca42-e162-4c9b-a187-0a48cd358fdb", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The year 1959 for Patty Berg's hole-in-one at the U.S. Women's Open is thoroughly verified across multiple authoritative sources. Strong documentation supports this fact, aligning with both historical"}}
+{"timestamp":"2025-09-01 20:05:16,906", "level":"INFO", "message":{"event": "message_posted", "message_id": "00dc82e0-9d52-4aa0-bd1a-fdd907f329f7", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '014bca42-e162-4c9b-a187-0a48cd358fdb', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:05:16,916", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:18,216", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:18,224", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:21,279", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:21,283", "level":"INFO", "message":{"event": "message_posted", "message_id": "a9155204-1373-4bfb-a39f-5edd056b2bb5", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The final answer has once more been confirmed as 1959 for Patty Berg's historic achievement at the U"}}
+{"timestamp":"2025-09-01 20:05:21,286", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:05:23,046", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:05:23,050", "level":"INFO", "message":{"event": "agent_completed", "run_id": "c1138798", "agent_name": "WebSearchAgent", "duration_seconds": 36.49, "result_type": "AgentText", "result_preview": "1959"}}
+{"timestamp":"2025-09-01 20:05:23,053", "level":"INFO", "message":{"event": "execution_completed", "run_id": "c1138798", "status": "success_early", "has_answer": true}}
