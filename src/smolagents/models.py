@@ -1880,6 +1880,7 @@ class AmazonBedrockServerModel(ApiModel):
 AmazonBedrockModel = AmazonBedrockServerModel
 
 __all__ = [
+    "REMOVE_PARAMETER",
     "MessageRole",
     "tool_role_conversions",
     "get_clean_message_list",
