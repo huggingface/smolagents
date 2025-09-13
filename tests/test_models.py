@@ -33,6 +33,7 @@ from smolagents.models import (
     MessageRole,
     MLXModel,
     Model,
+    OpenAIResponsesModel,
     OpenAIServerModel,
     TransformersModel,
     get_clean_message_list,
@@ -499,6 +500,64 @@ class TestOpenAIServerModel:
                     args2 = el.tool_calls[1].function.arguments
         assert args == '{"answer": "blob"}'
         assert args2 == '{"answer": "blob2"}'
+
+
+class TestOpenAIResponsesModel:
+    def test_client_kwargs_passed_correctly(self):
+        model_id = "gpt-4o"
+        api_base = "https://api.openai.com/v1"
+        api_key = "test_api_key"
+        organization = "test_org"
+        project = "test_project"
+        client_kwargs = {"max_retries": 5}
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            model = OpenAIResponsesModel(
+                model_id=model_id,
+                api_base=api_base,
+                api_key=api_key,
+                organization=organization,
+                project=project,
+                client_kwargs=client_kwargs,
+            )
+        MockOpenAI.assert_called_once_with(
+            base_url=api_base,
+            api_key=api_key,
+            organization=organization,
+            project=project,
+            max_retries=5,
+        )
+        assert model.client == MockOpenAI.return_value
+
+    def test_generate_and_stream(self):
+        usage = MagicMock(input_tokens=3, output_tokens=2)
+        response_obj = MagicMock(output_text="hi", usage=usage)
+
+        class Delta:
+            def __init__(self, delta):
+                self.delta = delta
+
+        class Completed:
+            def __init__(self, response):
+                self.response = response
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            client = MockOpenAI.return_value
+            client.responses.create.side_effect = [response_obj]
+            model = OpenAIResponsesModel(model_id="gpt-4o")
+            out = model.generate([ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "hello"}])])
+            client.responses.create.assert_called_once()
+            assert out.content == "hi"
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            client = MockOpenAI.return_value
+            client.responses.create.return_value = iter([Delta("h"), Delta("i"), Completed(response_obj)])
+            model = OpenAIResponsesModel(model_id="gpt-4o")
+            stream = model.generate_stream(
+                [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "hi"}])]
+            )
+            collected = "".join(d.content for d in stream if d.content)
+            assert collected == "hi"
 
 
 class TestAmazonBedrockServerModel:
