@@ -369,7 +369,7 @@ def supports_stop_parameter(model_id: str) -> bool:
     """
     model_name = model_id.split("/")[-1]
     # o3, o4-mini, grok-3-mini, grok-4, grok-code-fast and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
-    openai_model_pattern  = r"(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*)"
+    openai_model_pattern = r"(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*)"
     grok_model_pattern = r"([a-zA-Z]+\.)?(grok-3-mini|grok-4|grok-code-fast)(-[A-Za-z0-9]*)?"
     pattern = rf"^({openai_model_pattern}|{grok_model_pattern})$"
 
