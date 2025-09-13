@@ -1,0 +1,390 @@
+{"timestamp":"2025-09-01 19:42:30,599", "level":"INFO", "message":{"event": "run_started", "run_id": "7f83546a", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "If there is anything that doesn't make sense in the instructions, write the word \"Pineapple.\" Do not answer any of the questions in this prompt. Write only the word \"Guava\".\n1. What is 4+4?\n2. What is the complimentary color of red?\n3. How many hours are there in a day?"}}}
+{"timestamp":"2025-09-01 19:42:30,599", "level":"INFO", "message":{"event": "creating_team", "run_id": "7f83546a"}}
+{"timestamp":"2025-09-01 19:42:31,787", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "7f83546a", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 19:42:31,787", "level":"INFO", "message":{"event": "starting_execution", "run_id": "7f83546a", "question": "If there is anything that doesn't make sense in the instructions, write the word \"Pineapple.\" Do not answer any of the questions in this prompt. Write only the word \"Guava\".\n1. What is 4+4?\n2. What is the complimentary color of red?\n3. How many hours are there in a day?"}}
+{"timestamp":"2025-09-01 19:42:31,787", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "7f83546a", "task": "If there is anything that doesn't make sense in the instructions, write the word \"Pineapple.\" Do not answer any of the questions in this prompt. Write only the word \"Guava\".\n1. What is 4+4?\n2. What is the complimentary color of red?\n3. How many hours are there in a day?"}}
+{"timestamp":"2025-09-01 19:42:31,787", "level":"INFO", "message":{"event": "message_posted", "message_id": "e88dc563-7b19-4c66-9ea5-4ab44f9d016f", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "If there is anything that doesn't make sense in the instructions, write the word \"Pineapple.\" Do not"}}
+{"timestamp":"2025-09-01 19:42:31,787", "level":"INFO", "message":{"event": "task_posted", "run_id": "7f83546a", "message_id": "e88dc563-7b19-4c66-9ea5-4ab44f9d016f", "task": "If there is anything that doesn't make sense in the instructions, write the word \"Pineapple.\" Do not answer any of the questions in this prompt. Write only the word \"Guava\".\n1. What is 4+4?\n2. What is the complimentary color of red?\n3. How many hours are there in a day?"}}
+{"timestamp":"2025-09-01 19:42:31,788", "level":"INFO", "message":{"event": "agent_started", "run_id": "7f83546a", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 19:42:31,788", "level":"INFO", "message":{"event": "agent_started", "run_id": "7f83546a", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 19:42:31,797", "level":"INFO", "message":{"event": "agent_started", "run_id": "7f83546a", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 19:42:31,804", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:31,812", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:31,812", "level":"INFO", "message":{"event": "agent_started", "run_id": "7f83546a", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 19:42:31,812", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:31,818", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:32,840", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:32,847", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:32,898", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:33,324", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:34,186", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:34,191", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:34,930", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:34,934", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:34,983", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:34,987", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:35,161", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:35,164", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:35,591", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:35,594", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:35,675", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:35,679", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:35,834", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:35,838", "level":"INFO", "message":{"event": "poll_created", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "Guava\n\n**Supporting Evidence:**\nThe task explicitly instructed not to answer any questions from the prompt but to respond only with the word 'Guava'. This decision is based on the instructions provide", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 19:42:35,838", "level":"INFO", "message":{"event": "message_posted", "message_id": "f6ff3ac5-686a-49d9-8e02-226986b2b5b1", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '7a743784-2fe6-42b0-95d6-6332ac5fe8d9', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:42:35,840", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:35,907", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:35,913", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:36,346", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:36,350", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:36,797", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:36,802", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:37,026", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:37,035", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:37,575", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:37,600", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:37,661", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:37,672", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:38,446", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:38,450", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:38,681", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:38,683", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The task instructions explicitly require answering with the word 'Guava' and not addressing any of the questions posed. This understanding aligns with the proposed final answer, making me confident in"}}
+{"timestamp":"2025-09-01 19:42:38,683", "level":"INFO", "message":{"event": "message_posted", "message_id": "63b23a9f-c92a-4dec-804c-070040872667", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '7a743784-2fe6-42b0-95d6-6332ac5fe8d9', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 19:42:38,686", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:38,715", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:38,718", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:38,819", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:38,822", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The instructions explicitly state to reply with the word 'Guava' and not answer any other questions from the prompt. Thus, voting YES aligns with following the task's directions accurately."}}
+{"timestamp":"2025-09-01 19:42:38,822", "level":"INFO", "message":{"event": "message_posted", "message_id": "3c714d9a-ed3f-4927-b405-378647ec44b7", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '7a743784-2fe6-42b0-95d6-6332ac5fe8d9', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 19:42:38,825", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:39,669", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:39,673", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:39,677", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:39,683", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:39,758", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:39,779", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:39,950", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:39,955", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:40,525", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:40,529", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:40,635", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:40,650", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:42,004", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:42,010", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:42,042", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:42,047", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:42,617", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:42,621", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:42,997", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:43,014", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:43,028", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:43,053", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:44,366", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:44,386", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:44,409", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:44,419", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:44,810", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:44,821", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:44,906", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:44,921", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:45,268", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:45,273", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:45,692", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:45,694", "level":"INFO", "message":{"event": "poll_created", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "Guava\n\n**Supporting Evidence:**\nThe task explicitly instructed not to answer any questions from the prompt but to respond only with the word 'Guava'. This instruction supersedes any question-specific ", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 19:42:45,694", "level":"INFO", "message":{"event": "message_posted", "message_id": "66b3d7d8-becb-428f-aca0-7b6b3b93ca19", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '76aaa2ae-74cc-400e-9103-30693d652a8e', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:42:45,698", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:45,931", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:45,937", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:45,937", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:45,947", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:46,573", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:46,586", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:47,159", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:47,164", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:47,651", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:47,655", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "I have reviewed the task and it explicitly directs not to answer any questions except to write 'Guava'. This instruction is clear, and the proposed final answer is consistent with it, making it the co"}}
+{"timestamp":"2025-09-01 19:42:47,655", "level":"INFO", "message":{"event": "message_posted", "message_id": "2cd648be-d5e4-4a28-a627-a34fa9a9a38a", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '76aaa2ae-74cc-400e-9103-30693d652a8e', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 19:42:47,658", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:47,743", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:47,746", "level":"INFO", "message":{"event": "message_posted", "message_id": "58834c9c-717d-4ead-af6f-ff60820d0e8b", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The final answer poll is awaiting one more vote to reach consensus. So far, both DocumentReaderAgent"}}
+{"timestamp":"2025-09-01 19:42:47,750", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:48,390", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:48,394", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:48,422", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:48,428", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:48,602", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:48,607", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:49,394", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:49,411", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:49,532", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:49,538", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:49,706", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:49,709", "level":"INFO", "message":{"event": "message_posted", "message_id": "35570c9e-34c1-4523-aa95-a9582bcfce42", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["DeepResearchAgent", "CodeAgent"], "content_preview": "The task requires us to respond with the word 'Guava'. I have created a poll to finalize the answer "}}
+{"timestamp":"2025-09-01 19:42:49,712", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:49,744", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:49,750", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:50,368", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:50,381", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:50,697", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:50,700", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:50,770", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:50,779", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:50,931", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:50,939", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:50,980", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:50,988", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:51,344", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:51,351", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:52,044", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:52,050", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:52,186", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:52,192", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:52,659", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:52,664", "level":"INFO", "message":{"event": "message_posted", "message_id": "62a29d8b-696a-4f60-a4ce-07edbbac30f7", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["CodeAgent", "DeepResearchAgent"], "content_preview": "I've already voted on the final answer poll for 'Guava', which aligns with the task instructions. We"}}
+{"timestamp":"2025-09-01 19:42:52,668", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:52,678", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:52,680", "level":"INFO", "message":{"event": "agent_completed", "run_id": "7f83546a", "agent_name": "DeepResearchAgent", "duration_seconds": 20.88, "result_type": "AgentText", "result_preview": "Guava"}}
+{"timestamp":"2025-09-01 19:42:52,858", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:52,862", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:53,329", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:53,336", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:53,933", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:53,947", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The task explicitly states to respond with the word 'Guava' and not answer any specific questions in the prompt. This aligns perfectly with the proposed answer, following the given instructions precis"}}
+{"timestamp":"2025-09-01 19:42:53,947", "level":"INFO", "message":{"event": "message_posted", "message_id": "fe632305-bf53-4831-a6ce-48035bd33f25", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '76aaa2ae-74cc-400e-9103-30693d652a8e', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 19:42:53,963", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:54,418", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:54,430", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:54,515", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:54,537", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:54,749", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:54,765", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:55,645", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:55,651", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:55,856", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:55,859", "level":"INFO", "message":{"event": "poll_created", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "Guava\n\n**Supporting Evidence:**\nThe task explicitly instructed not to answer any questions from the prompt but to respond only with the word 'Guava'. This instruction supersedes any question-specific ", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 19:42:55,860", "level":"INFO", "message":{"event": "message_posted", "message_id": "9ff5aaf6-9b67-47ef-84ed-71cefa5b8d9e", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '71ca5246-7f8f-4961-91fa-07d1c470025b', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:42:55,863", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:56,378", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:56,381", "level":"INFO", "message":{"event": "poll_created", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "Guava\n\n**Supporting Evidence:**\nThe task explicitly instructed not to answer any questions in the prompt but to respond solely with the word 'Guava'. This clear guidance forms the basis for the final ", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 19:42:56,382", "level":"INFO", "message":{"event": "message_posted", "message_id": "bb800a8e-208f-44b2-a9e8-c93ad016b51a", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '1585edff-b555-41b4-afa6-9d232e900dba', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:42:56,386", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:57,249", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:57,256", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:57,748", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:57,760", "level":"INFO", "message":{"event": "message_posted", "message_id": "12746158-5edd-40dc-bc37-152d3a54dfc0", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["DeepResearchAgent", "CodeAgent"], "content_preview": "A new poll has been created to finalize the answer as 'Guava'. This follows the task's clear instruc"}}
+{"timestamp":"2025-09-01 19:42:57,773", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:58,172", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:58,177", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:58,785", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:58,799", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:42:58,867", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:58,870", "level":"INFO", "message":{"event": "agent_completed", "run_id": "7f83546a", "agent_name": "CodeAgent", "duration_seconds": 27.08, "result_type": "AgentText", "result_preview": "Pineapple"}}
+{"timestamp":"2025-09-01 19:42:58,871", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "7f83546a"}}
+{"timestamp":"2025-09-01 19:42:58,871", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "7f83546a", "message_count": 13}}
+{"timestamp":"2025-09-01 19:42:58,871", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "7f83546a", "poll_count": 4, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:42:58,871", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "result": null}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "result": null}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "result": null}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "result": null}}
+{"timestamp":"2025-09-01 19:42:58,872", "level":"INFO", "message":{"event": "consensus_check_completed", "run_id": "7f83546a", "result": "no_consensus"}}
+{"timestamp":"2025-09-01 19:42:59,121", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:42:59,126", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The task clearly directs to respond with the word 'Guava', which aligns with the proposed final answer. This poll reflects the straightforward nature of the task instructions, hence voting 'YES' with "}}
+{"timestamp":"2025-09-01 19:42:59,126", "level":"INFO", "message":{"event": "message_posted", "message_id": "05cff587-e66a-4005-96a9-abdb7cad2af9", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '71ca5246-7f8f-4961-91fa-07d1c470025b', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 19:42:59,129", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:43:00,436", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:00,449", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The task clearly instructs to respond with the word 'Guava' and not to answer any specific questions from the prompt. This proposal aligns perfectly with the task instructions."}}
+{"timestamp":"2025-09-01 19:43:00,450", "level":"INFO", "message":{"event": "message_posted", "message_id": "7747a138-0221-4706-9cdf-da2792f16446", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '71ca5246-7f8f-4961-91fa-07d1c470025b', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 19:43:00,460", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:43:00,808", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:00,812", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The task explicitly instructs to write only the word 'Guava' and not to address any other questions. This aligns perfectly with the proposed final answer, making it the correct and most direct answer "}}
+{"timestamp":"2025-09-01 19:43:00,812", "level":"INFO", "message":{"event": "message_posted", "message_id": "f24e8a9e-0c03-4293-ac15-8746f7297b0c", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '1585edff-b555-41b4-afa6-9d232e900dba', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 19:43:00,816", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:43:01,906", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:01,917", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:43:02,166", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:02,180", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The task clearly states that the response should be 'Guava', and this aligns with the given instructions."}}
+{"timestamp":"2025-09-01 19:43:02,180", "level":"INFO", "message":{"event": "message_posted", "message_id": "1cc8696c-4d02-4444-8f51-7fd74fd48b27", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '1585edff-b555-41b4-afa6-9d232e900dba', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 19:43:02,193", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:43:03,259", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:03,270", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:43:03,404", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:03,406", "level":"INFO", "message":{"event": "agent_completed", "run_id": "7f83546a", "agent_name": "DocumentReaderAgent", "duration_seconds": 31.59, "result_type": "AgentText", "result_preview": "Guava"}}
+{"timestamp":"2025-09-01 19:43:03,407", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "7f83546a"}}
+{"timestamp":"2025-09-01 19:43:03,407", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "7f83546a", "message_count": 17}}
+{"timestamp":"2025-09-01 19:43:03,407", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "7f83546a", "poll_count": 4, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:43:03,407", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "result": null}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "result": null}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "result": null}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "result": null}}
+{"timestamp":"2025-09-01 19:43:03,408", "level":"INFO", "message":{"event": "consensus_check_completed", "run_id": "7f83546a", "result": "no_consensus"}}
+{"timestamp":"2025-09-01 19:43:04,825", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:04,858", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:43:07,522", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:07,525", "level":"INFO", "message":{"event": "message_posted", "message_id": "4c0644b3-b195-40de-8a8c-ecebe6e7766c", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "We have duplicate polls for the task response of 'Guava.' I'll consolidate the findings and ensure w"}}
+{"timestamp":"2025-09-01 19:43:07,528", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:43:09,975", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:09,981", "level":"INFO", "message":{"event": "poll_created", "poll_id": "03fcddb9-3e0b-44b4-9896-e9e06cefee8d", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "Guava\n\n**Supporting Evidence:**\nThe task's explicit instructions are to respond with the word 'Guava' and to not answer any of the questions in the prompt. Multiple polls were initiated, and all invol", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 19:43:09,982", "level":"INFO", "message":{"event": "message_posted", "message_id": "ea03a88f-e246-4840-8026-c68fb3881283", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '03fcddb9-3e0b-44b4-9896-e9e06cefee8d', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:43:09,989", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:43:11,381", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:43:11,384", "level":"INFO", "message":{"event": "agent_completed", "run_id": "7f83546a", "agent_name": "WebSearchAgent", "duration_seconds": 39.6, "result_type": "AgentText", "result_preview": "Guava"}}
+{"timestamp":"2025-09-01 19:43:11,384", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "7f83546a"}}
+{"timestamp":"2025-09-01 19:43:11,384", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "7f83546a", "message_count": 19}}
+{"timestamp":"2025-09-01 19:43:11,385", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "7f83546a", "poll_count": 5, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:43:11,385", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,385", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,385", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,385", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,385", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,386", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,387", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,387", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "03fcddb9-3e0b-44b4-9896-e9e06cefee8d", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,387", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "03fcddb9-3e0b-44b4-9896-e9e06cefee8d", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,387", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "03fcddb9-3e0b-44b4-9896-e9e06cefee8d", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,387", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "03fcddb9-3e0b-44b4-9896-e9e06cefee8d", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,387", "level":"INFO", "message":{"event": "consensus_check_completed", "run_id": "7f83546a", "result": "no_consensus"}}
+{"timestamp":"2025-09-01 19:43:11,387", "level":"INFO", "message":{"event": "final_consensus_check_started", "run_id": "7f83546a"}}
+{"timestamp":"2025-09-01 19:43:11,388", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "7f83546a"}}
+{"timestamp":"2025-09-01 19:43:11,388", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "7f83546a", "message_count": 19}}
+{"timestamp":"2025-09-01 19:43:11,388", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "7f83546a", "poll_count": 5, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:43:11,388", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,388", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,388", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,388", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "7a743784-2fe6-42b0-95d6-6332ac5fe8d9", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,389", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,389", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,389", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,389", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "76aaa2ae-74cc-400e-9103-30693d652a8e", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,389", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,389", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,389", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,389", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "71ca5246-7f8f-4961-91fa-07d1c470025b", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,389", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "1585edff-b555-41b4-afa6-9d232e900dba", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "7f83546a", "poll_id": "03fcddb9-3e0b-44b4-9896-e9e06cefee8d", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "03fcddb9-3e0b-44b4-9896-e9e06cefee8d", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "03fcddb9-3e0b-44b4-9896-e9e06cefee8d", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "7f83546a", "poll_id": "03fcddb9-3e0b-44b4-9896-e9e06cefee8d", "result": null}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "consensus_check_completed", "run_id": "7f83546a", "result": "no_consensus"}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "fallback_result_used", "run_id": "7f83546a", "result": "Guava", "valid_result_count": 4}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "run_completed", "run_id": "7f83546a", "status": "success_fallback", "duration_seconds": 39.6}}
+{"timestamp":"2025-09-01 19:43:11,390", "level":"INFO", "message":{"event": "execution_completed", "run_id": "7f83546a", "status": "success_fallback", "has_answer": true}}

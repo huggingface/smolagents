@@ -1,0 +1,36 @@
+{
+  "model_id": "centralized-LiteLLMModel-gpt-4o",
+  "action_type": "centralized-agents",
+  "date": "2025-09-08",
+  "timestamp": "2025-09-08T20:42:15.809662",
+  "benchmarks": {
+    "gaia": {
+      "total_questions": 32,
+      "exact_match_score": 0.0,
+      "contains_score": 0.0,
+      "exact_matches": 0.0,
+      "contains_matches": 0.0
+    },
+    "math": {
+      "total_questions": 50,
+      "exact_match_score": 0.0,
+      "contains_score": 0.0,
+      "exact_matches": 0.0,
+      "contains_matches": 0.0
+    },
+    "simpleqa": {
+      "total_questions": 50,
+      "exact_match_score": 0.0,
+      "contains_score": 0.0,
+      "exact_matches": 0.0,
+      "contains_matches": 0.0
+    }
+  },
+  "overall": {
+    "total_questions": 132,
+    "exact_match_score": 0.0,
+    "contains_score": 0.0,
+    "exact_matches": 0.0,
+    "contains_matches": 0.0
+  }
+}

@@ -1,0 +1,301 @@
+{"timestamp":"2025-09-01 19:49:23,849", "level":"INFO", "message":{"event": "run_started", "run_id": "9ae340ab", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "As of May 2023, how many stops are between South Station and Windsor Gardens on MBTA\u2019s Franklin-Foxboro line (not included)?"}}}
+{"timestamp":"2025-09-01 19:49:23,850", "level":"INFO", "message":{"event": "creating_team", "run_id": "9ae340ab"}}
+{"timestamp":"2025-09-01 19:49:24,974", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "9ae340ab", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 19:49:24,974", "level":"INFO", "message":{"event": "starting_execution", "run_id": "9ae340ab", "question": "As of May 2023, how many stops are between South Station and Windsor Gardens on MBTA\u2019s Franklin-Foxboro line (not included)?"}}
+{"timestamp":"2025-09-01 19:49:24,974", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "9ae340ab", "task": "As of May 2023, how many stops are between South Station and Windsor Gardens on MBTA\u2019s Franklin-Foxboro line (not included)?"}}
+{"timestamp":"2025-09-01 19:49:24,974", "level":"INFO", "message":{"event": "message_posted", "message_id": "855befdc-6494-4f07-9068-4e2c54da513a", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "As of May 2023, how many stops are between South Station and Windsor Gardens on MBTA\u2019s Franklin-Foxb"}}
+{"timestamp":"2025-09-01 19:49:24,974", "level":"INFO", "message":{"event": "task_posted", "run_id": "9ae340ab", "message_id": "855befdc-6494-4f07-9068-4e2c54da513a", "task": "As of May 2023, how many stops are between South Station and Windsor Gardens on MBTA\u2019s Franklin-Foxboro line (not included)?"}}
+{"timestamp":"2025-09-01 19:49:24,974", "level":"INFO", "message":{"event": "agent_started", "run_id": "9ae340ab", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 19:49:24,981", "level":"INFO", "message":{"event": "agent_started", "run_id": "9ae340ab", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 19:49:24,991", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:24,992", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:24,992", "level":"INFO", "message":{"event": "agent_started", "run_id": "9ae340ab", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 19:49:24,993", "level":"INFO", "message":{"event": "agent_started", "run_id": "9ae340ab", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 19:49:25,004", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:25,005", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:25,965", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:26,343", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:27,209", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:27,214", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:27,253", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:27,260", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:27,451", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:27,463", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:28,383", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:28,397", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:29,375", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:29,380", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:30,270", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:30,273", "level":"INFO", "message":{"event": "message_posted", "message_id": "8a70c5b7-f398-484a-9992-006267374d1c", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "In order to proceed with the task of finding out the number of stops between South Station and Winds"}}
+{"timestamp":"2025-09-01 19:49:30,276", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:30,952", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:30,964", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:31,024", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:31,829", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:31,837", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:31,872", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:31,876", "level":"INFO", "message":{"event": "message_posted", "message_id": "8b1d43dc-fb9d-4c28-ad67-0644d0bb3ee2", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Could you please find out how many stops are between South Station and Windsor Gardens on MBTA's Fra"}}
+{"timestamp":"2025-09-01 19:49:31,879", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:32,117", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:32,758", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:32,765", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:33,082", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:33,652", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:33,658", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:33,968", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:33,973", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:33,982", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:34,383", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:34,407", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:34,759", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:34,764", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:35,251", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:35,271", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:35,910", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:35,915", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:36,031", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:36,036", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:36,270", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:36,286", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:36,481", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:37,356", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:38,147", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:38,158", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:38,443", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:38,448", "level":"INFO", "message":{"event": "message_posted", "message_id": "9e29620f-eb7d-4941-8602-2ab3b45795c6", "sender": "DeepResearchAgent", "type": "private_message", "thread_id": null, "recipients": ["DocumentReaderAgent"], "content_preview": "If you need any assistance with the search for the number of stops between South Station and Windsor"}}
+{"timestamp":"2025-09-01 19:49:38,452", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:38,937", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:39,621", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:39,635", "level":"INFO", "message":{"event": "message_posted", "message_id": "5257d8d1-40cd-4f79-8aa6-937cb10a87e8", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["WebSearchAgent"], "content_preview": "@WebSearchAgent I haven't received any update on the MBTA Franklin-Foxboro line stops yet. If you ha"}}
+{"timestamp":"2025-09-01 19:49:39,646", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:39,977", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:40,842", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:40,846", "level":"INFO", "message":{"event": "message_posted", "message_id": "ab8803aa-6164-46b2-8657-71286ac3b4e2", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["DocumentReaderAgent"], "content_preview": "Hello! I noticed you were planning to search for information on the number of stops between South St"}}
+{"timestamp":"2025-09-01 19:49:40,849", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:41,234", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:41,237", "level":"INFO", "message":{"event": "message_posted", "message_id": "349101e2-1b31-411d-b081-e7cd24cf4b5b", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Still waiting for your update regarding the number of stops between South Station and Windsor Garden"}}
+{"timestamp":"2025-09-01 19:49:41,241", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:41,475", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:41,487", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:42,115", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:42,121", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:42,993", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:43,001", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:43,608", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:43,611", "level":"INFO", "message":{"event": "message_posted", "message_id": "3f20a83e-f207-482b-befa-48261d5be3e5", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["DeepResearchAgent"], "content_preview": "I would appreciate your assistance in finding the number of stops between South Station and Windsor "}}
+{"timestamp":"2025-09-01 19:49:43,614", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:44,594", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:44,598", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:44,839", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:44,866", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:45,025", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:45,036", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:46,076", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:46,082", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:46,934", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:46,940", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:47,010", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:47,014", "level":"INFO", "message":{"event": "message_posted", "message_id": "42d13130-b8e7-4c59-aeaa-b05f338b058d", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["WebSearchAgent", "DeepResearchAgent"], "content_preview": "It seems we're still waiting on updates from @WebSearchAgent and potential assistance from @DeepRese"}}
+{"timestamp":"2025-09-01 19:49:47,019", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:47,590", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:47,617", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:47,947", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:47,972", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:48,230", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:48,237", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:48,480", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:48,909", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:48,939", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:49,811", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:50,240", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:50,244", "level":"INFO", "message":{"event": "message_posted", "message_id": "22d5bc23-999d-4897-b9c1-47be05d7e66c", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "I'm checking in again regarding the task of finding the number of stops between South Station and Wi"}}
+{"timestamp":"2025-09-01 19:49:50,247", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:50,369", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:50,399", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:51,793", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:51,803", "level":"INFO", "message":{"event": "message_posted", "message_id": "0a47d65f-f45c-4dd4-819e-dde23a751b80", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["DeepResearchAgent"], "content_preview": "I am yet to receive updates from WebSearchAgent about the task of finding the number of stops betwee"}}
+{"timestamp":"2025-09-01 19:49:51,806", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:51,817", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:51,836", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:51,846", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:51,874", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:53,333", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:53,341", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:53,839", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:54,050", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:54,054", "level":"INFO", "message":{"event": "message_posted", "message_id": "95c9b96f-91c3-4df4-b11a-83b202f7895a", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["CodeAgent"], "content_preview": "I'm encountering delays in receiving the necessary information about the stops between South Station"}}
+{"timestamp":"2025-09-01 19:49:54,058", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:54,984", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:54,993", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:55,090", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:55,098", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:56,922", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:57,066", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:57,075", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:58,475", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:58,480", "level":"INFO", "message":{"event": "message_posted", "message_id": "b95179e6-ccd6-4c39-9b14-49bb3b80f530", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["WebSearchAgent", "DeepResearchAgent", "CodeAgent"], "content_preview": "I've reached out to both @WebSearchAgent and @DeepResearchAgent for assistance on finding the number"}}
+{"timestamp":"2025-09-01 19:49:58,485", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:59,086", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:59,094", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:49:59,628", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:59,828", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:49:59,837", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:00,442", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:00,450", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:01,391", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:01,394", "level":"INFO", "message":{"event": "message_posted", "message_id": "03b565ce-6428-4780-ac78-07621299e96b", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "While waiting for updates, I recommend checking the official MBTA website or looking into recent map"}}
+{"timestamp":"2025-09-01 19:50:01,397", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:01,797", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:01,808", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:03,811", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:03,830", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:04,647", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:05,611", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:05,618", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:05,807", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:05,809", "level":"INFO", "message":{"event": "agent_completed", "run_id": "9ae340ab", "agent_name": "DocumentReaderAgent", "duration_seconds": 40.81, "result_type": "AgentText", "result_preview": "I currently do not have access to the exact information about the stops on the MBTA\u2019s Franklin-Foxboro line between South Station and Windsor Gardens as of May 2023. However, I recommend checking the "}}
+{"timestamp":"2025-09-01 19:50:07,489", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:07,496", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:07,553", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:07,557", "level":"INFO", "message":{"event": "message_posted", "message_id": "277e8019-130f-458a-aa4e-2d93570a744d", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["DocumentReaderAgent"], "content_preview": "I see you've contacted other agents without updates yet. As I can't directly perform web searches, I"}}
+{"timestamp":"2025-09-01 19:50:07,561", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:09,326", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:09,335", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:10,896", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:10,906", "level":"INFO", "message":{"event": "agent_completed", "run_id": "9ae340ab", "agent_name": "WebSearchAgent", "duration_seconds": 45.92, "result_type": "AgentText", "result_preview": "Based on the detailed search and page exploration, I have not located specific information regarding MBTA Franklin-Foxboro line stops between South Station and Windsor Gardens for May 2023. However, t"}}
+{"timestamp":"2025-09-01 19:50:10,907", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "9ae340ab"}}
+{"timestamp":"2025-09-01 19:50:10,907", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "9ae340ab", "message_count": 15}}
+{"timestamp":"2025-09-01 19:50:10,908", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "9ae340ab", "poll_count": 0, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:50:10,909", "level":"INFO", "message":{"event": "consensus_check_completed", "run_id": "9ae340ab", "result": "no_consensus"}}
+{"timestamp":"2025-09-01 19:50:11,112", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:11,136", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:13,285", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:13,298", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:14,576", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:14,584", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:15,697", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:15,733", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:17,706", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:17,713", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:19,722", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:19,727", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:21,577", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:22,511", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:23,582", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:23,603", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:25,498", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:25,507", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:28,724", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:28,730", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:29,253", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:30,194", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:32,366", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:32,371", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:32,645", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:33,960", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:35,069", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:35,074", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:50:38,463", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:38,466", "level":"INFO", "message":{"event": "agent_completed", "run_id": "9ae340ab", "agent_name": "DeepResearchAgent", "duration_seconds": 73.47, "result_type": "AgentText", "result_preview": "Since I encountered a network error when attempting to download the PDF, it's clear that web-based retrieval attempts for the stop list have been challenging due to file access restrictions. I will at"}}
+{"timestamp":"2025-09-01 19:50:38,466", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "9ae340ab"}}
+{"timestamp":"2025-09-01 19:50:38,466", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "9ae340ab", "message_count": 15}}
+{"timestamp":"2025-09-01 19:50:38,466", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "9ae340ab", "poll_count": 0, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:50:38,467", "level":"INFO", "message":{"event": "consensus_check_completed", "run_id": "9ae340ab", "result": "no_consensus"}}
+{"timestamp":"2025-09-01 19:50:39,927", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:50:39,933", "level":"INFO", "message":{"event": "agent_completed", "run_id": "9ae340ab", "agent_name": "CodeAgent", "duration_seconds": 74.96, "result_type": "AgentText", "result_preview": "Based on the previously gathered information and current understanding, I'll take the following approach:\n\n1. Since I cannot perform direct web searches or access external data from within this enviro"}}
+{"timestamp":"2025-09-01 19:50:39,933", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "9ae340ab"}}
+{"timestamp":"2025-09-01 19:50:39,934", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "9ae340ab", "message_count": 15}}
+{"timestamp":"2025-09-01 19:50:39,934", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "9ae340ab", "poll_count": 0, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:50:39,934", "level":"INFO", "message":{"event": "consensus_check_completed", "run_id": "9ae340ab", "result": "no_consensus"}}
+{"timestamp":"2025-09-01 19:50:39,935", "level":"INFO", "message":{"event": "final_consensus_check_started", "run_id": "9ae340ab"}}
+{"timestamp":"2025-09-01 19:50:39,935", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "9ae340ab"}}
+{"timestamp":"2025-09-01 19:50:39,935", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "9ae340ab", "message_count": 15}}
+{"timestamp":"2025-09-01 19:50:39,936", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "9ae340ab", "poll_count": 0, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:50:39,936", "level":"INFO", "message":{"event": "consensus_check_completed", "run_id": "9ae340ab", "result": "no_consensus"}}
+{"timestamp":"2025-09-01 19:50:39,936", "level":"INFO", "message":{"event": "fallback_result_used", "run_id": "9ae340ab", "result": "Based on the previously gathered information and current understanding, I'll take the following approach:\n\n1. Since I cannot perform direct web searches or access external data from within this enviro", "valid_result_count": 4}}
+{"timestamp":"2025-09-01 19:50:39,936", "level":"INFO", "message":{"event": "run_completed", "run_id": "9ae340ab", "status": "success_fallback", "duration_seconds": 74.96}}
+{"timestamp":"2025-09-01 19:50:39,936", "level":"INFO", "message":{"event": "execution_completed", "run_id": "9ae340ab", "status": "success_fallback", "has_answer": true}}

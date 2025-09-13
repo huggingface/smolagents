@@ -1,0 +1,281 @@
+{"timestamp":"2025-09-01 20:11:24,049", "level":"INFO", "message":{"event": "run_started", "run_id": "6adf7acb", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "How many individual plastic Fimir miniatures were included in the original HeroQuest Game System board game (not including expansions) released in North America in 1990?"}}}
+{"timestamp":"2025-09-01 20:11:24,049", "level":"INFO", "message":{"event": "creating_team", "run_id": "6adf7acb"}}
+{"timestamp":"2025-09-01 20:11:25,298", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "6adf7acb", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 20:11:25,298", "level":"INFO", "message":{"event": "starting_execution", "run_id": "6adf7acb", "question": "How many individual plastic Fimir miniatures were included in the original HeroQuest Game System board game (not including expansions) released in North America in 1990?"}}
+{"timestamp":"2025-09-01 20:11:25,298", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "6adf7acb", "task": "How many individual plastic Fimir miniatures were included in the original HeroQuest Game System board game (not including expansions) released in North America in 1990?"}}
+{"timestamp":"2025-09-01 20:11:25,298", "level":"INFO", "message":{"event": "message_posted", "message_id": "bd28c9e8-53b7-43e5-9648-fdb6b7328198", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "How many individual plastic Fimir miniatures were included in the original HeroQuest Game System boa"}}
+{"timestamp":"2025-09-01 20:11:25,298", "level":"INFO", "message":{"event": "task_posted", "run_id": "6adf7acb", "message_id": "bd28c9e8-53b7-43e5-9648-fdb6b7328198", "task": "How many individual plastic Fimir miniatures were included in the original HeroQuest Game System board game (not including expansions) released in North America in 1990?"}}
+{"timestamp":"2025-09-01 20:11:25,299", "level":"INFO", "message":{"event": "agent_started", "run_id": "6adf7acb", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 20:11:25,305", "level":"INFO", "message":{"event": "agent_started", "run_id": "6adf7acb", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 20:11:25,312", "level":"INFO", "message":{"event": "agent_started", "run_id": "6adf7acb", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 20:11:25,323", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:25,324", "level":"INFO", "message":{"event": "agent_started", "run_id": "6adf7acb", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 20:11:25,324", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:25,333", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:25,333", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:26,249", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:26,830", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:27,500", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:27,505", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:28,112", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:28,118", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:28,257", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:28,264", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:28,342", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:28,373", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:29,028", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:29,033", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:30,305", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:30,326", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:30,828", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:30,831", "level":"INFO", "message":{"event": "poll_created", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "4\n\n**Supporting Evidence:**\nThe original HeroQuest board game released in North America in 1990 included 4 individual plastic Fimir miniatures. This information is based on the game's component list i", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:11:30,832", "level":"INFO", "message":{"event": "message_posted", "message_id": "48ff0446-00f5-4a0f-85c5-30a61a1c3d42", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '24a5d352-64bc-436c-81bb-ea6fa7cfb901', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:11:30,836", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:31,108", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:31,504", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:31,512", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:32,693", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:32,701", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:32,711", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.9, "rationale": "Based on my understanding of the components of the original HeroQuest game system released in North America in 1990, it is well-documented that the game included 4 Fimir miniatures. This consistency a"}}
+{"timestamp":"2025-09-01 20:11:32,711", "level":"INFO", "message":{"event": "message_posted", "message_id": "8a675b3b-b7e1-4e0c-94ec-b6e578b451e4", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '24a5d352-64bc-436c-81bb-ea6fa7cfb901', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:11:32,715", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:33,601", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:33,607", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:33,711", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:34,012", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:34,026", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:34,239", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:34,250", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:34,257", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:34,846", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:34,855", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:35,499", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:35,504", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:35,698", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:36,280", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:36,322", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:36,327", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:36,501", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:36,509", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "voter": "DeepResearchAgent", "vote": "YES", "confidence": 0.9, "rationale": "The supporting evidence seems reliable, referencing the component list from the original packaging."}}
+{"timestamp":"2025-09-01 20:11:36,509", "level":"INFO", "message":{"event": "message_posted", "message_id": "07fd99c8-58e5-40b9-938c-626f4e321f1d", "sender": "DeepResearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '24a5d352-64bc-436c-81bb-ea6fa7cfb901', 'voter': 'DeepResearchAgent', 'v"}}
+{"timestamp":"2025-09-01 20:11:36,514", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:37,119", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:37,146", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:37,170", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:37,177", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:37,830", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:37,844", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:38,143", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:38,158", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:38,452", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:38,463", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:38,676", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:38,690", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:39,067", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:39,072", "level":"INFO", "message":{"event": "message_posted", "message_id": "e5a51720-5cb3-4a4d-9246-367422106b8f", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Could you provide detailed information on the number of Fimir miniatures included in the original He"}}
+{"timestamp":"2025-09-01 20:11:39,076", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:39,187", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:39,206", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:39,730", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:39,738", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:41,411", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:41,424", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:41,619", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:41,632", "level":"INFO", "message":{"event": "message_posted", "message_id": "af222e51-f9f8-4e55-8730-1767f7fea51d", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The information I'm searching on the Wikipedia page does not clearly indicate the specific number of"}}
+{"timestamp":"2025-09-01 20:11:41,644", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:41,660", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:41,668", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:42,460", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:42,477", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:42,729", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:43,112", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:43,275", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:43,282", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:43,615", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:43,629", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:44,217", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:44,244", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:44,350", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:44,364", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "voter": "CodeAgent", "vote": "YES", "confidence": 0.9, "rationale": "The supporting evidence from the document is reliable, and consistent verification by other agents provides confidence in this information."}}
+{"timestamp":"2025-09-01 20:11:44,365", "level":"INFO", "message":{"event": "message_posted", "message_id": "3e550c57-198f-4fa7-a45b-7a967e2d7fa6", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '24a5d352-64bc-436c-81bb-ea6fa7cfb901', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:11:44,376", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:45,116", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:45,122", "level":"INFO", "message":{"event": "message_posted", "message_id": "d2836c51-043e-4cc7-a334-1ad4604119ca", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["all"], "content_preview": "@all A final answer poll has been created stating that there are 4 individual plastic Fimir miniatur"}}
+{"timestamp":"2025-09-01 20:11:45,128", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:45,816", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:45,826", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:46,134", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:46,154", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:46,501", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:46,504", "level":"INFO", "message":{"event": "poll_created", "poll_id": "5666f381-9c65-4211-b481-615ec214e564", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "3\n\n**Supporting Evidence:**\nAccording to the BoardGameGeek page for HeroQuest, the original game released in North America in 1990 included 3 individual plastic Fimir miniatures as part of the invento", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:11:46,505", "level":"INFO", "message":{"event": "message_posted", "message_id": "7e4fa261-a41b-475a-a822-13e373ff5279", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '5666f381-9c65-4211-b481-615ec214e564', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:11:46,508", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:46,878", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:46,882", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:47,031", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:47,035", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:47,912", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:47,917", "level":"INFO", "message":{"event": "message_posted", "message_id": "c8c9ff1f-6596-4c4e-bb53-092b3cd7da45", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "I've created a poll proposing that the original HeroQuest Game System released in North America in 1"}}
+{"timestamp":"2025-09-01 20:11:47,920", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:48,550", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:48,553", "level":"INFO", "message":{"event": "poll_created", "poll_id": "04bed79a-ecc1-4518-8259-3b03ce7221ef", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "4\n\n**Supporting Evidence:**\nThe original HeroQuest board game released in North America in 1990 included 4 individual plastic Fimir miniatures. This information is based on the game's component list i", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:11:48,553", "level":"INFO", "message":{"event": "message_posted", "message_id": "a2b47273-17e9-428a-bb0f-c8515350a1b9", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '04bed79a-ecc1-4518-8259-3b03ce7221ef', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:11:48,556", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:49,055", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:49,064", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:49,112", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:49,118", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:49,180", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:49,184", "level":"INFO", "message":{"event": "poll_created", "poll_id": "66d1f45c-16fb-4c09-92c4-89d14effbf0b", "proposer": "CodeAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "4\n\n**Supporting Evidence:**\n4\n\n**Supporting Evidence:**\nThe original HeroQuest board game released in North America in 1990 included 4 individual plastic Fimir miniatures. This information is based on", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:11:49,184", "level":"INFO", "message":{"event": "message_posted", "message_id": "dcc7089e-4cf3-4ca6-8796-046c6618827a", "sender": "CodeAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '66d1f45c-16fb-4c09-92c4-89d14effbf0b', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:11:49,187", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:49,526", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:49,532", "level":"INFO", "message":{"event": "agent_completed", "run_id": "6adf7acb", "agent_name": "DocumentReaderAgent", "duration_seconds": 24.21, "result_type": "AgentText", "result_preview": "4"}}
+{"timestamp":"2025-09-01 20:11:51,355", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:51,357", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "voter": "WebSearchAgent", "vote": "YES", "confidence": 0.8, "rationale": "The evidence appears to be well-supported by documentation of the original game component list, which seems to be more reliable than the BoardGameGeek summary. Consistency with multiple agents' findin"}}
+{"timestamp":"2025-09-01 20:11:51,358", "level":"INFO", "message":{"event": "message_posted", "message_id": "9d51fca8-7be9-4dd5-a86d-ff5c6fbaf2d6", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '24a5d352-64bc-436c-81bb-ea6fa7cfb901', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:11:51,362", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:51,496", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:51,505", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:53,358", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:53,363", "level":"INFO", "message":{"event": "message_posted", "message_id": "1c0653b0-704c-4eb8-99d9-8d8572bee939", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "I've reviewed the evidence and documentation supporting the inclusion of 4 Fimir miniatures in the o"}}
+{"timestamp":"2025-09-01 20:11:53,367", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:54,575", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:54,588", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:54,679", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:54,685", "level":"INFO", "message":{"event": "poll_created", "poll_id": "38662d25-cf78-4609-b30d-88b0fcec393f", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "4\n\n**Supporting Evidence:**\nThe original HeroQuest Game System board game released in North America in 1990 included 4 individual plastic Fimir miniatures as indicated by multiple sources and confirme", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:11:54,685", "level":"INFO", "message":{"event": "message_posted", "message_id": "7b5730c4-248b-453b-9431-dd521dbecdb8", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '38662d25-cf78-4609-b30d-88b0fcec393f', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:11:54,691", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:56,385", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:56,399", "level":"INFO", "message":{"event": "agent_completed", "run_id": "6adf7acb", "agent_name": "CodeAgent", "duration_seconds": 31.1, "result_type": "AgentText", "result_preview": "4"}}
+{"timestamp":"2025-09-01 20:11:56,400", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "6adf7acb"}}
+{"timestamp":"2025-09-01 20:11:56,401", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "6adf7acb", "message_count": 15}}
+{"timestamp":"2025-09-01 20:11:56,402", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "6adf7acb", "poll_count": 5, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 20:11:56,402", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "6adf7acb", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:11:56,403", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "yes_votes": 4, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:11:56,404", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "yes_votes": 4, "threshold": 3, "proposer": "DocumentReaderAgent", "answer_preview": "4\n\n**Supporting Evidence:**\nThe original HeroQuest board game released in North America in 1990 included 4 individual plastic Fimir miniatures. This information is based on the game's component list i"}}
+{"timestamp":"2025-09-01 20:11:56,404", "level":"INFO", "message":{"event": "message_posted", "message_id": "38988279-1d36-4e8f-a2c4-69eae4b9ca7e", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '24a5d352-64bc-436c-81bb-ea6fa7cfb901', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:11:56,405", "level":"INFO", "message":{"event": "message_posted", "message_id": "0e20c8f9-1fdc-41f3-9d34-a920e6f77e3e", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': '24a5d352-64bc-436c-81bb-ea6fa7cfb901', 'answer': '4', 'tally': "}}
+{"timestamp":"2025-09-01 20:11:56,406", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "6adf7acb", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "result": "{'id': '0e20c8f9-1fdc-41f3-9d34-a920e6f77e3e', 'timestamp': '2025-09-01T18:11:56.405Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': '24a5d352-64bc-4"}}
+{"timestamp":"2025-09-01 20:11:56,406", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "6adf7acb", "poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "answer": "4", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 20:11:56,406", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "6adf7acb", "poll_id": "5666f381-9c65-4211-b481-615ec214e564", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:11:56,407", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "5666f381-9c65-4211-b481-615ec214e564", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:11:56,408", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "5666f381-9c65-4211-b481-615ec214e564", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:11:56,408", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "6adf7acb", "poll_id": "5666f381-9c65-4211-b481-615ec214e564", "result": null}}
+{"timestamp":"2025-09-01 20:11:56,408", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "6adf7acb", "poll_id": "04bed79a-ecc1-4518-8259-3b03ce7221ef", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:11:56,409", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "04bed79a-ecc1-4518-8259-3b03ce7221ef", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:11:56,410", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "04bed79a-ecc1-4518-8259-3b03ce7221ef", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:11:56,410", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "6adf7acb", "poll_id": "04bed79a-ecc1-4518-8259-3b03ce7221ef", "result": null}}
+{"timestamp":"2025-09-01 20:11:56,410", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "6adf7acb", "poll_id": "66d1f45c-16fb-4c09-92c4-89d14effbf0b", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:11:56,411", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "66d1f45c-16fb-4c09-92c4-89d14effbf0b", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:11:56,411", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "66d1f45c-16fb-4c09-92c4-89d14effbf0b", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:11:56,412", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "6adf7acb", "poll_id": "66d1f45c-16fb-4c09-92c4-89d14effbf0b", "result": null}}
+{"timestamp":"2025-09-01 20:11:56,412", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "6adf7acb", "poll_id": "38662d25-cf78-4609-b30d-88b0fcec393f", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:11:56,413", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "38662d25-cf78-4609-b30d-88b0fcec393f", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:11:56,413", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "38662d25-cf78-4609-b30d-88b0fcec393f", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:11:56,414", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "6adf7acb", "poll_id": "38662d25-cf78-4609-b30d-88b0fcec393f", "result": null}}
+{"timestamp":"2025-09-01 20:11:56,414", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "6adf7acb", "winning_poll_id": "24a5d352-64bc-436c-81bb-ea6fa7cfb901", "answer": "4"}}
+{"timestamp":"2025-09-01 20:11:56,414", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "6adf7acb", "after_agent": "CodeAgent", "completed_agents": 2, "final_answer": "4"}}
+{"timestamp":"2025-09-01 20:11:56,414", "level":"INFO", "message":{"event": "run_completed", "run_id": "6adf7acb", "status": "success_early", "duration_seconds": 31.12}}
+{"timestamp":"2025-09-01 20:11:58,573", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:58,586", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "38662d25-cf78-4609-b30d-88b0fcec393f", "voter": "WebSearchAgent", "vote": "YES", "confidence": 0.9, "rationale": "The available documentation and multiple agent confirmations strongly support that the original HeroQuest Game System included 4 Fimir miniatures. This aligns with the consensus among the team and the"}}
+{"timestamp":"2025-09-01 20:11:58,587", "level":"INFO", "message":{"event": "message_posted", "message_id": "75c623c9-7a7e-4ecd-8a68-97d17714ace3", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '38662d25-cf78-4609-b30d-88b0fcec393f', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:11:58,600", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:59,482", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:59,497", "level":"INFO", "message":{"event": "message_posted", "message_id": "208c3161-843a-47fd-9847-75878ebf56f0", "sender": "DeepResearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "Consensus reached: The original HeroQuest Game System board game released in North America in 1990 i"}}
+{"timestamp":"2025-09-01 20:11:59,506", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:59,717", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:59,749", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:02,478", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:02,483", "level":"INFO", "message":{"event": "message_posted", "message_id": "ca2fde5f-5537-4c73-9b8d-7db44e70f6b8", "sender": "WebSearchAgent", "type": "private_message", "thread_id": null, "recipients": ["CodeAgent"], "content_preview": "The consensus reached among the agents indicates that the original HeroQuest Game System board game "}}
+{"timestamp":"2025-09-01 20:12:02,491", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:03,274", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:03,289", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:03,982", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:03,994", "level":"INFO", "message":{"event": "agent_completed", "run_id": "6adf7acb", "agent_name": "WebSearchAgent", "duration_seconds": 38.69, "result_type": "AgentText", "result_preview": "4"}}
+{"timestamp":"2025-09-01 20:12:05,981", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:06,004", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:07,684", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:07,699", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:10,094", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:10,106", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:12,699", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:12,718", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:15,043", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:15,051", "level":"INFO", "message":{"event": "poll_created", "poll_id": "c788c28d-1a39-4d88-95f0-d8f29342550d", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "4\n\n**Supporting Evidence:**\nThe original HeroQuest Game System board game released in North America in 1990 included 4 individual plastic Fimir miniatures. This has been confirmed by multiple sources ", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:12:15,051", "level":"INFO", "message":{"event": "message_posted", "message_id": "17b9f12b-8f5b-4afd-802c-f771287760a2", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'c788c28d-1a39-4d88-95f0-d8f29342550d', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:12:15,063", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:16,574", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:16,591", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:18,478", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:18,483", "level":"INFO", "message":{"event": "agent_completed", "run_id": "6adf7acb", "agent_name": "DeepResearchAgent", "duration_seconds": 53.17, "result_type": "AgentText", "result_preview": "4"}}
+{"timestamp":"2025-09-01 20:12:18,484", "level":"INFO", "message":{"event": "execution_completed", "run_id": "6adf7acb", "status": "success_early", "has_answer": true}}

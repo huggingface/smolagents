@@ -1,0 +1,195 @@
+{"timestamp":"2025-09-01 20:10:23,862", "level":"INFO", "message":{"event": "run_started", "run_id": "0c27eeef", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "What year was the municipality of Ventaquemada, Boyac\u00e1, Colombia, founded?"}}}
+{"timestamp":"2025-09-01 20:10:23,862", "level":"INFO", "message":{"event": "creating_team", "run_id": "0c27eeef"}}
+{"timestamp":"2025-09-01 20:10:25,138", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "0c27eeef", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 20:10:25,138", "level":"INFO", "message":{"event": "starting_execution", "run_id": "0c27eeef", "question": "What year was the municipality of Ventaquemada, Boyac\u00e1, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:10:25,138", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "0c27eeef", "task": "What year was the municipality of Ventaquemada, Boyac\u00e1, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:10:25,138", "level":"INFO", "message":{"event": "message_posted", "message_id": "935563fe-0236-41ef-bb0b-3c71d9695917", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "What year was the municipality of Ventaquemada, Boyac\u00e1, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:10:25,138", "level":"INFO", "message":{"event": "task_posted", "run_id": "0c27eeef", "message_id": "935563fe-0236-41ef-bb0b-3c71d9695917", "task": "What year was the municipality of Ventaquemada, Boyac\u00e1, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:10:25,138", "level":"INFO", "message":{"event": "agent_started", "run_id": "0c27eeef", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 20:10:25,144", "level":"INFO", "message":{"event": "agent_started", "run_id": "0c27eeef", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 20:10:25,156", "level":"INFO", "message":{"event": "agent_started", "run_id": "0c27eeef", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 20:10:25,158", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:25,159", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:25,160", "level":"INFO", "message":{"event": "agent_started", "run_id": "0c27eeef", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 20:10:25,167", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:25,175", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:26,266", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:27,314", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:27,321", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:27,518", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:28,347", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:28,683", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:28,717", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:29,231", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:29,922", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:29,929", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:29,991", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:30,006", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:30,276", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:30,295", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:31,073", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:31,083", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:31,263", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:31,271", "level":"INFO", "message":{"event": "message_posted", "message_id": "0e90fc06-b81d-41fb-90e5-77ac4fe37074", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Could you help find the foundation year of the municipality of Ventaquemada in Boyac\u00e1, Colombia?"}}
+{"timestamp":"2025-09-01 20:10:31,277", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:31,977", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:31,982", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:32,426", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:32,432", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:32,519", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:32,525", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:33,175", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:33,179", "level":"INFO", "message":{"event": "message_posted", "message_id": "d040ea90-e726-47bb-bba3-b003047e14ba", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["WebSearchAgent", "CodeAgent", "DeepResearchAgent"], "content_preview": "I've sent a request to the @WebSearchAgent to find the foundation year of Ventaquemada, Boyac\u00e1, Colo"}}
+{"timestamp":"2025-09-01 20:10:33,181", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:34,141", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:34,366", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:34,371", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:34,781", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:34,784", "level":"INFO", "message":{"event": "message_posted", "message_id": "0c59d91f-0369-4374-9f58-d1719d65e9a0", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Could you please find the founding year of the municipality of Ventaquemada, Boyac\u00e1, Colombia? This "}}
+{"timestamp":"2025-09-01 20:10:34,787", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:35,003", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:35,783", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:35,791", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:36,258", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:36,264", "level":"INFO", "message":{"event": "poll_created", "poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1777\n\n**Supporting Evidence:**\nVentaquemada was founded on December 17, 1777, by viceroy Manuel Antonio Fl\u00f3rez, as confirmed by multiple sources, including Wikipedia and Wikidata. These sources highli", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:10:36,264", "level":"INFO", "message":{"event": "message_posted", "message_id": "2ad858c4-0c7c-42eb-a663-6e8b0323b7eb", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '8e5161a7-835f-4d03-b7cb-b57555a6862a', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:36,268", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:36,905", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:36,910", "level":"INFO", "message":{"event": "message_posted", "message_id": "051aa3e5-c816-42e3-933c-c9bb7e4113e1", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["WebSearchAgent"], "content_preview": "@WebSearchAgent, could you please provide an update on the search for the foundation year of Ventaqu"}}
+{"timestamp":"2025-09-01 20:10:36,913", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:36,933", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:36,943", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:37,228", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:37,233", "level":"INFO", "message":{"event": "poll_created", "poll_id": "240eefcd-84ee-4780-9094-5ba4ef44810e", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1777\n\n**Supporting Evidence:**\nAccording to the search results from Wikidata and other sources, Ventaquemada, Boyac\u00e1, Colombia, was founded on December 17, 1777.", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:10:37,233", "level":"INFO", "message":{"event": "message_posted", "message_id": "e56de20b-1916-42a0-af91-a7fa55d7a45d", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '240eefcd-84ee-4780-9094-5ba4ef44810e', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:37,235", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:37,878", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:37,888", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:38,405", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:38,411", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:38,894", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:38,904", "level":"INFO", "message":{"event": "message_posted", "message_id": "d17149ca-d2a7-4277-8786-484848f1d87d", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "I've created a final answer poll proposing that Ventaquemada, Boyac\u00e1, Colombia was founded in 1777. "}}
+{"timestamp":"2025-09-01 20:10:38,912", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:39,311", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:39,316", "level":"INFO", "message":{"event": "agent_completed", "run_id": "0c27eeef", "agent_name": "DeepResearchAgent", "duration_seconds": 14.16, "result_type": "AgentText", "result_preview": "1777"}}
+{"timestamp":"2025-09-01 20:10:39,790", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:39,793", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The evidence presented is reliable and confirmed by multiple reputable sources, ensuring accuracy in the foundation year of Ventaquemada."}}
+{"timestamp":"2025-09-01 20:10:39,793", "level":"INFO", "message":{"event": "message_posted", "message_id": "6405a31f-21ed-4b98-b61c-0bd5b7912327", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '8e5161a7-835f-4d03-b7cb-b57555a6862a', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:10:39,796", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:39,968", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:39,979", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:40,187", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:40,197", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "voter": "CodeAgent", "vote": "YES", "confidence": 0.9, "rationale": "The WebSearchAgent has provided credible sources confirming the founding year of 1777. The evidences from Wikipedia and Wikidata are reliable."}}
+{"timestamp":"2025-09-01 20:10:40,197", "level":"INFO", "message":{"event": "message_posted", "message_id": "51e4fc78-24ad-4de7-adfd-62346981d711", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '8e5161a7-835f-4d03-b7cb-b57555a6862a', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:10:40,205", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:41,698", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:41,704", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "240eefcd-84ee-4780-9094-5ba4ef44810e", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.9, "rationale": "The information regarding the foundation year of Ventaquemada is consistent with multiple sources, and therefore likely to be accurate."}}
+{"timestamp":"2025-09-01 20:10:41,704", "level":"INFO", "message":{"event": "message_posted", "message_id": "fbdbe6a3-17ba-4d37-a5a7-e9df7aaf2508", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '240eefcd-84ee-4780-9094-5ba4ef44810e', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:10:41,710", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:41,723", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:41,727", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:42,087", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:42,092", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The evidence from Wikipedia and Wikidata, reputable sources, firmly supports the founding year of Ventaquemada as 1777. This is a well-documented fact that aligns with historical accounts and the cred"}}
+{"timestamp":"2025-09-01 20:10:42,092", "level":"INFO", "message":{"event": "message_posted", "message_id": "1847e55f-a3d6-4000-9fed-b7c7df8598c1", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '8e5161a7-835f-4d03-b7cb-b57555a6862a', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:10:42,096", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:42,845", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:42,869", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:43,684", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:43,687", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "240eefcd-84ee-4780-9094-5ba4ef44810e", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The founding year of Ventaquemada as 1777 is consistently corroborated by multiple reliable sources including Wikidata and Wikipedia. The historical data from these reputable sources give strong assur"}}
+{"timestamp":"2025-09-01 20:10:43,687", "level":"INFO", "message":{"event": "message_posted", "message_id": "94ffc132-d6bb-4daa-bd4b-bac7915f0e39", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '240eefcd-84ee-4780-9094-5ba4ef44810e', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:10:43,689", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:44,194", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:44,203", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:44,247", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:44,249", "level":"INFO", "message":{"event": "poll_created", "poll_id": "ab73d27b-929c-4a3b-8bbc-735990b5ecda", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1777\n\n**Supporting Evidence:**\nAccording to multiple credible sources, including Wikipedia and Wikidata, Ventaquemada, Boyac\u00e1, Colombia, was founded on December 17, 1777, by viceroy Manuel Antonio Fl\u00f3", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:10:44,249", "level":"INFO", "message":{"event": "message_posted", "message_id": "6223da39-ac4c-49f9-85f5-cc78c08ba497", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'ab73d27b-929c-4a3b-8bbc-735990b5ecda', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:44,253", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:44,628", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:44,638", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:45,452", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:45,461", "level":"INFO", "message":{"event": "agent_completed", "run_id": "0c27eeef", "agent_name": "CodeAgent", "duration_seconds": 20.32, "result_type": "AgentText", "result_preview": "1777"}}
+{"timestamp":"2025-09-01 20:10:45,464", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "0c27eeef"}}
+{"timestamp":"2025-09-01 20:10:45,464", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "0c27eeef", "message_count": 14}}
+{"timestamp":"2025-09-01 20:10:45,465", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "0c27eeef", "poll_count": 3, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 20:10:45,465", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "0c27eeef", "poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:10:45,465", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:10:45,465", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "yes_votes": 3, "threshold": 3, "proposer": "WebSearchAgent", "answer_preview": "1777\n\n**Supporting Evidence:**\nVentaquemada was founded on December 17, 1777, by viceroy Manuel Antonio Fl\u00f3rez, as confirmed by multiple sources, including Wikipedia and Wikidata. These sources highli"}}
+{"timestamp":"2025-09-01 20:10:45,466", "level":"INFO", "message":{"event": "message_posted", "message_id": "feab46cb-46e7-4300-8297-72b511c105db", "sender": "WebSearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '8e5161a7-835f-4d03-b7cb-b57555a6862a', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:45,466", "level":"INFO", "message":{"event": "message_posted", "message_id": "60d324ed-bb38-45fa-a9a8-55f80e1ad3f4", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': '8e5161a7-835f-4d03-b7cb-b57555a6862a', 'answer': '1777', 'tally"}}
+{"timestamp":"2025-09-01 20:10:45,466", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "0c27eeef", "poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "result": "{'id': '60d324ed-bb38-45fa-a9a8-55f80e1ad3f4', 'timestamp': '2025-09-01T18:10:45.466Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': '8e5161a7-835f-4"}}
+{"timestamp":"2025-09-01 20:10:45,466", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "0c27eeef", "poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "answer": "1777", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 20:10:45,466", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "0c27eeef", "poll_id": "240eefcd-84ee-4780-9094-5ba4ef44810e", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:10:45,467", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "240eefcd-84ee-4780-9094-5ba4ef44810e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:10:45,467", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "240eefcd-84ee-4780-9094-5ba4ef44810e", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:10:45,467", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "0c27eeef", "poll_id": "240eefcd-84ee-4780-9094-5ba4ef44810e", "result": null}}
+{"timestamp":"2025-09-01 20:10:45,467", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "0c27eeef", "poll_id": "ab73d27b-929c-4a3b-8bbc-735990b5ecda", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:10:45,467", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "ab73d27b-929c-4a3b-8bbc-735990b5ecda", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:10:45,469", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "ab73d27b-929c-4a3b-8bbc-735990b5ecda", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:10:45,469", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "0c27eeef", "poll_id": "ab73d27b-929c-4a3b-8bbc-735990b5ecda", "result": null}}
+{"timestamp":"2025-09-01 20:10:45,469", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "0c27eeef", "winning_poll_id": "8e5161a7-835f-4d03-b7cb-b57555a6862a", "answer": "1777"}}
+{"timestamp":"2025-09-01 20:10:45,469", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "0c27eeef", "after_agent": "CodeAgent", "completed_agents": 2, "final_answer": "1777"}}
+{"timestamp":"2025-09-01 20:10:45,469", "level":"INFO", "message":{"event": "run_completed", "run_id": "0c27eeef", "status": "success_early", "duration_seconds": 20.33}}
+{"timestamp":"2025-09-01 20:10:46,799", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:46,805", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "ab73d27b-929c-4a3b-8bbc-735990b5ecda", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The founding year of 1777 is consistently verified by reliable sources such as Wikipedia and Wikidata. These historical accounts are credible, and the evidence provided affirms the foundation date pre"}}
+{"timestamp":"2025-09-01 20:10:46,805", "level":"INFO", "message":{"event": "message_posted", "message_id": "3182a395-29b3-498a-9e92-4d839d4bc91b", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'ab73d27b-929c-4a3b-8bbc-735990b5ecda', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:10:46,809", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:48,012", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:48,044", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:48,450", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:48,460", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "ab73d27b-929c-4a3b-8bbc-735990b5ecda", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The founding year of Ventaquemada as 1777 has been cross-referenced and confirmed by multiple authoritative sources, including Wikipedia and Wikidata. This consistency among reputable sources provides"}}
+{"timestamp":"2025-09-01 20:10:48,460", "level":"INFO", "message":{"event": "message_posted", "message_id": "e7648be2-7281-4d9c-9be2-9735f2ea86db", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'ab73d27b-929c-4a3b-8bbc-735990b5ecda', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:10:48,466", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:49,007", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:49,012", "level":"INFO", "message":{"event": "agent_completed", "run_id": "0c27eeef", "agent_name": "DocumentReaderAgent", "duration_seconds": 23.84, "result_type": "AgentText", "result_preview": "1777"}}
+{"timestamp":"2025-09-01 20:10:49,295", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:49,306", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:52,256", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:52,264", "level":"INFO", "message":{"event": "message_posted", "message_id": "db100740-7bb8-4b17-8c68-8d24d3ed60ed", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The final answer for the task has been confirmed as 1777. Ventaquemada, Boyac\u00e1, Colombia was founded"}}
+{"timestamp":"2025-09-01 20:10:52,273", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:53,316", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:53,328", "level":"INFO", "message":{"event": "agent_completed", "run_id": "0c27eeef", "agent_name": "WebSearchAgent", "duration_seconds": 28.18, "result_type": "AgentText", "result_preview": "1777"}}
+{"timestamp":"2025-09-01 20:10:53,328", "level":"INFO", "message":{"event": "execution_completed", "run_id": "0c27eeef", "status": "success_early", "has_answer": true}}

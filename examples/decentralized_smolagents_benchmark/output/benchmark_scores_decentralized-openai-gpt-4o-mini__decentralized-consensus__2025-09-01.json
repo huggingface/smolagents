@@ -1,0 +1,36 @@
+{
+  "model_id": "decentralized-openai-gpt-4o-mini",
+  "action_type": "decentralized-consensus",
+  "date": "2025-09-01",
+  "timestamp": "2025-09-01T19:02:03.446533",
+  "benchmarks": {
+    "gaia": {
+      "total_questions": 5,
+      "exact_match_score": 0.0,
+      "contains_score": 0.2,
+      "exact_matches": 0.0,
+      "contains_matches": 1.0
+    },
+    "math": {
+      "total_questions": 5,
+      "exact_match_score": 0.0,
+      "contains_score": 0.2,
+      "exact_matches": 0.0,
+      "contains_matches": 1.0
+    },
+    "simpleqa": {
+      "total_questions": 5,
+      "exact_match_score": 0.2,
+      "contains_score": 0.2,
+      "exact_matches": 1.0,
+      "contains_matches": 1.0
+    }
+  },
+  "overall": {
+    "total_questions": 15,
+    "exact_match_score": 0.06666666666666667,
+    "contains_score": 0.2,
+    "exact_matches": 1.0,
+    "contains_matches": 3.0
+  }
+}

@@ -1,0 +1,287 @@
+{"timestamp":"2025-09-01 20:07:02,427", "level":"INFO", "message":{"event": "run_started", "run_id": "93f64f5f", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "What year was the municipality of Belmira, Antioquia, Colombia, founded?"}}}
+{"timestamp":"2025-09-01 20:07:02,427", "level":"INFO", "message":{"event": "creating_team", "run_id": "93f64f5f"}}
+{"timestamp":"2025-09-01 20:07:03,513", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "93f64f5f", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 20:07:03,514", "level":"INFO", "message":{"event": "starting_execution", "run_id": "93f64f5f", "question": "What year was the municipality of Belmira, Antioquia, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:07:03,514", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "93f64f5f", "task": "What year was the municipality of Belmira, Antioquia, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:07:03,514", "level":"INFO", "message":{"event": "message_posted", "message_id": "88ae9fc0-d41a-434f-bd67-cf0c163a6f90", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "What year was the municipality of Belmira, Antioquia, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:07:03,514", "level":"INFO", "message":{"event": "task_posted", "run_id": "93f64f5f", "message_id": "88ae9fc0-d41a-434f-bd67-cf0c163a6f90", "task": "What year was the municipality of Belmira, Antioquia, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:07:03,514", "level":"INFO", "message":{"event": "agent_started", "run_id": "93f64f5f", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 20:07:03,520", "level":"INFO", "message":{"event": "agent_started", "run_id": "93f64f5f", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 20:07:03,524", "level":"INFO", "message":{"event": "agent_started", "run_id": "93f64f5f", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 20:07:03,535", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:03,536", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:03,538", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:03,539", "level":"INFO", "message":{"event": "agent_started", "run_id": "93f64f5f", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 20:07:03,543", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:04,913", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:04,916", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:05,275", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:05,279", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:05,663", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:05,667", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:05,960", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:05,964", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:06,313", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:06,359", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:06,621", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:06,625", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:06,961", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:07,981", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:08,042", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:08,057", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:08,132", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:08,137", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:08,252", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:08,257", "level":"INFO", "message":{"event": "message_posted", "message_id": "b6872820-b871-49b4-8176-414d7a0e91b2", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "I will look up the founding year of Belmira, Antioquia, Colombia, and create a final answer poll. Pl"}}
+{"timestamp":"2025-09-01 20:07:08,259", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:09,255", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:09,258", "level":"INFO", "message":{"event": "poll_created", "poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1757\n\n**Supporting Evidence:**\nThe search results indicate that Belmira, Antioquia, Colombia, was founded in 1757 by Francisco Villa, as per the information from the Belmira, Antioquia Podcast publish", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:07:09,258", "level":"INFO", "message":{"event": "message_posted", "message_id": "feee1fdc-e7be-4ce5-9b1a-c043a17694ad", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '0fe65d0e-6541-4da2-9cb9-3a8360e46e6f', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:07:09,259", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:09,572", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:09,574", "level":"INFO", "message":{"event": "message_posted", "message_id": "d28f5620-3d1a-426a-a019-629c734b41e1", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Could you please perform a quick web search to determine the founding year of the municipality of Be"}}
+{"timestamp":"2025-09-01 20:07:09,577", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:10,188", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:10,191", "level":"INFO", "message":{"event": "message_posted", "message_id": "84f289f2-142a-4375-8a37-b4765f827a10", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Please find out the foundation year of the municipality of Belmira, Antioquia, Colombia."}}
+{"timestamp":"2025-09-01 20:07:10,194", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:10,198", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:10,204", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:10,280", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:10,285", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:11,726", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:11,726", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:11,729", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The supporting evidence from a reliable source indicates that Belmira, Antioquia, Colombia was founded in 1757. The information aligns with historical context, and no contradicting information was fou"}}
+{"timestamp":"2025-09-01 20:07:11,736", "level":"INFO", "message":{"event": "message_posted", "message_id": "3fbecfa6-6457-4da1-acfb-03b20dad36f4", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '0fe65d0e-6541-4da2-9cb9-3a8360e46e6f', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:07:11,739", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:12,193", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:12,196", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.9, "rationale": "The WebSearchAgent provided a clear finding backed by a publication from the Belmira, Antioquia Podcast that states Belmira was founded in 1757. This supports the historical context, making it a relia"}}
+{"timestamp":"2025-09-01 20:07:12,196", "level":"INFO", "message":{"event": "message_posted", "message_id": "1069274f-9dc2-4761-939f-b57a458b75ba", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '0fe65d0e-6541-4da2-9cb9-3a8360e46e6f', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:07:12,198", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:12,558", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:12,564", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:12,698", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:12,957", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:12,963", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:13,506", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:13,509", "level":"INFO", "message":{"event": "message_posted", "message_id": "8caf84a3-22d3-4cb4-bb34-4f0258a159e3", "sender": "WebSearchAgent", "type": "private_message", "thread_id": null, "recipients": ["DocumentReaderAgent"], "content_preview": "I've verified the founding year of Belmira, Antioquia, Colombia to be 1757, as supported by reliable"}}
+{"timestamp":"2025-09-01 20:07:13,511", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:14,014", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:14,019", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:14,461", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:14,467", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:14,471", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "voter": "CodeAgent", "vote": "YES", "confidence": 1.0, "rationale": "The provided evidence from a reliable podcast source indicates Belmira, Antioquia, Colombia was founded in 1757. The information aligns with historical context and has been verified by other agents."}}
+{"timestamp":"2025-09-01 20:07:14,471", "level":"INFO", "message":{"event": "message_posted", "message_id": "e0688c4f-1156-4c25-ab5a-d89d352f8b3f", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '0fe65d0e-6541-4da2-9cb9-3a8360e46e6f', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:07:14,473", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:14,597", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:14,645", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:14,666", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:15,618", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:15,629", "level":"INFO", "message":{"event": "message_posted", "message_id": "a226e764-4cc0-4bd0-af86-a571229d5c26", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "We currently have 2 out of the 3 required YES votes on the poll regarding the founding year of Belmi"}}
+{"timestamp":"2025-09-01 20:07:15,640", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:16,251", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:16,253", "level":"INFO", "message":{"event": "message_posted", "message_id": "662c9d9c-a18f-4284-8ffb-f0138acf5459", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The final answer poll has reached consensus. The founding year of Belmira, Antioquia, Colombia, is 1"}}
+{"timestamp":"2025-09-01 20:07:16,256", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:16,953", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:16,967", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:18,009", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:18,013", "level":"INFO", "message":{"event": "message_posted", "message_id": "30f9b1da-4354-4564-b515-2407760f2739", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["DeepResearchAgent"], "content_preview": "We need your vote on the active poll regarding the founding year of Belmira, Antioquia, Colombia, wh"}}
+{"timestamp":"2025-09-01 20:07:18,015", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:18,196", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:18,207", "level":"INFO", "message":{"event": "poll_created", "poll_id": "2c90fd28-a81d-4bee-8dae-10d1b366f477", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1757\n\n**Supporting Evidence:**\nThe founding year of Belmira, Antioquia, Colombia, is 1757. This is confirmed by multiple sources, including a publication from the Belmira, Antioquia Podcast, indicatin", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:07:18,207", "level":"INFO", "message":{"event": "message_posted", "message_id": "7541e77a-4e83-41e4-b1c4-95ebb99483f9", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '2c90fd28-a81d-4bee-8dae-10d1b366f477', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:07:18,216", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:18,297", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:18,316", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:18,487", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:18,490", "level":"INFO", "message":{"event": "poll_created", "poll_id": "215fd09e-dbed-4037-b034-c4de2891d221", "proposer": "CodeAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1757\n\n**Supporting Evidence:**\nThe foundation year of Belmira, Antioquia, Colombia, is 1757, as per the Belmira, Antioquia Podcast published on January 4, 2025. This information is corroborated by his", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:07:18,490", "level":"INFO", "message":{"event": "message_posted", "message_id": "54df9ad3-e0e2-45f4-bf94-ce626743af0a", "sender": "CodeAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '215fd09e-dbed-4037-b034-c4de2891d221', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:07:18,492", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:18,817", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:18,824", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:19,889", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:19,892", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "2c90fd28-a81d-4bee-8dae-10d1b366f477", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The supporting information from the Belmira, Antioquia Podcast consistently aligns with historical context and lacks contradictions across sources. Team consensus confirms this as a reliable answer."}}
+{"timestamp":"2025-09-01 20:07:19,893", "level":"INFO", "message":{"event": "message_posted", "message_id": "c6f775a7-d77e-4654-bdc6-4c80eb648ade", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '2c90fd28-a81d-4bee-8dae-10d1b366f477', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:07:19,895", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:20,052", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:20,056", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:20,858", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:20,861", "level":"INFO", "message":{"event": "agent_completed", "run_id": "93f64f5f", "agent_name": "CodeAgent", "duration_seconds": 17.35, "result_type": "AgentText", "result_preview": "1757"}}
+{"timestamp":"2025-09-01 20:07:21,165", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:21,168", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "2c90fd28-a81d-4bee-8dae-10d1b366f477", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The historically validated source and supporting evidence from the Belmira, Antioquia Podcast provides confidence that 1757 is the accurate founding year. All findings align with historical records an"}}
+{"timestamp":"2025-09-01 20:07:21,168", "level":"INFO", "message":{"event": "message_posted", "message_id": "e8a63b92-7828-4b46-8608-d51c634fd6d6", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '2c90fd28-a81d-4bee-8dae-10d1b366f477', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:07:21,171", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:21,477", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:21,482", "level":"INFO", "message":{"event": "message_posted", "message_id": "465ab7c6-6fc0-4145-a89b-3d8835a9972f", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "I've voted YES on the new final answer poll confirming the founding year of Belmira, Antioquia, Colo"}}
+{"timestamp":"2025-09-01 20:07:21,484", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:22,107", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:22,134", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:22,443", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:22,453", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:24,032", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:24,035", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "215fd09e-dbed-4037-b034-c4de2891d221", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The historical evidence derived from the Belmira, Antioquia Podcast and its consistent alignment with historical context supports 1757 as the foundation year. Multiple agents' verification adds to the"}}
+{"timestamp":"2025-09-01 20:07:24,035", "level":"INFO", "message":{"event": "message_posted", "message_id": "ab4dfa6c-a1b7-4817-9b8c-43d7f9546690", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '215fd09e-dbed-4037-b034-c4de2891d221', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:07:24,038", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:24,698", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:24,702", "level":"INFO", "message":{"event": "poll_created", "poll_id": "5e08fd8f-c02f-42d1-ad4b-b4f76af9068f", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1757\n\n**Supporting Evidence:**\nBased on the information gathered and supported by various agents, the founding year of Belmira, Antioquia, Colombia, is 1757. This is corroborated by the Belmira, Antio", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:07:24,702", "level":"INFO", "message":{"event": "message_posted", "message_id": "de62bf5e-ec32-4150-a577-e19e157bec93", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '5e08fd8f-c02f-42d1-ad4b-b4f76af9068f', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:07:24,704", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:25,270", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:25,299", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:25,403", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:25,411", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:26,546", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:26,548", "level":"INFO", "message":{"event": "message_posted", "message_id": "e203a3e4-697c-4c5e-a995-e9a6828a9436", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The final answer poll regarding the founding year of Belmira, Antioquia, Colombia, as 1757 has reach"}}
+{"timestamp":"2025-09-01 20:07:26,552", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:28,744", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:28,748", "level":"INFO", "message":{"event": "poll_created", "poll_id": "d94a90f6-0f49-4ed7-a531-ee9379404190", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1757\n\n**Supporting Evidence:**\nThe founding year of Belmira, Antioquia, Colombia, is 1757. This conclusion is supported by reliable historical sources, including the Belmira, Antioquia Podcast publish", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:07:28,748", "level":"INFO", "message":{"event": "message_posted", "message_id": "3f69e885-ba28-4a68-a85c-1aa0a027d281", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'd94a90f6-0f49-4ed7-a531-ee9379404190', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:07:28,750", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:28,895", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:28,899", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "5e08fd8f-c02f-42d1-ad4b-b4f76af9068f", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "Given the concurrence across different sources and agents regarding the founding year of Belmira, Antioquia, Colombia, as 1757, and the lack of contradictory evidence, it is reasonable to confirm this"}}
+{"timestamp":"2025-09-01 20:07:28,899", "level":"INFO", "message":{"event": "message_posted", "message_id": "3e0f17db-e7a0-4182-b35d-43017ad0b875", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '5e08fd8f-c02f-42d1-ad4b-b4f76af9068f', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:07:28,902", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:29,607", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:29,638", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:30,489", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:30,501", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "d94a90f6-0f49-4ed7-a531-ee9379404190", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "This poll reaffirms the already established information that Belmira, Antioquia, Colombia was founded in 1757. The supporting evidence from the Belmira, Antioquia Podcast aligns with historical data a"}}
+{"timestamp":"2025-09-01 20:07:30,502", "level":"INFO", "message":{"event": "message_posted", "message_id": "dc57bdd6-ddb3-4be0-9e97-d1729e965a60", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'd94a90f6-0f49-4ed7-a531-ee9379404190', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:07:30,505", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:30,707", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:30,711", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "215fd09e-dbed-4037-b034-c4de2891d221", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.95, "rationale": "The significant alignment among various agents and the solid historical foundation provided by the Belmira, Antioquia Podcast indicates the founding year as 1757. All related data shows congruence mak"}}
+{"timestamp":"2025-09-01 20:07:30,711", "level":"INFO", "message":{"event": "message_posted", "message_id": "4a2a92c1-8f3c-4fce-9074-1c0524497b4e", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '215fd09e-dbed-4037-b034-c4de2891d221', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:07:30,714", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:31,626", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:31,636", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:31,719", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:31,729", "level":"INFO", "message":{"event": "message_posted", "message_id": "7bb5c58f-1d91-4f6e-bc6d-2f7feb5c7cfe", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The poll for the final answer regarding the founding year of Belmira, Antioquia, Colombia, as 1757 h"}}
+{"timestamp":"2025-09-01 20:07:31,740", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:32,693", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:32,705", "level":"INFO", "message":{"event": "agent_completed", "run_id": "93f64f5f", "agent_name": "WebSearchAgent", "duration_seconds": 29.19, "result_type": "AgentText", "result_preview": "1757"}}
+{"timestamp":"2025-09-01 20:07:32,705", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "93f64f5f"}}
+{"timestamp":"2025-09-01 20:07:32,706", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "93f64f5f", "message_count": 25}}
+{"timestamp":"2025-09-01 20:07:32,706", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "93f64f5f", "poll_count": 5, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 20:07:32,706", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "93f64f5f", "poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:07:32,706", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:07:32,706", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "yes_votes": 3, "threshold": 3, "proposer": "WebSearchAgent", "answer_preview": "1757\n\n**Supporting Evidence:**\nThe search results indicate that Belmira, Antioquia, Colombia, was founded in 1757 by Francisco Villa, as per the information from the Belmira, Antioquia Podcast publish"}}
+{"timestamp":"2025-09-01 20:07:32,706", "level":"INFO", "message":{"event": "message_posted", "message_id": "2cfff456-6a65-4442-8f6a-01d1825e5b40", "sender": "WebSearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '0fe65d0e-6541-4da2-9cb9-3a8360e46e6f', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:07:32,706", "level":"INFO", "message":{"event": "message_posted", "message_id": "b365313b-7f90-42c3-9c88-d76c2de6ad02", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': '0fe65d0e-6541-4da2-9cb9-3a8360e46e6f', 'answer': '1757', 'tally"}}
+{"timestamp":"2025-09-01 20:07:32,707", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "93f64f5f", "poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "result": "{'id': 'b365313b-7f90-42c3-9c88-d76c2de6ad02', 'timestamp': '2025-09-01T18:07:32.706Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': '0fe65d0e-6541-4"}}
+{"timestamp":"2025-09-01 20:07:32,707", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "93f64f5f", "poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "answer": "1757", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 20:07:32,707", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "93f64f5f", "poll_id": "2c90fd28-a81d-4bee-8dae-10d1b366f477", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:07:32,707", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "2c90fd28-a81d-4bee-8dae-10d1b366f477", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:07:32,707", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "2c90fd28-a81d-4bee-8dae-10d1b366f477", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:07:32,707", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "93f64f5f", "poll_id": "2c90fd28-a81d-4bee-8dae-10d1b366f477", "result": null}}
+{"timestamp":"2025-09-01 20:07:32,707", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "93f64f5f", "poll_id": "215fd09e-dbed-4037-b034-c4de2891d221", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:07:32,708", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "215fd09e-dbed-4037-b034-c4de2891d221", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:07:32,708", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "215fd09e-dbed-4037-b034-c4de2891d221", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:07:32,708", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "93f64f5f", "poll_id": "215fd09e-dbed-4037-b034-c4de2891d221", "result": null}}
+{"timestamp":"2025-09-01 20:07:32,708", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "93f64f5f", "poll_id": "5e08fd8f-c02f-42d1-ad4b-b4f76af9068f", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:07:32,708", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "5e08fd8f-c02f-42d1-ad4b-b4f76af9068f", "yes_votes": 1, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:07:32,708", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "5e08fd8f-c02f-42d1-ad4b-b4f76af9068f", "yes_votes": 1, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:07:32,708", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "93f64f5f", "poll_id": "5e08fd8f-c02f-42d1-ad4b-b4f76af9068f", "result": null}}
+{"timestamp":"2025-09-01 20:07:32,708", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "93f64f5f", "poll_id": "d94a90f6-0f49-4ed7-a531-ee9379404190", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:07:32,708", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "d94a90f6-0f49-4ed7-a531-ee9379404190", "yes_votes": 1, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:07:32,709", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "d94a90f6-0f49-4ed7-a531-ee9379404190", "yes_votes": 1, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:07:32,709", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "93f64f5f", "poll_id": "d94a90f6-0f49-4ed7-a531-ee9379404190", "result": null}}
+{"timestamp":"2025-09-01 20:07:32,709", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "93f64f5f", "winning_poll_id": "0fe65d0e-6541-4da2-9cb9-3a8360e46e6f", "answer": "1757"}}
+{"timestamp":"2025-09-01 20:07:32,709", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "93f64f5f", "after_agent": "WebSearchAgent", "completed_agents": 2, "final_answer": "1757"}}
+{"timestamp":"2025-09-01 20:07:32,709", "level":"INFO", "message":{"event": "run_completed", "run_id": "93f64f5f", "status": "success_early", "duration_seconds": 29.19}}
+{"timestamp":"2025-09-01 20:07:33,166", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:33,196", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:34,521", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:34,525", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "d94a90f6-0f49-4ed7-a531-ee9379404190", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "All gathered information and subsequent agent verifications strongly support the founding year of Belmira, Antioquia, Colombia, as 1757. The source material is consistent with historical data and affi"}}
+{"timestamp":"2025-09-01 20:07:34,525", "level":"INFO", "message":{"event": "message_posted", "message_id": "e136b836-e145-4fd9-aebe-2f605dd0b70a", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'd94a90f6-0f49-4ed7-a531-ee9379404190', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:07:34,528", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:35,708", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:35,714", "level":"INFO", "message":{"event": "agent_completed", "run_id": "93f64f5f", "agent_name": "DocumentReaderAgent", "duration_seconds": 32.17, "result_type": "AgentText", "result_preview": "1757"}}
+{"timestamp":"2025-09-01 20:07:36,613", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:36,625", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:38,696", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:38,704", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:41,940", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:42,639", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:48,065", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:48,076", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:49,879", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:49,889", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:53,357", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:53,359", "level":"INFO", "message":{"event": "poll_created", "poll_id": "5e691c35-cbc7-4448-b8a1-dd41f6a1f1fc", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1757\n\n**Supporting Evidence:**\nThe Spanish Wikipedia page for Belmira states it was founded on February 26, 1757.", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:07:53,359", "level":"INFO", "message":{"event": "message_posted", "message_id": "4cada6b8-0bb2-43eb-9e90-074130776ab4", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '5e691c35-cbc7-4448-b8a1-dd41f6a1f1fc', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:07:53,363", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:07:55,796", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:07:55,813", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:00,707", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:00,711", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "5e691c35-cbc7-4448-b8a1-dd41f6a1f1fc", "voter": "DeepResearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The information from the Spanish Wikipedia page affirms that Belmira was founded in 1757. This aligns with other historical sources and information presented by teammates."}}
+{"timestamp":"2025-09-01 20:08:00,711", "level":"INFO", "message":{"event": "message_posted", "message_id": "947500b2-da03-4397-a2b4-38babf547197", "sender": "DeepResearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '5e691c35-cbc7-4448-b8a1-dd41f6a1f1fc', 'voter': 'DeepResearchAgent', 'v"}}
+{"timestamp":"2025-09-01 20:08:00,714", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:03,762", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:03,767", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:04,992", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:04,995", "level":"INFO", "message":{"event": "agent_completed", "run_id": "93f64f5f", "agent_name": "DeepResearchAgent", "duration_seconds": 61.47, "result_type": "AgentText", "result_preview": "1757"}}
+{"timestamp":"2025-09-01 20:08:04,995", "level":"INFO", "message":{"event": "execution_completed", "run_id": "93f64f5f", "status": "success_early", "has_answer": true}}

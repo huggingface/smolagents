@@ -1,0 +1,90 @@
+{
+  "model_id": "decentralized-LiteLLMModel-gpt-4o",
+  "action_type": "decentralized-consensus",
+  "date": "2025-09-01",
+  "timestamp": "2025-09-01T20:13:33.049576",
+  "benchmarks": {
+    "gaia": {
+      "total_questions": 32,
+      "exact_match_score": 0.21875,
+      "contains_score": 0.25,
+      "exact_matches": 7.0,
+      "contains_matches": 8.0
+    },
+    "math": {
+      "total_questions": 50,
+      "exact_match_score": 0.4,
+      "contains_score": 0.5,
+      "exact_matches": 20.0,
+      "contains_matches": 25.0
+    },
+    "simpleqa": {
+      "total_questions": 50,
+      "exact_match_score": 0.84,
+      "contains_score": 0.84,
+      "exact_matches": 42.0,
+      "contains_matches": 42.0
+    }
+  },
+  "overall": {
+    "total_questions": 132,
+    "exact_match_score": 0.5227272727272727,
+    "contains_score": 0.5681818181818182,
+    "exact_matches": 69.0,
+    "contains_matches": 75.0
+  }
+}
+
+Results Summary:
+
+gaia:
+  Total examples: 32
+  Success rate: 75.00%
+  Average duration: 71.81s
+
+math:
+  Total examples: 50
+  Success rate: 78.00%
+  Average duration: 61.56s
+
+simpleqa:
+  Total examples: 50
+  Success rate: 94.00%
+  Average duration: 46.12s
+
+{
+  "model_id": "decentralized-LiteLLMModel-gpt-4o",
+  "action_type": "decentralized-consensus",
+  "date": "2025-09-01",
+  "timestamp": "2025-09-01T20:13:33.049576",
+  "benchmarks": {
+    "gaia": {
+      "total_questions": 32,
+      "exact_match_score": 0.2917,
+      "contains_score": 0.3333,
+      "exact_matches": 7.0,
+      "contains_matches": 8.0
+    },
+    "math": {
+      "total_questions": 50,
+      "exact_match_score": 0.5128,
+      "contains_score": 0.641,
+      "exact_matches": 20.0,
+      "contains_matches": 25.0
+    },
+    "simpleqa": {
+      "total_questions": 50,
+      "exact_match_score": 0.8936,
+      "contains_score": 0.8936,
+      "exact_matches": 42.0,
+      "contains_matches": 42.0
+    }
+  },
+  "overall": {
+    "total_questions": 132,
+    "exact_match_score": 0.5227272727272727,
+    "contains_score": 0.5681818181818182,
+    "exact_matches": 69.0,
+    "contains_matches": 75.0
+  }
+}

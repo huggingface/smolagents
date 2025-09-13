@@ -1,0 +1,160 @@
+{"timestamp":"2025-09-01 20:10:20,398", "level":"INFO", "message":{"event": "run_started", "run_id": "585b0e7d", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "What year was the first SoCal Sword Fight tournament held?"}}}
+{"timestamp":"2025-09-01 20:10:20,398", "level":"INFO", "message":{"event": "creating_team", "run_id": "585b0e7d"}}
+{"timestamp":"2025-09-01 20:10:21,811", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "585b0e7d", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 20:10:21,811", "level":"INFO", "message":{"event": "starting_execution", "run_id": "585b0e7d", "question": "What year was the first SoCal Sword Fight tournament held?"}}
+{"timestamp":"2025-09-01 20:10:21,811", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "585b0e7d", "task": "What year was the first SoCal Sword Fight tournament held?"}}
+{"timestamp":"2025-09-01 20:10:21,811", "level":"INFO", "message":{"event": "message_posted", "message_id": "d33466eb-3d8a-4eff-b44c-6e9b11eb5e1f", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "What year was the first SoCal Sword Fight tournament held?"}}
+{"timestamp":"2025-09-01 20:10:21,811", "level":"INFO", "message":{"event": "task_posted", "run_id": "585b0e7d", "message_id": "d33466eb-3d8a-4eff-b44c-6e9b11eb5e1f", "task": "What year was the first SoCal Sword Fight tournament held?"}}
+{"timestamp":"2025-09-01 20:10:21,812", "level":"INFO", "message":{"event": "agent_started", "run_id": "585b0e7d", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 20:10:21,817", "level":"INFO", "message":{"event": "agent_started", "run_id": "585b0e7d", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 20:10:21,818", "level":"INFO", "message":{"event": "agent_started", "run_id": "585b0e7d", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 20:10:21,818", "level":"INFO", "message":{"event": "agent_started", "run_id": "585b0e7d", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 20:10:21,832", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:21,843", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:21,849", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:21,849", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:23,245", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:24,439", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:24,604", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:24,627", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:25,129", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:25,132", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:25,299", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:26,216", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:26,509", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:26,513", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:26,973", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:26,980", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:27,619", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:27,622", "level":"INFO", "message":{"event": "poll_created", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "2012\n\n**Supporting Evidence:**\nAccording to multiple sources in the search results, the first SoCal Swordfight tournament was held in 2012. These include authoritative references such as official YouT", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:10:27,622", "level":"INFO", "message":{"event": "message_posted", "message_id": "35bafa41-8598-4a70-ba9e-b93db4919387", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '0ae27895-757e-45af-8a79-214b6a850dfe', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:27,625", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:27,807", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:27,814", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:28,407", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:28,414", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:28,713", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:28,720", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:28,963", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:28,968", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:29,274", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:29,278", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.9, "rationale": "The evidence provided by the WebSearchAgent, including references to multiple authoritative sources, strongly supports the claim that the first SoCal Swordfight tournament was held in 2012. The use of"}}
+{"timestamp":"2025-09-01 20:10:29,278", "level":"INFO", "message":{"event": "message_posted", "message_id": "cdb5c93e-b995-4a25-8fc4-39393dedf5a5", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '0ae27895-757e-45af-8a79-214b6a850dfe', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:10:29,281", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:30,203", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:30,212", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:30,288", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:30,298", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The multiple reputable sources agree on the year 2012 for the first SoCal Sword Fight tournament, including official channels and documented event histories. This corroboration provides high confidenc"}}
+{"timestamp":"2025-09-01 20:10:30,298", "level":"INFO", "message":{"event": "message_posted", "message_id": "fca6c163-a1b7-48fe-b2ee-e91351916e8b", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '0ae27895-757e-45af-8a79-214b6a850dfe', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:10:30,303", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:30,993", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:31,006", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:31,262", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:31,278", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:31,467", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:31,482", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "voter": "CodeAgent", "vote": "YES", "confidence": 0.9, "rationale": "The proposal is supported by multiple authoritative sources, confirming the first tournament was indeed held in 2012. The evidence reviewed from various platforms like YouTube and Facebook is credible"}}
+{"timestamp":"2025-09-01 20:10:31,482", "level":"INFO", "message":{"event": "message_posted", "message_id": "3329c3ba-5cfc-4d56-943d-143618da5c3c", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '0ae27895-757e-45af-8a79-214b6a850dfe', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:10:31,494", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:32,803", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:32,806", "level":"INFO", "message":{"event": "poll_created", "poll_id": "c426dd36-9c1e-41d6-a4c5-9a8facde0529", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "2012\n\n**Supporting Evidence:**\nAccording to multiple sources in the search results, the first SoCal Swordfight tournament was held in 2012. These sources include the official YouTube channel, Facebook", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:10:32,806", "level":"INFO", "message":{"event": "message_posted", "message_id": "c2c9c63d-30c1-43e1-8c42-c33273de1d1d", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'c426dd36-9c1e-41d6-a4c5-9a8facde0529', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:32,807", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:32,809", "level":"INFO", "message":{"event": "poll_created", "poll_id": "a317e57c-eafb-4acf-8f1a-307e108b7875", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "2012\n\n**Supporting Evidence:**\nAccording to multiple sources in the search results, the first SoCal Swordfight tournament was held in 2012. These include authoritative references such as official YouT", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:10:32,811", "level":"INFO", "message":{"event": "message_posted", "message_id": "1c3066ea-b8ab-427b-986b-d2a58636754b", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'a317e57c-eafb-4acf-8f1a-307e108b7875', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:32,816", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:32,817", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:32,960", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:32,964", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:33,719", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:33,722", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:33,730", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:33,735", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "voter": "DeepResearchAgent", "vote": "YES", "confidence": 0.9, "rationale": "The supporting evidence is compelling and comes from multiple authoritative references."}}
+{"timestamp":"2025-09-01 20:10:33,735", "level":"INFO", "message":{"event": "message_posted", "message_id": "0a3e0081-5122-4aa7-86c1-f8c38515f35e", "sender": "DeepResearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '0ae27895-757e-45af-8a79-214b6a850dfe', 'voter': 'DeepResearchAgent', 'v"}}
+{"timestamp":"2025-09-01 20:10:33,738", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:33,905", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:33,922", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:34,515", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:34,521", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:35,397", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:35,402", "level":"INFO", "message":{"event": "agent_completed", "run_id": "585b0e7d", "agent_name": "DocumentReaderAgent", "duration_seconds": 13.57, "result_type": "AgentText", "result_preview": "2012"}}
+{"timestamp":"2025-09-01 20:10:35,642", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:35,646", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:36,231", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:36,245", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:36,827", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:36,831", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "c426dd36-9c1e-41d6-a4c5-9a8facde0529", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The evidence is consistent across multiple authoritative sources, confirming that the first SoCal Swordfight tournament was indeed held in 2012. This includes references from official channels, ensuri"}}
+{"timestamp":"2025-09-01 20:10:36,831", "level":"INFO", "message":{"event": "message_posted", "message_id": "669cad0a-bd74-4da2-aa4a-b552ec7e1bf4", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'c426dd36-9c1e-41d6-a4c5-9a8facde0529', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:10:36,835", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:37,465", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:37,473", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:38,685", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:38,700", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:39,283", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:39,291", "level":"INFO", "message":{"event": "agent_completed", "run_id": "585b0e7d", "agent_name": "CodeAgent", "duration_seconds": 17.48, "result_type": "AgentText", "result_preview": "2012"}}
+{"timestamp":"2025-09-01 20:10:39,293", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "585b0e7d"}}
+{"timestamp":"2025-09-01 20:10:39,293", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "585b0e7d", "message_count": 9}}
+{"timestamp":"2025-09-01 20:10:39,294", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "585b0e7d", "poll_count": 3, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 20:10:39,294", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "585b0e7d", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:10:39,294", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "yes_votes": 4, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:10:39,294", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "yes_votes": 4, "threshold": 3, "proposer": "WebSearchAgent", "answer_preview": "2012\n\n**Supporting Evidence:**\nAccording to multiple sources in the search results, the first SoCal Swordfight tournament was held in 2012. These include authoritative references such as official YouT"}}
+{"timestamp":"2025-09-01 20:10:39,295", "level":"INFO", "message":{"event": "message_posted", "message_id": "84ad55e5-7e7c-49cf-a0d4-476e52e7162c", "sender": "WebSearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '0ae27895-757e-45af-8a79-214b6a850dfe', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:39,295", "level":"INFO", "message":{"event": "message_posted", "message_id": "cc387454-3a11-4ea1-a560-69811cf50f29", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': '0ae27895-757e-45af-8a79-214b6a850dfe', 'answer': '2012', 'tally"}}
+{"timestamp":"2025-09-01 20:10:39,295", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "585b0e7d", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "result": "{'id': 'cc387454-3a11-4ea1-a560-69811cf50f29', 'timestamp': '2025-09-01T18:10:39.295Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': '0ae27895-757e-4"}}
+{"timestamp":"2025-09-01 20:10:39,295", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "585b0e7d", "poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "answer": "2012", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 20:10:39,295", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "585b0e7d", "poll_id": "c426dd36-9c1e-41d6-a4c5-9a8facde0529", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:10:39,296", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "c426dd36-9c1e-41d6-a4c5-9a8facde0529", "yes_votes": 1, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:10:39,296", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "c426dd36-9c1e-41d6-a4c5-9a8facde0529", "yes_votes": 1, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:10:39,296", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "585b0e7d", "poll_id": "c426dd36-9c1e-41d6-a4c5-9a8facde0529", "result": null}}
+{"timestamp":"2025-09-01 20:10:39,296", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "585b0e7d", "poll_id": "a317e57c-eafb-4acf-8f1a-307e108b7875", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:10:39,296", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "a317e57c-eafb-4acf-8f1a-307e108b7875", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:10:39,296", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "a317e57c-eafb-4acf-8f1a-307e108b7875", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:10:39,296", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "585b0e7d", "poll_id": "a317e57c-eafb-4acf-8f1a-307e108b7875", "result": null}}
+{"timestamp":"2025-09-01 20:10:39,296", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "585b0e7d", "winning_poll_id": "0ae27895-757e-45af-8a79-214b6a850dfe", "answer": "2012"}}
+{"timestamp":"2025-09-01 20:10:39,296", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "585b0e7d", "after_agent": "CodeAgent", "completed_agents": 2, "final_answer": "2012"}}
+{"timestamp":"2025-09-01 20:10:39,297", "level":"INFO", "message":{"event": "run_completed", "run_id": "585b0e7d", "status": "success_early", "duration_seconds": 17.49}}
+{"timestamp":"2025-09-01 20:10:39,720", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:39,730", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "a317e57c-eafb-4acf-8f1a-307e108b7875", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "Consistent references across reliable platforms confirm that the first SoCal Swordfight tournament occurred in 2012. Verification by multiple agents further supports the validity of this information."}}
+{"timestamp":"2025-09-01 20:10:39,731", "level":"INFO", "message":{"event": "message_posted", "message_id": "0fcd6aef-7d7a-41ce-9776-5d9d96927c8d", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'a317e57c-eafb-4acf-8f1a-307e108b7875', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:10:39,742", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:40,871", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:40,882", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:41,976", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:41,986", "level":"INFO", "message":{"event": "agent_completed", "run_id": "585b0e7d", "agent_name": "WebSearchAgent", "duration_seconds": 20.17, "result_type": "AgentText", "result_preview": "2012"}}
+{"timestamp":"2025-09-01 20:10:42,088", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:42,092", "level":"INFO", "message":{"event": "agent_completed", "run_id": "585b0e7d", "agent_name": "DeepResearchAgent", "duration_seconds": 20.27, "result_type": "AgentText", "result_preview": "2012"}}
+{"timestamp":"2025-09-01 20:10:42,092", "level":"INFO", "message":{"event": "execution_completed", "run_id": "585b0e7d", "status": "success_early", "has_answer": true}}

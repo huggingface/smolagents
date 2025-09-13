@@ -1,0 +1,206 @@
+{"timestamp":"2025-09-01 19:44:06,310", "level":"INFO", "message":{"event": "run_started", "run_id": "f928dcd3", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "Who did the actor who played Ray in the Polish-language version of Everybody Loves Raymond play in Magda M.? Give only the first name."}}}
+{"timestamp":"2025-09-01 19:44:06,310", "level":"INFO", "message":{"event": "creating_team", "run_id": "f928dcd3"}}
+{"timestamp":"2025-09-01 19:44:07,518", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "f928dcd3", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 19:44:07,518", "level":"INFO", "message":{"event": "starting_execution", "run_id": "f928dcd3", "question": "Who did the actor who played Ray in the Polish-language version of Everybody Loves Raymond play in Magda M.? Give only the first name."}}
+{"timestamp":"2025-09-01 19:44:07,518", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "f928dcd3", "task": "Who did the actor who played Ray in the Polish-language version of Everybody Loves Raymond play in Magda M.? Give only the first name."}}
+{"timestamp":"2025-09-01 19:44:07,518", "level":"INFO", "message":{"event": "message_posted", "message_id": "3c917d13-1f30-4b99-b97f-537e5283004e", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "Who did the actor who played Ray in the Polish-language version of Everybody Loves Raymond play in M"}}
+{"timestamp":"2025-09-01 19:44:07,518", "level":"INFO", "message":{"event": "task_posted", "run_id": "f928dcd3", "message_id": "3c917d13-1f30-4b99-b97f-537e5283004e", "task": "Who did the actor who played Ray in the Polish-language version of Everybody Loves Raymond play in Magda M.? Give only the first name."}}
+{"timestamp":"2025-09-01 19:44:07,518", "level":"INFO", "message":{"event": "agent_started", "run_id": "f928dcd3", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 19:44:07,530", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:07,530", "level":"INFO", "message":{"event": "agent_started", "run_id": "f928dcd3", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 19:44:07,535", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:07,536", "level":"INFO", "message":{"event": "agent_started", "run_id": "f928dcd3", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 19:44:07,537", "level":"INFO", "message":{"event": "agent_started", "run_id": "f928dcd3", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 19:44:07,547", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:07,547", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:08,468", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:08,788", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:09,244", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:09,248", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:09,512", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:09,513", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:10,230", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:10,234", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:10,326", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:10,330", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:10,982", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:10,987", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:11,344", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:11,348", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:12,324", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:12,355", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:12,367", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:12,373", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:12,376", "level":"INFO", "message":{"event": "message_posted", "message_id": "b5032d6d-8cc0-4fd0-a133-d047236849ab", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Can you find out the actor who played Ray in the Polish-language version of Everybody Loves Raymond "}}
+{"timestamp":"2025-09-01 19:44:12,378", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:13,442", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:13,448", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:13,453", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:14,415", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:14,420", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:14,460", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:14,539", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:15,034", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:15,041", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:15,127", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:15,132", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:15,229", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:16,384", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:16,387", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:16,393", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:16,756", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:16,760", "level":"INFO", "message":{"event": "poll_created", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "Wojciech\n\n**Supporting Evidence:**\nBartek Kasprzykowski played the character Wojciech P\u0142aska in the TV series \"Magda M.\" according to multiple sources in the search results, including IMDb and Wikiped", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 19:44:16,760", "level":"INFO", "message":{"event": "message_posted", "message_id": "65d08837-f6ed-41ab-9681-5a0c54b1fd42", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '286da114-7286-4593-9dd7-4fcaf420a1b5', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:44:16,764", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:18,140", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:18,214", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:18,282", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:18,286", "level":"INFO", "message":{"event": "message_posted", "message_id": "d8a05b5f-4fc1-4680-a455-8b8d6e343a28", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["WebSearchAgent"], "content_preview": "I've reached out to @WebSearchAgent to find out the actor who played Ray in the Polish-language vers"}}
+{"timestamp":"2025-09-01 19:44:18,290", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:18,595", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:18,599", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The search results clearly state that Bartek Kasprzykowski, who played Ray in the Polish-language version of 'Everybody Loves Raymond,' played the character Wojciech P\u0142aska in the series 'Magda M.' Th"}}
+{"timestamp":"2025-09-01 19:44:18,599", "level":"INFO", "message":{"event": "message_posted", "message_id": "4824dccc-e1b7-4559-844c-6ecd015dfd84", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '286da114-7286-4593-9dd7-4fcaf420a1b5', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 19:44:18,602", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:18,647", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:19,333", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:19,342", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:19,355", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:19,814", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:19,817", "level":"INFO", "message":{"event": "agent_completed", "run_id": "f928dcd3", "agent_name": "WebSearchAgent", "duration_seconds": 12.29, "result_type": "AgentText", "result_preview": "Wojciech"}}
+{"timestamp":"2025-09-01 19:44:20,755", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:20,785", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:20,807", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:20,812", "level":"INFO", "message":{"event": "poll_created", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "Wojciech\n\n**Supporting Evidence:**\nBart\u0142omiej Kasprzykowski, who played Ray in the Polish-language version of 'Everybody Loves Raymond,' played the role of Wojciech in the TV series 'Magda M.' This is", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 19:44:20,812", "level":"INFO", "message":{"event": "message_posted", "message_id": "60d2e485-9f80-4f73-8d0c-5fdf4bd93a8c", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'fe6f4249-68bb-4df9-a2b9-c3966362d947', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:44:20,814", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:21,197", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:21,200", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The provided information from WebSearchAgent is credible with multiple sources confirming the same details. This supports confidence in the proposed final answer being accurate."}}
+{"timestamp":"2025-09-01 19:44:21,201", "level":"INFO", "message":{"event": "message_posted", "message_id": "5994eb1c-a264-41a0-b4b5-d71651c73b05", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '286da114-7286-4593-9dd7-4fcaf420a1b5', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 19:44:21,204", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:21,801", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:21,810", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:22,656", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:22,664", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:23,162", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:23,168", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "voter": "DeepResearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The information has been verified through multiple sources confirming Bart\u0142omiej Kasprzykowski's role as Wojciech in 'Magda M.'"}}
+{"timestamp":"2025-09-01 19:44:23,168", "level":"INFO", "message":{"event": "message_posted", "message_id": "f6c53357-301f-4f9a-84ae-f109284dbe3e", "sender": "DeepResearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'fe6f4249-68bb-4df9-a2b9-c3966362d947', 'voter': 'DeepResearchAgent', 'v"}}
+{"timestamp":"2025-09-01 19:44:23,170", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:23,340", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:23,352", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The information presented is consistent with prior results. Multiple sources confirm that Bart\u0142omiej Kasprzykowski, who played Ray, also played Wojciech in 'Magda M.' This supports confidence in the p"}}
+{"timestamp":"2025-09-01 19:44:23,352", "level":"INFO", "message":{"event": "message_posted", "message_id": "1c5722c9-67b1-4ae0-8099-a69241626fef", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'fe6f4249-68bb-4df9-a2b9-c3966362d947', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 19:44:23,364", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:24,492", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:24,496", "level":"INFO", "message":{"event": "message_posted", "message_id": "10be8fce-5d45-419b-b448-0e3e07757bb0", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Can you help find the actor who played Ray in the Polish version of 'Everybody Loves Raymond' and wh"}}
+{"timestamp":"2025-09-01 19:44:24,500", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:24,604", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:24,613", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:25,179", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:25,183", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:25,833", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:25,836", "level":"INFO", "message":{"event": "agent_completed", "run_id": "f928dcd3", "agent_name": "DocumentReaderAgent", "duration_seconds": 18.29, "result_type": "AgentText", "result_preview": "Wojciech"}}
+{"timestamp":"2025-09-01 19:44:25,837", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "f928dcd3"}}
+{"timestamp":"2025-09-01 19:44:25,837", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "f928dcd3", "message_count": 10}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "f928dcd3", "poll_count": 2, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "f928dcd3", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "f928dcd3", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "result": null}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "f928dcd3", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "f928dcd3", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "result": null}}
+{"timestamp":"2025-09-01 19:44:25,838", "level":"INFO", "message":{"event": "consensus_check_completed", "run_id": "f928dcd3", "result": "no_consensus"}}
+{"timestamp":"2025-09-01 19:44:26,199", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:26,210", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:28,563", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:28,587", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:30,682", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:30,698", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "voter": "DeepResearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The search evidence corroborates that Bart\u0142omiej Kasprzykowski played Wojciech, further consolidating the consistency and accuracy of this answer, which is confirmed through multiple reliable sources "}}
+{"timestamp":"2025-09-01 19:44:30,698", "level":"INFO", "message":{"event": "message_posted", "message_id": "f781468d-eafd-4ad9-ab12-57c7fc49f506", "sender": "DeepResearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '286da114-7286-4593-9dd7-4fcaf420a1b5', 'voter': 'DeepResearchAgent', 'v"}}
+{"timestamp":"2025-09-01 19:44:30,706", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:32,752", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:32,758", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:32,949", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:32,964", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "voter": "CodeAgent", "vote": "YES", "confidence": 1.0, "rationale": "The information is consistent and confirmed by multiple reliable sources."}}
+{"timestamp":"2025-09-01 19:44:32,964", "level":"INFO", "message":{"event": "message_posted", "message_id": "e651154c-56c5-4098-8809-cabc59dd1c03", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '286da114-7286-4593-9dd7-4fcaf420a1b5', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 19:44:32,966", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "voter": "CodeAgent", "vote": "YES", "confidence": 1.0, "rationale": "The actor Bart\u0142omiej Kasprzykowski played Wojciech in \"Magda M.\" as verified by reputable sources."}}
+{"timestamp":"2025-09-01 19:44:32,966", "level":"INFO", "message":{"event": "message_posted", "message_id": "ca163cd7-68fb-439a-80b6-74e98f41b9dd", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'fe6f4249-68bb-4df9-a2b9-c3966362d947', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 19:44:32,971", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:34,241", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:34,258", "level":"INFO", "message":{"event": "agent_completed", "run_id": "f928dcd3", "agent_name": "DeepResearchAgent", "duration_seconds": 26.72, "result_type": "AgentText", "result_preview": "Wojciech"}}
+{"timestamp":"2025-09-01 19:44:34,258", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "f928dcd3"}}
+{"timestamp":"2025-09-01 19:44:34,259", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "f928dcd3", "message_count": 13}}
+{"timestamp":"2025-09-01 19:44:34,260", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "f928dcd3", "poll_count": 2, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 19:44:34,260", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "f928dcd3", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:44:34,261", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "yes_votes": 4, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:44:34,261", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "yes_votes": 4, "threshold": 3, "proposer": "WebSearchAgent", "answer_preview": "Wojciech\n\n**Supporting Evidence:**\nBartek Kasprzykowski played the character Wojciech P\u0142aska in the TV series \"Magda M.\" according to multiple sources in the search results, including IMDb and Wikiped"}}
+{"timestamp":"2025-09-01 19:44:34,261", "level":"INFO", "message":{"event": "message_posted", "message_id": "de243a60-643b-4761-849c-26389192b289", "sender": "WebSearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '286da114-7286-4593-9dd7-4fcaf420a1b5', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:44:34,262", "level":"INFO", "message":{"event": "message_posted", "message_id": "0890835c-420d-4a77-9ad6-0bc1ed5bed68", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': '286da114-7286-4593-9dd7-4fcaf420a1b5', 'answer': 'Wojciech', 't"}}
+{"timestamp":"2025-09-01 19:44:34,262", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "f928dcd3", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "result": "{'id': '0890835c-420d-4a77-9ad6-0bc1ed5bed68', 'timestamp': '2025-09-01T17:44:34.262Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': '286da114-7286-4"}}
+{"timestamp":"2025-09-01 19:44:34,263", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "f928dcd3", "poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "answer": "Wojciech", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 19:44:34,263", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "f928dcd3", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 19:44:34,264", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 19:44:34,264", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "yes_votes": 3, "threshold": 3, "proposer": "DeepResearchAgent", "answer_preview": "Wojciech\n\n**Supporting Evidence:**\nBart\u0142omiej Kasprzykowski, who played Ray in the Polish-language version of 'Everybody Loves Raymond,' played the role of Wojciech in the TV series 'Magda M.' This is"}}
+{"timestamp":"2025-09-01 19:44:34,264", "level":"INFO", "message":{"event": "message_posted", "message_id": "6f924c06-2b2f-4c16-ad14-113a8084da08", "sender": "DeepResearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'fe6f4249-68bb-4df9-a2b9-c3966362d947', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:44:34,265", "level":"INFO", "message":{"event": "message_posted", "message_id": "a637d8dc-f679-48ca-8b74-30daa0ca9a29", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': 'fe6f4249-68bb-4df9-a2b9-c3966362d947', 'answer': 'Wojciech', 't"}}
+{"timestamp":"2025-09-01 19:44:34,265", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "f928dcd3", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "result": "{'id': 'a637d8dc-f679-48ca-8b74-30daa0ca9a29', 'timestamp': '2025-09-01T17:44:34.264Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': 'fe6f4249-68bb-4"}}
+{"timestamp":"2025-09-01 19:44:34,265", "level":"INFO", "message":{"event": "subsequent_poll_achieved_threshold", "run_id": "f928dcd3", "poll_id": "fe6f4249-68bb-4df9-a2b9-c3966362d947", "first_successful_poll": "286da114-7286-4593-9dd7-4fcaf420a1b5", "answer_ignored": "Wojciech"}}
+{"timestamp":"2025-09-01 19:44:34,265", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "f928dcd3", "winning_poll_id": "286da114-7286-4593-9dd7-4fcaf420a1b5", "answer": "Wojciech"}}
+{"timestamp":"2025-09-01 19:44:34,265", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "f928dcd3", "after_agent": "DeepResearchAgent", "completed_agents": 3, "final_answer": "Wojciech"}}
+{"timestamp":"2025-09-01 19:44:34,266", "level":"INFO", "message":{"event": "run_completed", "run_id": "f928dcd3", "status": "success_early", "duration_seconds": 26.75}}
+{"timestamp":"2025-09-01 19:44:35,794", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:35,801", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:37,886", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:37,901", "level":"INFO", "message":{"event": "poll_created", "poll_id": "e4733203-2547-4704-b7cc-9903722df724", "proposer": "CodeAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "Wojciech\n\n**Supporting Evidence:**\nThe actor Bart\u0142omiej Kasprzykowski, who played Ray in the Polish version of 'Everybody Loves Raymond,' played the role of Wojciech in 'Magda M.' This is supported by", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 19:44:37,902", "level":"INFO", "message":{"event": "message_posted", "message_id": "eb2abc36-9130-4e0a-b1e4-7765827f5339", "sender": "CodeAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'e4733203-2547-4704-b7cc-9903722df724', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 19:44:37,913", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:39,118", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:39,127", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 19:44:40,582", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 19:44:40,598", "level":"INFO", "message":{"event": "agent_completed", "run_id": "f928dcd3", "agent_name": "CodeAgent", "duration_seconds": 33.08, "result_type": "AgentText", "result_preview": "Wojciech"}}
+{"timestamp":"2025-09-01 19:44:40,598", "level":"INFO", "message":{"event": "execution_completed", "run_id": "f928dcd3", "status": "success_early", "has_answer": true}}
