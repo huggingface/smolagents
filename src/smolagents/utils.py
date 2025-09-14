@@ -16,7 +16,6 @@
 # limitations under the License.
 import ast
 import base64
-import importlib.metadata
 import importlib.util
 import inspect
 import json
@@ -42,11 +41,7 @@ __all__ = ["AgentError"]
 
 @lru_cache
 def _is_package_available(package_name: str) -> bool:
-    try:
-        importlib.metadata.version(package_name)
-        return True
-    except importlib.metadata.PackageNotFoundError:
-        return False
+    return importlib.util.find_spec(package_name) is not None
 
 
 BASE_BUILTIN_MODULES = [
@@ -451,7 +446,7 @@ from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app 
 {% endfor %}
 
 model = {{ agent_dict['model']['class'] }}(
-{% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
+{% for key in agent_dict['model']['data'] if key != 'class' -%}
     {{ key }}={{ agent_dict['model']['data'][key]|repr }},
 {% endfor %})
 

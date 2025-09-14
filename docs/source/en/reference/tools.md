@@ -39,7 +39,7 @@ contains the API docs for the underlying classes.
 ## Agent Types
 
 Agents can handle any type of object in-between tools; tools, being completely multimodal, can accept and return
-text, image, audio, video, among other types. In order to increase compatibility between tools, as well as to 
+text, image, audio, video, among other types. In order to increase compatibility between tools, as well as to
 correctly render these returns in ipython (jupyter, colab, ipython notebooks, ...), we implement wrapper classes
 around these types.
 

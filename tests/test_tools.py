@@ -14,6 +14,7 @@
 # limitations under the License.
 import inspect
 import os
+import warnings
 from textwrap import dedent
 from typing import Any, Literal
 from unittest.mock import MagicMock, patch
@@ -657,6 +658,144 @@ class TestTool:
         assert union_type_return_tool_function.output_type == "any"
 
 
+class TestToolDecorator:
+    def test_tool_decorator_source_extraction_with_multiple_decorators(self):
+        """Test that @tool correctly extracts source code with multiple decorators."""
+
+        def dummy_decorator(func):
+            return func
+
+        with pytest.warns(UserWarning, match="has decorators other than @tool"):
+
+            @tool
+            @dummy_decorator
+            def multi_decorator_tool(text: str) -> str:
+                """Tool with multiple decorators.
+
+                Args:
+                    text: Input text
+                """
+                return text.upper()
+
+        # Verify the tool works
+        assert isinstance(multi_decorator_tool, Tool)
+        assert multi_decorator_tool.name == "multi_decorator_tool"
+        assert multi_decorator_tool("hello") == "HELLO"
+
+        # Verify the source code extraction is correct
+        forward_source = multi_decorator_tool.forward.__source__
+        assert "def forward(self, text: str) -> str:" in forward_source
+        assert "return text.upper()" in forward_source
+        # Should not contain decorator lines
+        assert "@tool" not in forward_source
+        assert "@dummy_decorator" not in forward_source
+        # Should not contain definition line
+        assert "def multi_decorator_tool" not in forward_source
+
+    def test_tool_decorator_source_extraction_with_multiline_signature(self):
+        """Test that @tool correctly extracts source code with multiline function signatures."""
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            @tool
+            def multiline_signature_tool(
+                text: str,
+                count: int = 1,
+                uppercase: bool = False,
+                multiline_parameter_1: int = 1_000,
+                multiline_parameter_2: int = 2_000,
+            ) -> str:
+                """Tool with multiline signature.
+
+                Args:
+                    text: Input text
+                    count: Number of repetitions
+                    uppercase: Whether to convert to uppercase
+                    multiline_parameter_1: Dummy parameter
+                    multiline_parameter_2: Dummy parameter
+                """
+                result = text * count
+                return result.upper() if uppercase else result
+
+        # Verify the tool works
+        assert isinstance(multiline_signature_tool, Tool)
+        assert multiline_signature_tool.name == "multiline_signature_tool"
+        assert multiline_signature_tool("hello", 2, True) == "HELLOHELLO"
+
+        # Verify the source code extraction is correct
+        forward_source = multiline_signature_tool.forward.__source__
+        assert (
+            "def forward(self, text: str, count: int=1, uppercase: bool=False, multiline_parameter_1: int=1000, multiline_parameter_2: int=2000) -> str:"
+            in forward_source
+            or "def forward(self, text: str, count: int = 1, uppercase: bool = False, multiline_parameter_1: int = 1000, multiline_parameter_2: int = 2000) -> str:"
+            in forward_source
+        )
+        assert "result = text * count" in forward_source
+        assert "return result.upper() if uppercase else result" in forward_source
+        # Should not contain the original multiline function definition
+        assert "def multiline_signature_tool(" not in forward_source
+        # Should not contain leftover lines from the original multiline function definition
+        assert "            count: int = 1," not in forward_source
+        assert "            count: int=1," not in forward_source
+
+    def test_tool_decorator_source_extraction_with_multiple_decorators_and_multiline(self):
+        """Test that @tool works with both multiple decorators and multiline signatures."""
+
+        def dummy_decorator_1(func):
+            return func
+
+        def dummy_decorator_2(func):
+            return func
+
+        with pytest.warns(UserWarning, match="has decorators other than @tool"):
+
+            @tool
+            @dummy_decorator_1
+            @dummy_decorator_2
+            def complex_tool(
+                text: str,
+                multiplier: int = 2,
+                separator: str = " ",
+                multiline_parameter_1: int = 1_000,
+                multiline_parameter_2: int = 2_000,
+            ) -> str:
+                """Complex tool with multiple decorators and multiline signature.
+
+                Args:
+                    text: Input text
+                    multiplier: How many times to repeat
+                    separator: What to use between repetitions
+                    multiline_parameter_1: Dummy parameter
+                    multiline_parameter_2: Dummy parameter
+                """
+                parts = [text] * multiplier
+                return separator.join(parts)
+
+        # Verify the tool works
+        assert isinstance(complex_tool, Tool)
+        assert complex_tool.name == "complex_tool"
+        assert complex_tool("hello", 3, "-") == "hello-hello-hello"
+
+        # Verify the source code extraction is correct
+        forward_source = complex_tool.forward.__source__
+        assert (
+            "def forward(self, text: str, multiplier: int=2, separator: str=' ', multiline_parameter_1: int=1000, multiline_parameter_2: int=2000) -> str:"
+            in forward_source
+            or "def forward(self, text: str, multiplier: int = 2, separator: str = ' ', multiline_parameter_1: int = 1000, multiline_parameter_2: int = 2000) -> str:"
+            in forward_source
+        )
+        assert "parts = [text] * multiplier" in forward_source
+        assert "return separator.join(parts)" in forward_source
+        # Should not contain any decorator lines
+        assert "@tool" not in forward_source
+        assert "@dummy_decorator_1" not in forward_source
+        assert "@dummy_decorator_2" not in forward_source
+        # Should not contain leftover lines from the original multiline function definition
+        assert "            multiplier: int = 2," not in forward_source
+        assert "            multiplier: int=2," not in forward_source
+
+
 @pytest.fixture
 def mock_server_parameters():
     return MagicMock()
@@ -676,6 +815,8 @@ def mock_smolagents_adapter():
         yield mock
 
 
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
 class TestToolCollection:
     def test_from_mcp(self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter):
         with ToolCollection.from_mcp(mock_server_parameters, trust_remote_code=True) as tool_collection:

@@ -157,7 +157,7 @@ class RemotePythonExecutor(PythonExecutor):
             code_output = self.run_code_raise_errors(code)
             self.logger.log(code_output.logs)
 
-    def send_variables(self, variables: dict):
+    def send_variables(self, variables: dict[str, Any]):
         """
         Send variables to the kernel namespace using JSON-safe serialization.
         """
@@ -428,6 +428,96 @@ def _create_kernel_http(crate_kernel_endpoint: str, logger) -> str:
     return r.json()["id"]
 
 
+def _websocket_send_execute_request(code: str, ws) -> str:
+    """Send code execution request to kernel."""
+    import uuid
+
+    # Generate a unique message ID
+    msg_id = str(uuid.uuid4())
+
+    # Create execute request
+    execute_request = {
+        "header": {
+            "msg_id": msg_id,
+            "username": "anonymous",
+            "session": str(uuid.uuid4()),
+            "msg_type": "execute_request",
+            "version": "5.0",
+        },
+        "parent_header": {},
+        "metadata": {},
+        "content": {
+            "code": code,
+            "silent": False,
+            "store_history": True,
+            "user_expressions": {},
+            "allow_stdin": False,
+        },
+    }
+
+    ws.send(json.dumps(execute_request))
+    return msg_id
+
+
+def _websocket_run_code_raise_errors(code: str, ws, logger) -> CodeOutput:
+    """Run code over a websocket."""
+    try:
+        # Send execute request
+        msg_id = _websocket_send_execute_request(code, ws)
+
+        # Collect output and results
+        outputs = []
+        result = None
+        is_final_answer = False
+
+        while True:
+            msg = json.loads(ws.recv())
+            parent_msg_id = msg.get("parent_header", {}).get("msg_id")
+            # Skip unrelated messages
+            if parent_msg_id != msg_id:
+                continue
+            msg_type = msg.get("msg_type", "")
+            msg_content = msg.get("content", {})
+            if msg_type == "stream":
+                outputs.append(msg_content["text"])
+            elif msg_type == "execute_result":
+                result = msg_content["data"].get("text/plain", None)
+            elif msg_type == "error":
+                if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
+                    json_data = json.loads(base64.b64decode(msg_content.get("evalue", "")))
+                    result = JsonSerializer.from_json_safe(json_data)
+                    is_final_answer = True
+                else:
+                    raise AgentError("\n".join(msg_content.get("traceback", [])), logger)
+            elif msg_type == "status" and msg_content["execution_state"] == "idle":
+                break
+
+        return CodeOutput(output=result, logs="".join(outputs), is_final_answer=is_final_answer)
+
+    except Exception as e:
+        logger.log_error(f"Code execution failed: {e}")
+        raise
+
+
+def _create_kernel_http(crate_kernel_endpoint: str, logger) -> str:
+    """Create kernel using http."""
+
+    r = requests.post(crate_kernel_endpoint)
+    if r.status_code != 201:
+        error_details = {
+            "status_code": r.status_code,
+            "headers": dict(r.headers),
+            "url": r.url,
+            "body": r.text,
+            "request_method": r.request.method,
+            "request_headers": dict(r.request.headers),
+            "request_body": r.request.body,
+        }
+        logger.log_error(f"Failed to create kernel. Details: {json.dumps(error_details, indent=2)}")
+        raise RuntimeError(f"Failed to create kernel: Status {r.status_code}\nResponse: {r.text}") from None
+    return r.json()["id"]
+
+
 class DockerExecutor(RemotePythonExecutor):
     """
     Executes Python code using Jupyter Kernel Gateway in a Docker container.
@@ -534,6 +624,8 @@ class DockerExecutor(RemotePythonExecutor):
             self.base_url = f"http://{host}:{port}"
 
             # Create new kernel via HTTP
+            # Wait for Jupyter to start
+
             self._wait_for_server()
 
             # Create new kernel via HTTP
