@@ -246,8 +246,31 @@ def get_tool_json_schema(tool: Tool) -> dict:
     for key, value in properties.items():
         if value["type"] == "any":
             value["type"] = "string"
+        if "anyOf" in value and any(t["type"] == "null" for t in value["anyOf"]):
+            value["nullable"] = True
         if not ("nullable" in value and value["nullable"]):
             required.append(key)
+
+        # parse anyOf
+        if "anyOf" in value:
+            types = []
+            enum = None
+            for t in value["anyOf"]:
+                if t["type"] == "null":
+                    continue
+                if t["type"] == "any":
+                    types.append("string")
+                else:
+                    types.append(t["type"])
+                if "enum" in t:  # assuming there is only one enum in anyOf
+                    enum = t["enum"]
+
+            value["type"] = types if len(types) > 1 else types[0]
+            if enum is not None:
+                value["enum"] = enum
+
+            value.pop("anyOf")
+
     return {
         "type": "function",
         "function": {
