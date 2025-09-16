@@ -664,7 +664,7 @@ nested_answer()
     def test_final_answer_checks(self):
         error_string = "failed with error"
 
-        def check_always_fails(final_answer, agent):
+        def check_always_fails(final_answer, memory, agent):
             assert False, "Error raised in check"
 
         agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_always_fails])
@@ -675,7 +675,7 @@ nested_answer()
         agent = CodeAgent(
             model=FakeCodeModel(),
             tools=[],
-            final_answer_checks=[lambda x, agent: x == 7.2904],
+            final_answer_checks=[lambda x, memory, agent: x == 7.2904],
             verbosity_level=1000,
         )
         output = agent.run("Dummy task.")
@@ -686,7 +686,7 @@ nested_answer()
     def test_final_answer_checks_with_agent_access(self):
         """Test that final answer checks can access agent properties."""
         
-        def check_uses_agent_properties(final_answer, agent):
+        def check_uses_agent_properties(final_answer, memory, agent):
             # Access agent properties to validate the final answer
             assert hasattr(agent, 'memory'), "Agent should have memory attribute"
             assert hasattr(agent, 'state'), "Agent should have state attribute"
@@ -697,7 +697,7 @@ nested_answer()
                 return len(final_answer) > 0
             return True
 
-        def check_uses_agent_state(final_answer, agent):
+        def check_uses_agent_state(final_answer, memory, agent):
             # Use agent state to validate the answer
             if 'expected_answer' in agent.state:
                 return final_answer == agent.state['expected_answer']
