@@ -52,7 +52,7 @@ except ModuleNotFoundError:
 
 class JsonSerializer:
     """Centralized JSON serialization/deserialization for remote executors."""
-    
+
     @staticmethod
     def to_json_safe(obj):
         """Convert Python objects to JSON-serializable format."""
@@ -74,7 +74,7 @@ class JsonSerializer:
             return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
         else:
             raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-    
+
     @staticmethod
     def from_json_safe(obj):
         """Convert JSON-safe format back to Python objects."""
@@ -94,7 +94,7 @@ class JsonSerializer:
         elif isinstance(obj, list):
             return [JsonSerializer.from_json_safe(item) for item in obj]
         return obj
-    
+
     @staticmethod
     def get_from_json_safe_function_code():
         """Returns the _from_json_safe function as a string for remote execution."""
@@ -120,7 +120,6 @@ def _from_json_safe(obj):
         return [_from_json_safe(item) for item in obj]
     return obj
 '''
-    
 
 
 class RemotePythonExecutor(PythonExecutor):
@@ -167,9 +166,9 @@ class RemotePythonExecutor(PythonExecutor):
         # Convert variables to JSON-serializable format
         json_safe_vars = JsonSerializer.to_json_safe(variables)
         encoded_vars = base64.b64encode(json.dumps(json_safe_vars).encode()).decode()
-##
-#do we even need base64 no that we have JSON serializing?! need to think about it
-##
+        ##
+        # do we even need base64 no that we have JSON serializing?! need to think about it
+        ##
         code = f"""
 import json, base64
 from io import BytesIO
@@ -185,7 +184,6 @@ vars_dict = _from_json_safe(vars_dict)
 locals().update(vars_dict)
 """
         self.run_code_raise_errors(code)
-
 
     def __call__(self, code_action: str) -> CodeOutput:
         """Run the code and determine if it is the final answer."""
@@ -340,93 +338,6 @@ class E2BExecutor(RemotePythonExecutor):
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
 
-def _websocket_send_execute_request(code: str, ws) -> str:
-    """Send code execution request to kernel."""
-    import uuid
-
-    # Generate a unique message ID
-    msg_id = str(uuid.uuid4())
-
-    # Create execute request
-    execute_request = {
-        "header": {
-            "msg_id": msg_id,
-            "username": "anonymous",
-            "session": str(uuid.uuid4()),
-            "msg_type": "execute_request",
-            "version": "5.0",
-        },
-        "parent_header": {},
-        "metadata": {},
-        "content": {
-            "code": code,
-            "silent": False,
-            "store_history": True,
-            "user_expressions": {},
-            "allow_stdin": False,
-        },
-    }
-
-    ws.send(json.dumps(execute_request))
-    return msg_id
-
-def _websocket_run_code_raise_errors(code: str, ws, logger) -> CodeOutput:
-    """Run code over a websocket."""
-    try:
-        # Send execute request
-        msg_id = _websocket_send_execute_request(code, ws)
-
-        # Collect output and results
-        outputs = []
-        result = None
-        is_final_answer = False
-
-        while True:
-            msg = json.loads(ws.recv())
-            parent_msg_id = msg.get("parent_header", {}).get("msg_id")
-            # Skip unrelated messages
-            if parent_msg_id != msg_id:
-                continue
-            msg_type = msg.get("msg_type", "")
-            msg_content = msg.get("content", {})
-            if msg_type == "stream":
-                outputs.append(msg_content["text"])
-            elif msg_type == "execute_result":
-                result = msg_content["data"].get("text/plain", None)
-            elif msg_type == "error":
-                if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                    json_data = json.loads(base64.b64decode(msg_content.get("evalue", "")))
-                    result = JsonSerializer.from_json_safe(json_data)
-                    is_final_answer = True
-                else:
-                    raise AgentError("\n".join(msg_content.get("traceback", [])), logger)
-            elif msg_type == "status" and msg_content["execution_state"] == "idle":
-                break
-
-        return CodeOutput(output=result, logs="".join(outputs), is_final_answer=is_final_answer)
-
-    except Exception as e:
-        logger.log_error(f"Code execution failed: {e}")
-        raise
-
-def _create_kernel_http(crate_kernel_endpoint: str, logger) -> str:
-    """Create kernel using http."""
-
-    r = requests.post(crate_kernel_endpoint)
-    if r.status_code != 201:
-        error_details = {
-            "status_code": r.status_code,
-            "headers": dict(r.headers),
-            "url": r.url,
-            "body": r.text,
-            "request_method": r.request.method,
-            "request_headers": dict(r.request.headers),
-            "request_body": r.request.body,
-        }
-        logger.log_error(f"Failed to create kernel. Details: {json.dumps(error_details, indent=2)}")
-        raise RuntimeError(f"Failed to create kernel: Status {r.status_code}\nResponse: {r.text}") from None
-    return r.json()["id"]
-
 
 def _websocket_send_execute_request(code: str, ws) -> str:
     """Send code execution request to kernel."""
@@ -524,15 +435,15 @@ class DockerExecutor(RemotePythonExecutor):
     """
 
     def __init__(
-        self,
-        additional_imports: list[str],
-        logger,
-        host: str = "127.0.0.1",
-        port: int = 8888,
-        image_name: str = "jupyter-kernel",
-        build_new_image: bool = True,
-        container_run_kwargs: dict[str, Any] | None = None,
-        dockerfile_content: str | None = None,
+            self,
+            additional_imports: list[str],
+            logger,
+            host: str = "127.0.0.1",
+            port: int = 8888,
+            image_name: str = "jupyter-kernel",
+            build_new_image: bool = True,
+            container_run_kwargs: dict[str, Any] | None = None,
+            dockerfile_content: str | None = None,
     ):
         """
         Initialize the Docker-based Jupyter Kernel Gateway executor.
@@ -677,6 +588,7 @@ class DockerExecutor(RemotePythonExecutor):
                 time.sleep(1)
                 retries += 1
 
+
 class ModalExecutor(RemotePythonExecutor):
     """
     Executes Python code using Modal.
@@ -694,12 +606,12 @@ class ModalExecutor(RemotePythonExecutor):
     _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
     def __init__(
-        self,
-        additional_imports: list[str],
-        logger,
-        app_name: str = "smolagent-executor",
-        port: int = 8888,
-        create_kwargs: Optional[dict] = None,
+            self,
+            additional_imports: list[str],
+            logger,
+            app_name: str = "smolagent-executor",
+            port: int = 8888,
+            create_kwargs: Optional[dict] = None,
     ):
         super().__init__(additional_imports, logger)
         self.port = port
