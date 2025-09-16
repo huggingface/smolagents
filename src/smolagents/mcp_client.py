@@ -46,17 +46,16 @@ class MCPClient:
             - A `dict` with at least:
               - "url": URL of the server.
               - "transport": Transport protocol to use, one of:
-                - "streamable-http": (recommended) Streamable HTTP transport.
+                - "streamable-http": Streamable HTTP transport (default).
                 - "sse": Legacy HTTP+SSE transport (deprecated).
-              If "transport" is omitted, the legacy "sse" transport is assumed (a deprecation warning will be issued).
-
-            <Deprecated version="1.17.0">
-            The HTTP+SSE transport is deprecated and future behavior will default to the Streamable HTTP transport.
-            Please pass explicitly the "transport" key.
-            </Deprecated>
-
         adapter_kwargs (dict[str, Any], optional):
             Additional keyword arguments to be passed directly to `MCPAdapt`.
+        structured_output (bool, optional, defaults to False):
+            Whether to enable structured output features for MCP tools. If True, enables:
+            - Support for outputSchema in MCP tools
+            - Structured content handling (structuredContent from MCP responses)
+            - JSON parsing fallback for structured data
+            If False, uses the original simple text-only behavior for backwards compatibility.
 
     Example:
         ```python
@@ -67,6 +66,10 @@ class MCPClient:
         # context manager + Streamable HTTP transport:
         with MCPClient({"url": "http://localhost:8000/mcp", "transport": "streamable-http"}) as tools:
             # tools are now available
+
+        # Enable structured output for advanced MCP tools:
+        with MCPClient(server_parameters, structured_output=True) as tools:
+            # tools with structured output support are now available
 
         # manually manage the connection via the mcp_client object:
         try:
@@ -83,7 +86,20 @@ class MCPClient:
         self,
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
         adapter_kwargs: dict[str, Any] | None = None,
+        structured_output: bool | None = None,
     ):
+        # Handle future warning for structured_output default value change
+        if structured_output is None:
+            warnings.warn(
+                "Parameter 'structured_output' was not specified. "
+                "Currently it defaults to False, but in version 1.25, the default will change to True. "
+                "To suppress this warning, explicitly set structured_output=True (new behavior) or structured_output=False (legacy behavior). "
+                "See documentation at https://huggingface.co/docs/smolagents/tutorials/tools#structured-output-and-output-schema-support for more details.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            structured_output = False
+
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
@@ -92,20 +108,16 @@ class MCPClient:
         if isinstance(server_parameters, dict):
             transport = server_parameters.get("transport")
             if transport is None:
-                warnings.warn(
-                    "Passing a dict as server_parameters without specifying the 'transport' key is deprecated. "
-                    "For now, it defaults to the legacy 'sse' (HTTP+SSE) transport, but this default will change "
-                    "to 'streamable-http' in version 1.20. Please add the 'transport' key explicitly. ",
-                    FutureWarning,
-                )
-                transport = "sse"
+                transport = "streamable-http"
                 server_parameters["transport"] = transport
             if transport not in {"sse", "streamable-http"}:
                 raise ValueError(
                     f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
                 )
         adapter_kwargs = adapter_kwargs or {}
-        self._adapter = MCPAdapt(server_parameters, SmolAgentsAdapter(), **adapter_kwargs)
+        self._adapter = MCPAdapt(
+            server_parameters, SmolAgentsAdapter(structured_output=structured_output), **adapter_kwargs
+        )
         self._tools: list[Tool] | None = None
         self.connect()
 

@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Callable, Type
 
-from smolagents.models import ChatMessage, MessageRole
+from smolagents.models import ChatMessage, MessageRole, get_dict_from_nested_dataclasses
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.utils import AgentError, make_json_serializable
 
@@ -68,10 +68,16 @@ class ActionStep(MemoryStep):
         return {
             "step_number": self.step_number,
             "timing": self.timing.dict(),
-            "model_input_messages": self.model_input_messages,
+            "model_input_messages": [
+                make_json_serializable(get_dict_from_nested_dataclasses(msg)) for msg in self.model_input_messages
+            ]
+            if self.model_input_messages
+            else None,
             "tool_calls": [tc.dict() for tc in self.tool_calls] if self.tool_calls else [],
             "error": self.error.dict() if self.error else None,
-            "model_output_message": self.model_output_message.dict() if self.model_output_message else None,
+            "model_output_message": make_json_serializable(get_dict_from_nested_dataclasses(self.model_output_message))
+            if self.model_output_message
+            else None,
             "model_output": self.model_output,
             "code_action": self.code_action,
             "observations": self.observations,
@@ -151,6 +157,19 @@ class PlanningStep(MemoryStep):
     plan: str
     timing: Timing
     token_usage: TokenUsage | None = None
+
+    def dict(self):
+        return {
+            "model_input_messages": [
+                make_json_serializable(get_dict_from_nested_dataclasses(msg)) for msg in self.model_input_messages
+            ],
+            "model_output_message": make_json_serializable(
+                get_dict_from_nested_dataclasses(self.model_output_message)
+            ),
+            "plan": self.plan,
+            "timing": self.timing.dict(),
+            "token_usage": asdict(self.token_usage) if self.token_usage else None,
+        }
 
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         if summary_mode:

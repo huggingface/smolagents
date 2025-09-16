@@ -51,7 +51,7 @@ print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], st
 ```
 
 > [!TIP]
-> 您必须在机器上安装 `transformers` 和 `torch`。如果尚未安装，请运行 `pip install smolagents[transformers]`。
+> 您必须在机器上安装 `transformers` 和 `torch`。如果尚未安装，请运行 `pip install 'smolagents[transformers]'`。
 
 [[autodoc]] TransformersModel
 
@@ -145,6 +145,6 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 ```
 
 > [!TIP]
-> 您必须在机器上安装 `mlx-lm`。如果尚未安装，请运行 `pip install smolagents[mlx-lm]`。
+> 您必须在机器上安装 `mlx-lm`。如果尚未安装，请运行 `pip install 'smolagents[mlx-lm]'`。
 
 [[autodoc]] MLXModel

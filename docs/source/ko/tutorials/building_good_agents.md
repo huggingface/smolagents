@@ -1,59 +1,59 @@
-# Building good agents
+# 좋은 에이전트 구축하기[[building-good-agents]]
 
 [[open-in-colab]]
 
-There's a world of difference between building an agent that works and one that doesn't.
-How can we build agents that fall into the former category?
-In this guide, we're going to talk about best practices for building agents.
+성공하는 에이전트와 실패하는 에이전트 사이에는 큰 차이가 있습니다.
+성공하는 에이전트는 어떻게 만들 수 있을까요?
+이 가이드에서 에이전트 구축의 핵심 원칙들을 소개하겠습니다.
 
 > [!TIP]
-> If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
+> 에이전트 구축이 처음이라면 먼저 [에이전트 소개](../conceptual_guides/intro_agents)와 [안내서](../guided_tour)를 읽어보세요.
 
-### The best agentic systems are the simplest: simplify the workflow as much as you can
+### 최고의 에이전트 시스템은 가장 단순합니다: 워크플로우를 최대한 단순하게 만드세요[[the-best-agentic-systems-are-the-simplest:-simplify-the-workflow-as-much-as-you-can]]
 
-Giving an LLM some agency in your workflow introduces some risk of errors.
+워크플로우에 LLM에게 어느 정도의 자율성을 부여하는 것은 오류가 발생할 위험이 있습니다.
 
-Well-programmed agentic systems have good error logging and retry mechanisms anyway, so the LLM engine has a chance to self-correct their mistake. But to reduce the risk of LLM error to the maximum, you should simplify your workflow!
+잘 설계된 에이전트 시스템은 오류를 기록하고 다시 시도하는 기능을 통해 LLM이 자신의 실수를 교정할 수 있게 해줍니다. 그렇다고 해도 처음부터 LLM이 실수하지 않도록 워크플로우를 간단하게 만드는 것이 훨씬 효과적입니다.
 
-Let's revisit the example from the [intro to agents](../conceptual_guides/intro_agents): a bot that answers user queries for a surf trip company.
-Instead of letting the agent do 2 different calls for "travel distance API" and "weather API" each time they are asked about a new surf spot, you could just make one unified tool "return_spot_information", a function that calls both APIs at once and returns their concatenated outputs to the user.
+[에이전트 소개](../conceptual_guides/intro_agents)의 예시를 다시 살펴보겠습니다: 서핑 여행사 이용자들의 문의에 대응하는 봇입니다.
+새로운 서핑 스팟에 대해 질문을 받을 때마다 에이전트가 "여행 거리 API"와 "날씨 API"에 각각 2번의 서로 다른 호출을 하도록 하는 대신, 두 API를 한 번에 호출하고 연결된 출력을 사용자에게 반환하는 함수인 "return_spot_information"이라는 하나의 통합된 도구를 만들 수 있습니다.
 
-This will reduce costs, latency, and error risk!
+이렇게 하면 비용, 지연 시간, 오류 위험을 줄일 수 있습니다!
 
-The main guideline is: Reduce the number of LLM calls as much as you can.
+주요 지침은 다음과 같습니다: LLM 호출 횟수를 최대한 줄이세요.
 
-This leads to a few takeaways:
-- Whenever possible, group 2 tools in one, like in our example of the two APIs.
-- Whenever possible, logic should be based on deterministic functions rather than agentic decisions.
+이것은 몇 가지 결론으로 이어집니다:
+- 가능하면 언제든지 두 개의 API 예시처럼 2개의 도구를 하나로 그룹화하세요.
+- 가능하면 언제든지 로직은 에이전트의 결정보다는 결정론적 함수로 처리해야 합니다.
 
-### Improve the information flow to the LLM engine
+### LLM 엔진으로의 정보 흐름을 개선하세요[[improve-the-information-flow-to-the-llm-engine]]
 
-Remember that your LLM engine is like an *intelligent* robot, trapped into a room with the only communication with the outside world being notes passed under a door.
+LLM은 쪽지를 통해서만 소통할 수 있는 밀폐된 방 안의 *똑똑한* 로봇이라고 생각하면 됩니다.
 
-It won't know of anything that happened if you don't explicitly put that into its prompt.
+프롬프트에 명시하지 않으면 무슨 일이 일어났는지 전혀 알 수 없습니다.
 
-So first start with making your task very clear!
-Since an agent is powered by an LLM, minor variations in your task formulation might yield completely different results.
+그러니까 일단 작업을 아주 명확하게 정의하는 것부터 시작하세요!
+에이전트는 LLM으로 작동하기 때문에, 작업을 설명하는 방식이 조금만 달라져도 결과가 완전히 바뀔 수 있습니다.
 
-Then, improve the information flow towards your agent in tool use.
+그 다음엔 도구에서 에이전트로 정보가 잘 전달되도록 개선해야 합니다.
 
-Particular guidelines to follow:
-- Each tool should log (by simply using `print` statements inside the tool's `forward` method) everything that could be useful for the LLM engine.
-  - In particular, logging detail on tool execution errors would help a lot!
+구체적으로는 이렇게 하세요:
+- 각 도구는 LLM에게 도움이 될 만한 정보를 모두 기록해야 합니다.(도구의 `forward` 메서드 안에서 `print`문을 쓰기만 하면 됩니다.)
+  - 특히 도구 실행 오류에 대한 자세한 정보를 기록하면 큰 도움이 됩니다!
 
-For instance, here's a tool that retrieves weather data based on location and date-time:
+예를 들어 위치와 날짜-시간을 받아서 날씨 데이터를 가져오는 도구를 보겠습니다:
 
-First, here's a poor version:
+먼저 좋지 않은 버전입니다:
 ```python
 import datetime
 from smolagents import tool
 
 def get_weather_report_at_coordinates(coordinates, date_time):
-    # Dummy function, returns a list of [temperature in °C, risk of rain on a scale 0-1, wave height in m]
+    # 더미 함수, [섭씨 온도, 0-1 척도의 비 올 확률, 미터 단위 파도 높이] 리스트를 반환
     return [28.0, 0.35, 0.85]
 
 def convert_location_to_coordinates(location):
-    # Returns dummy coordinates
+    # 더미 좌표를 반환
     return [3.3, -42.0]
 
 @tool
@@ -70,15 +70,15 @@ def get_weather_api(location: str, date_time: str) -> str:
     return str(get_weather_report_at_coordinates((lon, lat), date_time))
 ```
 
-Why is it bad?
-- there's no precision of the format that should be used for `date_time`
-- there's no detail on how location should be specified.
-- there's no logging mechanism trying to make explicit failure cases like location not being in a proper format, or date_time not being properly formatted.
-- the output format is hard to understand
+문제점은 무엇일까요?
+- `date_time`에 사용해야 하는 형식에 대한 정확한 설명이 없습니다.
+- 위치를 어떻게 지정해야 하는지에 대한 세부 정보가 없습니다.
+- 위치가 적절한 형식이 아니거나 `date_time`이 제대로 형식화되지 않은 경우와 같은 실패 사례를 명시적으로 기록할 수 있는 로깅 메커니즘이 없습니다.
+- 출력 형식을 이해하기 어렵습니다.
 
-If the tool call fails, the error trace logged in memory can help the LLM reverse engineer the tool to fix the errors. But why leave it with so much heavy lifting to do?
+도구 호출이 실패하면 메모리에 로깅된 오류 추적이 LLM이 도구를 역설계하여 오류를 수정하는 데 도움이 될 수 있습니다. 하지만 왜 그렇게 많은 무거운 작업을 맡겨야 할까요?
 
-A better way to build this tool would have been the following:
+이 도구를 구축하는 더 나은 방법은 다음과 같습니다:
 ```python
 @tool
 def get_weather_api(location: str, date_time: str) -> str:
@@ -98,11 +98,11 @@ def get_weather_api(location: str, date_time: str) -> str:
     return f"Weather report for {location}, {date_time}: Temperature will be {temperature_celsius}°C, risk of rain is {risk_of_rain*100:.0f}%, wave height is {wave_height}m."
 ```
 
-In general, to ease the load on your LLM, the good question to ask yourself is: "How easy would it be for me, if I was dumb and using this tool for the first time ever, to program with this tool and correct my own errors?".
+LLM의 부담을 덜어주려면 이런 질문을 해보세요: "만약 내가 아무것도 모르는 상태에서 이 도구를 처음 사용한다면, 실수했을 때 스스로 고치기가 얼마나 쉬울까?"
 
-### Give more arguments to the agent
+### 에이전트에 더 많은 매개변수 제공[[give-more-arguments-to-the-agent]]
 
-To pass some additional objects to your agent beyond the simple string describing the task, you can use the `additional_args` argument to pass any type of object:
+작업을 설명하는 단순한 문자열 외에 에이전트에 추가 객체를 전달하려면 `additional_args` 매개변수를 사용하여 모든 유형의 객체를 전달할 수 있습니다:
 
 ```py
 from smolagents import CodeAgent, InferenceClientModel
@@ -116,16 +116,14 @@ agent.run(
     additional_args={"mp3_sound_file_url":'https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/recording.mp3'}
 )
 ```
-For instance, you can use this `additional_args` argument to pass images or strings that you want your agent to leverage.
+예를 들어, `additional_args` 매개변수를 통해 에이전트가 활용할 수 있도록 원하는 이미지나 문자열을 전달할 수 있습니다.
 
+## 에이전트 디버깅 방법[[how-to-debug-your-agent]]
 
+### 1. 더 강력한 LLM 사용[[use-a-stronger-llm]]
 
-## How to debug your agent
-
-### 1. Use a stronger LLM
-
-In an agentic workflows, some of the errors are actual errors, some other are the fault of your LLM engine not reasoning properly.
-For instance, consider this trace for an `CodeAgent` that I asked to create a car picture:
+에이전트 워크플로우에서 발생하는 오류 중 일부는 실제 오류이고, 다른 일부는 LLM 엔진이 제대로 추론하지 못한 탓입니다.
+예를 들어, 자동차 그림을 만들어 달라고 요청한 `CodeAgent`에 대한 다음 추적을 고려해보세요:
 ```
 ==================================================================================================== New task ====================================================================================================
 Make me a cool car picture
@@ -152,30 +150,29 @@ Last output from code snippet: ────────────────�
 Final answer:
 /var/folders/6m/9b1tts6d5w960j80wbw9tx3m0000gn/T/tmpx09qfsdd/652f0007-3ee9-44e2-94ac-90dae6bb89a4.png
 ```
-The user sees, instead of an image being returned, a path being returned to them.
-It could look like a bug from the system, but actually the agentic system didn't cause the error: it's just that the LLM brain did the mistake of not saving the image output into a variable.
-Thus it cannot access the image again except by leveraging the path that was logged while saving the image, so it returns the path instead of an image.
+사용자는 이미지가 반환되는 대신 경로가 반환되는 것을 보게 됩니다.
+시스템의 버그처럼 보일 수 있지만, 실제로는 에이전트 시스템이 오류를 일으킨 것이 아닙니다: 단지 LLM이 이미지 출력을 변수에 저장하지 않는 실수를 했을 뿐입니다.
+따라서 이미지를 저장하면서 로깅된 경로를 활용하는 것 외에는 이미지에 다시 접근할 수 없으므로 이미지 대신 경로를 반환합니다.
 
-The first step to debugging your agent is thus "Use a more powerful LLM". Alternatives like `Qwen2/5-72B-Instruct` wouldn't have made that mistake.
+따라서 에이전트를 디버깅하는 첫 번째 단계는 "더 강력한 LLM을 사용하는 것"입니다. `Qwen2/5-72B-Instruct`와 같은 대안은 그런 실수를 하지 않았을 것입니다.
 
-### 2. Provide more information or specific instructions
+### 2. 더 많은 정보나 구체적인 지침 제공[[provide-more-information-or-specific-instructions]]
 
-You can also use less powerful models, provided you guide them more effectively.
+더 자세하게 안내해준다면 성능이 낮은 모델도 충분히 사용할 수 있습니다.
 
-Put yourself in the shoes of your model: if you were the model solving the task, would you struggle with the information available to you (from the system prompt + task formulation + tool description) ?
+모델의 관점에서 생각해보세요: 내가 모델이 되어서 이 작업을 해결해야 한다면, 지금 주어진 정보(시스템 프롬프트 + 작업 설명 + 도구 설명)만으로도 충분할까요?
 
-Would you need detailed instructions?
+더 구체적인 안내가 필요할까요?
 
-- If the instruction is to always be given to the agent (as we generally understand a system prompt to work): you can pass it as a string under argument `instructions` upon agent initialization.
-- If it's about a specific task to solve: add all these details to the task. The task could be very long, like dozens of pages.
-- If it's about how to use specific tools: include it in the `description` attribute of these tools.
+- 지침이 항상 에이전트에게 주어져야 하는 경우(일반적으로 시스템 프롬프트가 작동한다고 이해하는 것처럼): 에이전트 초기화 시 `instructions` 매개변수 아래에 문자열로 전달할 수 있습니다.
+- 해결할 특정 작업에 관한 것이라면: 이 모든 세부 사항을 작업에 추가하세요. 작업은 수십 페이지처럼 매우 길 수 있습니다.
+- 특정 도구 사용 방법에 관한 것이라면: 해당 도구의 `description` 속성에 포함시키세요.
 
+### 3. 프롬프트 템플릿 변경 (일반적으로 권장되지 않음)[[change-the-prompt-templates-(generally-not-advised)]]
 
-### 3. Change the prompt templates (generally not advised)
+위의 방법들로도 부족하다면 에이전트의 프롬프트 템플릿을 직접 수정할 수 있습니다.
 
-If above clarifications are not sufficient, you can change the agent's prompt templates.
-
-Let's see how it works. For example, let us check the default prompt templates for the [`CodeAgent`] (below version is shortened by skipping zero-shot examples).
+작동 원리를 살펴보겠습니다. [CodeAgent]의 기본 프롬프트 템플릿을 예로 들어보겠습니다(제로샷 예제는 생략하고 간단히 정리했습니다).
 
 ```python
 print(agent.prompt_templates["system_prompt"])
@@ -357,16 +354,16 @@ Here are the rules you should always follow to solve your task:
 Now Begin!
 ```
 
-As you can see, there are placeholders like `"{{ tool.description }}"`: these will be used upon agent initialization to insert certain automatically generated descriptions of tools or managed agents.
+보시다시피 `"{{ tool.description }}"`와 같은 플레이스홀더들이 있습니다. 이것들은 에이전트를 초기화할 때 도구나 관리 에이전트에 대한 설명을 자동으로 넣어주는 역할을 합니다.
 
-So while you can overwrite this system prompt template by passing your custom prompt as an argument to the `system_prompt` parameter, your new system prompt can contain the following placeholders:
-- To insert tool descriptions:
+따라서 `system_prompt` 매개변수에 커스텀 프롬프트를 넣어서 기본 시스템 프롬프트 템플릿을 덮어쓸 수 있습니다. 새로운 시스템 프롬프트에는 이런 플레이스홀더들을 포함할 수 있습니다:
+- 도구 설명을 삽입하려면:
   ```
   {%- for tool in tools.values() %}
   - {{ tool.to_tool_calling_prompt() }}
   {%- endfor %}
   ```
-- To insert the descriptions for managed agents if there are any:
+- 관리되는 에이전트가 있는 경우 해당 설명을 삽입하려면:
   ```
   {%- if managed_agents and managed_agents.values() | list %}
   You can also give tasks to team members.
@@ -378,25 +375,24 @@ So while you can overwrite this system prompt template by passing your custom pr
   {%- endfor %}
   {%- endif %}
   ```
-- For `CodeAgent` only, to insert the list of authorized imports: `"{{authorized_imports}}"`
+- `CodeAgent`에만 해당하며, 승인된 import 목록을 삽입하려면: `"{{authorized_imports}}"`
 
-Then you can change the system prompt as follows:
+그런 다음 다음과 같이 시스템 프롬프트를 변경할 수 있습니다:
 
 ```py
 agent.prompt_templates["system_prompt"] = agent.prompt_templates["system_prompt"] + "\nHere you go!"
 ```
 
-This also works with the [`ToolCallingAgent`].
+이는 [`ToolCallingAgent`]에서도 작동합니다.
 
-But generally it's just simpler to pass argument `instructions` upon agent initalization, like:
+하지만 일반적으로 다음과 같이 에이전트 초기화 시 `instructions` 매개변수를 전달하는 것이 더 간단합니다:
 ```py
 agent = CodeAgent(tools=[], model=InferenceClientModel(model_id=model_id), instructions="Always talk like a 5 year old.")
 ```
 
+### 4. 추가 계획[[extra-planning]]
 
-### 4. Extra planning
-
-We provide a model for a supplementary planning step, that an agent can run regularly in-between normal action steps. In this step, there is no tool call, the LLM is simply asked to update a list of facts it knows and to reflect on what steps it should take next based on those facts.
+일반적인 작업 단계들 중간중간에 에이전트가 추가로 계획을 세우는 단계를 넣을 수 있습니다. 이때는 도구를 사용하지 않고, LLM이 현재까지 파악한 정보를 정리하고 그 정보를 토대로 앞으로의 계획을 다시 점검하게 됩니다.
 
 ```py
 from smolagents import load_tool, CodeAgent, InferenceClientModel, WebSearchTool

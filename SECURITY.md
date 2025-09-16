@@ -14,8 +14,10 @@ To learn more about running agents more securely, please see the [Secure Code Ex
 
 1. **E2B Sandbox**: Uses [E2B](https://e2b.dev/) to run code in a secure, isolated environment.
 
-2. **Docker Sandbox**: Runs code in an isolated Docker container.
+2. **Modal Sandbox**: Uses [Modal](https://modal.com/) to run code in a secure, isolated environment.
 
-3. **WebAssembly Sandbox**: Executes Python code securely in a sandboxed WebAssembly environment using Pyodide and Deno's secure runtime.
+3. **Docker Sandbox**: Runs code in an isolated Docker container.
+
+4. **WebAssembly Sandbox**: Executes Python code securely in a sandboxed WebAssembly environment using Pyodide and Deno's secure runtime.
 
 We recommend using one of these sandboxed execution options when running untrusted code.

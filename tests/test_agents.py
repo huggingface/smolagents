@@ -18,7 +18,6 @@ import os
 import re
 import tempfile
 import uuid
-import warnings
 from collections.abc import Generator
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
@@ -43,6 +42,7 @@ from smolagents.agents import (
     AgentToolCallError,
     CodeAgent,
     MultiStepAgent,
+    RunResult,
     ToolCall,
     ToolCallingAgent,
     ToolOutput,
@@ -858,6 +858,124 @@ class DummyMultiStepAgent(MultiStepAgent):
         pass
 
 
+class FakeLLMModel(Model):
+    def __init__(self, give_token_usage: bool = True):
+        self.give_token_usage = give_token_usage
+
+    def generate(self, prompt, tools_to_call_from=None, **kwargs):
+        if tools_to_call_from is not None:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="I will call the final_answer tool.",
+                tool_calls=[
+                    ChatMessageToolCall(
+                        id="fake_id",
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            name="final_answer", arguments={"answer": "This is the final answer."}
+                        ),
+                    )
+                ],
+                token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
+            )
+        else:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="""<code>
+final_answer('This is the final answer.')
+</code>""",
+                token_usage=TokenUsage(input_tokens=10, output_tokens=20) if self.give_token_usage else None,
+            )
+
+
+class TestRunResult:
+    def test_backward_compatibility(self):
+        """Test that RunResult handles deprecated 'messages' parameter correctly."""
+
+        # Test 1: Using new 'steps' parameter (should work without warning)
+        result1 = RunResult(
+            output="test output",
+            state="success",
+            steps=[{"type": "test", "content": "step1"}],
+            token_usage=None,
+            timing=Timing(start_time=0.0, end_time=1.0),
+        )
+        assert result1.steps == [{"type": "test", "content": "step1"}]
+
+        # Test property access warning
+        with pytest.warns(FutureWarning, match="deprecated"):
+            messages = result1.messages
+        assert messages == [{"type": "test", "content": "step1"}]
+
+        # Test 2: Using deprecated 'messages' parameter (should show deprecation warning)
+        with pytest.warns(FutureWarning, match="deprecated"):
+            result2 = RunResult(
+                output="test output",
+                state="success",
+                messages=[{"type": "test", "content": "message1"}],
+                token_usage=None,
+                timing=Timing(start_time=0.0, end_time=1.0),
+            )
+        assert result2.steps == [{"type": "test", "content": "message1"}]
+
+        # Test 3: Using both 'steps' and 'messages' (should raise ValueError)
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            RunResult(
+                output="test output",
+                state="success",
+                steps=[{"type": "test", "content": "step1"}],
+                messages=[{"type": "test", "content": "message1"}],
+                token_usage=None,
+                timing=Timing(start_time=0.0, end_time=1.0),
+            )
+
+    @pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
+    def test_no_token_usage(self, agent_class):
+        agent = agent_class(
+            tools=[],
+            model=FakeLLMModel(give_token_usage=False),
+            max_steps=1,
+            return_full_result=True,
+        )
+
+        result = agent.run("Fake task")
+
+        assert isinstance(result, RunResult)
+        assert result.output == "This is the final answer."
+        assert result.state == "success"
+        assert result.token_usage is None
+        assert isinstance(result.steps, list)
+        assert result.timing.duration > 0
+
+    @pytest.mark.parametrize(
+        "init_return_full_result,run_return_full_result,expect_runresult",
+        [
+            (True, None, True),
+            (False, None, False),
+            (True, False, False),
+            (False, True, True),
+        ],
+    )
+    def test_full_result(self, init_return_full_result, run_return_full_result, expect_runresult):
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeLLMModel(),
+            max_steps=1,
+            return_full_result=init_return_full_result,
+        )
+        result = agent.run("Fake task", return_full_result=run_return_full_result)
+
+        if expect_runresult:
+            assert isinstance(result, RunResult)
+            assert result.output == "This is the final answer."
+            assert result.state == "success"
+            assert result.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
+            assert isinstance(result.steps, list)
+            assert result.timing.duration > 0
+        else:
+            assert isinstance(result, str)
+
+
 class TestMultiStepAgent:
     def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
@@ -880,22 +998,6 @@ class TestMultiStepAgent:
         agent = DummyMultiStepAgent(tools=tools, model=MagicMock())
         assert "final_answer" in agent.tools
         assert isinstance(agent.tools["final_answer"], expected_final_answer_tool)
-
-    def test_instantiation_with_deprecated_grammar(self):
-        class SimpleAgent(MultiStepAgent):
-            def initialize_system_prompt(self) -> str:
-                return "Test system prompt"
-
-        # Test with a non-None grammar parameter
-        with pytest.warns(
-            FutureWarning, match="Parameter 'grammar' is deprecated and will be removed in version 1.20."
-        ):
-            SimpleAgent(tools=[], model=MagicMock(), grammar={"format": "json"}, verbosity_level=LogLevel.DEBUG)
-
-        # Verify no warning when grammar is None
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")  # Turn warnings into errors
-            SimpleAgent(tools=[], model=MagicMock(), grammar=None, verbosity_level=LogLevel.DEBUG)
 
     def test_system_prompt_property(self):
         """Test that system_prompt property is read-only and calls initialize_system_prompt."""
@@ -1234,44 +1336,38 @@ class TestMultiStepAgent:
                     assert content == expected_content
 
     @pytest.mark.parametrize(
-        "images, expected_messages_list",
+        "expected_messages_list",
         [
-            (
-                None,
+            [
                 [
-                    [
-                        ChatMessage(
-                            role=MessageRole.SYSTEM,
-                            content=[{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
-                        ),
-                        ChatMessage(
-                            role=MessageRole.USER,
-                            content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
-                        ),
-                    ]
-                ],
-            ),
-            (
-                ["image1.png"],
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=[{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
+                    ),
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                    ),
+                ]
+            ],
+            [
                 [
-                    [
-                        ChatMessage(
-                            role=MessageRole.SYSTEM,
-                            content=[
-                                {"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"},
-                                {"type": "image", "image": "image1.png"},
-                            ],
-                        ),
-                        ChatMessage(
-                            role=MessageRole.USER,
-                            content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
-                        ),
-                    ]
-                ],
-            ),
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=[
+                            {"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"},
+                            {"type": "image", "image": "image1.png"},
+                        ],
+                    ),
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                    ),
+                ]
+            ],
         ],
     )
-    def test_provide_final_answer(self, images, expected_messages_list):
+    def test_provide_final_answer(self, expected_messages_list):
         fake_model = MagicMock()
         fake_model.generate.return_value = ChatMessage(
             role=MessageRole.ASSISTANT,
@@ -1285,7 +1381,7 @@ class TestMultiStepAgent:
             model=fake_model,
         )
         task = "Test task"
-        final_answer = agent.provide_final_answer(task, images=images).content
+        final_answer = agent.provide_final_answer(task).content
         expected_message_texts = {
             "FINAL_ANSWER_SYSTEM_PROMPT": agent.prompt_templates["final_answer"]["pre_messages"],
             "FINAL_ANSWER_USER_PROMPT": populate_template(
@@ -1955,43 +2051,6 @@ class TestCodeAgent:
         assert agent.instructions == "Test instructions"
         assert "Test instructions" in agent.system_prompt
 
-    @pytest.mark.filterwarnings("ignore")  # Ignore FutureWarning for deprecated grammar parameter
-    def test_init_with_incompatible_grammar_and_use_structured_outputs_internally(self):
-        # Test that using both parameters raises ValueError with correct message
-        with pytest.raises(
-            ValueError, match="You cannot use 'grammar' and 'use_structured_outputs_internally' at the same time."
-        ):
-            CodeAgent(
-                tools=[],
-                model=MagicMock(),
-                grammar={"format": "json"},
-                use_structured_outputs_internally=True,
-                verbosity_level=LogLevel.DEBUG,
-            )
-
-        # Verify no error when only one option is used
-        # Only grammar
-        agent_with_grammar = CodeAgent(
-            tools=[],
-            model=MagicMock(),
-            grammar={"format": "json"},
-            use_structured_outputs_internally=False,
-            verbosity_level=LogLevel.DEBUG,
-        )
-        assert agent_with_grammar.grammar is not None
-        assert agent_with_grammar._use_structured_outputs_internally is False
-
-        # Only structured output
-        agent_with_structured = CodeAgent(
-            tools=[],
-            model=MagicMock(),
-            grammar=None,
-            use_structured_outputs_internally=True,
-            verbosity_level=LogLevel.DEBUG,
-        )
-        assert agent_with_structured.grammar is None
-        assert agent_with_structured._use_structured_outputs_internally is True
-
     @pytest.mark.parametrize("provide_run_summary", [False, True])
     def test_call_with_provide_run_summary(self, provide_run_summary):
         agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
@@ -2136,7 +2195,7 @@ print("Ok, calculation done!")""")
         agent.run("Test run")
         assert "open" in agent.python_executor.static_tools
 
-    @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10"])
+    @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10", "v1.20"])
     def test_from_folder(self, agent_dict_version, get_agent_dict):
         agent_dict = get_agent_dict(agent_dict_version)
         with (

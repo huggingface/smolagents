@@ -34,7 +34,7 @@ limitations under the License.
 
 ✨ **Simplicity**: the logic for agents fits in ~1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)). We kept abstractions to their minimal shape above raw code!
 
-🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/), Docker, or Pyodide+Deno WebAssembly sandbox.
+🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/), [Modal](https://modal.com/), Docker, or Pyodide+Deno WebAssembly sandbox.
 
 🤗 **Hub integrations**: you can [share/pull tools or agents to/from the Hub](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_hub) for instant sharing of the most efficient agents!
 
@@ -53,7 +53,7 @@ Full documentation can be found [here](https://huggingface.co/docs/smolagents/in
 
 First install the package with a default set of tools:
 ```bash
-pip install smolagents[toolkit]
+pip install "smolagents[toolkit]"
 ```
 Then define your agent, give it the tools it needs and run it!
 ```py
@@ -254,7 +254,7 @@ This comparison shows that open-source models can now take on the best closed mo
 ## Security
 
 Security is a critical consideration when working with code-executing agents. Our library provides:
-- Sandboxed execution options using [E2B](https://e2b.dev/), Docker, or Pyodide+Deno WebAssembly sandbox
+- Sandboxed execution options using [E2B](https://e2b.dev/), [Modal](https://modal.com/), Docker, or Pyodide+Deno WebAssembly sandbox
 - Best practices for running agent code securely
 
 For security policies, vulnerability reporting, and more information on secure agent execution, please see our [Security Policy](SECURITY.md).
