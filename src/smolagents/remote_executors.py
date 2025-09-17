@@ -40,6 +40,7 @@ from .monitoring import LogLevel
 from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
+
 __all__ = ["E2BExecutor", "ModalExecutor", "DockerExecutor", "WasmExecutor"]
 
 try:
@@ -70,7 +71,7 @@ class JsonSerializer:
             return {"__type__": "bytes", "data": base64.b64encode(obj).decode()}
         elif isinstance(obj, PIL.Image.Image):  # PIL Images
             buffer = BytesIO()
-            obj.save(buffer, format='PNG')
+            obj.save(buffer, format="PNG")
             return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
         else:
             raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
@@ -98,7 +99,7 @@ class JsonSerializer:
     @staticmethod
     def get_from_json_safe_function_code():
         """Returns the _from_json_safe function as a string for remote execution."""
-        return '''
+        return """
 def _from_json_safe(obj):
     if isinstance(obj, dict):
         if "__type__" in obj:
@@ -119,7 +120,7 @@ def _from_json_safe(obj):
     elif isinstance(obj, list):
         return [_from_json_safe(item) for item in obj]
     return obj
-'''
+"""
 
 
 class RemotePythonExecutor(PythonExecutor):
@@ -435,15 +436,15 @@ class DockerExecutor(RemotePythonExecutor):
     """
 
     def __init__(
-            self,
-            additional_imports: list[str],
-            logger,
-            host: str = "127.0.0.1",
-            port: int = 8888,
-            image_name: str = "jupyter-kernel",
-            build_new_image: bool = True,
-            container_run_kwargs: dict[str, Any] | None = None,
-            dockerfile_content: str | None = None,
+        self,
+        additional_imports: list[str],
+        logger,
+        host: str = "127.0.0.1",
+        port: int = 8888,
+        image_name: str = "jupyter-kernel",
+        build_new_image: bool = True,
+        container_run_kwargs: dict[str, Any] | None = None,
+        dockerfile_content: str | None = None,
     ):
         """
         Initialize the Docker-based Jupyter Kernel Gateway executor.
@@ -606,12 +607,12 @@ class ModalExecutor(RemotePythonExecutor):
     _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
     def __init__(
-            self,
-            additional_imports: list[str],
-            logger,
-            app_name: str = "smolagent-executor",
-            port: int = 8888,
-            create_kwargs: Optional[dict] = None,
+        self,
+        additional_imports: list[str],
+        logger,
+        app_name: str = "smolagent-executor",
+        port: int = 8888,
+        create_kwargs: Optional[dict] = None,
     ):
         super().__init__(additional_imports, logger)
         self.port = port
@@ -723,12 +724,12 @@ class WasmExecutor(RemotePythonExecutor):
     """
 
     def __init__(
-            self,
-            additional_imports: list[str],
-            logger,
-            deno_path: str = "deno",
-            deno_permissions: list[str] | None = None,
-            timeout: int = 60,
+        self,
+        additional_imports: list[str],
+        logger,
+        deno_path: str = "deno",
+        deno_permissions: list[str] | None = None,
+        timeout: int = 60,
     ):
         super().__init__(additional_imports, logger)
 
@@ -846,8 +847,8 @@ class WasmExecutor(RemotePythonExecutor):
             elif result_data.get("error"):
                 error = result_data["error"]
                 if (
-                        error.get("pythonExceptionType") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION
-                        and "pythonExceptionValue" in error
+                    error.get("pythonExceptionType") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION
+                    and "pythonExceptionValue" in error
                 ):
                     json_data = json.loads(base64.b64decode(error["pythonExceptionValue"]))
                     result = JsonSerializer.from_json_safe(json_data)
