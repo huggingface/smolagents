@@ -14,7 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import base64
 import inspect
 import json
@@ -42,6 +41,7 @@ from .utils import AgentError
 
 
 __all__ = ["E2BExecutor", "ModalExecutor", "DockerExecutor", "WasmExecutor"]
+
 
 try:
     from dotenv import load_dotenv
@@ -498,6 +498,7 @@ class DockerExecutor(RemotePythonExecutor):
                 except docker.errors.ImageNotFound:
                     self.logger.log(f"Image {self.image_name} not found, building...", level=LogLevel.INFO)
                     build_new_image = True
+
             if build_new_image:
                 self.logger.log(f"Building Docker image {self.image_name}...", level=LogLevel.INFO)
                 dockerfile_path = Path(__file__).parent / "Dockerfile"
@@ -535,9 +536,7 @@ class DockerExecutor(RemotePythonExecutor):
 
             self.base_url = f"http://{host}:{port}"
 
-            # Create new kernel via HTTP
             # Wait for Jupyter to start
-
             self._wait_for_server()
 
             # Create new kernel via HTTP
