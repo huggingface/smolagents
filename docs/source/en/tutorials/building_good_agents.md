@@ -166,7 +166,7 @@ Put yourself in the shoes of your model: if you were the model solving the task,
 
 Would you need detailed instructions?
 
-- If the instruction is to always be given to the agent (as we generally understand a system prompt to work): you can pass it as a string under argument `instructions` upon agent initialization.
+- If the instruction is to always be given to the agent (as we generally understand a system prompt to work): you can pass it as a string under argument `instructions` upon agent initialization. *(Note: instructions are appended to the system prompt, not replacing it.)*
 - If it's about a specific task to solve: add all these details to the task. The task could be very long, like dozens of pages.
 - If it's about how to use specific tools: include it in the `description` attribute of these tools.
 
