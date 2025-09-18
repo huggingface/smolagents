@@ -84,6 +84,24 @@ def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
     return
 
 
+def _escape_xpath_string(s: str) -> str:
+    """
+    Escapes a string for safe use in an XPath expression.
+
+    Args:
+        s (`str`): Arbitrary input string to escape.
+
+    Returns:
+        `str`: Valid XPath expression representing the literal value of `s`.
+    """
+    if "'" not in s:
+        return f"'{s}'"
+    if '"' not in s:
+        return f'"{s}"'
+    parts = s.split("'")
+    return "concat(" + ', "\'", '.join(f"'{p}'" for p in parts) + ")"
+
+
 @tool
 def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
     """
@@ -92,7 +110,8 @@ def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
         text: The text to search for
         nth_result: Which occurrence to jump to (default: 1)
     """
-    elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{text}')]")
+    escaped_text = _escape_xpath_string(text)
+    elements = driver.find_elements(By.XPATH, f"//*[contains(text(), {escaped_text})]")
     if nth_result > len(elements):
         raise Exception(f"Match n°{nth_result} not found (only {len(elements)} matches found)")
     result = f"Found {len(elements)} matches for '{text}'."
