@@ -18,7 +18,6 @@ import base64
 import inspect
 import json
 import os
-import pickle
 import re
 import secrets
 import subprocess
@@ -49,6 +48,78 @@ try:
     load_dotenv()
 except ModuleNotFoundError:
     pass
+
+
+class JsonSerializer:
+    """Centralized JSON serialization/deserialization for remote executors."""
+
+    @staticmethod
+    def to_json_safe(obj):
+        """Convert Python objects to JSON-serializable format."""
+        if isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        elif isinstance(obj, dict):
+            return {k: JsonSerializer.to_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [JsonSerializer.to_json_safe(item) for item in obj]
+        elif isinstance(obj, tuple):
+            return {"__type__": "tuple", "data": [JsonSerializer.to_json_safe(item) for item in obj]}
+        elif isinstance(obj, set):
+            return {"__type__": "set", "data": [JsonSerializer.to_json_safe(item) for item in obj]}
+        elif isinstance(obj, bytes):
+            return {"__type__": "bytes", "data": base64.b64encode(obj).decode()}
+        elif isinstance(obj, PIL.Image.Image):  # PIL Images
+            buffer = BytesIO()
+            obj.save(buffer, format="PNG")
+            return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
+        else:
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+    @staticmethod
+    def from_json_safe(obj):
+        """Convert JSON-safe format back to Python objects."""
+        if isinstance(obj, dict):
+            if "__type__" in obj:
+                obj_type = obj["__type__"]
+                if obj_type == "bytes":
+                    return base64.b64decode(obj["data"])
+                elif obj_type == "PIL.Image":
+                    img_bytes = base64.b64decode(obj["data"])
+                    return PIL.Image.open(BytesIO(img_bytes))
+                elif obj_type == "set":
+                    return set(obj["data"])
+                elif obj_type == "tuple":
+                    return tuple(obj["data"])
+            return {k: JsonSerializer.from_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [JsonSerializer.from_json_safe(item) for item in obj]
+        return obj
+
+    @staticmethod
+    def get_from_json_safe_function_code():
+        """Returns the _from_json_safe function as a string for remote execution."""
+        return """
+def _from_json_safe(obj):
+    if isinstance(obj, dict):
+        if "__type__" in obj:
+            obj_type = obj["__type__"]
+            if obj_type == "bytes":
+                return base64.b64decode(obj["data"])
+            elif obj_type == "PIL.Image":
+                if PIL is not None:
+                    img_bytes = base64.b64decode(obj["data"])
+                    return PIL.Image.open(BytesIO(img_bytes))
+                else:
+                    return {"__type__": "PIL.Image", "data": obj["data"]}  # return raw data if PIL not available
+            elif obj_type == "set":
+                return set(_from_json_safe(item) for item in obj["data"])
+            elif obj_type == "tuple":
+                return tuple(_from_json_safe(item) for item in obj["data"])
+        return {k: _from_json_safe(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_from_json_safe(item) for item in obj]
+    return obj
+"""
 
 
 class RemotePythonExecutor(PythonExecutor):
@@ -87,14 +158,29 @@ class RemotePythonExecutor(PythonExecutor):
 
     def send_variables(self, variables: dict[str, Any]):
         """
-        Send variables to the kernel namespace using pickle.
+        Send variables to the kernel namespace using JSON-safe serialization.
         """
         if not variables:
             return
-        pickled_vars = base64.b64encode(pickle.dumps(variables)).decode()
+
+        # Convert variables to JSON-serializable format
+        json_safe_vars = JsonSerializer.to_json_safe(variables)
+        encoded_vars = base64.b64encode(json.dumps(json_safe_vars).encode()).decode()
+        ##
+        # do we even need base64 no that we have JSON serializing?! need to think about it
+        ##
         code = f"""
-import pickle, base64
-vars_dict = pickle.loads(base64.b64decode('{pickled_vars}'))
+import json, base64
+from io import BytesIO
+try:
+    import PIL.Image
+except ImportError:
+    PIL = None
+
+{JsonSerializer.get_from_json_safe_function_code()}
+
+vars_dict = json.loads(base64.b64decode('{encoded_vars}'))
+vars_dict = _from_json_safe(vars_dict)
 locals().update(vars_dict)
 """
         self.run_code_raise_errors(code)
@@ -115,7 +201,7 @@ locals().update(vars_dict)
         This is necessary because the remote executors
         rely on the FinalAnswerTool to detect the final answer.
         It modifies the `forward` method of the FinalAnswerTool to raise
-        a `FinalAnswerException` with the final answer as a pickled value.
+        a `FinalAnswerException` with the final answer as a JSON-serialized value.
         This allows the executor to catch this exception and return the final answer.
 
         Args:
@@ -130,13 +216,16 @@ locals().update(vars_dict)
         # - Define the new forward method function
         def forward(self, *args, **kwargs) -> Any:
             import base64
-            import pickle
+            import json
 
             class FinalAnswerException(Exception):
                 def __init__(self, value):
                     self.value = value
 
-            raise FinalAnswerException(base64.b64encode(pickle.dumps(self._forward(*args, **kwargs))).decode())
+            # Use JSON-safe serialization for final answer
+            result = self._forward(*args, **kwargs)
+            json_safe_result = JsonSerializer.to_json_safe(result)
+            raise FinalAnswerException(base64.b64encode(json.dumps(json_safe_result).encode()).decode())
 
         # - Set the new forward method function to the _FinalAnswerTool class
         _FinalAnswerTool.forward = forward
@@ -190,7 +279,8 @@ class E2BExecutor(RemotePythonExecutor):
         if execution.error:
             # Check if the error is a FinalAnswerException
             if execution.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                final_answer = pickle.loads(base64.b64decode(execution.error.value))
+                json_data = json.loads(base64.b64decode(execution.error.value))
+                final_answer = JsonSerializer.from_json_safe(json_data)
                 return CodeOutput(output=final_answer, logs=execution_logs, is_final_answer=True)
 
             # Construct error message
@@ -305,7 +395,8 @@ def _websocket_run_code_raise_errors(code: str, ws, logger) -> CodeOutput:
                 result = msg_content["data"].get("text/plain", None)
             elif msg_type == "error":
                 if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                    result = pickle.loads(base64.b64decode(msg_content.get("evalue", "")))
+                    json_data = json.loads(base64.b64decode(msg_content.get("evalue", "")))
+                    result = JsonSerializer.from_json_safe(json_data)
                     is_final_answer = True
                 else:
                     raise AgentError("\n".join(msg_content.get("traceback", [])), logger)
@@ -752,7 +843,8 @@ class WasmExecutor(RemotePythonExecutor):
                     error.get("pythonExceptionType") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION
                     and "pythonExceptionValue" in error
                 ):
-                    result = pickle.loads(base64.b64decode(error["pythonExceptionValue"]))
+                    json_data = json.loads(base64.b64decode(error["pythonExceptionValue"]))
+                    result = JsonSerializer.from_json_safe(json_data)
                     is_final_answer = True
                 else:
                     error_message = f"{error.get('name', 'Error')}: {error.get('message', 'Unknown error')}"
@@ -892,7 +984,7 @@ class WasmExecutor(RemotePythonExecutor):
                 try {
                   await micropip.install(packages);
                 } catch (e) {
-                  console.error(`Failed to load package ${pkg}: ${e.message}`);
+                  console.error(`Failed to load packages ${packages}: ${e.message}`);
                 }
               }
 
