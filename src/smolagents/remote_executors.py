@@ -370,7 +370,6 @@ class DockerExecutor(RemotePythonExecutor):
         super().__init__(additional_imports, logger)
         try:
             import docker
-            from websocket import create_connection
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "Please install 'docker' extra to use DockerExecutor: `pip install 'smolagents[docker]'`"
@@ -444,9 +443,7 @@ class DockerExecutor(RemotePythonExecutor):
 
             # Create new kernel via HTTP
             self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels", self.logger)
-
-            ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
-            self.ws = create_connection(ws_url)
+            self.ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
 
             self.installed_packages = self.install_packages(additional_imports)
             self.logger.log(
@@ -458,7 +455,10 @@ class DockerExecutor(RemotePythonExecutor):
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
-        return _websocket_run_code_raise_errors(code, self.ws, self.logger)
+        from websocket import create_connection
+
+        with closing(create_connection(self.ws_url)) as ws:
+            return _websocket_run_code_raise_errors(code, ws, self.logger)
 
     def cleanup(self):
         """Clean up the Docker container and resources."""
