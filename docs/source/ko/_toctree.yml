@@ -23,7 +23,7 @@
   - local: reference/agents
     title: Agent-related objects
   - local: reference/models
-    title: Model-related objects
+    title: 모델
   - title: Tools
     sections:
     - title: Tool-related objects
