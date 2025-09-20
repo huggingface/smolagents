@@ -4,6 +4,10 @@
     title: 소개
   - local: installation
     title: 설치 옵션
+- title: 튜토리얼
+  sections:
+  - title: 좋은 에이전트 구축하기
+    local: tutorials/building_good_agents
 - title: Conceptual guides
   sections:
   - local: conceptual_guides/react
@@ -11,10 +15,6 @@
 - title: Examples
 #  - local: guided_tour
 #    title: 안내서
-- title: 튜토리얼
-  sections:
-  - title: 좋은 에이전트 구축하기
-    local: tutorials/building_good_agents
 - title: 예제
   sections:
   - local: examples/text_to_sql
