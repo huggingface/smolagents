@@ -1,0 +1,227 @@
+{"timestamp":"2025-09-01 20:10:25,413", "level":"INFO", "message":{"event": "run_started", "run_id": "96010dc1", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "In which year did Ratan Parimoo (an Indian art historian from Kashmir) win first prize in Painting, Annual Exhibition, J & K Cultural Akademi?"}}}
+{"timestamp":"2025-09-01 20:10:25,413", "level":"INFO", "message":{"event": "creating_team", "run_id": "96010dc1"}}
+{"timestamp":"2025-09-01 20:10:26,719", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "96010dc1", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 20:10:26,719", "level":"INFO", "message":{"event": "starting_execution", "run_id": "96010dc1", "question": "In which year did Ratan Parimoo (an Indian art historian from Kashmir) win first prize in Painting, Annual Exhibition, J & K Cultural Akademi?"}}
+{"timestamp":"2025-09-01 20:10:26,719", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "96010dc1", "task": "In which year did Ratan Parimoo (an Indian art historian from Kashmir) win first prize in Painting, Annual Exhibition, J & K Cultural Akademi?"}}
+{"timestamp":"2025-09-01 20:10:26,719", "level":"INFO", "message":{"event": "message_posted", "message_id": "d2c4de26-8bfe-4989-8b84-941725a879d4", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "In which year did Ratan Parimoo (an Indian art historian from Kashmir) win first prize in Painting, "}}
+{"timestamp":"2025-09-01 20:10:26,719", "level":"INFO", "message":{"event": "task_posted", "run_id": "96010dc1", "message_id": "d2c4de26-8bfe-4989-8b84-941725a879d4", "task": "In which year did Ratan Parimoo (an Indian art historian from Kashmir) win first prize in Painting, Annual Exhibition, J & K Cultural Akademi?"}}
+{"timestamp":"2025-09-01 20:10:26,720", "level":"INFO", "message":{"event": "agent_started", "run_id": "96010dc1", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 20:10:26,720", "level":"INFO", "message":{"event": "agent_started", "run_id": "96010dc1", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 20:10:26,728", "level":"INFO", "message":{"event": "agent_started", "run_id": "96010dc1", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 20:10:26,738", "level":"INFO", "message":{"event": "agent_started", "run_id": "96010dc1", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 20:10:26,738", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:26,739", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:26,751", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:26,751", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:27,743", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:28,202", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:28,635", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:28,642", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:29,158", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:29,159", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:29,524", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:29,583", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:29,672", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:29,686", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:30,115", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:30,131", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:30,721", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:30,737", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:30,807", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:30,815", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:30,989", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:31,003", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:32,354", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:32,803", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:32,805", "level":"INFO", "message":{"event": "message_posted", "message_id": "08a5dbed-9c51-4bde-9e68-20f0bb85972c", "sender": "system", "type": "channel_created", "thread_id": "research", "recipients": ["@all"], "content_preview": "{'type': 'channel_created', 'channel_id': 'research', 'description': 'Web research and information g"}}
+{"timestamp":"2025-09-01 20:10:32,806", "level":"INFO", "message":{"event": "message_posted", "message_id": "9ac9c758-3f51-4a65-a683-68908fcd9060", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "research", "recipients": ["@all"], "content_preview": "I'm starting to research on the year Ratan Parimoo won first prize in painting at the J & K Cultural"}}
+{"timestamp":"2025-09-01 20:10:32,809", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:33,547", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:34,780", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:34,784", "level":"INFO", "message":{"event": "message_posted", "message_id": "8c540083-d820-4aa5-aef2-c977b1ffeab8", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Could you please conduct a web search to find out the year when Ratan Parimoo won first prize in Pai"}}
+{"timestamp":"2025-09-01 20:10:34,787", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:35,049", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:35,054", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:35,519", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:35,521", "level":"INFO", "message":{"event": "poll_created", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1966\n\n**Supporting Evidence:**\nRatan Parimoo won the first prize in Painting at the Annual Exhibition of the J & K Cultural Akademi in 1966, as confirmed by multiple sources including dkprintworld, in", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:10:35,521", "level":"INFO", "message":{"event": "message_posted", "message_id": "4682a8db-4035-4bab-9a0a-16470b92ca14", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '8c5f223b-544d-4aca-b878-ca753d33d347', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:35,524", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:35,783", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:35,788", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:35,795", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:35,799", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:35,951", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:35,962", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:36,473", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:36,488", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:37,135", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:37,138", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "voter": "WebSearchAgent", "vote": "YES", "confidence": 0.9, "rationale": "The evidence from trusted sources like dkprintworld, indianetzone, and Wikipedia is clear and consistent about the year being 1966."}}
+{"timestamp":"2025-09-01 20:10:37,138", "level":"INFO", "message":{"event": "message_posted", "message_id": "4023c007-3d2c-4f06-83c8-61431c0c5911", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '8c5f223b-544d-4aca-b878-ca753d33d347', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:10:37,141", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:37,349", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:37,352", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The proposed answer is supported by multiple reliable sources, including dkprintworld, indianetzone, and Wikipedia. This aligns with the expected historical record regarding Ratan Parimoo's achievemen"}}
+{"timestamp":"2025-09-01 20:10:37,352", "level":"INFO", "message":{"event": "message_posted", "message_id": "df2e6ce8-c654-4a1e-9a89-27888bf1eb1a", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '8c5f223b-544d-4aca-b878-ca753d33d347', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:10:37,355", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:37,897", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:37,904", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:38,194", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:38,202", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:38,974", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:38,984", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:39,006", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:39,923", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:39,947", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:39,967", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:39,977", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:39,986", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "voter": "DeepResearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The year 1966 is supported by multiple credible sources including dkprintworld, indianetzone, and Wikipedia."}}
+{"timestamp":"2025-09-01 20:10:39,986", "level":"INFO", "message":{"event": "message_posted", "message_id": "ea722da4-cf82-4fb0-90e4-f91f5963ea11", "sender": "DeepResearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '8c5f223b-544d-4aca-b878-ca753d33d347', 'voter': 'DeepResearchAgent', 'v"}}
+{"timestamp":"2025-09-01 20:10:39,989", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:40,384", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:40,387", "level":"INFO", "message":{"event": "message_posted", "message_id": "cf194c55-5c6c-41f9-8e6c-8ba42c25066f", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["DocumentReaderAgent"], "content_preview": "Could you please assist in finding the year Ratan Parimoo won the first prize in Painting at the Ann"}}
+{"timestamp":"2025-09-01 20:10:40,390", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:41,654", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:41,663", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:41,979", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:41,988", "level":"INFO", "message":{"event": "poll_created", "poll_id": "53060fe6-344a-46f0-80e7-384cb1bfe105", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1966\n\n**Supporting Evidence:**\nRatan Parimoo won the first prize in Painting at the Annual Exhibition of the J & K Cultural Akademi in 1966, as confirmed by sources like DK Printworld, IndiaNetzone, a", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:10:41,988", "level":"INFO", "message":{"event": "message_posted", "message_id": "fdff8b24-7c38-4349-9ac7-64b865e617f8", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '53060fe6-344a-46f0-80e7-384cb1bfe105', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:41,992", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:42,048", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:42,053", "level":"INFO", "message":{"event": "poll_created", "poll_id": "78e0be18-8322-4db7-9482-19fce5d12fbe", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1966\n\n**Supporting Evidence:**\nRatan Parimoo won the first prize in Painting at the Annual Exhibition of the J & K Cultural Akademi in 1966. This information has been confirmed by multiple reliable so", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:10:42,053", "level":"INFO", "message":{"event": "message_posted", "message_id": "f494ff0a-727e-481c-af2c-60e7392e8d00", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '78e0be18-8322-4db7-9482-19fce5d12fbe', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:42,058", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:43,120", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:43,141", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:43,459", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:43,467", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:44,908", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:44,911", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "53060fe6-344a-46f0-80e7-384cb1bfe105", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The information from multiple reliable sources, such as DK Printworld, IndiaNetzone, and Wikipedia, unanimously indicates that the year when Ratan Parimoo won the first prize in Painting at the Annual"}}
+{"timestamp":"2025-09-01 20:10:44,911", "level":"INFO", "message":{"event": "message_posted", "message_id": "f6283571-edf3-4a5d-8430-383d4a2330a2", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '53060fe6-344a-46f0-80e7-384cb1bfe105', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:10:44,914", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:45,348", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:45,352", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:45,893", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:45,901", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:46,165", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:46,170", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "53060fe6-344a-46f0-80e7-384cb1bfe105", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The answer is corroborated by various trusted sources like DK Printworld, IndiaNetzone, and Wikipedia. All sources consistently mention 1966 as the correct year."}}
+{"timestamp":"2025-09-01 20:10:46,171", "level":"INFO", "message":{"event": "message_posted", "message_id": "acd26a4b-9319-4170-8b7e-1d5339dcc4a9", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '53060fe6-344a-46f0-80e7-384cb1bfe105', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:10:46,171", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "78e0be18-8322-4db7-9482-19fce5d12fbe", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "I have already verified that 1966 is the correct year based on reliable sources such as dkprintworld, indiaNetzone and Wikipedia."}}
+{"timestamp":"2025-09-01 20:10:46,171", "level":"INFO", "message":{"event": "message_posted", "message_id": "c52b3216-5e6a-4589-b526-4881077f56ab", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '78e0be18-8322-4db7-9482-19fce5d12fbe', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:10:46,174", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:46,247", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:46,250", "level":"INFO", "message":{"event": "agent_completed", "run_id": "96010dc1", "agent_name": "DeepResearchAgent", "duration_seconds": 19.51, "result_type": "AgentText", "result_preview": "1966"}}
+{"timestamp":"2025-09-01 20:10:47,273", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:47,280", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:47,500", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:47,503", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "78e0be18-8322-4db7-9482-19fce5d12fbe", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The answer proposed is consistent with multiple authoritative sources confirming 1966 as the year Ratan Parimoo won the first prize in Painting at the J & K Cultural Akademi. Thus, it should be consid"}}
+{"timestamp":"2025-09-01 20:10:47,503", "level":"INFO", "message":{"event": "message_posted", "message_id": "0a55c185-53ca-4c46-a263-b7034703974f", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '78e0be18-8322-4db7-9482-19fce5d12fbe', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:10:47,506", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:48,498", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:48,507", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:48,855", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:48,857", "level":"INFO", "message":{"event": "message_posted", "message_id": "30c99ab0-be9f-4ab9-b19c-3eb3d1cb434f", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["CodeAgent"], "content_preview": "The year when Ratan Parimoo won the first prize in Painting at the Annual Exhibition of the J & K Cu"}}
+{"timestamp":"2025-09-01 20:10:48,863", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:49,812", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:49,821", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:50,014", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:50,020", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:50,480", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:50,490", "level":"INFO", "message":{"event": "message_posted", "message_id": "b55284ec-6396-437a-a075-b7382f81dc08", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The final consensus among the agents, supported by multiple credible sources such as DK Printworld, "}}
+{"timestamp":"2025-09-01 20:10:50,499", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:51,069", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:51,078", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:10:51,547", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:51,559", "level":"INFO", "message":{"event": "agent_completed", "run_id": "96010dc1", "agent_name": "WebSearchAgent", "duration_seconds": 24.83, "result_type": "AgentText", "result_preview": "1966"}}
+{"timestamp":"2025-09-01 20:10:51,559", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "96010dc1"}}
+{"timestamp":"2025-09-01 20:10:51,560", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "96010dc1", "message_count": 17}}
+{"timestamp":"2025-09-01 20:10:51,561", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "96010dc1", "poll_count": 3, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 20:10:51,561", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "96010dc1", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:10:51,562", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:10:51,562", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "yes_votes": 3, "threshold": 3, "proposer": "DeepResearchAgent", "answer_preview": "1966\n\n**Supporting Evidence:**\nRatan Parimoo won the first prize in Painting at the Annual Exhibition of the J & K Cultural Akademi in 1966, as confirmed by multiple sources including dkprintworld, in"}}
+{"timestamp":"2025-09-01 20:10:51,562", "level":"INFO", "message":{"event": "message_posted", "message_id": "c6657354-ee5b-46bc-9274-b30612b8b729", "sender": "DeepResearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '8c5f223b-544d-4aca-b878-ca753d33d347', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:10:51,563", "level":"INFO", "message":{"event": "message_posted", "message_id": "518ca0c4-7460-4b26-bd18-09936d3f4eba", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': '8c5f223b-544d-4aca-b878-ca753d33d347', 'answer': '1966', 'tally"}}
+{"timestamp":"2025-09-01 20:10:51,563", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "96010dc1", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "result": "{'id': '518ca0c4-7460-4b26-bd18-09936d3f4eba', 'timestamp': '2025-09-01T18:10:51.563Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': '8c5f223b-544d-4"}}
+{"timestamp":"2025-09-01 20:10:51,563", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "96010dc1", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "answer": "1966", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 20:10:51,563", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "96010dc1", "poll_id": "53060fe6-344a-46f0-80e7-384cb1bfe105", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:10:51,564", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "53060fe6-344a-46f0-80e7-384cb1bfe105", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:10:51,564", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "53060fe6-344a-46f0-80e7-384cb1bfe105", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:10:51,564", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "96010dc1", "poll_id": "53060fe6-344a-46f0-80e7-384cb1bfe105", "result": null}}
+{"timestamp":"2025-09-01 20:10:51,565", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "96010dc1", "poll_id": "78e0be18-8322-4db7-9482-19fce5d12fbe", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:10:51,565", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "78e0be18-8322-4db7-9482-19fce5d12fbe", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:10:51,566", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "78e0be18-8322-4db7-9482-19fce5d12fbe", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:10:51,566", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "96010dc1", "poll_id": "78e0be18-8322-4db7-9482-19fce5d12fbe", "result": null}}
+{"timestamp":"2025-09-01 20:10:51,566", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "96010dc1", "winning_poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "answer": "1966"}}
+{"timestamp":"2025-09-01 20:10:51,566", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "96010dc1", "after_agent": "WebSearchAgent", "completed_agents": 2, "final_answer": "1966"}}
+{"timestamp":"2025-09-01 20:10:51,566", "level":"INFO", "message":{"event": "run_completed", "run_id": "96010dc1", "status": "success_early", "duration_seconds": 24.85}}
+{"timestamp":"2025-09-01 20:10:52,599", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:52,603", "level":"INFO", "message":{"event": "agent_completed", "run_id": "96010dc1", "agent_name": "DocumentReaderAgent", "duration_seconds": 25.86, "result_type": "AgentText", "result_preview": "1966"}}
+{"timestamp":"2025-09-01 20:10:58,907", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:10:58,912", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "8c5f223b-544d-4aca-b878-ca753d33d347", "voter": "CodeAgent", "vote": "YES", "confidence": 1.0, "rationale": "Supporting evidence from multiple reputable sources consistently identifies 1966 as the accurate year."}}
+{"timestamp":"2025-09-01 20:10:58,912", "level":"INFO", "message":{"event": "message_posted", "message_id": "b42f115e-7957-4fd8-8f24-9c023c0fd68e", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '8c5f223b-544d-4aca-b878-ca753d33d347', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:10:58,912", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "53060fe6-344a-46f0-80e7-384cb1bfe105", "voter": "CodeAgent", "vote": "YES", "confidence": 1.0, "rationale": "Trusted sources unanimously agree that 1966 is the year Ratan Parimoo won, validating its accuracy."}}
+{"timestamp":"2025-09-01 20:10:58,913", "level":"INFO", "message":{"event": "message_posted", "message_id": "700ae5c2-208d-457e-aa42-4bda4cc7a012", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '53060fe6-344a-46f0-80e7-384cb1bfe105', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:10:58,913", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "78e0be18-8322-4db7-9482-19fce5d12fbe", "voter": "CodeAgent", "vote": "YES", "confidence": 1.0, "rationale": "Consistent and reliable data from multiple sources, affirming 1966, ensures its correctness."}}
+{"timestamp":"2025-09-01 20:10:58,913", "level":"INFO", "message":{"event": "message_posted", "message_id": "f6faf462-96b2-4930-8049-c823aa9d1a2a", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '78e0be18-8322-4db7-9482-19fce5d12fbe', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:10:58,916", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:02,634", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:02,644", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:07,329", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:07,332", "level":"INFO", "message":{"event": "poll_created", "poll_id": "921f935c-5767-4f5e-bab8-608fa667fb85", "proposer": "CodeAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1966\n\n**Supporting Evidence:**\nRatan Parimoo won the first prize in Painting at the Annual Exhibition of the J & K Cultural Akademi in 1966, confirmed by sources including dkprintworld, indianetzone, ", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:11:07,332", "level":"INFO", "message":{"event": "message_posted", "message_id": "4a88a319-4ec8-4824-bb66-963da5b52d41", "sender": "CodeAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '921f935c-5767-4f5e-bab8-608fa667fb85', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:11:07,336", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:09,930", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:09,935", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:11:11,251", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:11:11,256", "level":"INFO", "message":{"event": "agent_completed", "run_id": "96010dc1", "agent_name": "CodeAgent", "duration_seconds": 44.54, "result_type": "AgentText", "result_preview": "1966"}}
+{"timestamp":"2025-09-01 20:11:11,256", "level":"INFO", "message":{"event": "execution_completed", "run_id": "96010dc1", "status": "success_early", "has_answer": true}}

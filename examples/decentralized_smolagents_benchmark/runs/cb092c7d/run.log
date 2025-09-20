@@ -1,0 +1,247 @@
+{"timestamp":"2025-09-01 20:08:16,228", "level":"INFO", "message":{"event": "run_started", "run_id": "cb092c7d", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "In what year did Frank Munn leave the radio show \"The American Album of Familiar Music\"?"}}}
+{"timestamp":"2025-09-01 20:08:16,228", "level":"INFO", "message":{"event": "creating_team", "run_id": "cb092c7d"}}
+{"timestamp":"2025-09-01 20:08:17,322", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "cb092c7d", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 20:08:17,322", "level":"INFO", "message":{"event": "starting_execution", "run_id": "cb092c7d", "question": "In what year did Frank Munn leave the radio show \"The American Album of Familiar Music\"?"}}
+{"timestamp":"2025-09-01 20:08:17,322", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "cb092c7d", "task": "In what year did Frank Munn leave the radio show \"The American Album of Familiar Music\"?"}}
+{"timestamp":"2025-09-01 20:08:17,322", "level":"INFO", "message":{"event": "message_posted", "message_id": "e25a9cd7-6b6c-49ae-bf2a-05d6cf7b9649", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "In what year did Frank Munn leave the radio show \"The American Album of Familiar Music\"?"}}
+{"timestamp":"2025-09-01 20:08:17,322", "level":"INFO", "message":{"event": "task_posted", "run_id": "cb092c7d", "message_id": "e25a9cd7-6b6c-49ae-bf2a-05d6cf7b9649", "task": "In what year did Frank Munn leave the radio show \"The American Album of Familiar Music\"?"}}
+{"timestamp":"2025-09-01 20:08:17,322", "level":"INFO", "message":{"event": "agent_started", "run_id": "cb092c7d", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 20:08:17,333", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:17,334", "level":"INFO", "message":{"event": "agent_started", "run_id": "cb092c7d", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 20:08:17,334", "level":"INFO", "message":{"event": "agent_started", "run_id": "cb092c7d", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 20:08:17,335", "level":"INFO", "message":{"event": "agent_started", "run_id": "cb092c7d", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 20:08:17,345", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:17,346", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:17,350", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:18,516", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:18,836", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:19,524", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:19,537", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:19,553", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:19,558", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:19,678", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:19,688", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:20,875", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:20,885", "level":"INFO", "message":{"event": "message_posted", "message_id": "f3145cbc-2271-4d5d-9a5b-74601cdbe28f", "sender": "DocumentReaderAgent", "type": "channel_created", "thread_id": "the-american-album-of-familiar-music-e9073fa3", "recipients": ["DeepResearchAgent", "WebSearchAgent"], "content_preview": "{'type': 'channel_created', 'channel_id': 'the-american-album-of-familiar-music-e9073fa3', 'subject'"}}
+{"timestamp":"2025-09-01 20:08:20,893", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:20,933", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:20,995", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:21,008", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:21,012", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:21,704", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:21,709", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:21,951", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:21,968", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:22,196", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:22,200", "level":"INFO", "message":{"event": "message_posted", "message_id": "a20d6b05-8048-4496-885f-55ce3452ff27", "sender": "system", "type": "channel_created", "thread_id": "the-american-album-of-familiar-music-e9073fa3", "recipients": ["@all"], "content_preview": "{'type': 'channel_created', 'channel_id': 'the-american-album-of-familiar-music-e9073fa3', 'descript"}}
+{"timestamp":"2025-09-01 20:08:22,200", "level":"INFO", "message":{"event": "message_posted", "message_id": "a68c503c-79f8-4f94-94f0-7418f9d2b745", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "the-american-album-of-familiar-music-e9073fa3", "recipients": ["DeepResearchAgent", "WebSearchAgent"], "content_preview": "@DeepResearchAgent and @WebSearchAgent, I have created this channel to discuss Frank Munn's departur"}}
+{"timestamp":"2025-09-01 20:08:22,202", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:23,075", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:23,157", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:23,161", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:23,630", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:23,634", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:23,921", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:23,925", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:23,933", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:24,650", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:24,655", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:24,796", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:24,813", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:25,145", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:25,148", "level":"INFO", "message":{"event": "message_posted", "message_id": "cc690878-0cd4-4357-955b-00625a4cd6f3", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "the-american-album-of-familiar-music-e9073fa3", "recipients": ["DeepResearchAgent", "WebSearchAgent"], "content_preview": "Has any progress been made in finding out when Frank Munn left the radio show \"The American Album of"}}
+{"timestamp":"2025-09-01 20:08:25,151", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:25,219", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:25,221", "level":"INFO", "message":{"event": "poll_created", "poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1945\n\n**Supporting Evidence:**\nFrank Munn left the radio show \"The American Album of Familiar Music\" in 1945 when he retired. He was replaced by Frank Parker.", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:08:25,222", "level":"INFO", "message":{"event": "message_posted", "message_id": "d89ffba2-8162-4289-bdcb-c204fedb6582", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '5cc9cbd9-f138-440a-ada0-12180beda494', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:08:25,224", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:26,170", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:26,177", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:27,078", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:27,328", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:27,332", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The information is consistent across multiple sources. Frank Munn left the radio show in 1945 for retirement and was replaced by Frank Parker, as verified by both the Wikipedia entry and additional ra"}}
+{"timestamp":"2025-09-01 20:08:27,332", "level":"INFO", "message":{"event": "message_posted", "message_id": "fd6e82e7-77db-48b4-86b7-823b2a8b7a3d", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '5cc9cbd9-f138-440a-ada0-12180beda494', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:08:27,335", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:27,682", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:27,685", "level":"INFO", "message":{"event": "message_posted", "message_id": "a39256dc-5179-4517-ba0a-2d6ee009606a", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Please search for the year Frank Munn left the radio show 'The American Album of Familiar Music'."}}
+{"timestamp":"2025-09-01 20:08:27,687", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:27,926", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:28,156", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:28,159", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:28,162", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.9, "rationale": "The information provided is credible and fits the context of Frank Munn leaving the radio show 'The American Album of Familiar Music'. The supporting evidence indicates he retired in 1945 and was repl"}}
+{"timestamp":"2025-09-01 20:08:28,163", "level":"INFO", "message":{"event": "message_posted", "message_id": "3e9f4677-dda1-444c-9ea2-ecb8bfb5ca0f", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '5cc9cbd9-f138-440a-ada0-12180beda494', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:08:28,165", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:28,173", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:29,075", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:29,081", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:29,150", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:29,155", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:29,824", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:29,828", "level":"INFO", "message":{"event": "message_posted", "message_id": "320601ee-f00e-4491-8a51-5095d128f763", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "the-american-album-of-familiar-music-e9073fa3", "recipients": ["@all"], "content_preview": "Frank Munn left the radio show \"The American Album of Familiar Music\" in 1945 when he retired. I fou"}}
+{"timestamp":"2025-09-01 20:08:29,831", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:29,876", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:29,883", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:30,132", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:30,141", "level":"INFO", "message":{"event": "poll_created", "poll_id": "cbfbf946-d57f-4f60-9668-58a87fb628da", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1945\n\n**Supporting Evidence:**\nAccording to multiple sources including Wikipedia and other historical articles, Frank Munn left 'The American Album of Familiar Music' in 1945 to retire. These results ", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:08:30,141", "level":"INFO", "message":{"event": "message_posted", "message_id": "90095e86-b346-4f8e-8a12-fab991199e28", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'cbfbf946-d57f-4f60-9668-58a87fb628da', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:08:30,152", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:31,044", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:31,051", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:31,155", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:31,158", "level":"INFO", "message":{"event": "message_posted", "message_id": "db84f031-5540-4ae5-bf14-8d79957fd009", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "Frank Munn left the radio show \"The American Album of Familiar Music\" in 1945 for retirement. An act"}}
+{"timestamp":"2025-09-01 20:08:31,161", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:31,534", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:31,538", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "voter": "CodeAgent", "vote": "YES", "confidence": 0.95, "rationale": "The evidence indicates that 1945 is the correct year when Frank Munn left the radio show, corroborated by reliable sources and already supported by other team members."}}
+{"timestamp":"2025-09-01 20:08:31,538", "level":"INFO", "message":{"event": "message_posted", "message_id": "aab60344-3c10-4a12-9c21-528b9eacfdc3", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '5cc9cbd9-f138-440a-ada0-12180beda494', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:08:31,541", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:31,921", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:31,926", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "cbfbf946-d57f-4f60-9668-58a87fb628da", "voter": "DeepResearchAgent", "vote": "YES", "confidence": 0.9, "rationale": "Reliable sources from the web search, including Wikipedia, consistently state that Frank Munn retired from the show in 1945. The references are corroborated across different historical articles."}}
+{"timestamp":"2025-09-01 20:08:31,926", "level":"INFO", "message":{"event": "message_posted", "message_id": "b074fe2d-30b1-4c52-9b0b-8c84dc727c34", "sender": "DeepResearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'cbfbf946-d57f-4f60-9668-58a87fb628da', 'voter': 'DeepResearchAgent', 'v"}}
+{"timestamp":"2025-09-01 20:08:31,929", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:32,112", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:32,119", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:33,481", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:33,487", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:33,492", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:33,497", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:33,762", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:33,772", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "cbfbf946-d57f-4f60-9668-58a87fb628da", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.95, "rationale": "The supporting evidence provided by multiple sources and checked by both the WebSearchAgent and DeepResearchAgent indicate that 1945 is a consistent year for Frank Munn's departure from the show. Both"}}
+{"timestamp":"2025-09-01 20:08:33,773", "level":"INFO", "message":{"event": "message_posted", "message_id": "2c825b5d-d1ed-4df7-837e-189fc9e2783f", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'cbfbf946-d57f-4f60-9668-58a87fb628da', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:08:33,782", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:34,619", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:34,626", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:34,924", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:34,937", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "cbfbf946-d57f-4f60-9668-58a87fb628da", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The information consistently states that Frank Munn retired from 'The American Album of Familiar Music' in 1945. Multiple reliable sources, including Wikipedia entries and radio history documentation,"}}
+{"timestamp":"2025-09-01 20:08:34,937", "level":"INFO", "message":{"event": "message_posted", "message_id": "157b57e0-19df-41c5-b3b9-00ea03da9244", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'cbfbf946-d57f-4f60-9668-58a87fb628da', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:08:34,946", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:35,527", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:35,537", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:35,664", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:35,672", "level":"INFO", "message":{"event": "poll_created", "poll_id": "dd9572a3-8ecf-456c-a7e0-a487647597a0", "proposer": "CodeAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1945\n\n**Supporting Evidence:**\nFrank Munn left the radio show 'The American Album of Familiar Music' in 1945 when he retired. He was replaced by Frank Parker. This information is supported by multiple", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:08:35,675", "level":"INFO", "message":{"event": "message_posted", "message_id": "2e9ef0a0-d729-4220-983d-4c0822980c0e", "sender": "CodeAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'dd9572a3-8ecf-456c-a7e0-a487647597a0', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:08:35,685", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:37,164", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:37,167", "level":"INFO", "message":{"event": "poll_created", "poll_id": "19a5b058-167d-405e-b040-a3c39514f144", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1945\n\n**Supporting Evidence:**\nAccording to multiple reliable sources including Wikipedia and historical radio archives, Frank Munn left 'The American Album of Familiar Music' in 1945 when he retired.", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:08:37,167", "level":"INFO", "message":{"event": "message_posted", "message_id": "4cee4da2-5654-4169-8009-353b48b44be1", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '19a5b058-167d-405e-b040-a3c39514f144', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:08:37,170", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:37,387", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:37,392", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:37,774", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:37,779", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:39,234", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:39,238", "level":"INFO", "message":{"event": "message_posted", "message_id": "d44c095f-942a-4d20-a001-5ec402404305", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The final poll on the year Frank Munn left the radio show 'The American Album of Familiar Music' has"}}
+{"timestamp":"2025-09-01 20:08:39,242", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:39,450", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:39,463", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "19a5b058-167d-405e-b040-a3c39514f144", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.95, "rationale": "The information is corroborated by multiple reliable sources and has been confirmed by team members. Frank Munn retired from the radio show in 1945 and the supporting evidence is consistent across ref"}}
+{"timestamp":"2025-09-01 20:08:39,464", "level":"INFO", "message":{"event": "message_posted", "message_id": "7c2ec217-569a-4011-88a5-00594b645f63", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '19a5b058-167d-405e-b040-a3c39514f144', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:08:39,475", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:40,422", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:40,435", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:40,442", "level":"INFO", "message":{"event": "agent_completed", "run_id": "cb092c7d", "agent_name": "WebSearchAgent", "duration_seconds": 23.11, "result_type": "AgentText", "result_preview": "1945"}}
+{"timestamp":"2025-09-01 20:08:40,452", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:41,071", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:41,085", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:42,153", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:42,158", "level":"INFO", "message":{"event": "agent_completed", "run_id": "cb092c7d", "agent_name": "CodeAgent", "duration_seconds": 24.84, "result_type": "AgentText", "result_preview": "1945"}}
+{"timestamp":"2025-09-01 20:08:42,159", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "cb092c7d"}}
+{"timestamp":"2025-09-01 20:08:42,159", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "cb092c7d", "message_count": 20}}
+{"timestamp":"2025-09-01 20:08:42,159", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "cb092c7d", "poll_count": 4, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 20:08:42,159", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "cb092c7d", "poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:08:42,159", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:08:42,159", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "yes_votes": 3, "threshold": 3, "proposer": "WebSearchAgent", "answer_preview": "1945\n\n**Supporting Evidence:**\nFrank Munn left the radio show \"The American Album of Familiar Music\" in 1945 when he retired. He was replaced by Frank Parker."}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "message_posted", "message_id": "2d27c34a-2f69-4e20-9c69-dee20393b50d", "sender": "WebSearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '5cc9cbd9-f138-440a-ada0-12180beda494', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "message_posted", "message_id": "d29edf95-0a48-4cc4-aa30-5ad9870cba79", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': '5cc9cbd9-f138-440a-ada0-12180beda494', 'answer': '1945', 'tally"}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "cb092c7d", "poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "result": "{'id': 'd29edf95-0a48-4cc4-aa30-5ad9870cba79', 'timestamp': '2025-09-01T18:08:42.160Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': '5cc9cbd9-f138-4"}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "cb092c7d", "poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "answer": "1945", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "cb092c7d", "poll_id": "cbfbf946-d57f-4f60-9668-58a87fb628da", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "cbfbf946-d57f-4f60-9668-58a87fb628da", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "cbfbf946-d57f-4f60-9668-58a87fb628da", "yes_votes": 3, "threshold": 3, "proposer": "DeepResearchAgent", "answer_preview": "1945\n\n**Supporting Evidence:**\nAccording to multiple sources including Wikipedia and other historical articles, Frank Munn left 'The American Album of Familiar Music' in 1945 to retire. These results "}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "message_posted", "message_id": "02e40911-0166-441a-aadb-6d6d3ea49b8c", "sender": "DeepResearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'cbfbf946-d57f-4f60-9668-58a87fb628da', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "message_posted", "message_id": "1e8313c9-4a64-44af-be0c-65449b24874e", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': 'cbfbf946-d57f-4f60-9668-58a87fb628da', 'answer': '1945', 'tally"}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "cb092c7d", "poll_id": "cbfbf946-d57f-4f60-9668-58a87fb628da", "result": "{'id': '1e8313c9-4a64-44af-be0c-65449b24874e', 'timestamp': '2025-09-01T18:08:42.160Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': 'cbfbf946-d57f-4"}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "subsequent_poll_achieved_threshold", "run_id": "cb092c7d", "poll_id": "cbfbf946-d57f-4f60-9668-58a87fb628da", "first_successful_poll": "5cc9cbd9-f138-440a-ada0-12180beda494", "answer_ignored": "1945"}}
+{"timestamp":"2025-09-01 20:08:42,160", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "cb092c7d", "poll_id": "dd9572a3-8ecf-456c-a7e0-a487647597a0", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "dd9572a3-8ecf-456c-a7e0-a487647597a0", "yes_votes": 0, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "dd9572a3-8ecf-456c-a7e0-a487647597a0", "yes_votes": 0, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "cb092c7d", "poll_id": "dd9572a3-8ecf-456c-a7e0-a487647597a0", "result": null}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "cb092c7d", "poll_id": "19a5b058-167d-405e-b040-a3c39514f144", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "19a5b058-167d-405e-b040-a3c39514f144", "yes_votes": 1, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "19a5b058-167d-405e-b040-a3c39514f144", "yes_votes": 1, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "cb092c7d", "poll_id": "19a5b058-167d-405e-b040-a3c39514f144", "result": null}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "cb092c7d", "winning_poll_id": "5cc9cbd9-f138-440a-ada0-12180beda494", "answer": "1945"}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "cb092c7d", "after_agent": "CodeAgent", "completed_agents": 2, "final_answer": "1945"}}
+{"timestamp":"2025-09-01 20:08:42,161", "level":"INFO", "message":{"event": "run_completed", "run_id": "cb092c7d", "status": "success_early", "duration_seconds": 24.84}}
+{"timestamp":"2025-09-01 20:08:44,309", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:44,313", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "dd9572a3-8ecf-456c-a7e0-a487647597a0", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The evidence from multiple reliable sources consistently states that Frank Munn retired in 1945, confirming the information as correct and verified by team consensus."}}
+{"timestamp":"2025-09-01 20:08:44,313", "level":"INFO", "message":{"event": "message_posted", "message_id": "78453d8d-e043-48c5-8900-7f4dcc30dfd9", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'dd9572a3-8ecf-456c-a7e0-a487647597a0', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:08:44,316", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:44,804", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:44,813", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:46,176", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:46,200", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:47,633", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:47,638", "level":"INFO", "message":{"event": "agent_completed", "run_id": "cb092c7d", "agent_name": "DocumentReaderAgent", "duration_seconds": 30.29, "result_type": "AgentText", "result_preview": "1945"}}
+{"timestamp":"2025-09-01 20:08:48,079", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:48,095", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:51,598", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:51,613", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:08:53,039", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:08:53,042", "level":"INFO", "message":{"event": "agent_completed", "run_id": "cb092c7d", "agent_name": "DeepResearchAgent", "duration_seconds": 35.7, "result_type": "AgentText", "result_preview": "1945"}}
+{"timestamp":"2025-09-01 20:08:53,042", "level":"INFO", "message":{"event": "execution_completed", "run_id": "cb092c7d", "status": "success_early", "has_answer": true}}

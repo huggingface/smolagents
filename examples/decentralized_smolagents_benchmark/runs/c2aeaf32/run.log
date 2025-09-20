@@ -1,0 +1,198 @@
+{"timestamp":"2025-09-01 20:12:52,427", "level":"INFO", "message":{"event": "run_started", "run_id": "c2aeaf32", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "What is the number of the executive order that created the Federal Theatre Project?"}}}
+{"timestamp":"2025-09-01 20:12:52,427", "level":"INFO", "message":{"event": "creating_team", "run_id": "c2aeaf32"}}
+{"timestamp":"2025-09-01 20:12:53,690", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "c2aeaf32", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 20:12:53,691", "level":"INFO", "message":{"event": "starting_execution", "run_id": "c2aeaf32", "question": "What is the number of the executive order that created the Federal Theatre Project?"}}
+{"timestamp":"2025-09-01 20:12:53,691", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "c2aeaf32", "task": "What is the number of the executive order that created the Federal Theatre Project?"}}
+{"timestamp":"2025-09-01 20:12:53,691", "level":"INFO", "message":{"event": "message_posted", "message_id": "5a817bc6-21b1-427b-aac9-1a3fe158fdd0", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "What is the number of the executive order that created the Federal Theatre Project?"}}
+{"timestamp":"2025-09-01 20:12:53,691", "level":"INFO", "message":{"event": "task_posted", "run_id": "c2aeaf32", "message_id": "5a817bc6-21b1-427b-aac9-1a3fe158fdd0", "task": "What is the number of the executive order that created the Federal Theatre Project?"}}
+{"timestamp":"2025-09-01 20:12:53,691", "level":"INFO", "message":{"event": "agent_started", "run_id": "c2aeaf32", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 20:12:53,697", "level":"INFO", "message":{"event": "agent_started", "run_id": "c2aeaf32", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 20:12:53,703", "level":"INFO", "message":{"event": "agent_started", "run_id": "c2aeaf32", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 20:12:53,717", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:53,719", "level":"INFO", "message":{"event": "agent_started", "run_id": "c2aeaf32", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 20:12:53,719", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:53,724", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:53,727", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:55,636", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:56,018", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:56,050", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:56,448", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:56,454", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:56,891", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:57,161", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:57,182", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:57,402", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:57,415", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:57,760", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:57,779", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:57,791", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:58,309", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:58,320", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:58,503", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:58,507", "level":"INFO", "message":{"event": "poll_created", "poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "7034\n\n**Supporting Evidence:**\nThe Federal Theatre Project was created as a result of Executive Order 7034, which was signed in 1935. This project was part of the Works Progress Administration and aim", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:12:58,508", "level":"INFO", "message":{"event": "message_posted", "message_id": "b8b4f70b-4891-498b-9f3c-41f622178326", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'e90cc413-17ab-4b8e-b874-9b391667080d', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:12:58,511", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:58,575", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:59,541", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:12:59,547", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:12:59,992", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:00,294", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:00,299", "level":"INFO", "message":{"event": "poll_created", "poll_id": "0da0b690-0eb3-409d-a4f7-65ccf99c1b8d", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "7034\n\n**Supporting Evidence:**\nThe Federal Theatre Project was created as part of the Works Progress Administration (WPA), which itself was established through Executive Order No. 7034 issued on May 6", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:13:00,299", "level":"INFO", "message":{"event": "message_posted", "message_id": "943cbdf0-5f0b-45fb-bf7d-48737eee40db", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '0da0b690-0eb3-409d-a4f7-65ccf99c1b8d', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:13:00,301", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:00,425", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:00,428", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The executive order number 7034 directly aligns with historical records indicating it established the Federal Theatre Project within the Works Progress Administration."}}
+{"timestamp":"2025-09-01 20:13:00,428", "level":"INFO", "message":{"event": "message_posted", "message_id": "1a16dcd3-1899-4549-a13a-3d17ae9db7c4", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'e90cc413-17ab-4b8e-b874-9b391667080d', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:13:00,431", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:00,926", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:01,291", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:01,297", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:01,356", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:01,361", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "voter": "CodeAgent", "vote": "YES", "confidence": 0.9, "rationale": "The supporting evidence aligns with the historical context of the Federal Theatre Project being part of the Works Progress Administration."}}
+{"timestamp":"2025-09-01 20:13:01,361", "level":"INFO", "message":{"event": "message_posted", "message_id": "bcd522c1-bdff-48b9-b761-76cd5098592d", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'e90cc413-17ab-4b8e-b874-9b391667080d', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:13:01,363", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:01,727", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:01,730", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "0da0b690-0eb3-409d-a4f7-65ccf99c1b8d", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The evidence gathered from credible sources like the Library of Congress and Wikipedia clearly shows that Executive Order No. 7034 was used to establish the Works Progress Administration, which includ"}}
+{"timestamp":"2025-09-01 20:13:01,730", "level":"INFO", "message":{"event": "message_posted", "message_id": "8ae0eb21-a78c-4f43-9090-3bd6e73a3cf5", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '0da0b690-0eb3-409d-a4f7-65ccf99c1b8d', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:13:01,733", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:02,707", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:02,709", "level":"INFO", "message":{"event": "poll_created", "poll_id": "60e379ff-a540-40d5-b8fc-d5a5bc3b785a", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "7034\n\n**Supporting Evidence:**\nThe Federal Theatre Project was part of the Works Progress Administration (WPA), created through Executive Order No. 7034 issued on May 6, 1935. Multiple sources includi", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:13:02,710", "level":"INFO", "message":{"event": "message_posted", "message_id": "55558e75-be97-4d7a-96e7-6d078c0378c2", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '60e379ff-a540-40d5-b8fc-d5a5bc3b785a', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:13:02,712", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:02,802", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:02,806", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:03,073", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:03,087", "level":"INFO", "message":{"event": "message_posted", "message_id": "b782222d-b380-482b-adbf-6fe11a8b8c67", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "The final answer poll for the number of the executive order that created the Federal Theatre Project"}}
+{"timestamp":"2025-09-01 20:13:03,093", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:03,129", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:03,141", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "0da0b690-0eb3-409d-a4f7-65ccf99c1b8d", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "Executive Order No. 7034 is reliably documented as the authority that established the Works Progress Administration, under which the Federal Theatre Project was initiated. This aligns with the consens"}}
+{"timestamp":"2025-09-01 20:13:03,142", "level":"INFO", "message":{"event": "message_posted", "message_id": "c245b788-ae3c-4c58-af95-5400966e3847", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '0da0b690-0eb3-409d-a4f7-65ccf99c1b8d', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:13:03,150", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:03,817", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:03,840", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:03,941", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:03,961", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:04,042", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:04,050", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:05,228", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:05,233", "level":"INFO", "message":{"event": "poll_created", "poll_id": "01d18062-ffe0-436c-92b6-92137defc193", "proposer": "CodeAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "7034\n\n**Supporting Evidence:**\nThe Federal Theatre Project was created as a result of Executive Order 7034, which was signed in 1935. This project was part of the Works Progress Administration and aim", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:13:05,233", "level":"INFO", "message":{"event": "message_posted", "message_id": "1dd8042f-31d6-4369-8153-6eaaf3158e9a", "sender": "CodeAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '01d18062-ffe0-436c-92b6-92137defc193', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:13:05,237", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:05,609", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:05,620", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:05,629", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "60e379ff-a540-40d5-b8fc-d5a5bc3b785a", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The supporting evidence clearly indicates that Executive Order No. 7034 established the Works Progress Administration, which included the Federal Theatre Project, and this is substantiated by sources "}}
+{"timestamp":"2025-09-01 20:13:05,630", "level":"INFO", "message":{"event": "message_posted", "message_id": "4781699b-f383-483a-bdc4-56c35feeeb29", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '60e379ff-a540-40d5-b8fc-d5a5bc3b785a', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:13:05,649", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:05,661", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The supporting evidence provided accurately aligns with known historical data and widely accepted records. Multiple credible sources have verified that Executive Order No. 7034 was critical in establi"}}
+{"timestamp":"2025-09-01 20:13:05,661", "level":"INFO", "message":{"event": "message_posted", "message_id": "87826b98-e66d-4e28-9268-b906c1093a9e", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'e90cc413-17ab-4b8e-b874-9b391667080d', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:13:05,665", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:06,307", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:06,314", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:06,412", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:06,417", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:07,332", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:07,339", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "60e379ff-a540-40d5-b8fc-d5a5bc3b785a", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The supporting evidence from credible sources such as the Library of Congress clearly confirms the establishment of the Federal Theatre Project under the Works Progress Administration via Executive Or"}}
+{"timestamp":"2025-09-01 20:13:07,339", "level":"INFO", "message":{"event": "message_posted", "message_id": "9a28aa71-7ae8-4d3d-9b2e-95321b056b68", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '60e379ff-a540-40d5-b8fc-d5a5bc3b785a', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:13:07,342", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:07,536", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:07,540", "level":"INFO", "message":{"event": "agent_completed", "run_id": "c2aeaf32", "agent_name": "CodeAgent", "duration_seconds": 13.85, "result_type": "AgentText", "result_preview": "7034"}}
+{"timestamp":"2025-09-01 20:13:07,663", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:07,669", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "60e379ff-a540-40d5-b8fc-d5a5bc3b785a", "voter": "DeepResearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "The evidence confirms that Executive Order No. 7034 established the Works Progress Administration, which included the Federal Theatre Project, corroborated by reliable historical sources."}}
+{"timestamp":"2025-09-01 20:13:07,669", "level":"INFO", "message":{"event": "message_posted", "message_id": "20305161-4672-464a-9f14-138139ae2395", "sender": "DeepResearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '60e379ff-a540-40d5-b8fc-d5a5bc3b785a', 'voter': 'DeepResearchAgent', 'v"}}
+{"timestamp":"2025-09-01 20:13:07,672", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:08,078", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:08,103", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:08,676", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:08,679", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "01d18062-ffe0-436c-92b6-92137defc193", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 1.0, "rationale": "The Executive Order No. 7034 is well-documented to be the relevant order for the establishment of the Works Progress Administration, which included the Federal Theatre Project. The evidence aligns wit"}}
+{"timestamp":"2025-09-01 20:13:08,679", "level":"INFO", "message":{"event": "message_posted", "message_id": "e017dd76-dede-4fb8-9c76-96d02eb057df", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '01d18062-ffe0-436c-92b6-92137defc193', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:13:08,682", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:09,597", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:09,607", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:10,691", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:10,695", "level":"INFO", "message":{"event": "agent_completed", "run_id": "c2aeaf32", "agent_name": "DocumentReaderAgent", "duration_seconds": 16.98, "result_type": "AgentText", "result_preview": "7034"}}
+{"timestamp":"2025-09-01 20:13:10,695", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "c2aeaf32"}}
+{"timestamp":"2025-09-01 20:13:10,695", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "c2aeaf32", "message_count": 15}}
+{"timestamp":"2025-09-01 20:13:10,695", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "c2aeaf32", "poll_count": 4, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 20:13:10,695", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "c2aeaf32", "poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:13:10,695", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:13:10,695", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "yes_votes": 3, "threshold": 3, "proposer": "DocumentReaderAgent", "answer_preview": "7034\n\n**Supporting Evidence:**\nThe Federal Theatre Project was created as a result of Executive Order 7034, which was signed in 1935. This project was part of the Works Progress Administration and aim"}}
+{"timestamp":"2025-09-01 20:13:10,695", "level":"INFO", "message":{"event": "message_posted", "message_id": "5bec7e4f-468a-4e94-9a6f-eee84dff262f", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'e90cc413-17ab-4b8e-b874-9b391667080d', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:13:10,695", "level":"INFO", "message":{"event": "message_posted", "message_id": "c845c806-d9ae-4d3b-948c-53a94a1d9cdb", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': 'e90cc413-17ab-4b8e-b874-9b391667080d', 'answer': '7034', 'tally"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "c2aeaf32", "poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "result": "{'id': 'c845c806-d9ae-4d3b-948c-53a94a1d9cdb', 'timestamp': '2025-09-01T18:13:10.695Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': 'e90cc413-17ab-4"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "c2aeaf32", "poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "answer": "7034", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "c2aeaf32", "poll_id": "0da0b690-0eb3-409d-a4f7-65ccf99c1b8d", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "0da0b690-0eb3-409d-a4f7-65ccf99c1b8d", "yes_votes": 2, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "0da0b690-0eb3-409d-a4f7-65ccf99c1b8d", "yes_votes": 2, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "c2aeaf32", "poll_id": "0da0b690-0eb3-409d-a4f7-65ccf99c1b8d", "result": null}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "c2aeaf32", "poll_id": "60e379ff-a540-40d5-b8fc-d5a5bc3b785a", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "60e379ff-a540-40d5-b8fc-d5a5bc3b785a", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "60e379ff-a540-40d5-b8fc-d5a5bc3b785a", "yes_votes": 3, "threshold": 3, "proposer": "DeepResearchAgent", "answer_preview": "7034\n\n**Supporting Evidence:**\nThe Federal Theatre Project was part of the Works Progress Administration (WPA), created through Executive Order No. 7034 issued on May 6, 1935. Multiple sources includi"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "message_posted", "message_id": "883b0a4f-710e-4af8-998b-409e523ed58d", "sender": "DeepResearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '60e379ff-a540-40d5-b8fc-d5a5bc3b785a', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "message_posted", "message_id": "941ad9fc-2fad-4d95-a6ed-ecd360ccf0cc", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': '60e379ff-a540-40d5-b8fc-d5a5bc3b785a', 'answer': '7034', 'tally"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "c2aeaf32", "poll_id": "60e379ff-a540-40d5-b8fc-d5a5bc3b785a", "result": "{'id': '941ad9fc-2fad-4d95-a6ed-ecd360ccf0cc', 'timestamp': '2025-09-01T18:13:10.696Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': '60e379ff-a540-4"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "subsequent_poll_achieved_threshold", "run_id": "c2aeaf32", "poll_id": "60e379ff-a540-40d5-b8fc-d5a5bc3b785a", "first_successful_poll": "e90cc413-17ab-4b8e-b874-9b391667080d", "answer_ignored": "7034"}}
+{"timestamp":"2025-09-01 20:13:10,696", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "c2aeaf32", "poll_id": "01d18062-ffe0-436c-92b6-92137defc193", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:13:10,697", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "01d18062-ffe0-436c-92b6-92137defc193", "yes_votes": 1, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:13:10,697", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "01d18062-ffe0-436c-92b6-92137defc193", "yes_votes": 1, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:13:10,697", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "c2aeaf32", "poll_id": "01d18062-ffe0-436c-92b6-92137defc193", "result": null}}
+{"timestamp":"2025-09-01 20:13:10,697", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "c2aeaf32", "winning_poll_id": "e90cc413-17ab-4b8e-b874-9b391667080d", "answer": "7034"}}
+{"timestamp":"2025-09-01 20:13:10,697", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "c2aeaf32", "after_agent": "DocumentReaderAgent", "completed_agents": 2, "final_answer": "7034"}}
+{"timestamp":"2025-09-01 20:13:10,697", "level":"INFO", "message":{"event": "run_completed", "run_id": "c2aeaf32", "status": "success_early", "duration_seconds": 17.01}}
+{"timestamp":"2025-09-01 20:13:11,564", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:11,577", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "01d18062-ffe0-436c-92b6-92137defc193", "voter": "WebSearchAgent", "vote": "YES", "confidence": 1.0, "rationale": "Multiple credible sources confirm that Executive Order No. 7034 was instrumental in creating the Works Progress Administration, which included the Federal Theatre Project. The consistency of evidence "}}
+{"timestamp":"2025-09-01 20:13:11,577", "level":"INFO", "message":{"event": "message_posted", "message_id": "5312c33b-130f-464b-b1f7-e11a1ead325c", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '01d18062-ffe0-436c-92b6-92137defc193', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:13:11,588", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:12,423", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:12,433", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:12,467", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:12,470", "level":"INFO", "message":{"event": "poll_created", "poll_id": "8e290439-8a8c-4766-973f-3997b37bdbbf", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "7034\n\n**Supporting Evidence:**\nExecutive Order No. 7034 established the Works Progress Administration, under which the Federal Theatre Project was created. This information is confirmed by multiple re", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:13:12,470", "level":"INFO", "message":{"event": "message_posted", "message_id": "0c287931-1e53-4ce2-8940-a398a44f5a15", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '8e290439-8a8c-4766-973f-3997b37bdbbf', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:13:12,473", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:14,487", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:14,492", "level":"INFO", "message":{"event": "agent_completed", "run_id": "c2aeaf32", "agent_name": "WebSearchAgent", "duration_seconds": 20.79, "result_type": "AgentText", "result_preview": "7034"}}
+{"timestamp":"2025-09-01 20:13:14,640", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:14,644", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:13:15,903", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:13:15,906", "level":"INFO", "message":{"event": "agent_completed", "run_id": "c2aeaf32", "agent_name": "DeepResearchAgent", "duration_seconds": 22.2, "result_type": "AgentText", "result_preview": "7034"}}
+{"timestamp":"2025-09-01 20:13:15,907", "level":"INFO", "message":{"event": "execution_completed", "run_id": "c2aeaf32", "status": "success_early", "has_answer": true}}
