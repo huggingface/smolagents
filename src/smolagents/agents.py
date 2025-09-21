@@ -1687,6 +1687,17 @@ class CodeAgent(MultiStepAgent):
                 code_action = extract_code_from_text(code_action, self.code_block_tags) or code_action
             else:
                 code_action = parse_code_blobs(output_text, self.code_block_tags)
+                
+            # Step 1: Turns \n into real newline
+            code_action = code_action.encode().decode("unicode_escape")
+
+            # Step 2: Normalize line endings (\r\n → \n)
+            code_action = code_action.replace("\r\n", "\n").replace("\r", "\n")
+
+            # Step 3: Strip BOM & extra spaces
+            code_action = code_action.strip("\ufeff ").rstrip()
+            code_action = code_action.strip()
+
             code_action = fix_final_answer_code(code_action)
             memory_step.code_action = code_action
         except Exception as e:
