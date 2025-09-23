@@ -927,6 +927,7 @@ class TransformersModel(Model):
             messages=messages,
             stop_sequences=stop_sequences,
             tools_to_call_from=tools_to_call_from,
+            tool_choice=None,
             **kwargs,
         )
 
