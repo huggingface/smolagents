@@ -926,6 +926,7 @@ class TransformersModel(Model):
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
+            tools_to_call_from=tools_to_call_from,
             **kwargs,
         )
 
