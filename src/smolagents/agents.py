@@ -17,7 +17,6 @@
 import importlib
 import json
 import os
-import re
 import tempfile
 import textwrap
 import time
@@ -96,11 +95,6 @@ from .utils import (
 
 
 logger = getLogger(__name__)
-
-
-def get_variable_names(self, template: str) -> set[str]:
-    pattern = re.compile(r"\{\{([^{}]+)\}\}")
-    return {match.group(1).strip() for match in pattern.finditer(template)}
 
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
