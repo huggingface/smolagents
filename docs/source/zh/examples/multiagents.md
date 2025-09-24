@@ -26,7 +26,7 @@
 我们来一起构建这个系统。运行下列代码以安装依赖包：
 
 ```
-!pip install smolagents[toolkit] --upgrade -q
+!pip install 'smolagents[toolkit]' --upgrade -q
 ```
 
 我们需要登录Hugging Face Hub以调用HF的Inference API：

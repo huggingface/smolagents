@@ -469,9 +469,7 @@ class VisitWebpageTool(Tool):
         if len(content) <= max_length:
             return content
         return (
-            content[: max_length // 2]
-            + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
-            + content[-max_length // 2 :]
+            content[:max_length] + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
         )
 
     def forward(self, url: str) -> str:
