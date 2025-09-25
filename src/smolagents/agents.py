@@ -1663,7 +1663,7 @@ class CodeAgent(MultiStepAgent):
                 memory_step.model_output_message = chat_message
                 output_text = chat_message.content
                 self.logger.log_markdown(
-                    content=output_text,
+                    content=output_text or "",
                     title="Output message of the LLM:",
                     level=LogLevel.DEBUG,
                 )
