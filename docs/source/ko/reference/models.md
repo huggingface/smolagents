@@ -35,7 +35,8 @@ from smolagents import TransformersModel
 model = TransformersModel(model_id="HuggingFaceTB/SmolLM2-360M-Instruct")
 
 print(model([{"role": "user", "content": [{"type": "text", "text": "좋아!"}]}], stop_sequences=["이"]))
-``````text
+```
+```text
 >>> 좋아! 아래와 같
 ```
 
@@ -69,7 +70,8 @@ messages = [
 
 model = InferenceClientModel(provider="novita", requests_per_minute=60)
 print(model(messages))
-``````text
+```
+```text
 >>> 안녕하세요. 덕분에 잘 지내고 있습니다.
 ```
 
@@ -215,7 +217,8 @@ from smolagents import MLXModel
 model = MLXModel(model_id="HuggingFaceTB/SmolLM-135M-Instruct")
 
 print(model([{"role": "user", "content": "좋아!"}], stop_sequences=["이"]))
-``````text
+```
+```text
 >>> 좋아! 아래와 같
 ```
 
