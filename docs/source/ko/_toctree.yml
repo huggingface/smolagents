@@ -91,14 +91,13 @@
 #  - local: reference/agents
 #    title: Agent-related objects
   - local: reference/models
-    title: 모델 관련 
+    title: 모델 관련 클래스
 #  - title: Tools
 #    sections:
 #    - title: Tool-related objects
 #      local: reference/tools
 #    - title: Built-in Tools
 #      local: reference/default_tools
-    title: Model-related objects
 #  - title: Tools
 #    sections:
 #    - title: Tool-related objects
