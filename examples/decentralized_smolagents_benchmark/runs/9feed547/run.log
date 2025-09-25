@@ -1,0 +1,185 @@
+{"timestamp":"2025-09-01 20:06:13,523", "level":"INFO", "message":{"event": "run_started", "run_id": "9feed547", "args": {"model_type": "LiteLLMModel", "model_id": "gpt-4o", "provider": "openai", "question": "What year was the municipality of Caucasia, Antioquia, Colombia, founded?"}}}
+{"timestamp":"2025-09-01 20:06:13,523", "level":"INFO", "message":{"event": "creating_team", "run_id": "9feed547"}}
+{"timestamp":"2025-09-01 20:06:14,642", "level":"INFO", "message":{"event": "decentralized_team_created", "run_id": "9feed547", "agent_count": 4, "agents": [{"name": "CodeAgent", "role": "Python code execution specialist"}, {"name": "WebSearchAgent", "role": "Fast web research specialist"}, {"name": "DeepResearchAgent", "role": "Deep analysis and advanced research specialist"}, {"name": "DocumentReaderAgent", "role": "Document analysis and technical specification specialist"}]}}
+{"timestamp":"2025-09-01 20:06:14,642", "level":"INFO", "message":{"event": "starting_execution", "run_id": "9feed547", "question": "What year was the municipality of Caucasia, Antioquia, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:06:14,642", "level":"INFO", "message":{"event": "team_execution_started", "run_id": "9feed547", "task": "What year was the municipality of Caucasia, Antioquia, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:06:14,642", "level":"INFO", "message":{"event": "message_posted", "message_id": "c2963fc2-f4b0-45e7-bbe5-0d7ec59526f7", "sender": "system", "type": "task", "thread_id": "main", "recipients": ["@all"], "content_preview": "What year was the municipality of Caucasia, Antioquia, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:06:14,642", "level":"INFO", "message":{"event": "task_posted", "run_id": "9feed547", "message_id": "c2963fc2-f4b0-45e7-bbe5-0d7ec59526f7", "task": "What year was the municipality of Caucasia, Antioquia, Colombia, founded?"}}
+{"timestamp":"2025-09-01 20:06:14,642", "level":"INFO", "message":{"event": "agent_started", "run_id": "9feed547", "agent_name": "CodeAgent", "agent_index": 0}}
+{"timestamp":"2025-09-01 20:06:14,642", "level":"INFO", "message":{"event": "agent_started", "run_id": "9feed547", "agent_name": "WebSearchAgent", "agent_index": 1}}
+{"timestamp":"2025-09-01 20:06:14,650", "level":"INFO", "message":{"event": "agent_started", "run_id": "9feed547", "agent_name": "DeepResearchAgent", "agent_index": 2}}
+{"timestamp":"2025-09-01 20:06:14,658", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:14,659", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:14,665", "level":"INFO", "message":{"event": "agent_started", "run_id": "9feed547", "agent_name": "DocumentReaderAgent", "agent_index": 3}}
+{"timestamp":"2025-09-01 20:06:14,665", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:14,672", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:15,634", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:16,008", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:16,662", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:16,667", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:17,003", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:17,017", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:18,339", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:18,342", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:18,347", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:18,385", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:18,388", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:18,495", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:18,512", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:19,325", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:19,330", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:19,334", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:19,574", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:19,590", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:20,298", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:20,318", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:21,050", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:21,056", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:21,409", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:21,411", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:21,431", "level":"INFO", "message":{"event": "poll_created", "poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "proposer": "WebSearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1886\n\n**Supporting Evidence:**\nCaucasia, Antioquia was officially established on April 12, 1886, according to multiple sources. These sources include a Wikipedia page, the Cities of Colombia site, and", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:06:21,432", "level":"INFO", "message":{"event": "message_posted", "message_id": "bcc047fa-d085-4d20-90f1-f88cd2a45da8", "sender": "WebSearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'ec355992-c66f-4acc-928a-996c7df72c77', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:06:21,441", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:21,450", "level":"INFO", "message":{"event": "message_posted", "message_id": "13680a4d-c086-47b0-9955-e274a81e679f", "sender": "DocumentReaderAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "I will look up the founding year of Caucasia, Antioquia, Colombia, and propose an answer shortly. If"}}
+{"timestamp":"2025-09-01 20:06:21,454", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:22,326", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:22,336", "level":"INFO", "message":{"event": "message_posted", "message_id": "78a3f2d0-f4ef-47f1-a4d6-a030af97a02e", "sender": "DocumentReaderAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Could you search for the founding year of the municipality of Caucasia, Antioquia, Colombia?"}}
+{"timestamp":"2025-09-01 20:06:22,344", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:22,676", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:22,681", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:23,247", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:23,495", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:23,500", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:23,830", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:23,842", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "voter": "WebSearchAgent", "vote": "YES", "confidence": 0.9, "rationale": "The founding year of Caucasia, Antioquia, as 1886 is corroborated by multiple reliable sources, including Wikipedia and both local historical references. These sources consistently identify 1886 as th"}}
+{"timestamp":"2025-09-01 20:06:23,842", "level":"INFO", "message":{"event": "message_posted", "message_id": "20d1f54c-604b-4452-80be-4f07c7c73f7f", "sender": "WebSearchAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'ec355992-c66f-4acc-928a-996c7df72c77', 'voter': 'WebSearchAgent', 'vote"}}
+{"timestamp":"2025-09-01 20:06:23,850", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:23,872", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:25,225", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:25,227", "level":"INFO", "message":{"event": "message_posted", "message_id": "4639cd35-a2f7-4d83-9c4f-c0d6e1007a64", "sender": "CodeAgent", "type": "private_message", "thread_id": null, "recipients": ["WebSearchAgent"], "content_preview": "Please find the founding year of the municipality of Caucasia, Antioquia, Colombia."}}
+{"timestamp":"2025-09-01 20:06:25,230", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:25,291", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:25,294", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.9, "rationale": "The proposal cites multiple sources confirming 1886 as the founding year. The provided information appears reliable, with citations from known platforms. Thus, I'm confident in agreeing with this prop"}}
+{"timestamp":"2025-09-01 20:06:25,294", "level":"INFO", "message":{"event": "message_posted", "message_id": "cab63165-5c5a-4f5f-a11b-6208cbc84520", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'ec355992-c66f-4acc-928a-996c7df72c77', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:06:25,296", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:25,954", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:25,959", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:26,192", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:26,195", "level":"INFO", "message":{"event": "poll_created", "poll_id": "052bffba-6681-443f-9ca8-34039dbda8bb", "proposer": "DeepResearchAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1886\n\n**Supporting Evidence:**\nMultiple sources confirm April 12, 1886, as the founding date of Caucasia, Antioquia, Colombia. Sources include websites like Cities Of Colombia and Kids Kiddle, which m", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:06:26,195", "level":"INFO", "message":{"event": "message_posted", "message_id": "fc7c83ea-1ab0-4ff3-a460-243fc63260ce", "sender": "DeepResearchAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': '052bffba-6681-443f-9ca8-34039dbda8bb', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:06:26,197", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:26,205", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:26,208", "level":"INFO", "message":{"event": "message_posted", "message_id": "9ca8eccf-ab4a-4b45-874c-ffbeceb38922", "sender": "WebSearchAgent", "type": "channel_message", "thread_id": "main", "recipients": ["@all"], "content_preview": "I've voted on the final answer poll confirming the founding year of the municipality of Caucasia, An"}}
+{"timestamp":"2025-09-01 20:06:26,210", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:26,635", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:26,642", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:26,744", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:26,750", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:27,199", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:27,202", "level":"INFO", "message":{"event": "agent_completed", "run_id": "9feed547", "agent_name": "WebSearchAgent", "duration_seconds": 12.55, "result_type": "AgentText", "result_preview": "1886"}}
+{"timestamp":"2025-09-01 20:06:27,263", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:27,267", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:28,733", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:28,736", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:28,808", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:28,811", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "voter": "CodeAgent", "vote": "YES", "confidence": 0.9, "rationale": "The founding year 1886 is supported by multiple credible sources, and the consistent confirmation in various references strengthens the reliability of this date."}}
+{"timestamp":"2025-09-01 20:06:28,812", "level":"INFO", "message":{"event": "message_posted", "message_id": "81d105e0-850e-4ae6-87a5-bb33ed2bc18b", "sender": "CodeAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'ec355992-c66f-4acc-928a-996c7df72c77', 'voter': 'CodeAgent', 'vote': 'Y"}}
+{"timestamp":"2025-09-01 20:06:28,814", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:29,901", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:29,903", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "052bffba-6681-443f-9ca8-34039dbda8bb", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.9, "rationale": "This proposal is consistent with previous findings and supports the founding year of 1886, corroborated by similar sources. Given the corroboration from multiple agents and sources, I am confident in "}}
+{"timestamp":"2025-09-01 20:06:29,904", "level":"INFO", "message":{"event": "message_posted", "message_id": "77d36693-fed7-4939-9efe-39ec53d30c19", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': '052bffba-6681-443f-9ca8-34039dbda8bb', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:06:29,906", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:31,232", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:31,236", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:32,098", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:32,104", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:32,111", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:32,114", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:33,201", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:33,213", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:33,465", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:33,471", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:34,184", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:34,188", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:36,134", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:36,138", "level":"INFO", "message":{"event": "agent_completed", "run_id": "9feed547", "agent_name": "DeepResearchAgent", "duration_seconds": 21.48, "result_type": "AgentText", "result_preview": "1886"}}
+{"timestamp":"2025-09-01 20:06:36,139", "level":"INFO", "message":{"event": "consensus_check_started", "run_id": "9feed547"}}
+{"timestamp":"2025-09-01 20:06:36,139", "level":"INFO", "message":{"event": "messages_retrieved", "run_id": "9feed547", "message_count": 11}}
+{"timestamp":"2025-09-01 20:06:36,139", "level":"INFO", "message":{"event": "active_polls_check", "run_id": "9feed547", "poll_count": 2, "processing_strategy": "first_to_achieve_threshold"}}
+{"timestamp":"2025-09-01 20:06:36,139", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "9feed547", "poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "yes_votes": 3, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "poll_passed", "poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "yes_votes": 3, "threshold": 3, "proposer": "WebSearchAgent", "answer_preview": "1886\n\n**Supporting Evidence:**\nCaucasia, Antioquia was officially established on April 12, 1886, according to multiple sources. These sources include a Wikipedia page, the Cities of Colombia site, and"}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "message_posted", "message_id": "8beeb257-b2f2-470b-96bb-b9eea1da2316", "sender": "WebSearchAgent", "type": "poll", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'ec355992-c66f-4acc-928a-996c7df72c77', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "message_posted", "message_id": "59636de2-d2e1-4638-86c5-0f9c6596ada7", "sender": "Coordinator", "type": "final_answer", "thread_id": null, "recipients": ["@all"], "content_preview": "{'type': 'final_answer', 'poll_id': 'ec355992-c66f-4acc-928a-996c7df72c77', 'answer': '1886', 'tally"}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "9feed547", "poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "result": "{'id': '59636de2-d2e1-4638-86c5-0f9c6596ada7', 'timestamp': '2025-09-01T18:06:36.140Z', 'sender': 'Coordinator', 'type': 'final_answer', 'content': {'type': 'final_answer', 'poll_id': 'ec355992-c66f-4"}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "first_poll_achieved_threshold", "run_id": "9feed547", "poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "answer": "1886", "strategy": "first_to_reach_vote_threshold"}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "poll_threshold_check", "run_id": "9feed547", "poll_id": "052bffba-6681-443f-9ca8-34039dbda8bb", "poll_question": "Should this be our final answer to the user?"}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "poll_finalization_check", "poll_id": "052bffba-6681-443f-9ca8-34039dbda8bb", "yes_votes": 1, "no_votes": 0, "threshold": 3, "eligible_voters": 4}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "poll_not_ready", "poll_id": "052bffba-6681-443f-9ca8-34039dbda8bb", "yes_votes": 1, "no_votes": 0, "threshold": 3, "reason": "insufficient_votes"}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "poll_finalization_attempted", "run_id": "9feed547", "poll_id": "052bffba-6681-443f-9ca8-34039dbda8bb", "result": null}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "returning_first_threshold_answer", "run_id": "9feed547", "winning_poll_id": "ec355992-c66f-4acc-928a-996c7df72c77", "answer": "1886"}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "consensus_reached_early", "run_id": "9feed547", "after_agent": "DeepResearchAgent", "completed_agents": 2, "final_answer": "1886"}}
+{"timestamp":"2025-09-01 20:06:36,140", "level":"INFO", "message":{"event": "run_completed", "run_id": "9feed547", "status": "success_early", "duration_seconds": 21.5}}
+{"timestamp":"2025-09-01 20:06:36,426", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:36,441", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:37,264", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:37,267", "level":"INFO", "message":{"event": "poll_created", "poll_id": "a63c17c2-00d8-4d40-9311-944fb40a3198", "proposer": "DocumentReaderAgent", "question": "Should this be our final answer to the user?", "proposal_preview": "1886\n\n**Supporting Evidence:**\nCaucasia, Antioquia was officially established on April 12, 1886, based on multiple credible sources including Wikipedia, Cities of Colombia, and Kids Kiddle. The foundi", "threshold": 3, "total_agents": 4, "options": ["YES", "NO"], "thread_id": "main", "configured_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"], "detected_agents": ["CodeAgent", "WebSearchAgent", "DeepResearchAgent", "DocumentReaderAgent"]}}
+{"timestamp":"2025-09-01 20:06:37,268", "level":"INFO", "message":{"event": "message_posted", "message_id": "34daa553-2378-43cf-8112-930a4ff01f5a", "sender": "DocumentReaderAgent", "type": "poll", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'poll', 'poll_id': 'a63c17c2-00d8-4d40-9311-944fb40a3198', 'question': 'Should this be our "}}
+{"timestamp":"2025-09-01 20:06:37,271", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:38,608", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:38,639", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:39,196", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:39,199", "level":"INFO", "message":{"event": "vote_recorded", "poll_id": "a63c17c2-00d8-4d40-9311-944fb40a3198", "voter": "DocumentReaderAgent", "vote": "YES", "confidence": 0.9, "rationale": "Consistent agreement among agents and extensive confirmation from multiple reputable sources. This collective validation indicates that the founding year of Caucasia, Antioquia is robustly supported a"}}
+{"timestamp":"2025-09-01 20:06:39,199", "level":"INFO", "message":{"event": "message_posted", "message_id": "bda71c16-ca31-4724-93ec-93cbc3b0096d", "sender": "DocumentReaderAgent", "type": "vote", "thread_id": "main", "recipients": ["@all"], "content_preview": "{'type': 'vote', 'poll_id': 'a63c17c2-00d8-4d40-9311-944fb40a3198', 'voter': 'DocumentReaderAgent', "}}
+{"timestamp":"2025-09-01 20:06:39,202", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:40,096", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:40,104", "level":"INFO", "message":
+LiteLLM completion() model= gpt-4o; provider = openai}
+{"timestamp":"2025-09-01 20:06:41,784", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:41,788", "level":"INFO", "message":{"event": "agent_completed", "run_id": "9feed547", "agent_name": "DocumentReaderAgent", "duration_seconds": 27.12, "result_type": "AgentText", "result_preview": "1886"}}
+{"timestamp":"2025-09-01 20:06:42,020", "level":"INFO", "message":Wrapper: Completed Call, calling success_handler}
+{"timestamp":"2025-09-01 20:06:42,032", "level":"INFO", "message":{"event": "agent_completed", "run_id": "9feed547", "agent_name": "CodeAgent", "duration_seconds": 27.39, "result_type": "AgentText", "result_preview": "1886"}}
+{"timestamp":"2025-09-01 20:06:42,032", "level":"INFO", "message":{"event": "execution_completed", "run_id": "9feed547", "status": "success_early", "has_answer": true}}
