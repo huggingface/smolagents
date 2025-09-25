@@ -368,9 +368,23 @@ def supports_stop_parameter(model_id: str) -> bool:
         bool: True if the model supports the stop parameter, False otherwise
     """
     model_name = model_id.split("/")[-1]
-    # o3, o4-mini, and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
-    pattern = r"^(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*)$"
+    # o3, o4-mini, grok-3-mini, grok-4, grok-code-fast and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
+    openai_model_pattern = r"(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*)"
+    grok_model_pattern = r"([a-zA-Z]+\.)?(grok-3-mini|grok-4|grok-code-fast)(-[A-Za-z0-9]*)?"
+    pattern = rf"^({openai_model_pattern}|{grok_model_pattern})$"
+
     return not re.match(pattern, model_name)
+
+
+class _ParameterRemove:
+    """Sentinel value to indicate a parameter should be removed."""
+
+    def __repr__(self):
+        return "REMOVE_PARAMETER"
+
+
+# Singleton instance for removing parameters
+REMOVE_PARAMETER = _ParameterRemove()
 
 
 class Model:
@@ -431,12 +445,12 @@ class Model:
         **kwargs,
     ) -> dict[str, Any]:
         """
-        Prepare parameters required for model invocation, handling parameter priorities.
+        Prepare parameters required for model invocation.
 
-        Parameter priority from high to low:
-        1. Explicitly passed kwargs
-        2. Specific parameters (stop_sequences, response_format, etc.)
-        3. Default values in self.kwargs
+        Parameter priority (highest to lowest):
+        1. self.kwargs (model defaults)
+        2. Explicitly passed kwargs
+        3. Specific parameters (stop_sequences, response_format, etc.)
         """
         # Clean and standardize the message list
         flatten_messages_as_text = kwargs.pop("flatten_messages_as_text", self.flatten_messages_as_text)
@@ -446,32 +460,28 @@ class Model:
             convert_images_to_image_urls=convert_images_to_image_urls,
             flatten_messages_as_text=flatten_messages_as_text,
         )
-        # Use self.kwargs as the base configuration
+        # Start with messages
         completion_kwargs = {
-            **self.kwargs,
             "messages": messages_as_dicts,
         }
-
-        # Handle specific parameters
-        if stop_sequences is not None:
+        # Override with specific parameters
+        if stop_sequences is not None and supports_stop_parameter(self.model_id or ""):
             # Some models do not support stop parameter
-            if supports_stop_parameter(self.model_id or ""):
-                completion_kwargs["stop"] = stop_sequences
+            completion_kwargs["stop"] = stop_sequences
         if response_format is not None:
             completion_kwargs["response_format"] = response_format
-
-        # Handle tools parameter
         if tools_to_call_from:
-            tools_config = {
-                "tools": [get_tool_json_schema(tool) for tool in tools_to_call_from],
-            }
+            completion_kwargs["tools"] = [get_tool_json_schema(tool) for tool in tools_to_call_from]
             if tool_choice is not None:
-                tools_config["tool_choice"] = tool_choice
-            completion_kwargs.update(tools_config)
-
-        # Finally, use the passed-in kwargs to override all settings
+                completion_kwargs["tool_choice"] = tool_choice
+        # Override with passed-in kwargs
         completion_kwargs.update(kwargs)
-
+        # Override with self.kwargs
+        for kwarg_name, kwarg_value in self.kwargs.items():
+            if kwarg_value is REMOVE_PARAMETER:
+                completion_kwargs.pop(kwarg_name, None)  # Remove parameter if present
+            else:
+                completion_kwargs[kwarg_name] = kwarg_value  # Set/override parameter
         return completion_kwargs
 
     def generate(
@@ -789,8 +799,12 @@ class TransformersModel(Model):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
         model_kwargs (`dict[str, Any]`, *optional*):
             Additional keyword arguments to pass to `AutoModel.from_pretrained` (like revision, model_args, config, etc.).
+        max_new_tokens (`int`, default `4096`):
+            Maximum number of new tokens to generate, ignoring the number of tokens in the prompt.
+        max_tokens (`int`, *optional*):
+            Alias for `max_new_tokens`. If provided, this value takes precedence.
         **kwargs:
-            Additional keyword arguments to forward to the underlying Transformers model generate call, such as `max_new_tokens` or `device`.
+            Additional keyword arguments to forward to the underlying Transformers model generate call, such as `device`.
     Raises:
         ValueError:
             If the model name is not provided.
@@ -816,6 +830,8 @@ class TransformersModel(Model):
         torch_dtype: str | None = None,
         trust_remote_code: bool = False,
         model_kwargs: dict[str, Any] | None = None,
+        max_new_tokens: int = 4096,
+        max_tokens: int | None = None,
         **kwargs,
     ):
         try:
@@ -841,13 +857,7 @@ class TransformersModel(Model):
             )
             model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 
-        default_max_tokens = 4096
-        max_new_tokens = kwargs.get("max_new_tokens") or kwargs.get("max_tokens")
-        if not max_new_tokens:
-            kwargs["max_new_tokens"] = default_max_tokens
-            warnings.warn(
-                f"`max_new_tokens` not provided, using this default value for `max_new_tokens`: {default_max_tokens}"
-            )
+        max_new_tokens = max_tokens if max_tokens is not None else max_new_tokens
 
         if device_map is None:
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
@@ -881,7 +891,9 @@ class TransformersModel(Model):
                 raise e
         except Exception as e:
             raise ValueError(f"Failed to load tokenizer and model for {model_id=}: {e}") from e
-        super().__init__(flatten_messages_as_text=not self._is_vlm, model_id=model_id, **kwargs)
+        super().__init__(
+            flatten_messages_as_text=not self._is_vlm, model_id=model_id, max_new_tokens=max_new_tokens, **kwargs
+        )
 
     def make_stopping_criteria(self, stop_sequences: list[str], tokenizer) -> "StoppingCriteriaList":
         from transformers import StoppingCriteria, StoppingCriteriaList
@@ -914,6 +926,8 @@ class TransformersModel(Model):
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
+            tools_to_call_from=tools_to_call_from,
+            tool_choice=None,
             **kwargs,
         )
 
@@ -1914,6 +1928,7 @@ class AmazonBedrockServerModel(ApiModel):
 AmazonBedrockModel = AmazonBedrockServerModel
 
 __all__ = [
+    "REMOVE_PARAMETER",
     "MessageRole",
     "tool_role_conversions",
     "get_clean_message_list",

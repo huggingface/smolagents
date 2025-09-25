@@ -8,8 +8,9 @@ import pytest
 from rich.console import Console
 
 from smolagents.default_tools import FinalAnswerTool, WikipediaSearchTool
+from smolagents.local_python_executor import CodeOutput
 from smolagents.monitoring import AgentLogger, LogLevel
-from smolagents.remote_executors import DockerExecutor, E2BExecutor, RemotePythonExecutor, WasmExecutor
+from smolagents.remote_executors import DockerExecutor, E2BExecutor, ModalExecutor, RemotePythonExecutor, WasmExecutor
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
@@ -47,14 +48,24 @@ class TestE2BExecutorUnit:
         with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
             mock_sandbox.return_value.commands.run.return_value.error = None
             mock_sandbox.return_value.run_code.return_value.error = None
+            # Also set up v2 path in case Sandbox.create is used
+            mock_sandbox.create.return_value.commands.run.return_value.error = None
+            mock_sandbox.create.return_value.run_code.return_value.error = None
             executor = E2BExecutor(
                 additional_imports=[], logger=logger, api_key="dummy-api-key", template="dummy-template-id", timeout=60
             )
         assert isinstance(executor, E2BExecutor)
         assert executor.logger == logger
-        assert executor.sandbox == mock_sandbox.return_value
-        assert mock_sandbox.call_count == 1
-        assert mock_sandbox.call_args.kwargs == {
+        # Support both e2b v1 (Sandbox(...)) and v2 (Sandbox.create(...))
+        if mock_sandbox.create.called:
+            sandbox_obj = mock_sandbox.create.return_value
+            called_ctor = mock_sandbox.create
+        else:
+            sandbox_obj = mock_sandbox.return_value
+            called_ctor = mock_sandbox
+        assert executor.sandbox == sandbox_obj
+        assert called_ctor.call_count == 1
+        assert called_ctor.call_args.kwargs == {
             "api_key": "dummy-api-key",
             "template": "dummy-template-id",
             "timeout": 60,
@@ -66,6 +77,8 @@ class TestE2BExecutorUnit:
         with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
             # Setup mock
             mock_sandbox.return_value.kill = MagicMock()
+            # Also set up v2 path in case Sandbox.create is used
+            mock_sandbox.create.return_value.kill = MagicMock()
 
             # Create executor
             executor = E2BExecutor(additional_imports=[], logger=logger, api_key="dummy-api-key")
@@ -74,7 +87,10 @@ class TestE2BExecutorUnit:
             executor.cleanup()
 
             # Verify sandbox was killed
-            mock_sandbox.return_value.kill.assert_called_once()
+            if mock_sandbox.create.called:
+                mock_sandbox.create.return_value.kill.assert_called_once()
+            else:
+                mock_sandbox.return_value.kill.assert_called_once()
             assert logger.log.call_count >= 2  # Should log start and completion messages
 
 
@@ -198,25 +214,10 @@ class TestDockerExecutorUnit:
             mock_container.remove.assert_called_once()
 
 
-@pytest.fixture
-def docker_executor():
-    executor = DockerExecutor(
-        additional_imports=["pillow", "numpy"],
-        logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
-    )
-    yield executor
-    executor.delete()
-
-
-@require_run_all
-class TestDockerExecutorIntegration:
+class CommonDockerExecutorIntegration:
     @pytest.fixture(autouse=True)
-    def set_executor(self, docker_executor):
-        self.executor = docker_executor
-
-    def test_initialization(self):
-        """Check if DockerExecutor initializes without errors"""
-        assert self.executor.container is not None, "Container should be initialized"
+    def set_executor(self, custom_executor):
+        self.executor = custom_executor
 
     def test_state_persistence(self):
         """Test that variables and imports form one snippet persist in the next"""
@@ -260,15 +261,6 @@ class TestDockerExecutorIntegration:
         with pytest.raises(AgentError) as exception_info:
             self.executor(code_action)
         assert "SyntaxError" in str(exception_info.value), "Should raise a syntax error"
-
-    def test_cleanup_on_deletion(self):
-        """Test if Docker container stops and removes on deletion"""
-        container_id = self.executor.container.id
-        self.executor.delete()  # Trigger cleanup
-
-        client = docker.from_env()
-        containers = [c.id for c in client.containers.list(all=True)]
-        assert container_id not in containers, "Container should be removed"
 
     @pytest.mark.parametrize(
         "code_action, expected_result",
@@ -341,6 +333,99 @@ class TestDockerExecutorIntegration:
         code_output = self.executor(code_action)
         assert code_output.is_final_answer is True
         assert code_output.output == "answer1_CUSTOM_answer2"
+
+
+@require_run_all
+class TestDockerExecutorIntegration(CommonDockerExecutorIntegration):
+    @pytest.fixture
+    def custom_executor(self):
+        executor = DockerExecutor(
+            additional_imports=["pillow", "numpy"],
+            logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
+        )
+        yield executor
+        executor.delete()
+
+    def test_initialization(self):
+        """Check if DockerExecutor initializes without errors"""
+        assert self.executor.container is not None, "Container should be initialized"
+
+    def test_cleanup_on_deletion(self):
+        """Test if Docker container stops and removes on deletion"""
+        container_id = self.executor.container.id
+        self.executor.delete()  # Trigger cleanup
+
+        client = docker.from_env()
+        containers = [c.id for c in client.containers.list(all=True)]
+        assert container_id not in containers, "Container should be removed"
+
+
+@require_run_all
+class TestModalExecutorIntegration(CommonDockerExecutorIntegration):
+    @pytest.fixture
+    def custom_executor(self):
+        executor = ModalExecutor(
+            additional_imports=["pillow", "numpy"],
+            logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
+        )
+        yield executor
+        executor.delete()
+
+
+class TestModalExecutorUnit:
+    @patch("smolagents.remote_executors._websocket_run_code_raise_errors")
+    @patch("requests.post")
+    @patch("requests.get")
+    @patch("websocket.create_connection")
+    @patch("modal.App.lookup")
+    @patch("modal.Sandbox.create")
+    def test_sandbox_lifecycle(
+        self, mock_sandbox_create, mock_app_lookup, mock_create_connection, mock_get, mock_post, mock_run_code_raises
+    ):
+        """Test that sandbox is created with the correct kwargs and cleaned up correctly."""
+        modal = pytest.importorskip("modal")
+        port = 8889
+
+        logger = MagicMock()
+        mock_sandbox = MagicMock()
+        tunnel_mock = MagicMock()
+        tunnel_mock.host = "r4234.modal.host"
+        mock_sandbox.tunnels.return_value = {port: tunnel_mock}
+
+        mock_get.return_value.status_code = 200
+        mock_post.return_value.status_code = 201
+        mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
+        mock_run_code_raises.return_value = CodeOutput(output="3", logs="", is_final_answer=False)
+        mock_sandbox_create.return_value = mock_sandbox
+
+        executor = ModalExecutor(
+            additional_imports=[],
+            logger=logger,
+            app_name="my-custom-app-name",
+            port=port,
+            create_kwargs={
+                "secrets": [modal.Secret.from_dict({"MY_SECRET": "ABC"})],
+                "timeout": 100,
+                "cpu": 2,
+            },
+        )
+
+        create_call = mock_sandbox_create.mock_calls[0]
+        assert create_call.args == (
+            "jupyter",
+            "kernelgateway",
+            "--KernelGatewayApp.ip='0.0.0.0'",
+            f"--KernelGatewayApp.port={port}",
+            "--KernelGatewayApp.allow_origin='*'",
+        )
+        assert create_call.kwargs["timeout"] == 100
+        assert create_call.kwargs["cpu"] == 2
+        assert len(create_call.kwargs["secrets"]) == 2
+        mock_app_lookup.assert_called_with("my-custom-app-name", create_if_missing=True)
+
+        executor.run_code_raise_errors("1 + 2")
+        executor.cleanup()
+        mock_sandbox.terminate.assert_called()
 
 
 class TestWasmExecutorUnit:

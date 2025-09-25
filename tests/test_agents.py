@@ -884,7 +884,7 @@ class TestRunResult:
         assert result.output == "This is the final answer."
         assert result.state == "success"
         assert result.token_usage is None
-        assert isinstance(result.messages, list)
+        assert isinstance(result.steps, list)
         assert result.timing.duration > 0
 
     @pytest.mark.parametrize(
@@ -910,7 +910,7 @@ class TestRunResult:
             assert result.output == "This is the final answer."
             assert result.state == "success"
             assert result.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
-            assert isinstance(result.messages, list)
+            assert isinstance(result.steps, list)
             assert result.timing.duration > 0
         else:
             assert isinstance(result, str)
