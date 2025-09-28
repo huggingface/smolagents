@@ -1803,10 +1803,6 @@ class TestToolCallingAgent:
         assert "Error while parsing" in capture.get()
         assert len(agent.memory.steps) == 4
 
-    @pytest.mark.skip(
-        reason="Test is not properly implemented (GH-1255) because fake_tools should have the same name. "
-        "Additionally, it uses CodeAgent instead of ToolCallingAgent (GH-1409)"
-    )
     def test_change_tools_after_init(self):
         from smolagents import tool
 
@@ -1815,21 +1811,45 @@ class TestToolCallingAgent:
             """Fake tool"""
             return "1"
 
+        class FakeToolCallModel(Model):
+            def generate(self, messages, stop_sequences=None, tools_to_call_from=None):
+                if len(messages) < 3:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="I will call the fake tool.",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_0",
+                                type="function",
+                                function=ChatMessageToolCallFunction(name="fake_tool_1", arguments={}),
+                            )
+                        ],
+                    )
+                else:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="I will return the final answer.",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_1",
+                                type="function",
+                                function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "2"}),
+                            )
+                        ],
+                    )
+
+        agent = ToolCallingAgent(tools=[fake_tool_1], model=FakeToolCallModel())
+
         @tool
-        def fake_tool_2() -> str:
+        def fake_tool_1() -> str:
             """Fake tool"""
             return "2"
 
-        class FakeCodeModel(Model):
-            def generate(self, messages, stop_sequences=None):
-                return ChatMessage(role=MessageRole.ASSISTANT, content="<code>\nfinal_answer(fake_tool_1())\n</code>")
-
-        agent = CodeAgent(tools=[fake_tool_1], model=FakeCodeModel())
-
         agent.tools["final_answer"] = CustomFinalAnswerTool()
-        agent.tools["fake_tool_1"] = fake_tool_2
+        agent.tools["fake_tool_1"] = fake_tool_1
 
         answer = agent.run("Fake task.")
+        assert "2" in agent.memory.steps[1].observations
         assert answer == "2CUSTOM"
 
     def test_custom_final_answer_with_custom_inputs(self, test_tool):
@@ -2094,9 +2114,6 @@ print("Ok, calculation done!")""")
         assert messages
         assert all(m.content.endswith("</code>") for m in messages)
 
-    @pytest.mark.skip(
-        reason="Test is not properly implemented (GH-1255) because fake_tools should have the same name. "
-    )
     def test_change_tools_after_init(self):
         from smolagents import tool
 
@@ -2105,19 +2122,19 @@ print("Ok, calculation done!")""")
             """Fake tool"""
             return "1"
 
-        @tool
-        def fake_tool_2() -> str:
-            """Fake tool"""
-            return "2"
-
         class FakeCodeModel(Model):
             def generate(self, messages, stop_sequences=None):
                 return ChatMessage(role=MessageRole.ASSISTANT, content="<code>\nfinal_answer(fake_tool_1())\n</code>")
 
         agent = CodeAgent(tools=[fake_tool_1], model=FakeCodeModel())
-
         agent.tools["final_answer"] = CustomFinalAnswerTool()
-        agent.tools["fake_tool_1"] = fake_tool_2
+
+        @tool
+        def fake_tool_1() -> str:
+            """Fake tool"""
+            return "2"
+
+        agent.tools["fake_tool_1"] = fake_tool_1
 
         answer = agent.run("Fake task.")
         assert answer == "2CUSTOM"
