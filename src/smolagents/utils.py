@@ -170,11 +170,20 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
 
 
 def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
-    """Extract code from the LLM's output."""
+    """Extract code from the LLM's output.
+
+    Also strips any occurrences of triple backticks ``` that may appear
+    inside the extracted code blocks.
+    """
     pattern = rf"{code_block_tags[0]}(.*?){code_block_tags[1]}"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
-        return "\n\n".join(match.strip() for match in matches)
+        cleaned_matches = []
+        for match in matches:
+            # Remove any triple backticks found inside the code content to fix the persistent code block parsing error
+            cleaned = match.replace("```", "").strip()
+            cleaned_matches.append(cleaned)
+        return "\n\n".join(cleaned_matches)
     return None
 
 
