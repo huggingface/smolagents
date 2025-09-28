@@ -1285,13 +1285,8 @@ class ToolCallingAgent(MultiStepAgent):
                     stop_sequences=["Observation:", "Calling tools:"],
                     tools_to_call_from=self.tools_and_managed_agents,
                 )
-                if chat_message.content is None and chat_message.raw is not None:
-                    log_content = str(chat_message.raw)
-                else:
-                    log_content = str(chat_message.content or "")
-
                 self.logger.log_markdown(
-                    content=log_content,
+                    content=str(chat_message.content or chat_message.raw or ""),
                     title="Output message of the LLM:",
                     level=LogLevel.DEBUG,
                 )
