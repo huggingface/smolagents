@@ -1288,7 +1288,7 @@ class ToolCallingAgent(MultiStepAgent):
                 if chat_message.content is None and chat_message.raw is not None:
                     log_content = str(chat_message.raw)
                 else:
-                    log_content = str(chat_message.content) or ""
+                    log_content = str(chat_message.content or "")
 
                 self.logger.log_markdown(
                     content=log_content,
