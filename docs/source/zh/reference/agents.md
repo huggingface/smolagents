@@ -33,7 +33,7 @@ Smolagents 是一个实验性的 API，可能会随时发生变化。由于 API 
 ### GradioUI
 
 > [!TIP]
-> 您必须安装 `gradio` 才能使用 UI。如果尚未安装，请运行 `pip install smolagents[gradio]`。
+> 您必须安装 `gradio` 才能使用 UI。如果尚未安装，请运行 `pip install 'smolagents[gradio]'`。
 
 [[autodoc]] GradioUI
 

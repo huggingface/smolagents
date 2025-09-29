@@ -284,7 +284,7 @@ class GradioUI:
     It  can reset the agent's memory at the start of each interaction if desired.
     It supports file uploads, which are saved to a specified folder.
     It uses the [`gradio.Chatbot`] component to display the conversation history.
-    This class requires the `gradio` extra to be installed: `smolagents[gradio]`.
+    This class requires the `gradio` extra to be installed: `pip install 'smolagents[gradio]'`.
 
     Args:
         agent ([`MultiStepAgent`]): The agent to interact with.
