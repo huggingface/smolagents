@@ -17,7 +17,6 @@
 import importlib
 import json
 import os
-import re
 import tempfile
 import textwrap
 import time
@@ -96,11 +95,6 @@ from .utils import (
 
 
 logger = getLogger(__name__)
-
-
-def get_variable_names(self, template: str) -> set[str]:
-    pattern = re.compile(r"\{\{([^{}]+)\}\}")
-    return {match.group(1).strip() for match in pattern.finditer(template)}
 
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
@@ -1291,13 +1285,8 @@ class ToolCallingAgent(MultiStepAgent):
                     stop_sequences=["Observation:", "Calling tools:"],
                     tools_to_call_from=self.tools_and_managed_agents,
                 )
-                if chat_message.content is None and chat_message.raw is not None:
-                    log_content = str(chat_message.raw)
-                else:
-                    log_content = str(chat_message.content) or ""
-
                 self.logger.log_markdown(
-                    content=log_content,
+                    content=str(chat_message.content or chat_message.raw or ""),
                     title="Output message of the LLM:",
                     level=LogLevel.DEBUG,
                 )
@@ -1663,7 +1652,7 @@ class CodeAgent(MultiStepAgent):
                 memory_step.model_output_message = chat_message
                 output_text = chat_message.content
                 self.logger.log_markdown(
-                    content=output_text,
+                    content=output_text or "",
                     title="Output message of the LLM:",
                     level=LogLevel.DEBUG,
                 )

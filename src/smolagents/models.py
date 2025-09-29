@@ -368,8 +368,11 @@ def supports_stop_parameter(model_id: str) -> bool:
         bool: True if the model supports the stop parameter, False otherwise
     """
     model_name = model_id.split("/")[-1]
-    # o3, o4-mini, and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
-    pattern = r"^(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*)$"
+    # o3, o4-mini, grok-3-mini, grok-4, grok-code-fast and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
+    openai_model_pattern = r"(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*)"
+    grok_model_pattern = r"([a-zA-Z]+\.)?(grok-3-mini|grok-4|grok-code-fast)(-[A-Za-z0-9]*)?"
+    pattern = rf"^({openai_model_pattern}|{grok_model_pattern})$"
+
     return not re.match(pattern, model_name)
 
 
@@ -923,6 +926,8 @@ class TransformersModel(Model):
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
+            tools_to_call_from=tools_to_call_from,
+            tool_choice=None,
             **kwargs,
         )
 
