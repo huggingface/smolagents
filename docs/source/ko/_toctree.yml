@@ -36,8 +36,8 @@
 #    title: (번역중) Build a web browser agent using vision models
 #  - local: examples/using_different_models
 #    title: (번역중) Using different models
-#  - local: examples/plan_customization
-#    title: "(번역중) Human-in-the-Loop: Customize agent plan interactively"
+  - local: examples/plan_customization
+    title: Human-in-the-Loop: 사용자와 상호작용하며 에이전트 계획 수정하기
 #  - local: examples/async_agent
 #    title: (번역중) Async Applications with Agents
 - title: Reference
