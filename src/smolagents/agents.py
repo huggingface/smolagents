@@ -17,7 +17,6 @@
 import importlib
 import json
 import os
-import re
 import tempfile
 import textwrap
 import time
@@ -96,11 +95,6 @@ from .utils import (
 
 
 logger = getLogger(__name__)
-
-
-def get_variable_names(self, template: str) -> set[str]:
-    pattern = re.compile(r"\{\{([^{}]+)\}\}")
-    return {match.group(1).strip() for match in pattern.finditer(template)}
 
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
@@ -665,20 +659,16 @@ You have been provided with these additional arguments, that you can access dire
                             plan_message_content += event.content
                             live.update(Markdown(plan_message_content))
                             if event.token_usage:
-                                output_tokens += event.token_usage.output_tokens
                                 input_tokens = event.token_usage.input_tokens
+                                output_tokens += event.token_usage.output_tokens
                         yield event
             else:
                 plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
                 plan_message_content = plan_message.content
-                input_tokens, output_tokens = (
-                    (
-                        plan_message.token_usage.input_tokens,
-                        plan_message.token_usage.output_tokens,
-                    )
-                    if plan_message.token_usage
-                    else (None, None)
-                )
+                input_tokens, output_tokens = 0, 0
+                if plan_message.token_usage:
+                    input_tokens = plan_message.token_usage.input_tokens
+                    output_tokens = plan_message.token_usage.output_tokens
             plan = textwrap.dedent(
                 f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
             )
@@ -727,17 +717,16 @@ You have been provided with these additional arguments, that you can access dire
                             plan_message_content += event.content
                             live.update(Markdown(plan_message_content))
                             if event.token_usage:
-                                output_tokens += event.token_usage.output_tokens
                                 input_tokens = event.token_usage.input_tokens
+                                output_tokens += event.token_usage.output_tokens
                         yield event
             else:
                 plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
                 plan_message_content = plan_message.content
-                if plan_message.token_usage is not None:
-                    input_tokens, output_tokens = (
-                        plan_message.token_usage.input_tokens,
-                        plan_message.token_usage.output_tokens,
-                    )
+                input_tokens, output_tokens = 0, 0
+                if plan_message.token_usage:
+                    input_tokens = plan_message.token_usage.input_tokens
+                    output_tokens = plan_message.token_usage.output_tokens
             plan = textwrap.dedent(
                 f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message_content}\n```"""
             )
@@ -1296,13 +1285,8 @@ class ToolCallingAgent(MultiStepAgent):
                     stop_sequences=["Observation:", "Calling tools:"],
                     tools_to_call_from=self.tools_and_managed_agents,
                 )
-                if chat_message.content is None and chat_message.raw is not None:
-                    log_content = str(chat_message.raw)
-                else:
-                    log_content = str(chat_message.content) or ""
-
                 self.logger.log_markdown(
-                    content=log_content,
+                    content=str(chat_message.content or chat_message.raw or ""),
                     title="Output message of the LLM:",
                     level=LogLevel.DEBUG,
                 )
@@ -1668,7 +1652,7 @@ class CodeAgent(MultiStepAgent):
                 memory_step.model_output_message = chat_message
                 output_text = chat_message.content
                 self.logger.log_markdown(
-                    content=output_text,
+                    content=output_text or "",
                     title="Output message of the LLM:",
                     level=LogLevel.DEBUG,
                 )

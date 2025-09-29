@@ -324,6 +324,32 @@ agent.run("Could you give me the 118th number in the Fibonacci sequence?")
 </hfoption>
 </hfoptions>
 
+### Model parameter management
+
+When initializing models, you can pass keyword arguments that will be forwarded as completion parameters to the
+underlying model API during inference.
+
+For fine-grained control over parameter handling, the `REMOVE_PARAMETER` sentinel value allows you to explicitly exclude
+parameters that might otherwise be set by default or passed through elsewhere:
+
+```python
+from smolagents import OpenAIServerModel, REMOVE_PARAMETER
+
+# Remove "stop" parameter
+model = OpenAIServerModel(
+    model_id="gpt-5",
+    stop=REMOVE_PARAMETER,  # Ensures "stop" is not included in API calls
+    temperature=0.7
+)
+
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+```
+
+This is particularly useful when:
+- You want to override default parameters that might be applied automatically
+- You need to ensure certain parameters are completely excluded from API calls
+- You want to let the model provider use their own defaults for specific parameters
+
 ## Advanced agent configuration
 
 ### Customizing agent termination conditions

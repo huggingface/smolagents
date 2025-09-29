@@ -26,7 +26,6 @@ import tempfile
 import time
 from contextlib import closing
 from io import BytesIO
-from pathlib import Path
 from textwrap import dedent
 from typing import Any, Optional
 
@@ -174,7 +173,12 @@ class E2BExecutor(RemotePythonExecutor):
             raise ModuleNotFoundError(
                 """Please install 'e2b' extra to use E2BExecutor: `pip install 'smolagents[e2b]'`"""
             )
-        self.sandbox = Sandbox(**kwargs)
+        # Support both e2b v1 and v2 constructors
+        # v2 exposes Sandbox.create(...), while v1 uses Sandbox(...)
+        if hasattr(Sandbox, "create"):
+            self.sandbox = Sandbox.create(**kwargs)
+        else:
+            self.sandbox = Sandbox(**kwargs)
         self.installed_packages = self.install_packages(additional_imports)
         self.logger.log("E2B is running", level=LogLevel.INFO)
 
@@ -366,7 +370,6 @@ class DockerExecutor(RemotePythonExecutor):
         super().__init__(additional_imports, logger)
         try:
             import docker
-            from websocket import create_connection
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "Please install 'docker' extra to use DockerExecutor: `pip install 'smolagents[docker]'`"
@@ -405,13 +408,8 @@ class DockerExecutor(RemotePythonExecutor):
 
             if build_new_image:
                 self.logger.log(f"Building Docker image {self.image_name}...", level=LogLevel.INFO)
-                dockerfile_path = Path(__file__).parent / "Dockerfile"
-                if not dockerfile_path.exists():
-                    with open(dockerfile_path, "w") as f:
-                        f.write(self.dockerfile_content)
-                _, build_logs = self.client.images.build(
-                    path=str(dockerfile_path.parent), dockerfile=str(dockerfile_path), tag=self.image_name
-                )
+                dockerfile_obj = BytesIO(self.dockerfile_content.encode("utf-8"))
+                _, build_logs = self.client.images.build(fileobj=dockerfile_obj, tag=self.image_name)
                 for log_chunk in build_logs:
                     # Only log non-empty messages
                     if log_message := log_chunk.get("stream", "").rstrip():
@@ -445,9 +443,7 @@ class DockerExecutor(RemotePythonExecutor):
 
             # Create new kernel via HTTP
             self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels", self.logger)
-
-            ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
-            self.ws = create_connection(ws_url)
+            self.ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
 
             self.installed_packages = self.install_packages(additional_imports)
             self.logger.log(
@@ -459,7 +455,10 @@ class DockerExecutor(RemotePythonExecutor):
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
-        return _websocket_run_code_raise_errors(code, self.ws, self.logger)
+        from websocket import create_connection
+
+        with closing(create_connection(self.ws_url)) as ws:
+            return _websocket_run_code_raise_errors(code, ws, self.logger)
 
     def cleanup(self):
         """Clean up the Docker container and resources."""

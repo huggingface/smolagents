@@ -48,14 +48,24 @@ class TestE2BExecutorUnit:
         with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
             mock_sandbox.return_value.commands.run.return_value.error = None
             mock_sandbox.return_value.run_code.return_value.error = None
+            # Also set up v2 path in case Sandbox.create is used
+            mock_sandbox.create.return_value.commands.run.return_value.error = None
+            mock_sandbox.create.return_value.run_code.return_value.error = None
             executor = E2BExecutor(
                 additional_imports=[], logger=logger, api_key="dummy-api-key", template="dummy-template-id", timeout=60
             )
         assert isinstance(executor, E2BExecutor)
         assert executor.logger == logger
-        assert executor.sandbox == mock_sandbox.return_value
-        assert mock_sandbox.call_count == 1
-        assert mock_sandbox.call_args.kwargs == {
+        # Support both e2b v1 (Sandbox(...)) and v2 (Sandbox.create(...))
+        if mock_sandbox.create.called:
+            sandbox_obj = mock_sandbox.create.return_value
+            called_ctor = mock_sandbox.create
+        else:
+            sandbox_obj = mock_sandbox.return_value
+            called_ctor = mock_sandbox
+        assert executor.sandbox == sandbox_obj
+        assert called_ctor.call_count == 1
+        assert called_ctor.call_args.kwargs == {
             "api_key": "dummy-api-key",
             "template": "dummy-template-id",
             "timeout": 60,
@@ -67,6 +77,8 @@ class TestE2BExecutorUnit:
         with patch("e2b_code_interpreter.Sandbox") as mock_sandbox:
             # Setup mock
             mock_sandbox.return_value.kill = MagicMock()
+            # Also set up v2 path in case Sandbox.create is used
+            mock_sandbox.create.return_value.kill = MagicMock()
 
             # Create executor
             executor = E2BExecutor(additional_imports=[], logger=logger, api_key="dummy-api-key")
@@ -75,7 +87,10 @@ class TestE2BExecutorUnit:
             executor.cleanup()
 
             # Verify sandbox was killed
-            mock_sandbox.return_value.kill.assert_called_once()
+            if mock_sandbox.create.called:
+                mock_sandbox.create.return_value.kill.assert_called_once()
+            else:
+                mock_sandbox.return_value.kill.assert_called_once()
             assert logger.log.call_count >= 2  # Should log start and completion messages
 
 
