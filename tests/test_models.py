@@ -47,6 +47,36 @@ from .utils.markers import require_run_all
 
 
 class TestModel:
+    def test_prepare_completion_kwargs_parameter_precedence(self):
+        """Test that self.kwargs have highest precedence and REMOVE_PARAMETER works correctly"""
+        from smolagents.models import REMOVE_PARAMETER
+
+        # Test with self.kwargs having highest precedence
+        model = Model(max_tokens=100, temperature=0.5)
+        completion_kwargs = model._prepare_completion_kwargs(
+            messages=[ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])],
+            max_tokens=50,  # This should be overridden by self.kwargs
+            top_p=0.9,  # This should remain from kwargs
+        )
+
+        # self.kwargs should have highest precedence
+        assert completion_kwargs["max_tokens"] == 100
+        assert completion_kwargs["temperature"] == 0.5
+        assert completion_kwargs["top_p"] == 0.9
+
+        # Test REMOVE_PARAMETER functionality
+        model_with_removal = Model(max_tokens=REMOVE_PARAMETER, temperature=0.7)
+        completion_kwargs = model_with_removal._prepare_completion_kwargs(
+            messages=[ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])],
+            max_tokens=200,  # This should be removed by REMOVE_PARAMETER
+            top_p=0.8,
+        )
+
+        # max_tokens should be removed, temperature should be set
+        assert "max_tokens" not in completion_kwargs
+        assert completion_kwargs["temperature"] == 0.7
+        assert completion_kwargs["top_p"] == 0.8
+
     def test_agglomerate_stream_deltas(self):
         from smolagents.models import (
             ChatMessageStreamDelta,
@@ -724,6 +754,13 @@ def test_flatten_messages_as_text_for_all_models(
         # Unsupported base models
         ("o3", False),
         ("o4-mini", False),
+        ("gpt-5", False),
+        ("gpt-5-mini", False),
+        ("gpt-5-nano", False),
+        ("grok-4", False),
+        ("grok-4-latest", False),
+        ("grok-3-mini", False),
+        ("grok-code-fast-1", False),
         # Unsupported versioned models
         ("o3-2025-04-16", False),
         ("o4-mini-2025-04-16", False),
@@ -732,12 +769,16 @@ def test_flatten_messages_as_text_for_all_models(
         ("openai/o4-mini", False),
         ("openai/o3-2025-04-16", False),
         ("openai/o4-mini-2025-04-16", False),
+        ("oci/xai.grok-4", False),
+        ("oci/xai.grok-3-mini", False),
         # Supported models
         ("o3-mini", True),  # Different from o3
         ("o3-mini-2025-01-31", True),  # Different from o3
         ("o4", True),  # Different from o4-mini
         ("o4-turbo", True),  # Different from o4-mini
         ("gpt-4", True),
+        ("gpt-5-turbo", True),  # Different from gpt-5
+        ("grok-3", True),  # Different from grok-3-mini
         ("claude-3-5-sonnet", True),
         ("mistral-large", True),
         # Supported models with path prefixes

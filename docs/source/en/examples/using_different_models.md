@@ -77,3 +77,41 @@ model = OpenAIServerModel(
     api_key=OPENROUTER_API_KEY,
 )
 ```
+
+## Using xAI's Grok Models
+
+xAI's Grok models can be accessed through [`LiteLLMModel`].
+
+Some models (such as "grok-4" and "grok-3-mini") don't support the `stop` parameter, so you'll need to use
+`REMOVE_PARAMETER` to exclude it from API calls.
+
+First, install the required dependencies:
+```bash
+pip install smolagents[litellm]
+```
+
+Then, [get an xAI API key](https://console.x.ai/) and set it in your code:
+```python
+XAI_API_KEY = <YOUR-XAI-API-KEY>
+```
+
+Now, you can initialize Grok models using the `LiteLLMModel` class and remove the `stop` parameter if applicable:
+```python
+from smolagents import LiteLLMModel, REMOVE_PARAMETER
+
+# Using Grok-4
+model = LiteLLMModel(
+    model_id="xai/grok-4",
+    api_key=XAI_API_KEY,
+    stop=REMOVE_PARAMETER,  # Remove stop parameter as grok-4 model doesn't support it
+    temperature=0.7
+)
+
+# Or using Grok-3-mini
+model_mini = LiteLLMModel(
+    model_id="xai/grok-3-mini",
+    api_key=XAI_API_KEY,
+    stop=REMOVE_PARAMETER,  # Remove stop parameter as grok-3-mini model doesn't support it
+    max_tokens=1000
+)
+```
