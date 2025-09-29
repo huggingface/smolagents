@@ -34,8 +34,8 @@
     title: 멀티 에이전트 시스템 오케스트레이션
 #  - local: examples/web_browser
 #    title: (번역중) Build a web browser agent using vision models
-#  - local: examples/using_different_models
-#    title: (번역중) Using different models
+  - local: examples/using_different_models
+    title: 다양한 모델 사용하기
 #  - local: examples/plan_customization
 #    title: "(번역중) Human-in-the-Loop: Customize agent plan interactively"
 #  - local: examples/async_agent
