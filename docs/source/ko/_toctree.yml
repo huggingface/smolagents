@@ -10,8 +10,8 @@
   sections:
   - local: tutorials/building_good_agents
     title: 좋은 에이전트 구축하기
-#  - local: tutorials/inspect_runs
-#    title: 📊 Inspect your agent runs using telemetry
+  - local: tutorials/inspect_runs
+    title: 📊 Telemetry로 에이전트 실행 검사하기
 #  - local: tutorials/tools
 #    title: 🛠️ Tools - in-depth guide
 #  - local: tutorials/secure_code_execution
