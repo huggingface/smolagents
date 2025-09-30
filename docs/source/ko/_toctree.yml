@@ -28,8 +28,8 @@
   sections:
   - local: examples/text_to_sql
     title: 스스로 오류를 수정하는 Text-to-SQL
-#  - local: examples/rag
-#    title: Master your knowledge base with agentic RAG
+  - local: examples/rag
+    title: Agentic RAG로 지식 베이스 완전 정복하기
   - local: examples/multiagents
     title: 멀티 에이전트 시스템 오케스트레이션
 #  - local: examples/web_browser
