@@ -10,7 +10,14 @@ from rich.console import Console
 from smolagents.default_tools import FinalAnswerTool, WikipediaSearchTool
 from smolagents.local_python_executor import CodeOutput
 from smolagents.monitoring import AgentLogger, LogLevel
-from smolagents.remote_executors import DockerExecutor, E2BExecutor, ModalExecutor, RemotePythonExecutor, WasmExecutor
+from smolagents.remote_executors import (
+    BlaxelExecutor,
+    DockerExecutor,
+    E2BExecutor,
+    ModalExecutor,
+    RemotePythonExecutor,
+    WasmExecutor,
+)
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
@@ -547,3 +554,72 @@ class TestWasmExecutorIntegration:
         with pytest.raises(AgentError) as excinfo:
             self.executor(code)
         assert "SyntaxError" in str(excinfo.value)
+
+
+class TestBlaxelExecutorUnit:
+    def test_blaxel_executor_instantiation_without_blaxel_sdk(self):
+        """Test that BlaxelExecutor raises appropriate error when blaxel SDK is not installed."""
+        logger = MagicMock()
+        with patch.dict("sys.modules", {"blaxel.core": None}):
+            with pytest.raises(ModuleNotFoundError) as excinfo:
+                BlaxelExecutor(additional_imports=[], logger=logger)
+            assert "Please install 'blaxel' extra" in str(excinfo.value)
+
+    @patch("blaxel.core.SandboxInstance")
+    def test_blaxel_executor_instantiation_with_blaxel_sdk(self, mock_sandbox_instance):
+        """Test BlaxelExecutor instantiation with mocked Blaxel SDK."""
+        logger = MagicMock()
+        mock_sandbox = MagicMock()
+        mock_sandbox_instance.create.return_value = mock_sandbox
+
+        with patch("asyncio.run") as mock_asyncio_run:
+            mock_asyncio_run.return_value = mock_sandbox
+            executor = BlaxelExecutor(additional_imports=[], logger=logger)
+
+            assert executor.sandbox_name == "smolagent-executor"
+            assert executor.image == "blaxel/prod-py-app:latest"
+            assert executor.memory == 4096
+            assert executor.region is None
+
+    @patch("blaxel.core.SandboxInstance")
+    def test_blaxel_executor_custom_parameters(self, mock_sandbox_instance):
+        """Test BlaxelExecutor with custom parameters."""
+        logger = MagicMock()
+        mock_sandbox = MagicMock()
+        mock_sandbox_instance.create.return_value = mock_sandbox
+
+        with patch("asyncio.run") as mock_asyncio_run:
+            mock_asyncio_run.return_value = mock_sandbox
+            executor = BlaxelExecutor(
+                additional_imports=["numpy"],
+                logger=logger,
+                sandbox_name="test-sandbox",
+                image="custom-image:latest",
+                memory=8192,
+                region="us-was-1",
+            )
+
+            assert executor.sandbox_name == "test-sandbox"
+            assert executor.image == "custom-image:latest"
+            assert executor.memory == 8192
+            assert executor.region == "us-was-1"
+
+    @patch("blaxel.core.SandboxInstance")
+    @patch("blaxel.core.client.api.compute.delete_sandbox")
+    def test_blaxel_executor_cleanup(self, mock_delete_sandbox, mock_sandbox_instance):
+        """Test BlaxelExecutor cleanup method."""
+        logger = MagicMock()
+        mock_sandbox = MagicMock()
+        mock_sandbox_instance.create.return_value = mock_sandbox
+
+        with patch("asyncio.run") as mock_asyncio_run:
+            mock_asyncio_run.return_value = mock_sandbox
+            executor = BlaxelExecutor(additional_imports=[], logger=logger)
+
+            # Test cleanup
+            executor.cleanup()
+
+            # Verify that delete_sandbox.sync was called
+            assert mock_delete_sandbox.sync.called
+            # Verify sandbox reference was cleaned up
+            assert not hasattr(executor, "sandbox")
