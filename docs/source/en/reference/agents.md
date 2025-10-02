@@ -67,6 +67,10 @@ Smolagents use memory to store information across multiple steps.
 
 [[autodoc]] smolagents.remote_executors.RemotePythonExecutor
 
+#### BlaxelExecutor
+
+[[autodoc]] smolagents.remote_executors.BlaxelExecutor
+
 #### E2BExecutor
 
 [[autodoc]] smolagents.remote_executors.E2BExecutor
