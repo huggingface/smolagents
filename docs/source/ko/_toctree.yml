@@ -16,8 +16,8 @@
 #    title: 🛠️ Tools - in-depth guide
 #  - local: tutorials/secure_code_execution
 #    title: 🛡️ Secure code execution
-#  - local: tutorials/memory
-#    title: 📚 Manage your agent's memory
+  - local: tutorials/memory
+    title: 📚 에이전트 메모리 관리
 - title: Conceptual guides
   sections:
 #  - local: conceptual_guides/intro_agents
