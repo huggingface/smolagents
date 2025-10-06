@@ -33,7 +33,7 @@
   - local: examples/multiagents
     title: 멀티 에이전트 시스템 오케스트레이션
   - local: examples/web_browser
-    title: 비전 모델을 이용한 에이전트를 웹 브라우저 에이전트 만들기
+    title: 비전 모델을 활용한 웹 브라우저 에이전트 만들기
 #  - local: examples/using_different_models
 #    title: (번역중) Using different models
 #  - local: examples/plan_customization
