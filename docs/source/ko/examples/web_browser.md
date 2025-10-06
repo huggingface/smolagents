@@ -131,7 +131,7 @@ agent = CodeAgent(
 agent.python_executor("from helium import *", agent.state)
 ```
 
-에이전트는 웹 자동화를 위해 Helium을 사용하는 방법에 대한 지침이 필요합니다. 다음은 제공할 지침입니다:
+에이전트가 웹 자동화를 위해 Helium을 사용하려면 지침이 필요합니다. 다음은 제공할 지침입니다:
 
 ```python
 helium_instructions = """
@@ -193,7 +193,7 @@ print("Final output:")
 print(agent_output)
 ```
 
-요청을 수정하여 다른 작업을 실행할 수 있습니다. 예를 들어, 제가 더 열심히 일해야 하는지 알아보기 위한 것입니다:
+요청을 수정하여 다른 작업을 실행할 수 있습니다. 예를 들어, 제가 얼마나 열심히 일해야 하는지 알아보는 작업입니다:
 
 ```python
 github_request = """
