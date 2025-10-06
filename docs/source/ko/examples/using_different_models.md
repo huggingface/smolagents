@@ -8,13 +8,13 @@
 ## 사용 가능한 모델 유형 [[available-model-types]]
 
 `smolagents`는 기본적으로 여러 모델 유형을 지원합니다:
-1. [`InferenceClientModel`]: Hugging Face의 추론 API를 사용하여 모델에 액세스
+1. [`InferenceClientModel`]: Hugging Face의 추론 API를 사용하여 모델에 접근
 2. [`TransformersModel`]: 🤗 Transformers 라이브러리를 사용하여 로컬에서 모델 실행
 3. [`VLLMModel`]: 최적화된 서빙으로 빠른 추론을 위해 vLLM 사용
 4. [`MLXModel`]: MLX를 사용하여 Apple Silicon 디바이스에 최적화
-5. [`LiteLLMModel`]: LiteLLM을 통해 수백 개의 대규모 언어 모델에 액세스 제공
+5. [`LiteLLMModel`]: LiteLLM을 통해 수백 개의 대규모 언어 모델에 접근 제공
 6. [`LiteLLMRouterModel`]: 여러 모델 간에 요청을 분산
-7. [`OpenAIServerModel`]: OpenAI 호환 API를 구현하는 모든 프로바이더에 액세스 제공
+7. [`OpenAIServerModel`]: OpenAI 호환 API를 구현하는 모든 프로바이더에 접근 제공
 8. [`AzureOpenAIServerModel`]: Azure의 OpenAI 서비스 사용
 9. [`AmazonBedrockServerModel`]: AWS Bedrock의 API에 연결
 
@@ -52,7 +52,7 @@ model = OpenAIServerModel(
 
 ## OpenRouter 모델 사용하기 [[using-openrouter-models]]
 
-OpenRouter는 통합된 OpenAI 호환 API를 통해 다양한 언어 모델에 대한 액세스를 제공합니다.
+OpenRouter는 통합된 OpenAI 호환 API를 통해 다양한 언어 모델에 대한 접근을 제공합니다.
 적절한 베이스 URL을 설정하여 [`OpenAIServerModel`]을 사용해 OpenRouter에 연결할 수 있습니다.
 
 먼저, 필요한 의존성을 설치합니다:
@@ -80,7 +80,7 @@ model = OpenAIServerModel(
 
 ## xAI의 Grok 모델 사용하기 [[using-xais-grok-models]]
 
-xAI의 Grok 모델은 [`LiteLLMModel`]을 통해 액세스할 수 있습니다.
+xAI의 Grok 모델은 [`LiteLLMModel`]을 통해 접근할 수 있습니다.
 
 일부 모델("grok-4" 및 "grok-3-mini" 등)은 `stop` 매개변수를 지원하지 않으므로,
 API 호출에서 이를 제외하기 위해 `REMOVE_PARAMETER`를 사용해야 합니다.
