@@ -2,7 +2,7 @@
 
 [[open-in-colab]]
 
-이 안내서에서는 에이전트를 구축하는 방법, 실행하는 방법, 그리고 사용 사례에 맞게 더 잘 작동하도록 커스터마이징하는 방법을 학습합니다.
+이 안내서에서는 에이전트를 구축하는 방법, 실행하는 방법, 그리고 사용 사례에 맞게 더 잘 작동하도록 맞춤 설정하는 방법을 학습합니다.
 
 ## 에이전트 유형 선택: CodeAgent 또는 ToolCallingAgent[[choosing-an-agent-type:-codeagent-or-toolcallingagent]]
 
@@ -325,7 +325,7 @@ agent.run("Could you give me the 118th number in the Fibonacci sequence?")
 
 ## 고급 에이전트 구성[[advanced-agent-configuration]]
 
-### 에이전트 종료 조건 커스터마이징[[customizing-agent-termination-conditions]]
+### 에이전트 종료 조건 맞춤 설정[[customizing-agent-termination-conditions]]
 
 기본적으로 에이전트는 `final_answer` 함수를 호출하거나 최대 단계 수에 도달할 때까지 계속 실행됩니다.
 `final_answer_checks` 매개변수는 에이전트가 실행을 종료하는 시점과 방법을 더 세밀하게 제어할 수 있게 해줍니다:
