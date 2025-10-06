@@ -9,7 +9,7 @@
 
 에이전트 실행을 디버깅하는 것은 복잡한 작업입니다.
 
-실행이 제대로 진행되었는지 확인하기가 어렵습니다. 에이전트 워크플로우는 설계상 예측 불가능하기 때문입니다(만약 예측 가능했다면 일반적인 코드를 사용했을 것입니다).
+실행이 제대로 진행되었는지 확인하기 어렵습니다. 에이전트 워크플로우는 설계상 예측 불가능하기 때문입니다(만약 예측 가능했다면 일반적인 코드를 사용했을 것입니다).
 
 실행 과정을 살펴보는 것도 쉽지 않습니다. 다단계 에이전트는 콘솔을 로그로 빠르게 채우는 경향이 있으며, 대부분의 오류는 단순한 "LLM의 실수" 유형으로, LLM이 다음 단계에서 더 나은 코드나 도구 호출을 작성하여 스스로 교정합니다.
 
@@ -33,7 +33,7 @@
 pip install 'smolagents[telemetry,toolkit]'
 ```
 
-그다음 백그라운드에서 수집기를 실행하세요.
+그 다음 백그라운드에서 수집기를 실행하세요.
 
 ```shell
 python -m phoenix.server.main serve
@@ -82,7 +82,7 @@ manager_agent.run(
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/inspect_run_phoenix.png">
 
-CodeAgent가 관리하는 ToolCallingAgent를 호출해서(참고로 관리되는 에이전트는 CodeAgent가 될 수도 있습니다) 미국 2024년 성장률을 웹에서 검색하도록 요청한 것을 확인할 수 있습니다. 이후 관리되는 에이전트가 결과를 보고하면, 관리자 에이전트가 이 정보를 활용하여 경제 배증 시간을 계산했습니다! 흥미롭죠?
+CodeAgent가 관리하는 ToolCallingAgent를 호출하여(참고로 관리되는 에이전트는 CodeAgent가 될 수도 있습니다) 미국 2024년 성장률을 웹에서 검색하도록 요청한 것을 확인할 수 있습니다. 이후 관리되는 에이전트가 결과를 보고하면, 관리자 에이전트가 이 정보를 활용하여 경제 배증 시간을 계산했습니다! 흥미롭죠?
 
 ## 🪢 Langfuse로 텔레메트리 설정[[setting-up-telemetry-with-🪢-langfuse]]
 
