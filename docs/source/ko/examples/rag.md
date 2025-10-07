@@ -101,7 +101,7 @@ print(f"Knowledge base prepared with {len(docs_processed)} document chunks")
 
 ### 3단계: 검색 도구 만들기[[step-3-create-a-retriever-tool]]
 
-이제 에이전트가 지식 베이스에서 정보를 검색하는 데 사용할 수 있는 사용자 정의 도구를 만들어 보겠습니다:
+이제 에이전트가 지식 베이스에서 정보를 검색하는 데 사용할 수 있는 사용자 정의 도구를 만들어 보겠습니다.
 
 ```python
 from smolagents import Tool
