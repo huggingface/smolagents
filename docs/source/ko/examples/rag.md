@@ -56,7 +56,7 @@ RAG는 기본 대규모 언어 모델이나 미세 조정된 모델을 사용하
 pip install smolagents pandas langchain langchain-community sentence-transformers datasets python-dotenv rank_bm25 --upgrade
 ```
 
-허깅 페이스의 추론 API를 사용하려면 API 토큰을 설정해야 합니다:
+허깅 페이스의 추론 API를 사용하려면 API 토큰을 설정해야 합니다.
 
 ```python
 # 환경 변수 로드 (HF_TOKEN 포함)
