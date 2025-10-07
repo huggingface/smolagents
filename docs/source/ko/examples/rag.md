@@ -50,7 +50,7 @@ RAG는 기본 대규모 언어 모델이나 미세 조정된 모델을 사용하
 
 ### 1단계: 필요한 의존성 설치하기[[step-1-install-required-dependencies]]
 
-먼저, 필요한 패키지를 설치해야 합니다:
+먼저, 필요한 패키지를 설치해야 합니다.
 
 ```bash
 pip install smolagents pandas langchain langchain-community sentence-transformers datasets python-dotenv rank_bm25 --upgrade
