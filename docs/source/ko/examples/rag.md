@@ -44,7 +44,7 @@ RAG는 기본 대규모 언어 모델이나 미세 조정된 모델을 사용하
 
 ## Agentic RAG 시스템 구축하기[[building-an-agentic-rag-system]]
 
-이제 단계별로 Agentic RAG 시스템을 구축해 보겠습니다. 이 예제에서는 허깅 페이스 Transformers 라이브러리 설명서를 검색해 질문에 답할 수 있는 에이전트를 만들 것입니다.
+이제 단계별로 Agentic RAG 시스템을 구축해 보겠습니다. 이 예제에서는 허깅 페이스 Transformers 라이브러리 설명서를 검색해 질문에 답할 수 있는 에이전트를 만들어 보겠습니다.
 
 아래 코드 스니펫을 따라 하거나, smolagents GitHub 리포지토리에서 전체 예제를 확인할 수 있습니다: [examples/rag.py](https://github.com/huggingface/smolagents/blob/main/examples/rag.py).
 
