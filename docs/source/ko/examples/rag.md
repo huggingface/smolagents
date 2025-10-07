@@ -66,7 +66,7 @@ load_dotenv()
 
 ### 2단계: 지식 베이스 준비하기[[step-2-prepare-the-knowledge-base]]
 
-허깅 페이스 설명서가 포함된 데이터 세트를 사용하여 검색을 위해 준비해 보겠습니다:
+허깅 페이스 설명서가 포함된 데이터 세트를 불러와 검색에 사용할 준비를 해보겠습니다.
 
 ```python
 import datasets
