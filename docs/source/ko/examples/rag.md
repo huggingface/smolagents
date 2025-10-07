@@ -186,7 +186,7 @@ print(agent_output)
 
 ## Agentic RAG의 실제 적용 사례[[practical-applications-of-agentic-rag]]
 
-Agentic RAG 시스템은 다양한 사용 사례에 적용될 수 있습니다:
+Agentic RAG 시스템은 다양한 사용 사례에 적용될 수 있습니다.
 
 1. **기술 문서 지원**: 사용자가 복잡한 기술 문서를 탐색하는 데 도움을 줍니다.
 2. **연구 논문 분석**: 과학 논문에서 정보를 추출하고 종합합니다.
