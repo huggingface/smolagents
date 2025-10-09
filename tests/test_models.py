@@ -418,7 +418,7 @@ class TestLiteLLMModel:
         mock_litellm = MagicMock()
 
         with (
-            patch("smolagents.models.TENACITY_WAIT", 2),
+            patch("smolagents.models.TENACITY_WAIT", 1),
             patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
         ):
             model = LiteLLMModel(model_id="test-model")
@@ -452,8 +452,8 @@ class TestLiteLLMModel:
             assert result.token_usage.input_tokens == 10
             assert result.token_usage.output_tokens == 20
 
-            # Verify that the wait time was between 1.5 and 2.5 seconds
-            assert 1.5 <= elapsed_time <= 2.5, f"Expected wait time between 1.5-2.5s, got {elapsed_time:.2f}s"
+            # Verify that the wait time was around 1s
+            assert 0.9 <= elapsed_time <= 1.1
 
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
