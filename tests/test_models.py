@@ -410,6 +410,41 @@ class TestLiteLLMModel:
             f"Error message '{error_message}' does not contain any expected phrases"
         )
 
+    def test_retry_on_rate_limit_error(self):
+        """Test that the tenacity retry mechanism triggers on 429 rate limit errors"""
+        # Mock the litellm import
+        mock_litellm = MagicMock()
+
+        with patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm):
+            model = LiteLLMModel(model_id="test-model")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
+
+            # Create a mock response for successful call
+            mock_success_response = MagicMock()
+            mock_success_response.choices = [MagicMock()]
+            mock_success_response.choices[0].message.model_dump.return_value = {
+                "role": "assistant",
+                "content": "Success response",
+                "tool_calls": None,
+            }
+            mock_success_response.usage.prompt_tokens = 10
+            mock_success_response.usage.completion_tokens = 20
+
+            # Create a 429 rate limit error
+            rate_limit_error = Exception("Error code: 429 - Rate limit exceeded")
+
+            # Mock the litellm client to raise error first, then succeed
+            model.client.completion.side_effect = [rate_limit_error, mock_success_response]
+
+            # Call generate and verify it retries and succeeds
+            result = model.generate(messages)
+
+            # Verify that completion was called twice (once failed, once succeeded)
+            assert model.client.completion.call_count == 2
+            assert result.content == "Success response"
+            assert result.token_usage.input_tokens == 10
+            assert result.token_usage.output_tokens == 20
+
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
         assert not model.flatten_messages_as_text
