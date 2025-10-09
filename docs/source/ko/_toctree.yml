@@ -21,7 +21,7 @@
 - title: 참고문헌
   sections:
   - local: reference/agents
-    title: 에이전트
+    title: 에이전트 관련 객체
   - local: reference/models
     title: Model-related objects
   - title: Tools
