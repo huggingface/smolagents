@@ -412,10 +412,15 @@ class TestLiteLLMModel:
 
     def test_retry_on_rate_limit_error(self):
         """Test that the tenacity retry mechanism triggers on 429 rate limit errors"""
-        # Mock the litellm import
+        import time
+
+        # Patch TENACITY_WAIT to 2 seconds for faster testing (must be done before creating the model)
         mock_litellm = MagicMock()
 
-        with patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm):
+        with (
+            patch("smolagents.models.TENACITY_WAIT", 2),
+            patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
+        ):
             model = LiteLLMModel(model_id="test-model")
             messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
 
@@ -436,14 +441,19 @@ class TestLiteLLMModel:
             # Mock the litellm client to raise error first, then succeed
             model.client.completion.side_effect = [rate_limit_error, mock_success_response]
 
-            # Call generate and verify it retries and succeeds
+            # Measure time to verify retry wait time
+            start_time = time.time()
             result = model.generate(messages)
+            elapsed_time = time.time() - start_time
 
             # Verify that completion was called twice (once failed, once succeeded)
             assert model.client.completion.call_count == 2
             assert result.content == "Success response"
             assert result.token_usage.input_tokens == 10
             assert result.token_usage.output_tokens == 20
+
+            # Verify that the wait time was between 1.5 and 2.5 seconds
+            assert 1.5 <= elapsed_time <= 2.5, f"Expected wait time between 1.5-2.5s, got {elapsed_time:.2f}s"
 
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)

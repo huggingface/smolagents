@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 TENACITY_WAIT = 120
-TENACITY_RETRIES = 5
+TENACITY_RETRIES = 3
 STRUCTURED_GENERATION_PROVIDERS = ["cerebras", "fireworks-ai"]
 CODEAGENT_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -1080,8 +1080,8 @@ class ApiModel(Model):
             Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
         requests_per_minute (`float`, **optional**):
             Rate limit in requests per minute.
-        retries (`int`, **optional**):
-            Number of retry attempts for rate limit errors. Defaults to TENACITY_RETRIES (5).
+        retry (`bool`, **optional**):
+            Wether to retry on rate limit errors, up to TENACITY_RETRIES times. Defaults to True.
         **kwargs:
             Additional keyword arguments to forward to the underlying model completion call.
     """
@@ -1092,7 +1092,7 @@ class ApiModel(Model):
         custom_role_conversions: dict[str, str] | None = None,
         client: Any | None = None,
         requests_per_minute: float | None = None,
-        retries: int | None = None,
+        retry: bool = True,
         **kwargs,
     ):
         from tenacity import Retrying
@@ -1101,10 +1101,8 @@ class ApiModel(Model):
         self.custom_role_conversions = custom_role_conversions or {}
         self.client = client or self.create_client()
         self.rate_limiter = RateLimiter(requests_per_minute)
-
-        # Create retryer with instance-specific configuration
         self.retryer = Retrying(
-            stop=stop_after_attempt(retries if retries is not None else TENACITY_RETRIES),
+            stop=stop_after_attempt(TENACITY_RETRIES) if retry else stop_after_attempt(1),
             wait=wait_fixed(TENACITY_WAIT),
             retry=retry_if_exception(is_rate_limit_error),
             reraise=True,
