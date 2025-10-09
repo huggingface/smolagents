@@ -9,7 +9,7 @@
 
 과거 실행된 에이전트를 확인하기 위한 몇 가지 기능을 제공합니다.
 
-[계측 가이드](./inspect_runs)에 강조된 바와 같이, 에이전트 실행을 계측하여 특정 단계를 확대하거나 축소할 수 있는 우수한 UI로 시각화할 수 있습니다.
+[계측 가이드](./inspect_runs)에서 언급한 바와 같이, 에이전트 실행을 계측하여 특정 단계를 확대하거나 축소할 수 있는 우수한 UI로 시각화할 수 있습니다.
 
 또한 다음과 같이 `agent.replay()`를 사용할 수도 있습니다:
 
@@ -57,10 +57,10 @@ for step in agent.memory.steps:
 
 또한 단계 콜백을 사용하여 에이전트의 메모리를 동적으로 변경할 수도 있습니다.
 
-단계 콜백은 인자로 `agent` 객체 자체에 접근할 수 있으므로, 위에서 설명한 것 처럼 모든 메모리 단계에 접근하여 필요한 경우 수정할 수 있습니다. 예를 들어, 웹 브라우저 에이전트가 수행하는 각 단계의 스크린샷을 관찰하고 있다고 가정해 보겠습니다. 이 경우 최신 스크린샷은 유지하면서 토큰 비용을 절약하기 위해 이전 단계의 이미지를 메모리에서 제거하고 싶을 수 있습니다.
+단계 콜백은 인자로 `agent` 객체 자체에 접근할 수 있으므로, 위에서 설명한 것처럼 모든 메모리 단계에 접근하여 필요한 경우 수정할 수 있습니다. 예를 들어, 웹 브라우저 에이전트가 수행하는 각 단계의 스크린샷을 관찰하고 있다고 가정해 보겠습니다. 이 경우 최신 스크린샷은 유지하면서 토큰 비용을 절약하기 위해 이전 단계의 이미지를 메모리에서 제거할 수 있습니다.
 
 이 경우 다음과 같은 코드를 사용할 수 있습니다.
-_주의 : 이 코드는 간결함을 위해 일부 임포트 및 객체 정의가 생략된 불완전한 예시입니다. 전체 작동 버전의 코드는 [원본 스크립트](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)애서 확인하세요._
+_주의: 이 코드는 간결함을 위해 일부 임포트 및 객체 정의가 생략된 불완전한 예시입니다. 전체 작동 버전의 코드는 [원본 스크립트](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)에서 확인하세요._
 
 ```py
 import helium
@@ -69,7 +69,7 @@ from io import BytesIO
 from time import sleep
 
 def update_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
-    sleep(1.0)  # avaScript 애니메이션이 완료된 후에 스크린샷을 찍도록 합니다.
+    sleep(1.0)  # JavaScript 애니메이션이 완료된 후에 스크린샷을 찍도록 합니다.
     driver = helium.get_driver()
     latest_step = memory_step.step_number
     for previous_memory_step in agent.memory.steps:  # 이전 스크린샷을 로그에서 제거하여 처리 과정을 간소화합니다.
