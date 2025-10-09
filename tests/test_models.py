@@ -23,6 +23,7 @@ from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.default_tools import FinalAnswerTool
 from smolagents.models import (
+    AmazonBedrockModel,
     AzureOpenAIModel,
     ChatMessage,
     ChatMessageToolCall,
