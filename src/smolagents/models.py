@@ -24,6 +24,15 @@ from enum import Enum
 from threading import Thread
 from typing import TYPE_CHECKING, Any
 
+from tenacity import (
+    after_log,
+    before_sleep_log,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_fixed,
+)
+
 from .monitoring import TokenUsage
 from .tools import Tool
 from .utils import RateLimiter, _is_package_available, encode_image_base64, make_image_url, parse_json_blob
@@ -35,6 +44,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+TENACITY_WAIT = 120
+TENACITY_RETRIES = 5
 STRUCTURED_GENERATION_PROVIDERS = ["cerebras", "fireworks-ai"]
 CODEAGENT_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -1095,6 +1106,17 @@ class ApiModel(Model):
         self.rate_limiter.throttle()
 
 
+def is_rate_limit_error(exception):
+    """Check if the exception is a rate limit error."""
+    error_str = str(exception).lower()
+    return (
+        "429" in error_str
+        or "rate limit" in error_str
+        or "too many requests" in error_str
+        or "rate_limit" in error_str
+    )
+
+
 class LiteLLMModel(ApiModel):
     """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
 
@@ -1156,6 +1178,14 @@ class LiteLLMModel(ApiModel):
 
         return litellm
 
+    @retry(
+        stop=stop_after_attempt(TENACITY_RETRIES),
+        wait=wait_fixed(TENACITY_WAIT),
+        retry=retry_if_exception(is_rate_limit_error),
+        reraise=True,
+        before_sleep=before_sleep_log(logger, logging.INFO),
+        after=after_log(logger, logging.INFO),
+    )
     def generate(
         self,
         messages: list[ChatMessage | dict],
@@ -1193,6 +1223,14 @@ class LiteLLMModel(ApiModel):
             ),
         )
 
+    @retry(
+        stop=stop_after_attempt(TENACITY_RETRIES),
+        wait=wait_fixed(TENACITY_WAIT),
+        retry=retry_if_exception(is_rate_limit_error),
+        reraise=True,
+        before_sleep=before_sleep_log(logger, logging.INFO),
+        after=after_log(logger, logging.INFO),
+    )
     def generate_stream(
         self,
         messages: list[ChatMessage | dict],
@@ -1435,6 +1473,14 @@ class InferenceClientModel(ApiModel):
 
         return InferenceClient(**self.client_kwargs)
 
+    @retry(
+        stop=stop_after_attempt(TENACITY_RETRIES),
+        wait=wait_fixed(TENACITY_WAIT),
+        retry=retry_if_exception(is_rate_limit_error),
+        reraise=True,
+        before_sleep=before_sleep_log(logger, logging.INFO),
+        after=after_log(logger, logging.INFO),
+    )
     def generate(
         self,
         messages: list[ChatMessage | dict],
@@ -1468,6 +1514,14 @@ class InferenceClientModel(ApiModel):
             ),
         )
 
+    @retry(
+        stop=stop_after_attempt(TENACITY_RETRIES),
+        wait=wait_fixed(TENACITY_WAIT),
+        retry=retry_if_exception(is_rate_limit_error),
+        reraise=True,
+        before_sleep=before_sleep_log(logger, logging.INFO),
+        after=after_log(logger, logging.INFO),
+    )
     def generate_stream(
         self,
         messages: list[ChatMessage | dict],
@@ -1581,6 +1635,14 @@ class OpenAIServerModel(ApiModel):
 
         return openai.OpenAI(**self.client_kwargs)
 
+    @retry(
+        stop=stop_after_attempt(TENACITY_RETRIES),
+        wait=wait_fixed(TENACITY_WAIT),
+        retry=retry_if_exception(is_rate_limit_error),
+        reraise=True,
+        before_sleep=before_sleep_log(logger, logging.INFO),
+        after=after_log(logger, logging.INFO),
+    )
     def generate_stream(
         self,
         messages: list[ChatMessage | dict],
@@ -1632,6 +1694,14 @@ class OpenAIServerModel(ApiModel):
                     if not getattr(choice, "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
 
+    @retry(
+        stop=stop_after_attempt(TENACITY_RETRIES),
+        wait=wait_fixed(TENACITY_WAIT),
+        retry=retry_if_exception(is_rate_limit_error),
+        reraise=True,
+        before_sleep=before_sleep_log(logger, logging.INFO),
+        after=after_log(logger, logging.INFO),
+    )
     def generate(
         self,
         messages: list[ChatMessage | dict],
@@ -1886,6 +1956,14 @@ class AmazonBedrockServerModel(ApiModel):
 
         return boto3.client("bedrock-runtime", **self.client_kwargs)
 
+    @retry(
+        stop=stop_after_attempt(TENACITY_RETRIES),
+        wait=wait_fixed(TENACITY_WAIT),
+        retry=retry_if_exception(is_rate_limit_error),
+        reraise=True,
+        before_sleep=before_sleep_log(logger, logging.INFO),
+        after=after_log(logger, logging.INFO),
+    )
     def generate(
         self,
         messages: list[ChatMessage | dict],
