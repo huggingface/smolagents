@@ -435,7 +435,10 @@ class Model:
         self.tool_arguments_key = tool_arguments_key
         self.kwargs = kwargs
         self.model_id: str | None = model_id
-        self.supports_stop_parameter = supports_stop_parameter(self.model_id or "")
+
+    @property
+    def model_supports_stop_parameter(self) -> bool:
+        return supports_stop_parameter(self.model_id or "")
 
     def _prepare_completion_kwargs(
         self,
@@ -469,7 +472,7 @@ class Model:
             "messages": messages_as_dicts,
         }
         # Override with specific parameters
-        if stop_sequences is not None and self.supports_stop_parameter:
+        if stop_sequences is not None and self.model_supports_stop_parameter:
             # Some models do not support stop parameter
             completion_kwargs["stop"] = stop_sequences
         if response_format is not None:
@@ -665,7 +668,7 @@ class VLLMModel(Model):
         )
 
         output_text = out[0].outputs[0].text
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and not self.model_supports_stop_parameter:
             output_text = remove_content_after_stop_sequences(output_text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
@@ -774,7 +777,7 @@ class MLXModel(Model):
             if any((stop_index := text.rfind(stop)) != -1 for stop in stops):
                 text = text[:stop_index]
                 break
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and not self.model_supports_stop_parameter:
             text = remove_content_after_stop_sequences(text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
@@ -1193,7 +1196,7 @@ class LiteLLMModel(ApiModel):
                 f"Response details: {response.model_dump()}"
             )
         content = response.choices[0].message.content
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and not self.model_supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response.choices[0].message.role,
@@ -1473,7 +1476,7 @@ class InferenceClientModel(ApiModel):
         self._apply_rate_limit()
         response = self.client.chat_completion(**completion_kwargs)
         content = response.choices[0].message.content
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and not self.model_supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response.choices[0].message.role,
@@ -1671,7 +1674,7 @@ class OpenAIServerModel(ApiModel):
         self._apply_rate_limit()
         response = self.client.chat.completions.create(**completion_kwargs)
         content = response.choices[0].message.content
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and not self.model_supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response.choices[0].message.role,
@@ -1938,7 +1941,7 @@ class AmazonBedrockServerModel(ApiModel):
             raise KeyError("No message content blocks with 'text' key found in response")
         # Keep the last one
         content = message_content_blocks_with_text[-1]["text"]
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and not self.model_supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response["output"]["message"]["role"],

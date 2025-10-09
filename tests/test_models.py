@@ -23,8 +23,7 @@ from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.default_tools import FinalAnswerTool
 from smolagents.models import (
-    AmazonBedrockServerModel,
-    AzureOpenAIServerModel,
+    AzureOpenAIModel,
     ChatMessage,
     ChatMessageToolCall,
     InferenceClientModel,
@@ -33,7 +32,7 @@ from smolagents.models import (
     MessageRole,
     MLXModel,
     Model,
-    OpenAIServerModel,
+    OpenAIModel,
     TransformersModel,
     get_clean_message_list,
     get_tool_call_from_text,
@@ -453,7 +452,7 @@ class TestLiteLLMRouterModel:
             assert router_model.client == mock_router.return_value
 
 
-class TestOpenAIServerModel:
+class TestOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
         model_id = "gpt-3.5-turbo"
         api_base = "https://api.openai.com/v1"
@@ -463,7 +462,7 @@ class TestOpenAIServerModel:
         client_kwargs = {"max_retries": 5}
 
         with patch("openai.OpenAI") as MockOpenAI:
-            model = OpenAIServerModel(
+            model = OpenAIModel(
                 model_id=model_id,
                 api_base=api_base,
                 api_key=api_key,
@@ -478,7 +477,7 @@ class TestOpenAIServerModel:
 
     @require_run_all
     def test_streaming_tool_calls(self):
-        model = OpenAIServerModel(model_id="gpt-4o-mini")
+        model = OpenAIModel(model_id="gpt-4o-mini")
         messages = [
             ChatMessage(
                 role=MessageRole.USER,
@@ -500,20 +499,45 @@ class TestOpenAIServerModel:
         assert args == '{"answer": "blob"}'
         assert args2 == '{"answer": "blob2"}'
 
+    def test_stop_sequence_cutting_for_o4_mini(self):
+        """Test that stop sequences are cut a posteriori for models that don't support stop parameter"""
+        # Create a mock response that contains a stop sequence in the middle
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.content = "This is some text<STOP>and this should be removed"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
 
-class TestAmazonBedrockServerModel:
+        with patch("openai.OpenAI") as MockOpenAI:
+            mock_client = MagicMock()
+            MockOpenAI.return_value = mock_client
+            mock_client.chat.completions.create.return_value = mock_response
+
+            model = OpenAIModel(model_id="o4-mini")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+            result = model.generate(messages, stop_sequences=["<STOP>"])
+
+            # Verify the stop sequence was removed
+            assert result.content == "This is some text"
+            assert "<STOP>" not in result.content
+            assert "and this should be removed" not in result.content
+
+
+class TestAmazonBedrockModel:
     def test_client_for_bedrock(self):
         model_id = "us.amazon.nova-pro-v1:0"
 
         with patch("boto3.client") as MockBoto3:
-            model = AmazonBedrockServerModel(
+            model = AmazonBedrockModel(
                 model_id=model_id,
             )
 
         assert model.client == MockBoto3.return_value
 
 
-class TestAzureOpenAIServerModel:
+class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
         model_id = "gpt-3.5-turbo"
         api_key = "test_api_key"
@@ -524,7 +548,7 @@ class TestAzureOpenAIServerModel:
         client_kwargs = {"max_retries": 5}
 
         with patch("openai.OpenAI") as MockOpenAI, patch("openai.AzureOpenAI") as MockAzureOpenAI:
-            model = AzureOpenAIServerModel(
+            model = AzureOpenAIModel(
                 model_id=model_id,
                 api_key=api_key,
                 api_version=api_version,
@@ -700,15 +724,15 @@ def test_get_clean_message_list_flatten_messages_as_text():
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
-        (AzureOpenAIServerModel, {}, ("openai.AzureOpenAI", {}), False),
+        (AzureOpenAIModel, {}, ("openai.AzureOpenAI", {}), False),
         (InferenceClientModel, {}, ("huggingface_hub.InferenceClient", {}), False),
         (LiteLLMModel, {}, None, False),
         (LiteLLMModel, {"model_id": "ollama"}, None, True),
         (LiteLLMModel, {"model_id": "groq"}, None, True),
         (LiteLLMModel, {"model_id": "cerebras"}, None, True),
         (MLXModel, {}, ("mlx_lm.load", {"return_value": (MagicMock(), MagicMock())}), True),
-        (OpenAIServerModel, {}, ("openai.OpenAI", {}), False),
-        (OpenAIServerModel, {"flatten_messages_as_text": True}, ("openai.OpenAI", {}), True),
+        (OpenAIModel, {}, ("openai.OpenAI", {}), False),
+        (OpenAIModel, {"flatten_messages_as_text": True}, ("openai.OpenAI", {}), True),
         (
             TransformersModel,
             {},
