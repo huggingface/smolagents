@@ -11,9 +11,9 @@
 
 [계측 가이드](./inspect_runs)에서 언급한 바와 같이, 에이전트 실행을 계측하여 특정 단계를 확대하거나 축소할 수 있는 우수한 UI로 시각화할 수 있습니다.
 
-또한 다음과 같이 `agent.replay()`를 사용할 수도 있습니다:
+또한 다음과 같이 `agent.replay()`를 사용할 수도 있습니다.
 
-에이전트를 실행한 후:
+에이전트를 실행한 후,
 ```py
 from smolagents import InferenceClientModel, CodeAgent
 
@@ -22,7 +22,7 @@ agent = CodeAgent(tools=[], model=InferenceClientModel(), verbosity_level=0)
 result = agent.run("What's the 20th Fibonacci number?")
 ```
 
-이 마지막 실행을 다시 재생하고 싶다면, 다음 코드를 사용하면 됩니다:
+이 마지막 실행을 다시 재생하고 싶다면, 다음 코드를 사용하면 됩니다.
 ```py
 agent.replay()
 ```
@@ -31,7 +31,7 @@ agent.replay()
 
 많은 고급 사용 사례에서는 에이전트의 메모리를 동적으로 수정해야 합니다.
 
-에이전트의 메모리는 다음과 같이 접근할 수 있습니다:
+에이전트의 메모리는 다음과 같이 접근할 수 있습니다.
 
 
 ```py
@@ -80,7 +80,7 @@ def update_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
     memory_step.observations_images = [image.copy()]
 ```
 
-그 다음 에이전트를 초기화할 때 이 함수를 `step_callbacks` 인수에 전달해야 합니다:
+그 다음 에이전트를 초기화할 때 이 함수를 다음과 같이 `step_callbacks` 인수에 전달해야 합니다.
 
 ```py
 CodeAgent(
