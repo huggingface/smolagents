@@ -20,6 +20,7 @@ import difflib
 import inspect
 import logging
 import math
+import os
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
@@ -32,6 +33,9 @@ from typing import Any
 
 from .tools import Tool
 from .utils import BASE_BUILTIN_MODULES, truncate_content
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+from functools import partial
 
 
 logger = logging.getLogger(__name__)
@@ -1538,6 +1542,34 @@ class FinalAnswerException(Exception):
     def __init__(self, value):
         self.value = value
 
+from multiprocessing import cpu_count
+
+
+NUM_WORKERS = os.getenv("NUM_WORKERS", cpu_count()//4)
+_EXECUTOR = ThreadPoolExecutor(max_workers=NUM_WORKERS)
+_SEMAPHORE = asyncio.Semaphore(NUM_WORKERS*4)
+
+async def evaluate_python_code_async(
+    code: str,
+    *,
+    timeout: float | None = None,
+    **kwargs,
+):
+    """
+    동기 evaluate_python_code를 전용 스레드 풀에서 실행하고 await로 결과를 받는다.
+    - timeout: 초 단위 타임아웃(옵션). None이면 무제한.
+    - kwargs: evaluate_python_code에 그대로 전달 (state/static_tools/custom_tools/...)
+    """
+    async def _run_in_pool():
+        loop = asyncio.get_running_loop()
+        fn = partial(evaluate_python_code, code, **kwargs)
+        return await loop.run_in_executor(_EXECUTOR, fn)
+
+    async with _SEMAPHORE:
+        if timeout is not None:
+            return await asyncio.wait_for(_run_in_pool(), timeout=timeout)
+        return await _run_in_pool()
+
 
 def evaluate_python_code(
     code: str,
@@ -1697,6 +1729,18 @@ class LocalPythonExecutor(PythonExecutor):
             state=self.state,
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
+        )
+        logs = str(self.state["_print_outputs"])
+        return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
+
+    async def run_async(self, code_action: str) -> CodeOutput:
+        output, is_final_answer = await evaluate_python_code_async(
+            code_action,
+            static_tools=self.static_tools,
+            custom_tools=self.custom_tools,
+            state=self.state,
+            authorized_imports=self.authorized_imports,
+            max_print_outputs_length=self.max_print_outputs_length
         )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
