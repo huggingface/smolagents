@@ -42,8 +42,8 @@
     title: 에이전트를 활용한 비동기 애플리케이션
 - title: Reference
   sections:
-#  - local: reference/agents
-#    title: Agent-related objects
+  - local: reference/agents
+    title: 에이전트 관련 객체
   - local: reference/models
     title: 모델 관련 클래스
 #  - title: Tools
