@@ -81,7 +81,7 @@ vision = [
   "selenium",
 ]
 vllm = [
-  "vllm",
+  "vllm>=0.10.2",
   "torch"
 ]
 all = [
