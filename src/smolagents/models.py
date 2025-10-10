@@ -623,6 +623,7 @@ class VLLMModel(Model):
         **kwargs,
     ) -> ChatMessage:
         from vllm import SamplingParams  # type: ignore
+        from vllm.sampling_params import StructuredOutputsParams # type: ignore
 
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
@@ -632,7 +633,7 @@ class VLLMModel(Model):
             **kwargs,
         )
         # Override the OpenAI schema for VLLM compatibility
-        guided_options_request = {"guided_json": response_format["json_schema"]["schema"]} if response_format else None
+        structured_outputs = StructuredOutputsParams(json=response_format["json_schema"]["schema"]) if response_format else None
 
         messages = completion_kwargs.pop("messages")
         prepared_stop_sequences = completion_kwargs.pop("stop", [])
@@ -651,12 +652,12 @@ class VLLMModel(Model):
             temperature=kwargs.get("temperature", 0.0),
             max_tokens=kwargs.get("max_tokens", 2048),
             stop=prepared_stop_sequences,
+            structured_outputs=structured_outputs,
         )
 
         out = self.model.generate(
             prompt,
             sampling_params=sampling_params,
-            guided_options_request=guided_options_request,
             **completion_kwargs,
         )
 
