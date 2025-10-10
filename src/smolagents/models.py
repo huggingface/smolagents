@@ -282,7 +282,7 @@ def get_clean_message_list(
     Args:
         message_list (`list[ChatMessage | dict]`): List of chat messages. Mixed types are allowed.
         role_conversions (`dict[MessageRole, MessageRole]`, *optional* ): Mapping to convert roles.
-        convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
+        convert_images_to_image_urls (`bool`, default `False`, *deprecated*): botocore now takes care of converting data to base64
         flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
     """
     output_message_list: list[dict[str, Any]] = []
@@ -302,16 +302,11 @@ def get_clean_message_list(
                 assert isinstance(element, dict), "Error: this element should be a dict:" + str(element)
                 if element["type"] == "image":
                     assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
-                    if convert_images_to_image_urls:
-                        element.update(
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": make_image_url(encode_image_base64(element.pop("image")))},
-                            }
-                        )
-                    else:
-                        element["image"] = encode_image_base64(element["image"])
-
+                    # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ImageBlock.html for the format
+                    element["image"] = {
+                        "format": "png",
+                        "source": {"bytes": get_image_bytes(element["image"])}
+                    }
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
             assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
