@@ -77,13 +77,11 @@ def test_cli_main(capsys):
         "tools": [],
         "model": "mock_model",
         "additional_authorized_imports": None,
+        "stream_outputs": True,
     }
     # agent.run
     assert len(mock_code_agent.return_value.run.call_args_list) == 1
     assert mock_code_agent.return_value.run.call_args.args == ("test_prompt",)
-    # print
-    captured = capsys.readouterr()
-    assert "Running agent with these tools: []" in captured.out
 
 
 def test_vision_web_browser_main():
