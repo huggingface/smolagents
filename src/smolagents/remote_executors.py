@@ -40,7 +40,7 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
-__all__ = ["E2BExecutor", "ModalExecutor", "DockerExecutor", "WasmExecutor"]
+__all__ = ["BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor", "WasmExecutor"]
 
 
 try:
@@ -607,6 +607,323 @@ class ModalExecutor(RemotePythonExecutor):
     def _strip_ansi_colors(cls, text: str) -> str:
         """Remove ansi colors from text."""
         return cls._ANSI_ESCAPE.sub("", text)
+
+
+class BlaxelExecutor(RemotePythonExecutor):
+    """
+    Executes Python code using Blaxel sandboxes.
+
+    Blaxel provides fast-launching virtual machines that start from hibernation in under 25ms
+    and scale back to zero after inactivity while maintaining memory state.
+
+    Args:
+        additional_imports (`list[str]`): Additional Python packages to install.
+        logger (`Logger`): Logger to use for output and errors.
+        sandbox_name (`str`, optional): Name for the sandbox. Defaults to "smolagent-executor".
+        image (`str`, optional): Docker image to use. Defaults to "blaxel/prod-base:latest".
+        memory (`int`, optional): Memory allocation in MB. Defaults to 4096.
+        region (`str`, optional): Deployment region. If not specified, Blaxel chooses default.
+        create_kwargs (`dict`, optional): Additional arguments for sandbox creation.
+    """
+
+    def __init__(
+        self,
+        additional_imports: list[str],
+        logger,
+        sandbox_name: str = "smolagent-executor",
+        image: str = "blaxel/prod-py-app:latest",
+        memory: int = 4096,
+        region: Optional[str] = None,
+        create_kwargs: Optional[dict] = None,
+    ):
+        super().__init__(additional_imports, logger)
+
+        try:
+            import blaxel  # noqa: F401
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "Please install 'blaxel' extra to use BlaxelExecutor: `pip install 'smolagents[blaxel]'`"
+            )
+
+        self.sandbox_name = sandbox_name
+        self.image = image
+        self.memory = memory
+        self.region = region
+        self._cleaned_up = False  # Flag to prevent double cleanup
+
+        # Prepare sandbox creation parameters
+        sandbox_config = {
+            "name": sandbox_name,
+            "image": image,
+            "memory": memory,
+        }
+
+        if region:
+            sandbox_config["region"] = region
+
+        if create_kwargs:
+            sandbox_config.update(create_kwargs)
+
+        # Create the sandbox
+        try:
+            self.sandbox = self._run_async(self._create_sandbox_async, sandbox_config)
+        except Exception as e:
+            raise RuntimeError(f"Failed to create Blaxel sandbox: {e}") from e
+
+        # Install additional packages
+        self.installed_packages = self.install_packages(additional_imports)
+        self.logger.log(f"BlaxelExecutor initialized with sandbox {sandbox_name}", level=LogLevel.INFO)
+
+    def _run_async(self, coro_func, *args, **kwargs):
+        """
+        Run an async coroutine function safely, handling various event loop states.
+        Args:
+            coro_func: An async function (not a coroutine object)
+            *args, **kwargs: Arguments to pass to the async function
+        This method handles:
+        - No event loop exists (most common case)
+        - Event loop is running (uses thread pool)
+        - Event loop is closed (creates new loop)
+        """
+        import asyncio
+        import concurrent.futures
+
+        def _run_in_new_loop():
+            """Helper to run coroutine in a fresh event loop (for thread pool)."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(coro_func(*args, **kwargs))
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+
+        try:
+            # Try to get the running loop
+            _loop = asyncio.get_running_loop()
+            # If we get here, there's a running loop
+            # We can't block it, so run in a thread pool with a fresh loop
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(_run_in_new_loop)
+                return future.result()
+        except RuntimeError as e:
+            if "no running event loop" in str(e).lower() or "no current event loop" in str(e).lower():
+                # No running loop - this is the normal case
+                try:
+                    return asyncio.run(coro_func(*args, **kwargs))
+                except RuntimeError as run_error:
+                    if "Event loop is closed" in str(run_error):
+                        # Loop was closed, create a fresh one
+                        return _run_in_new_loop()
+                    else:
+                        raise
+            else:
+                # It was a different RuntimeError, re-raise it
+                raise
+
+    async def _create_sandbox_async(self, config):
+        """Helper method to create sandbox asynchronously."""
+        from blaxel.core import SandboxInstance
+
+        return await SandboxInstance.create(config)
+
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code in the Blaxel sandbox and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
+        try:
+            return self._run_async(self._run_code_async, code)
+        except Exception as e:
+            self.logger.log_error(f"Code execution failed: {e}")
+            raise
+
+    async def _run_code_async(self, code: str) -> CodeOutput:
+        """Helper method to run code asynchronously."""
+        try:
+            # Wrap the code to handle final answer exceptions
+            wrapped_code = f'''
+import base64
+import pickle
+
+try:
+    # Execute the user code
+{self._indent_code(code, "    ")}
+except Exception as e:
+    # Check if it's a FinalAnswerException
+    if e.__class__.__name__ == "{RemotePythonExecutor.FINAL_ANSWER_EXCEPTION}":
+        # This is our special final answer exception
+        # Encode the exception's value attribute
+        encoded_value = base64.b64encode(pickle.dumps(e.value)).decode('utf-8')
+        print("FINAL_ANSWER_EXCEPTION:" + encoded_value)
+    else:
+        # Regular exception, just re-raise it
+        raise
+'''
+
+            await self.sandbox.fs.write("run-code.py", wrapped_code)
+            await self.sandbox.process.exec(
+                {
+                    "name": "run-code",
+                    "command": "python run-code.py",
+                }
+            )
+            await self.sandbox.process.wait("run-code", max_wait=60000, interval=1000)
+            execution_result = await self.sandbox.process.get("run-code")
+            logs = await self.sandbox.process.logs("run-code", "all")
+
+            # Process the execution result
+            result = None
+            is_final_answer = False
+
+            # Check for final answer exception in the output
+            if "FINAL_ANSWER_EXCEPTION:" in logs:
+                final_answer_line = [line for line in logs.split("\n") if line.startswith("FINAL_ANSWER_EXCEPTION:")][
+                    0
+                ]
+                encoded_answer = final_answer_line.split("FINAL_ANSWER_EXCEPTION:", 1)[1]
+                try:
+                    result = pickle.loads(base64.b64decode(encoded_answer))
+                    # Remove the final answer exception line from logs
+                    logs = logs.replace(final_answer_line, "").strip("\n")
+                    is_final_answer = True
+                except Exception:
+                    # If we can't decode the final answer, treat as regular output
+                    pass
+
+            # Check for execution errors
+            if hasattr(execution_result, "error") and execution_result.error and not is_final_answer:
+                error_msg = execution_result.error
+                if hasattr(execution_result, "error_message"):
+                    error_msg = execution_result.error_message
+                raise AgentError(f"Code execution failed:\n{logs}\n{error_msg}", self.logger)
+
+            # For regular execution, use logs as output
+            if not is_final_answer:
+                result = logs
+
+            return CodeOutput(output=result, logs=logs, is_final_answer=True)
+
+        except Exception as e:
+            if isinstance(e, AgentError):
+                raise
+            raise AgentError(f"Failed to execute code in Blaxel sandbox: {e}", self.logger)
+
+    def _indent_code(self, code: str, indent: str) -> str:
+        """Helper method to indent code properly."""
+        return "\n".join(indent + line if line.strip() else line for line in code.split("\n"))
+
+    def install_packages(self, additional_imports: list[str]) -> list[str]:
+        """
+        Install additional Python packages in the Blaxel sandbox.
+
+        Args:
+            additional_imports (`list[str]`): Package names to install.
+
+        Returns:
+            list[str]: Installed packages.
+        """
+        if not additional_imports:
+            return []
+
+        try:
+            return self._run_async(self._install_packages_async, additional_imports)
+        except Exception as e:
+            self.logger.log_error(f"Failed to install packages: {e}")
+            return []
+
+    async def _install_packages_async(self, additional_imports: list[str]) -> list[str]:
+        """Helper method to install packages asynchronously."""
+        try:
+            # Install packages using pip via run_code
+            self.logger.log(f"Installing packages: {', '.join(additional_imports)}", level=LogLevel.INFO)
+            pip_install_code = f"pip install --root-user-action=ignore {' '.join(additional_imports)}"
+
+            await self.sandbox.process.exec(
+                {
+                    "name": "install-packages",
+                    "command": pip_install_code,
+                }
+            )
+            # Wait for completion (max 10 minutes, check every 1 second)
+            await self.sandbox.process.wait("install-packages", max_wait=600000, interval=1000)
+
+            # Check the exit code to determine success
+            process_info = await self.sandbox.process.get("install-packages")
+            if hasattr(process_info, "exit_code") and process_info.exit_code != 0:
+                # Non-zero exit code means failure
+                error_logs = await self.sandbox.process.logs("install-packages", "stderr")
+                self.logger.log_error(f"Failed to install packages (exit code {process_info.exit_code}): {error_logs}")
+                return []
+
+            self.logger.log(f"Successfully installed packages: {', '.join(additional_imports)}", level=LogLevel.INFO)
+            return additional_imports
+
+        except Exception as e:
+            self.logger.log_error(f"Error installing packages: {e}")
+            return []
+
+    def _delete_sandbox_sync(self):
+        """Delete sandbox using Blaxel's sync API and wait for completion."""
+        import time
+
+        from blaxel.core.client import client
+        from blaxel.core.client.api.compute import delete_sandbox, get_sandbox
+
+        self.logger.log(f"Requesting sandbox {self.sandbox_name} deletion...", level=LogLevel.INFO)
+        delete_sandbox.sync(client=client, sandbox_name=self.sandbox_name)
+
+        # Wait for deletion to complete (max 10 checks, 0.5s apart = 5s total)
+        for _ in range(10):
+            self.logger.log(f"Checking if sandbox {self.sandbox_name} is deleted...", level=LogLevel.INFO)
+            try:
+                response = get_sandbox.sync(client=client, sandbox_name=self.sandbox_name)
+                if response is None:
+                    self.logger.log(f"Sandbox {self.sandbox_name} deleted successfully", level=LogLevel.INFO)
+                    return
+            except Exception:
+                # Error getting sandbox usually means it's deleted
+                self.logger.log(f"Sandbox {self.sandbox_name} deleted successfully", level=LogLevel.INFO)
+                return
+
+            time.sleep(0.5)
+
+        # If we get here, deletion is still in progress
+        self.logger.log(f"Sandbox {self.sandbox_name} deletion in progress", level=LogLevel.INFO)
+
+    def cleanup(self):
+        """Sync wrapper to clean up sandbox and resources."""
+        # Prevent double cleanup
+        if self._cleaned_up:
+            return
+
+        self._cleaned_up = True
+        self.logger.log(f"Cleaning up sandbox {self.sandbox_name}...", level=LogLevel.INFO)
+
+        try:
+            self._delete_sandbox_sync()
+        except Exception as e:
+            # Log cleanup errors but don't raise - cleanup should be best-effort
+            self.logger.log(f"Cleanup error: {e}", level=LogLevel.INFO)
+        finally:
+            # Always clean up local references
+            if hasattr(self, "sandbox"):
+                del self.sandbox
+            self.logger.log("Blaxel sandbox cleanup completed", level=LogLevel.INFO)
+
+    def __del__(self):
+        """Ensure cleanup on deletion."""
+        try:
+            self.cleanup()
+        except Exception:
+            pass  # Silently ignore errors during cleanup
 
 
 class WasmExecutor(RemotePythonExecutor):
