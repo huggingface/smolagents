@@ -1302,7 +1302,7 @@ class ToolCallingAgent(MultiStepAgent):
             try:
                 chat_message = self.model.parse_tool_calls(chat_message)
             except Exception as e:
-                if isinstance(e, ValueError) and "does not contain any JSON blob" in str(e):
+                if isinstance(e, ValueError) and "The model output does not contain any JSON blob" in str(e):
                     self.logger.log_warning(
                         "The model's output is missing JSON data. This could be due to an insufficient number of output tokens set in the model configuration."
                     )
