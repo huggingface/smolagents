@@ -4,8 +4,8 @@
     title: 소개
   - local: installation
     title: 설치 옵션
-#  - local: guided_tour
-#    title: 안내서
+  - local: guided_tour
+    title: 안내서
 - title: 튜토리얼
   sections:
   - local: tutorials/building_good_agents
@@ -16,8 +16,8 @@
 #    title: 🛠️ Tools - in-depth guide
 #  - local: tutorials/secure_code_execution
 #    title: 🛡️ Secure code execution
-#  - local: tutorials/memory
-#    title: 📚 Manage your agent's memory
+  - local: tutorials/memory
+    title: 📚 에이전트 메모리 관리
 - title: Conceptual guides
   sections:
 #  - local: conceptual_guides/intro_agents
@@ -34,12 +34,12 @@
     title: 멀티 에이전트 시스템 오케스트레이션
 #  - local: examples/web_browser
 #    title: (번역중) Build a web browser agent using vision models
-#  - local: examples/using_different_models
-#    title: (번역중) Using different models
+  - local: examples/using_different_models
+    title: 다양한 모델 사용하기
 #  - local: examples/plan_customization
 #    title: "(번역중) Human-in-the-Loop: Customize agent plan interactively"
-#  - local: examples/async_agent
-#    title: (번역중) Async Applications with Agents
+  - local: examples/async_agent
+    title: 에이전트를 활용한 비동기 애플리케이션
 - title: Reference
   sections:
 #  - local: reference/agents
