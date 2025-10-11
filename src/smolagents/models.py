@@ -623,7 +623,7 @@ class VLLMModel(Model):
         **kwargs,
     ) -> ChatMessage:
         from vllm import SamplingParams  # type: ignore
-        from vllm.sampling_params import StructuredOutputsParams # type: ignore
+        from vllm.sampling_params import StructuredOutputsParams  # type: ignore
 
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
@@ -633,7 +633,9 @@ class VLLMModel(Model):
             **kwargs,
         )
         # Override the OpenAI schema for VLLM compatibility
-        structured_outputs = StructuredOutputsParams(json=response_format["json_schema"]["schema"]) if response_format else None
+        structured_outputs = (
+            StructuredOutputsParams(json=response_format["json_schema"]["schema"]) if response_format else None
+        )
 
         messages = completion_kwargs.pop("messages")
         prepared_stop_sequences = completion_kwargs.pop("stop", [])
