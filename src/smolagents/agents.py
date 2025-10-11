@@ -1304,7 +1304,7 @@ class ToolCallingAgent(MultiStepAgent):
             except Exception as e:
                 if isinstance(e, ValueError) and "does not contain any JSON blob" in str(e):
                     self.logger.log_warning(
-                        "The model's output is missing JSON data. This could be due to an insufficient number of output tokens set in the model configuration"
+                        "The model's output is missing JSON data. This could be due to an insufficient number of output tokens set in the model configuration."
                     )
                 raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
         else:
@@ -1685,7 +1685,7 @@ class CodeAgent(MultiStepAgent):
         except Exception as e:
             if isinstance(e, ValueError) and "Make sure to include code with the correct pattern" in str(e):
                 self.logger.log_warning(
-                    "The model's output is missing a Code output. This could be due to an insufficient number of output tokens set in the model configuration"
+                    "The model's output is missing a Code output. This could be due to an insufficient number of output tokens set in the model configuration."
                 )
             error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
             raise AgentParsingError(error_msg, self.logger)
