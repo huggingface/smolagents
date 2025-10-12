@@ -665,8 +665,8 @@ def test_get_clean_message_list_role_conversions():
             dict(
                 role=MessageRole.USER,
                 content=[
-                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,encoded_image"}},
-                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,second_encoded_image"}},
+                    {"format": "png", "source": {"bytes": "encoded_image"}},
+                    {"format": "png", "source": {"bytes": "second_encoded_image"}},
                 ],
             ),
         ),
