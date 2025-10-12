@@ -121,6 +121,10 @@ Adding a new tutorial or section is done in two steps:
 
 Make sure to put your new file under the proper section. If you have a doubt, feel free to ask in a Github Issue or PR.
 
+### Translating
+
+When translating, refer to the guide at [./TRANSLATING.md](https://github.com/huggingface/smolagents/blob/main/docs/TRANSLATING.md).
+
 ### Writing source documentation
 
 Values that should be put in `code` should either be surrounded by backticks: \`like so\`. Note that argument names
