@@ -677,7 +677,7 @@ def test_get_clean_message_list_image_encoding(convert_images_to_image_urls, exp
         role=MessageRole.USER,
         content=[{"type": "image", "image": b"image_data"}, {"type": "image", "image": b"second_image_data"}],
     )
-    with patch("smolagents.models.encode_image_base64") as mock_encode:
+    with patch("smolagents.models.get_image_bytes") as mock_encode:
         mock_encode.side_effect = ["encoded_image", "second_encoded_image"]
         result = get_clean_message_list([message], convert_images_to_image_urls=convert_images_to_image_urls)
         mock_encode.assert_any_call(b"image_data")
