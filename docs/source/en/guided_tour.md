@@ -476,6 +476,16 @@ All these elements will be automatically baked into the agent's system prompt up
 
 > [!TIP]
 > This definition format is the same as tool schemas used in `apply_chat_template`, the only difference is the added `tool` decorator: read more on our tool use API [here](https://huggingface.co/blog/unified-tool-use#passing-tools-to-a-chat-template).
+
+
+Then you can directly initialize your agent:
+```py
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
+agent.run(
+    "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
+)
+```
 </hfoption>
 <hfoption id="Subclass Tool">
 
@@ -499,18 +509,18 @@ The subclass needs the following attributes:
 - Input types and descriptions
 - Output type
 All these attributes will be automatically baked into the agent's system prompt upon initialization: so strive to make them as clear as possible!
-</hfoption>
-</hfoptions>
 
 
 Then you can directly initialize your agent:
 ```py
 from smolagents import CodeAgent, InferenceClientModel
-agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
+agent = CodeAgent(tools=[ModelDownloadTool()], model=InferenceClientModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
 ```
+</hfoption>
+</hfoptions>
 
 You get the following logs:
 ```text
