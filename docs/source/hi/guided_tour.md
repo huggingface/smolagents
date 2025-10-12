@@ -117,9 +117,9 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 हम JSON-जैसे ब्लॉब्स के रूप में एक्शन लिखने के व्यापक रूप से उपयोग किए जाने वाले तरीके का भी समर्थन करते हैं: यह [`ToolCallingAgent`] है, यह बहुत कुछ [`CodeAgent`] की तरह ही काम करता है, बेशक `additional_authorized_imports` के बिना क्योंकि यह कोड एक्जीक्यूट नहीं करता।
 
 ```py
-from smolagents import ToolCallingAgent
+from smolagents import ToolCallingAgent, WebSearchTool
 
-agent = ToolCallingAgent(tools=[], model=model)
+agent = ToolCallingAgent(tools=[WebSearchTool()], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 

@@ -93,14 +93,14 @@ You can also use [E2B code executor](https://e2b.dev/docs#what-is-e2-b) or Docke
 
 ### ToolCallingAgent
 
-[`ToolCallingAgent`] outputs JSON tool calls, which is the common format used in many frameworks (OpenAI API), allowing for structured tool interactions without code execution.
+[`ToolCallingAgent`] outputs JSON tool calls, which is the common format used in many frameworks (OpenAI API), allowing for structured tool interactions without code execution. We utilize the built-in WebSearchTool (from the smolagents toolkit extra, which will be described in more detail later) to enable our agent to perform web searches.   
 
 It works much in the same way like [`CodeAgent`], of course without `additional_authorized_imports` since it doesn't execute code:
 
 ```py
-from smolagents import ToolCallingAgent
+from smolagents import ToolCallingAgent, WebSearchTool
 
-agent = ToolCallingAgent(tools=[], model=model)
+agent = ToolCallingAgent(tools=[WebSearchTool()], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 

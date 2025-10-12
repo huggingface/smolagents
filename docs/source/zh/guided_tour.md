@@ -186,9 +186,9 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 我们还支持广泛使用的将动作编写为 JSON-like 块的方式：[`ToolCallingAgent`]，它的工作方式与 [`CodeAgent`] 非常相似，当然没有 `additional_authorized_imports`，因为它不执行代码：
 
 ```py
-from smolagents import ToolCallingAgent
+from smolagents import ToolCallingAgent, WebSearchTool
 
-agent = ToolCallingAgent(tools=[], model=model)
+agent = ToolCallingAgent(tools=[WebSearchTool()], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 

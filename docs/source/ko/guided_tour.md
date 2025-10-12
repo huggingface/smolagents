@@ -97,9 +97,9 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 코드를 실행하지 않으므로 `additional_authorized_imports` 없이도 [`CodeAgent`]와 거의 동일한 방식으로 작동합니다:
 
 ```py
-from smolagents import ToolCallingAgent
+from smolagents import ToolCallingAgent, WebSearchTool
 
-agent = ToolCallingAgent(tools=[], model=model)
+agent = ToolCallingAgent(tools=[WebSearchTool()], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
