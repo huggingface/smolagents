@@ -142,6 +142,7 @@ import numpy as np
         result = parse_code_blobs(test_input, ("<code>", "</code>"))
         assert result == "Foo\n\ncode_a\n\ncode_b"
 
+
 @pytest.mark.parametrize(
     "raw_text",
     [
@@ -497,6 +498,7 @@ def test_parse_json_blob_with_invalid_json(raw_json):
     with pytest.raises(Exception):
         parse_json_blob(raw_json)
 
+
 @pytest.mark.parametrize(
     "raw_json",
     [
@@ -510,6 +512,7 @@ def test_parse_json_blob_without_json_blob(raw_json):
     # Note: If the exact string is changed a parsing warning needs to be modified in agents.py
     with pytest.raises(ValueError, match="The model output does not contain any JSON blob."):
         parse_json_blob(raw_json)
+
 
 @pytest.mark.parametrize(
     "name,expected",

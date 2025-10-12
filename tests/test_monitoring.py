@@ -23,6 +23,7 @@ from smolagents import (
     ToolCallingAgent,
     stream_to_gradio,
 )
+from smolagents.memory import ActionStep, AgentMemory
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -31,16 +32,7 @@ from smolagents.models import (
     Model,
     TokenUsage,
 )
-
-from smolagents.memory import (
-    AgentMemory, 
-    ActionStep
-)
 from smolagents.monitoring import AgentLogger
-from smolagents.models import (
-    ChatMessage, 
-    MessageRole
-)
 
 
 class FakeLLMModel(Model):
@@ -196,10 +188,10 @@ def test_code_agent_metrics(agent_class):
 
 class ReplayTester(unittest.TestCase):
     def test_replay_with_chatmessage(self):
-        """ Regression test for dict(message) to message.dict() fix """
+        """Regression test for dict(message) to message.dict() fix"""
         logger = AgentLogger()
         memory = AgentMemory(system_prompt="test")
-        step = ActionStep(step_number=1, timing = 0)
+        step = ActionStep(step_number=1, timing=0)
         step.model_input_messages = [ChatMessage(role=MessageRole.USER, content="Hello")]
         memory.steps.append(step)
 
