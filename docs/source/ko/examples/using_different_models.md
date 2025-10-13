@@ -14,9 +14,9 @@
 4. [`MLXModel`]: MLX를 사용하여 Apple Silicon 디바이스에 최적화
 5. [`LiteLLMModel`]: LiteLLM을 통해 수백 개의 대규모 언어 모델에 접근 제공
 6. [`LiteLLMRouterModel`]: 여러 모델 간에 요청을 분산
-7. [`OpenAIServerModel`]: OpenAI 호환 API를 구현하는 모든 프로바이더에 접근 제공
-8. [`AzureOpenAIServerModel`]: Azure의 OpenAI 서비스 사용
-9. [`AmazonBedrockServerModel`]: AWS Bedrock의 API에 연결
+7. [`OpenAIModel`]: OpenAI 호환 API를 구현하는 모든 프로바이더에 접근 제공
+8. [`AzureOpenAIModel`]: Azure의 OpenAI 서비스 사용
+9. [`AmazonBedrockModel`]: AWS Bedrock의 API에 연결
 
 모든 모델 클래스는 인스턴스화 시점에 추가 키워드 인수들(`temperature`, `max_tokens`, `top_p` 등)을 직접 전달하는 것을 지원합니다.
 이러한 매개변수들은 자동으로 기본 모델의 완성 호출로 전달되어, 창의성, 응답 길이, 샘플링 전략과 같은 모델 동작을 구성할 수 있게 해줍니다.
@@ -25,7 +25,7 @@
 
 Google Gemini API 문서(https://ai.google.dev/gemini-api/docs/openai)에서 설명한 바와 같이,
 Google은 Gemini 모델에 대해 OpenAI 호환 API를 제공하므로, 적절한 베이스 URL을 설정하여
-[`OpenAIServerModel`]을 Gemini 모델과 함께 사용할 수 있습니다.
+[`OpenAIModel`]을 Gemini 모델과 함께 사용할 수 있습니다.
 
 먼저, 필요한 의존성을 설치합니다:
 ```bash
@@ -37,12 +37,12 @@ pip install 'smolagents[openai]'
 GEMINI_API_KEY = <YOUR-GEMINI-API-KEY>
 ```
 
-이제 `OpenAIServerModel` 클래스를 사용하고 `api_base` 매개변수를 Gemini API 베이스 URL로 설정하여
+이제 `OpenAIModel` 클래스를 사용하고 `api_base` 매개변수를 Gemini API 베이스 URL로 설정하여
 Gemini 모델을 초기화할 수 있습니다:
 ```python
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="gemini-2.0-flash",
     # Google Gemini OpenAI 호환 API 베이스 URL
     api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -53,7 +53,7 @@ model = OpenAIServerModel(
 ## OpenRouter 모델 사용하기 [[using-openrouter-models]]
 
 OpenRouter는 통합된 OpenAI 호환 API를 통해 다양한 언어 모델에 대한 접근을 제공합니다.
-적절한 베이스 URL을 설정하여 [`OpenAIServerModel`]을 사용해 OpenRouter에 연결할 수 있습니다.
+적절한 베이스 URL을 설정하여 [`OpenAIModel`]을 사용해 OpenRouter에 연결할 수 있습니다.
 
 먼저, 필요한 의존성을 설치합니다:
 ```bash
@@ -65,11 +65,11 @@ pip install 'smolagents[openai]'
 OPENROUTER_API_KEY = <YOUR-OPENROUTER-API-KEY>
 ```
 
-이제 `OpenAIServerModel` 클래스를 사용하여 OpenRouter에서 사용 가능한 모든 모델을 초기화할 수 있습니다:
+이제 `OpenAIModel` 클래스를 사용하여 OpenRouter에서 사용 가능한 모든 모델을 초기화할 수 있습니다:
 ```python
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     # OpenRouter에서 사용 가능한 모든 모델 ID를 사용할 수 있습니다
     model_id="openai/gpt-4o",
     # OpenRouter API 베이스 URL

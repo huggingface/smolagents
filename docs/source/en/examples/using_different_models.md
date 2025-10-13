@@ -14,9 +14,9 @@ This guide will show you how to use different model types with your agents.
 4. [`MLXModel`]: Optimized for Apple Silicon devices using MLX
 5. [`LiteLLMModel`]: Provides access to hundreds of LLMs through LiteLLM
 6. [`LiteLLMRouterModel`]: Distributes requests among multiple models
-7. [`OpenAIServerModel`]: Provides access to any provider that implements an OpenAI-compatible API
-8. [`AzureOpenAIServerModel`]: Uses Azure's OpenAI service
-9. [`AmazonBedrockServerModel`]: Connects to AWS Bedrock's API
+7. [`OpenAIModel`]: Provides access to any provider that implements an OpenAI-compatible API
+8. [`AzureOpenAIModel`]: Uses Azure's OpenAI service
+9. [`AmazonBedrockModel`]: Connects to AWS Bedrock's API
 
 All model classes support passing additional keyword arguments (like `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time.
 These parameters are automatically forwarded to the underlying model's completion calls, allowing you to configure model behavior such as creativity, response length, and sampling strategies.
@@ -24,7 +24,7 @@ These parameters are automatically forwarded to the underlying model's completio
 ## Using Google Gemini Models
 
 As explained in the Google Gemini API documentation (https://ai.google.dev/gemini-api/docs/openai),
-Google provides an OpenAI-compatible API for Gemini models, allowing you to use the [`OpenAIServerModel`]
+Google provides an OpenAI-compatible API for Gemini models, allowing you to use the [`OpenAIModel`]
 with Gemini models by setting the appropriate base URL.
 
 First, install the required dependencies:
@@ -37,12 +37,12 @@ Then, [get a Gemini API key](https://ai.google.dev/gemini-api/docs/api-key) and 
 GEMINI_API_KEY = <YOUR-GEMINI-API-KEY>
 ```
 
-Now, you can initialize the Gemini model using the `OpenAIServerModel` class
+Now, you can initialize the Gemini model using the `OpenAIModel` class
 and setting the `api_base` parameter to the Gemini API base URL:
 ```python
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="gemini-2.0-flash",
     # Google Gemini OpenAI-compatible API base URL
     api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -53,7 +53,7 @@ model = OpenAIServerModel(
 ## Using OpenRouter Models
 
 OpenRouter provides access to a wide variety of language models through a unified OpenAI-compatible API.
-You can use the [`OpenAIServerModel`] to connect to OpenRouter by setting the appropriate base URL.
+You can use the [`OpenAIModel`] to connect to OpenRouter by setting the appropriate base URL.
 
 First, install the required dependencies:
 ```bash
@@ -65,11 +65,11 @@ Then, [get an OpenRouter API key](https://openrouter.ai/keys) and set it in your
 OPENROUTER_API_KEY = <YOUR-OPENROUTER-API-KEY>
 ```
 
-Now, you can initialize any model available on OpenRouter using the `OpenAIServerModel` class:
+Now, you can initialize any model available on OpenRouter using the `OpenAIModel` class:
 ```python
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     # You can use any model ID available on OpenRouter
     model_id="openai/gpt-4o",
     # OpenRouter API base URL

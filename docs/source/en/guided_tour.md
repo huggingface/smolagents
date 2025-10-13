@@ -112,8 +112,8 @@ To initialize a minimal agent, you need at least these two arguments:
     - [`TransformersModel`] takes a pre-initialized `transformers` pipeline to run inference on your local machine using `transformers`.
     - [`InferenceClientModel`] leverages a `huggingface_hub.InferenceClient` under the hood and supports all Inference Providers on the Hub: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
     - [`LiteLLMModel`] similarly lets you call 100+ different models and providers through [LiteLLM](https://docs.litellm.ai/)!
-    - [`AzureOpenAIServerModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
-    - [`AmazonBedrockServerModel`] allows you to use Amazon Bedrock in [AWS](https://aws.amazon.com/bedrock/?nc1=h_ls).
+    - [`AzureOpenAIModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
+    - [`AmazonBedrockModel`] allows you to use Amazon Bedrock in [AWS](https://aws.amazon.com/bedrock/?nc1=h_ls).
     - [`MLXModel`] creates a [mlx-lm](https://pypi.org/project/mlx-lm/) pipeline to run inference on your local machine.
 
 - `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
@@ -198,15 +198,15 @@ agent.run(
 </hfoption>
 <hfoption id="Azure OpenAI">
 
-To connect to Azure OpenAI, you can either use `AzureOpenAIServerModel` directly, or use `LiteLLMModel` and configure it accordingly.
+To connect to Azure OpenAI, you can either use `AzureOpenAIModel` directly, or use `LiteLLMModel` and configure it accordingly.
 
-To initialize an instance of `AzureOpenAIServerModel`, you need to pass your model deployment name and then either pass the `azure_endpoint`, `api_key`, and `api_version` arguments, or set the environment variables `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `OPENAI_API_VERSION`.
+To initialize an instance of `AzureOpenAIModel`, you need to pass your model deployment name and then either pass the `azure_endpoint`, `api_key`, and `api_version` arguments, or set the environment variables `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `OPENAI_API_VERSION`.
 
 ```python
 # !pip install 'smolagents[openai]'
-from smolagents import CodeAgent, AzureOpenAIServerModel
+from smolagents import CodeAgent, AzureOpenAIModel
 
-model = AzureOpenAIServerModel(model_id="gpt-4o-mini")
+model = AzureOpenAIModel(model_id="gpt-4o-mini")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -241,15 +241,15 @@ agent.run(
 </hfoption>
 <hfoption id="Amazon Bedrock">
 
-The `AmazonBedrockServerModel` class provides native integration with Amazon Bedrock, allowing for direct API calls and comprehensive configuration.
+The `AmazonBedrockModel` class provides native integration with Amazon Bedrock, allowing for direct API calls and comprehensive configuration.
 
 Basic Usage:
 
 ```python
 # !pip install 'smolagents[bedrock]'
-from smolagents import CodeAgent, AmazonBedrockServerModel
+from smolagents import CodeAgent, AmazonBedrockModel
 
-model = AmazonBedrockServerModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
+model = AmazonBedrockModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -261,7 +261,7 @@ Advanced Configuration:
 
 ```python
 import boto3
-from smolagents import AmazonBedrockServerModel
+from smolagents import AmazonBedrockModel
 
 # Create a custom Bedrock client
 bedrock_client = boto3.client(
@@ -282,7 +282,7 @@ additional_api_config = {
 }
 
 # Initialize with comprehensive configuration
-model = AmazonBedrockServerModel(
+model = AmazonBedrockModel(
     model_id="us.amazon.nova-pro-v1:0",
     client=bedrock_client,  # Use custom client
     **additional_api_config
@@ -333,10 +333,10 @@ For fine-grained control over parameter handling, the `REMOVE_PARAMETER` sentine
 parameters that might otherwise be set by default or passed through elsewhere:
 
 ```python
-from smolagents import OpenAIServerModel, REMOVE_PARAMETER
+from smolagents import OpenAIModel, REMOVE_PARAMETER
 
 # Remove "stop" parameter
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="gpt-5",
     stop=REMOVE_PARAMETER,  # Ensures "stop" is not included in API calls
     temperature=0.7

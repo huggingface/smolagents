@@ -18,7 +18,7 @@
     - [`TransformersModel`] 使用预初始化的 `transformers` 管道在本地机器上运行推理
     - [`InferenceClientModel`] 在底层使用 `huggingface_hub.InferenceClient`
     - [`LiteLLMModel`] 让您通过 [LiteLLM](https://docs.litellm.ai/) 调用 100+ 不同的模型！
-    - [`AzureOpenAIServerModel`] 允许您使用部署在 [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service) 中的 OpenAI 模型。
+    - [`AzureOpenAIModel`] 允许您使用部署在 [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service) 中的 OpenAI 模型。
     - [`MLXModel`] 可创建 [mlx-lm](https://pypi.org/project/mlx-lm/) 流水线，以便在本地机器上运行推理。
 
 - `tools`，agent 可以用来解决任务的 `Tools` 列表。它可以是一个空列表。您还可以通过定义可选参数 `add_base_tools=True` 在您的 `tools` 列表之上添加默认工具箱。
@@ -99,15 +99,15 @@ agent.run(
 </hfoption>
 <hfoption id="Azure OpenAI">
 
-要连接到 Azure OpenAI，您可以直接使用 `AzureOpenAIServerModel`，或使用 `LiteLLMModel` 并进行相应配置。
+要连接到 Azure OpenAI，您可以直接使用 `AzureOpenAIModel`，或使用 `LiteLLMModel` 并进行相应配置。
 
-初始化 `AzureOpenAIServerModel` 实例时，需要传递模型部署名称，可选择以下任一种方式：1.传递 `azure_endpoint`、`api_key` 和 `api_version` 参数；2.设置环境变量 `AZURE_OPENAI_ENDPOINT`、`AZURE_OPENAI_API_KEY` 和 `OPENAI_API_VERSION`
+初始化 `AzureOpenAIModel` 实例时，需要传递模型部署名称，可选择以下任一种方式：1.传递 `azure_endpoint`、`api_key` 和 `api_version` 参数；2.设置环境变量 `AZURE_OPENAI_ENDPOINT`、`AZURE_OPENAI_API_KEY` 和 `OPENAI_API_VERSION`
 
 ```python
 # !pip install 'smolagents[openai]'
-from smolagents import CodeAgent, AzureOpenAIServerModel
+from smolagents import CodeAgent, AzureOpenAIModel
 
-model = AzureOpenAIServerModel(model_id="gpt-4o-mini")
+model = AzureOpenAIModel(model_id="gpt-4o-mini")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
