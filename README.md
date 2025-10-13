@@ -137,7 +137,7 @@ model = OpenAIServerModel(
 from smolagents import TransformersModel
 
 model = TransformersModel(
-    model_id="Qwen/Qwen3-Coder-30B-A3B-Instruct",
+    model_id="Qwen/Qwen3-Next-80B-A3B-Thinking",
     max_new_tokens=4096,
     device_map="auto"
 )
