@@ -24,18 +24,9 @@ from enum import Enum
 from threading import Thread
 from typing import TYPE_CHECKING, Any
 
-from tenacity import (
-    after_log,
-    before_sleep_log,
-    retry,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_fixed,
-)
-
 from .monitoring import TokenUsage
 from .tools import Tool
-from .utils import RateLimiter, _is_package_available, encode_image_base64, make_image_url, parse_json_blob
+from .utils import RateLimiter, Retrying, _is_package_available, encode_image_base64, make_image_url, parse_json_blob
 
 
 if TYPE_CHECKING:
@@ -44,8 +35,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-TENACITY_WAIT = 120
-TENACITY_RETRIES = 3
+RETRY_WAIT = 120
+RETRY_MAX_ATTEMPTS = 3
 STRUCTURED_GENERATION_PROVIDERS = ["cerebras", "fireworks-ai"]
 CODEAGENT_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -1081,7 +1072,7 @@ class ApiModel(Model):
         requests_per_minute (`float`, **optional**):
             Rate limit in requests per minute.
         retry (`bool`, **optional**):
-            Wether to retry on rate limit errors, up to TENACITY_RETRIES times. Defaults to True.
+            Wether to retry on rate limit errors, up to RETRY_MAX_ATTEMPTS times. Defaults to True.
         **kwargs:
             Additional keyword arguments to forward to the underlying model completion call.
     """
@@ -1095,19 +1086,17 @@ class ApiModel(Model):
         retry: bool = True,
         **kwargs,
     ):
-        from tenacity import Retrying
-
         super().__init__(model_id=model_id, **kwargs)
         self.custom_role_conversions = custom_role_conversions or {}
         self.client = client or self.create_client()
         self.rate_limiter = RateLimiter(requests_per_minute)
         self.retryer = Retrying(
-            stop=stop_after_attempt(TENACITY_RETRIES) if retry else stop_after_attempt(1),
-            wait=wait_fixed(TENACITY_WAIT),
-            retry=retry_if_exception(is_rate_limit_error),
+            max_attempts=RETRY_MAX_ATTEMPTS if retry else 1,
+            wait_seconds=RETRY_WAIT,
+            retry_predicate=is_rate_limit_error,
             reraise=True,
-            before_sleep=before_sleep_log(logger, logging.INFO),
-            after=after_log(logger, logging.INFO),
+            before_sleep_logger=(logger, logging.INFO),
+            after_logger=(logger, logging.INFO),
         )
 
     def create_client(self):
@@ -1930,14 +1919,6 @@ class AmazonBedrockModel(ApiModel):
 
         return boto3.client("bedrock-runtime", **self.client_kwargs)
 
-    @retry(
-        stop=stop_after_attempt(TENACITY_RETRIES),
-        wait=wait_fixed(TENACITY_WAIT),
-        retry=retry_if_exception(is_rate_limit_error),
-        reraise=True,
-        before_sleep=before_sleep_log(logger, logging.INFO),
-        after=after_log(logger, logging.INFO),
-    )
     def generate(
         self,
         messages: list[ChatMessage | dict],
@@ -1957,7 +1938,7 @@ class AmazonBedrockModel(ApiModel):
         )
         self._apply_rate_limit()
         # self.client is created in ApiModel class
-        response = self.client.converse(**completion_kwargs)
+        response = self.retryer(self.client.converse, **completion_kwargs)
 
         # Get content blocks with "text" key: in case thinking blocks are present, discard them
         message_content_blocks_with_text = [
