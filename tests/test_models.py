@@ -414,11 +414,11 @@ class TestLiteLLMModel:
         """Test that the tenacity retry mechanism triggers on 429 rate limit errors"""
         import time
 
-        # Patch TENACITY_WAIT to 2 seconds for faster testing (must be done before creating the model)
+        # Patch RETRY_WAIT to 2 seconds for faster testing (must be done before creating the model)
         mock_litellm = MagicMock()
 
         with (
-            patch("smolagents.models.TENACITY_WAIT", 1),
+            patch("smolagents.models.RETRY_WAIT", 1),
             patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
         ):
             model = LiteLLMModel(model_id="test-model")
