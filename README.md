@@ -106,9 +106,9 @@ model = LiteLLMModel(
 
 ```py
 import os
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="deepseek-ai/DeepSeek-R1",
     api_base="https://api.together.xyz/v1/", # Leave this blank to query OpenAI servers.
     api_key=os.environ["TOGETHER_API_KEY"], # Switch to the API key for the server you're targeting.
@@ -120,9 +120,9 @@ model = OpenAIServerModel(
 
 ```py
 import os
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="openai/gpt-4o",
     api_base="https://openrouter.ai/api/v1", # Leave this blank to query OpenAI servers.
     api_key=os.environ["OPENROUTER_API_KEY"], # Switch to the API key for the server you're targeting.
@@ -148,9 +148,9 @@ model = TransformersModel(
 
 ```py
 import os
-from smolagents import AzureOpenAIServerModel
+from smolagents import AzureOpenAIModel
 
-model = AzureOpenAIServerModel(
+model = AzureOpenAIModel(
     model_id = os.environ.get("AZURE_OPENAI_MODEL"),
     azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
     api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
@@ -163,9 +163,9 @@ model = AzureOpenAIServerModel(
 
 ```py
 import os
-from smolagents import AmazonBedrockServerModel
+from smolagents import AmazonBedrockModel
 
-model = AmazonBedrockServerModel(
+model = AmazonBedrockModel(
     model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID") 
 )
 ```
