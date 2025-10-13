@@ -98,7 +98,7 @@ retriever_tool = RetrieverTool(vector_store)
 # Choose which LLM engine to use!
 
 # from smolagents import InferenceClientModel
-# model = InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
+# model = InferenceClientModel(model_id="Qwen/Qwen3-Coder-30B-A3B-Instruct")
 
 # from smolagents import TransformersModel
 # model = TransformersModel(model_id="meta-llama/Llama-3.2-2B-Instruct")

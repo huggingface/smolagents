@@ -1411,8 +1411,8 @@ class InferenceClientModel(ApiModel):
     Example:
     ```python
     >>> engine = InferenceClientModel(
-    ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
-    ...     provider="nebius",
+    ...     model_id="Qwen/Qwen3-Next-80B-A3B-Thinking",
+    ...     provider="hyperbolic",
     ...     token="your_hf_token_here",
     ...     max_tokens=5000,
     ... )
@@ -1425,7 +1425,7 @@ class InferenceClientModel(ApiModel):
 
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
+        model_id: str = "Qwen/Qwen3-Coder-30B-A3B-Instruct",
         provider: str | None = None,
         token: str | None = None,
         timeout: int = 120,
@@ -1555,7 +1555,7 @@ class OpenAIModel(ApiModel):
 
     Parameters:
         model_id (`str`):
-            The model identifier to use on the server (e.g. "gpt-3.5-turbo").
+            The model identifier to use on the server (e.g. "gpt-5").
         api_base (`str`, *optional*):
             The base URL of the OpenAI-compatible API server.
         api_key (`str`, *optional*):
