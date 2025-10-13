@@ -32,6 +32,16 @@ from smolagents.models import (
     TokenUsage,
 )
 
+from smolagents.memory import (
+    AgentMemory, 
+    ActionStep
+)
+from smolagents.monitoring import AgentLogger
+from smolagents.models import (
+    ChatMessage, 
+    MessageRole
+)
+
 
 class FakeLLMModel(Model):
     def generate(self, prompt, tools_to_call_from=None, **kwargs):
@@ -182,3 +192,18 @@ def test_code_agent_metrics(agent_class):
 
     assert agent.monitor.total_input_token_count == 10
     assert agent.monitor.total_output_token_count == 20
+
+
+class ReplayTester(unittest.TestCase):
+    def test_replay_with_chatmessage(self):
+        """ Regression test for dict(message) to message.dict() fix """
+        logger = AgentLogger()
+        memory = AgentMemory(system_prompt="test")
+        step = ActionStep(step_number=1, timing = 0)
+        step.model_input_messages = [ChatMessage(role=MessageRole.USER, content="Hello")]
+        memory.steps.append(step)
+
+        try:
+            memory.replay(logger, detailed=True)
+        except TypeError as e:
+            self.fail(f"Replay raised an error: {e}")
