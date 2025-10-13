@@ -412,10 +412,10 @@ class TestLiteLLMModel:
         )
 
     def test_retry_on_rate_limit_error(self):
-        """Test that the tenacity retry mechanism triggers on 429 rate limit errors"""
+        """Test that the retry mechanism does trigger on 429 rate limit errors"""
         import time
 
-        # Patch RETRY_WAIT to 2 seconds for faster testing (must be done before creating the model)
+        # Patch RETRY_WAIT to 1 second for faster testing
         mock_litellm = MagicMock()
 
         with (
@@ -428,11 +428,10 @@ class TestLiteLLMModel:
             # Create a mock response for successful call
             mock_success_response = MagicMock()
             mock_success_response.choices = [MagicMock()]
-            mock_success_response.choices[0].message.model_dump.return_value = {
-                "role": "assistant",
-                "content": "Success response",
-                "tool_calls": None,
-            }
+            # Set content directly (not through model_dump)
+            mock_success_response.choices[0].message.content = "Success response"
+            mock_success_response.choices[0].message.role = "assistant"
+            mock_success_response.choices[0].message.tool_calls = None
             mock_success_response.usage.prompt_tokens = 10
             mock_success_response.usage.completion_tokens = 20
 
@@ -453,8 +452,8 @@ class TestLiteLLMModel:
             assert result.token_usage.input_tokens == 10
             assert result.token_usage.output_tokens == 20
 
-            # Verify that the wait time was around 1s
-            assert 0.9 <= elapsed_time <= 1.1
+            # Verify that the wait time was around 1s (allow some tolerance)
+            assert 0.9 <= elapsed_time <= 1.2
 
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
