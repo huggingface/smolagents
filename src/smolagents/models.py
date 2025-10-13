@@ -1929,7 +1929,20 @@ class AmazonBedrockServerModel(ApiModel):
         )
         self._apply_rate_limit()
         # self.client is created in ApiModel class
-        response = self.client.converse(**completion_kwargs)
+        converse_api_args = [
+            "modelId",
+            "messages",
+            "system",
+            "inferenceConfig",
+            "toolConfig",
+            "guardrailConfig",
+            "additionalModelRequestFields",
+            "promptVariables",
+            "additionalModelResponseFieldPaths",
+            "requestMetadata",
+            "performanceConfig",
+        ]
+        response = self.client.converse(**{k: v for k, v in completion_kwargs.items() if k in converse_api_args})
 
         # Get content blocks with "text" key: in case thinking blocks are present, discard them
         message_content_blocks_with_text = [
