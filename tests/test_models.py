@@ -39,6 +39,7 @@ from smolagents.models import (
     get_tool_call_from_text,
     get_tool_json_schema,
     parse_json_if_needed,
+    remove_content_after_stop_sequences,
     supports_stop_parameter,
 )
 from smolagents.tools import tool
@@ -670,6 +671,13 @@ def test_get_clean_message_list_role_conversions():
     assert result[0]["content"][0]["text"] == "Calling tool..."
     assert result[1]["role"] == "user"
     assert result[1]["content"][0]["text"] == "Tool response"
+
+
+def test_remove_content_after_stop_sequences():
+    content = "Hello<code>world!"
+    stop_sequences = ["<code>"]
+    removed_content = remove_content_after_stop_sequences(content, stop_sequences)
+    assert removed_content == "Hello"
 
 
 @pytest.mark.parametrize(

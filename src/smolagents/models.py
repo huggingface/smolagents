@@ -76,9 +76,7 @@ def remove_content_after_stop_sequences(content: str, stop_sequences: list[str])
     """Remove content after any stop sequence is encountered."""
     for stop_seq in stop_sequences:
         split = content.split(stop_seq)
-        if len(split) >= 2:
-            # The generation continued after the stop sequence, so we must truncate the content
-            content = split[0]
+        content = split[0]
     return content
 
 
