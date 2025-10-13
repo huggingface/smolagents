@@ -1108,7 +1108,7 @@ class ApiModel(Model):
         self.rate_limiter.throttle()
 
 
-def is_rate_limit_error(exception):
+def is_rate_limit_error(exception: BaseException) -> bool:
     """Check if the exception is a rate limit error."""
     error_str = str(exception).lower()
     return (

@@ -28,7 +28,7 @@ from io import BytesIO
 from logging import Logger
 from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import jinja2
 
@@ -516,7 +516,7 @@ class Retrying:
         self,
         max_attempts: int = 1,
         wait_seconds: float = 0.0,
-        retry_predicate=None,
+        retry_predicate: Callable[[BaseException], bool] | None = None,
         reraise: bool = False,
         before_sleep_logger: tuple[Logger, int] | None = None,
         after_logger: tuple[Logger, int] | None = None,
