@@ -74,6 +74,14 @@ def get_dict_from_nested_dataclasses(obj, ignore_key=None):
     return convert(obj)
 
 
+def remove_content_after_stop_sequences(content: str, stop_sequences: list[str]) -> str:
+    """Remove content after any stop sequence is encountered."""
+    for stop_seq in stop_sequences:
+        split = content.split(stop_seq)
+        content = split[0]
+    return content
+
+
 @dataclass
 class ChatMessageToolCallFunction:
     arguments: Any
@@ -264,13 +272,6 @@ def get_tool_json_schema(tool: Tool) -> dict:
     }
 
 
-def remove_stop_sequences(content: str, stop_sequences: list[str]) -> str:
-    for stop_seq in stop_sequences:
-        if content[-len(stop_seq) :] == stop_seq:
-            content = content[: -len(stop_seq)]
-    return content
-
-
 def get_clean_message_list(
     message_list: list[ChatMessage | dict],
     role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
@@ -435,6 +436,10 @@ class Model:
         self.kwargs = kwargs
         self.model_id: str | None = model_id
 
+    @property
+    def supports_stop_parameter(self) -> bool:
+        return supports_stop_parameter(self.model_id or "")
+
     def _prepare_completion_kwargs(
         self,
         messages: list[ChatMessage | dict],
@@ -467,7 +472,7 @@ class Model:
             "messages": messages_as_dicts,
         }
         # Override with specific parameters
-        if stop_sequences is not None and supports_stop_parameter(self.model_id or ""):
+        if stop_sequences is not None and self.supports_stop_parameter:
             # Some models do not support stop parameter
             completion_kwargs["stop"] = stop_sequences
         if response_format is not None:
@@ -663,6 +668,8 @@ class VLLMModel(Model):
         )
 
         output_text = out[0].outputs[0].text
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            output_text = remove_content_after_stop_sequences(output_text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=output_text,
@@ -770,6 +777,8 @@ class MLXModel(Model):
             if any((stop_index := text.rfind(stop)) != -1 for stop in stops):
                 text = text[:stop_index]
                 break
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            text = remove_content_after_stop_sequences(text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=text,
@@ -995,7 +1004,7 @@ class TransformersModel(Model):
             output_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
 
         if stop_sequences is not None:
-            output_text = remove_stop_sequences(output_text, stop_sequences)
+            output_text = remove_content_after_stop_sequences(output_text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=output_text,
@@ -1209,8 +1218,13 @@ class LiteLLMModel(ApiModel):
                 " This may indicate a possible API or upstream issue. "
                 f"Response details: {response.model_dump()}"
             )
-        return ChatMessage.from_dict(
-            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+        content = response.choices[0].message.content
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            content = remove_content_after_stop_sequences(content, stop_sequences)
+        return ChatMessage(
+            role=response.choices[0].message.role,
+            content=content,
+            tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1486,8 +1500,13 @@ class InferenceClientModel(ApiModel):
         )
         self._apply_rate_limit()
         response = self.retryer(self.client.chat_completion, **completion_kwargs)
-        return ChatMessage.from_dict(
-            asdict(response.choices[0].message),
+        content = response.choices[0].message.content
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            content = remove_content_after_stop_sequences(content, stop_sequences)
+        return ChatMessage(
+            role=response.choices[0].message.role,
+            content=content,
+            tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1685,8 +1704,13 @@ class OpenAIModel(ApiModel):
         )
         self._apply_rate_limit()
         response = self.retryer(self.client.chat.completions.create, **completion_kwargs)
-        return ChatMessage.from_dict(
-            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+        content = response.choices[0].message.content
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            content = remove_content_after_stop_sequences(content, stop_sequences)
+        return ChatMessage(
+            role=response.choices[0].message.role,
+            content=content,
+            tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1947,9 +1971,13 @@ class AmazonBedrockModel(ApiModel):
         if not message_content_blocks_with_text:
             raise KeyError("No message content blocks with 'text' key found in response")
         # Keep the last one
-        response["output"]["message"]["content"] = message_content_blocks_with_text[-1]["text"]
-        return ChatMessage.from_dict(
-            response["output"]["message"],
+        content = message_content_blocks_with_text[-1]["text"]
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            content = remove_content_after_stop_sequences(content, stop_sequences)
+        return ChatMessage(
+            role=response["output"]["message"]["role"],
+            content=content,
+            tool_calls=response["output"]["message"]["tool_calls"],
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response["usage"]["inputTokens"],

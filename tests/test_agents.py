@@ -664,7 +664,7 @@ nested_answer()
     def test_final_answer_checks(self):
         error_string = "failed with error"
 
-        def check_always_fails(final_answer, agent_memory):
+        def check_always_fails(final_answer, memory, agent):
             assert False, "Error raised in check"
 
         agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_always_fails])
@@ -675,12 +675,66 @@ nested_answer()
         agent = CodeAgent(
             model=FakeCodeModel(),
             tools=[],
-            final_answer_checks=[lambda x, y: x == 7.2904],
+            final_answer_checks=[lambda x, memory, agent: x == 7.2904],
+            verbosity_level=1000,
         )
         output = agent.run("Dummy task.")
         assert output == 7.2904  # Check that output is correct
         assert len([step for step in agent.memory.steps if isinstance(step, ActionStep)]) == 2
         assert error_string not in str(agent.write_memory_to_messages())
+
+    def test_final_answer_checks_with_agent_access(self):
+        """Test that final answer checks can access agent properties."""
+
+        def check_uses_agent_properties(final_answer, memory, agent):
+            # Access agent properties to validate the final answer
+            assert hasattr(agent, "memory"), "Agent should have memory attribute"
+            assert hasattr(agent, "state"), "Agent should have state attribute"
+            assert hasattr(agent, "task"), "Agent should have task attribute"
+
+            # Check that the final answer is related to the task
+            if isinstance(final_answer, str):
+                return len(final_answer) > 0
+            return True
+
+        def check_uses_agent_state(final_answer, memory, agent):
+            # Use agent state to validate the answer
+            if "expected_answer" in agent.state:
+                return final_answer == agent.state["expected_answer"]
+            return True
+
+        # Test with a check that uses agent properties
+        agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_uses_agent_properties])
+        output = agent.run("Dummy task.")
+        assert output == 7.2904  # Should pass the check
+
+        # Test with a check that uses agent state
+        agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_uses_agent_state])
+        agent.state["expected_answer"] = 7.2904
+        output = agent.run("Dummy task.")
+        assert output == 7.2904  # Should pass the check
+
+        # Test with a check that fails due to state mismatch
+        agent = CodeAgent(
+            model=FakeCodeModel(),
+            tools=[],
+            final_answer_checks=[check_uses_agent_state],
+            max_steps=3,  # Limit steps to avoid long test run
+        )
+        agent.state["expected_answer"] = "wrong answer"
+        output = agent.run("Dummy task.")
+
+        # The agent should have reached max steps and provided a final answer anyway
+        assert output is not None
+        # Check that there were failed validation attempts in the memory
+        failed_steps = [step for step in agent.memory.steps if hasattr(step, "error") and step.error is not None]
+        assert len(failed_steps) > 0, "Expected some steps to have validation errors"
+
+        # Check that at least one error message contains our check function name
+        error_messages = [str(step.error) for step in failed_steps if step.error is not None]
+        assert any("check_uses_agent_state failed" in msg for msg in error_messages), (
+            "Expected to find validation error message"
+        )
 
     def test_generation_errors_are_raised(self):
         class FakeCodeModel(Model):
