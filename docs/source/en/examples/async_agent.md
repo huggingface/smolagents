@@ -39,7 +39,7 @@ from starlette.routing import Route
 from smolagents import CodeAgent, InferenceClientModel
 
 agent = CodeAgent(
-    model=InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"),
+    model=InferenceClientModel(model_id="Qwen/Qwen3-Coder-30B-A3B-Instruct"),
     tools=[],
 )
 
