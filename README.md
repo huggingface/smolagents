@@ -95,7 +95,7 @@ model = InferenceClientModel(
 from smolagents import LiteLLMModel
 
 model = LiteLLMModel(
-    model_id="anthropic/claude-3-5-sonnet-latest",
+    model_id="anthropic/claude-4-sonnet-latest",
     temperature=0.2,
     api_key=os.environ["ANTHROPIC_API_KEY"]
 )
@@ -137,7 +137,7 @@ model = OpenAIModel(
 from smolagents import TransformersModel
 
 model = TransformersModel(
-    model_id="Qwen/Qwen3-Coder-30B-A3B-Instruct",
+    model_id="Qwen/Qwen3-4B-Instruct-2507",
     max_new_tokens=4096,
     device_map="auto"
 )
@@ -178,14 +178,14 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`.
 `smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools.
 
 ```bash
-smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen3-Coder-30B-A3B-Instruct" --imports "pandas numpy" --tools "web_search"
+smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen3-Next-80B-A3B-Instruct" --imports pandas numpy --tools web_search
 ```
 
 Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
 
 For instance:
 ```bash
-webagent "go to xyz.com/men, get to sale section, click the first clothing item you see. Get the product details, and the price, return them. note that I'm shopping from France" --model-type "LiteLLMModel" --model-id "gpt-4o"
+webagent "go to xyz.com/men, get to sale section, click the first clothing item you see. Get the product details, and the price, return them. note that I'm shopping from France" --model-type "LiteLLMModel" --model-id "gpt-5"
 ```
 
 ## How do Code agents work?

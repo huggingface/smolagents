@@ -1425,7 +1425,7 @@ class InferenceClientModel(ApiModel):
 
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+        model_id: str = "Qwen/Qwen3-Next-80B-A3B-Instruct",
         provider: str | None = None,
         token: str | None = None,
         timeout: int = 120,
