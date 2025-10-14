@@ -19,7 +19,7 @@
 
 즉, 계측 코드를 실행한 후 에이전트를 평소처럼 실행하면 모든 내용이 플랫폼에 자동으로 로깅됩니다. 다양한 OpenTelemetry 백엔드에서 이를 구현하는 방법의 예시를 아래에 제시합니다.
 
-플랫폼에서의 실제 모습은 다음과 같습니다:
+플랫폼에서의 실제 모습은 다음과 같습니다.
 
 <div class="flex justify-center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/inspect_run_phoenix.gif"/>
@@ -27,19 +27,19 @@
 
 ## Arize AI Phoenix로 텔레메트리 설정[[setting-up-telemetry-with-arize-ai-phoenix]]
 
-먼저 필요한 패키지를 설치하세요. 여기서는 로그를 수집하고 검사하는 좋은 솔루션인 [Arize AI의 Phoenix](https://github.com/Arize-ai/phoenix)를 설치하지만, 이 수집 및 검사 부분에 사용할 수 있는 다른 OpenTelemetry 호환 플랫폼도 있습니다.
+먼저 필요한 패키지를 설치합니다. 여기서는 로그를 수집하고 검사하기에 좋은 솔루션인 [Arize AI의 Phoenix](https://github.com/Arize-ai/phoenix)를 설치하지만, 이 과정에는 다른 OpenTelemetry 호환 플랫폼을 활용할 수도 있습니다.
 
 ```shell
 pip install 'smolagents[telemetry,toolkit]'
 ```
 
-그 다음 백그라운드에서 수집기를 실행하세요.
+다음 단계로 수집기를 백그라운드에서 실행합니다.
 
 ```shell
 python -m phoenix.server.main serve
 ```
 
-마지막으로 `SmolagentsInstrumentor`를 설정하여 에이전트를 추적하고 Phoenix 기본 엔드포인트로 추적을 보내세요.
+마지막으로 `SmolagentsInstrumentor`를 설정하여 에이전트를 추적하고 Phoenix 기본 엔드포인트로 해당 추적 데이터를 전송합니다.
 
 ```python
 from phoenix.otel import register
@@ -48,7 +48,7 @@ from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 register()
 SmolagentsInstrumentor().instrument()
 ```
-그러면 에이전트를 실행할 수 있습니다!
+이제 에이전트를 실행할 수 있습니다!
 
 ```py
 from smolagents import (
@@ -78,7 +78,7 @@ manager_agent.run(
 )
 ```
 끝입니다!
-이제 `http://0.0.0.0:6006/projects/`로 이동하여 실행을 검사할 수 있습니다!
+이제 `http://0.0.0.0:6006/projects/`로 이동하여 실행 결과를 확인할 수 있습니다!
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/inspect_run_phoenix.png">
 
@@ -104,13 +104,13 @@ Langfuse API 키를 설정하고 Langfuse로 추적을 보내도록 OpenTelemetr
 
 ```python
 import os
-# Get keys for your project from the project settings page: https://cloud.langfuse.com
+# 프로젝트 설정 페이지(https://cloud.langfuse.com)에서 프로젝트 키를 가져옵니다. 
 os.environ["LANGFUSE_PUBLIC_KEY"] = "pk-lf-..." 
 os.environ["LANGFUSE_SECRET_KEY"] = "sk-lf-..." 
-os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com" # 🇪🇺 EU region
-# os.environ["LANGFUSE_HOST"] = "https://us.cloud.langfuse.com" # 🇺🇸 US region
+os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com" # 🇪🇺 유럽 지역
+# os.environ["LANGFUSE_HOST"] = "https://us.cloud.langfuse.com" # 🇺🇸 미국 지역
  
-# your Hugging Face token
+# Hugging Face 토큰을 입력합니다.
 os.environ["HF_TOKEN"] = "hf_..."
 ```
 
@@ -121,7 +121,7 @@ from langfuse import get_client
  
 langfuse = get_client()
  
-# Verify connection
+# 연결을 확인합니다.
 if langfuse.auth_check():
     print("Langfuse client is authenticated and ready!")
 else:
@@ -130,7 +130,7 @@ else:
 
 ### 3단계: `SmolagentsInstrumentor` 초기화[[step-3:-initialize-the-`smolagentsinstrumentor`]]
 
-애플리케이션 코드 앞에서 `SmolagentsInstrumentor`를 초기화하세요.
+애플리케이션 코드를 실행하기 전에 `SmolagentsInstrumentor`를 초기화하세요.
 
 ```python
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
@@ -172,7 +172,7 @@ manager_agent.run(
 
 ### 5단계: Langfuse에서 추적 보기[[step-5:-view-traces-in-langfuse]]
 
-에이전트를 실행한 후 Langfuse에서 smolagents 애플리케이션에서 생성된 추적 정보를 확인할 수 있습니다. AI 에이전트 디버깅과 최적화에 도움이 되는 LLM 상호작용의 상세한 과정을 살펴볼 수 있습니다.
+에이전트를 실행한 후, Langfuse의 smolagents 애플리케이션에서 생성된 추적 정보를 확인할 수 있습니다. AI 에이전트의 디버깅과 최적화에 도움이 되는 LLM 상호작용의 상세한 세부 과정을 살펴볼 수 있습니다.
 
 ![smolagents example trace](https://langfuse.com/images/cookbook/integration-smolagents/smolagent_example_trace.png)
 
