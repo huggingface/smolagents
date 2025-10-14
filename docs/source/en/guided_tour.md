@@ -380,7 +380,7 @@ agent.run("Calculate the least common multiple of 3 and 7")
 ```
 
 The `final_answer_checks` parameter accepts a list of functions that each:
-- Take the agent's final_answer string the agent's memory as parameters
+- Take the agent's final_answer and the agent itself as parameters
 - Return a boolean indicating whether the final_answer is valid (True) or not (False)
 
 If any function returns `False`, the agent will log the error message and continue the run.
