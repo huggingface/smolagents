@@ -49,7 +49,7 @@ agent = CodeAgent(
 4. 각 돌파구에 대한 소스 포함
 ============================================================
 
-옵션을 선택하세요:
+옵션을 선택하세요.
 1. 계획 승인
 2. 계획 수정
 3. 취소
@@ -74,10 +74,10 @@ agent.run(task, reset=False)
 
 ### 에이전트 메모리 검사 [[inspecting-agent-memory]]
 
-에이전트의 메모리를 검사하여 지금까지 수행된 모든 단계를 확인할 수 있습니다:
+에이전트의 메모리를 검사하여 지금까지 수행된 모든 단계를 확인할 수 있습니다.
 
 ```python
-print(f"현재 메모리에 {len(agent.memory.steps)}개의 단계가 포함되어 있습니다:")
+print(f"현재 메모리에 {len(agent.memory.steps)}개의 단계가 포함되어 있습니다.")
 for i, step in enumerate(agent.memory.steps):
     step_type = type(step).__name__
     print(f"  {i+1}. {step_type}")
@@ -93,7 +93,7 @@ for i, step in enumerate(agent.memory.steps):
 
 ## 오류 처리 [[error-handling]]
 
-예제는 다음에 대한 오류 처리를 포함합니다:
+예제는 다음에 대한 오류 처리를 포함합니다.
 - 사용자 취소
 - 계획 수정 오류
 - 실행 재개 실패
@@ -106,7 +106,7 @@ for i, step in enumerate(agent.memory.steps):
 
 ## 교육적 가치 [[educational-value]]
 
-이 예제는 다음을 시연합니다:
+이 예제는 다음을 시연합니다.
 - 사용자 정의 에이전트 동작을 위한 단계 콜백 구현 방법
 - 다중 단계 에이전트의 메모리 관리 기법
 - 에이전트 시스템의 사용자 상호작용 패턴
