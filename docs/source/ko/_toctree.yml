@@ -14,8 +14,8 @@
 #    title: 📊 Inspect your agent runs using telemetry
 #  - local: tutorials/tools
 #    title: 🛠️ Tools - in-depth guide
-#  - local: tutorials/secure_code_execution
-#    title: 🛡️ Secure code execution
+  - local: tutorials/secure_code_execution
+    title: 🛡️ 안전한 코드 실행
   - local: tutorials/memory
     title: 📚 에이전트 메모리 관리
 - title: Conceptual guides
