@@ -12,8 +12,8 @@
     title: 좋은 에이전트 구축하기
 #  - local: tutorials/inspect_runs
 #    title: 📊 Inspect your agent runs using telemetry
-#  - local: tutorials/tools
-#    title: 🛠️ Tools - in-depth guide
+   - local: tutorials/tools
+     title: 🛠️ 도구 심층 활용 가이드
 #  - local: tutorials/secure_code_execution
 #    title: 🛡️ Secure code execution
 #  - local: tutorials/memory
