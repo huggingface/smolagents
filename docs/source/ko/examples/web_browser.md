@@ -4,7 +4,7 @@
 
 이 노트북에서는 **에이전트 기반 웹 브라우저 자동화 시스템**을 구축해보겠습니다! 이 시스템은 웹사이트 탐색, 요소 상호작용, 정보 자동 추출이 가능합니다.
 
-에이전트는 다음과 같은 기능을 수행할 수 있습니다:
+에이전트는 다음과 같은 기능을 수행할 수 있습니다.
 
 - [x] 웹 페이지 탐색
 - [x] 요소 클릭
@@ -14,13 +14,13 @@
 
 단계별로 이 시스템을 구축해보겠습니다!
 
-먼저 필요한 의존성을 설치하기 위해 다음을 실행하세요:
+먼저 필요한 의존성을 설치하기 위해 다음을 실행하세요.
 
 ```bash
 pip install smolagents selenium helium pillow -q
 ```
 
-필요한 라이브러리를 가져오고 환경 변수를 설정해보겠습니다:
+필요한 라이브러리를 가져오고 환경 변수를 설정해보겠습니다.
 
 ```python
 from io import BytesIO
@@ -36,20 +36,20 @@ from selenium.webdriver.common.keys import Keys
 from smolagents import CodeAgent, tool
 from smolagents.agents import ActionStep
 
-# Load environment variables
+# 환경 변수를 불러옵니다.
 load_dotenv()
 ```
 
-이제 에이전트가 웹 페이지를 탐색하고 상호작용할 수 있도록 하는 핵심 브라우저 상호작용 도구들을 만들어보겠습니다:
+이제 에이전트가 웹 페이지를 탐색하고 상호작용할 수 있도록 하는 핵심 브라우저 상호작용 도구들을 만들어보겠습니다.
 
 ```python
 @tool
 def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
     """
-    Searches for text on the current page via Ctrl + F and jumps to the nth occurrence.
-    Args:
-        text: The text to search for
-        nth_result: Which occurrence to jump to (default: 1)
+    현재 페이지에서 Ctrl + F를 사용해 지정된 텍스트를 검색하고, n번째로 등장하는 위치로 이동합니다.
+    인자:
+        text: 검색할 텍스트
+        nth_result: 이동할 n번째 검색 결과 (기본값: 1)
     """
     elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{text}')]")
     if nth_result > len(elements):
@@ -62,7 +62,7 @@ def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
 
 @tool
 def go_back() -> None:
-    """Goes back to previous page."""
+    """이전 페이지로 돌아갑니다."""
     driver.back()
 
 @tool
@@ -74,7 +74,7 @@ def close_popups() -> str:
     webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 ```
 
-Chrome으로 브라우저를 설정하고 스크린샷 기능을 구성해보겠습니다:
+Chrome으로 브라우저를 설정하고 스크린샷 기능을 구성해보겠습니다.
 
 ```python
 # Configure Chrome options
@@ -108,7 +108,7 @@ def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
     )
 ```
 
-이제 웹 자동화 에이전트를 만들어보겠습니다:
+이제 웹 자동화 에이전트를 만들어보겠습니다.
 
 ```python
 from smolagents import InferenceClientModel
@@ -131,7 +131,7 @@ agent = CodeAgent(
 agent.python_executor("from helium import *", agent.state)
 ```
 
-에이전트가 웹 자동화를 위해 Helium을 사용하려면 지침이 필요합니다. 다음은 제공할 지침입니다:
+에이전트가 웹 자동화를 위해 Helium을 사용하려면 지침이 필요합니다. 다음은 제공할 지침입니다.
 
 ```python
 helium_instructions = """
@@ -181,7 +181,7 @@ if Text('Accept cookies?').exists():
 """
 ```
 
-이제 작업과 함께 에이전트를 실행할 수 있습니다! Wikipedia에서 정보를 찾는 것을 시도해보겠습니다:
+이제 작업과 함께 에이전트를 실행할 수 있습니다! Wikipedia에서 정보를 찾는 것을 시도해보겠습니다.
 
 ```python
 search_request = """
@@ -193,7 +193,7 @@ print("Final output:")
 print(agent_output)
 ```
 
-요청을 수정하여 다른 작업을 실행할 수 있습니다. 예를 들어, 제가 얼마나 열심히 일해야 하는지 알아보는 작업입니다:
+요청을 수정하여 다른 작업을 실행할 수 있습니다. 예를 들어, 제가 얼마나 열심히 일해야 하는지 알아보는 작업입니다.
 
 ```python
 github_request = """
@@ -206,7 +206,7 @@ print("Final output:")
 print(agent_output)
 ```
 
-이 시스템은 특히 다음과 같은 작업에 효과적입니다:
+이 시스템은 특히 다음과 같은 작업에 효과적입니다.
 - 웹사이트에서 데이터 추출
 - 웹 리서치 자동화
 - UI 테스트 및 검증
