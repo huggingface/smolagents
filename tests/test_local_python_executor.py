@@ -1344,6 +1344,38 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert state["TestClass"].key_data == {"key": "value"}
         assert state["TestClass"].index_data == ["a", "b", 30]
 
+    def test_evaluate_class_def_with_enum(self):
+        """
+        Test evaluate_class_def function with Enum classes.
+
+        This test ensures that Enum classes are correctly handled by using the
+        appropriate metaclass and __prepare__ method.
+        """
+        code = dedent("""
+        from enum import Enum
+
+        class Status(Enum):
+            SUCCESS = "Success"
+            FAILURE = "Failure"
+            PENDING = "Pending"
+            ERROR = "Error"
+
+        status_value = Status.SUCCESS.value
+        status_name = Status.SUCCESS.name
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state, authorized_imports=["enum"])
+
+        assert state["status_value"] == "Success"
+        assert state["status_name"] == "SUCCESS"
+        assert isinstance(state["Status"], type)
+        assert hasattr(state["Status"], "SUCCESS")
+        assert state["Status"].SUCCESS.value == "Success"
+        assert state["Status"].FAILURE.value == "Failure"
+        assert state["Status"].PENDING.value == "Pending"
+        assert state["Status"].ERROR.value == "Error"
+
     def test_evaluate_annassign(self):
         code = dedent("""\
             # Basic annotated assignment

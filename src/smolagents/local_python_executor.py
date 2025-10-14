@@ -499,7 +499,21 @@ def evaluate_class_def(
 ) -> type:
     class_name = class_def.name
     bases = [evaluate_ast(base, state, static_tools, custom_tools, authorized_imports) for base in class_def.bases]
-    class_dict = {}
+
+    # Determine the metaclass to use
+    # If any base class has a custom metaclass, use it
+    metaclass = type
+    for base in bases:
+        base_metaclass = type(base)
+        if base_metaclass is not type:
+            metaclass = base_metaclass
+            break
+
+    # Use __prepare__ if the metaclass provides it (e.g., Enum uses _EnumDict)
+    if hasattr(metaclass, "__prepare__"):
+        class_dict = metaclass.__prepare__(class_name, bases)
+    else:
+        class_dict = {}
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
@@ -552,7 +566,7 @@ def evaluate_class_def(
         else:
             raise InterpreterError(f"Unsupported statement in class body: {stmt.__class__.__name__}")
 
-    new_class = type(class_name, tuple(bases), class_dict)
+    new_class = metaclass(class_name, tuple(bases), class_dict)
     state[class_name] = new_class
     return new_class
 
