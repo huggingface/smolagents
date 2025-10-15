@@ -1,8 +1,8 @@
 # 내장 도구[[built-in-tools]]
 
-`smolagents` 라이브러리에서 제공하는 바로 사용할 수 있는 도구 구현체입니다.
+내장 도구는 `smolagents` 라이브러리에서 제공하는 바로 사용할 수 있는 도구 구현체입니다.
 
-이 내장 도구들은 [`Tool`] 기본 클래스의 구체적인 구현체로, 각각 웹 검색, Python 코드 실행, 웹 페이지 검색, 사용자 상호작용과 같은 특정 작업을 위해 설계되었습니다.
+이 내장 도구들은 [`Tool`] 기본 클래스의 구현체로, 각각 웹 검색, Python 코드 실행, 웹 페이지 검색, 사용자 상호작용과 같은 특정 작업을 위해 설계되었습니다.
 이 도구들을 사용하면 기본 기능을 직접 구현할 필요 없이 에이전트에서 바로 사용할 수 있습니다.
 각 도구는 특정 기능을 처리하고 일관된 인터페이스를 따르므로, 강력한 에이전트 워크플로우로 쉽게 구성할 수 있습니다.
 
@@ -15,7 +15,7 @@
   - [`WikipediaSearchTool`]
 - **웹 상호작용**: 특정 웹 페이지에서 콘텐츠를 가져와 처리합니다.
   - [`VisitWebpageTool`]
-- **코드 실행**: 계산 작업을 위한 Python 코드의 동적 실행.
+- **코드 실행**: 계산 작업을 위한 Python 코드의 동적 실행합니다.
   - [`PythonInterpreterTool`]
 - **사용자 상호작용**: 에이전트와 사용자 간의 Human-in-the-Loop 협업을 활성화합니다.
   - [`UserInputTool`]: 사용자로부터 입력을 수집합니다.
@@ -24,42 +24,42 @@
 - **워크플로우 제어**: 에이전트 작업의 흐름을 관리하고 지시합니다.
   - [`FinalAnswerTool`]: 최종 응답으로 에이전트 워크플로우를 마무리합니다.
 
-## ApiWebSearchTool[[apiwebsearchtool]]
+## ApiWebSearchTool[[smolagents.ApiWebSearchTool]]
 
 [[autodoc]] smolagents.default_tools.ApiWebSearchTool
 
-## DuckDuckGoSearchTool[[duckduckgosearchtool]]
+## DuckDuckGoSearchTool[[smolagents.DuckDuckGoSearchTool]]
 
 [[autodoc]] smolagents.default_tools.DuckDuckGoSearchTool
 
-## FinalAnswerTool[[finalanswertool]]
+## FinalAnswerTool[[smolagents.FinalAnswerTool]]
 
 [[autodoc]] smolagents.default_tools.FinalAnswerTool
 
-## GoogleSearchTool[[googlesearchtool]]
+## GoogleSearchTool[[smolagents.GoogleSearchTool]]
 
 [[autodoc]] smolagents.default_tools.GoogleSearchTool
 
-## PythonInterpreterTool[[pythoninterpretertool]]
+## PythonInterpreterTool[[smolagents.PythonInterpreterTool]]
 
 [[autodoc]] smolagents.default_tools.PythonInterpreterTool
 
-## SpeechToTextTool[[speechtotexttool]]
+## SpeechToTextTool[[smolagents.SpeechToTextTool]]
 
 [[autodoc]] smolagents.default_tools.SpeechToTextTool
 
-## UserInputTool[[userinputtool]]
+## UserInputTool[[smolagents.UserInputTool]]
 
 [[autodoc]] smolagents.default_tools.UserInputTool
 
-## VisitWebpageTool[[visitwebpagetool]]
+## VisitWebpageTool[[smolagents.VisitWebpageTool]]
 
 [[autodoc]] smolagents.default_tools.VisitWebpageTool
 
-## WebSearchTool[[websearchtool]]
+## WebSearchTool[[smolagents.WebSearchTool]]
 
 [[autodoc]] smolagents.default_tools.WebSearchTool
 
-## WikipediaSearchTool[[wikipediasearchtool]]
+## WikipediaSearchTool[[smolagents.WikipediaSearchTool]]
 
 [[autodoc]] smolagents.default_tools.WikipediaSearchTool
