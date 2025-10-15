@@ -93,7 +93,7 @@ while llm_should_continue(memory): # 이 루프가 멀티 스텝(multi-step) 추
 그 이유는 간단합니다. 사람은 *컴퓨터가 수행하는 행동을 표현하기 위해 특별히 코드 언어를 만들었기 때문*입니다.
 다시 말해, 에이전트는 사용자의 문제를 해결하기 위해 프로그램을 작성할 것입니다. 여러분은 파이썬 블록과 JSON 블록 중 어느 것으로 프로그래밍하는 것이 더 쉬울 것이라고 생각하시나요?
 
-[실행 가능한 코드 행동이 더 나은 LLM 에이전트를 이끌어낸다(Executable Code Actions Elicit Better LLM Agents)](https://huggingface.co/papers/2402.01030)에서 가져온 아래 그림은 행동을 코드로 작성할 때의 몇 가지 장점을 보여줍니다:
+[실행 가능한 코드 행동이 더 나은 LLM 에이전트를 이끌어낸다(Executable Code Actions Elicit Better LLM Agents)](https://huggingface.co/papers/2402.01030)에서 가져온 아래 그림은 행동을 코드로 작성할 때의 몇 가지 장점을 보여줍니다.
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_vs_json_actions.png">
 
