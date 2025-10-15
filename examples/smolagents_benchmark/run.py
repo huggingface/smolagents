@@ -158,7 +158,7 @@ def answer_single_question(example, model, answers_file, action_type):
             # Run agent 🚀
             answer = str(agent.run(augmented_question))
             token_counts = agent.monitor.get_total_token_counts()
-            intermediate_steps = [dict(message) for message in agent.write_memory_to_messages()]
+            intermediate_steps = [message.dict() for message in agent.write_memory_to_messages()]
 
         end_time = time.time()
     except Exception as e:
