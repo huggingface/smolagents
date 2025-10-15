@@ -411,6 +411,50 @@ class TestLiteLLMModel:
             f"Error message '{error_message}' does not contain any expected phrases"
         )
 
+    def test_retry_on_rate_limit_error(self):
+        """Test that the retry mechanism does trigger on 429 rate limit errors"""
+        import time
+
+        # Patch RETRY_WAIT to 1 second for faster testing
+        mock_litellm = MagicMock()
+
+        with (
+            patch("smolagents.models.RETRY_WAIT", 1),
+            patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
+        ):
+            model = LiteLLMModel(model_id="test-model")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
+
+            # Create a mock response for successful call
+            mock_success_response = MagicMock()
+            mock_success_response.choices = [MagicMock()]
+            # Set content directly (not through model_dump)
+            mock_success_response.choices[0].message.content = "Success response"
+            mock_success_response.choices[0].message.role = "assistant"
+            mock_success_response.choices[0].message.tool_calls = None
+            mock_success_response.usage.prompt_tokens = 10
+            mock_success_response.usage.completion_tokens = 20
+
+            # Create a 429 rate limit error
+            rate_limit_error = Exception("Error code: 429 - Rate limit exceeded")
+
+            # Mock the litellm client to raise error first, then succeed
+            model.client.completion.side_effect = [rate_limit_error, mock_success_response]
+
+            # Measure time to verify retry wait time
+            start_time = time.time()
+            result = model.generate(messages)
+            elapsed_time = time.time() - start_time
+
+            # Verify that completion was called twice (once failed, once succeeded)
+            assert model.client.completion.call_count == 2
+            assert result.content == "Success response"
+            assert result.token_usage.input_tokens == 10
+            assert result.token_usage.output_tokens == 20
+
+            # Verify that the wait time was around 1s (allow some tolerance)
+            assert 0.9 <= elapsed_time <= 1.2
+
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
         assert not model.flatten_messages_as_text
