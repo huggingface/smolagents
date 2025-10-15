@@ -50,7 +50,7 @@ model_downloads_tool = HFModelDownloadsTool()
 - 도구 자체의 이름에 해당하는 `name` 속성입니다. 이름은 보통 도구가 하는 일을 설명합니다. 이 코드는 특정 작업에서 가장 많이 다운로드된 모델을 반환하므로 `model_download_counter`라고 이름 짓겠습니다.
 - 에이전트의 시스템 프롬프트를 채우는 데 사용되는 `description` 속성입니다.
 - `inputs` 속성은 `"type"`과 `"description"` 키를 갖는 딕셔너리로, 입력값에 대한 정보를 제공합니다. 이를 통해 파이썬 인터프리터가 입력 정보에 맞게 더 잘 처리할 수 있습니다.
-- 출력 유형을 지정하는 `output_type` 속성입니다. `inputs`와 `output_type`의 유형은 모두 [Pydantic 형식](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema)이어야 하며, [`~AUTHORIZED_TYPES`] 중 하나일 수 있습니다.
+- 출력 유형을 지정하는 `output_type` 속성입니다. `inputs`와 `output_type`의 유형은 모두 [Pydantic 형식](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema)이어야 하며, ["string", "boolean","integer", "number", "image", "audio", "array", "object", "any", "null"] 타입 중 하나일 수 있습니다.
 - 실행될 추론 코드를 포함하는 `forward` 메소드입니다.
 
 이것이 에이전트에서 사용되기 위해 필요한 전부입니다!
