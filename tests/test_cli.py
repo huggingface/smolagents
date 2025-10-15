@@ -13,7 +13,7 @@ def set_env_vars(monkeypatch):
     monkeypatch.setenv("HF_TOKEN", "test_hf_api_key")
 
 
-def test_load_model_openai_server_model(set_env_vars):
+def test_load_model_openai_model(set_env_vars):
     with patch("openai.OpenAI") as MockOpenAI:
         model = load_model("OpenAIModel", "test_model_id")
     assert isinstance(model, OpenAIModel)

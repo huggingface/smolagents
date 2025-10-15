@@ -19,7 +19,7 @@ import os
 
 from dotenv import load_dotenv
 
-from smolagents import CodeAgent, InferenceClientModel, LiteLLMModel, Model, Tool, TransformersModel
+from smolagents import CodeAgent, InferenceClientModel, LiteLLMModel, Model, OpenAIModel, Tool, TransformersModel
 from smolagents.default_tools import TOOL_MAPPING
 
 
