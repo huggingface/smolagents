@@ -1675,7 +1675,7 @@ class TestToolCallingAgent:
     def test_toolcalling_agent_stream_logs_multiple_tool_calls_observations(self, mock_openai_client, test_tool):
         """Test that ToolCallingAgent with stream_outputs=True logs the observations of all tool calls when multiple are called."""
         mock_client = mock_openai_client.return_value
-        from smolagents import OpenAIServerModel
+        from smolagents import OpenAIModel
 
         # Mock streaming response with multiple tool calls
         mock_deltas = [
@@ -1748,7 +1748,7 @@ class TestToolCallingAgent:
         mock_usage.prompt_tokens = 10
         mock_usage.completion_tokens = 20
 
-        model = OpenAIServerModel(model_id="fakemodel")
+        model = OpenAIModel(model_id="fakemodel")
 
         agent = ToolCallingAgent(model=model, tools=[test_tool], max_steps=1, stream_outputs=True)
         agent.run("Dummy task")
@@ -1763,7 +1763,7 @@ class TestToolCallingAgent:
         """Test that ToolCallingAgent with stream_outputs=True returns the all tool calls when multiple are called."""
         mock_client = mock_openai_client.return_value
 
-        from smolagents import OpenAIServerModel
+        from smolagents import OpenAIModel
 
         class ExtendedChatMessage(ChatMessage):
             def __init__(self, *args, usage, **kwargs):
@@ -1821,7 +1821,7 @@ class TestToolCallingAgent:
             )
         )
 
-        model = OpenAIServerModel(model_id="fakemodel")
+        model = OpenAIModel(model_id="fakemodel")
 
         agent = ToolCallingAgent(model=model, tools=[test_tool], max_steps=1)
         agent.run("Dummy task")
