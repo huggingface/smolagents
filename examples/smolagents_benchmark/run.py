@@ -60,7 +60,6 @@ def parse_arguments():
     parser.add_argument(
         "--provider",
         type=str,
-        default="hf-inference",
         help="The provider for InferenceClientModel - will not be used for LiteLLMModel",
     )
     parser.add_argument(
