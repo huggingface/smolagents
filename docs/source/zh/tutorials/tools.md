@@ -120,7 +120,7 @@ image_generation_tool("A sunny beach")
 ```python
 from smolagents import CodeAgent, InferenceClientModel
 
-model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
@@ -168,7 +168,7 @@ agent.run("How many more blocks (also denoted as layers) are in BERT base encode
 ```python
 from smolagents import InferenceClientModel
 
-model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.tools[model_download_tool.name] = model_download_tool
