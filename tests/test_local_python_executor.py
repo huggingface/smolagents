@@ -517,6 +517,16 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {10, 19, 20}
 
+        code = """
+simple_set = {
+    (x, y)
+    for x in [1, 2, 1]
+    for y in ['a', 'b']
+}
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {(1, "a"), (1, "b"), (2, "a"), (2, "b")}
+
     def test_generatorexp(self):
         code = "x = (i for i in range(3))"
         result, _ = evaluate_python_code(code, {"range": range}, state={})

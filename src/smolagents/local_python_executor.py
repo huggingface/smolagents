@@ -1057,13 +1057,29 @@ def evaluate_setcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> set[Any]:
-    result = set()
-    for gen in setcomp.generators:
-        iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+    def inner_evaluate(generators: list[ast.comprehension], index: int, current_state: dict[str, Any]) -> list[Any]:
+        if index >= len(generators):
+            element = evaluate_ast(
+                setcomp.elt,
+                current_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            return [element]
+        generator = generators[index]
+        iter_value = evaluate_ast(
+            generator.iter,
+            current_state,
+            static_tools,
+            custom_tools,
+            authorized_imports,
+        )
+        result = []
         for value in iter_value:
-            new_state = state.copy()
+            new_state = current_state.copy()
             set_value(
-                gen.target,
+                generator.target,
                 value,
                 new_state,
                 static_tools,
@@ -1072,17 +1088,12 @@ def evaluate_setcomp(
             )
             if all(
                 evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                for if_clause in gen.ifs
+                for if_clause in generator.ifs
             ):
-                element = evaluate_ast(
-                    setcomp.elt,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                result.add(element)
-    return result
+                result.extend(inner_evaluate(generators, index + 1, new_state))
+        return result
+
+    return set(inner_evaluate(setcomp.generators, 0, state))
 
 
 def evaluate_try(
