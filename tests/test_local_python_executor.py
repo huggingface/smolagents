@@ -604,6 +604,17 @@ shift_minutes = {worker: ('a', 'b') for worker, (start, end) in shifts.items()}
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {"A": ("a", "b"), "B": ("a", "b")}
 
+        # Nested dict comp
+        code = """
+simple_map = {
+    (x, y): f"key_{x}_{y}"
+    for x in [1, 2]
+    for y in ['a', 'b']
+}
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {(1, "a"): "key_1_a", (1, "b"): "key_1_b", (2, "a"): "key_2_a", (2, "b"): "key_2_b"}
+
     def test_tuple_assignment(self):
         code = "a, b = 0, 1\nb"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})

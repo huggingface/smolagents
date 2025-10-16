@@ -1272,13 +1272,38 @@ def evaluate_dictcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> dict[Any, Any]:
-    result = {}
-    for gen in dictcomp.generators:
-        iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+    def inner_evaluate(
+        generators: list[ast.comprehension], index: int, current_state: dict[str, Any]
+    ) -> list[tuple[Any, Any]]:
+        if index >= len(generators):
+            key = evaluate_ast(
+                dictcomp.key,
+                current_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            value = evaluate_ast(
+                dictcomp.value,
+                current_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            return [(key, value)]
+        generator = generators[index]
+        iter_value = evaluate_ast(
+            generator.iter,
+            current_state,
+            static_tools,
+            custom_tools,
+            authorized_imports,
+        )
+        result = []
         for value in iter_value:
-            new_state = state.copy()
+            new_state = current_state.copy()
             set_value(
-                gen.target,
+                generator.target,
                 value,
                 new_state,
                 static_tools,
@@ -1287,24 +1312,12 @@ def evaluate_dictcomp(
             )
             if all(
                 evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                for if_clause in gen.ifs
+                for if_clause in generator.ifs
             ):
-                key = evaluate_ast(
-                    dictcomp.key,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                val = evaluate_ast(
-                    dictcomp.value,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                result[key] = val
-    return result
+                result.extend(inner_evaluate(generators, index + 1, new_state))
+        return result
+
+    return dict(inner_evaluate(dictcomp.generators, 0, state))
 
 
 def evaluate_generatorexp(
