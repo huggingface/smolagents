@@ -16,8 +16,9 @@ dependencies = [
   "requests>=2.32.3",
   "rich>=13.9.4",
   "jinja2>=3.1.4",
-  "pillow>=10.0.1",  # Security fix for CVE-2023-4863: https://pillow.readthedocs.io/en/stable/releasenotes/10.0.1.html
-  "python-dotenv"
+  "pillow>=10.0.1",
+  # Security fix for CVE-2023-4863: https://pillow.readthedocs.io/en/stable/releasenotes/10.0.1.html
+  "python-dotenv",
 ]
 
 [project.optional-dependencies]
