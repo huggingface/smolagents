@@ -32,8 +32,8 @@
     title: Agentic RAG로 지식 베이스 완전 정복하기
   - local: examples/multiagents
     title: 멀티 에이전트 시스템 오케스트레이션
-#  - local: examples/web_browser
-#    title: (번역중) Build a web browser agent using vision models
+  - local: examples/web_browser
+    title: 비전 모델을 활용한 웹 브라우저 에이전트 만들기
   - local: examples/using_different_models
     title: 다양한 모델 사용하기
 #  - local: examples/plan_customization
