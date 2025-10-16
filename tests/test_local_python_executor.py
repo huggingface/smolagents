@@ -517,6 +517,7 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {10, 19, 20}
 
+        # nested set comp
         code = """
 simple_set = {
     (x, y)
@@ -614,7 +615,7 @@ shift_minutes = {worker: ('a', 'b') for worker, (start, end) in shifts.items()}
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {"A": ("a", "b"), "B": ("a", "b")}
 
-        # Nested dict comp
+        # nested dict comp
         code = """
 simple_map = {
     (x, y): f"key_{x}_{y}"
