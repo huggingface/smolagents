@@ -50,7 +50,8 @@ Begin translating the text!
 
 1. Start with the `_toctree.yml` file that corresponds to your documentation chapter. This file is essential for rendering the table of contents on the website.
 
-    - If the `_toctree.yml` file doesn't exist for your language, create one by copying the English version and removing unrelated sections.
+    - If the `_toctree.yml` file doesn't exist for your language, create one by copying the English version and commenting out unrelated sections (instead of deleting them) to avoid potential merge conflicts with other PRs.
+    - If the `_toctree.yml` file already exists for your language, open it and uncomment the sections that apply to the chapter you're translating.
     - Ensure it is placed in the `docs/source/LANG-ID/` directory.
 
     Here's an example structure for the `_toctree.yml` file:
