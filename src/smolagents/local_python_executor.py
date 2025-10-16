@@ -1018,21 +1018,18 @@ def evaluate_nested_comp_helper(
         if index >= len(generators):
             return base_case_evaluator(current_state)
         generator = generators[index]
-        iter_value = evaluate_ast(
-            generator.iter, current_state, static_tools, custom_tools, authorized_imports
-        )
+        iter_value = evaluate_ast(generator.iter, current_state, static_tools, custom_tools, authorized_imports)
         results = []
         for value in iter_value:
             new_state = current_state.copy()
-            set_value(
-                generator.target, value, new_state, static_tools, custom_tools, authorized_imports
-            )
+            set_value(generator.target, value, new_state, static_tools, custom_tools, authorized_imports)
             if all(
                 evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
                 for if_clause in generator.ifs
             ):
                 results.extend(inner_evaluate(index + 1, new_state))
         return results
+
     return inner_evaluate(0, state)
 
 
@@ -1044,14 +1041,13 @@ def evaluate_listcomp(
     authorized_imports: list[str],
 ) -> list[Any]:
     def base_case(current_state):
-        element = evaluate_ast(
-            listcomp.elt, current_state, static_tools, custom_tools, authorized_imports
-        )
+        element = evaluate_ast(listcomp.elt, current_state, static_tools, custom_tools, authorized_imports)
         return [element]
 
     return evaluate_nested_comp_helper(
         listcomp.generators, base_case, state, static_tools, custom_tools, authorized_imports
     )
+
 
 def evaluate_setcomp(
     setcomp: ast.SetComp,
@@ -1061,14 +1057,14 @@ def evaluate_setcomp(
     authorized_imports: list[str],
 ) -> set[Any]:
     def base_case(current_state):
-        element = evaluate_ast(
-            setcomp.elt, current_state, static_tools, custom_tools, authorized_imports
-        )
+        element = evaluate_ast(setcomp.elt, current_state, static_tools, custom_tools, authorized_imports)
         return [element]
 
-    return set(evaluate_nested_comp_helper(
-        setcomp.generators, base_case, state, static_tools, custom_tools, authorized_imports
-    ))
+    return set(
+        evaluate_nested_comp_helper(
+            setcomp.generators, base_case, state, static_tools, custom_tools, authorized_imports
+        )
+    )
 
 
 def evaluate_dictcomp(
@@ -1079,17 +1075,16 @@ def evaluate_dictcomp(
     authorized_imports: list[str],
 ) -> dict[Any, Any]:
     def base_case(current_state):
-        key = evaluate_ast(
-            dictcomp.key, current_state, static_tools, custom_tools, authorized_imports
-        )
-        value = evaluate_ast(
-            dictcomp.value, current_state, static_tools, custom_tools, authorized_imports
-        )
+        key = evaluate_ast(dictcomp.key, current_state, static_tools, custom_tools, authorized_imports)
+        value = evaluate_ast(dictcomp.value, current_state, static_tools, custom_tools, authorized_imports)
         return [(key, value)]
 
-    return dict(evaluate_nested_comp_helper(
-        dictcomp.generators, base_case, state, static_tools, custom_tools, authorized_imports
-    ))
+    return dict(
+        evaluate_nested_comp_helper(
+            dictcomp.generators, base_case, state, static_tools, custom_tools, authorized_imports
+        )
+    )
+
 
 def evaluate_try(
     try_node: ast.Try,
