@@ -7,7 +7,7 @@ As part of our mission to democratize machine learning, we aim to make the Smola
 1. Navigate to the Issues page of this repository.
 2. Check if anyone has already opened an issue for your language.
 3. If not, create a new issue by selecting the "Translation template" from the "New issue" button.
-4. Post a comment indicating which chapters you’d like to work on, and we’ll add your name to the list.
+4. Post a comment indicating which chapters you'd like to work on, and we'll add your name to the list.
 
 ## Fork the Repository
 
@@ -53,7 +53,7 @@ Begin translating the text!
     - If the `_toctree.yml` file doesn't exist for your language, create one by copying the English version and removing unrelated sections.
     - Ensure it is placed in the `docs/source/LANG-ID/` directory.
 
-    Here’s an example structure for the `_toctree.yml` file:
+    Here's an example structure for the `_toctree.yml` file:
 
     ```yaml
     - sections:
@@ -63,7 +63,7 @@ Begin translating the text!
       title: Tutorials # Translate this
     ```
 
-2. Once you’ve translated the `_toctree.yml`, move on to translating the associated MD files.
+2. Once you've translated the `_toctree.yml`, move on to translating the associated MD files.
 
 ## Collaborate and share
 
