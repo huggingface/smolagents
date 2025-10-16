@@ -134,7 +134,11 @@ def answer_single_question(example, model, answers_file, action_type):
         )
     elif action_type == "tool-calling":
         agent = ToolCallingAgent(
-            tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool(), PythonInterpreterTool()],
+            tools=[
+                GoogleSearchTool(provider="serper"),
+                VisitWebpageTool(),
+                PythonInterpreterTool(authorized_imports=["numpy", "sympy"]),
+            ],
             model=model,
             max_steps=10,
         )
