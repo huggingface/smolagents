@@ -275,7 +275,7 @@ Then you can use this tool just like any other tool.  For example, let's improve
 ```python
 from smolagents import CodeAgent, InferenceClientModel
 
-model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
@@ -323,7 +323,7 @@ Let's add the `model_download_tool` to an existing agent initialized with only t
 ```python
 from smolagents import InferenceClientModel
 
-model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.tools[model_download_tool.name] = model_download_tool

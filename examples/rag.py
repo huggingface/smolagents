@@ -58,7 +58,7 @@ from smolagents import CodeAgent, InferenceClientModel
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
     tools=[retriever_tool],
-    model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Instruct"),
+    model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking"),
     max_steps=4,
     verbosity_level=2,
     stream_outputs=True,

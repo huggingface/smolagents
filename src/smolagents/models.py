@@ -801,7 +801,7 @@ class TransformersModel(Model):
     Parameters:
         model_id (`str`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
-            For example, `"Qwen/Qwen2.5-Coder-32B-Instruct"`.
+            For example, `"Qwen/Qwen3-Next-80B-A3B-Thinking"`.
         device_map (`str`, *optional*):
             The device_map to initialize your model with.
         torch_dtype (`str`, *optional*):
@@ -823,7 +823,7 @@ class TransformersModel(Model):
     Example:
     ```python
     >>> engine = TransformersModel(
-    ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
+    ...     model_id="Qwen/Qwen3-Next-80B-A3B-Thinking",
     ...     device="cuda",
     ...     max_new_tokens=5000,
     ... )
@@ -1387,10 +1387,10 @@ class InferenceClientModel(ApiModel):
     Providers include Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
 
     Parameters:
-        model_id (`str`, *optional*, default `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
+        model_id (`str`, *optional*, default `"Qwen/Qwen3-Next-80B-A3B-Thinking"`):
             The Hugging Face model ID to be used for inference.
             This can be a model identifier from the Hugging Face model hub or a URL to a deployed Inference Endpoint.
-            Currently, it defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`, but this may change in the future.
+            Currently, it defaults to `"Qwen/Qwen3-Next-80B-A3B-Thinking"`, but this may change in the future.
         provider (`str`, *optional*):
             Name of the provider to use for inference. A list of supported providers can be found in the [Inference Providers documentation](https://huggingface.co/docs/inference-providers/index#partners).
             Defaults to "auto" i.e. the first of the providers available for the model, sorted by the user's order [here](https://hf.co/settings/inference-providers).
@@ -1439,7 +1439,7 @@ class InferenceClientModel(ApiModel):
 
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen3-Next-80B-A3B-Instruct",
+        model_id: str = "Qwen/Qwen3-Next-80B-A3B-Thinking",
         provider: str | None = None,
         token: str | None = None,
         timeout: int = 120,

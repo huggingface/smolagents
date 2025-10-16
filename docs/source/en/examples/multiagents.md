@@ -36,13 +36,13 @@ from huggingface_hub import login
 login()
 ```
 
-⚡️ Our agent will be powered by [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) using `InferenceClientModel` class that uses HF's Inference API: the Inference API allows to quickly and easily run any OS model.
+⚡️ Our agent will be powered by [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking) using `InferenceClientModel` class that uses HF's Inference API: the Inference API allows to quickly and easily run any OS model.
 
 > [!TIP]
 > Inference Providers give access to hundreds of models, powered by serverless inference partners. A list of supported providers can be found [here](https://huggingface.co/docs/inference-providers/index).
 
 ```py
-model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
+model_id = "Qwen/Qwen3-Next-80B-A3B-Thinking"
 ```
 
 ## 🔍 Create a web search tool
