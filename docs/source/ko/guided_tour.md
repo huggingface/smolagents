@@ -97,9 +97,9 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 코드를 실행하지 않으므로 `additional_authorized_imports` 없이도 [`CodeAgent`]와 거의 동일한 방식으로 작동합니다:
 
 ```py
-from smolagents import ToolCallingAgent
+from smolagents import ToolCallingAgent, WebSearchTool
 
-agent = ToolCallingAgent(tools=[], model=model)
+agent = ToolCallingAgent(tools=[WebSearchTool()], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
@@ -450,6 +450,16 @@ def model_download_tool(task: str) -> str:
 
 > [!TIP]
 > 이 정의 형식은 `apply_chat_template`에서 사용되는 도구 스키마와 동일하며, 유일한 차이점은 추가된 `tool` 데코레이터입니다: 도구 사용 API에 대해 더 자세히 알아보려면 [여기](https://huggingface.co/blog/unified-tool-use#passing-tools-to-a-chat-template)를 읽어보세요.
+
+
+그런 다음 에이전트를 직접 초기화할 수 있습니다:
+```py
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
+agent.run(
+    "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
+)
+```
 </hfoption>
 <hfoption id="Subclass Tool">
 
@@ -473,17 +483,18 @@ class ModelDownloadTool(Tool):
 - 입력 타입과 설명
 - 출력 타입
 이 모든 속성은 초기화 시 에이전트의 시스템 프롬프트에 자동으로 포함됩니다: 따라서 최대한 명확하게 만들도록 노력하세요!
-</hfoption>
-</hfoptions>
+
 
 그런 다음 에이전트를 직접 초기화할 수 있습니다:
 ```py
 from smolagents import CodeAgent, InferenceClientModel
-agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
+agent = CodeAgent(tools=[ModelDownloadTool()], model=InferenceClientModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
 ```
+</hfoption>
+</hfoptions>
 
 다음 로그를 얻습니다:
 ```text

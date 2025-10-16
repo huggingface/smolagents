@@ -111,7 +111,6 @@ from smolagents import (
     ToolCallingAgent,
     InferenceClientModel,
     WebSearchTool,
-    LiteLLMModel,
 )
 
 model = InferenceClientModel(model_id=model_id)

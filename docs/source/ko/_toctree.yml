@@ -28,12 +28,12 @@
   sections:
   - local: examples/text_to_sql
     title: 스스로 오류를 수정하는 Text-to-SQL
-#  - local: examples/rag
-#    title: Master your knowledge base with agentic RAG
+  - local: examples/rag
+    title: Agentic RAG로 지식 베이스 완전 정복하기
   - local: examples/multiagents
     title: 멀티 에이전트 시스템 오케스트레이션
-#  - local: examples/web_browser
-#    title: (번역중) Build a web browser agent using vision models
+  - local: examples/web_browser
+    title: 비전 모델을 활용한 웹 브라우저 에이전트 만들기
   - local: examples/using_different_models
     title: 다양한 모델 사용하기
 #  - local: examples/plan_customization
@@ -42,8 +42,8 @@
     title: 에이전트를 활용한 비동기 애플리케이션
 - title: Reference
   sections:
-#  - local: reference/agents
-#    title: Agent-related objects
+  - local: reference/agents
+    title: 에이전트 관련 객체
   - local: reference/models
     title: 모델 관련 클래스
 #  - title: Tools

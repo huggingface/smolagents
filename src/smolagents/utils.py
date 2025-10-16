@@ -25,9 +25,10 @@ import re
 import time
 from functools import lru_cache
 from io import BytesIO
+from logging import Logger
 from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import jinja2
 
@@ -506,3 +507,75 @@ class RateLimiter:
         if elapsed < self._interval:
             time.sleep(self._interval - elapsed)
         self._last_call = time.time()
+
+
+class Retrying:
+    """Simple retrying controller. Inspired from library [tenacity](https://github.com/jd/tenacity/)."""
+
+    def __init__(
+        self,
+        max_attempts: int = 1,
+        wait_seconds: float = 0.0,
+        retry_predicate: Callable[[BaseException], bool] | None = None,
+        reraise: bool = False,
+        before_sleep_logger: tuple[Logger, int] | None = None,
+        after_logger: tuple[Logger, int] | None = None,
+    ):
+        self.max_attempts = max_attempts
+        self.wait_seconds = wait_seconds
+        self.retry_predicate = retry_predicate
+        self.reraise = reraise
+        self.before_sleep_logger = before_sleep_logger
+        self.after_logger = after_logger
+
+    def __call__(self, fn, *args: Any, **kwargs: Any) -> Any:
+        start_time = time.time()
+
+        for attempt_number in range(1, self.max_attempts + 1):
+            try:
+                result = fn(*args, **kwargs)
+
+                # Log after successful call if we had retries
+                if self.after_logger and attempt_number > 1:
+                    logger, log_level = self.after_logger
+                    seconds = time.time() - start_time
+                    fn_name = getattr(fn, "__name__", repr(fn))
+                    logger.log(
+                        log_level,
+                        f"Finished call to '{fn_name}' after {seconds:.3f}(s), this was attempt n°{attempt_number}.",
+                    )
+
+                return result
+
+            except BaseException as e:
+                # Check if we should retry
+                should_retry = self.retry_predicate(e) if self.retry_predicate else False
+
+                # If this is the last attempt or we shouldn't retry, raise
+                if not should_retry or attempt_number >= self.max_attempts:
+                    if self.reraise:
+                        raise
+                    raise
+
+                # Log after failed attempt
+                if self.after_logger:
+                    logger, log_level = self.after_logger
+                    seconds = time.time() - start_time
+                    fn_name = getattr(fn, "__name__", repr(fn))
+                    logger.log(
+                        log_level,
+                        f"Finished call to '{fn_name}' after {seconds:.3f}(s), this was attempt n°{attempt_number}.",
+                    )
+
+                # Log before sleeping
+                if self.before_sleep_logger:
+                    logger, log_level = self.before_sleep_logger
+                    fn_name = getattr(fn, "__name__", repr(fn))
+                    logger.log(
+                        log_level,
+                        f"Retrying {fn_name} in {self.wait_seconds} seconds as it raised {e.__class__.__name__}: {e}.",
+                    )
+
+                # Sleep before next attempt
+                if self.wait_seconds > 0:
+                    time.sleep(self.wait_seconds)
