@@ -64,8 +64,8 @@ Begin translating the text!
       title: Tutorials # Translate this
     ```
 
-2. Once you've translated the `_toctree.yml`, move on to translating the associated MD files.
+2. Once you've set up and translated the `_toctree.yml`, proceed to translate the associated Markdown (`.md`) files.
 
 ## Collaborate and share
 
-If you'd like assistance with your translation, open an issue and tag `@albertvillanova`. Feel free to share resources or glossaries to ensure consistent terminology.
+If you'd like assistance with your translation, open an issue and tag the maintainers. Feel free to share resources or glossaries to ensure consistent terminology.
