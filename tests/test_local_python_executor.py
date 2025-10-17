@@ -512,6 +512,17 @@ print(check_digits)
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == [0, 1, 2]
 
+    def test_listcomp_nested(self):
+        code = """
+simple_list = [
+    (x, y)
+    for x in [1, 2, 1]
+    for y in ['a', 'b']
+]
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == [(1, "a"), (1, "b"), (2, "a"), (2, "b"), (1, "a"), (1, "b")]
+
     def test_setcomp(self):
         code = "batman_times = {entry['time'] for entry in [{'time': 10}, {'time': 19}, {'time': 20}]}"
         result, _ = evaluate_python_code(code, {}, state={})
