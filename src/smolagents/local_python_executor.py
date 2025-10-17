@@ -1056,12 +1056,15 @@ def evaluate_listcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> list[Any]:
-    def base_case(current_state):
-        element = evaluate_ast(listcomp.elt, current_state, static_tools, custom_tools, authorized_imports)
-        return element
-
     return list(
-        _evaluate_comprehensions(listcomp.generators, base_case, state, static_tools, custom_tools, authorized_imports)
+        _evaluate_comprehensions(
+            listcomp.generators,
+            lambda comp_state: evaluate_ast(listcomp.elt, comp_state, static_tools, custom_tools, authorized_imports),
+            state,
+            static_tools,
+            custom_tools,
+            authorized_imports,
+        )
     )
 
 
@@ -1072,12 +1075,15 @@ def evaluate_setcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> set[Any]:
-    def base_case(current_state):
-        element = evaluate_ast(setcomp.elt, current_state, static_tools, custom_tools, authorized_imports)
-        return element
-
     return set(
-        _evaluate_comprehensions(setcomp.generators, base_case, state, static_tools, custom_tools, authorized_imports)
+        _evaluate_comprehensions(
+            setcomp.generators,
+            lambda comp_state: evaluate_ast(setcomp.elt, comp_state, static_tools, custom_tools, authorized_imports),
+            state,
+            static_tools,
+            custom_tools,
+            authorized_imports,
+        )
     )
 
 
@@ -1088,13 +1094,18 @@ def evaluate_dictcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> dict[Any, Any]:
-    def base_case(current_state):
-        key = evaluate_ast(dictcomp.key, current_state, static_tools, custom_tools, authorized_imports)
-        value = evaluate_ast(dictcomp.value, current_state, static_tools, custom_tools, authorized_imports)
-        return (key, value)
-
     return dict(
-        _evaluate_comprehensions(dictcomp.generators, base_case, state, static_tools, custom_tools, authorized_imports)
+        _evaluate_comprehensions(
+            dictcomp.generators,
+            lambda comp_state: (
+                evaluate_ast(dictcomp.key, comp_state, static_tools, custom_tools, authorized_imports),
+                evaluate_ast(dictcomp.value, comp_state, static_tools, custom_tools, authorized_imports),
+            ),
+            state,
+            static_tools,
+            custom_tools,
+            authorized_imports,
+        )
     )
 
 
