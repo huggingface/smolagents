@@ -422,3 +422,16 @@ result = agent.run(
     "How long would a cheetah at full speed take to run the length of Pont Alexandre III?",
 )
 ```
+
+### 5. Increase maximum output tokens
+
+If you see warnings indicating that the Code or JSON data is missing in the output, It might be because the output tokens configured for your model might be too less. The model is not generating a code snippet or a tool call that can be parsed by the framework. Please try increasing the model output token configuration (`num_ctx`, `max_tokens` etc)
+
+For example in a CodeAgent's logs you should see
+```
+Warning: The model's output is missing a Code output. This could be due to an insufficient number of output tokens set in the model configuration.
+
+and for a ToolCallingAgent
+```
+Warning: The model's output is missing JSON data. This could be due to an insufficient number of output tokens set in the model configuration
+```
