@@ -439,7 +439,7 @@ class TestLiteLLMModel:
             # Create a 429 rate limit error
             rate_limit_error = Exception("Error code: 429 - Rate limit exceeded")
 
-            # Mock the litellm client to raise error first, then succeed
+            # Mock the litellm client to raise an error twice, and then succeed
             model.client.completion.side_effect = [rate_limit_error, rate_limit_error, mock_success_response]
 
             # Measure time to verify retry wait time
@@ -447,7 +447,7 @@ class TestLiteLLMModel:
             result = model.generate(messages)
             elapsed_time = time.time() - start_time
 
-            # Verify that completion was called twice (twice failed, once succeeded)
+            # Verify that completion was called thrice (twice failed, once succeeded)
             assert model.client.completion.call_count == 3
             assert result.content == "Success response"
             assert result.token_usage.input_tokens == 10
