@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 RETRY_WAIT = 60
 RETRY_MAX_ATTEMPTS = 3
 RETRY_EXPONENTIAL_BASE = 2
+RETRY_JITTER = True
 STRUCTURED_GENERATION_PROVIDERS = ["cerebras", "fireworks-ai"]
 CODEAGENT_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -1104,6 +1105,7 @@ class ApiModel(Model):
             max_attempts=RETRY_MAX_ATTEMPTS if retry else 1,
             wait_seconds=RETRY_WAIT,
             exponential_base=RETRY_EXPONENTIAL_BASE,
+            jitter=RETRY_JITTER,
             retry_predicate=is_rate_limit_error,
             reraise=True,
             before_sleep_logger=(logger, logging.INFO),

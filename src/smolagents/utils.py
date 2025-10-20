@@ -574,7 +574,7 @@ class Retrying:
                     )
 
                 # Exponential backoff with jitter
-                # https://cookbook.openai.com/examples/how_to_handle_rate_limits#how-to-maximize-throughput-of-batch-processing-given-rate-limits
+                # https://cookbook.openai.com/examples/how_to_handle_rate_limits#example-3-manual-backoff-implementation
                 delay *= self.exponential_base * (1 + self.jitter * random.random())
 
                 # Log before sleeping
