@@ -430,6 +430,7 @@ If you see warnings indicating that the Code or JSON data is missing in the outp
 For example in a CodeAgent's logs you should see
 ```
 Warning: The model's output is missing a Code output. This could be due to an insufficient number of output tokens set in the model configuration.
+```
 
 and for a ToolCallingAgent
 ```
