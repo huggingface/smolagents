@@ -84,8 +84,6 @@ def remove_content_after_stop_sequences(content: str | None, stop_sequences: lis
         return content
 
     for stop_seq in stop_sequences:
-        if not stop_seq:
-            continue
         split = content.split(stop_seq)
         content = split[0]
     return content
