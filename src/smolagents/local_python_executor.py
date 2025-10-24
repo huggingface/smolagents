@@ -807,6 +807,8 @@ def evaluate_call(
             func = custom_tools[func_name]
         elif func_name in ERRORS:
             func = ERRORS[func_name]
+        elif "*" in authorized_imports and hasattr(builtins, func_name):
+            func = getattr(builtins, func_name)
         else:
             raise InterpreterError(
                 f"Forbidden function evaluation: '{call.func.id}' is not among the explicitly allowed tools or defined/imported in the preceding code"
