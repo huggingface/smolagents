@@ -21,9 +21,9 @@ import inspect
 import json
 import keyword
 import os
+import random
 import re
 import time
-import random
 from functools import lru_cache
 from io import BytesIO
 from logging import Logger

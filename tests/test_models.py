@@ -453,7 +453,7 @@ class TestLiteLLMModel:
             assert result.token_usage.input_tokens == 10
             assert result.token_usage.output_tokens == 20
 
-            # Verify that the wait time was around 
+            # Verify that the wait time was around
             # 0.22s (1st retry) [0.1 * 2.0 * (1 + 1 * 0.1)]
             # + 0.48s (2nd retry) [0.22 * 2.0 * (1 + 1 * 0.1)]
             # = 0.704s (allow some tolerance)
