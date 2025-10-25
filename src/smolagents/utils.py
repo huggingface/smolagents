@@ -21,6 +21,7 @@ import inspect
 import json
 import keyword
 import os
+import random
 import re
 import time
 from functools import lru_cache
@@ -516,6 +517,8 @@ class Retrying:
         self,
         max_attempts: int = 1,
         wait_seconds: float = 0.0,
+        exponential_base: float = 2.0,
+        jitter: bool = True,
         retry_predicate: Callable[[BaseException], bool] | None = None,
         reraise: bool = False,
         before_sleep_logger: tuple[Logger, int] | None = None,
@@ -523,6 +526,8 @@ class Retrying:
     ):
         self.max_attempts = max_attempts
         self.wait_seconds = wait_seconds
+        self.exponential_base = exponential_base
+        self.jitter = jitter
         self.retry_predicate = retry_predicate
         self.reraise = reraise
         self.before_sleep_logger = before_sleep_logger
@@ -530,6 +535,7 @@ class Retrying:
 
     def __call__(self, fn, *args: Any, **kwargs: Any) -> Any:
         start_time = time.time()
+        delay = self.wait_seconds
 
         for attempt_number in range(1, self.max_attempts + 1):
             try:
@@ -542,7 +548,7 @@ class Retrying:
                     fn_name = getattr(fn, "__name__", repr(fn))
                     logger.log(
                         log_level,
-                        f"Finished call to '{fn_name}' after {seconds:.3f}(s), this was attempt n°{attempt_number}.",
+                        f"Finished call to '{fn_name}' after {seconds:.3f}(s), this was attempt n°{attempt_number}/{self.max_attempts}.",
                     )
 
                 return result
@@ -564,8 +570,12 @@ class Retrying:
                     fn_name = getattr(fn, "__name__", repr(fn))
                     logger.log(
                         log_level,
-                        f"Finished call to '{fn_name}' after {seconds:.3f}(s), this was attempt n°{attempt_number}.",
+                        f"Finished call to '{fn_name}' after {seconds:.3f}(s), this was attempt n°{attempt_number}/{self.max_attempts}.",
                     )
+
+                # Exponential backoff with jitter
+                # https://cookbook.openai.com/examples/how_to_handle_rate_limits#example-3-manual-backoff-implementation
+                delay *= self.exponential_base * (1 + self.jitter * random.random())
 
                 # Log before sleeping
                 if self.before_sleep_logger:
@@ -573,9 +583,9 @@ class Retrying:
                     fn_name = getattr(fn, "__name__", repr(fn))
                     logger.log(
                         log_level,
-                        f"Retrying {fn_name} in {self.wait_seconds} seconds as it raised {e.__class__.__name__}: {e}.",
+                        f"Retrying {fn_name} in {delay} seconds as it raised {e.__class__.__name__}: {e}.",
                     )
 
                 # Sleep before next attempt
-                if self.wait_seconds > 0:
-                    time.sleep(self.wait_seconds)
+                if delay > 0:
+                    time.sleep(delay)
