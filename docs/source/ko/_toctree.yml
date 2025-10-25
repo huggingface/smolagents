@@ -36,8 +36,8 @@
     title: 비전 모델을 활용한 웹 브라우저 에이전트 만들기
   - local: examples/using_different_models
     title: 다양한 모델 사용하기
-#  - local: examples/plan_customization
-#    title: "(번역중) Human-in-the-Loop: Customize agent plan interactively"
+  - local: examples/plan_customization
+    title: Human-in-the-Loop: 사용자와 상호작용하며 에이전트 계획 수정하기
   - local: examples/async_agent
     title: 에이전트를 활용한 비동기 애플리케이션
 - title: Reference
