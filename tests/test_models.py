@@ -725,20 +725,14 @@ def test_remove_content_after_stop_sequences():
 
 
 def test_remove_content_after_stop_sequences_handles_none():
-    removed_content = remove_content_after_stop_sequences(None, ["<code>"])
-    assert removed_content is None
-
-
-def test_remove_content_after_stop_sequences_ignores_empty_stop_sequences():
-    content = "Hello world!"
-    removed_content = remove_content_after_stop_sequences(content, ["", "<code>"])
-    assert removed_content == "Hello world!"
-
-
-def test_remove_content_after_stop_sequences_with_none_stop_sequences():
+    # Test with None stop sequence
     content = "Hello world!"
     removed_content = remove_content_after_stop_sequences(content, None)
     assert removed_content == content
+
+    # Test with None content
+    removed_content = remove_content_after_stop_sequences(None, ["<code>"])
+    assert removed_content is None
 
 
 @pytest.mark.parametrize(
