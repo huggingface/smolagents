@@ -50,5 +50,5 @@
 #    sections:
 #    - title: Tool-related objects
 #      local: reference/tools
-#    - title: Built-in Tools
-#      local: reference/default_tools
+     - title: 내장 도구
+       local: reference/default_tools
