@@ -858,7 +858,7 @@ def evaluate_call(
         state["_print_outputs"] += " ".join(map(str, args)) + "\n"
         return None
     else:  # Assume it's a callable object
-        if (inspect.getmodule(func) == builtins) and inspect.isbuiltin(func) and (func not in static_tools.values()):
+        if ("*" not in authorized_imports) and inspect.isbuiltin(func) and (func not in static_tools.values()):
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
