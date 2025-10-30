@@ -91,7 +91,6 @@ def parse_arguments():
     parser.add_argument(
         "--provider",
         type=str,
-        default="hf-inference",
         help="The provider for InferenceClientModel - will not be used for LiteLLMModel",
     )
     parser.add_argument(
@@ -165,7 +164,11 @@ def answer_single_question(example, model, answers_file, action_type):
         )
     elif action_type == "tool-calling":
         agent = ToolCallingAgent(
-            tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool(), PythonInterpreterTool()],
+            tools=[
+                GoogleSearchTool(provider="serper"),
+                VisitWebpageTool(),
+                PythonInterpreterTool(authorized_imports=["numpy", "sympy"]),
+            ],
             model=model,
             max_steps=10,
         )
@@ -208,10 +211,6 @@ def answer_single_question(example, model, answers_file, action_type):
 
             token_counts = agent.monitor.get_total_token_counts()
 
-            # CRITICAL FIX: Changed dict(message) to message.dict()
-            # ISSUE: Was getting "'ChatMessage' object is not iterable" error in JSON output
-            # CAUSE: ChatMessage objects are not iterable with dict() constructor
-            # SOLUTION: Use the .dict() method provided by ChatMessage class
             intermediate_steps = [message.dict() for message in agent.write_memory_to_messages()]
 
         end_time = time.time()

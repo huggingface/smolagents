@@ -49,7 +49,7 @@ The custom tool subclasses [`Tool`] to inherit useful methods. The child class a
 - An attribute `name`, which corresponds to the name of the tool itself. The name usually describes what the tool does. Since the code returns the model with the most downloads for a task, let's name it `model_download_counter`.
 - An attribute `description` is used to populate the agent's system prompt.
 - An `inputs` attribute, which is a dictionary with keys `"type"` and `"description"`. It contains information that helps the Python interpreter make educated choices about the input.
-- An `output_type` attribute, which specifies the output type. The types for both `inputs` and `output_type` should be [Pydantic formats](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema), they can be either of these: [`~AUTHORIZED_TYPES`].
+- An `output_type` attribute, which specifies the output type. The types for both `inputs` and `output_type` should be [Pydantic formats](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema), they can be either of these: `["string", "boolean","integer", "number", "image", "audio", "array", "object", "any", "null"]`.
 - A `forward` method which contains the inference code to be executed.
 
 And that's all it needs to be used in an agent!
@@ -275,7 +275,7 @@ Then you can use this tool just like any other tool.  For example, let's improve
 ```python
 from smolagents import CodeAgent, InferenceClientModel
 
-model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
@@ -323,7 +323,7 @@ Let's add the `model_download_tool` to an existing agent initialized with only t
 ```python
 from smolagents import InferenceClientModel
 
-model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.tools[model_download_tool.name] = model_download_tool

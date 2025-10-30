@@ -18,7 +18,7 @@
     - [`TransformersModel`] 使用预初始化的 `transformers` 管道在本地机器上运行推理
     - [`InferenceClientModel`] 在底层使用 `huggingface_hub.InferenceClient`
     - [`LiteLLMModel`] 让您通过 [LiteLLM](https://docs.litellm.ai/) 调用 100+ 不同的模型！
-    - [`AzureOpenAIServerModel`] 允许您使用部署在 [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service) 中的 OpenAI 模型。
+    - [`AzureOpenAIModel`] 允许您使用部署在 [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service) 中的 OpenAI 模型。
     - [`MLXModel`] 可创建 [mlx-lm](https://pypi.org/project/mlx-lm/) 流水线，以便在本地机器上运行推理。
 
 - `tools`，agent 可以用来解决任务的 `Tools` 列表。它可以是一个空列表。您还可以通过定义可选参数 `add_base_tools=True` 在您的 `tools` 列表之上添加默认工具箱。
@@ -99,15 +99,15 @@ agent.run(
 </hfoption>
 <hfoption id="Azure OpenAI">
 
-要连接到 Azure OpenAI，您可以直接使用 `AzureOpenAIServerModel`，或使用 `LiteLLMModel` 并进行相应配置。
+要连接到 Azure OpenAI，您可以直接使用 `AzureOpenAIModel`，或使用 `LiteLLMModel` 并进行相应配置。
 
-初始化 `AzureOpenAIServerModel` 实例时，需要传递模型部署名称，可选择以下任一种方式：1.传递 `azure_endpoint`、`api_key` 和 `api_version` 参数；2.设置环境变量 `AZURE_OPENAI_ENDPOINT`、`AZURE_OPENAI_API_KEY` 和 `OPENAI_API_VERSION`
+初始化 `AzureOpenAIModel` 实例时，需要传递模型部署名称，可选择以下任一种方式：1.传递 `azure_endpoint`、`api_key` 和 `api_version` 参数；2.设置环境变量 `AZURE_OPENAI_ENDPOINT`、`AZURE_OPENAI_API_KEY` 和 `OPENAI_API_VERSION`
 
 ```python
 # !pip install 'smolagents[openai]'
-from smolagents import CodeAgent, AzureOpenAIServerModel
+from smolagents import CodeAgent, AzureOpenAIModel
 
-model = AzureOpenAIServerModel(model_id="gpt-4o-mini")
+model = AzureOpenAIModel(model_id="gpt-4o-mini")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -186,9 +186,9 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 我们还支持广泛使用的将动作编写为 JSON-like 块的方式：[`ToolCallingAgent`]，它的工作方式与 [`CodeAgent`] 非常相似，当然没有 `additional_authorized_imports`，因为它不执行代码：
 
 ```py
-from smolagents import ToolCallingAgent
+from smolagents import ToolCallingAgent, WebSearchTool
 
-agent = ToolCallingAgent(tools=[], model=model)
+agent = ToolCallingAgent(tools=[WebSearchTool()], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
@@ -275,6 +275,16 @@ def model_download_tool(task: str) -> str:
 
 > [!TIP]
 > 此定义格式与 `apply_chat_template` 中使用的工具模式相同，唯一的区别是添加了 `tool` 装饰器：[这里](https://huggingface.co/blog/unified-tool-use#passing-tools-to-a-chat-template) 了解更多关于我们的工具使用 API。
+
+
+然后您可以直接初始化您的 agent：
+```py
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
+agent.run(
+    "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
+)
+```
 </hfoption>
 <hfoption id="子类化Tool">
 
@@ -297,19 +307,19 @@ class ModelDownloadTool(Tool):
 - 一个 `description`。与 `name` 一样，此描述是为您的 agent 提供动力的 LLM 的说明书，所以不要忽视它。
 - 输入类型和描述
 - 输出类型
-所有这些属性将在初始化时自动嵌入到 agent 的系统提示中：因此要努力使它们尽可能清晰！
-</hfoption>
-</hfoptions>
 
 
 然后您可以直接初始化您的 agent：
 ```py
 from smolagents import CodeAgent, InferenceClientModel
-agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
+agent = CodeAgent(tools=[ModelDownloadTool()], model=InferenceClientModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
 ```
+所有这些属性将在初始化时自动嵌入到 agent 的系统提示中：因此要努力使它们尽可能清晰！
+</hfoption>
+</hfoptions>
 
 您将获得以下日志：
 ```text

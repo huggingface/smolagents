@@ -156,7 +156,7 @@ from smolagents import InferenceClientModel, CodeAgent
 # Initialize the agent with our retriever tool
 agent = CodeAgent(
     tools=[retriever_tool],  # List of tools available to the agent
-    model=InferenceClientModel(),  # Default model "Qwen/Qwen2.5-Coder-32B-Instruct"
+    model=InferenceClientModel(),  # Default model "Qwen/Qwen3-Next-80B-A3B-Thinking"
     max_steps=4,  # Limit the number of reasoning steps
     verbosity_level=2,  # Show detailed agent reasoning
 )

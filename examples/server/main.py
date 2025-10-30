@@ -15,7 +15,7 @@ mcp_client = MCPClient(server_parameters=mcp_server_parameters)
 
 # Create a CodeAgent with a specific model and the tools from the MCP client
 agent = CodeAgent(
-    model=InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"),
+    model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking"),
     tools=mcp_client.get_tools(),
 )
 
