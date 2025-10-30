@@ -42,7 +42,6 @@ from smolagents.models import (
     remove_content_after_stop_sequences,
     supports_stop_parameter,
 )
-from smolagents.monitoring import TokenUsage
 from smolagents.tools import tool
 
 from .utils.markers import require_run_all
@@ -240,7 +239,7 @@ class TestModel:
         assert message.role.value == "user"
         assert message.content == [{"type": "text", "text": "Hello!"}]
 
-        message_data['role'] = MessageRole.ASSISTANT
+        message_data["role"] = MessageRole.ASSISTANT
         message2 = ChatMessage.from_dict(message_data)
         assert isinstance(message2.role, MessageRole)
         assert message2.role == MessageRole.ASSISTANT
