@@ -442,7 +442,7 @@ def create_agent_team(model: Model):
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
 
     # Create base tools that are shared between agents
-    #shared_tools = [visualizer, ti_tool]
+    # shared_tools = [visualizer, ti_tool]
     shared_tools = []
 
     # Define tool sets for different agent types
@@ -491,7 +491,7 @@ Responsibilities:
 Special focus on mathematical problem solving:
 - Use Python to calculate exact results with proper precision
 - Show all calculations, code, and reasoning processes
-- Follow specific format requirements (decimal, fraction, etc.)       
+- Follow specific format requirements (decimal, fraction, etc.)
 - Provide executable demonstrations of solutions""",
     )
 

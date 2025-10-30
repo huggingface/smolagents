@@ -35,7 +35,7 @@ class MessagesHtmlRenderer:
     def render(self, messages: List[Dict[str, Any]]) -> str:
         head = self._build_head()
         body = self._build_body(messages)
-        return f"<!DOCTYPE html><html lang=\"en\">{head}{body}</html>"
+        return f'<!DOCTYPE html><html lang="en">{head}{body}</html>'
 
     # ------------------------------- internals -------------------------------
     def _iter_messages(self, path: Path) -> Iterable[Dict[str, Any]]:
@@ -74,20 +74,16 @@ class MessagesHtmlRenderer:
         )
         return (
             "<head>"
-            f"<meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            f'<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             f"<title>{html.escape(self.title)}</title>"
             f"<style>{css}</style>"
             "</head>"
         )
 
     def _build_body(self, messages: List[Dict[str, Any]]) -> str:
-        header = (
-            "<div class=\"header\">"
-            f"<div class=\"title\">{html.escape(self.title)}</div>"
-            "</div>"
-        )
+        header = f'<div class="header"><div class="title">{html.escape(self.title)}</div></div>'
         items = [self._render_message(m) for m in messages]
-        return f"<body>{header}<div class=\"container\">{''.join(items)}</div></body>"
+        return f'<body>{header}<div class="container">{"".join(items)}</div></body>'
 
     def _render_message(self, m: Dict[str, Any]) -> str:
         ts = html.escape(str(m.get("timestamp", "")))
@@ -96,17 +92,17 @@ class MessagesHtmlRenderer:
         thread = html.escape(str(m.get("thread_id", "main") or "main"))
         recipients = m.get("recipients", [])
         recipients = recipients if isinstance(recipients, list) else [recipients]
-        recipients_html = "".join(f"<span class=\"pill\">{html.escape(str(r))}</span>" for r in recipients if r)
+        recipients_html = "".join(f'<span class="pill">{html.escape(str(r))}</span>' for r in recipients if r)
 
         content_html = self._render_content(m.get("content"))
 
         meta = (
-            f"<div class=\"meta\"><span class=\"sender\">{sender}</span>"
-            f"<span class=\"type\">{msg_type}</span>"
-            f"<span class=\"thread\"># {thread}</span><div>{ts}</div>{recipients_html}</div>"
+            f'<div class="meta"><span class="sender">{sender}</span>'
+            f'<span class="type">{msg_type}</span>'
+            f'<span class="thread"># {thread}</span><div>{ts}</div>{recipients_html}</div>'
         )
 
-        return f"<div class=\"msg\">{meta}<div class=\"content\">{content_html}</div></div>"
+        return f'<div class="msg">{meta}<div class="content">{content_html}</div></div>'
 
     def _render_content(self, content: Any) -> str:
         # String content
@@ -119,9 +115,9 @@ class MessagesHtmlRenderer:
             if t == "poll":
                 return self._render_poll(content)
             if t == "vote":
-                return self._kv_block(content, keys=["poll_id", "voter", "vote", "confidence", "rationale"]) 
+                return self._kv_block(content, keys=["poll_id", "voter", "vote", "confidence", "rationale"])
             if t == "final_answer":
-                return self._kv_block(content, keys=["answer", "poll_id", "tally", "source_proposer"]) 
+                return self._kv_block(content, keys=["answer", "poll_id", "tally", "source_proposer"])
             # Generic dict fallback
             return self._kv_block(content)
 
@@ -129,11 +125,11 @@ class MessagesHtmlRenderer:
         try:
             return self._kv_block(json.loads(str(content)))
         except Exception:
-            return f"<code class=\"code\">{html.escape(str(content))}</code>"
+            return f'<code class="code">{html.escape(str(content))}</code>'
 
     def _kv_block(self, obj: Dict[str, Any], keys: Optional[List[str]] = None) -> str:
         if not isinstance(obj, dict):
-            return f"<code class=\"code\">{html.escape(str(obj))}</code>"
+            return f'<code class="code">{html.escape(str(obj))}</code>'
         items: List[str] = []
         if keys is None:
             keys = list(obj.keys())
@@ -147,16 +143,16 @@ class MessagesHtmlRenderer:
             if k in keys:
                 continue
             items.append(f"<div><b>{html.escape(str(k))}:</b> {self._pretty(v)}</div>")
-        return "<div class=\"section\">" + "".join(items) + "</div>"
+        return '<div class="section">' + "".join(items) + "</div>"
 
     def _pretty(self, value: Any) -> str:
         if isinstance(value, (str, int, float)) or value is None:
             return html.escape(str(value))
         try:
             dump = json.dumps(value, ensure_ascii=False, indent=2)
-            return f"<code class=\"code\">{html.escape(dump)}</code>"
+            return f'<code class="code">{html.escape(dump)}</code>'
         except Exception:
-            return f"<code class=\"code\">{html.escape(str(value))}</code>"
+            return f'<code class="code">{html.escape(str(value))}</code>'
 
     def _render_poll(self, poll: Dict[str, Any]) -> str:
         # Render poll with a friendly layout emphasizing question and proposal
@@ -169,6 +165,4 @@ class MessagesHtmlRenderer:
             poll,
             keys=["poll_id", "options", "threshold", "status", "proposer", "final_answer"],
         )
-        return "<div class=\"section\">" + header + body + meta + "</div>"
-
-
+        return '<div class="section">' + header + body + meta + "</div>"
