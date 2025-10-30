@@ -42,6 +42,7 @@ from smolagents.models import (
     remove_content_after_stop_sequences,
     supports_stop_parameter,
 )
+from smolagents.monitoring import TokenUsage
 from smolagents.tools import tool
 
 from .utils.markers import require_run_all
@@ -227,6 +228,22 @@ class TestModel:
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
         data = json.loads(message.model_dump_json())
         assert data["content"] == [{"type": "text", "text": "Hello!"}]
+
+    def test_chatmessage_from_dict_role_conversion(self):
+        message_data = {
+            "role": "user",
+            "content": [{"type": "text", "text": "Hello!"}],
+        }
+        message = ChatMessage.from_dict(message_data)
+        assert isinstance(message.role, MessageRole)
+        assert message.role == MessageRole.USER
+        assert message.role.value == "user"
+        assert message.content == [{"type": "text", "text": "Hello!"}]
+
+        message_data['role'] = MessageRole.ASSISTANT
+        message2 = ChatMessage.from_dict(message_data)
+        assert isinstance(message2.role, MessageRole)
+        assert message2.role == MessageRole.ASSISTANT
 
     @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
     def test_get_mlx_message_no_tool(self):
