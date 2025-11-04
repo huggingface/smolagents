@@ -863,7 +863,21 @@ class WasmExecutor(RemotePythonExecutor):
         # Default minimal permissions needed
         if deno_permissions is None:
             # Use minimal permissions for Deno execution
-            home_dir = os.getenv("HOME")
+            # Get the actual Deno directory from Deno itself
+            try:
+                result = subprocess.run(
+                    [deno_path, "info", "--json"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                deno_info = json.loads(result.stdout)
+                deno_cache_dir = deno_info.get("denoDir")
+                if not deno_cache_dir:
+                    raise RuntimeError("Could not determine Deno cache directory from 'deno info --json'")
+            except (subprocess.SubprocessError, json.JSONDecodeError, KeyError) as e:
+                raise RuntimeError(f"Failed to get Deno cache directory: {e}")
+
             deno_permissions = [
                 "allow-net="
                 + ",".join(
@@ -873,8 +887,8 @@ class WasmExecutor(RemotePythonExecutor):
                         "pypi.org:443,files.pythonhosted.org:443",  # allow pyodide install packages from PyPI
                     ]
                 ),
-                f"allow-read={home_dir}/.cache/deno",
-                f"allow-write={home_dir}/.cache/deno",
+                f"allow-read={deno_cache_dir}",
+                f"allow-write={deno_cache_dir}",
             ]
         self.deno_permissions = [f"--{perm}" for perm in deno_permissions]
 
