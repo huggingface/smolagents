@@ -126,18 +126,18 @@ class TestTool:
     @pytest.mark.parametrize(
         "tool_fixture, expected_output",
         [
-            ("no_input_tool", 'def no_input_tool() -> string:\n    """Tool with no inputs\n    """'),
+            ("no_input_tool", 'def no_input_tool() -> str:\n    """Tool with no inputs\n    """'),
             (
                 "single_input_tool",
-                'def single_input_tool(text: string) -> string:\n    """Tool with one input\n\n    Args:\n        text: Input text\n    """',
+                'def single_input_tool(text: str) -> str:\n    """Tool with one input\n\n    Args:\n        text: Input text\n    """',
             ),
             (
                 "multi_input_tool",
-                'def multi_input_tool(text: string, count: integer) -> object:\n    """Tool with multiple inputs\n\n    Args:\n        text: Text input\n        count: Number count\n    """',
+                'def multi_input_tool(text: str, count: int) -> dict:\n    """Tool with multiple inputs\n\n    Args:\n        text: Text input\n        count: Number count\n    """',
             ),
             (
                 "multiline_description_tool",
-                'def multiline_description_tool(input: string) -> string:\n    """This is a tool with\n    multiple lines\n    in the description\n\n    Args:\n        input: Some input\n    """',
+                'def multiline_description_tool(input: str) -> str:\n    """This is a tool with\n    multiple lines\n    in the description\n\n    Args:\n        input: Some input\n    """',
             ),
         ],
     )

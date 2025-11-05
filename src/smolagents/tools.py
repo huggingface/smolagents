@@ -255,12 +255,70 @@ class Tool(BaseTool):
         """
         self.is_initialized = True
 
+    def _schema_to_python_type(self, schema: dict | str) -> str:
+        """
+        Convert a JSON schema type to a Python type hint string.
+
+        Args:
+            schema: JSON schema dictionary or type string
+
+        Returns:
+            Python type hint string
+        """
+        # Handle simple string types
+        if isinstance(schema, str):
+            schema = {"type": schema}
+
+        schema_type = schema.get("type")
+
+        # Handle None/null type
+        if schema_type == "null":
+            return "None"
+
+        # Basic type mapping
+        type_mapping = {
+            "string": "str",
+            "integer": "int",
+            "number": "float",
+            "boolean": "bool",
+            "any": "Any",
+        }
+
+        # Handle union types (list of types)
+        if isinstance(schema_type, list):
+            type_strs = []
+            for t in schema_type:
+                if isinstance(t, str):
+                    type_strs.append(type_mapping.get(t, t))
+                else:
+                    type_strs.append(self._schema_to_python_type({"type": t}))
+            return " | ".join(sorted(type_strs))
+
+        # Handle array types
+        if schema_type == "array":
+            if "items" in schema:
+                item_type = self._schema_to_python_type(schema["items"])
+                return f"list[{item_type}]"
+            return "list"
+
+        # Handle object/dict types
+        if schema_type == "object":
+            if "additionalProperties" in schema:
+                value_type = self._schema_to_python_type(schema["additionalProperties"])
+                return f"dict[str, {value_type}]"
+            return "dict"
+
+        # Return mapped type or original
+        return type_mapping.get(schema_type, schema_type)
+
     def to_code_prompt(self) -> str:
-        args_signature = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
+        args_signature = ", ".join(
+            f"{arg_name}: {self._schema_to_python_type(arg_schema)}" for arg_name, arg_schema in self.inputs.items()
+        )
 
         # Use dict type for tools with output schema to indicate structured return
         has_schema = hasattr(self, "output_schema") and self.output_schema is not None
-        output_type = "dict" if has_schema else self.output_type
+        output_type = "dict" if has_schema else self._schema_to_python_type({"type": self.output_type})
         tool_signature = f"({args_signature}) -> {output_type}"
         tool_doc = self.description
 
