@@ -21,6 +21,7 @@ import os
 import pickle
 import re
 import secrets
+import socket
 import subprocess
 import tempfile
 import time
@@ -823,6 +824,14 @@ class BlaxelExecutor(RemotePythonExecutor):
             pass  # Silently ignore errors during cleanup
 
 
+def find_free_port() -> int:
+    """Find an available port by binding to port 0 and letting the OS choose."""
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(("", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
+
+
 class WasmExecutor(RemotePythonExecutor):
     """
     Remote Python code executor in a sandboxed WebAssembly environment powered by Pyodide and Deno.
@@ -860,6 +869,9 @@ class WasmExecutor(RemotePythonExecutor):
         self.deno_path = deno_path
         self.timeout = timeout
 
+        # Find an available port before setting up permissions
+        self.port = find_free_port()
+
         # Default minimal permissions needed
         if deno_permissions is None:
             # Use minimal permissions for Deno execution
@@ -882,7 +894,7 @@ class WasmExecutor(RemotePythonExecutor):
                 "allow-net="
                 + ",".join(
                     [
-                        "0.0.0.0:8000",  # allow requests to the local server
+                        f"0.0.0.0:{self.port}",  # allow requests to the local server
                         "cdn.jsdelivr.net:443",  # allow loading pyodide packages
                         "pypi.org:443,files.pythonhosted.org:443",  # allow pyodide install packages from PyPI
                     ]
@@ -904,9 +916,10 @@ class WasmExecutor(RemotePythonExecutor):
         self.runner_dir = tempfile.mkdtemp(prefix="pyodide_deno_")
         self.runner_path = os.path.join(self.runner_dir, "pyodide_runner.js")
 
-        # Create the JavaScript runner file
+        # Create the JavaScript runner file with dynamic port
+        js_code = self.JS_CODE.format(port=self.port)
         with open(self.runner_path, "w") as f:
-            f.write(self.JS_CODE)
+            f.write(js_code)
 
         # Start the Deno server
         self._start_deno_server()
@@ -923,23 +936,32 @@ class WasmExecutor(RemotePythonExecutor):
             text=True,
         )
 
-        # Wait for the server to start
-        time.sleep(2)  # Give the server time to start
+        # Set the server URL with dynamic port
+        self.server_url = f"http://localhost:{self.port}"
 
-        # Check if the server started successfully
-        if self.server_process.poll() is not None:
-            stderr = self.server_process.stderr.read()
-            raise RuntimeError(f"Failed to start Deno server: {stderr}")
+        # Poll until server is ready (more robust than fixed sleep)
+        max_retries = 20
+        retry_delay = 0.5
 
-        self.server_url = "http://localhost:8000"  # TODO: Another port?
+        for i in range(max_retries):
+            # Check if process died
+            if self.server_process.poll() is not None:
+                stderr = self.server_process.stderr.read()
+                raise RuntimeError(f"Failed to start Deno server: {stderr}")
 
-        # Test the connection
-        try:
-            response = requests.get(self.server_url)
-            if response.status_code != 200:
-                raise RuntimeError(f"Server responded with status code {response.status_code}: {response.text}")
-        except requests.RequestException as e:
-            raise RuntimeError(f"Failed to connect to Deno server: {e}")
+            # Try to connect to the server
+            try:
+                response = requests.get(self.server_url, timeout=1)
+                if response.status_code == 200:
+                    self.logger.log(f"Deno server started on port {self.port}", level=LogLevel.INFO)
+                    return
+            except requests.RequestException:
+                # Server not ready yet, wait and retry
+                time.sleep(retry_delay)
+
+        # If we get here, server didn't start in time
+        self.server_process.terminate()
+        raise RuntimeError(f"Server did not start within {max_retries * retry_delay} seconds")
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
@@ -1040,14 +1062,14 @@ class WasmExecutor(RemotePythonExecutor):
 
     JS_CODE = dedent("""\
         // pyodide_runner.js - Runs Python code in Pyodide within Deno
-        import { serve } from "https://deno.land/std/http/server.ts";
-        import { loadPyodide } from "npm:pyodide";
+        import {{ serve }} from "https://deno.land/std/http/server.ts";
+        import {{ loadPyodide }} from "npm:pyodide";
 
         // Initialize Pyodide instance
         const pyodidePromise = loadPyodide();
 
         // Function to execute Python code and return the result
-        async function executePythonCode(code) {
+        async function executePythonCode(code) {{
           const pyodide = await pyodidePromise;
 
           // Create a capture for stdout
@@ -1062,82 +1084,79 @@ class WasmExecutor(RemotePythonExecutor):
           let error = null;
           let stdout = "";
 
-          try {
+          try {{
             // Execute the code
             result = await pyodide.runPythonAsync(code);
 
             // Get captured stdout
             stdout = pyodide.runPython("sys.stdout.getvalue()");
-          } catch (e) {
-            error = {
+          }} catch (e) {{
+            error = {{
               name: e.constructor.name,
               message: e.message,
               stack: e.stack
-            };
+            }};
 
             // Extract Python exception details
-            if (e.constructor.name === "PythonError") {
+            if (e.constructor.name === "PythonError") {{
               // Get the Python exception type from the error message: at the end of the traceback
               const errorMatch = e.message.match(/\\n([^:]+Exception): /);
-              if (errorMatch) {
+              if (errorMatch) {{
                 error.pythonExceptionType = errorMatch[1].split(".").pop();
-              }
+              }}
 
               // If the error is a FinalAnswerException, extract its the encoded value
-              if (error.pythonExceptionType === "FinalAnswerException") {
+              if (error.pythonExceptionType === "FinalAnswerException") {{
                 // Extract the base64 encoded value from the error message
                 const valueMatch = e.message.match(/FinalAnswerException: (.*?)(?:\\n|$)/);
-                if (valueMatch) {
+                if (valueMatch) {{
                   error.pythonExceptionValue = valueMatch[1];
-                }
-              }
-            }
-          }
+                }}
+              }}
+            }}
+          }}
 
-          return {
+          return {{
             result,
             stdout,
             error
-          };
-        }
+          }};
+        }}
 
         // Start a simple HTTP server to receive code execution requests
-        //const port = 8765;
-        //console.log(`Starting Pyodide server on port ${port}`);
-
-        serve(async (req) => {
-          if (req.method === "POST") {
-            try {
+        serve(async (req) => {{
+          if (req.method === "POST") {{
+            try {{
               const body = await req.json();
-              const { code, packages = [] } = body;
+              const {{ code, packages = [] }} = body;
 
               // Load any requested packages
-              if (packages && packages.length > 0) {
+              if (packages && packages.length > 0) {{
                 const pyodide = await pyodidePromise;
                 //await pyodide.loadPackagesFromImports(code);
                 await pyodide.loadPackage("micropip");
                 const micropip = pyodide.pyimport("micropip");
-                try {
+                try {{
                   await micropip.install(packages);
-                } catch (e) {
-                  console.error(`Failed to load package ${pkg}: ${e.message}`);
-                }
-              }
+                }} catch (e) {{
+                  console.error(`Failed to load package ${{pkg}}: ${{e.message}}`);
+                }}
+              }}
 
               const result = await executePythonCode(code);
-              return new Response(JSON.stringify(result), {
-                headers: { "Content-Type": "application/json" }
-              });
-            } catch (e) {
-              return new Response(JSON.stringify({ error: e.message }), {
+              return new Response(JSON.stringify(result), {{
+                headers: {{ "Content-Type": "application/json" }}
+              }});
+            }} catch (e) {{
+              return new Response(JSON.stringify({{ error: e.message }}), {{
                 status: 500,
-                headers: { "Content-Type": "application/json" }
-              });
-            }
-          }
+                headers: {{ "Content-Type": "application/json" }}
+              }});
+            }}
+          }}
 
-          return new Response("Pyodide-Deno Executor is running. Send POST requests with code to execute.", {
-            headers: { "Content-Type": "text/plain" }
-          });
-        });
+          return new Response("Pyodide-Deno Executor is running. Send POST requests with code to execute.", {{
+            headers: {{ "Content-Type": "text/plain" }}
+          }});
+        }}, {{ port: {port} }});
         """)
