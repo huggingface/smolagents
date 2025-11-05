@@ -1139,7 +1139,7 @@ class WasmExecutor(RemotePythonExecutor):
                 try {{
                   await micropip.install(packages);
                 }} catch (e) {{
-                  console.error(`Failed to load package ${{pkg}}: ${{e.message}}`);
+                  console.error(`Failed to load packages ${{packages.join(", ")}}: ${{e.message}}`);
                 }}
               }}
 
