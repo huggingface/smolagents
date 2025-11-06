@@ -427,7 +427,16 @@ class DockerExecutor(RemotePythonExecutor):
             container_kwargs["ports"]["8888/tcp"] = (host, port)
             container_kwargs["detach"] = True
 
-            self.container = self.client.containers.run(self.image_name, **container_kwargs)
+            self.container = self.client.containers.run(
+                self.image_name,
+                extra_hosts={
+		            "host.docker.internal": "0.0.0.0",
+		            "host.containers.internal": "0.0.0.0",
+		            "host.lima.internal": "0.0.0.0",
+		            "host.rancher-desktop.internal": "0.0.0.0"
+		        },
+                **container_kwargs
+            )
 
             retries = 0
             while self.container.status != "running" and retries < 5:
