@@ -12,7 +12,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "huggingface-hub>=0.31.2",
+  "huggingface-hub>=0.31.2,<1.0.0",
   "requests>=2.32.3",
   "rich>=13.9.4",
   "jinja2>=3.1.4",
