@@ -257,6 +257,53 @@ class TestTool:
         # Should show list[list[int]] for nested arrays
         assert "matrix: list[list[int]]" in code_prompt, f"Expected 'matrix: list[list[int]]' in output but got: {code_prompt}"
 
+        # Test 5: Array of objects with properties (complex nested structure)
+        class ComplexArrayTool(Tool):
+            name = "complex_array_tool"
+            description = "Tool with array of option objects"
+            inputs = {
+                "options": {
+                    "type": "array",
+                    "description": (
+                        "Required for single_choice/multiple_choice. Omit for text input. "
+                        "Array of option objects where each has 'value' and 'label', optionally 'description'."
+                    ),
+                    "nullable": True,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "value": {
+                                "type": "string",
+                                "description": "The value to return when selected (e.g., 'grid', 'modern', 'analytics')",
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": (
+                                    "Display text shown to user (e.g., 'Grid Layout', 'Modern Style', 'Analytics Dashboard')"
+                                ),
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": (
+                                    "Optional help text explaining the option (e.g., 'Cards arranged in a responsive grid')"
+                                ),
+                                "nullable": True,
+                            },
+                        },
+                    },
+                }
+            }
+            output_type = "string"
+
+            def forward(self, options: list[dict] | None = None):
+                return "done"
+
+        complex_tool = ComplexArrayTool()
+        code_prompt = complex_tool.to_code_prompt()
+        # Should show list[dict] for array of objects with properties
+        assert "options: list[dict]" in code_prompt, f"Expected 'options: list[dict]' in output but got: {code_prompt}"
+        assert "options: array" not in code_prompt, f"Should not contain 'options: array' but got: {code_prompt}"
+
     def test_tool_init_with_decorator(self):
         @tool
         def coolfunc(a: str, b: int) -> float:
