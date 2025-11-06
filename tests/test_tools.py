@@ -174,6 +174,89 @@ class TestTool:
         tool_calling_prompt = tool.to_tool_calling_prompt()
         assert tool_calling_prompt == expected_output
 
+    def test_tool_to_code_prompt_array_type_extraction(self):
+        """Test that to_code_prompt properly extracts array item types and shows Python type hints."""
+
+        # Test 1: Array of strings
+        @tool
+        def get_weather(locations: list[str]) -> dict[str, float]:
+            """
+            Get weather at given locations.
+
+            Args:
+                locations: The locations to get the weather for.
+            """
+            return {"temp": 72.5}
+
+        code_prompt = get_weather.to_code_prompt()
+        # Should show list[str] not just array
+        assert "locations: list[str]" in code_prompt, f"Expected 'locations: list[str]' in output but got: {code_prompt}"
+        assert "locations: array" not in code_prompt, f"Should not contain 'locations: array' but got: {code_prompt}"
+        assert "-> dict" in code_prompt, f"Expected '-> dict' in output but got: {code_prompt}"
+
+        # Test 2: Array of integers with dict return type
+        @tool
+        def process_data(items: list[int], config: dict[str, str]) -> str:
+            """
+            Process data items with configuration.
+
+            Args:
+                items: List of integer items to process
+                config: Configuration dictionary
+            """
+            return "done"
+
+        code_prompt = process_data.to_code_prompt()
+        # Should show list[int] not just array
+        assert "items: list[int]" in code_prompt, f"Expected 'items: list[int]' in output but got: {code_prompt}"
+        assert "config: dict[str, str]" in code_prompt, f"Expected 'config: dict[str, str]' in output but got: {code_prompt}"
+        assert "-> str" in code_prompt, f"Expected '-> str' in output but got: {code_prompt}"
+
+        # Test 3: Tool with simple array (no items specification in manual definition)
+        class SimpleArrayTool(Tool):
+            name = "simple_array_tool"
+            description = "Tool with simple array"
+            inputs = {
+                "items": {
+                    "type": "array",
+                    "description": "Some items"
+                }
+            }
+            output_type = "string"
+
+            def forward(self, items):
+                return "done"
+
+        simple_tool = SimpleArrayTool()
+        code_prompt = simple_tool.to_code_prompt()
+        # Should show list (not array) even without items
+        assert "items: list" in code_prompt, f"Expected 'items: list' in output but got: {code_prompt}"
+        assert "items: array" not in code_prompt, f"Should not contain 'items: array' but got: {code_prompt}"
+
+        # Test 4: Nested arrays
+        class NestedArrayTool(Tool):
+            name = "nested_array_tool"
+            description = "Tool with nested arrays"
+            inputs = {
+                "matrix": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {"type": "integer"}
+                    },
+                    "description": "2D matrix"
+                }
+            }
+            output_type = "string"
+
+            def forward(self, matrix):
+                return "done"
+
+        nested_tool = NestedArrayTool()
+        code_prompt = nested_tool.to_code_prompt()
+        # Should show list[list[int]] for nested arrays
+        assert "matrix: list[list[int]]" in code_prompt, f"Expected 'matrix: list[list[int]]' in output but got: {code_prompt}"
+
     def test_tool_init_with_decorator(self):
         @tool
         def coolfunc(a: str, b: int) -> float:
