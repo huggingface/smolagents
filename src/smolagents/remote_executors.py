@@ -430,12 +430,12 @@ class DockerExecutor(RemotePythonExecutor):
             self.container = self.client.containers.run(
                 self.image_name,
                 extra_hosts={
-		            "host.docker.internal": "0.0.0.0",
-		            "host.containers.internal": "0.0.0.0",
-		            "host.lima.internal": "0.0.0.0",
-		            "host.rancher-desktop.internal": "0.0.0.0"
-		        },
-                **container_kwargs
+                    "host.docker.internal": "0.0.0.0",
+                    "host.containers.internal": "0.0.0.0",
+                    "host.lima.internal": "0.0.0.0",
+                    "host.rancher-desktop.internal": "0.0.0.0",
+                },
+                **container_kwargs,
             )
 
             retries = 0
