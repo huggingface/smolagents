@@ -94,6 +94,22 @@ AUTHORIZED_TYPES = [
 
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
 
+# Mapping from JSON schema types to Python type hint strings
+# This is the reverse of CONVERSION_DICT and _BASE_TYPE_MAPPING from _function_type_hints_utils
+JSON_SCHEMA_TO_PYTHON_TYPE = {
+    "string": "str",
+    "integer": "int",
+    "number": "float",
+    "boolean": "bool",
+    "array": "list",
+    "object": "dict",
+    "any": "Any",
+    "null": "None",
+    # Special types that don't have direct Python equivalents
+    "image": "image",
+    "audio": "audio",
+}
+
 
 class BaseTool(ABC):
     name: str
@@ -259,57 +275,51 @@ class Tool(BaseTool):
         """
         Convert a JSON schema type to a Python type hint string.
 
+        This method recursively converts JSON schema type definitions into Python type hint
+        strings that can be used in function signatures. It handles simple types, arrays,
+        objects, unions, and nested structures.
+
         Args:
-            schema: JSON schema dictionary or type string
+            schema: JSON schema dictionary (e.g., {"type": "string"}) or type string (e.g., "string")
 
         Returns:
-            Python type hint string
+            Python type hint string (e.g., "str", "list[int]", "dict[str, str]")
+
+        Examples:
+            >>> self._schema_to_python_type("string")
+            'str'
+            >>> self._schema_to_python_type({"type": "array", "items": {"type": "integer"}})
+            'list[int]'
+            >>> self._schema_to_python_type({"type": "object", "additionalProperties": {"type": "string"}})
+            'dict[str, str]'
         """
-        # Handle simple string types
+        # Normalize input: convert string to dict format
         if isinstance(schema, str):
             schema = {"type": schema}
 
         schema_type = schema.get("type")
 
-        # Handle None/null type
-        if schema_type == "null":
-            return "None"
-
-        # Basic type mapping
-        type_mapping = {
-            "string": "str",
-            "integer": "int",
-            "number": "float",
-            "boolean": "bool",
-            "any": "Any",
-        }
-
-        # Handle union types (list of types)
+        # Handle union types (list of types like ["string", "integer"])
         if isinstance(schema_type, list):
-            type_strs = []
-            for t in schema_type:
-                if isinstance(t, str):
-                    type_strs.append(type_mapping.get(t, t))
-                else:
-                    type_strs.append(self._schema_to_python_type({"type": t}))
+            type_strs = [JSON_SCHEMA_TO_PYTHON_TYPE.get(t, t) for t in schema_type]
             return " | ".join(sorted(type_strs))
 
-        # Handle array types
+        # Handle array types: recursively process items
         if schema_type == "array":
             if "items" in schema:
                 item_type = self._schema_to_python_type(schema["items"])
                 return f"list[{item_type}]"
             return "list"
 
-        # Handle object/dict types
+        # Handle object/dict types: recursively process value types
         if schema_type == "object":
             if "additionalProperties" in schema:
                 value_type = self._schema_to_python_type(schema["additionalProperties"])
                 return f"dict[str, {value_type}]"
             return "dict"
 
-        # Return mapped type or original
-        return type_mapping.get(schema_type, schema_type)
+        # Handle all other types using the centralized mapping
+        return JSON_SCHEMA_TO_PYTHON_TYPE.get(schema_type, schema_type)
 
     def to_code_prompt(self) -> str:
         args_signature = ", ".join(
