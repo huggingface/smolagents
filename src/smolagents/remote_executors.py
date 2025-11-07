@@ -620,7 +620,7 @@ class BlaxelExecutor(RemotePythonExecutor):
         additional_imports (`list[str]`): Additional Python packages to install.
         logger (`Logger`): Logger to use for output and errors.
         sandbox_name (`str`, optional): Name for the sandbox. Defaults to "smolagent-executor".
-        image (`str`, optional): Docker image to use. Defaults to "blaxel/prod-base:latest".
+        image (`str`, optional): Docker image to use. Defaults to "blaxel/jupyter-notebook".
         memory (`int`, optional): Memory allocation in MB. Defaults to 4096.
         region (`str`, optional): Deployment region. If not specified, Blaxel chooses default.
         create_kwargs (`dict`, optional): Additional arguments for sandbox creation.
@@ -631,7 +631,7 @@ class BlaxelExecutor(RemotePythonExecutor):
         additional_imports: list[str],
         logger,
         sandbox_name: str = "smolagent-executor",
-        image: str = "blaxel/prod-py-app:latest",
+        image: str = "blaxel/jupyter-notebook",
         memory: int = 4096,
         region: Optional[str] = None,
         create_kwargs: Optional[dict] = None,
@@ -649,13 +649,26 @@ class BlaxelExecutor(RemotePythonExecutor):
         self.image = image
         self.memory = memory
         self.region = region
+        self.port = 8888
         self._cleaned_up = False  # Flag to prevent double cleanup
 
         # Prepare sandbox creation parameters
+        token = secrets.token_urlsafe(16)
         sandbox_config = {
             "name": sandbox_name,
             "image": image,
             "memory": memory,
+            "envs": [
+                {
+                    "name": "KG_AUTH_TOKEN",
+                    "value": token,
+                }
+            ],
+            "ports": [
+                {
+                    "target": self.port
+                }
+            ]
         }
 
         if region:
@@ -666,13 +679,32 @@ class BlaxelExecutor(RemotePythonExecutor):
 
         # Create the sandbox
         try:
+            # Create sandbox environment on Blaxel
             self.sandbox = self._run_async(self._create_sandbox_async, sandbox_config)
-        except Exception as e:
-            raise RuntimeError(f"Failed to create Blaxel sandbox: {e}") from e
+            preview_url = self._run_async(self._create_preview)
 
-        # Install additional packages
-        self.installed_packages = self.install_packages(additional_imports)
-        self.logger.log(f"BlaxelExecutor initialized with sandbox {sandbox_name}", level=LogLevel.INFO)
+            # Create kernel via HTTP
+            kernel_id = _create_kernel_http(f"{preview_url}/api/kernels?token={token}", self.logger)
+
+            # Set up websocket URL
+            # Convert http/https to ws/wss
+            ws_scheme = "wss" if preview_url.startswith("https") else "ws"
+            ws_base = preview_url.replace("https://", "").replace("http://", "")
+            self.ws_url = f"{ws_scheme}://{ws_base}/api/kernels/{kernel_id}/channels?token={token}"
+
+            # Install additional packages
+            self.installed_packages = self.install_packages(additional_imports)
+            self.logger.log(f"Blaxel is running", level=LogLevel.INFO)
+            end = time.time()
+        except Exception as e:
+            self.cleanup()
+            raise RuntimeError(f"Failed to initialize Blaxel sandbox: {e}") from e
+
+    def _create_kernel_http(self, base_url: str, token: str):
+        from blaxel.core import settings
+
+        kernel_id = _create_kernel_http(f"{base_url}/api/kernels?token={token}", self.logger, headers=settings.headers)
+        return kernel_id
 
     def _run_async(self, coro_func, *args, **kwargs):
         """
@@ -729,6 +761,21 @@ class BlaxelExecutor(RemotePythonExecutor):
 
         return await SandboxInstance.create(config)
 
+    async def _create_preview(self) -> str:
+        from blaxel.core.sandbox.preview import SandboxPreview
+
+        # We can set it as public cause it will be accessible only with KG_AUTH_TOKEN
+        preview: SandboxPreview = await self.sandbox.previews.create_if_not_exists({
+            "metadata": {
+                "name": "jupyter-notebook-kernel"
+            },
+            "spec": {
+                "port": 8888,
+                "public": True,
+            }
+        })
+        return preview.spec.url
+
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
         Execute Python code in the Blaxel sandbox and return the result.
@@ -739,86 +786,14 @@ class BlaxelExecutor(RemotePythonExecutor):
         Returns:
             `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
         """
-        try:
-            return self._run_async(self._run_code_async, code)
-        except Exception as e:
-            self.logger.log_error(f"Code execution failed: {e}")
-            raise
+        from websocket import create_connection
+        from blaxel.core import settings
 
-    async def _run_code_async(self, code: str) -> CodeOutput:
-        """Helper method to run code asynchronously."""
-        try:
-            # Wrap the code to handle final answer exceptions
-            wrapped_code = f'''
-import base64
-import pickle
-
-try:
-    # Execute the user code
-{self._indent_code(code, "    ")}
-except Exception as e:
-    # Check if it's a FinalAnswerException
-    if e.__class__.__name__ == "{RemotePythonExecutor.FINAL_ANSWER_EXCEPTION}":
-        # This is our special final answer exception
-        # Encode the exception's value attribute
-        encoded_value = base64.b64encode(pickle.dumps(e.value)).decode('utf-8')
-        print("FINAL_ANSWER_EXCEPTION:" + encoded_value)
-    else:
-        # Regular exception, just re-raise it
-        raise
-'''
-
-            await self.sandbox.fs.write("run-code.py", wrapped_code)
-            await self.sandbox.process.exec(
-                {
-                    "name": "run-code",
-                    "command": "python run-code.py",
-                }
-            )
-            await self.sandbox.process.wait("run-code", max_wait=60000, interval=1000)
-            execution_result = await self.sandbox.process.get("run-code")
-            logs = await self.sandbox.process.logs("run-code", "all")
-
-            # Process the execution result
-            result = None
-            is_final_answer = False
-
-            # Check for final answer exception in the output
-            if "FINAL_ANSWER_EXCEPTION:" in logs:
-                final_answer_line = [line for line in logs.split("\n") if line.startswith("FINAL_ANSWER_EXCEPTION:")][
-                    0
-                ]
-                encoded_answer = final_answer_line.split("FINAL_ANSWER_EXCEPTION:", 1)[1]
-                try:
-                    result = pickle.loads(base64.b64decode(encoded_answer))
-                    # Remove the final answer exception line from logs
-                    logs = logs.replace(final_answer_line, "").strip("\n")
-                    is_final_answer = True
-                except Exception:
-                    # If we can't decode the final answer, treat as regular output
-                    pass
-
-            # Check for execution errors
-            if hasattr(execution_result, "error") and execution_result.error and not is_final_answer:
-                error_msg = execution_result.error
-                if hasattr(execution_result, "error_message"):
-                    error_msg = execution_result.error_message
-                raise AgentError(f"Code execution failed:\n{logs}\n{error_msg}", self.logger)
-
-            # For regular execution, use logs as output
-            if not is_final_answer:
-                result = logs
-
-            return CodeOutput(output=result, logs=logs, is_final_answer=True)
-
-        except Exception as e:
-            if isinstance(e, AgentError):
-                raise
-            raise AgentError(f"Failed to execute code in Blaxel sandbox: {e}", self.logger)
-
-    def _indent_code(self, code: str, indent: str) -> str:
-        """Helper method to indent code properly."""
-        return "\n".join(indent + line if line.strip() else line for line in code.split("\n"))
+        headers = []
+        for key, value in settings.headers.items():
+            headers.append(f"{key}: {value}")
+        with closing(create_connection(self.ws_url, header=headers)) as ws:
+            return _websocket_run_code_raise_errors(code, ws, self.logger)
 
     def install_packages(self, additional_imports: list[str]) -> list[str]:
         """
@@ -882,7 +857,6 @@ except Exception as e:
 
         # Wait for deletion to complete (max 10 checks, 0.5s apart = 5s total)
         for _ in range(10):
-            self.logger.log(f"Checking if sandbox {self.sandbox_name} is deleted...", level=LogLevel.INFO)
             try:
                 response = get_sandbox.sync(client=client, sandbox_name=self.sandbox_name)
                 if response is None:
@@ -917,6 +891,10 @@ except Exception as e:
             if hasattr(self, "sandbox"):
                 del self.sandbox
             self.logger.log("Blaxel sandbox cleanup completed", level=LogLevel.INFO)
+
+    def delete(self):
+        """Ensure cleanup on deletion."""
+        self.cleanup()
 
     def __del__(self):
         """Ensure cleanup on deletion."""

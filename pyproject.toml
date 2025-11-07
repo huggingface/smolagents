@@ -27,6 +27,7 @@ bedrock = [
 ]
 blaxel = [
   "blaxel>=0.2.19",
+  "websocket-client",
 ]
 torch = [
   "torch",
