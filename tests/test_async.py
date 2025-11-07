@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from smolagents.agents import CodeAgent, MultiStepAgent
+from smolagents.agents import CodeAgent, ToolCallingAgent
 from smolagents.models import ChatMessage, MessageRole, Model
 from smolagents.monitoring import TokenUsage
 
@@ -160,7 +160,7 @@ class TestAsyncAgents:
     async def test_agent_has_arun_method(self):
         """Test that Agent has arun method."""
         model = MockAsyncModel()
-        agent = MultiStepAgent(model=model, tools=[])
+        agent = ToolCallingAgent(model=model, tools=[])
         assert hasattr(agent, "arun")
 
     @pytest.mark.asyncio
@@ -169,7 +169,7 @@ class TestAsyncAgents:
         model = MockAsyncModel()
 
         # Mock the agent's internal methods to avoid full execution
-        with patch.object(MultiStepAgent, "_arun_stream") as mock_stream:
+        with patch.object(ToolCallingAgent, "_arun_stream") as mock_stream:
             # Mock the async generator
             async def mock_gen(*args, **kwargs):
                 from smolagents.memory import FinalAnswerStep
@@ -178,7 +178,7 @@ class TestAsyncAgents:
 
             mock_stream.return_value = mock_gen()
 
-            agent = MultiStepAgent(model=model, tools=[])
+            agent = ToolCallingAgent(model=model, tools=[])
             result = await agent.arun("test task")
 
             assert result == "test result"
@@ -189,7 +189,7 @@ class TestAsyncAgents:
         """Test async agent run with streaming."""
         model = MockAsyncModel()
 
-        with patch.object(MultiStepAgent, "_arun_stream") as mock_stream:
+        with patch.object(ToolCallingAgent, "_arun_stream") as mock_stream:
             from smolagents.memory import ActionStep, FinalAnswerStep
 
             async def mock_gen(*args, **kwargs):
@@ -198,7 +198,7 @@ class TestAsyncAgents:
 
             mock_stream.return_value = mock_gen()
 
-            agent = MultiStepAgent(model=model, tools=[])
+            agent = ToolCallingAgent(model=model, tools=[])
             stream = agent.arun("test task", stream=True)
 
             steps = []
@@ -215,7 +215,7 @@ class TestAsyncAgents:
         model = MockAsyncModel()
 
         # Mock _arun_stream for each agent
-        with patch.object(MultiStepAgent, "_arun_stream") as mock_stream:
+        with patch.object(ToolCallingAgent, "_arun_stream") as mock_stream:
             from smolagents.memory import FinalAnswerStep
 
             async def mock_gen(*args, **kwargs):
@@ -226,7 +226,7 @@ class TestAsyncAgents:
 
             # ✅ CORRECT: Separate agent instances
             tasks = ["task1", "task2", "task3"]
-            agents = [MultiStepAgent(model=model, tools=[]) for _ in tasks]
+            agents = [ToolCallingAgent(model=model, tools=[]) for _ in tasks]
 
             results = await asyncio.gather(*[agent.arun(task) for agent, task in zip(agents, tasks)])
 
@@ -238,7 +238,7 @@ class TestAsyncAgents:
         """Test that separate agent instances maintain isolated state."""
         model = MockAsyncModel()
 
-        with patch.object(MultiStepAgent, "_arun_stream") as mock_stream:
+        with patch.object(ToolCallingAgent, "_arun_stream") as mock_stream:
             from smolagents.memory import FinalAnswerStep
 
             # Track which agent instance is being used
@@ -252,8 +252,8 @@ class TestAsyncAgents:
 
                 return mock_gen()
 
-            agent1 = MultiStepAgent(model=model, tools=[])
-            agent2 = MultiStepAgent(model=model, tools=[])
+            agent1 = ToolCallingAgent(model=model, tools=[])
+            agent2 = ToolCallingAgent(model=model, tools=[])
 
             # Run both agents concurrently
             mock_stream.side_effect = [mock_gen_factory("agent1"), mock_gen_factory("agent2")]
@@ -273,7 +273,7 @@ class TestAsyncHelperMethods:
     async def test_aprovide_final_answer(self):
         """Test async provide_final_answer method."""
         model = MockAsyncModel()
-        agent = MultiStepAgent(model=model, tools=[])
+        agent = ToolCallingAgent(model=model, tools=[])
 
         # Mock memory
         from smolagents.memory import Memory
@@ -289,7 +289,7 @@ class TestAsyncHelperMethods:
     async def test_ahandle_max_steps_reached(self):
         """Test async handle_max_steps_reached method."""
         model = MockAsyncModel()
-        agent = MultiStepAgent(model=model, tools=[])
+        agent = ToolCallingAgent(model=model, tools=[])
 
         # Mock memory
         from smolagents.memory import Memory
@@ -306,7 +306,7 @@ class TestAsyncHelperMethods:
     async def test_agenerate_planning_step(self):
         """Test async generate_planning_step method."""
         model = MockAsyncModel()
-        agent = MultiStepAgent(model=model, tools=[])
+        agent = ToolCallingAgent(model=model, tools=[])
 
         # Mock memory
         from smolagents.memory import Memory
@@ -331,7 +331,7 @@ class TestAsyncIntegration:
 
         # This is a simplified integration test
         # In reality, would need full agent setup with executors, etc.
-        with patch.object(MultiStepAgent, "_arun_stream") as mock_stream:
+        with patch.object(ToolCallingAgent, "_arun_stream") as mock_stream:
             from smolagents.memory import ActionStep, FinalAnswerStep
 
             async def mock_gen(*args, **kwargs):
@@ -344,7 +344,7 @@ class TestAsyncIntegration:
 
             mock_stream.return_value = mock_gen()
 
-            agent = MultiStepAgent(model=model, tools=[])
+            agent = ToolCallingAgent(model=model, tools=[])
 
             # Test with streaming
             steps = []
@@ -387,7 +387,7 @@ class TestAsyncErrorHandling:
     async def test_astep_stream_not_implemented(self):
         """Test that base Agent raises NotImplementedError for _astep_stream."""
         model = MockAsyncModel()
-        agent = MultiStepAgent(model=model, tools=[])
+        agent = ToolCallingAgent(model=model, tools=[])
 
         from smolagents.memory import ActionStep
 
