@@ -37,7 +37,7 @@ def parse_arguments():
         "--model-type",
         type=str,
         default="LiteLLMModel",
-        help="The model type to use (e.g., OpenAIServerModel, LiteLLMModel, TransformersModel, InferenceClientModel)",
+        help="The model type to use (e.g., OpenAIModel, LiteLLMModel, TransformersModel, InferenceClientModel)",
     )
     parser.add_argument(
         "--model-id",

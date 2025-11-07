@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from .monitoring import TokenUsage
 from .tools import Tool
-from .utils import RateLimiter, _is_package_available, encode_image_base64, make_image_url, parse_json_blob
+from .utils import RateLimiter, Retrying, _is_package_available, encode_image_base64, make_image_url, parse_json_blob
 
 
 if TYPE_CHECKING:
@@ -35,6 +35,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+RETRY_WAIT = 60
+RETRY_MAX_ATTEMPTS = 3
+RETRY_EXPONENTIAL_BASE = 2
+RETRY_JITTER = True
 STRUCTURED_GENERATION_PROVIDERS = ["cerebras", "fireworks-ai"]
 CODEAGENT_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -70,6 +74,21 @@ def get_dict_from_nested_dataclasses(obj, ignore_key=None):
         return obj
 
     return convert(obj)
+
+
+def remove_content_after_stop_sequences(content: str | None, stop_sequences: list[str] | None) -> str | None:
+    """Remove content after any stop sequence is encountered.
+
+    Some providers may return ``None`` content (for example when responding purely with tool calls),
+    so we skip processing in that case.
+    """
+    if content is None or not stop_sequences:
+        return content
+
+    for stop_seq in stop_sequences:
+        split = content.split(stop_seq)
+        content = split[0]
+    return content
 
 
 @dataclass
@@ -262,13 +281,6 @@ def get_tool_json_schema(tool: Tool) -> dict:
     }
 
 
-def remove_stop_sequences(content: str, stop_sequences: list[str]) -> str:
-    for stop_seq in stop_sequences:
-        if content[-len(stop_seq) :] == stop_seq:
-            content = content[: -len(stop_seq)]
-    return content
-
-
 def get_clean_message_list(
     message_list: list[ChatMessage | dict],
     role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
@@ -433,6 +445,10 @@ class Model:
         self.kwargs = kwargs
         self.model_id: str | None = model_id
 
+    @property
+    def supports_stop_parameter(self) -> bool:
+        return supports_stop_parameter(self.model_id or "")
+
     def _prepare_completion_kwargs(
         self,
         messages: list[ChatMessage | dict],
@@ -465,7 +481,7 @@ class Model:
             "messages": messages_as_dicts,
         }
         # Override with specific parameters
-        if stop_sequences is not None and supports_stop_parameter(self.model_id or ""):
+        if stop_sequences is not None and self.supports_stop_parameter:
             # Some models do not support stop parameter
             completion_kwargs["stop"] = stop_sequences
         if response_format is not None:
@@ -623,6 +639,7 @@ class VLLMModel(Model):
         **kwargs,
     ) -> ChatMessage:
         from vllm import SamplingParams  # type: ignore
+        from vllm.sampling_params import StructuredOutputsParams  # type: ignore
 
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
@@ -632,7 +649,9 @@ class VLLMModel(Model):
             **kwargs,
         )
         # Override the OpenAI schema for VLLM compatibility
-        guided_options_request = {"guided_json": response_format["json_schema"]["schema"]} if response_format else None
+        structured_outputs = (
+            StructuredOutputsParams(json=response_format["json_schema"]["schema"]) if response_format else None
+        )
 
         messages = completion_kwargs.pop("messages")
         prepared_stop_sequences = completion_kwargs.pop("stop", [])
@@ -651,16 +670,18 @@ class VLLMModel(Model):
             temperature=kwargs.get("temperature", 0.0),
             max_tokens=kwargs.get("max_tokens", 2048),
             stop=prepared_stop_sequences,
+            structured_outputs=structured_outputs,
         )
 
         out = self.model.generate(
             prompt,
             sampling_params=sampling_params,
-            guided_options_request=guided_options_request,
             **completion_kwargs,
         )
 
         output_text = out[0].outputs[0].text
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            output_text = remove_content_after_stop_sequences(output_text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=output_text,
@@ -768,6 +789,8 @@ class MLXModel(Model):
             if any((stop_index := text.rfind(stop)) != -1 for stop in stops):
                 text = text[:stop_index]
                 break
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            text = remove_content_after_stop_sequences(text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=text,
@@ -790,7 +813,7 @@ class TransformersModel(Model):
     Parameters:
         model_id (`str`):
             The Hugging Face model ID to be used for inference. This can be a path or model identifier from the Hugging Face model hub.
-            For example, `"Qwen/Qwen2.5-Coder-32B-Instruct"`.
+            For example, `"Qwen/Qwen3-Next-80B-A3B-Thinking"`.
         device_map (`str`, *optional*):
             The device_map to initialize your model with.
         torch_dtype (`str`, *optional*):
@@ -812,7 +835,7 @@ class TransformersModel(Model):
     Example:
     ```python
     >>> engine = TransformersModel(
-    ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
+    ...     model_id="Qwen/Qwen3-Next-80B-A3B-Thinking",
     ...     device="cuda",
     ...     max_new_tokens=5000,
     ... )
@@ -993,7 +1016,7 @@ class TransformersModel(Model):
             output_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
 
         if stop_sequences is not None:
-            output_text = remove_stop_sequences(output_text, stop_sequences)
+            output_text = remove_content_after_stop_sequences(output_text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=output_text,
@@ -1069,6 +1092,8 @@ class ApiModel(Model):
             Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
         requests_per_minute (`float`, **optional**):
             Rate limit in requests per minute.
+        retry (`bool`, **optional**):
+            Wether to retry on rate limit errors, up to RETRY_MAX_ATTEMPTS times. Defaults to True.
         **kwargs:
             Additional keyword arguments to forward to the underlying model completion call.
     """
@@ -1079,12 +1104,23 @@ class ApiModel(Model):
         custom_role_conversions: dict[str, str] | None = None,
         client: Any | None = None,
         requests_per_minute: float | None = None,
+        retry: bool = True,
         **kwargs,
     ):
         super().__init__(model_id=model_id, **kwargs)
         self.custom_role_conversions = custom_role_conversions or {}
         self.client = client or self.create_client()
         self.rate_limiter = RateLimiter(requests_per_minute)
+        self.retryer = Retrying(
+            max_attempts=RETRY_MAX_ATTEMPTS if retry else 1,
+            wait_seconds=RETRY_WAIT,
+            exponential_base=RETRY_EXPONENTIAL_BASE,
+            jitter=RETRY_JITTER,
+            retry_predicate=is_rate_limit_error,
+            reraise=True,
+            before_sleep_logger=(logger, logging.INFO),
+            after_logger=(logger, logging.INFO),
+        )
 
     def create_client(self):
         """Create the API client for the specific service."""
@@ -1093,6 +1129,17 @@ class ApiModel(Model):
     def _apply_rate_limit(self):
         """Apply rate limiting before making API calls."""
         self.rate_limiter.throttle()
+
+
+def is_rate_limit_error(exception: BaseException) -> bool:
+    """Check if the exception is a rate limit error."""
+    error_str = str(exception).lower()
+    return (
+        "429" in error_str
+        or "rate limit" in error_str
+        or "too many requests" in error_str
+        or "rate_limit" in error_str
+    )
 
 
 class LiteLLMModel(ApiModel):
@@ -1177,15 +1224,21 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        response = self.client.completion(**completion_kwargs)
+        response = self.retryer(self.client.completion, **completion_kwargs)
+
         if not response.choices:
             raise RuntimeError(
                 f"Unexpected API response: model '{self.model_id}' returned no choices. "
                 " This may indicate a possible API or upstream issue. "
                 f"Response details: {response.model_dump()}"
             )
-        return ChatMessage.from_dict(
-            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+        content = response.choices[0].message.content
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            content = remove_content_after_stop_sequences(content, stop_sequences)
+        return ChatMessage(
+            role=response.choices[0].message.role,
+            content=content,
+            tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1214,7 +1267,9 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.client.completion(**completion_kwargs, stream=True, stream_options={"include_usage": True}):
+        for event in self.retryer(
+            self.client.completion, **completion_kwargs, stream=True, stream_options={"include_usage": True}
+        ):
             if getattr(event, "usage", None):
                 yield ChatMessageStreamDelta(
                     content="",
@@ -1346,10 +1401,10 @@ class InferenceClientModel(ApiModel):
     Providers include Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together, and more.
 
     Parameters:
-        model_id (`str`, *optional*, default `"Qwen/Qwen2.5-Coder-32B-Instruct"`):
+        model_id (`str`, *optional*, default `"Qwen/Qwen3-Next-80B-A3B-Thinking"`):
             The Hugging Face model ID to be used for inference.
             This can be a model identifier from the Hugging Face model hub or a URL to a deployed Inference Endpoint.
-            Currently, it defaults to `"Qwen/Qwen2.5-Coder-32B-Instruct"`, but this may change in the future.
+            Currently, it defaults to `"Qwen/Qwen3-Next-80B-A3B-Thinking"`, but this may change in the future.
         provider (`str`, *optional*):
             Name of the provider to use for inference. A list of supported providers can be found in the [Inference Providers documentation](https://huggingface.co/docs/inference-providers/index#partners).
             Defaults to "auto" i.e. the first of the providers available for the model, sorted by the user's order [here](https://hf.co/settings/inference-providers).
@@ -1384,8 +1439,8 @@ class InferenceClientModel(ApiModel):
     Example:
     ```python
     >>> engine = InferenceClientModel(
-    ...     model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
-    ...     provider="nebius",
+    ...     model_id="Qwen/Qwen3-Next-80B-A3B-Thinking",
+    ...     provider="hyperbolic",
     ...     token="your_hf_token_here",
     ...     max_tokens=5000,
     ... )
@@ -1398,7 +1453,7 @@ class InferenceClientModel(ApiModel):
 
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct",
+        model_id: str = "Qwen/Qwen3-Next-80B-A3B-Thinking",
         provider: str | None = None,
         token: str | None = None,
         timeout: int = 120,
@@ -1458,9 +1513,14 @@ class InferenceClientModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        response = self.client.chat_completion(**completion_kwargs)
-        return ChatMessage.from_dict(
-            asdict(response.choices[0].message),
+        response = self.retryer(self.client.chat_completion, **completion_kwargs)
+        content = response.choices[0].message.content
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            content = remove_content_after_stop_sequences(content, stop_sequences)
+        return ChatMessage(
+            role=response.choices[0].message.role,
+            content=content,
+            tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1487,8 +1547,11 @@ class InferenceClientModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.client.chat.completions.create(
-            **completion_kwargs, stream=True, stream_options={"include_usage": True}
+        for event in self.retryer(
+            self.client.chat.completions.create,
+            **completion_kwargs,
+            stream=True,
+            stream_options={"include_usage": True},
         ):
             if getattr(event, "usage", None):
                 yield ChatMessageStreamDelta(
@@ -1520,12 +1583,12 @@ class InferenceClientModel(ApiModel):
                         raise ValueError(f"No content or tool calls in event: {event}")
 
 
-class OpenAIServerModel(ApiModel):
+class OpenAIModel(ApiModel):
     """This model connects to an OpenAI-compatible API server.
 
     Parameters:
         model_id (`str`):
-            The model identifier to use on the server (e.g. "gpt-3.5-turbo").
+            The model identifier to use on the server (e.g. "gpt-5").
         api_base (`str`, *optional*):
             The base URL of the OpenAI-compatible API server.
         api_key (`str`, *optional*):
@@ -1576,7 +1639,7 @@ class OpenAIServerModel(ApiModel):
             import openai
         except ModuleNotFoundError as e:
             raise ModuleNotFoundError(
-                "Please install 'openai' extra to use OpenAIServerModel: `pip install 'smolagents[openai]'`"
+                "Please install 'openai' extra to use OpenAIModel: `pip install 'smolagents[openai]'`"
             ) from e
 
         return openai.OpenAI(**self.client_kwargs)
@@ -1600,8 +1663,11 @@ class OpenAIServerModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.client.chat.completions.create(
-            **completion_kwargs, stream=True, stream_options={"include_usage": True}
+        for event in self.retryer(
+            self.client.chat.completions.create,
+            **completion_kwargs,
+            stream=True,
+            stream_options={"include_usage": True},
         ):
             if event.usage:
                 yield ChatMessageStreamDelta(
@@ -1651,9 +1717,14 @@ class OpenAIServerModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        response = self.client.chat.completions.create(**completion_kwargs)
-        return ChatMessage.from_dict(
-            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+        response = self.retryer(self.client.chat.completions.create, **completion_kwargs)
+        content = response.choices[0].message.content
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            content = remove_content_after_stop_sequences(content, stop_sequences)
+        return ChatMessage(
+            role=response.choices[0].message.role,
+            content=content,
+            tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1662,10 +1733,10 @@ class OpenAIServerModel(ApiModel):
         )
 
 
-OpenAIModel = OpenAIServerModel
+OpenAIServerModel = OpenAIModel
 
 
-class AzureOpenAIServerModel(OpenAIServerModel):
+class AzureOpenAIModel(OpenAIModel):
     """This model connects to an Azure OpenAI deployment.
 
     Parameters:
@@ -1716,16 +1787,16 @@ class AzureOpenAIServerModel(OpenAIServerModel):
             import openai
         except ModuleNotFoundError as e:
             raise ModuleNotFoundError(
-                "Please install 'openai' extra to use AzureOpenAIServerModel: `pip install 'smolagents[openai]'`"
+                "Please install 'openai' extra to use AzureOpenAIModel: `pip install 'smolagents[openai]'`"
             ) from e
 
         return openai.AzureOpenAI(**self.client_kwargs)
 
 
-AzureOpenAIModel = AzureOpenAIServerModel
+AzureOpenAIServerModel = AzureOpenAIModel
 
 
-class AmazonBedrockServerModel(ApiModel):
+class AmazonBedrockModel(ApiModel):
     """
     A model class for interacting with Amazon Bedrock Server models through the Bedrock API.
 
@@ -1765,7 +1836,7 @@ class AmazonBedrockServerModel(ApiModel):
     Examples:
         Creating a model instance with default settings:
         ```python
-        >>> bedrock_model = AmazonBedrockServerModel(
+        >>> bedrock_model = AmazonBedrockModel(
         ...     model_id='us.amazon.nova-pro-v1:0'
         ... )
         ```
@@ -1774,7 +1845,7 @@ class AmazonBedrockServerModel(ApiModel):
         ```python
         >>> import boto3
         >>> client = boto3.client('bedrock-runtime', region_name='us-west-2')
-        >>> bedrock_model = AmazonBedrockServerModel(
+        >>> bedrock_model = AmazonBedrockModel(
         ...     model_id='us.amazon.nova-pro-v1:0',
         ...     client=client
         ... )
@@ -1782,7 +1853,7 @@ class AmazonBedrockServerModel(ApiModel):
 
         Creating a model instance with client_kwargs for internal client creation:
         ```python
-        >>> bedrock_model = AmazonBedrockServerModel(
+        >>> bedrock_model = AmazonBedrockModel(
         ...     model_id='us.amazon.nova-pro-v1:0',
         ...     client_kwargs={'region_name': 'us-west-2', 'endpoint_url': 'https://custom-endpoint.com'}
         ... )
@@ -1799,7 +1870,7 @@ class AmazonBedrockServerModel(ApiModel):
         ...         "guardrailVersion": 'v1'
         ...     },
         ... }
-        >>> bedrock_model = AmazonBedrockServerModel(
+        >>> bedrock_model = AmazonBedrockModel(
         ...     model_id='anthropic.claude-3-haiku-20240307-v1:0',
         ...     **additional_api_config
         ... )
@@ -1905,7 +1976,7 @@ class AmazonBedrockServerModel(ApiModel):
         )
         self._apply_rate_limit()
         # self.client is created in ApiModel class
-        response = self.client.converse(**completion_kwargs)
+        response = self.retryer(self.client.converse, **completion_kwargs)
 
         # Get content blocks with "text" key: in case thinking blocks are present, discard them
         message_content_blocks_with_text = [
@@ -1914,9 +1985,13 @@ class AmazonBedrockServerModel(ApiModel):
         if not message_content_blocks_with_text:
             raise KeyError("No message content blocks with 'text' key found in response")
         # Keep the last one
-        response["output"]["message"]["content"] = message_content_blocks_with_text[-1]["text"]
-        return ChatMessage.from_dict(
-            response["output"]["message"],
+        content = message_content_blocks_with_text[-1]["text"]
+        if stop_sequences is not None and not self.supports_stop_parameter:
+            content = remove_content_after_stop_sequences(content, stop_sequences)
+        return ChatMessage(
+            role=response["output"]["message"]["role"],
+            content=content,
+            tool_calls=response["output"]["message"]["tool_calls"],
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response["usage"]["inputTokens"],
@@ -1925,7 +2000,7 @@ class AmazonBedrockServerModel(ApiModel):
         )
 
 
-AmazonBedrockModel = AmazonBedrockServerModel
+AmazonBedrockServerModel = AmazonBedrockModel
 
 __all__ = [
     "REMOVE_PARAMETER",

@@ -120,16 +120,16 @@ print(model(messages))
 
 [[autodoc]] LiteLLMModel
 
-### OpenAiServerModel
+### OpenAiModel
 
 
 यह क्लास आपको किसी भी OpenAIServer कम्पैटिबल मॉडल को कॉल करने देती है।
 यहाँ बताया गया है कि आप इसे कैसे सेट कर सकते हैं (आप दूसरे सर्वर को पॉइंट करने के लिए `api_base` url को कस्टमाइज़ कर सकते हैं):
 ```py
 import os
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="gpt-4o",
     api_base="https://api.openai.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
