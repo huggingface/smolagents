@@ -1662,6 +1662,18 @@ class CodeAgent(MultiStepAgent):
                 )
 
             if not self._use_structured_outputs_internally:
+                # Remove any partial stop sequences that may have been included in the output
+                # This can happen when generation stops partway through a stop sequence
+                if output_text:
+                    for stop_seq in stop_sequences:
+                        # Check for partial matches of stop sequences at the end of output
+                        for i in range(1, len(stop_seq)):
+                            partial_seq = stop_seq[:i]
+                            if output_text.rstrip().endswith(partial_seq):
+                                # Remove the partial sequence
+                                output_text = output_text.rstrip()[:-len(partial_seq)]
+                                break
+                
                 # This adds the end code sequence (i.e. the closing code block tag) to the history.
                 # This will nudge subsequent LLM calls to finish with this end code sequence, thus efficiently stopping generation.
                 if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
