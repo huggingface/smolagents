@@ -614,54 +614,32 @@ You have been provided with these additional arguments, that you can access dire
     ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
         self.step_number = 1
         returned_final_answer = False
+        final_answer = None
+
         while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
 
             # Run a planning step if scheduled
-            if self.planning_interval is not None and (
-                self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0
-            ):
+            if self._should_run_planning_step():
                 planning_start_time = time.time()
                 planning_step = None
                 for element in self._generate_planning_step(
                     task, is_first_step=len(self.memory.steps) == 1, step=self.step_number
-                ):  # Don't use the attribute step_number here, because there can be steps from previous runs
+                ):
                     yield element
                     planning_step = element
-                assert isinstance(planning_step, PlanningStep)  # Last yielded element should be a PlanningStep
-                planning_end_time = time.time()
-                planning_step.timing = Timing(
-                    start_time=planning_start_time,
-                    end_time=planning_end_time,
-                )
-                self._finalize_step(planning_step)
-                self.memory.steps.append(planning_step)
+                assert isinstance(planning_step, PlanningStep)
+                self._finalize_planning_step(planning_step, planning_start_time)
 
             # Start action step!
-            action_step_start_time = time.time()
-            action_step = ActionStep(
-                step_number=self.step_number,
-                timing=Timing(start_time=action_step_start_time),
-                observations_images=images,
-            )
-            self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
+            action_step = self._create_action_step(images)
             try:
                 for output in self._step_stream(action_step):
-                    # Yield all
                     yield output
-
-                    if isinstance(output, ActionOutput) and output.is_final_answer:
-                        final_answer = output.output
-                        self.logger.log(
-                            Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
-                            level=LogLevel.INFO,
-                        )
-
-                        if self.final_answer_checks:
-                            self._validate_final_answer(final_answer)
-                        returned_final_answer = True
-                        action_step.is_final_answer = True
+                    final_answer, returned_final_answer = self._process_final_answer_output(output, action_step)
+                    if returned_final_answer:
+                        break
 
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
@@ -670,10 +648,8 @@ You have been provided with these additional arguments, that you can access dire
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
                 action_step.error = e
             finally:
-                self._finalize_step(action_step)
-                self.memory.steps.append(action_step)
+                self._finalize_action_step(action_step)
                 yield action_step
-                self.step_number += 1
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
@@ -686,54 +662,32 @@ You have been provided with these additional arguments, that you can access dire
         """Async version of _run_stream()."""
         self.step_number = 1
         returned_final_answer = False
+        final_answer = None
+
         while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
 
             # Run a planning step if scheduled
-            if self.planning_interval is not None and (
-                self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0
-            ):
+            if self._should_run_planning_step():
                 planning_start_time = time.time()
                 planning_step = None
                 async for element in self._agenerate_planning_step(
                     task, is_first_step=len(self.memory.steps) == 1, step=self.step_number
-                ):  # Don't use the attribute step_number here, because there can be steps from previous runs
+                ):
                     yield element
                     planning_step = element
-                assert isinstance(planning_step, PlanningStep)  # Last yielded element should be a PlanningStep
-                planning_end_time = time.time()
-                planning_step.timing = Timing(
-                    start_time=planning_start_time,
-                    end_time=planning_end_time,
-                )
-                self._finalize_step(planning_step)
-                self.memory.steps.append(planning_step)
+                assert isinstance(planning_step, PlanningStep)
+                self._finalize_planning_step(planning_step, planning_start_time)
 
             # Start action step!
-            action_step_start_time = time.time()
-            action_step = ActionStep(
-                step_number=self.step_number,
-                timing=Timing(start_time=action_step_start_time),
-                observations_images=images,
-            )
-            self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
+            action_step = self._create_action_step(images)
             try:
                 async for output in self._astep_stream(action_step):
-                    # Yield all
                     yield output
-
-                    if isinstance(output, ActionOutput) and output.is_final_answer:
-                        final_answer = output.output
-                        self.logger.log(
-                            Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
-                            level=LogLevel.INFO,
-                        )
-
-                        if self.final_answer_checks:
-                            self._validate_final_answer(final_answer)
-                        returned_final_answer = True
-                        action_step.is_final_answer = True
+                    final_answer, returned_final_answer = self._process_final_answer_output(output, action_step)
+                    if returned_final_answer:
+                        break
 
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
@@ -742,15 +696,56 @@ You have been provided with these additional arguments, that you can access dire
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
                 action_step.error = e
             finally:
-                self._finalize_step(action_step)
-                self.memory.steps.append(action_step)
+                self._finalize_action_step(action_step)
                 yield action_step
-                self.step_number += 1
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = await self._ahandle_max_steps_reached(task)
             yield action_step
         yield FinalAnswerStep(handle_agent_output_types(final_answer))
+
+    def _should_run_planning_step(self) -> bool:
+        """Check if a planning step should be executed (common logic for sync and async)."""
+        return self.planning_interval is not None and (
+            self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0
+        )
+
+    def _finalize_planning_step(self, planning_step: PlanningStep, start_time: float):
+        """Finalize planning step with timing and add to memory (common logic for sync and async)."""
+        planning_step.timing = Timing(start_time=start_time, end_time=time.time())
+        self._finalize_step(planning_step)
+        self.memory.steps.append(planning_step)
+
+    def _create_action_step(self, images: list["PIL.Image.Image"] | None) -> ActionStep:
+        """Create action step with timing (common logic for sync and async)."""
+        action_step_start_time = time.time()
+        action_step = ActionStep(
+            step_number=self.step_number,
+            timing=Timing(start_time=action_step_start_time),
+            observations_images=images,
+        )
+        self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
+        return action_step
+
+    def _process_final_answer_output(self, output: ActionOutput, action_step: ActionStep) -> tuple[Any, bool]:
+        """Process final answer output (common logic for sync and async)."""
+        if isinstance(output, ActionOutput) and output.is_final_answer:
+            final_answer = output.output
+            self.logger.log(
+                Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
+                level=LogLevel.INFO,
+            )
+            if self.final_answer_checks:
+                self._validate_final_answer(final_answer)
+            action_step.is_final_answer = True
+            return final_answer, True
+        return None, False
+
+    def _finalize_action_step(self, action_step: ActionStep):
+        """Finalize action step and add to memory (common logic for sync and async)."""
+        self._finalize_step(action_step)
+        self.memory.steps.append(action_step)
+        self.step_number += 1
 
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
