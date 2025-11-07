@@ -540,6 +540,114 @@ You have been provided with these additional arguments, that you can access dire
 
         return output
 
+    async def arun(
+        self,
+        task: str,
+        stream: bool = False,
+        reset: bool = True,
+        images: list["PIL.Image.Image"] | None = None,
+        additional_args: dict | None = None,
+        max_steps: int | None = None,
+        return_full_result: bool | None = None,
+    ) -> Any | RunResult:
+        """
+        Async version of run(). Run the agent for the given task asynchronously.
+
+        Args:
+            task (`str`): Task to perform.
+            stream (`bool`): Whether to run in streaming mode.
+                If `True`, returns an async generator that yields each step as it is executed. You must iterate over this generator to process the individual steps (e.g., using an async for loop or `anext()`).
+                If `False`, executes all steps internally and returns only the final answer after completion.
+            reset (`bool`): Whether to reset the conversation or keep it going from previous run.
+            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
+            additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
+            max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+            return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
+                If `None` (default), the agent's `self.return_full_result` setting is used.
+
+        Example:
+        ```py
+        from smolagents import CodeAgent
+        import asyncio
+
+        agent = CodeAgent(tools=[])
+        result = asyncio.run(agent.arun("What is the result of 2 power 3.7384?"))
+        ```
+        """
+        max_steps = max_steps or self.max_steps
+        self.task = task
+        self.interrupt_switch = False
+        if additional_args:
+            self.state.update(additional_args)
+            self.task += f"""
+You have been provided with these additional arguments, that you can access directly using the keys as variables:
+{str(additional_args)}."""
+
+        self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
+        if reset:
+            self.memory.reset()
+            self.monitor.reset()
+
+        self.logger.log_task(
+            content=self.task.strip(),
+            subtitle=f"{type(self.model).__name__} - {(self.model.model_id if hasattr(self.model, 'model_id') else '')}",
+            level=LogLevel.INFO,
+            title=self.name if hasattr(self, "name") else None,
+        )
+        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+
+        if getattr(self, "python_executor", None):
+            self.python_executor.send_variables(variables=self.state)
+            self.python_executor.send_tools({**self.tools, **self.managed_agents})
+
+        if stream:
+            # The steps are returned as they are executed through an async generator to iterate on.
+            return self._arun_stream(task=self.task, max_steps=max_steps, images=images)
+
+        run_start_time = time.time()
+        steps = []
+        async for step in self._arun_stream(task=self.task, max_steps=max_steps, images=images):
+            steps.append(step)
+
+        # Outputs are returned only at the end. We only look at the last step.
+        assert isinstance(steps[-1], FinalAnswerStep)
+        output = steps[-1].output
+
+        return_full_result = return_full_result if return_full_result is not None else self.return_full_result
+        if return_full_result:
+            total_input_tokens = 0
+            total_output_tokens = 0
+            correct_token_usage = True
+            for step in self.memory.steps:
+                if isinstance(step, (ActionStep, PlanningStep)):
+                    if step.token_usage is None:
+                        correct_token_usage = False
+                        break
+                    else:
+                        total_input_tokens += step.token_usage.input_tokens
+                        total_output_tokens += step.token_usage.output_tokens
+            if correct_token_usage:
+                token_usage = TokenUsage(input_tokens=total_input_tokens, output_tokens=total_output_tokens)
+            else:
+                token_usage = None
+
+            if self.memory.steps and isinstance(getattr(self.memory.steps[-1], "error", None), AgentMaxStepsError):
+                state = "max_steps_error"
+            else:
+                state = "success"
+
+            step_dicts = self.memory.get_full_steps()
+
+            return RunResult(
+                output=output,
+                token_usage=token_usage,
+                steps=step_dicts,
+                timing=Timing(start_time=run_start_time, end_time=time.time()),
+                state=state,
+            )
+
+        return output
+
     def _run_stream(
         self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
     ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
@@ -611,6 +719,78 @@ You have been provided with these additional arguments, that you can access dire
             yield action_step
         yield FinalAnswerStep(handle_agent_output_types(final_answer))
 
+    async def _arun_stream(
+        self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
+    ):
+        """Async version of _run_stream()."""
+        self.step_number = 1
+        returned_final_answer = False
+        while not returned_final_answer and self.step_number <= max_steps:
+            if self.interrupt_switch:
+                raise AgentError("Agent interrupted.", self.logger)
+
+            # Run a planning step if scheduled
+            if self.planning_interval is not None and (
+                self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0
+            ):
+                planning_start_time = time.time()
+                planning_step = None
+                async for element in self._agenerate_planning_step(
+                    task, is_first_step=len(self.memory.steps) == 1, step=self.step_number
+                ):  # Don't use the attribute step_number here, because there can be steps from previous runs
+                    yield element
+                    planning_step = element
+                assert isinstance(planning_step, PlanningStep)  # Last yielded element should be a PlanningStep
+                planning_end_time = time.time()
+                planning_step.timing = Timing(
+                    start_time=planning_start_time,
+                    end_time=planning_end_time,
+                )
+                self._finalize_step(planning_step)
+                self.memory.steps.append(planning_step)
+
+            # Start action step!
+            action_step_start_time = time.time()
+            action_step = ActionStep(
+                step_number=self.step_number,
+                timing=Timing(start_time=action_step_start_time),
+                observations_images=images,
+            )
+            self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
+            try:
+                async for output in self._astep_stream(action_step):
+                    # Yield all
+                    yield output
+
+                    if isinstance(output, ActionOutput) and output.is_final_answer:
+                        final_answer = output.output
+                        self.logger.log(
+                            Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
+                            level=LogLevel.INFO,
+                        )
+
+                        if self.final_answer_checks:
+                            self._validate_final_answer(final_answer)
+                        returned_final_answer = True
+                        action_step.is_final_answer = True
+
+            except AgentGenerationError as e:
+                # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
+                raise e
+            except AgentError as e:
+                # Other AgentError types are caused by the Model, so we should log them and iterate.
+                action_step.error = e
+            finally:
+                self._finalize_step(action_step)
+                self.memory.steps.append(action_step)
+                yield action_step
+                self.step_number += 1
+
+        if not returned_final_answer and self.step_number == max_steps + 1:
+            final_answer = await self._ahandle_max_steps_reached(task)
+            yield action_step
+        yield FinalAnswerStep(handle_agent_output_types(final_answer))
+
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
             try:
@@ -625,6 +805,21 @@ You have been provided with these additional arguments, that you can access dire
     def _handle_max_steps_reached(self, task: str) -> Any:
         action_step_start_time = time.time()
         final_answer = self.provide_final_answer(task)
+        final_memory_step = ActionStep(
+            step_number=self.step_number,
+            error=AgentMaxStepsError("Reached max steps.", self.logger),
+            timing=Timing(start_time=action_step_start_time, end_time=time.time()),
+            token_usage=final_answer.token_usage,
+        )
+        final_memory_step.action_output = final_answer.content
+        self._finalize_step(final_memory_step)
+        self.memory.steps.append(final_memory_step)
+        return final_answer.content
+
+    async def _ahandle_max_steps_reached(self, task: str) -> Any:
+        """Async version of _handle_max_steps_reached()."""
+        action_step_start_time = time.time()
+        final_answer = await self.aprovide_final_answer(task)
         final_memory_step = ActionStep(
             step_number=self.step_number,
             error=AgentMaxStepsError("Reached max steps.", self.logger),
@@ -746,6 +941,88 @@ You have been provided with these additional arguments, that you can access dire
             timing=Timing(start_time=start_time, end_time=time.time()),
         )
 
+    async def _agenerate_planning_step(
+        self, task, is_first_step: bool, step: int
+    ):
+        """Async version of _generate_planning_step() - simplified without Live streaming display."""
+        start_time = time.time()
+        if is_first_step:
+            input_messages = [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[
+                        {
+                            "type": "text",
+                            "text": populate_template(
+                                self.prompt_templates["planning"]["initial_plan"],
+                                variables={"task": task, "tools": self.tools, "managed_agents": self.managed_agents},
+                            ),
+                        }
+                    ],
+                )
+            ]
+            # Use non-streaming for now in async mode
+            plan_message = await self.model.agenerate(input_messages, stop_sequences=["<end_plan>"])
+            plan_message_content = plan_message.content
+            input_tokens, output_tokens = 0, 0
+            if plan_message.token_usage:
+                input_tokens = plan_message.token_usage.input_tokens
+                output_tokens = plan_message.token_usage.output_tokens
+            plan = textwrap.dedent(
+                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
+            )
+        else:
+            # Summary mode removes the system prompt and previous planning messages output by the model.
+            memory_messages = self.write_memory_to_messages(summary_mode=True)
+            plan_update_pre = ChatMessage(
+                role=MessageRole.SYSTEM,
+                content=[
+                    {
+                        "type": "text",
+                        "text": populate_template(
+                            self.prompt_templates["planning"]["update_plan_pre_messages"], variables={"task": task}
+                        ),
+                    }
+                ],
+            )
+            plan_update_post = ChatMessage(
+                role=MessageRole.USER,
+                content=[
+                    {
+                        "type": "text",
+                        "text": populate_template(
+                            self.prompt_templates["planning"]["update_plan_post_messages"],
+                            variables={
+                                "task": task,
+                                "tools": self.tools,
+                                "managed_agents": self.managed_agents,
+                                "remaining_steps": (self.max_steps - step),
+                            },
+                        ),
+                    }
+                ],
+            )
+            input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
+            # Use non-streaming for now in async mode
+            plan_message = await self.model.agenerate(input_messages, stop_sequences=["<end_plan>"])
+            plan_message_content = plan_message.content
+            input_tokens, output_tokens = 0, 0
+            if plan_message.token_usage:
+                input_tokens = plan_message.token_usage.input_tokens
+                output_tokens = plan_message.token_usage.output_tokens
+            plan = textwrap.dedent(
+                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message_content}\n```"""
+            )
+        log_headline = "Initial plan" if is_first_step else "Updated plan"
+        self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
+        yield PlanningStep(
+            model_input_messages=input_messages,
+            plan=plan,
+            model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content=plan_message_content),
+            token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens),
+            timing=Timing(start_time=start_time, end_time=time.time()),
+        )
+
     @abstractmethod
     def initialize_system_prompt(self) -> str:
         """To be implemented in child classes"""
@@ -778,6 +1055,14 @@ You have been provided with these additional arguments, that you can access dire
         At the end, yields either None if the step is not final, or the final answer.
         """
         raise NotImplementedError("This method should be implemented in child classes")
+
+    async def _astep_stream(
+        self, memory_step: ActionStep
+    ):
+        """
+        Async version of _step_stream(). Perform one step in the ReAct framework asynchronously.
+        """
+        raise NotImplementedError("This method should be implemented in child classes that support async")
 
     def step(self, memory_step: ActionStep) -> Any:
         """
@@ -845,6 +1130,50 @@ You have been provided with these additional arguments, that you can access dire
         )
         try:
             chat_message: ChatMessage = self.model.generate(messages)
+            return chat_message
+        except Exception as e:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=[{"type": "text", "text": f"Error in generating final LLM output: {e}"}],
+            )
+
+    async def aprovide_final_answer(self, task: str) -> ChatMessage:
+        """
+        Async version of provide_final_answer(). Provide the final answer to the task asynchronously.
+
+        Args:
+            task (`str`): Task to perform.
+
+        Returns:
+            `ChatMessage`: Final answer to the task.
+        """
+        messages = [
+            ChatMessage(
+                role=MessageRole.SYSTEM,
+                content=[
+                    {
+                        "type": "text",
+                        "text": self.prompt_templates["final_answer"]["pre_messages"],
+                    }
+                ],
+            )
+        ]
+        messages += self.write_memory_to_messages()[1:]
+        messages.append(
+            ChatMessage(
+                role=MessageRole.USER,
+                content=[
+                    {
+                        "type": "text",
+                        "text": populate_template(
+                            self.prompt_templates["final_answer"]["post_messages"], variables={"task": task}
+                        ),
+                    }
+                ],
+            )
+        )
+        try:
+            chat_message: ChatMessage = await self.model.agenerate(messages)
             return chat_message
         except Exception as e:
             return ChatMessage(
