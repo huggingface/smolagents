@@ -11,13 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import json
 import logging
 import os
 import re
 import uuid
 import warnings
-import inspect
 from collections.abc import Generator
 from copy import deepcopy
 from dataclasses import asdict, dataclass
@@ -607,8 +607,10 @@ class VLLMModel(Model):
         if not _is_package_available("vllm"):
             raise ModuleNotFoundError("Please install 'vllm' extra to use VLLMModel: `pip install 'smolagents[vllm]'`")
 
-        from vllm import LLM  # type: ignore
-        from vllm import SamplingParams  # type: ignore
+        from vllm import (
+            LLM,  # type: ignore
+            SamplingParams,  # type: ignore
+        )
         from vllm.transformers_utils.tokenizer import get_tokenizer  # type: ignore
 
         self._valid_sampling_keys = set(inspect.signature(SamplingParams).parameters.keys())
@@ -684,10 +686,7 @@ class VLLMModel(Model):
             **kwargs,
         }
 
-        sampling_params = {
-            key: value for key, value in sampling_kwargs.items()
-            if key in self._valid_sampling_keys
-        }
+        sampling_params = {key: value for key, value in sampling_kwargs.items() if key in self._valid_sampling_keys}
 
         out = self.model.generate(
             prompt,

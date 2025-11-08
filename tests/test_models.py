@@ -29,13 +29,13 @@ from smolagents.models import (
     ChatMessageToolCall,
     InferenceClientModel,
     LiteLLMModel,
-    VLLMModel,
     LiteLLMRouterModel,
     MessageRole,
     MLXModel,
     Model,
     OpenAIModel,
     TransformersModel,
+    VLLMModel,
     get_clean_message_list,
     get_tool_call_from_text,
     get_tool_json_schema,
@@ -588,69 +588,6 @@ class TestAmazonBedrockModel:
         assert model.client == MockBoto3.return_value
 
 
-class TestVLLMModel:
-    @pytest.mark.parametrize(
-        "sampling_params, generate_kwargs, expected_call_params",
-        [
-            (
-                {"temperature": 0.5, "top_p": 0.9},
-                {},
-                {"temperature": 0.5, "top_p": 0.9, "n": 1, "max_tokens": 2048},
-            ),
-            (
-                {"temperature": 0.5, "top_p": 0.9},
-                {"temperature": 0.8, "frequency_penalty": 1},
-                {"temperature": 0.8, "top_p": 0.9, "frequency_penalty": 1, "n": 1, "max_tokens": 2048},
-            ),
-            (
-                {},
-                {},
-                {"temperature": 0.0, "n": 1, "max_tokens": 2048},
-            ),
-            (
-                {"invalid_key": "foo"},
-                {"another_invalid": "bar", "temperature": 0.7},
-                {"temperature": 0.7, "n": 1, "max_tokens": 2048},
-            ),
-        ],
-    )
-    def test_sampling_params_precedence(self, sampling_params, generate_kwargs, expected_call_params):
-        with patch("smolagents.models._is_package_available", return_value=True), \
-             patch("vllm.LLM") as MockLLM, \
-             patch("vllm.transformers_utils.tokenizer.get_tokenizer") as MockTokenizer, \
-             patch("vllm.SamplingParams") as MockSamplingParams, \
-             patch("inspect.signature") as MockSignature:
-
-            MockSignature.return_value.parameters.keys.return_value = {
-                "n", "temperature", "max_tokens", "stop", "structured_outputs", "top_p", "frequency_penalty"
-            }
-
-            model = VLLMModel(
-                model_id="test-model",
-                sampling_params=sampling_params
-            )
-            
-            model.model = MockLLM.return_value
-            model.tokenizer = MockTokenizer.return_value
-            model.tokenizer.apply_chat_template.return_value = "Test prompt"
-            
-            mock_out = MagicMock()
-            mock_out[0].outputs[0].text = "Test response"
-            mock_out[0].prompt_token_ids = [1, 2, 3]
-            mock_out[0].outputs[0].token_ids = [4, 5]
-            model.model.generate.return_value = mock_out
-            
-            expected_call_params["stop"] = []
-            expected_call_params["structured_outputs"] = None
-
-            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
-            model.generate(messages, **generate_kwargs)
-
-            MockSamplingParams.assert_called_once_with(
-                **expected_call_params,
-            )
-
-
 class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
         model_id = "gpt-3.5-turbo"
@@ -729,6 +666,73 @@ class TestTransformersModel:
             assert model.processor == mocks["transformers.AutoProcessor.from_pretrained"].return_value
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.args == ("test-model",)
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
+
+
+class TestVLLMModel:
+    @pytest.mark.parametrize(
+        "sampling_params, generate_kwargs, expected_call_params",
+        [
+            (
+                {"temperature": 0.5, "top_p": 0.9},
+                {},
+                {"temperature": 0.5, "top_p": 0.9, "n": 1, "max_tokens": 2048},
+            ),
+            (
+                {"temperature": 0.5, "top_p": 0.9},
+                {"temperature": 0.8, "frequency_penalty": 1},
+                {"temperature": 0.8, "top_p": 0.9, "frequency_penalty": 1, "n": 1, "max_tokens": 2048},
+            ),
+            (
+                {},
+                {},
+                {"temperature": 0.0, "n": 1, "max_tokens": 2048},
+            ),
+            (
+                {"invalid_key": "foo"},
+                {"another_invalid": "bar", "temperature": 0.7},
+                {"temperature": 0.7, "n": 1, "max_tokens": 2048},
+            ),
+        ],
+    )
+    def test_sampling_params_precedence(self, sampling_params, generate_kwargs, expected_call_params):
+        with (
+            patch("smolagents.models._is_package_available", return_value=True),
+            patch("vllm.LLM") as MockLLM,
+            patch("vllm.transformers_utils.tokenizer.get_tokenizer") as MockTokenizer,
+            patch("vllm.SamplingParams") as MockSamplingParams,
+            patch("inspect.signature") as MockSignature,
+        ):
+            MockSignature.return_value.parameters.keys.return_value = {
+                "n",
+                "temperature",
+                "max_tokens",
+                "stop",
+                "structured_outputs",
+                "top_p",
+                "frequency_penalty",
+            }
+
+            model = VLLMModel(model_id="test-model", sampling_params=sampling_params)
+
+            model.model = MockLLM.return_value
+            model.tokenizer = MockTokenizer.return_value
+            model.tokenizer.apply_chat_template.return_value = "Test prompt"
+
+            mock_out = MagicMock()
+            mock_out[0].outputs[0].text = "Test response"
+            mock_out[0].prompt_token_ids = [1, 2, 3]
+            mock_out[0].outputs[0].token_ids = [4, 5]
+            model.model.generate.return_value = mock_out
+
+            expected_call_params["stop"] = []
+            expected_call_params["structured_outputs"] = None
+
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+            model.generate(messages, **generate_kwargs)
+
+            MockSamplingParams.assert_called_once_with(
+                **expected_call_params,
+            )
 
 
 def test_get_clean_message_list_basic():
