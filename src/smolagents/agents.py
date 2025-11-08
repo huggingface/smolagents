@@ -1636,6 +1636,7 @@ class ToolCallingAgent(MultiStepAgent):
     def execute_tool_call(self, tool_name: str, arguments: dict[str, str] | str) -> Any:
         """
         Execute a tool or managed agent with the provided arguments.
+        Supports both sync and async tools. Async tools are executed using asyncio.run() when called from sync context.
 
         The arguments are replaced with the actual values from the state if they refer to state variables.
 
@@ -1643,6 +1644,9 @@ class ToolCallingAgent(MultiStepAgent):
             tool_name (`str`): Name of the tool or managed agent to execute.
             arguments (dict[str, str] | str): Arguments passed to the tool call.
         """
+        import asyncio
+        import inspect
+
         # Check if the tool exists
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
@@ -1666,9 +1670,75 @@ class ToolCallingAgent(MultiStepAgent):
         try:
             # Call tool with appropriate arguments
             if isinstance(arguments, dict):
-                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+                result = tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
             else:
-                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+                result = tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+
+            # Check if result is a coroutine (async tool)
+            if inspect.iscoroutine(result):
+                # Run async tool in sync context using asyncio.run()
+                # Note: For better performance, use async agents (arun) which can await tools natively
+                result = asyncio.run(result)
+
+            return result
+
+        except Exception as e:
+            # Handle execution errors
+            if is_managed_agent:
+                error_msg = (
+                    f"Error executing request to team member '{tool_name}' with arguments {str(arguments)}: {e}\n"
+                    "Please try again or request to another team member"
+                )
+            else:
+                error_msg = (
+                    f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}\n"
+                    "Please try again or use another tool"
+                )
+            raise AgentToolExecutionError(error_msg, self.logger) from e
+
+    async def async_execute_tool_call(self, tool_name: str, arguments: dict[str, str] | str) -> Any:
+        """
+        Async version of execute_tool_call. Execute a tool or managed agent with the provided arguments.
+        Supports both sync and async tools, awaiting async tools for better performance.
+
+        Args:
+            tool_name (`str`): Name of the tool or managed agent to execute.
+            arguments (dict[str, str] | str): Arguments passed to the tool call.
+        """
+        import inspect
+
+        # Check if the tool exists
+        available_tools = {**self.tools, **self.managed_agents}
+        if tool_name not in available_tools:
+            raise AgentToolExecutionError(
+                f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
+            )
+
+        # Get the tool and substitute state variables in arguments
+        tool = available_tools[tool_name]
+        arguments = self._substitute_state_variables(arguments)
+        is_managed_agent = tool_name in self.managed_agents
+
+        try:
+            validate_tool_arguments(tool, arguments)
+        except (ValueError, TypeError) as e:
+            raise AgentToolCallError(str(e), self.logger) from e
+        except Exception as e:
+            error_msg = f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}"
+            raise AgentToolExecutionError(error_msg, self.logger) from e
+
+        try:
+            # Call tool with appropriate arguments
+            if isinstance(arguments, dict):
+                result = tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+            else:
+                result = tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+
+            # Check if result is a coroutine (async tool) and await it
+            if inspect.iscoroutine(result):
+                result = await result
+
+            return result
 
         except Exception as e:
             # Handle execution errors

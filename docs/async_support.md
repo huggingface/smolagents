@@ -6,6 +6,8 @@ Smolagents now supports asynchronous execution, enabling concurrent agent operat
 
 Async support allows you to:
 - **Non-blocking I/O**: While one agent waits for an API response, others can continue working instead of blocking
+- **Async tools**: Tools can await human input, external APIs, or long-running operations without blocking
+- **Human-in-the-loop**: Efficiently handle approval workflows and interactive tools that wait for human feedback
 - **Efficient concurrency**: Handle many concurrent operations with lower resource overhead than threading
 - **Better scalability**: Run hundreds or thousands of concurrent agents efficiently
 - **Async framework integration**: Native compatibility with FastAPI, aiohttp, and other async frameworks
@@ -96,6 +98,119 @@ asyncio.run(example())
 
 **Methods:**
 - `arun(task, stream=False, ...)` - Async version of `run()`
+
+### Async Tools
+
+**Tools can now be async!** This is particularly powerful for:
+- **Human-in-the-loop**: Waiting for human approval, input, or feedback without blocking
+- **Long-running operations**: Database queries, external API calls, file I/O
+- **Interactive workflows**: Multi-step approval processes, confirmation dialogs
+
+```python
+import asyncio
+from smolagents import CodeAgent, ToolCallingAgent, LiteLLMModel
+from smolagents.tools import Tool
+
+# Define an async tool
+class HumanApprovalTool(Tool):
+    name = "human_approval"
+    description = "Request human approval before executing an action"
+    inputs = {"action": {"type": "string", "description": "The action to approve"}}
+    output_type = "string"
+
+    async def forward(self, action: str):
+        """
+        Async tool that waits for human approval.
+        In production, this would await:
+        - A message from a queue (e.g., Redis, RabbitMQ)
+        - A database poll for approval status
+        - A webhook/API callback
+        - User input from a web socket
+        """
+        print(f"⏳ Waiting for approval: {action}")
+
+        # Simulated async wait (non-blocking)
+        await asyncio.sleep(2)
+
+        # In production:
+        # approval = await redis_queue.get(f"approval:{action_id}")
+        # OR: approval = await db.poll_approval(action_id)
+        # OR: approval = await websocket.receive()
+
+        return "approved"  # or "rejected"
+
+# Use with sync agent (works but uses asyncio.run internally)
+model = LiteLLMModel(model_id="anthropic/claude-3-5-sonnet-20240620")
+agent = ToolCallingAgent(model=model, tools=[HumanApprovalTool()])
+result = agent.run("Execute action X with approval")
+
+# Better: Use with async agent for true non-blocking behavior
+async def main():
+    agent = ToolCallingAgent(model=model, tools=[HumanApprovalTool()])
+    # While this agent waits for approval, other agents can continue working
+    result = await agent.arun("Execute action X with approval")
+    print(result)
+
+asyncio.run(main())
+```
+
+**Why async tools matter:**
+
+With **synchronous** tools:
+- Tool waiting for approval blocks the entire thread
+- No other agents can run during the wait
+- Scales poorly: 10 agents waiting = 10 blocked threads (10-80MB memory)
+
+With **async** tools:
+- `await` yields control back to event loop during wait
+- Other agents continue executing while waiting for approval
+- Scales well: 1000 agents waiting = 1 thread (~few KB overhead)
+
+**Common async tool patterns:**
+```python
+# Pattern 1: External API calls
+class WeatherTool(Tool):
+    name = "get_weather"
+    description = "Get weather data from API"
+    inputs = {"city": {"type": "string", "description": "City name"}}
+    output_type = "string"
+
+    async def forward(self, city: str):
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://api.weather.com/{city}") as resp:
+                return await resp.text()
+
+# Pattern 2: Database operations
+class DatabaseTool(Tool):
+    name = "query_db"
+    description = "Query database asynchronously"
+    inputs = {"query": {"type": "string", "description": "SQL query"}}
+    output_type = "string"
+
+    async def forward(self, query: str):
+        import asyncpg
+        conn = await asyncpg.connect(user='user', database='db')
+        result = await conn.fetch(query)
+        await conn.close()
+        return str(result)
+
+# Pattern 3: Message queue polling
+class QueueTool(Tool):
+    name = "wait_for_message"
+    description = "Wait for message from queue"
+    inputs = {"topic": {"type": "string", "description": "Queue topic"}}
+    output_type = "string"
+
+    async def forward(self, topic: str):
+        # await message_queue.get(topic)
+        # await kafka_consumer.consume(topic)
+        pass
+```
+
+**Performance comparison:**
+- **Sync tools**: 10 waiting tools = 10 blocked threads = ~10-80MB memory
+- **Async tools**: 1000 waiting tools = 1 thread = ~few KB overhead
 
 ## Concurrent Execution
 
@@ -253,8 +368,15 @@ All sync methods remain unchanged. Async methods are additive:
    - `arun()` → `_arun_stream()` → `_astep_stream()`
    - Async generators for streaming
    - Async helper methods: `aprovide_final_answer()`, `_agenerate_planning_step()`
+   - Tool execution: `async_execute_tool_call()` awaits async tools natively
 
-3. **Rate Limiting**: Rate limiters are synchronous (apply before async calls)
+3. **Tools**: Both sync and async tools supported:
+   - `Tool.__call__()` detects if `forward()` is async using `inspect.iscoroutinefunction()`
+   - Async tools return coroutines that can be awaited
+   - Sync agents use `asyncio.run()` for async tools (functional but less efficient)
+   - Async agents use `await` for async tools (optimal performance)
+
+4. **Rate Limiting**: Rate limiters are synchronous (apply before async calls)
 
 ### Current Limitations
 
@@ -266,11 +388,11 @@ All sync methods remain unchanged. Async methods are additive:
 
 2. **Planning**: Async planning doesn't support Live display streaming (simplified mode only)
 
-3. **Tools**: Tools are currently synchronous only
-   - `Tool.__call__()` is not async, so tools block during execution
-   - **Use case impact**: Human-in-the-loop workflows (waiting for approvals, input) will block
-   - **Workaround**: Tools return immediately and poll/check status separately
-   - **Future**: Async tool support would enable non-blocking `await` for long-running tools
+3. **Tools**: Both sync and async tools are now supported!
+   - Sync tools: Define `forward()` as regular method
+   - Async tools: Define `async def forward()` for non-blocking operations
+   - Note: Async tools in sync agents use `asyncio.run()` (less efficient than async agents)
+   - Best practice: Use async agents (`arun()`) with async tools for full performance benefits
 
 4. **CodeAgent/ToolCallingAgent**: Need async implementations of `_astep_stream()`
 

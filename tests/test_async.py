@@ -412,6 +412,143 @@ class TestAsyncErrorHandling:
             await model.agenerate(messages)
 
 
+class TestAsyncTools:
+    """Test async tool functionality."""
+
+    def test_sync_tool(self):
+        """Test that sync tools work normally."""
+        from smolagents.tools import Tool
+
+        class SyncTool(Tool):
+            name = "sync_test"
+            description = "Test sync tool"
+            inputs = {"message": {"type": "string", "description": "A message"}}
+            output_type = "string"
+
+            def forward(self, message: str):
+                return f"sync: {message}"
+
+        tool = SyncTool()
+        result = tool("hello")
+        assert result == "sync: hello"
+
+    @pytest.mark.asyncio
+    async def test_async_tool(self):
+        """Test that async tools work and return coroutines."""
+        import inspect
+
+        from smolagents.tools import Tool
+
+        class AsyncTool(Tool):
+            name = "async_test"
+            description = "Test async tool"
+            inputs = {"message": {"type": "string", "description": "A message"}}
+            output_type = "string"
+
+            async def forward(self, message: str):
+                await asyncio.sleep(0.01)
+                return f"async: {message}"
+
+        tool = AsyncTool()
+        result = tool("world")
+
+        # Should return a coroutine
+        assert inspect.iscoroutine(result)
+
+        # Await the coroutine
+        result_value = await result
+        assert result_value == "async: world"
+
+    def test_agent_execute_sync_tool(self):
+        """Test agent executing sync tool."""
+        from smolagents import ToolCallingAgent
+        from smolagents.tools import Tool
+
+        class SyncTool(Tool):
+            name = "sync_test"
+            description = "Test sync tool"
+            inputs = {"message": {"type": "string", "description": "A message"}}
+            output_type = "string"
+
+            def forward(self, message: str):
+                return f"sync: {message}"
+
+        model = MockAsyncModel()
+        tool = SyncTool()
+        agent = ToolCallingAgent(model=model, tools=[tool])
+
+        result = agent.execute_tool_call("sync_test", {"message": "hello"})
+        assert result == "sync: hello"
+
+    def test_agent_execute_async_tool_in_sync_context(self):
+        """Test agent executing async tool in sync context (uses asyncio.run)."""
+        from smolagents import ToolCallingAgent
+        from smolagents.tools import Tool
+
+        class AsyncTool(Tool):
+            name = "async_test"
+            description = "Test async tool"
+            inputs = {"message": {"type": "string", "description": "A message"}}
+            output_type = "string"
+
+            async def forward(self, message: str):
+                await asyncio.sleep(0.01)
+                return f"async: {message}"
+
+        model = MockAsyncModel()
+        tool = AsyncTool()
+        agent = ToolCallingAgent(model=model, tools=[tool])
+
+        # execute_tool_call should detect async tool and use asyncio.run()
+        result = agent.execute_tool_call("async_test", {"message": "world"})
+        assert result == "async: world"
+
+    @pytest.mark.asyncio
+    async def test_agent_async_execute_async_tool(self):
+        """Test async agent executing async tool (true async await)."""
+        from smolagents import ToolCallingAgent
+        from smolagents.tools import Tool
+
+        class AsyncTool(Tool):
+            name = "async_test"
+            description = "Test async tool"
+            inputs = {"message": {"type": "string", "description": "A message"}}
+            output_type = "string"
+
+            async def forward(self, message: str):
+                await asyncio.sleep(0.01)
+                return f"async: {message}"
+
+        model = MockAsyncModel()
+        tool = AsyncTool()
+        agent = ToolCallingAgent(model=model, tools=[tool])
+
+        # async_execute_tool_call should await async tool directly
+        result = await agent.async_execute_tool_call("async_test", {"message": "world"})
+        assert result == "async: world"
+
+    @pytest.mark.asyncio
+    async def test_human_in_the_loop_async_tool(self):
+        """Test human-in-the-loop pattern with async tool."""
+        from smolagents.tools import Tool
+
+        class HumanApprovalTool(Tool):
+            name = "human_approval"
+            description = "Wait for human approval"
+            inputs = {"action": {"type": "string", "description": "Action to approve"}}
+            output_type = "string"
+
+            async def forward(self, action: str):
+                # Simulated async wait for human input
+                # In real app: await message_queue.get(), await db.poll(), etc.
+                await asyncio.sleep(0.05)
+                return f"approved: {action}"
+
+        tool = HumanApprovalTool()
+        result = await tool("delete important file")
+        assert result == "approved: delete important file"
+
+
 # Note: These tests mock most functionality to avoid requiring actual API calls
 # For full integration testing with real models, use separate integration test suite
 # with appropriate API keys and markers (e.g., @pytest.mark.requires_api_key)
