@@ -9,7 +9,6 @@ Async support allows you to:
 - **Efficient concurrency**: Handle many concurrent operations with lower resource overhead than threading
 - **Better scalability**: Run hundreds or thousands of concurrent agents efficiently
 - **Async framework integration**: Native compatibility with FastAPI, aiohttp, and other async frameworks
-- **Improved throughput**: Better performance for I/O-bound operations (LLM API calls, tool execution, etc.)
 
 ### ⚠️ Important: Agent Instances and Concurrency
 
@@ -267,11 +266,17 @@ All sync methods remain unchanged. Async methods are additive:
 
 2. **Planning**: Async planning doesn't support Live display streaming (simplified mode only)
 
-3. **CodeAgent/ToolCallingAgent**: Need async implementations of `_astep_stream()`
+3. **Tools**: Tools are currently synchronous only
+   - `Tool.__call__()` is not async, so tools block during execution
+   - **Use case impact**: Human-in-the-loop workflows (waiting for approvals, input) will block
+   - **Workaround**: Tools return immediately and poll/check status separately
+   - **Future**: Async tool support would enable non-blocking `await` for long-running tools
 
-4. **Remote Executors**: E2B, Modal, Docker executors don't yet support async
+4. **CodeAgent/ToolCallingAgent**: Need async implementations of `_astep_stream()`
 
-5. **Local Executors**: LocalPythonExecutor remains synchronous (executes arbitrary code)
+5. **Remote Executors**: E2B, Modal, Docker executors don't yet support async
+
+6. **Local Executors**: LocalPythonExecutor remains synchronous (executes arbitrary code)
 
 ## Migration Guide
 
