@@ -5,10 +5,11 @@ Smolagents now supports asynchronous execution, enabling concurrent agent operat
 ## Overview
 
 Async support allows you to:
-- Run multiple agents concurrently
-- Improve performance when making multiple LLM API calls
-- Integrate with async frameworks (FastAPI, aiohttp, etc.)
-- Better resource utilization
+- **Non-blocking I/O**: While one agent waits for an API response, others can continue working instead of blocking
+- **Efficient concurrency**: Handle many concurrent operations with lower resource overhead than threading
+- **Better scalability**: Run hundreds or thousands of concurrent agents efficiently
+- **Async framework integration**: Native compatibility with FastAPI, aiohttp, and other async frameworks
+- **Improved throughput**: Better performance for I/O-bound operations (LLM API calls, tool execution, etc.)
 
 ### ⚠️ Important: Agent Instances and Concurrency
 
@@ -99,7 +100,12 @@ asyncio.run(example())
 
 ## Concurrent Execution
 
-One of the main benefits of async support is the ability to run multiple agents concurrently.
+The main benefit of async support is **efficient non-blocking I/O**. When an agent awaits an API response, the event loop can switch to other agents instead of blocking. This provides better performance and scalability compared to thread-based concurrency:
+
+- **Threading approach**: Each blocking API call holds a thread idle (1-8MB memory per thread, context switching overhead)
+- **Async approach**: Thousands of agents can share a single thread, switching efficiently during I/O waits
+
+This makes async ideal for running many agents concurrently, especially when each agent makes multiple API calls.
 
 ### ⚠️ IMPORTANT: Agent Instance Per Task
 
@@ -142,7 +148,7 @@ asyncio.run(run_multiple_agents())
 
 ### Performance Benefits
 
-Running agents concurrently can provide significant speedup:
+Async provides significant speedup for I/O-bound operations by avoiding blocking. While one agent waits for an API response, others can continue executing:
 
 ```python
 import asyncio
@@ -174,7 +180,13 @@ async def compare_performance():
 asyncio.run(compare_performance())
 ```
 
-**Expected speedup:** ~10x for 10 concurrent agents (assuming network I/O is the bottleneck).
+**Expected speedup:** ~10x for 10 concurrent agents.
+
+**Why?** The speedup comes from non-blocking I/O:
+- **Sequential (sync)**: Agent 1 → wait for API → Agent 2 → wait for API → ... (total = sum of all wait times)
+- **Concurrent (async)**: All agents run concurrently, waiting in parallel (total ≈ longest single wait time)
+
+This is more efficient than threading because async tasks have minimal overhead (~few KB per task vs ~1-8MB per thread).
 
 ## Integration with Async Frameworks
 
