@@ -427,14 +427,28 @@ class DockerExecutor(RemotePythonExecutor):
             container_kwargs["ports"]["8888/tcp"] = (host, port)
             container_kwargs["detach"] = True
 
+            dummy_hosts_path = os.path.join(os.getcwd(), "dummy_host_file")
+            if not os.path.exists(dummy_hosts_path):
+                hosts_content = """127.0.0.1       localhost
+::1             localhost ip6-localhost ip6-loopback
+fe00::0         ip6-localnet
+ff00::0         ip6-mcastprefix
+ff02::1         ip6-allnodes
+ff02::2         ip6-allrouters
+0.0.0.0         host.docker.internal
+0.0.0.0         host.containers.internal
+0.0.0.0         host.lima.internal
+0.0.0.0         host.rancher-desktop.internal
+"""
+                with open(dummy_hosts_path, "w") as f:
+                    f.write(hosts_content)
+            
+            if not isinstance(container_kwargs.get("volumes"), dict):
+                container_kwargs["volumes"] = {}
+            container_kwargs["volumes"][dummy_hosts_path] = {"bind": "/etc/hosts", "mode": "ro"}
+            
             self.container = self.client.containers.run(
                 self.image_name,
-                extra_hosts={
-                    "host.docker.internal": "0.0.0.0",
-                    "host.containers.internal": "0.0.0.0",
-                    "host.lima.internal": "0.0.0.0",
-                    "host.rancher-desktop.internal": "0.0.0.0",
-                },
                 **container_kwargs,
             )
 
