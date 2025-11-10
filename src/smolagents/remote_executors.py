@@ -732,6 +732,9 @@ class BlaxelExecutor(RemotePythonExecutor):
 
     def install_packages(self, additional_imports: list[str]) -> list[str]:
         """Helper method to install packages asynchronously."""
+        if not additional_imports:
+            return []
+
         from blaxel.core.sandbox.client import client
         from blaxel.core import settings
         from blaxel.core.sandbox.client.models import ProcessResponse, ErrorResponse
