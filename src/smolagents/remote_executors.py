@@ -1133,13 +1133,16 @@ class WasmExecutor(RemotePythonExecutor):
               // Load any requested packages
               if (packages && packages.length > 0) {{
                 const pyodide = await pyodidePromise;
-                //await pyodide.loadPackagesFromImports(code);
                 await pyodide.loadPackage("micropip");
                 const micropip = pyodide.pyimport("micropip");
                 try {{
-                  await micropip.install(packages);
+                  await micropip.install(packages, {{ keep_going: true }}); // keep going after first error, report list of errors at the end
                 }} catch (e) {{
                   console.error(`Failed to load packages ${{packages.join(", ")}}: ${{e.message}}`);
+                  return new Response(JSON.stringify({{ error: e.message }}), {{
+                    status: 500,
+                    headers: {{ "Content-Type": "application/json" }}
+                  }});
                 }}
               }}
 
