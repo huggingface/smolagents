@@ -701,56 +701,6 @@ class BlaxelExecutor(RemotePythonExecutor):
             raise RuntimeError(f"Failed to initialize Blaxel sandbox: {e}") from e
 
     @staticmethod
-    def _run_async(coro_func, *args, **kwargs):
-        """
-        Run an async coroutine function safely, handling various event loop states.
-        Args:
-            coro_func: An async function (not a coroutine object)
-            *args, **kwargs: Arguments to pass to the async function
-        This method handles:
-        - No event loop exists (most common case)
-        - Event loop is running (uses thread pool)
-        - Event loop is closed (creates new loop)
-        """
-        import asyncio
-        import concurrent.futures
-
-        def _run_in_new_loop():
-            """Helper to run coroutine in a fresh event loop (for thread pool)."""
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(coro_func(*args, **kwargs))
-            finally:
-                try:
-                    loop.close()
-                except Exception:
-                    pass
-
-        try:
-            # Try to get the running loop
-            _loop = asyncio.get_running_loop()
-            # If we get here, there's a running loop
-            # We can't block it, so run in a thread pool with a fresh loop
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(_run_in_new_loop)
-                return future.result()
-        except RuntimeError as e:
-            if "no running event loop" in str(e).lower() or "no current event loop" in str(e).lower():
-                # No running loop - this is the normal case
-                try:
-                    return asyncio.run(coro_func(*args, **kwargs))
-                except RuntimeError as run_error:
-                    if "Event loop is closed" in str(run_error):
-                        # Loop was closed, create a fresh one
-                        return _run_in_new_loop()
-                    else:
-                        raise
-            else:
-                # It was a different RuntimeError, re-raise it
-                raise
-
-    @staticmethod
     def _create_sandbox(config):
         """Helper method to create sandbox asynchronously."""
         from blaxel.core.client import client
@@ -781,46 +731,52 @@ class BlaxelExecutor(RemotePythonExecutor):
             return _websocket_run_code_raise_errors(code, ws, self.logger)
 
     def install_packages(self, additional_imports: list[str]) -> list[str]:
-        """
-        Install additional Python packages in the Blaxel sandbox.
-
-        Args:
-            additional_imports (`list[str]`): Package names to install.
-
-        Returns:
-            list[str]: Installed packages.
-        """
-        if not additional_imports:
-            return []
-
-        try:
-            return BlaxelExecutor._run_async(self._install_packages_async, additional_imports)
-        except Exception as e:
-            self.logger.log_error(f"Failed to install packages: {e}")
-            return []
-
-    async def _install_packages_async(self, additional_imports: list[str]) -> list[str]:
         """Helper method to install packages asynchronously."""
+        from blaxel.core.sandbox.client import client
+        from blaxel.core import settings
+        from blaxel.core.sandbox.client.models import ProcessResponse, ErrorResponse
+        from blaxel.core.sandbox.client.api.process import post_process, get_process_identifier
+
         try:
+            client.with_base_url(self.sandbox.metadata.url)
+            client.with_headers(settings.headers)
+
             # Install packages using pip via run_code
             self.logger.log(f"Installing packages: {', '.join(additional_imports)}", level=LogLevel.INFO)
             pip_install_code = f"pip install --root-user-action=ignore {' '.join(additional_imports)}"
 
-            await self.sandbox.process.exec(
-                {
-                    "name": "install-packages",
-                    "command": pip_install_code,
-                }
-            )
-            # Wait for completion (max 10 minutes, check every 1 second)
-            await self.sandbox.process.wait("install-packages", max_wait=600000, interval=1000)
+            identifier = "install-packages"
+            body = {
+                "name": identifier,
+                "command": pip_install_code,
+            }
+            post_process.sync(client=client, body=body)
 
-            # Check the exit code to determine success
-            process_info = await self.sandbox.process.get("install-packages")
-            if hasattr(process_info, "exit_code") and process_info.exit_code != 0:
-                # Non-zero exit code means failure
-                error_logs = await self.sandbox.process.logs("install-packages", "stderr")
-                self.logger.log_error(f"Failed to install packages (exit code {process_info.exit_code}): {error_logs}")
+            status = "running"
+            interval = 1000
+            max_wait = 600000
+            start_time = time.time() * 1000
+            logs = ""
+            exit_code = 0
+
+            while status == "running":
+                if (time.time() * 1000) - start_time > max_wait:
+                    raise Exception("Process did not finish in time")
+                data = get_process_identifier.sync(identifier, client=client)
+                if isinstance(data, ProcessResponse):
+                    status = data.status or "running"
+                    exit_code = data.exit_code
+                    logs = data.logs
+                elif isinstance(data, ErrorResponse):
+                    raise Exception(f"Failed to install packages: {data.message}")
+                else:
+                    raise Exception(f"Unknown response: {data}")
+
+                if status == "running":
+                    time.sleep(interval / 1000)  # Convert to seconds
+
+            if exit_code != 0:
+                self.logger.log_error(f"Failed to install packages (exit code {exit_code}): {logs}")
                 return []
 
             self.logger.log(f"Successfully installed packages: {', '.join(additional_imports)}", level=LogLevel.INFO)
