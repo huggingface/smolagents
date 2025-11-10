@@ -681,7 +681,7 @@ class BlaxelExecutor(RemotePythonExecutor):
         # Create the sandbox
         try:
             # Create sandbox environment on Blaxel
-            self.sandbox = self._create_sandbox(sandbox_config)
+            self.sandbox = BlaxelExecutor._create_sandbox(sandbox_config)
 
             # Create kernel via HTTP
             from blaxel.core import settings
@@ -700,7 +700,8 @@ class BlaxelExecutor(RemotePythonExecutor):
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Blaxel sandbox: {e}") from e
 
-    def _run_async(self, coro_func, *args, **kwargs):
+    @staticmethod
+    def _run_async(coro_func, *args, **kwargs):
         """
         Run an async coroutine function safely, handling various event loop states.
         Args:
@@ -749,7 +750,8 @@ class BlaxelExecutor(RemotePythonExecutor):
                 # It was a different RuntimeError, re-raise it
                 raise
 
-    def _create_sandbox(self, config):
+    @staticmethod
+    def _create_sandbox(config):
         """Helper method to create sandbox asynchronously."""
         from blaxel.core.client import client
         from blaxel.core.client.api.compute import create_sandbox
@@ -792,7 +794,7 @@ class BlaxelExecutor(RemotePythonExecutor):
             return []
 
         try:
-            return self._run_async(self._install_packages_async, additional_imports)
+            return BlaxelExecutor._run_async(self._install_packages_async, additional_imports)
         except Exception as e:
             self.logger.log_error(f"Failed to install packages: {e}")
             return []
