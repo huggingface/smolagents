@@ -24,6 +24,7 @@ import secrets
 import subprocess
 import tempfile
 import time
+import uuid
 from contextlib import closing
 from io import BytesIO
 from textwrap import dedent
@@ -319,10 +320,10 @@ def _websocket_run_code_raise_errors(code: str, ws, logger) -> CodeOutput:
         raise
 
 
-def _create_kernel_http(crate_kernel_endpoint: str, logger) -> str:
+def _create_kernel_http(crate_kernel_endpoint: str, logger, headers: Optional[dict] = None) -> str:
     """Create kernel using http."""
 
-    r = requests.post(crate_kernel_endpoint)
+    r = requests.post(crate_kernel_endpoint, headers=headers)
     if r.status_code != 201:
         error_details = {
             "status_code": r.status_code,
@@ -630,11 +631,11 @@ class BlaxelExecutor(RemotePythonExecutor):
         self,
         additional_imports: list[str],
         logger,
-        sandbox_name: str = "smolagent-executor",
+        sandbox_name: str | None = None,
         image: str = "blaxel/jupyter-notebook",
         memory: int = 4096,
+        ttl: str | None = None,
         region: Optional[str] = None,
-        create_kwargs: Optional[dict] = None,
     ):
         super().__init__(additional_imports, logger)
 
@@ -645,7 +646,7 @@ class BlaxelExecutor(RemotePythonExecutor):
                 "Please install 'blaxel' extra to use BlaxelExecutor: `pip install 'smolagents[blaxel]'`"
             )
 
-        self.sandbox_name = sandbox_name
+        self.sandbox_name = sandbox_name or f"smolagent-executor-{uuid.uuid4().hex[:8]}"
         self.image = image
         self.memory = memory
         self.region = region
@@ -655,56 +656,49 @@ class BlaxelExecutor(RemotePythonExecutor):
         # Prepare sandbox creation parameters
         token = secrets.token_urlsafe(16)
         sandbox_config = {
-            "name": sandbox_name,
-            "image": image,
-            "memory": memory,
-            "envs": [
-                {
-                    "name": "KG_AUTH_TOKEN",
-                    "value": token,
-                }
-            ],
-            "ports": [
-                {
-                    "target": self.port
-                }
-            ]
+            "metadata": {
+                "name": self.sandbox_name,
+            },
+            "spec": {
+                "runtime": {
+                    "image": image,
+                    "memory": memory,
+                    "ports": [
+                        {
+                            "target": self.port
+                        }
+                    ]
+                },
+            }
         }
 
         if region:
-            sandbox_config["region"] = region
+            sandbox_config["spec"]["region"] = region
 
-        if create_kwargs:
-            sandbox_config.update(create_kwargs)
+        if ttl:
+            sandbox_config["spec"]["runtime"]["ttl"] = ttl
 
         # Create the sandbox
         try:
             # Create sandbox environment on Blaxel
-            self.sandbox = self._run_async(self._create_sandbox_async, sandbox_config)
-            preview_url = self._run_async(self._create_preview)
+            self.sandbox = self._create_sandbox(sandbox_config)
 
             # Create kernel via HTTP
-            kernel_id = _create_kernel_http(f"{preview_url}/api/kernels?token={token}", self.logger)
+            from blaxel.core import settings
+            kernel_id = _create_kernel_http(f"{self.sandbox.metadata.url}/port/{self.port}/api/kernels?token={token}", self.logger, headers=settings.headers)
 
             # Set up websocket URL
             # Convert http/https to ws/wss
-            ws_scheme = "wss" if preview_url.startswith("https") else "ws"
-            ws_base = preview_url.replace("https://", "").replace("http://", "")
-            self.ws_url = f"{ws_scheme}://{ws_base}/api/kernels/{kernel_id}/channels?token={token}"
+            ws_scheme = "wss" if self.sandbox.metadata.url.startswith("https") else "ws"
+            ws_base = self.sandbox.metadata.url.replace("https://", "").replace("http://", "")
+            self.ws_url = f"{ws_scheme}://{ws_base}/port/{self.port}/api/kernels/{kernel_id}/channels?token={token}"
 
             # Install additional packages
             self.installed_packages = self.install_packages(additional_imports)
             self.logger.log(f"Blaxel is running", level=LogLevel.INFO)
-            end = time.time()
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Blaxel sandbox: {e}") from e
-
-    def _create_kernel_http(self, base_url: str, token: str):
-        from blaxel.core import settings
-
-        kernel_id = _create_kernel_http(f"{base_url}/api/kernels?token={token}", self.logger, headers=settings.headers)
-        return kernel_id
 
     def _run_async(self, coro_func, *args, **kwargs):
         """
@@ -755,26 +749,15 @@ class BlaxelExecutor(RemotePythonExecutor):
                 # It was a different RuntimeError, re-raise it
                 raise
 
-    async def _create_sandbox_async(self, config):
+    def _create_sandbox(self, config):
         """Helper method to create sandbox asynchronously."""
+        from blaxel.core.client import client
+        from blaxel.core.client.api.compute import create_sandbox
         from blaxel.core import SandboxInstance
 
-        return await SandboxInstance.create(config)
+        response = create_sandbox.sync(client=client, body=config)
+        return SandboxInstance(response)
 
-    async def _create_preview(self) -> str:
-        from blaxel.core.sandbox.preview import SandboxPreview
-
-        # We can set it as public cause it will be accessible only with KG_AUTH_TOKEN
-        preview: SandboxPreview = await self.sandbox.previews.create_if_not_exists({
-            "metadata": {
-                "name": "jupyter-notebook-kernel"
-            },
-            "spec": {
-                "port": 8888,
-                "public": True,
-            }
-        })
-        return preview.spec.url
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
@@ -845,52 +828,31 @@ class BlaxelExecutor(RemotePythonExecutor):
             self.logger.log_error(f"Error installing packages: {e}")
             return []
 
-    def _delete_sandbox_sync(self):
+    def _delete_sandbox(self):
         """Delete sandbox using Blaxel's sync API and wait for completion."""
-        import time
-
         from blaxel.core.client import client
-        from blaxel.core.client.api.compute import delete_sandbox, get_sandbox
+        from blaxel.core.client.api.compute import delete_sandbox
 
         self.logger.log(f"Requesting sandbox {self.sandbox_name} deletion...", level=LogLevel.INFO)
         delete_sandbox.sync(client=client, sandbox_name=self.sandbox_name)
-
-        # Wait for deletion to complete (max 10 checks, 0.5s apart = 5s total)
-        for _ in range(10):
-            try:
-                response = get_sandbox.sync(client=client, sandbox_name=self.sandbox_name)
-                if response is None:
-                    self.logger.log(f"Sandbox {self.sandbox_name} deleted successfully", level=LogLevel.INFO)
-                    return
-            except Exception:
-                # Error getting sandbox usually means it's deleted
-                self.logger.log(f"Sandbox {self.sandbox_name} deleted successfully", level=LogLevel.INFO)
-                return
-
-            time.sleep(0.5)
-
-        # If we get here, deletion is still in progress
-        self.logger.log(f"Sandbox {self.sandbox_name} deletion in progress", level=LogLevel.INFO)
 
     def cleanup(self):
         """Sync wrapper to clean up sandbox and resources."""
         # Prevent double cleanup
         if self._cleaned_up:
             return
-
+        self.logger.log("Shutting down sandbox...", level=LogLevel.INFO)
         self._cleaned_up = True
-        self.logger.log(f"Cleaning up sandbox {self.sandbox_name}...", level=LogLevel.INFO)
-
         try:
-            self._delete_sandbox_sync()
+            self._delete_sandbox()
         except Exception as e:
             # Log cleanup errors but don't raise - cleanup should be best-effort
-            self.logger.log(f"Cleanup error: {e}", level=LogLevel.INFO)
+            self.logger.log(f"Error during cleanup: : {e}", level=LogLevel.INFO)
         finally:
             # Always clean up local references
             if hasattr(self, "sandbox"):
                 del self.sandbox
-            self.logger.log("Blaxel sandbox cleanup completed", level=LogLevel.INFO)
+            self.logger.log("Sandbox cleanup completed", level=LogLevel.INFO)
 
     def delete(self):
         """Ensure cleanup on deletion."""
