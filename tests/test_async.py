@@ -621,6 +621,170 @@ final_answer(result)
         assert inspect.isasyncgenfunction(agent._astep_stream)
 
 
+    @pytest.mark.asyncio
+    async def test_async_executor_with_mixed_sync_async_tools(self):
+        """Test executor with both sync and async tools (backward compatibility)."""
+        from smolagents.local_python_executor import LocalPythonExecutor
+        from smolagents.tools import Tool
+
+        class SyncTool(Tool):
+            name = "sync_tool"
+            description = "Sync tool"
+            inputs = {"msg": {"type": "string", "description": "Message"}}
+            output_type = "string"
+
+            def forward(self, msg: str):
+                return f"sync: {msg}"
+
+        class AsyncTool(Tool):
+            name = "async_tool"
+            description = "Async tool"
+            inputs = {"msg": {"type": "string", "description": "Message"}}
+            output_type = "string"
+
+            async def forward(self, msg: str):
+                await asyncio.sleep(0.01)
+                return f"async: {msg}"
+
+        sync_tool = SyncTool()
+        async_tool = AsyncTool()
+        executor = LocalPythonExecutor(additional_authorized_imports=[])
+        executor.send_tools({
+            "sync_tool": sync_tool,
+            "async_tool": async_tool,
+            "final_answer": lambda x: x
+        })
+
+        # Test code using both sync and async tools
+        code = '''
+sync_result = sync_tool("hello")
+async_result = async_tool("world")
+final_answer(f"{sync_result}, {async_result}")
+'''
+        output = await executor.async_call(code)
+        assert output.output == "sync: hello, async: world"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_agents_non_blocking_demo(self):
+        """
+        Demonstrate non-blocking I/O benefit with concurrent agents.
+
+        This test shows the key advantage of async support:
+        - While one agent waits for an async tool (e.g., human approval),
+          the event loop can switch to other agents
+        - This is more efficient than threading (each thread = 1-8MB memory)
+        """
+        import time
+        from smolagents.tools import Tool
+
+        class SlowAsyncTool(Tool):
+            name = "slow_approval"
+            description = "Simulates slow approval process"
+            inputs = {"action": {"type": "string", "description": "Action to approve"}}
+            output_type = "string"
+
+            async def forward(self, action: str):
+                # Simulate waiting for human approval
+                await asyncio.sleep(0.1)
+                return f"approved: {action}"
+
+        tool = SlowAsyncTool()
+
+        # Run 5 tool calls concurrently
+        start = time.time()
+        results = await asyncio.gather(*[
+            tool(f"action_{i}") for i in range(5)
+        ])
+        elapsed = time.time() - start
+
+        # All 5 approvals should complete in ~0.1s (concurrent)
+        # vs ~0.5s if sequential
+        assert elapsed < 0.2  # Should be close to 0.1s
+        assert len(results) == 5
+        assert all("approved:" in r for r in results)
+
+
+class TestAsyncRealWorldPatterns:
+    """Test real-world async patterns and use cases."""
+
+    @pytest.mark.asyncio
+    async def test_human_approval_workflow(self):
+        """
+        Test human-in-the-loop approval workflow.
+
+        This pattern is common for:
+        - Sensitive operations requiring approval
+        - Interactive debugging tools
+        - User confirmation before actions
+        """
+        from smolagents.local_python_executor import LocalPythonExecutor
+        from smolagents.tools import Tool
+
+        class HumanApprovalTool(Tool):
+            name = "request_approval"
+            description = "Request human approval for sensitive operations"
+            inputs = {
+                "operation": {"type": "string", "description": "Operation to approve"},
+                "risk_level": {"type": "string", "description": "Risk level: low, medium, high"}
+            }
+            output_type = "string"
+
+            async def forward(self, operation: str, risk_level: str):
+                # In production: await approval_queue.get(), await websocket.receive(), etc.
+                await asyncio.sleep(0.02)  # Simulate waiting for human
+                return f"APPROVED: {operation} (risk: {risk_level})"
+
+        tool = HumanApprovalTool()
+        executor = LocalPythonExecutor(additional_authorized_imports=[])
+        executor.send_tools({"request_approval": tool, "final_answer": lambda x: x})
+
+        # Generated code requests approval before sensitive operation
+        code = '''
+# Agent wants to delete files
+approval = request_approval("delete /data/users", "high")
+final_answer(approval)
+'''
+        output = await executor.async_call(code)
+        assert "APPROVED: delete /data/users" in output.output
+        assert "risk: high" in output.output
+
+    @pytest.mark.asyncio
+    async def test_external_api_calls_pattern(self):
+        """
+        Test external API call pattern with async tools.
+
+        This pattern is useful for:
+        - Fetching data from external services
+        - Database queries
+        - Network requests
+        """
+        from smolagents.local_python_executor import LocalPythonExecutor
+        from smolagents.tools import Tool
+
+        class ExternalAPITool(Tool):
+            name = "fetch_user_data"
+            description = "Fetch user data from external API"
+            inputs = {"user_id": {"type": "string", "description": "User ID to fetch"}}
+            output_type = "string"
+
+            async def forward(self, user_id: str):
+                # Simulate API call with network latency
+                await asyncio.sleep(0.03)
+                return f'{{"user_id": "{user_id}", "name": "John Doe", "status": "active"}}'
+
+        tool = ExternalAPITool()
+        executor = LocalPythonExecutor(additional_authorized_imports=[])
+        executor.send_tools({"fetch_user_data": tool, "final_answer": lambda x: x})
+
+        code = '''
+user_data = fetch_user_data("user_123")
+final_answer(user_data)
+'''
+        output = await executor.async_call(code)
+        assert "user_123" in output.output
+        assert "John Doe" in output.output
+
+
 # Note: These tests mock most functionality to avoid requiring actual API calls
 # For full integration testing with real models, use separate integration test suite
 # with appropriate API keys and markers (e.g., @pytest.mark.requires_api_key)
