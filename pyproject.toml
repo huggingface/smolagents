@@ -48,6 +48,10 @@ gradio = [
 litellm = [
   "litellm>=1.60.2",
 ]
+genai = [
+  "google-genai>=1.29.0",
+  "hashlib",
+]
 mcp = [
   "mcpadapt>=0.1.13",  # Support structured output
   "mcp",
@@ -86,7 +90,7 @@ vllm = [
   "torch"
 ]
 all = [
-  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
+  "smolagents[audio,docker,e2b,gradio,litellm,genai,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
 ]
 quality = [
   "ruff>=0.9.0",
