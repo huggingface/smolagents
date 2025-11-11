@@ -229,6 +229,10 @@ class Tool(BaseTool):
         raise NotImplementedError("Write this method in your subclass of `Tool`.")
 
     def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
+        """
+        Call the tool. Supports both sync and async tools.
+        If the tool's forward() method is async, this returns a coroutine that must be awaited.
+        """
         if not self.is_initialized:
             self.setup()
 
@@ -243,7 +247,21 @@ class Tool(BaseTool):
 
         if sanitize_inputs_outputs:
             args, kwargs = handle_agent_input_types(*args, **kwargs)
-        outputs = self.forward(*args, **kwargs)
+
+        # Check if forward is async
+        if inspect.iscoroutinefunction(self.forward):
+            # Return a coroutine that the caller must await
+            return self._async_call_impl(args, kwargs, sanitize_inputs_outputs)
+        else:
+            # Sync execution
+            outputs = self.forward(*args, **kwargs)
+            if sanitize_inputs_outputs:
+                outputs = handle_agent_output_types(outputs, self.output_type)
+            return outputs
+
+    async def _async_call_impl(self, args, kwargs, sanitize_inputs_outputs):
+        """Internal async implementation for async tools."""
+        outputs = await self.forward(*args, **kwargs)
         if sanitize_inputs_outputs:
             outputs = handle_agent_output_types(outputs, self.output_type)
         return outputs

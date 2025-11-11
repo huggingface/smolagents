@@ -431,38 +431,15 @@ class MultiStepAgent(ABC):
         # Register monitor update_metrics only for ActionStep for backward compatibility
         self.step_callbacks.register(ActionStep, self.monitor.update_metrics)
 
-    def run(
+    def _prepare_run(
         self,
         task: str,
-        stream: bool = False,
-        reset: bool = True,
-        images: list["PIL.Image.Image"] | None = None,
-        additional_args: dict | None = None,
-        max_steps: int | None = None,
-        return_full_result: bool | None = None,
-    ) -> Any | RunResult:
-        """
-        Run the agent for the given task.
-
-        Args:
-            task (`str`): Task to perform.
-            stream (`bool`): Whether to run in streaming mode.
-                If `True`, returns a generator that yields each step as it is executed. You must iterate over this generator to process the individual steps (e.g., using a for loop or `next()`).
-                If `False`, executes all steps internally and returns only the final answer after completion.
-            reset (`bool`): Whether to reset the conversation or keep it going from previous run.
-            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
-            additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
-            max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
-            return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
-                If `None` (default), the agent's `self.return_full_result` setting is used.
-
-        Example:
-        ```py
-        from smolagents import CodeAgent
-        agent = CodeAgent(tools=[])
-        agent.run("What is the result of 2 power 3.7384?")
-        ```
-        """
+        reset: bool,
+        images: list["PIL.Image.Image"] | None,
+        additional_args: dict | None,
+        max_steps: int | None,
+    ) -> int:
+        """Common initialization logic for both run() and arun()."""
         max_steps = max_steps or self.max_steps
         self.task = task
         self.interrupt_switch = False
@@ -489,13 +466,15 @@ You have been provided with these additional arguments, that you can access dire
             self.python_executor.send_variables(variables=self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
-        if stream:
-            # The steps are returned as they are executed through a generator to iterate on.
-            return self._run_stream(task=self.task, max_steps=max_steps, images=images)
+        return max_steps
 
-        run_start_time = time.time()
-        steps = list(self._run_stream(task=self.task, max_steps=max_steps, images=images))
-
+    def _process_run_result(
+        self,
+        steps: list,
+        run_start_time: float,
+        return_full_result: bool | None,
+    ) -> Any | RunResult:
+        """Common result processing logic for both run() and arun()."""
         # Outputs are returned only at the end. We only look at the last step.
         assert isinstance(steps[-1], FinalAnswerStep)
         output = steps[-1].output
@@ -535,59 +514,127 @@ You have been provided with these additional arguments, that you can access dire
 
         return output
 
+    def run(
+        self,
+        task: str,
+        stream: bool = False,
+        reset: bool = True,
+        images: list["PIL.Image.Image"] | None = None,
+        additional_args: dict | None = None,
+        max_steps: int | None = None,
+        return_full_result: bool | None = None,
+    ) -> Any | RunResult:
+        """
+        Run the agent for the given task.
+
+        Args:
+            task (`str`): Task to perform.
+            stream (`bool`): Whether to run in streaming mode.
+                If `True`, returns a generator that yields each step as it is executed. You must iterate over this generator to process the individual steps (e.g., using a for loop or `next()`).
+                If `False`, executes all steps internally and returns only the final answer after completion.
+            reset (`bool`): Whether to reset the conversation or keep it going from previous run.
+            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
+            additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
+            max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+            return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
+                If `None` (default), the agent's `self.return_full_result` setting is used.
+
+        Example:
+        ```py
+        from smolagents import CodeAgent
+        agent = CodeAgent(tools=[])
+        agent.run("What is the result of 2 power 3.7384?")
+        ```
+        """
+        max_steps = self._prepare_run(task, reset, images, additional_args, max_steps)
+
+        if stream:
+            # The steps are returned as they are executed through a generator to iterate on.
+            return self._run_stream(task=self.task, max_steps=max_steps, images=images)
+
+        run_start_time = time.time()
+        steps = list(self._run_stream(task=self.task, max_steps=max_steps, images=images))
+
+        return self._process_run_result(steps, run_start_time, return_full_result)
+
+    async def arun(
+        self,
+        task: str,
+        stream: bool = False,
+        reset: bool = True,
+        images: list["PIL.Image.Image"] | None = None,
+        additional_args: dict | None = None,
+        max_steps: int | None = None,
+        return_full_result: bool | None = None,
+    ) -> Any | RunResult:
+        """
+        Async version of run(). Run the agent for the given task asynchronously.
+
+        Args:
+            task (`str`): Task to perform.
+            stream (`bool`): Whether to run in streaming mode.
+                If `True`, returns an async generator that yields each step as it is executed. You must iterate over this generator to process the individual steps (e.g., using an async for loop or `anext()`).
+                If `False`, executes all steps internally and returns only the final answer after completion.
+            reset (`bool`): Whether to reset the conversation or keep it going from previous run.
+            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
+            additional_args (`dict`, *optional*): Any other variables that you want to pass to the agent run, for instance images or dataframes. Give them clear names!
+            max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
+            return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
+                If `None` (default), the agent's `self.return_full_result` setting is used.
+
+        Example:
+        ```py
+        from smolagents import CodeAgent
+        import asyncio
+
+        agent = CodeAgent(tools=[])
+        result = asyncio.run(agent.arun("What is the result of 2 power 3.7384?"))
+        ```
+        """
+        max_steps = self._prepare_run(task, reset, images, additional_args, max_steps)
+
+        if stream:
+            # The steps are returned as they are executed through an async generator to iterate on.
+            return self._arun_stream(task=self.task, max_steps=max_steps, images=images)
+
+        run_start_time = time.time()
+        steps = []
+        async for step in self._arun_stream(task=self.task, max_steps=max_steps, images=images):
+            steps.append(step)
+
+        return self._process_run_result(steps, run_start_time, return_full_result)
+
     def _run_stream(
         self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
     ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
         self.step_number = 1
         returned_final_answer = False
+        final_answer = None
+
         while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
 
             # Run a planning step if scheduled
-            if self.planning_interval is not None and (
-                self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0
-            ):
+            if self._should_run_planning_step():
                 planning_start_time = time.time()
                 planning_step = None
                 for element in self._generate_planning_step(
                     task, is_first_step=len(self.memory.steps) == 1, step=self.step_number
-                ):  # Don't use the attribute step_number here, because there can be steps from previous runs
+                ):
                     yield element
                     planning_step = element
-                assert isinstance(planning_step, PlanningStep)  # Last yielded element should be a PlanningStep
-                planning_end_time = time.time()
-                planning_step.timing = Timing(
-                    start_time=planning_start_time,
-                    end_time=planning_end_time,
-                )
-                self._finalize_step(planning_step)
-                self.memory.steps.append(planning_step)
+                assert isinstance(planning_step, PlanningStep)
+                self._finalize_planning_step(planning_step, planning_start_time)
 
             # Start action step!
-            action_step_start_time = time.time()
-            action_step = ActionStep(
-                step_number=self.step_number,
-                timing=Timing(start_time=action_step_start_time),
-                observations_images=images,
-            )
-            self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
+            action_step = self._create_action_step(images)
             try:
                 for output in self._step_stream(action_step):
-                    # Yield all
                     yield output
-
-                    if isinstance(output, ActionOutput) and output.is_final_answer:
-                        final_answer = output.output
-                        self.logger.log(
-                            Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
-                            level=LogLevel.INFO,
-                        )
-
-                        if self.final_answer_checks:
-                            self._validate_final_answer(final_answer)
-                        returned_final_answer = True
-                        action_step.is_final_answer = True
+                    final_answer, returned_final_answer = self._process_final_answer_output(output, action_step)
+                    if returned_final_answer:
+                        break
 
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
@@ -596,15 +643,104 @@ You have been provided with these additional arguments, that you can access dire
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
                 action_step.error = e
             finally:
-                self._finalize_step(action_step)
-                self.memory.steps.append(action_step)
+                self._finalize_action_step(action_step)
                 yield action_step
-                self.step_number += 1
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
             yield action_step
         yield FinalAnswerStep(handle_agent_output_types(final_answer))
+
+    async def _arun_stream(
+        self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
+    ):
+        """Async version of _run_stream()."""
+        self.step_number = 1
+        returned_final_answer = False
+        final_answer = None
+
+        while not returned_final_answer and self.step_number <= max_steps:
+            if self.interrupt_switch:
+                raise AgentError("Agent interrupted.", self.logger)
+
+            # Run a planning step if scheduled
+            if self._should_run_planning_step():
+                planning_start_time = time.time()
+                planning_step = None
+                async for element in self._agenerate_planning_step(
+                    task, is_first_step=len(self.memory.steps) == 1, step=self.step_number
+                ):
+                    yield element
+                    planning_step = element
+                assert isinstance(planning_step, PlanningStep)
+                self._finalize_planning_step(planning_step, planning_start_time)
+
+            # Start action step!
+            action_step = self._create_action_step(images)
+            try:
+                async for output in self._astep_stream(action_step):
+                    yield output
+                    final_answer, returned_final_answer = self._process_final_answer_output(output, action_step)
+                    if returned_final_answer:
+                        break
+
+            except AgentGenerationError as e:
+                # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
+                raise e
+            except AgentError as e:
+                # Other AgentError types are caused by the Model, so we should log them and iterate.
+                action_step.error = e
+            finally:
+                self._finalize_action_step(action_step)
+                yield action_step
+
+        if not returned_final_answer and self.step_number == max_steps + 1:
+            final_answer = await self._ahandle_max_steps_reached(task)
+            yield action_step
+        yield FinalAnswerStep(handle_agent_output_types(final_answer))
+
+    def _should_run_planning_step(self) -> bool:
+        """Check if a planning step should be executed (common logic for sync and async)."""
+        return self.planning_interval is not None and (
+            self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0
+        )
+
+    def _finalize_planning_step(self, planning_step: PlanningStep, start_time: float):
+        """Finalize planning step with timing and add to memory (common logic for sync and async)."""
+        planning_step.timing = Timing(start_time=start_time, end_time=time.time())
+        self._finalize_step(planning_step)
+        self.memory.steps.append(planning_step)
+
+    def _create_action_step(self, images: list["PIL.Image.Image"] | None) -> ActionStep:
+        """Create action step with timing (common logic for sync and async)."""
+        action_step_start_time = time.time()
+        action_step = ActionStep(
+            step_number=self.step_number,
+            timing=Timing(start_time=action_step_start_time),
+            observations_images=images,
+        )
+        self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
+        return action_step
+
+    def _process_final_answer_output(self, output: ActionOutput, action_step: ActionStep) -> tuple[Any, bool]:
+        """Process final answer output (common logic for sync and async)."""
+        if isinstance(output, ActionOutput) and output.is_final_answer:
+            final_answer = output.output
+            self.logger.log(
+                Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
+                level=LogLevel.INFO,
+            )
+            if self.final_answer_checks:
+                self._validate_final_answer(final_answer)
+            action_step.is_final_answer = True
+            return final_answer, True
+        return None, False
+
+    def _finalize_action_step(self, action_step: ActionStep):
+        """Finalize action step and add to memory (common logic for sync and async)."""
+        self._finalize_step(action_step)
+        self.memory.steps.append(action_step)
+        self.step_number += 1
 
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
@@ -617,9 +753,10 @@ You have been provided with these additional arguments, that you can access dire
         memory_step.timing.end_time = time.time()
         self.step_callbacks.callback(memory_step, agent=self)
 
-    def _handle_max_steps_reached(self, task: str) -> Any:
-        action_step_start_time = time.time()
-        final_answer = self.provide_final_answer(task)
+    def _create_max_steps_memory_step(
+        self, final_answer: ChatMessage, action_step_start_time: float
+    ) -> ActionStep:
+        """Create and finalize memory step for max steps reached (common logic for sync and async)."""
         final_memory_step = ActionStep(
             step_number=self.step_number,
             error=AgentMaxStepsError("Reached max steps.", self.logger),
@@ -629,14 +766,25 @@ You have been provided with these additional arguments, that you can access dire
         final_memory_step.action_output = final_answer.content
         self._finalize_step(final_memory_step)
         self.memory.steps.append(final_memory_step)
+        return final_memory_step
+
+    def _handle_max_steps_reached(self, task: str) -> Any:
+        action_step_start_time = time.time()
+        final_answer = self.provide_final_answer(task)
+        self._create_max_steps_memory_step(final_answer, action_step_start_time)
         return final_answer.content
 
-    def _generate_planning_step(
-        self, task, is_first_step: bool, step: int
-    ) -> Generator[ChatMessageStreamDelta | PlanningStep]:
-        start_time = time.time()
+    async def _ahandle_max_steps_reached(self, task: str) -> Any:
+        """Async version of _handle_max_steps_reached()."""
+        action_step_start_time = time.time()
+        final_answer = await self.aprovide_final_answer(task)
+        self._create_max_steps_memory_step(final_answer, action_step_start_time)
+        return final_answer.content
+
+    def _prepare_planning_messages(self, task: str, is_first_step: bool, step: int) -> list[ChatMessage]:
+        """Prepare messages for planning step (common logic for sync and async)."""
         if is_first_step:
-            input_messages = [
+            return [
                 ChatMessage(
                     role=MessageRole.USER,
                     content=[
@@ -650,32 +798,8 @@ You have been provided with these additional arguments, that you can access dire
                     ],
                 )
             ]
-            if self.stream_outputs and hasattr(self.model, "generate_stream"):
-                plan_message_content = ""
-                output_stream = self.model.generate_stream(input_messages, stop_sequences=["<end_plan>"])  # type: ignore
-                input_tokens, output_tokens = 0, 0
-                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
-                    for event in output_stream:
-                        if event.content is not None:
-                            plan_message_content += event.content
-                            live.update(Markdown(plan_message_content))
-                            if event.token_usage:
-                                input_tokens = event.token_usage.input_tokens
-                                output_tokens += event.token_usage.output_tokens
-                        yield event
-            else:
-                plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
-                plan_message_content = plan_message.content
-                input_tokens, output_tokens = 0, 0
-                if plan_message.token_usage:
-                    input_tokens = plan_message.token_usage.input_tokens
-                    output_tokens = plan_message.token_usage.output_tokens
-            plan = textwrap.dedent(
-                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
-            )
         else:
             # Summary mode removes the system prompt and previous planning messages output by the model.
-            # Removing previous planning messages avoids influencing too much the new plan.
             memory_messages = self.write_memory_to_messages(summary_mode=True)
             plan_update_pre = ChatMessage(
                 role=MessageRole.SYSTEM,
@@ -705,32 +829,74 @@ You have been provided with these additional arguments, that you can access dire
                     }
                 ],
             )
-            input_messages = [plan_update_pre] + memory_messages + [plan_update_post]
-            if self.stream_outputs and hasattr(self.model, "generate_stream"):
-                plan_message_content = ""
-                input_tokens, output_tokens = 0, 0
-                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
-                    for event in self.model.generate_stream(
-                        input_messages,
-                        stop_sequences=["<end_plan>"],
-                    ):  # type: ignore
-                        if event.content is not None:
-                            plan_message_content += event.content
-                            live.update(Markdown(plan_message_content))
-                            if event.token_usage:
-                                input_tokens = event.token_usage.input_tokens
-                                output_tokens += event.token_usage.output_tokens
-                        yield event
-            else:
-                plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
-                plan_message_content = plan_message.content
-                input_tokens, output_tokens = 0, 0
-                if plan_message.token_usage:
-                    input_tokens = plan_message.token_usage.input_tokens
-                    output_tokens = plan_message.token_usage.output_tokens
-            plan = textwrap.dedent(
+            return [plan_update_pre] + memory_messages + [plan_update_post]
+
+    def _format_plan_text(self, plan_message_content: str, is_first_step: bool) -> str:
+        """Format plan text for logging (common logic for sync and async)."""
+        if is_first_step:
+            return textwrap.dedent(
+                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
+            )
+        else:
+            return textwrap.dedent(
                 f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message_content}\n```"""
             )
+
+    def _generate_planning_step(
+        self, task, is_first_step: bool, step: int
+    ) -> Generator[ChatMessageStreamDelta | PlanningStep]:
+        start_time = time.time()
+        input_messages = self._prepare_planning_messages(task, is_first_step, step)
+
+        # Generate plan using model
+        if self.stream_outputs and hasattr(self.model, "generate_stream"):
+            plan_message_content = ""
+            output_stream = self.model.generate_stream(input_messages, stop_sequences=["<end_plan>"])  # type: ignore
+            input_tokens, output_tokens = 0, 0
+            with Live("", console=self.logger.console, vertical_overflow="visible") as live:
+                for event in output_stream:
+                    if event.content is not None:
+                        plan_message_content += event.content
+                        live.update(Markdown(plan_message_content))
+                        if event.token_usage:
+                            input_tokens = event.token_usage.input_tokens
+                            output_tokens += event.token_usage.output_tokens
+                    yield event
+        else:
+            plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
+            plan_message_content = plan_message.content
+            input_tokens, output_tokens = 0, 0
+            if plan_message.token_usage:
+                input_tokens = plan_message.token_usage.input_tokens
+                output_tokens = plan_message.token_usage.output_tokens
+
+        plan = self._format_plan_text(plan_message_content, is_first_step)
+        log_headline = "Initial plan" if is_first_step else "Updated plan"
+        self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
+        yield PlanningStep(
+            model_input_messages=input_messages,
+            plan=plan,
+            model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content=plan_message_content),
+            token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens),
+            timing=Timing(start_time=start_time, end_time=time.time()),
+        )
+
+    async def _agenerate_planning_step(
+        self, task, is_first_step: bool, step: int
+    ):
+        """Async version of _generate_planning_step() - simplified without Live streaming display."""
+        start_time = time.time()
+        input_messages = self._prepare_planning_messages(task, is_first_step, step)
+
+        # Use non-streaming for now in async mode
+        plan_message = await self.model.agenerate(input_messages, stop_sequences=["<end_plan>"])
+        plan_message_content = plan_message.content
+        input_tokens, output_tokens = 0, 0
+        if plan_message.token_usage:
+            input_tokens = plan_message.token_usage.input_tokens
+            output_tokens = plan_message.token_usage.output_tokens
+
+        plan = self._format_plan_text(plan_message_content, is_first_step)
         log_headline = "Initial plan" if is_first_step else "Updated plan"
         self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
         yield PlanningStep(
@@ -774,6 +940,14 @@ You have been provided with these additional arguments, that you can access dire
         """
         raise NotImplementedError("This method should be implemented in child classes")
 
+    async def _astep_stream(
+        self, memory_step: ActionStep
+    ):
+        """
+        Async version of _step_stream(). Perform one step in the ReAct framework asynchronously.
+        """
+        raise NotImplementedError("This method should be implemented in child classes that support async")
+
     def step(self, memory_step: ActionStep) -> Any:
         """
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
@@ -802,17 +976,8 @@ You have been provided with these additional arguments, that you can access dire
             )
         return rationale.strip(), action.strip()
 
-    def provide_final_answer(self, task: str) -> ChatMessage:
-        """
-        Provide the final answer to the task, based on the logs of the agent's interactions.
-
-        Args:
-            task (`str`): Task to perform.
-            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
-
-        Returns:
-            `str`: Final answer to the task.
-        """
+    def _prepare_final_answer_messages(self, task: str) -> list[ChatMessage]:
+        """Prepare messages for final answer generation (common logic for sync and async)."""
         messages = [
             ChatMessage(
                 role=MessageRole.SYSTEM,
@@ -838,8 +1003,42 @@ You have been provided with these additional arguments, that you can access dire
                 ],
             )
         )
+        return messages
+
+    def provide_final_answer(self, task: str) -> ChatMessage:
+        """
+        Provide the final answer to the task, based on the logs of the agent's interactions.
+
+        Args:
+            task (`str`): Task to perform.
+            images (`list[PIL.Image.Image]`, *optional*): Image(s) objects.
+
+        Returns:
+            `str`: Final answer to the task.
+        """
+        messages = self._prepare_final_answer_messages(task)
         try:
             chat_message: ChatMessage = self.model.generate(messages)
+            return chat_message
+        except Exception as e:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=[{"type": "text", "text": f"Error in generating final LLM output: {e}"}],
+            )
+
+    async def aprovide_final_answer(self, task: str) -> ChatMessage:
+        """
+        Async version of provide_final_answer(). Provide the final answer to the task asynchronously.
+
+        Args:
+            task (`str`): Task to perform.
+
+        Returns:
+            `ChatMessage`: Final answer to the task.
+        """
+        messages = self._prepare_final_answer_messages(task)
+        try:
+            chat_message: ChatMessage = await self.model.agenerate(messages)
             return chat_message
         except Exception as e:
             return ChatMessage(
@@ -1427,6 +1626,7 @@ class ToolCallingAgent(MultiStepAgent):
     def execute_tool_call(self, tool_name: str, arguments: dict[str, str] | str) -> Any:
         """
         Execute a tool or managed agent with the provided arguments.
+        Supports both sync and async tools. Async tools are executed using asyncio.run() when called from sync context.
 
         The arguments are replaced with the actual values from the state if they refer to state variables.
 
@@ -1434,6 +1634,9 @@ class ToolCallingAgent(MultiStepAgent):
             tool_name (`str`): Name of the tool or managed agent to execute.
             arguments (dict[str, str] | str): Arguments passed to the tool call.
         """
+        import asyncio
+        import inspect
+
         # Check if the tool exists
         available_tools = {**self.tools, **self.managed_agents}
         if tool_name not in available_tools:
@@ -1457,9 +1660,75 @@ class ToolCallingAgent(MultiStepAgent):
         try:
             # Call tool with appropriate arguments
             if isinstance(arguments, dict):
-                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+                result = tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
             else:
-                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+                result = tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+
+            # Check if result is a coroutine (async tool)
+            if inspect.iscoroutine(result):
+                # Run async tool in sync context using asyncio.run()
+                # Note: For better performance, use async agents (arun) which can await tools natively
+                result = asyncio.run(result)
+
+            return result
+
+        except Exception as e:
+            # Handle execution errors
+            if is_managed_agent:
+                error_msg = (
+                    f"Error executing request to team member '{tool_name}' with arguments {str(arguments)}: {e}\n"
+                    "Please try again or request to another team member"
+                )
+            else:
+                error_msg = (
+                    f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}\n"
+                    "Please try again or use another tool"
+                )
+            raise AgentToolExecutionError(error_msg, self.logger) from e
+
+    async def async_execute_tool_call(self, tool_name: str, arguments: dict[str, str] | str) -> Any:
+        """
+        Async version of execute_tool_call. Execute a tool or managed agent with the provided arguments.
+        Supports both sync and async tools, awaiting async tools for better performance.
+
+        Args:
+            tool_name (`str`): Name of the tool or managed agent to execute.
+            arguments (dict[str, str] | str): Arguments passed to the tool call.
+        """
+        import inspect
+
+        # Check if the tool exists
+        available_tools = {**self.tools, **self.managed_agents}
+        if tool_name not in available_tools:
+            raise AgentToolExecutionError(
+                f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
+            )
+
+        # Get the tool and substitute state variables in arguments
+        tool = available_tools[tool_name]
+        arguments = self._substitute_state_variables(arguments)
+        is_managed_agent = tool_name in self.managed_agents
+
+        try:
+            validate_tool_arguments(tool, arguments)
+        except (ValueError, TypeError) as e:
+            raise AgentToolCallError(str(e), self.logger) from e
+        except Exception as e:
+            error_msg = f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}"
+            raise AgentToolExecutionError(error_msg, self.logger) from e
+
+        try:
+            # Call tool with appropriate arguments
+            if isinstance(arguments, dict):
+                result = tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+            else:
+                result = tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+
+            # Check if result is a coroutine (async tool) and await it
+            if inspect.iscoroutine(result):
+                result = await result
+
+            return result
 
         except Exception as e:
             # Handle execution errors
@@ -1717,6 +1986,129 @@ class CodeAgent(MultiStepAgent):
                     self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
             error_msg = str(e)
             if "Import of " in error_msg and " is not allowed" in error_msg:
+                self.logger.log(
+                    "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
+                    level=LogLevel.INFO,
+                )
+            raise AgentExecutionError(error_msg, self.logger)
+
+        truncated_output = truncate_content(str(code_output.output))
+        observation += "Last output from code snippet:\n" + truncated_output
+        memory_step.observations = observation
+
+        if not code_output.is_final_answer:
+            execution_outputs_console += [
+                Text(
+                    f"Out: {truncated_output}",
+                ),
+            ]
+        self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
+        memory_step.action_output = code_output.output
+        yield ActionOutput(output=code_output.output, is_final_answer=code_output.is_final_answer)
+
+    async def _astep_stream(
+        self, memory_step: ActionStep
+    ):
+        """
+        Async version of _step_stream. Executes Python code asynchronously, automatically awaiting async tools.
+        Generated code does NOT need to use 'await' - the executor handles it transparently.
+        """
+        memory_messages = self.write_memory_to_messages()
+
+        input_messages = memory_messages.copy()
+        ### Generate model output ###
+        memory_step.model_input_messages = input_messages
+        stop_sequences = ["Observation:", "Calling tools:"]
+        if self.code_block_tags[1] not in self.code_block_tags[0]:
+            # If the closing tag is contained in the opening tag, adding it as a stop sequence would cut short any code generation
+            stop_sequences.append(self.code_block_tags[1])
+        try:
+            additional_args: dict[str, Any] = {}
+            if self._use_structured_outputs_internally:
+                additional_args["response_format"] = CODEAGENT_RESPONSE_FORMAT
+
+            # Use async model generation
+            chat_message: ChatMessage = await self.model.agenerate(
+                input_messages,
+                stop_sequences=stop_sequences,
+                **additional_args,
+            )
+            memory_step.model_output_message = chat_message
+            output_text = chat_message.content
+            self.logger.log_markdown(
+                content=output_text,
+                title="Output message of the LLM:",
+                level=LogLevel.DEBUG,
+            )
+
+            if not self._use_structured_outputs_internally:
+                # This adds the end code sequence (i.e. the closing code block tag) to the history.
+                # This will nudge subsequent LLM calls to finish with this end code sequence, thus efficiently stopping generation.
+                if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
+                    output_text += self.code_block_tags[1]
+                    memory_step.model_output_message.content = output_text
+
+            memory_step.token_usage = chat_message.token_usage
+            memory_step.model_output = output_text
+        except Exception as e:
+            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
+
+        ### Parse output ###
+        try:
+            if self._use_structured_outputs_internally:
+                code_action = json.loads(output_text)["code"]
+                code_action = extract_code_from_text(code_action, self.code_block_tags) or code_action
+            else:
+                code_action = parse_code_blobs(output_text, self.code_block_tags)
+            code_action = fix_final_answer_code(code_action)
+            memory_step.code_action = code_action
+        except Exception as e:
+            error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
+            raise AgentParsingError(error_msg, self.logger)
+
+        tool_call = ToolCall(
+            name="python_interpreter",
+            arguments=code_action,
+            id=f"call_{len(self.memory.steps)}",
+        )
+        yield tool_call
+        memory_step.tool_calls = [tool_call]
+
+        ### Execute action asynchronously ###
+        self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
+        try:
+            # Use async executor which automatically awaits async tools
+            code_output = await self.python_executor.async_call(code_action)
+            execution_outputs_console = []
+            if len(code_output.logs) > 0:
+                execution_outputs_console += [
+                    Text("Execution logs:", style="bold"),
+                    Text(code_output.logs),
+                ]
+            observation = "Execution logs:\n" + code_output.logs
+        except Exception as e:
+            if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
+                execution_logs = str(self.python_executor.state["_print_outputs"])
+                if len(execution_logs) > 0:
+                    error_msg = f"Code execution failed due to the following error:\n{str(e)}"
+                    memory_step.error = AgentExecutionError(error_msg, self.logger)
+                    observation = execution_logs + f"Error: {str(e)}"
+                else:
+                    error_msg = f"Code execution failed due to the following error:\n{str(e)}"
+                    observation = error_msg
+                    memory_step.error = AgentExecutionError(error_msg, self.logger)
+            else:
+                error_msg = f"Code execution failed due to the following error:\n{str(e)}"
+                observation = error_msg
+                memory_step.error = AgentExecutionError(error_msg, self.logger)
+
+            if "ModuleNotFoundError" in str(type(e).__name__) or "ImportError" in str(type(e).__name__):
+                error_msg = (
+                    f"Module import error: {str(e)}\n"
+                    "This import is not in the authorized imports by default: if you trust this source code "
+                    "that you just launched, please add the import to the `additional_authorized_imports` argument in the agent initialization!"
+                )
+                memory_step.error = AgentExecutionError(error_msg, self.logger)
                 self.logger.log(
                     "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
                     level=LogLevel.INFO,

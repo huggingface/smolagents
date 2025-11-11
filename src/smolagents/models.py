@@ -552,6 +552,33 @@ class Model:
     def __call__(self, *args, **kwargs):
         return self.generate(*args, **kwargs)
 
+    async def agenerate(
+        self,
+        messages: list[ChatMessage],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """Async version of generate(). Process the input messages and return the model's response.
+
+        Parameters:
+            messages (`list[dict[str, str | list[dict]]] | list[ChatMessage]`):
+                A list of message dictionaries to be processed. Each dictionary should have the structure `{"role": "user/system", "content": "message content"}`.
+            stop_sequences (`List[str]`, *optional*):
+                A list of strings that will stop the generation if encountered in the model's output.
+            response_format (`dict[str, str]`, *optional*):
+                The response format to use in the model's response.
+            tools_to_call_from (`List[Tool]`, *optional*):
+                A list of tools that the model can use to generate responses.
+            **kwargs:
+                Additional keyword arguments to be passed to the underlying model.
+
+        Returns:
+            `ChatMessage`: A chat message object containing the model's response.
+        """
+        raise NotImplementedError("This method must be implemented in child classes that support async")
+
     def parse_tool_calls(self, message: ChatMessage) -> ChatMessage:
         """Sometimes APIs do not return the tool call as a specific object, so we need to parse it."""
         message.role = MessageRole.ASSISTANT  # Overwrite role if needed
@@ -1321,6 +1348,97 @@ class LiteLLMModel(ApiModel):
                     if not getattr(choice, "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
 
+    async def agenerate(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """Async version of generate()."""
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            response_format=response_format,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            api_base=self.api_base,
+            api_key=self.api_key,
+            convert_images_to_image_urls=True,
+            custom_role_conversions=self.custom_role_conversions,
+            **kwargs,
+        )
+        self._apply_rate_limit()
+        # Use litellm's async completion method
+        response = await self.client.acompletion(**completion_kwargs)
+        if not response.choices:
+            raise RuntimeError(
+                f"Unexpected API response: model '{self.model_id}' returned no choices. "
+                " This may indicate a possible API or upstream issue. "
+                f"Response details: {response.model_dump()}"
+            )
+        return ChatMessage.from_dict(
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+            raw=response,
+            token_usage=TokenUsage(
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+            ),
+        )
+
+    async def agenerate_stream(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ):
+        """Async version of generate_stream()."""
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            response_format=response_format,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            api_base=self.api_base,
+            api_key=self.api_key,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+        self._apply_rate_limit()
+        async for event in self.client.acompletion(**completion_kwargs, stream=True, stream_options={"include_usage": True}):
+            if getattr(event, "usage", None):
+                yield ChatMessageStreamDelta(
+                    content="",
+                    token_usage=TokenUsage(
+                        input_tokens=event.usage.prompt_tokens,
+                        output_tokens=event.usage.completion_tokens,
+                    ),
+                )
+            if event.choices:
+                choice = event.choices[0]
+                if choice.delta:
+                    yield ChatMessageStreamDelta(
+                        content=choice.delta.content,
+                        tool_calls=[
+                            ChatMessageToolCallStreamDelta(
+                                index=delta.index,
+                                id=delta.id,
+                                type=delta.type,
+                                function=delta.function,
+                            )
+                            for delta in choice.delta.tool_calls
+                        ]
+                        if choice.delta.tool_calls
+                        else None,
+                    )
+                else:
+                    if not getattr(choice, "finish_reason", None):
+                        raise ValueError(f"No content or tool calls in event: {event}")
+
 
 class LiteLLMRouterModel(LiteLLMModel):
     """Router‑based client for interacting with the [LiteLLM Python SDK Router](https://docs.litellm.ai/docs/routing).
@@ -1604,6 +1722,101 @@ class InferenceClientModel(ApiModel):
                     if not getattr(choice, "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
 
+    async def agenerate(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """Async version of generate()."""
+        if response_format is not None and self.client_kwargs["provider"] not in STRUCTURED_GENERATION_PROVIDERS:
+            raise ValueError(
+                "InferenceClientModel only supports structured outputs with these providers:"
+                + ", ".join(STRUCTURED_GENERATION_PROVIDERS)
+            )
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            tools_to_call_from=tools_to_call_from,
+            convert_images_to_image_urls=True,
+            custom_role_conversions=self.custom_role_conversions,
+            **kwargs,
+        )
+        self._apply_rate_limit()
+
+        # Create async client on-the-fly
+        from huggingface_hub import AsyncInferenceClient
+        async_client = AsyncInferenceClient(**self.client_kwargs)
+
+        response = await async_client.chat_completion(**completion_kwargs)
+        return ChatMessage.from_dict(
+            asdict(response.choices[0].message),
+            raw=response,
+            token_usage=TokenUsage(
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+            ),
+        )
+
+    async def agenerate_stream(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ):
+        """Async version of generate_stream()."""
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            response_format=response_format,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+        self._apply_rate_limit()
+
+        # Create async client on-the-fly
+        from huggingface_hub import AsyncInferenceClient
+        async_client = AsyncInferenceClient(**self.client_kwargs)
+
+        async for event in async_client.chat.completions.create(
+            **completion_kwargs, stream=True, stream_options={"include_usage": True}
+        ):
+            if getattr(event, "usage", None):
+                yield ChatMessageStreamDelta(
+                    content="",
+                    token_usage=TokenUsage(
+                        input_tokens=event.usage.prompt_tokens,
+                        output_tokens=event.usage.completion_tokens,
+                    ),
+                )
+            if event.choices:
+                choice = event.choices[0]
+                if choice.delta:
+                    yield ChatMessageStreamDelta(
+                        content=choice.delta.content,
+                        tool_calls=[
+                            ChatMessageToolCallStreamDelta(
+                                index=delta.index,
+                                id=delta.id,
+                                type=delta.type,
+                                function=delta.function,
+                            )
+                            for delta in choice.delta.tool_calls
+                        ]
+                        if choice.delta.tool_calls
+                        else None,
+                    )
+                else:
+                    if not getattr(choice, "finish_reason", None):
+                        raise ValueError(f"No content or tool calls in event: {event}")
+
 
 class OpenAIModel(ApiModel):
     """This model connects to an OpenAI-compatible API server.
@@ -1753,6 +1966,98 @@ class OpenAIModel(ApiModel):
                 output_tokens=response.usage.completion_tokens,
             ),
         )
+
+    async def agenerate(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """Async version of generate()."""
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            response_format=response_format,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+        self._apply_rate_limit()
+
+        # Create async client on-the-fly
+        import openai
+        async_client = openai.AsyncOpenAI(**self.client_kwargs)
+
+        response = await async_client.chat.completions.create(**completion_kwargs)
+        return ChatMessage.from_dict(
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+            raw=response,
+            token_usage=TokenUsage(
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+            ),
+        )
+
+    async def agenerate_stream(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ):
+        """Async version of generate_stream()."""
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            response_format=response_format,
+            tools_to_call_from=tools_to_call_from,
+            model=self.model_id,
+            custom_role_conversions=self.custom_role_conversions,
+            convert_images_to_image_urls=True,
+            **kwargs,
+        )
+        self._apply_rate_limit()
+
+        # Create async client on-the-fly
+        import openai
+        async_client = openai.AsyncOpenAI(**self.client_kwargs)
+
+        async for event in await async_client.chat.completions.create(
+            **completion_kwargs, stream=True, stream_options={"include_usage": True}
+        ):
+            if event.usage:
+                yield ChatMessageStreamDelta(
+                    content="",
+                    token_usage=TokenUsage(
+                        input_tokens=event.usage.prompt_tokens,
+                        output_tokens=event.usage.completion_tokens,
+                    ),
+                )
+            if event.choices:
+                choice = event.choices[0]
+                if choice.delta:
+                    yield ChatMessageStreamDelta(
+                        content=choice.delta.content,
+                        tool_calls=[
+                            ChatMessageToolCallStreamDelta(
+                                index=delta.index,
+                                id=delta.id,
+                                type=delta.type,
+                                function=delta.function,
+                            )
+                            for delta in choice.delta.tool_calls
+                        ]
+                        if choice.delta.tool_calls
+                        else None,
+                    )
+                else:
+                    if not getattr(choice, "finish_reason", None):
+                        raise ValueError(f"No content or tool calls in event: {event}")
 
 
 OpenAIServerModel = OpenAIModel

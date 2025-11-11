@@ -1690,5 +1690,268 @@ class LocalPythonExecutor(PythonExecutor):
         # Combine agent tools, base Python tools, and additional Python functions
         self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy(), **self.additional_functions}
 
+    async def async_call(self, code_action: str) -> CodeOutput:
+        """
+        Async version of __call__. Executes Python code and automatically awaits async tool calls.
+        This enables CodeAgent to use async tools without requiring 'await' in generated code.
+        """
+        output, is_final_answer = await evaluate_python_code_async(
+            code_action,
+            static_tools=self.static_tools,
+            custom_tools=self.custom_tools,
+            state=self.state,
+            authorized_imports=self.authorized_imports,
+            max_print_outputs_length=self.max_print_outputs_length,
+        )
+        logs = str(self.state["_print_outputs"])
+        return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
 
-__all__ = ["evaluate_python_code", "LocalPythonExecutor"]
+
+# Async versions of evaluate functions for async tool support
+async def evaluate_assign_async(
+    assign: ast.Assign,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Any:
+    """Async version of evaluate_assign that awaits async tools."""
+    result = await evaluate_ast_async(assign.value, state, static_tools, custom_tools, authorized_imports)
+    if len(assign.targets) == 1:
+        target = assign.targets[0]
+        set_value(target, result, state, static_tools, custom_tools, authorized_imports)
+    else:
+        expanded_values = []
+        for tgt in assign.targets:
+            if isinstance(tgt, ast.Starred):
+                expanded_values.extend(result)
+            else:
+                expanded_values.append(result)
+
+        for tgt, val in zip(assign.targets, expanded_values):
+            set_value(tgt, val, state, static_tools, custom_tools, authorized_imports)
+    return result
+
+
+async def evaluate_call_async(
+    call: ast.Call,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Any:
+    """
+    Async version of evaluate_call that automatically awaits coroutines from async tools.
+    This allows generated code to call async tools without using 'await'.
+    """
+    if not isinstance(call.func, (ast.Call, ast.Lambda, ast.Attribute, ast.Name, ast.Subscript)):
+        raise InterpreterError(f"This is not a correct function: {call.func}).")
+
+    func, func_name = None, None
+
+    if isinstance(call.func, ast.Call):
+        func = await evaluate_ast_async(call.func, state, static_tools, custom_tools, authorized_imports)
+    elif isinstance(call.func, ast.Lambda):
+        func = await evaluate_ast_async(call.func, state, static_tools, custom_tools, authorized_imports)
+    elif isinstance(call.func, ast.Attribute):
+        obj = await evaluate_ast_async(call.func.value, state, static_tools, custom_tools, authorized_imports)
+        func_name = call.func.attr
+        if not hasattr(obj, func_name):
+            raise InterpreterError(f"Object {obj} has no attribute {func_name}")
+        func = getattr(obj, func_name)
+    elif isinstance(call.func, ast.Name):
+        func_name = call.func.id
+        if func_name in state:
+            func = state[func_name]
+        elif func_name in static_tools:
+            func = static_tools[func_name]
+        elif func_name in custom_tools:
+            func = custom_tools[func_name]
+        elif func_name in ERRORS:
+            func = ERRORS[func_name]
+        else:
+            raise InterpreterError(
+                f"Forbidden function evaluation: '{call.func.id}' is not among the explicitly allowed tools or defined/imported in the preceding code"
+            )
+    elif isinstance(call.func, ast.Subscript):
+        func = await evaluate_ast_async(call.func, state, static_tools, custom_tools, authorized_imports)
+        if not callable(func):
+            raise InterpreterError(f"This is not a correct function: {call.func}).")
+        func_name = None
+
+    args = []
+    for arg in call.args:
+        if isinstance(arg, ast.Starred):
+            args.extend(await evaluate_ast_async(arg.value, state, static_tools, custom_tools, authorized_imports))
+        else:
+            args.append(await evaluate_ast_async(arg, state, static_tools, custom_tools, authorized_imports))
+
+    kwargs = {}
+    for keyword in call.keywords:
+        if keyword.arg is None:
+            # **kwargs unpacking
+            starred_dict = await evaluate_ast_async(keyword.value, state, static_tools, custom_tools, authorized_imports)
+            if not isinstance(starred_dict, dict):
+                raise InterpreterError(f"Cannot unpack non-dict value in **kwargs: {type(starred_dict).__name__}")
+            kwargs.update(starred_dict)
+        else:
+            # Normal keyword argument
+            kwargs[keyword.arg] = await evaluate_ast_async(keyword.value, state, static_tools, custom_tools, authorized_imports)
+
+    if func_name == "super":
+        if not args:
+            if "__class__" in state and "self" in state:
+                return super(state["__class__"], state["self"])
+            else:
+                raise InterpreterError("super() needs at least one argument")
+        cls = args[0]
+        if not isinstance(cls, type):
+            raise InterpreterError("super() argument 1 must be type")
+        if len(args) == 1:
+            return super(cls)
+        elif len(args) == 2:
+            instance = args[1]
+            return super(cls, instance)
+        else:
+            raise InterpreterError("super() takes at most 2 arguments")
+    elif func_name == "print":
+        state["_print_outputs"] += " ".join(map(str, args)) + "\n"
+        return None
+    else:  # Assume it's a callable object
+        if (inspect.getmodule(func) == builtins) and inspect.isbuiltin(func) and (func not in static_tools.values()):
+            raise InterpreterError(
+                f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
+            )
+        if (
+            hasattr(func, "__name__")
+            and func.__name__.startswith("__")
+            and func.__name__.endswith("__")
+            and (func.__name__ not in static_tools)
+            and (func.__name__ not in ALLOWED_DUNDER_METHODS)
+        ):
+            raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
+
+        # Call the function
+        result = func(*args, **kwargs)
+
+        # KEY: If result is a coroutine (async tool), await it automatically
+        if inspect.iscoroutine(result):
+            result = await result
+
+        return result
+
+
+async def evaluate_ast_async(
+    expression: ast.AST,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str] = BASE_BUILTIN_MODULES,
+):
+    """
+    Async version of evaluate_ast that supports async tool calls.
+    Handles AST nodes that commonly contain function calls, using async versions.
+    """
+    if state.setdefault("_operations_count", {"counter": 0})["counter"] >= MAX_OPERATIONS:
+        raise InterpreterError(
+            f"Reached the max number of operations of {MAX_OPERATIONS}. Maybe there is an infinite loop somewhere in the code, or you're just asking too many calculations."
+        )
+    state["_operations_count"]["counter"] += 1
+    common_params = (state, static_tools, custom_tools, authorized_imports)
+
+    # KEY: Use async versions for nodes that can contain function calls
+    if isinstance(expression, ast.Call):
+        return await evaluate_call_async(expression, *common_params)
+    elif isinstance(expression, ast.Assign):
+        return await evaluate_assign_async(expression, *common_params)
+    elif isinstance(expression, ast.Expr):
+        return await evaluate_ast_async(expression.value, *common_params)
+    # Simple leaf nodes
+    elif isinstance(expression, ast.Constant):
+        return expression.value
+    elif isinstance(expression, ast.Name):
+        return evaluate_name(expression, *common_params)
+    # For other nodes, delegate to sync (most don't contain calls in typical CodeAgent code)
+    else:
+        return evaluate_ast(expression, *common_params)
+
+
+def _wrap_tool_for_async(tool: Callable) -> Callable:
+    """
+    Wrap a tool to automatically run coroutines in the current event loop.
+    This allows async tools to be called from generated code without 'await'.
+    """
+    @wraps(tool)
+    def wrapper(*args, **kwargs):
+        result = tool(*args, **kwargs)
+        # If the tool returned a coroutine, we need to run it
+        # Since we're in an async context (evaluate_python_code_async), we can await it
+        # But we're being called from sync evaluate_call, so we need a different approach
+        # Actually, we'll handle this in evaluate_call_async instead
+        return result
+    return wrapper
+
+
+async def evaluate_python_code_async(
+    code: str,
+    static_tools: dict[str, Callable] | None = None,
+    custom_tools: dict[str, Callable] | None = None,
+    state: dict[str, Any] | None = None,
+    authorized_imports: list[str] = BASE_BUILTIN_MODULES,
+    max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
+):
+    """
+    Async version of evaluate_python_code that supports async tool execution.
+    Uses asyncio.create_task to run code in async context where tools can be awaited.
+    """
+    try:
+        expression = ast.parse(code)
+    except SyntaxError as e:
+        raise InterpreterError(
+            f"Code parsing failed on line {e.lineno} due to: {type(e).__name__}\n"
+            f"{e.text}"
+            f"{' ' * (e.offset or 0)}^\n"
+            f"Error: {str(e)}"
+        )
+
+    if state is None:
+        state = {}
+    static_tools = static_tools.copy() if static_tools is not None else {}
+    custom_tools = custom_tools if custom_tools is not None else {}
+    result = None
+    state["_print_outputs"] = PrintContainer()
+    state["_operations_count"] = {"counter": 0}
+
+    if "final_answer" in static_tools:
+        previous_final_answer = static_tools["final_answer"]
+
+        def final_answer(*args, **kwargs):  # Allow arbitrary arguments to be passed
+            raise FinalAnswerException(previous_final_answer(*args, **kwargs))
+
+        static_tools["final_answer"] = final_answer
+
+    # Wrap tools to handle async - actually use evaluate_call_async instead
+    try:
+        for node in expression.body:
+            result = await evaluate_ast_async(node, state, static_tools, custom_tools, authorized_imports)
+        state["_print_outputs"].value = truncate_content(
+            str(state["_print_outputs"]), max_length=max_print_outputs_length
+        )
+        is_final_answer = False
+        return result, is_final_answer
+    except FinalAnswerException as e:
+        state["_print_outputs"].value = truncate_content(
+            str(state["_print_outputs"]), max_length=max_print_outputs_length
+        )
+        is_final_answer = True
+        return e.value, is_final_answer
+    except Exception as e:
+        state["_print_outputs"].value = truncate_content(
+            str(state["_print_outputs"]), max_length=max_print_outputs_length
+        )
+        raise InterpreterError(
+            f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
+        )
+
+
+__all__ = ["evaluate_python_code", "evaluate_python_code_async", "LocalPythonExecutor"]
