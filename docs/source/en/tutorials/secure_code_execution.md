@@ -30,8 +30,8 @@ By default, the `CodeAgent` runs LLM-generated code in your environment.
 This is inherently risky, LLM-generated code could be harmful to your environment.
 
 Malicious code execution can occur in several ways:
-- **Plain LLM error:** LLMs are still far from perfect and may unintentionally generate harmful commands while attempting to be helpful. While this risk is low, instances have been observed where an LLM attempted to execute potentially dangerous code.  
-- **Supply chain attack:** Running an untrusted or compromised LLM could expose a system to harmful code generation. While this risk is extremely low when using well-known models on secure inference infrastructure, it remains a theoretical possibility.  
+- **Plain LLM error:** LLMs are still far from perfect and may unintentionally generate harmful commands while attempting to be helpful. While this risk is low, instances have been observed where an LLM attempted to execute potentially dangerous code.
+- **Supply chain attack:** Running an untrusted or compromised LLM could expose a system to harmful code generation. While this risk is extremely low when using well-known models on secure inference infrastructure, it remains a theoretical possibility.
 - **Prompt injection:** an agent browsing the web could arrive on a malicious website that contains harmful instructions, thus injecting an attack into the agent's memory
 - **Exploitation of publicly accessible agents:** Agents exposed to the public can be misused by malicious actors to execute harmful code. Attackers may craft adversarial inputs to exploit the agent's execution capabilities, leading to unintended consequences.
 Once malicious code is executed, whether accidentally or intentionally, it can damage the file system, exploit local or cloud-based resources, abuse API services, and even compromise network security.
@@ -102,10 +102,10 @@ These safeguards make out interpreter is safer.
 We have used it on a diversity of use cases, without ever observing any damage to the environment.
 
 > [!WARNING]
-> It's important to understand that no local python sandbox can ever be completely secure. While our interpreter provides significant safety improvements over the standard Python interpreter, it is still possible for a determined attacker or a fine-tuned malicious LLM to find vulnerabilities and potentially harm your environment. 
-> 
+> It's important to understand that no local python sandbox can ever be completely secure. While our interpreter provides significant safety improvements over the standard Python interpreter, it is still possible for a determined attacker or a fine-tuned malicious LLM to find vulnerabilities and potentially harm your environment.
+>
 > For example, if you've allowed packages like `Pillow` to process images, the LLM could generate code that creates thousands of large image files to fill your hard drive. Other advanced escape techniques might exploit deeper vulnerabilities in authorized packages.
-> 
+>
 > Running LLM-generated code in your local environment always carries some inherent risk. The only way to run LLM-generated code with truly robust security isolation is to use remote execution options like E2B or Docker, as detailed below.
 
 The risk of a malicious attack is low when using well-known LLMs from trusted inference providers, but it is not zero.
@@ -454,6 +454,10 @@ agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="wasm")
 agent.run("Can you give me the 100th Fibonacci number?")
 ```
 
+> [!TIP]
+> Using the agent as a context manager (with the `with` statement) ensures that the WebAssembly Deno sandbox is cleaned up immediately after the agent completes its task.
+> Alternatively, it is possible to manually call the agent's `cleanup()` method.
+
 ### Best practices for sandboxes
 
 These key practices apply to Blaxel, E2B, and Docker sandboxes:
@@ -481,7 +485,7 @@ These key practices apply to Blaxel, E2B, and Docker sandboxes:
 As illustrated in the diagram earlier, both sandboxing approaches have different security implications:
 
 ### Approach 1: Running just the code snippets in a sandbox
-- **Pros**: 
+- **Pros**:
   - Easier to set up with a simple parameter (`executor_type="blaxel"`, `executor_type="e2b"`, or `executor_type="docker"`)
   - No need to transfer API keys to the sandbox
   - Better protection for your local environment
