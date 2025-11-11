@@ -2013,6 +2013,129 @@ class CodeAgent(MultiStepAgent):
         memory_step.action_output = code_output.output
         yield ActionOutput(output=code_output.output, is_final_answer=code_output.is_final_answer)
 
+    async def _astep_stream(
+        self, memory_step: ActionStep
+    ):
+        """
+        Async version of _step_stream. Executes Python code asynchronously, automatically awaiting async tools.
+        Generated code does NOT need to use 'await' - the executor handles it transparently.
+        """
+        memory_messages = self.write_memory_to_messages()
+
+        input_messages = memory_messages.copy()
+        ### Generate model output ###
+        memory_step.model_input_messages = input_messages
+        stop_sequences = ["Observation:", "Calling tools:"]
+        if self.code_block_tags[1] not in self.code_block_tags[0]:
+            # If the closing tag is contained in the opening tag, adding it as a stop sequence would cut short any code generation
+            stop_sequences.append(self.code_block_tags[1])
+        try:
+            additional_args: dict[str, Any] = {}
+            if self._use_structured_outputs_internally:
+                additional_args["response_format"] = CODEAGENT_RESPONSE_FORMAT
+
+            # Use async model generation
+            chat_message: ChatMessage = await self.model.agenerate(
+                input_messages,
+                stop_sequences=stop_sequences,
+                **additional_args,
+            )
+            memory_step.model_output_message = chat_message
+            output_text = chat_message.content
+            self.logger.log_markdown(
+                content=output_text,
+                title="Output message of the LLM:",
+                level=LogLevel.DEBUG,
+            )
+
+            if not self._use_structured_outputs_internally:
+                # This adds the end code sequence (i.e. the closing code block tag) to the history.
+                # This will nudge subsequent LLM calls to finish with this end code sequence, thus efficiently stopping generation.
+                if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
+                    output_text += self.code_block_tags[1]
+                    memory_step.model_output_message.content = output_text
+
+            memory_step.token_usage = chat_message.token_usage
+            memory_step.model_output = output_text
+        except Exception as e:
+            raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
+
+        ### Parse output ###
+        try:
+            if self._use_structured_outputs_internally:
+                code_action = json.loads(output_text)["code"]
+                code_action = extract_code_from_text(code_action, self.code_block_tags) or code_action
+            else:
+                code_action = parse_code_blobs(output_text, self.code_block_tags)
+            code_action = fix_final_answer_code(code_action)
+            memory_step.code_action = code_action
+        except Exception as e:
+            error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
+            raise AgentParsingError(error_msg, self.logger)
+
+        tool_call = ToolCall(
+            name="python_interpreter",
+            arguments=code_action,
+            id=f"call_{len(self.memory.steps)}",
+        )
+        yield tool_call
+        memory_step.tool_calls = [tool_call]
+
+        ### Execute action asynchronously ###
+        self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
+        try:
+            # Use async executor which automatically awaits async tools
+            code_output = await self.python_executor.async_call(code_action)
+            execution_outputs_console = []
+            if len(code_output.logs) > 0:
+                execution_outputs_console += [
+                    Text("Execution logs:", style="bold"),
+                    Text(code_output.logs),
+                ]
+            observation = "Execution logs:\n" + code_output.logs
+        except Exception as e:
+            if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
+                execution_logs = str(self.python_executor.state["_print_outputs"])
+                if len(execution_logs) > 0:
+                    error_msg = f"Code execution failed due to the following error:\n{str(e)}"
+                    memory_step.error = AgentExecutionError(error_msg, self.logger)
+                    observation = execution_logs + f"Error: {str(e)}"
+                else:
+                    error_msg = f"Code execution failed due to the following error:\n{str(e)}"
+                    observation = error_msg
+                    memory_step.error = AgentExecutionError(error_msg, self.logger)
+            else:
+                error_msg = f"Code execution failed due to the following error:\n{str(e)}"
+                observation = error_msg
+                memory_step.error = AgentExecutionError(error_msg, self.logger)
+
+            if "ModuleNotFoundError" in str(type(e).__name__) or "ImportError" in str(type(e).__name__):
+                error_msg = (
+                    f"Module import error: {str(e)}\n"
+                    "This import is not in the authorized imports by default: if you trust this source code "
+                    "that you just launched, please add the import to the `additional_authorized_imports` argument in the agent initialization!"
+                )
+                memory_step.error = AgentExecutionError(error_msg, self.logger)
+                self.logger.log(
+                    "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
+                    level=LogLevel.INFO,
+                )
+            raise AgentExecutionError(error_msg, self.logger)
+
+        truncated_output = truncate_content(str(code_output.output))
+        observation += "Last output from code snippet:\n" + truncated_output
+        memory_step.observations = observation
+
+        if not code_output.is_final_answer:
+            execution_outputs_console += [
+                Text(
+                    f"Out: {truncated_output}",
+                ),
+            ]
+        self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
+        memory_step.action_output = code_output.output
+        yield ActionOutput(output=code_output.output, is_final_answer=code_output.is_final_answer)
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the agent to a dictionary representation.
 

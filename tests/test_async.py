@@ -549,6 +549,78 @@ class TestAsyncTools:
         assert result == "approved: delete important file"
 
 
+class TestAsyncCodeAgent:
+    """Test async CodeAgent functionality with async tools."""
+
+    @pytest.mark.asyncio
+    async def test_async_executor_with_async_tool(self):
+        """Test that async executor can run async tools transparently."""
+        from smolagents.local_python_executor import LocalPythonExecutor
+        from smolagents.tools import Tool
+
+        class AsyncTestTool(Tool):
+            name = "async_tool"
+            description = "Test async tool"
+            inputs = {"msg": {"type": "string", "description": "Message"}}
+            output_type = "string"
+
+            async def forward(self, msg: str):
+                await asyncio.sleep(0.01)
+                return f"async: {msg}"
+
+        tool = AsyncTestTool()
+        executor = LocalPythonExecutor(additional_authorized_imports=[])
+        executor.send_tools({"async_tool": tool, "final_answer": lambda x: x})
+
+        # Test direct call
+        code = 'async_tool("hello")'
+        output = await executor.async_call(code)
+        assert output.output == "async: hello"
+
+    @pytest.mark.asyncio
+    async def test_async_executor_with_assignment(self):
+        """Test async executor with assignment pattern (most common in CodeAgent)."""
+        from smolagents.local_python_executor import LocalPythonExecutor
+        from smolagents.tools import Tool
+
+        class AsyncApprovalTool(Tool):
+            name = "human_approval"
+            description = "Get human approval"
+            inputs = {"action": {"type": "string", "description": "Action"}}
+            output_type = "string"
+
+            async def forward(self, action: str):
+                await asyncio.sleep(0.01)
+                return f"approved: {action}"
+
+        tool = AsyncApprovalTool()
+        executor = LocalPythonExecutor(additional_authorized_imports=[])
+        executor.send_tools({"human_approval": tool, "final_answer": lambda x: x})
+
+        # Assignment pattern - generated code doesn't need await!
+        code = '''
+result = human_approval("delete file")
+final_answer(result)
+'''
+        output = await executor.async_call(code)
+        assert output.output == "approved: delete file"
+        assert output.is_final_answer == True
+
+    @pytest.mark.asyncio
+    async def test_async_code_agent_has_astep_stream(self):
+        """Test that CodeAgent has async _astep_stream method."""
+        import inspect
+
+        from smolagents import CodeAgent
+
+        model = MockAsyncModel()
+        agent = CodeAgent(model=model, tools=[])
+
+        assert hasattr(agent, "_astep_stream")
+        # _astep_stream is an async generator function
+        assert inspect.isasyncgenfunction(agent._astep_stream)
+
+
 # Note: These tests mock most functionality to avoid requiring actual API calls
 # For full integration testing with real models, use separate integration test suite
 # with appropriate API keys and markers (e.g., @pytest.mark.requires_api_key)
