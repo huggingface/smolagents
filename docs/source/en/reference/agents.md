@@ -35,7 +35,7 @@ Both require arguments `model` and list of tools `tools` at initialization.
 ### GradioUI
 
 > [!TIP]
-> You must have `gradio` installed to use the UI. Please run `pip install smolagents[gradio]` if it's not the case.
+> You must have `gradio` installed to use the UI. Please run `pip install 'smolagents[gradio]'` if it's not the case.
 
 [[autodoc]] GradioUI
 
@@ -70,6 +70,10 @@ Smolagents use memory to store information across multiple steps.
 #### E2BExecutor
 
 [[autodoc]] smolagents.remote_executors.E2BExecutor
+
+#### ModalExecutor
+
+[[autodoc]] smolagents.remote_executors.ModalExecutor
 
 #### DockerExecutor
 

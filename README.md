@@ -34,7 +34,7 @@ limitations under the License.
 
 ✨ **Simplicity**: the logic for agents fits in ~1,000 lines of code (see [agents.py](https://github.com/huggingface/smolagents/blob/main/src/smolagents/agents.py)). We kept abstractions to their minimal shape above raw code!
 
-🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/), Docker, or Pyodide+Deno WebAssembly sandbox.
+🧑‍💻 **First-class support for Code Agents**. Our [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code"). To make it secure, we support executing in sandboxed environments via [E2B](https://e2b.dev/), [Modal](https://modal.com/), Docker, or Pyodide+Deno WebAssembly sandbox.
 
 🤗 **Hub integrations**: you can [share/pull tools or agents to/from the Hub](https://huggingface.co/docs/smolagents/reference/tools#smolagents.Tool.from_hub) for instant sharing of the most efficient agents!
 
@@ -53,7 +53,7 @@ Full documentation can be found [here](https://huggingface.co/docs/smolagents/in
 
 First install the package with a default set of tools:
 ```bash
-pip install smolagents[toolkit]
+pip install "smolagents[toolkit]"
 ```
 Then define your agent, give it the tools it needs and run it!
 ```py
@@ -95,7 +95,7 @@ model = InferenceClientModel(
 from smolagents import LiteLLMModel
 
 model = LiteLLMModel(
-    model_id="anthropic/claude-3-5-sonnet-latest",
+    model_id="anthropic/claude-4-sonnet-latest",
     temperature=0.2,
     api_key=os.environ["ANTHROPIC_API_KEY"]
 )
@@ -106,9 +106,9 @@ model = LiteLLMModel(
 
 ```py
 import os
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="deepseek-ai/DeepSeek-R1",
     api_base="https://api.together.xyz/v1/", # Leave this blank to query OpenAI servers.
     api_key=os.environ["TOGETHER_API_KEY"], # Switch to the API key for the server you're targeting.
@@ -120,9 +120,9 @@ model = OpenAIServerModel(
 
 ```py
 import os
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="openai/gpt-4o",
     api_base="https://openrouter.ai/api/v1", # Leave this blank to query OpenAI servers.
     api_key=os.environ["OPENROUTER_API_KEY"], # Switch to the API key for the server you're targeting.
@@ -137,7 +137,7 @@ model = OpenAIServerModel(
 from smolagents import TransformersModel
 
 model = TransformersModel(
-    model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
+    model_id="Qwen/Qwen3-Next-80B-A3B-Thinking",
     max_new_tokens=4096,
     device_map="auto"
 )
@@ -148,9 +148,9 @@ model = TransformersModel(
 
 ```py
 import os
-from smolagents import AzureOpenAIServerModel
+from smolagents import AzureOpenAIModel
 
-model = AzureOpenAIServerModel(
+model = AzureOpenAIModel(
     model_id = os.environ.get("AZURE_OPENAI_MODEL"),
     azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
     api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
@@ -163,9 +163,9 @@ model = AzureOpenAIServerModel(
 
 ```py
 import os
-from smolagents import AmazonBedrockServerModel
+from smolagents import AmazonBedrockModel
 
-model = AmazonBedrockServerModel(
+model = AmazonBedrockModel(
     model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID") 
 )
 ```
@@ -178,14 +178,14 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`.
 `smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools.
 
 ```bash
-smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
+smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen3-Next-80B-A3B-Thinking" --imports pandas numpy --tools web_search
 ```
 
 Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
 
 For instance:
 ```bash
-webagent "go to xyz.com/men, get to sale section, click the first clothing item you see. Get the product details, and the price, return them. note that I'm shopping from France" --model-type "LiteLLMModel" --model-id "gpt-4o"
+webagent "go to xyz.com/men, get to sale section, click the first clothing item you see. Get the product details, and the price, return them. note that I'm shopping from France" --model-type "LiteLLMModel" --model-id "gpt-5"
 ```
 
 ## How do Code agents work?
@@ -254,7 +254,7 @@ This comparison shows that open-source models can now take on the best closed mo
 ## Security
 
 Security is a critical consideration when working with code-executing agents. Our library provides:
-- Sandboxed execution options using [E2B](https://e2b.dev/), Docker, or Pyodide+Deno WebAssembly sandbox
+- Sandboxed execution options using [E2B](https://e2b.dev/), [Modal](https://modal.com/), Docker, or Pyodide+Deno WebAssembly sandbox
 - Best practices for running agent code securely
 
 For security policies, vulnerability reporting, and more information on secure agent execution, please see our [Security Policy](SECURITY.md).

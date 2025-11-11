@@ -51,7 +51,7 @@ print(model([{"role": "user", "content": [{"type": "text", "text": "Ok!"}]}], st
 ```
 
 > [!TIP]
-> 您必须在机器上安装 `transformers` 和 `torch`。如果尚未安装，请运行 `pip install smolagents[transformers]`。
+> 您必须在机器上安装 `transformers` 和 `torch`。如果尚未安装，请运行 `pip install 'smolagents[transformers]'`。
 
 [[autodoc]] TransformersModel
 
@@ -91,26 +91,26 @@ print(model(messages))
 
 [[autodoc]] LiteLLMModel
 
-### OpenAIServerModel
+### OpenAIModel
 
 此类允许您调用任何 OpenAIServer 兼容模型。
 以下是设置方法（您可以自定义 `api_base` URL 指向其他服务器）：
 ```py
 import os
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="gpt-4o",
     api_base="https://api.openai.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
 )
 ```
 
-[[autodoc]] OpenAIServerModel
+[[autodoc]] OpenAIModel
 
-### AzureOpenAIServerModel
+### AzureOpenAIModel
 
-`AzureOpenAIServerModel` 允许您连接到任何 Azure OpenAI 部署。
+`AzureOpenAIModel` 允许您连接到任何 Azure OpenAI 部署。
 
 下面是设置示例，请注意，如果已经设置了相应的环境变量，您可以省略 `azure_endpoint`、`api_key` 和 `api_version` 参数——环境变量包括 `AZURE_OPENAI_ENDPOINT`、`AZURE_OPENAI_API_KEY` 和 `OPENAI_API_VERSION`。
 
@@ -119,9 +119,9 @@ model = OpenAIServerModel(
 ```py
 import os
 
-from smolagents import AzureOpenAIServerModel
+from smolagents import AzureOpenAIModel
 
-model = AzureOpenAIServerModel(
+model = AzureOpenAIModel(
     model_id = os.environ.get("AZURE_OPENAI_MODEL"),
     azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
     api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
@@ -129,7 +129,7 @@ model = AzureOpenAIServerModel(
 )
 ```
 
-[[autodoc]] AzureOpenAIServerModel
+[[autodoc]] AzureOpenAIModel
 
 ### MLXModel
 
@@ -145,6 +145,6 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 ```
 
 > [!TIP]
-> 您必须在机器上安装 `mlx-lm`。如果尚未安装，请运行 `pip install smolagents[mlx-lm]`。
+> 您必须在机器上安装 `mlx-lm`。如果尚未安装，请运行 `pip install 'smolagents[mlx-lm]'`。
 
 [[autodoc]] MLXModel

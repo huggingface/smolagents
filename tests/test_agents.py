@@ -664,7 +664,7 @@ nested_answer()
     def test_final_answer_checks(self):
         error_string = "failed with error"
 
-        def check_always_fails(final_answer, agent_memory):
+        def check_always_fails(final_answer, memory, agent):
             assert False, "Error raised in check"
 
         agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_always_fails])
@@ -675,12 +675,66 @@ nested_answer()
         agent = CodeAgent(
             model=FakeCodeModel(),
             tools=[],
-            final_answer_checks=[lambda x, y: x == 7.2904],
+            final_answer_checks=[lambda x, memory, agent: x == 7.2904],
+            verbosity_level=1000,
         )
         output = agent.run("Dummy task.")
         assert output == 7.2904  # Check that output is correct
         assert len([step for step in agent.memory.steps if isinstance(step, ActionStep)]) == 2
         assert error_string not in str(agent.write_memory_to_messages())
+
+    def test_final_answer_checks_with_agent_access(self):
+        """Test that final answer checks can access agent properties."""
+
+        def check_uses_agent_properties(final_answer, memory, agent):
+            # Access agent properties to validate the final answer
+            assert hasattr(agent, "memory"), "Agent should have memory attribute"
+            assert hasattr(agent, "state"), "Agent should have state attribute"
+            assert hasattr(agent, "task"), "Agent should have task attribute"
+
+            # Check that the final answer is related to the task
+            if isinstance(final_answer, str):
+                return len(final_answer) > 0
+            return True
+
+        def check_uses_agent_state(final_answer, memory, agent):
+            # Use agent state to validate the answer
+            if "expected_answer" in agent.state:
+                return final_answer == agent.state["expected_answer"]
+            return True
+
+        # Test with a check that uses agent properties
+        agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_uses_agent_properties])
+        output = agent.run("Dummy task.")
+        assert output == 7.2904  # Should pass the check
+
+        # Test with a check that uses agent state
+        agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_uses_agent_state])
+        agent.state["expected_answer"] = 7.2904
+        output = agent.run("Dummy task.")
+        assert output == 7.2904  # Should pass the check
+
+        # Test with a check that fails due to state mismatch
+        agent = CodeAgent(
+            model=FakeCodeModel(),
+            tools=[],
+            final_answer_checks=[check_uses_agent_state],
+            max_steps=3,  # Limit steps to avoid long test run
+        )
+        agent.state["expected_answer"] = "wrong answer"
+        output = agent.run("Dummy task.")
+
+        # The agent should have reached max steps and provided a final answer anyway
+        assert output is not None
+        # Check that there were failed validation attempts in the memory
+        failed_steps = [step for step in agent.memory.steps if hasattr(step, "error") and step.error is not None]
+        assert len(failed_steps) > 0, "Expected some steps to have validation errors"
+
+        # Check that at least one error message contains our check function name
+        error_messages = [str(step.error) for step in failed_steps if step.error is not None]
+        assert any("check_uses_agent_state failed" in msg for msg in error_messages), (
+            "Expected to find validation error message"
+        )
 
     def test_generation_errors_are_raised(self):
         class FakeCodeModel(Model):
@@ -884,7 +938,7 @@ class TestRunResult:
         assert result.output == "This is the final answer."
         assert result.state == "success"
         assert result.token_usage is None
-        assert isinstance(result.messages, list)
+        assert isinstance(result.steps, list)
         assert result.timing.duration > 0
 
     @pytest.mark.parametrize(
@@ -910,7 +964,7 @@ class TestRunResult:
             assert result.output == "This is the final answer."
             assert result.state == "success"
             assert result.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
-            assert isinstance(result.messages, list)
+            assert isinstance(result.steps, list)
             assert result.timing.duration > 0
         else:
             assert isinstance(result, str)
@@ -1276,44 +1330,38 @@ class TestMultiStepAgent:
                     assert content == expected_content
 
     @pytest.mark.parametrize(
-        "images, expected_messages_list",
+        "expected_messages_list",
         [
-            (
-                None,
+            [
                 [
-                    [
-                        ChatMessage(
-                            role=MessageRole.SYSTEM,
-                            content=[{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
-                        ),
-                        ChatMessage(
-                            role=MessageRole.USER,
-                            content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
-                        ),
-                    ]
-                ],
-            ),
-            (
-                ["image1.png"],
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=[{"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"}],
+                    ),
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                    ),
+                ]
+            ],
+            [
                 [
-                    [
-                        ChatMessage(
-                            role=MessageRole.SYSTEM,
-                            content=[
-                                {"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"},
-                                {"type": "image", "image": "image1.png"},
-                            ],
-                        ),
-                        ChatMessage(
-                            role=MessageRole.USER,
-                            content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
-                        ),
-                    ]
-                ],
-            ),
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=[
+                            {"type": "text", "text": "FINAL_ANSWER_SYSTEM_PROMPT"},
+                            {"type": "image", "image": "image1.png"},
+                        ],
+                    ),
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=[{"type": "text", "text": "FINAL_ANSWER_USER_PROMPT"}],
+                    ),
+                ]
+            ],
         ],
     )
-    def test_provide_final_answer(self, images, expected_messages_list):
+    def test_provide_final_answer(self, expected_messages_list):
         fake_model = MagicMock()
         fake_model.generate.return_value = ChatMessage(
             role=MessageRole.ASSISTANT,
@@ -1327,7 +1375,7 @@ class TestMultiStepAgent:
             model=fake_model,
         )
         task = "Test task"
-        final_answer = agent.provide_final_answer(task, images=images).content
+        final_answer = agent.provide_final_answer(task).content
         expected_message_texts = {
             "FINAL_ANSWER_SYSTEM_PROMPT": agent.prompt_templates["final_answer"]["pre_messages"],
             "FINAL_ANSWER_USER_PROMPT": populate_template(
@@ -1627,7 +1675,7 @@ class TestToolCallingAgent:
     def test_toolcalling_agent_stream_logs_multiple_tool_calls_observations(self, mock_openai_client, test_tool):
         """Test that ToolCallingAgent with stream_outputs=True logs the observations of all tool calls when multiple are called."""
         mock_client = mock_openai_client.return_value
-        from smolagents import OpenAIServerModel
+        from smolagents import OpenAIModel
 
         # Mock streaming response with multiple tool calls
         mock_deltas = [
@@ -1700,7 +1748,7 @@ class TestToolCallingAgent:
         mock_usage.prompt_tokens = 10
         mock_usage.completion_tokens = 20
 
-        model = OpenAIServerModel(model_id="fakemodel")
+        model = OpenAIModel(model_id="fakemodel")
 
         agent = ToolCallingAgent(model=model, tools=[test_tool], max_steps=1, stream_outputs=True)
         agent.run("Dummy task")
@@ -1715,7 +1763,7 @@ class TestToolCallingAgent:
         """Test that ToolCallingAgent with stream_outputs=True returns the all tool calls when multiple are called."""
         mock_client = mock_openai_client.return_value
 
-        from smolagents import OpenAIServerModel
+        from smolagents import OpenAIModel
 
         class ExtendedChatMessage(ChatMessage):
             def __init__(self, *args, usage, **kwargs):
@@ -1773,7 +1821,7 @@ class TestToolCallingAgent:
             )
         )
 
-        model = OpenAIServerModel(model_id="fakemodel")
+        model = OpenAIModel(model_id="fakemodel")
 
         agent = ToolCallingAgent(model=model, tools=[test_tool], max_steps=1)
         agent.run("Dummy task")
