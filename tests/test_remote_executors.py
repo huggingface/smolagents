@@ -565,61 +565,112 @@ class TestBlaxelExecutorUnit:
                 BlaxelExecutor(additional_imports=[], logger=logger)
             assert "Please install 'blaxel' extra" in str(excinfo.value)
 
+    @patch("smolagents.remote_executors._create_kernel_http")
     @patch("blaxel.core.SandboxInstance")
-    def test_blaxel_executor_instantiation_with_blaxel_sdk(self, mock_sandbox_instance):
+    @patch("blaxel.core.client.api.compute.create_sandbox")
+    @patch("blaxel.core.settings")
+    def test_blaxel_executor_instantiation_with_blaxel_sdk(
+        self, mock_settings, mock_create_sandbox, mock_sandbox_instance, mock_create_kernel
+    ):
         """Test BlaxelExecutor instantiation with mocked Blaxel SDK."""
         logger = MagicMock()
+        mock_settings.headers = {}
+
+        # Mock sandbox response
+        mock_response = MagicMock()
+        mock_create_sandbox.sync.return_value = mock_response
+
+        # Mock SandboxInstance
         mock_sandbox = MagicMock()
-        mock_sandbox_instance.create.return_value = mock_sandbox
+        mock_metadata = MagicMock()
+        mock_metadata.url = "https://test-sandbox.bl.run"
+        mock_sandbox.metadata = mock_metadata
+        mock_sandbox_instance.return_value = mock_sandbox
 
-        with patch("asyncio.run") as mock_asyncio_run:
-            mock_asyncio_run.return_value = mock_sandbox
-            executor = BlaxelExecutor(additional_imports=[], logger=logger)
+        # Mock kernel creation
+        mock_create_kernel.return_value = "kernel-123"
 
-            assert executor.sandbox_name == "smolagent-executor"
-            assert executor.image == "blaxel/prod-py-app:latest"
-            assert executor.memory == 4096
-            assert executor.region is None
+        executor = BlaxelExecutor(additional_imports=[], logger=logger)
 
+        assert executor.sandbox_name.startswith("smolagent-executor-")
+        assert executor.image == "blaxel/jupyter-notebook"
+        assert executor.memory == 4096
+        assert executor.region is None
+
+    @patch("smolagents.remote_executors.BlaxelExecutor.install_packages")
+    @patch("smolagents.remote_executors._create_kernel_http")
     @patch("blaxel.core.SandboxInstance")
-    def test_blaxel_executor_custom_parameters(self, mock_sandbox_instance):
+    @patch("blaxel.core.client.api.compute.create_sandbox")
+    @patch("blaxel.core.settings")
+    def test_blaxel_executor_custom_parameters(
+        self, mock_settings, mock_create_sandbox, mock_sandbox_instance, mock_create_kernel, mock_install_packages
+    ):
         """Test BlaxelExecutor with custom parameters."""
         logger = MagicMock()
+        mock_settings.headers = {}
+        mock_install_packages.return_value = ["numpy"]
+
+        # Mock sandbox response
+        mock_response = MagicMock()
+        mock_create_sandbox.sync.return_value = mock_response
+
+        # Mock SandboxInstance
         mock_sandbox = MagicMock()
-        mock_sandbox_instance.create.return_value = mock_sandbox
+        mock_metadata = MagicMock()
+        mock_metadata.url = "https://test-sandbox.us-was-1.bl.run"
+        mock_sandbox.metadata = mock_metadata
+        mock_sandbox_instance.return_value = mock_sandbox
 
-        with patch("asyncio.run") as mock_asyncio_run:
-            mock_asyncio_run.return_value = mock_sandbox
-            executor = BlaxelExecutor(
-                additional_imports=["numpy"],
-                logger=logger,
-                sandbox_name="test-sandbox",
-                image="custom-image:latest",
-                memory=8192,
-                region="us-was-1",
-            )
+        # Mock kernel creation
+        mock_create_kernel.return_value = "kernel-123"
 
-            assert executor.sandbox_name == "test-sandbox"
-            assert executor.image == "custom-image:latest"
-            assert executor.memory == 8192
-            assert executor.region == "us-was-1"
+        executor = BlaxelExecutor(
+            additional_imports=["numpy"],
+            logger=logger,
+            sandbox_name="test-sandbox",
+            image="custom-image:latest",
+            memory=8192,
+            region="us-was-1",
+        )
 
+        assert executor.sandbox_name == "test-sandbox"
+        assert executor.image == "custom-image:latest"
+        assert executor.memory == 8192
+        assert executor.region == "us-was-1"
+        assert mock_install_packages.called
+
+    @patch("smolagents.remote_executors._create_kernel_http")
     @patch("blaxel.core.SandboxInstance")
+    @patch("blaxel.core.client.api.compute.create_sandbox")
     @patch("blaxel.core.client.api.compute.delete_sandbox")
-    def test_blaxel_executor_cleanup(self, mock_delete_sandbox, mock_sandbox_instance):
+    @patch("blaxel.core.settings")
+    def test_blaxel_executor_cleanup(
+        self, mock_settings, mock_delete_sandbox, mock_create_sandbox, mock_sandbox_instance, mock_create_kernel
+    ):
         """Test BlaxelExecutor cleanup method."""
         logger = MagicMock()
+        mock_settings.headers = {}
+
+        # Mock sandbox response
+        mock_response = MagicMock()
+        mock_create_sandbox.sync.return_value = mock_response
+
+        # Mock SandboxInstance
         mock_sandbox = MagicMock()
-        mock_sandbox_instance.create.return_value = mock_sandbox
+        mock_metadata = MagicMock()
+        mock_metadata.url = "https://test-sandbox.bl.run"
+        mock_sandbox.metadata = mock_metadata
+        mock_sandbox_instance.return_value = mock_sandbox
 
-        with patch("asyncio.run") as mock_asyncio_run:
-            mock_asyncio_run.return_value = mock_sandbox
-            executor = BlaxelExecutor(additional_imports=[], logger=logger)
+        # Mock kernel creation
+        mock_create_kernel.return_value = "kernel-123"
 
-            # Test cleanup
-            executor.cleanup()
+        executor = BlaxelExecutor(additional_imports=[], logger=logger)
 
-            # Verify that delete_sandbox.sync was called
-            assert mock_delete_sandbox.sync.called
-            # Verify sandbox reference was cleaned up
-            assert not hasattr(executor, "sandbox")
+        # Test cleanup
+        executor.cleanup()
+
+        # Verify that delete_sandbox.sync was called
+        assert mock_delete_sandbox.sync.called
+        # Verify sandbox reference was cleaned up
+        assert not hasattr(executor, "sandbox")

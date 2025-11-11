@@ -660,16 +660,8 @@ class BlaxelExecutor(RemotePythonExecutor):
                 "name": self.sandbox_name,
             },
             "spec": {
-                "runtime": {
-                    "image": image,
-                    "memory": memory,
-                    "ports": [
-                        {
-                            "target": self.port
-                        }
-                    ]
-                },
-            }
+                "runtime": {"image": image, "memory": memory, "ports": [{"target": self.port}]},
+            },
         }
 
         if region:
@@ -685,7 +677,12 @@ class BlaxelExecutor(RemotePythonExecutor):
 
             # Create kernel via HTTP
             from blaxel.core import settings
-            kernel_id = _create_kernel_http(f"{self.sandbox.metadata.url}/port/{self.port}/api/kernels?token={token}", self.logger, headers=settings.headers)
+
+            kernel_id = _create_kernel_http(
+                f"{self.sandbox.metadata.url}/port/{self.port}/api/kernels?token={token}",
+                self.logger,
+                headers=settings.headers,
+            )
 
             # Set up websocket URL
             # Convert http/https to ws/wss
@@ -695,7 +692,7 @@ class BlaxelExecutor(RemotePythonExecutor):
 
             # Install additional packages
             self.installed_packages = self.install_packages(additional_imports)
-            self.logger.log(f"Blaxel is running", level=LogLevel.INFO)
+            self.logger.log("Blaxel is running", level=LogLevel.INFO)
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Blaxel sandbox: {e}") from e
@@ -703,13 +700,12 @@ class BlaxelExecutor(RemotePythonExecutor):
     @staticmethod
     def _create_sandbox(config):
         """Helper method to create sandbox asynchronously."""
+        from blaxel.core import SandboxInstance
         from blaxel.core.client import client
         from blaxel.core.client.api.compute import create_sandbox
-        from blaxel.core import SandboxInstance
 
         response = create_sandbox.sync(client=client, body=config)
         return SandboxInstance(response)
-
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
@@ -721,8 +717,8 @@ class BlaxelExecutor(RemotePythonExecutor):
         Returns:
             `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
         """
-        from websocket import create_connection
         from blaxel.core import settings
+        from websocket import create_connection
 
         headers = []
         for key, value in settings.headers.items():
@@ -735,10 +731,10 @@ class BlaxelExecutor(RemotePythonExecutor):
         if not additional_imports:
             return []
 
-        from blaxel.core.sandbox.client import client
         from blaxel.core import settings
-        from blaxel.core.sandbox.client.models import ProcessResponse, ErrorResponse
-        from blaxel.core.sandbox.client.api.process import post_process, get_process_identifier
+        from blaxel.core.sandbox.client import client
+        from blaxel.core.sandbox.client.api.process import get_process_identifier, post_process
+        from blaxel.core.sandbox.client.models import ErrorResponse, ProcessResponse
 
         try:
             client.with_base_url(self.sandbox.metadata.url)
