@@ -1,8 +1,8 @@
 # Async Applications with Agents
 
-This guide demonstrates two approaches for using agents in asynchronous Python applications:
-1. **Native async support** - Using agents with async/await (recommended)
-2. **Threading approach** - Running sync agents in background threads (backward compatibility)
+This guide demonstrates two approaches for integrating agents in asynchronous Python applications:
+1. **Native async** - Use `await agent.arun()` for async tools with non-blocking I/O (recommended for new code)
+2. **Threading** - Use `await anyio.to_thread.run_sync(agent.run, ...)` to run sync operations from async contexts
 
 ## Overview
 
@@ -50,13 +50,18 @@ result = await agent.arun("Get approval to delete user account")
 - **Transparent**: Generated code calls tools normally (no `await` needed)
 - **Human-in-the-loop**: Perfect for approval workflows, interactive tools
 
-## Approach 2: Threading (For Sync-Only Code)
+## Approach 2: Threading (For Sync Operations)
 
-Use this when you have legacy sync code or can't use async.
+Use this when you need to call sync operations from async contexts.
 
 ### Why Use a Background Thread?
 
-`CodeAgent.run()` without async tools executes synchronously. In an async web server, this would block the event loop. Using `anyio.to_thread.run_sync` offloads sync work to a thread, keeping the app responsive.
+When calling sync operations like `agent.run()` from an async web server, you need to offload them to a background thread using `anyio.to_thread.run_sync`. This prevents blocking the async event loop while the sync operation runs.
+
+**Valid use cases:**
+- Running sync `agent.run()` from async web servers
+- Calling any blocking/sync operations from async contexts
+- Mixing sync and async code in the same application
 
 ## Building a Starlette App with Native Async
 
@@ -106,9 +111,9 @@ app = Starlette(routes=[
 ])
 ```
 
-### Threading Approach (Legacy)
+### Threading Approach (For Sync Operations)
 
-For backward compatibility with sync-only agents:
+For running sync operations from async contexts:
 
 ```python
 import anyio.to_thread
@@ -121,13 +126,13 @@ from smolagents import CodeAgent, InferenceClientModel
 
 agent = CodeAgent(
     model=InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"),
-    tools=[],  # Sync tools only
+    tools=[],
 )
 
 async def run_agent(request: Request):
     data = await request.json()
     task = data.get("task", "")
-    # Run sync agent in background thread
+    # Run sync operation (agent.run) in background thread
     result = await anyio.to_thread.run_sync(agent.run, task)
     return JSONResponse({"result": result})
 
@@ -156,15 +161,18 @@ curl -X POST http://localhost:8000/run-agent \
 {"result": "approved: delete account"}
 ```
 
-## Comparison: Threading vs Native Async
+## Comparison: Native Async vs Threading
 
-| Feature | Native Async | Threading |
+| Feature | Native Async (`arun`) | Threading (`run_sync`) |
 |---------|-------------|-----------|
-| **Async tools** | ✅ Full support | ❌ Blocks thread |
+| **Async tools** | ✅ Non-blocking I/O | ❌ Blocks thread |
 | **Memory per task** | ~Few KB | ~1-8 MB |
 | **Context switching** | Efficient (event loop) | OS overhead |
 | **Scalability** | Thousands of tasks | Hundreds of threads |
-| **Best for** | Human-in-the-loop, API calls | Legacy sync code |
+| **Sync operations** | ❌ Would block event loop | ✅ Runs in thread |
+| **Best for** | Async tools, non-blocking I/O | Sync operations in async contexts |
+
+**Both are valid patterns!** Use native async for async tools, and threading when you need to call sync operations from async contexts.
 
 ## Further Reading
 

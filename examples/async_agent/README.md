@@ -1,50 +1,52 @@
 # Async Applications with Agents
 
-This example demonstrates **two approaches** for using agents in asynchronous Starlette web applications:
+This example demonstrates **two approaches** for integrating agents in asynchronous Starlette web applications:
 
-1. **Native async support** (recommended) - Uses agents with async tools
-2. **Threading approach** (legacy) - Runs sync agents in background threads
+1. **Native async** - Use `await agent.arun()` for async tools and non-blocking I/O
+2. **Threading** - Use `await anyio.to_thread.run_sync(agent.run, ...)` to run sync operations in async contexts
 
 ## Key Concepts
 
 - **Starlette**: Lightweight ASGI framework for async web apps
-- **Native async**: Agents natively support async/await with async tools
+- **Native async**: Agents support `arun()` for async tools with non-blocking I/O
 - **Async tools**: Tools that can await human input, external APIs, or long-running operations
-- **Threading (legacy)**: For backward compatibility with sync-only tools
+- **Threading**: Run sync operations (like `agent.run()`) in background threads from async contexts
 
 ## How it works
 
 The app exposes two endpoints:
 
-### `/run-agent` - Native Async (Recommended)
+### `/run-agent` - Native Async (For Async Tools)
 
-- Uses `CodeAgent.arun()` with async tools
-- **Non-blocking I/O**: While waiting for approval, event loop can handle other requests
+- Uses `await agent.arun(task)` with async tools
+- **Non-blocking I/O**: While waiting for async tools, event loop can handle other requests
 - **Memory efficient**: Async tasks use ~few KB vs threads at ~1-8MB each
-- **Perfect for**: Human-in-the-loop workflows, API calls, long-running operations
+- **Perfect for**: Async tools (human-in-the-loop, API calls, long-running operations)
 
-### `/run-agent-threading` - Threading (Legacy)
+### `/run-agent-threading` - Threading (For Sync Operations)
 
-- Uses `anyio.to_thread.run_sync()` to run sync agent in background thread
-- **Backward compatible**: Works with sync-only tools
+- Uses `await anyio.to_thread.run_sync(agent.run, task)` to run sync operations
+- **Valid pattern**: Run sync `agent.run()` in background thread from async context
 - **Resource intensive**: Each thread consumes 1-8MB of memory
-- **Use when**: You have legacy sync code that can't be made async
+- **Use when**: You need to call sync operations from async contexts, or have sync-only tools
 
-## Why Native Async?
+## Choosing the Right Approach
 
-**Native async approach:**
+**When to use native async:**
 ```python
-# Agent with async tool
+# Use when you have async tools (recommended for new code)
 agent = CodeAgent(model=model, tools=[HumanApprovalTool()])
 result = await agent.arun(task)  # Efficient non-blocking I/O
 ```
 
-**Threading approach (legacy):**
+**When to use threading:**
 ```python
-# Sync agent in background thread
+# Use when calling sync operations from async contexts
 agent = CodeAgent(model=model, tools=[])
-result = await anyio.to_thread.run_sync(agent.run, task)  # Blocks thread
+result = await anyio.to_thread.run_sync(agent.run, task)  # Runs in thread
 ```
+
+**Both are valid!** Threading isn't just for legacy code - use it whenever you need to call sync operations from async contexts (like async web servers).
 
 ## Usage
 
@@ -70,7 +72,7 @@ result = await anyio.to_thread.run_sync(agent.run, task)  # Blocks thread
    {"result": "approved: delete user account", "approach": "native-async"}
    ```
 
-4. **Test threading endpoint** (legacy):
+4. **Test threading endpoint**:
    ```bash
    curl -X POST http://localhost:8000/run-agent-threading \
      -H 'Content-Type: application/json' \
@@ -82,14 +84,15 @@ result = await anyio.to_thread.run_sync(agent.run, task)  # Blocks thread
    {"result": "4", "approach": "threading"}
    ```
 
-## Performance Comparison
+## Comparison
 
-| Metric | Native Async | Threading |
+| Metric | Native Async (`arun`) | Threading (`run_sync`) |
 |--------|-------------|-----------|
 | **Memory per request** | ~Few KB | ~1-8 MB |
 | **Concurrent requests** | Thousands | Hundreds |
-| **Async tools** | ✅ Supported | ❌ Blocks thread |
-| **Best for** | Modern async tools | Legacy sync code |
+| **Async tools** | ✅ Non-blocking | ❌ Blocks thread |
+| **Sync operations** | ❌ Would block | ✅ Runs in thread |
+| **Best for** | Async tools, I/O operations | Sync operations in async contexts |
 
 ## Files
 
