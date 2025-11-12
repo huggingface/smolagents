@@ -576,6 +576,7 @@ class TestBlaxelExecutorUnit:
 
         # patch manually for Python 3.10 compatibility
         from unittest.mock import patch
+
         mod = importlib.import_module("blaxel.core.client.api.compute")
         patcher = patch.object(mod, "create_sandbox")
         mock_create_sandbox = patcher.start()
@@ -605,7 +606,6 @@ class TestBlaxelExecutorUnit:
         assert executor.image == "blaxel/jupyter-notebook"
         assert executor.memory == 4096
         assert executor.region is None
-
 
     @patch("smolagents.remote_executors.BlaxelExecutor.install_packages")
     @patch("smolagents.remote_executors._create_kernel_http")
@@ -658,13 +658,12 @@ class TestBlaxelExecutorUnit:
     @patch("smolagents.remote_executors._create_kernel_http")
     @patch("blaxel.core.SandboxInstance")
     @patch("blaxel.core.settings")
-    def test_blaxel_executor_cleanup(
-        self, mock_settings, mock_sandbox_instance, mock_create_kernel
-    ):
+    def test_blaxel_executor_cleanup(self, mock_settings, mock_sandbox_instance, mock_create_kernel):
         """Test BlaxelExecutor cleanup method."""
 
         # patch manually for Python 3.10 compatibility
         from unittest.mock import patch
+
         mod = importlib.import_module("blaxel.core.client.api.compute")
         create_sandbox_patcher = patch.object(mod, "create_sandbox")
         mock_create_sandbox = create_sandbox_patcher.start()
