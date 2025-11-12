@@ -1020,7 +1020,7 @@ You have been provided with these additional arguments, that you can access dire
         # --- START FIX: Handle backward compatibility for renamed HfApiModel ---
         if model_class_name == "HfApiModel":
             model_class_name = "InferenceClientModel"
-            logger.warning(  # This uses the logger defined at the top of agents.py
+            logger.warning(
                 "Loading an agent created with the deprecated 'HfApiModel' class. "
                 "This class has been renamed to 'InferenceClientModel'. "
                 "The agent's model class has been automatically updated for compatibility."
