@@ -1013,9 +1013,21 @@ You have been provided with these additional arguments, that you can access dire
         Returns:
             `MultiStepAgent`: Instance of the agent class.
         """
+
         # Load model
         model_info = agent_dict["model"]
-        model_class = getattr(importlib.import_module("smolagents.models"), model_info["class"])
+        model_class_name = model_info["class"]
+        # --- START FIX: Handle backward compatibility for renamed HfApiModel ---
+        if model_class_name == "HfApiModel":
+            model_class_name = "InferenceClientModel"
+            logger.warning(  # This uses the logger defined at the top of agents.py
+                "Loading an agent created with the deprecated 'HfApiModel' class. "
+                "This class has been renamed to 'InferenceClientModel'. "
+                "The agent's model class has been automatically updated for compatibility."
+            )
+        
+        model_class = getattr(importlib.import_module("smolagents.models"), model_class_name)
+        # --- END FIX ---
         model = model_class.from_dict(model_info["data"])
         # Load tools
         tools = []
