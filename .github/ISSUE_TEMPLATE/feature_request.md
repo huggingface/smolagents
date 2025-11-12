@@ -1,23 +1,36 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-title: ''
+title: 'ENH: '
 labels: enhancement
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+<!--
+Thank you for suggesting an idea to improve this project!
+Please provide as much detail as possible.
+-->
 
-**Describe the solution you'd like**
+**Problem**
+A clear and concise description of what the problem is that this feature would solve. For example, "I'm always frustrated when..."
+
+**Proposed solution**
 A clear and concise description of what you want to happen.
 
 **Is this not possible with the current options.**
 Make sure to consider if what you're requesting can be done with current abstractions.
 
-**Describe alternatives you've considered**
+**Alternatives considered**
 A clear and concise description of any alternative solutions or features you've considered.
+Please also describe if what you're requesting can be achieved with the current abstractions, and if so, why a new feature is still needed.
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+**Additional context (optional)**
+Add any other context, screenshots, or links about the feature request here.
+
+---
+
+### Checklist
+- [ ] I have searched the existing issues and have not found a similar feature request.
+- [ ] I have verified that this feature is not already implemented in the latest version.
+- [ ] I am willing to work on this feature and submit a pull request. (optional)

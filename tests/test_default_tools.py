@@ -31,10 +31,10 @@ from .utils.markers import require_run_all
 
 class DefaultToolTests(unittest.TestCase):
     def test_visit_webpage(self):
-        arguments = {"url": "https://en.wikipedia.org/wiki/United_States_Secretary_of_Homeland_Security"}
+        arguments = {"url": "https://huggingface.co/"}
         result = VisitWebpageTool()(arguments)
         assert isinstance(result, str)
-        assert "* [About Wikipedia](/wiki/Wikipedia:About)" in result  # Proper wikipedia pages have an About
+        assert "Hugging Face – The AI community building the future" in result
 
     @require_run_all
     def test_ddgs_with_kwargs(self):

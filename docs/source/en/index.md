@@ -37,7 +37,7 @@ Get started with smolagents in just a few minutes! This guide will show you how 
 Install smolagents with pip:
 
 ```bash
-pip install smolagents[toolkit]  # Includes default tools like web search
+pip install 'smolagents[toolkit]'  # Includes default tools like web search
 ```
 
 ### Create Your First Agent
@@ -86,11 +86,11 @@ You can use various models with your agent:
 # Using a specific model from Hugging Face
 model = InferenceClientModel(model_id="meta-llama/Llama-2-70b-chat-hf")
 
-# Using OpenAI/Anthropic (requires smolagents[litellm])
+# Using OpenAI/Anthropic (requires 'smolagents[litellm]')
 from smolagents import LiteLLMModel
 model = LiteLLMModel(model_id="gpt-4")
 
-# Using local models (requires smolagents[transformers])
+# Using local models (requires 'smolagents[transformers]')
 from smolagents import TransformersModel
 model = TransformersModel(model_id="meta-llama/Llama-2-7b-chat-hf")
 ```

@@ -21,10 +21,12 @@ import inspect
 import logging
 import math
 import re
-from collections.abc import Callable, Mapping
+from abc import ABC, abstractmethod
+from collections.abc import Callable, Generator, Mapping
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
+from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any
 
@@ -53,6 +55,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
 def custom_print(*args):
@@ -496,7 +499,21 @@ def evaluate_class_def(
 ) -> type:
     class_name = class_def.name
     bases = [evaluate_ast(base, state, static_tools, custom_tools, authorized_imports) for base in class_def.bases]
-    class_dict = {}
+
+    # Determine the metaclass to use
+    # If any base class has a custom metaclass, use it
+    metaclass = type
+    for base in bases:
+        base_metaclass = type(base)
+        if base_metaclass is not type:
+            metaclass = base_metaclass
+            break
+
+    # Use __prepare__ if the metaclass provides it (e.g., Enum uses _EnumDict)
+    if hasattr(metaclass, "__prepare__"):
+        class_dict = metaclass.__prepare__(class_name, bases)
+    else:
+        class_dict = {}
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
@@ -549,7 +566,7 @@ def evaluate_class_def(
         else:
             raise InterpreterError(f"Unsupported statement in class body: {stmt.__class__.__name__}")
 
-    new_class = type(class_name, tuple(bases), class_dict)
+    new_class = metaclass(class_name, tuple(bases), class_dict)
     state[class_name] = new_class
     return new_class
 
@@ -807,10 +824,17 @@ def evaluate_call(
         else:
             args.append(evaluate_ast(arg, state, static_tools, custom_tools, authorized_imports))
 
-    kwargs = {
-        keyword.arg: evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
-        for keyword in call.keywords
-    }
+    kwargs = {}
+    for keyword in call.keywords:
+        if keyword.arg is None:
+            # **kwargs unpacking
+            starred_dict = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
+            if not isinstance(starred_dict, dict):
+                raise InterpreterError(f"Cannot unpack non-dict value in **kwargs: {type(starred_dict).__name__}")
+            kwargs.update(starred_dict)
+        else:
+            # Normal keyword argument
+            kwargs[keyword.arg] = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
 
     if func_name == "super":
         if not args:
@@ -836,6 +860,14 @@ def evaluate_call(
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
+        if (
+            hasattr(func, "__name__")
+            and func.__name__.startswith("__")
+            and func.__name__.endswith("__")
+            and (func.__name__ not in static_tools)
+            and (func.__name__ not in ALLOWED_DUNDER_METHODS)
+        ):
+            raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
         return func(*args, **kwargs)
 
 
@@ -968,13 +1000,53 @@ def evaluate_for(
                 if line_result is not None:
                     result = line_result
             except BreakException:
-                break
+                return result
             except ContinueException:
-                continue
-        else:
-            continue
-        break
+                break
     return result
+
+
+def _evaluate_comprehensions(
+    comprehensions: list[ast.comprehension],
+    evaluate_element: Callable[[dict[str, Any]], Any],
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Generator[Any, None, None]:
+    """
+    Recursively evaluate nested comprehensions and yields elements.
+
+    Args:
+        comprehensions (`list[ast.comprehension]`): Comprehensions to evaluate.
+        evaluate_element (`Callable`): Function that evaluates the final element when comprehensions are exhausted.
+        state (`dict[str, Any]`): Current evaluation state.
+        static_tools (`dict[str, Callable]`): Static tools.
+        custom_tools (`dict[str, Callable]`): Custom tools.
+        authorized_imports (`list[str]`): Authorized imports.
+
+    Yields:
+        `Any`: Individual elements produced by the comprehension
+    """
+    # Base case: no more comprehensions
+    if not comprehensions:
+        yield evaluate_element(state)
+        return
+    # Evaluate first comprehension
+    comprehension = comprehensions[0]
+    iter_value = evaluate_ast(comprehension.iter, state, static_tools, custom_tools, authorized_imports)
+    for value in iter_value:
+        new_state = state.copy()
+        set_value(comprehension.target, value, new_state, static_tools, custom_tools, authorized_imports)
+        # Check all filter conditions
+        if all(
+            evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+            for if_clause in comprehension.ifs
+        ):
+            # Recurse with remaining comprehensions
+            yield from _evaluate_comprehensions(
+                comprehensions[1:], evaluate_element, new_state, static_tools, custom_tools, authorized_imports
+            )
 
 
 def evaluate_listcomp(
@@ -984,41 +1056,16 @@ def evaluate_listcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> list[Any]:
-    def inner_evaluate(generators: list[ast.comprehension], index: int, current_state: dict[str, Any]) -> list[Any]:
-        if index >= len(generators):
-            return [
-                evaluate_ast(
-                    listcomp.elt,
-                    current_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-            ]
-        generator = generators[index]
-        iter_value = evaluate_ast(
-            generator.iter,
-            current_state,
+    return list(
+        _evaluate_comprehensions(
+            listcomp.generators,
+            lambda comp_state: evaluate_ast(listcomp.elt, comp_state, static_tools, custom_tools, authorized_imports),
+            state,
             static_tools,
             custom_tools,
             authorized_imports,
         )
-        result = []
-        for value in iter_value:
-            new_state = current_state.copy()
-            if isinstance(generator.target, ast.Tuple):
-                for idx, elem in enumerate(generator.target.elts):
-                    new_state[elem.id] = value[idx]
-            else:
-                new_state[generator.target.id] = value
-            if all(
-                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                for if_clause in generator.ifs
-            ):
-                result.extend(inner_evaluate(generators, index + 1, new_state))
-        return result
-
-    return inner_evaluate(listcomp.generators, 0, state)
+    )
 
 
 def evaluate_setcomp(
@@ -1028,32 +1075,38 @@ def evaluate_setcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> set[Any]:
-    result = set()
-    for gen in setcomp.generators:
-        iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
-        for value in iter_value:
-            new_state = state.copy()
-            set_value(
-                gen.target,
-                value,
-                new_state,
-                static_tools,
-                custom_tools,
-                authorized_imports,
-            )
-            if all(
-                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                for if_clause in gen.ifs
-            ):
-                element = evaluate_ast(
-                    setcomp.elt,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                result.add(element)
-    return result
+    return set(
+        _evaluate_comprehensions(
+            setcomp.generators,
+            lambda comp_state: evaluate_ast(setcomp.elt, comp_state, static_tools, custom_tools, authorized_imports),
+            state,
+            static_tools,
+            custom_tools,
+            authorized_imports,
+        )
+    )
+
+
+def evaluate_dictcomp(
+    dictcomp: ast.DictComp,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> dict[Any, Any]:
+    return dict(
+        _evaluate_comprehensions(
+            dictcomp.generators,
+            lambda comp_state: (
+                evaluate_ast(dictcomp.key, comp_state, static_tools, custom_tools, authorized_imports),
+                evaluate_ast(dictcomp.value, comp_state, static_tools, custom_tools, authorized_imports),
+            ),
+            state,
+            static_tools,
+            custom_tools,
+            authorized_imports,
+        )
+    )
 
 
 def evaluate_try(
@@ -1236,46 +1289,39 @@ def evaluate_import(expression, state, authorized_imports):
         return None
 
 
-def evaluate_dictcomp(
-    dictcomp: ast.DictComp,
+def evaluate_generatorexp(
+    genexp: ast.GeneratorExp,
     state: dict[str, Any],
     static_tools: dict[str, Callable],
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
-) -> dict[Any, Any]:
-    result = {}
-    for gen in dictcomp.generators:
-        iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
-        for value in iter_value:
-            new_state = state.copy()
-            set_value(
-                gen.target,
-                value,
-                new_state,
-                static_tools,
-                custom_tools,
-                authorized_imports,
-            )
-            if all(
-                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                for if_clause in gen.ifs
-            ):
-                key = evaluate_ast(
-                    dictcomp.key,
+) -> Generator[Any]:
+    def generator():
+        for gen in genexp.generators:
+            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+            for value in iter_value:
+                new_state = state.copy()
+                set_value(
+                    gen.target,
+                    value,
                     new_state,
                     static_tools,
                     custom_tools,
                     authorized_imports,
                 )
-                val = evaluate_ast(
-                    dictcomp.value,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                result[key] = val
-    return result
+                if all(
+                    evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                    for if_clause in gen.ifs
+                ):
+                    yield evaluate_ast(
+                        genexp.elt,
+                        new_state,
+                        static_tools,
+                        custom_tools,
+                        authorized_imports,
+                    )
+
+    return generator()
 
 
 def evaluate_delete(
@@ -1364,7 +1410,9 @@ def evaluate_ast(
         return expression.value
     elif isinstance(expression, ast.Tuple):
         return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
-    elif isinstance(expression, (ast.ListComp, ast.GeneratorExp)):
+    elif isinstance(expression, ast.GeneratorExp):
+        return evaluate_generatorexp(expression, *common_params)
+    elif isinstance(expression, ast.ListComp):
         return evaluate_listcomp(expression, *common_params)
     elif isinstance(expression, ast.DictComp):
         return evaluate_dictcomp(expression, *common_params)
@@ -1557,8 +1605,15 @@ class CodeOutput:
     is_final_answer: bool
 
 
-class PythonExecutor:
-    pass
+class PythonExecutor(ABC):
+    @abstractmethod
+    def send_tools(self, tools: dict[str, Tool]) -> None: ...
+
+    @abstractmethod
+    def send_variables(self, variables: dict[str, Any]) -> None: ...
+
+    @abstractmethod
+    def __call__(self, code_action: str) -> CodeOutput: ...
 
 
 class LocalPythonExecutor(PythonExecutor):
@@ -1592,9 +1647,29 @@ class LocalPythonExecutor(PythonExecutor):
             self.max_print_outputs_length = DEFAULT_MAX_LEN_OUTPUT
         self.additional_authorized_imports = additional_authorized_imports
         self.authorized_imports = list(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
-        # TODO: assert self.authorized imports are all installed locally
+        self._check_authorized_imports_are_installed()
         self.static_tools = None
         self.additional_functions = additional_functions or {}
+
+    def _check_authorized_imports_are_installed(self):
+        """
+        Check that all authorized imports are installed on the system.
+
+        Handles wildcard imports ("*") and partial star-pattern imports (e.g., "os.*").
+
+        Raises:
+            InterpreterError: If any of the authorized modules are not installed.
+        """
+        missing_modules = [
+            base_module
+            for imp in self.authorized_imports
+            if imp != "*" and find_spec(base_module := imp.split(".")[0]) is None
+        ]
+        if missing_modules:
+            raise InterpreterError(
+                f"Non-installed authorized modules: {', '.join(missing_modules)}. "
+                f"Please install these modules or remove them from the authorized imports list."
+            )
 
     def __call__(self, code_action: str) -> CodeOutput:
         output, is_final_answer = evaluate_python_code(
@@ -1608,7 +1683,7 @@ class LocalPythonExecutor(PythonExecutor):
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
 
-    def send_variables(self, variables: dict):
+    def send_variables(self, variables: dict[str, Any]):
         self.state.update(variables)
 
     def send_tools(self, tools: dict[str, Tool]):

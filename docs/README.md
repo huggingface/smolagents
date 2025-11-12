@@ -29,8 +29,6 @@ You also need to install 2 extra packages:
 ```bash
 # `hf-doc-builder` to build the docs
 pip install git+https://github.com/huggingface/doc-builder@main
-# `watchdog` for live reloads
-pip install watchdog
 ```
 
 ---

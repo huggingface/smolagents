@@ -16,20 +16,22 @@
 # limitations under the License.
 import ast
 import base64
-import importlib.metadata
 import importlib.util
 import inspect
 import json
 import keyword
 import os
+import random
 import re
 import time
-import types
 from functools import lru_cache
 from io import BytesIO
+from logging import Logger
 from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
+
+import jinja2
 
 
 if TYPE_CHECKING:
@@ -41,11 +43,7 @@ __all__ = ["AgentError"]
 
 @lru_cache
 def _is_package_available(package_name: str) -> bool:
-    try:
-        importlib.metadata.version(package_name)
-        return True
-    except importlib.metadata.PackageNotFoundError:
-        return False
+    return importlib.util.find_spec(package_name) is not None
 
 
 BASE_BUILTIN_MODULES = [
@@ -269,36 +267,6 @@ class ImportFinder(ast.NodeVisitor):
             self.packages.add(base_package)
 
 
-def get_method_source(method):
-    """Get source code for a method, including bound methods."""
-    if isinstance(method, types.MethodType):
-        method = method.__func__
-    return get_source(method)
-
-
-def is_same_method(method1, method2):
-    """Compare two methods by their source code."""
-    try:
-        source1 = get_method_source(method1)
-        source2 = get_method_source(method2)
-
-        # Remove method decorators if any
-        source1 = "\n".join(line for line in source1.split("\n") if not line.strip().startswith("@"))
-        source2 = "\n".join(line for line in source2.split("\n") if not line.strip().startswith("@"))
-
-        return source1 == source2
-    except (TypeError, OSError):
-        return False
-
-
-def is_same_item(item1, item2):
-    """Compare two class items (methods or attributes) for equality."""
-    if callable(item1) and callable(item2):
-        return is_same_method(item1, item2)
-    else:
-        return item1 == item2
-
-
 def instance_to_source(instance, base_cls=None):
     """Convert an instance to its class source code representation."""
     cls = instance.__class__
@@ -320,6 +288,7 @@ def instance_to_source(instance, base_cls=None):
         name: value
         for name, value in cls.__dict__.items()
         if not name.startswith("__")
+        and not name == "_abc_impl"
         and not callable(value)
         and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
     }
@@ -479,7 +448,7 @@ from {{managed_agent_relative_path}}managed_agents.{{ managed_agent.name }}.app 
 {% endfor %}
 
 model = {{ agent_dict['model']['class'] }}(
-{% for key in agent_dict['model']['data'] if key not in ['class', 'last_input_token_count', 'last_output_token_count'] -%}
+{% for key in agent_dict['model']['data'] if key != 'class' -%}
     {{ key }}={{ agent_dict['model']['data'][key]|repr }},
 {% endfor %})
 
@@ -494,13 +463,20 @@ with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
     model=model,
     tools=[{% for tool_name in tools.keys() if tool_name != "final_answer" %}{{ tool_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
     managed_agents=[{% for subagent_name in managed_agents.keys() %}agent_{{ subagent_name }}{% if not loop.last %}, {% endif %}{% endfor %}],
-    {% for attribute_name, value in agent_dict.items() if attribute_name not in ["model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
+    {% for attribute_name, value in agent_dict.items() if attribute_name not in ["class", "model", "tools", "prompt_templates", "authorized_imports", "managed_agents", "requirements"] -%}
     {{ attribute_name }}={{ value|repr }},
     {% endfor %}prompt_templates=prompt_templates
 )
 if __name__ == "__main__":
     GradioUI({{ agent_name }}).launch()
 """.strip()
+
+
+def create_agent_gradio_app_template():
+    env = jinja2.Environment(loader=jinja2.BaseLoader(), undefined=jinja2.StrictUndefined)
+    env.filters["repr"] = repr
+    env.filters["camelcase"] = lambda value: "".join(word.capitalize() for word in value.split("_"))
+    return env.from_string(AGENT_GRADIO_APP_TEMPLATE)
 
 
 class RateLimiter:
@@ -532,3 +508,84 @@ class RateLimiter:
         if elapsed < self._interval:
             time.sleep(self._interval - elapsed)
         self._last_call = time.time()
+
+
+class Retrying:
+    """Simple retrying controller. Inspired from library [tenacity](https://github.com/jd/tenacity/)."""
+
+    def __init__(
+        self,
+        max_attempts: int = 1,
+        wait_seconds: float = 0.0,
+        exponential_base: float = 2.0,
+        jitter: bool = True,
+        retry_predicate: Callable[[BaseException], bool] | None = None,
+        reraise: bool = False,
+        before_sleep_logger: tuple[Logger, int] | None = None,
+        after_logger: tuple[Logger, int] | None = None,
+    ):
+        self.max_attempts = max_attempts
+        self.wait_seconds = wait_seconds
+        self.exponential_base = exponential_base
+        self.jitter = jitter
+        self.retry_predicate = retry_predicate
+        self.reraise = reraise
+        self.before_sleep_logger = before_sleep_logger
+        self.after_logger = after_logger
+
+    def __call__(self, fn, *args: Any, **kwargs: Any) -> Any:
+        start_time = time.time()
+        delay = self.wait_seconds
+
+        for attempt_number in range(1, self.max_attempts + 1):
+            try:
+                result = fn(*args, **kwargs)
+
+                # Log after successful call if we had retries
+                if self.after_logger and attempt_number > 1:
+                    logger, log_level = self.after_logger
+                    seconds = time.time() - start_time
+                    fn_name = getattr(fn, "__name__", repr(fn))
+                    logger.log(
+                        log_level,
+                        f"Finished call to '{fn_name}' after {seconds:.3f}(s), this was attempt n°{attempt_number}/{self.max_attempts}.",
+                    )
+
+                return result
+
+            except BaseException as e:
+                # Check if we should retry
+                should_retry = self.retry_predicate(e) if self.retry_predicate else False
+
+                # If this is the last attempt or we shouldn't retry, raise
+                if not should_retry or attempt_number >= self.max_attempts:
+                    if self.reraise:
+                        raise
+                    raise
+
+                # Log after failed attempt
+                if self.after_logger:
+                    logger, log_level = self.after_logger
+                    seconds = time.time() - start_time
+                    fn_name = getattr(fn, "__name__", repr(fn))
+                    logger.log(
+                        log_level,
+                        f"Finished call to '{fn_name}' after {seconds:.3f}(s), this was attempt n°{attempt_number}/{self.max_attempts}.",
+                    )
+
+                # Exponential backoff with jitter
+                # https://cookbook.openai.com/examples/how_to_handle_rate_limits#example-3-manual-backoff-implementation
+                delay *= self.exponential_base * (1 + self.jitter * random.random())
+
+                # Log before sleeping
+                if self.before_sleep_logger:
+                    logger, log_level = self.before_sleep_logger
+                    fn_name = getattr(fn, "__name__", repr(fn))
+                    logger.log(
+                        log_level,
+                        f"Retrying {fn_name} in {delay} seconds as it raised {e.__class__.__name__}: {e}.",
+                    )
+
+                # Sleep before next attempt
+                if delay > 0:
+                    time.sleep(delay)

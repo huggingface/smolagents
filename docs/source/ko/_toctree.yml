@@ -1,0 +1,54 @@
+- title: Get started
+  sections:
+  - local: index
+    title: 소개
+  - local: installation
+    title: 설치 옵션
+  - local: guided_tour
+    title: 안내서
+- title: 튜토리얼
+  sections:
+  - local: tutorials/building_good_agents
+    title: 좋은 에이전트 구축하기
+  - local: tutorials/inspect_runs
+    title: 📊 텔레메트리로 에이전트 실행 검사하기
+#  - local: tutorials/tools
+#    title: 🛠️ Tools - in-depth guide
+#  - local: tutorials/secure_code_execution
+#    title: 🛡️ Secure code execution
+  - local: tutorials/memory
+    title: 📚 에이전트 메모리 관리
+- title: Conceptual guides
+  sections:
+#  - local: conceptual_guides/intro_agents
+#    title: 🤖 What are agents?
+  - local: conceptual_guides/react
+    title: 🤔 멀티스텝 에이전트는 어떻게 동작하나요?
+- title: 예제
+  sections:
+  - local: examples/text_to_sql
+    title: 스스로 오류를 수정하는 Text-to-SQL
+  - local: examples/rag
+    title: Agentic RAG로 지식 베이스 완전 정복하기
+  - local: examples/multiagents
+    title: 멀티 에이전트 시스템 오케스트레이션
+  - local: examples/web_browser
+    title: 비전 모델을 활용한 웹 브라우저 에이전트 만들기
+  - local: examples/using_different_models
+    title: 다양한 모델 사용하기
+  - local: examples/plan_customization
+    title: "Human-in-the-Loop: 사용자와 상호작용하며 에이전트 계획 수정하기"
+  - local: examples/async_agent
+    title: 에이전트를 활용한 비동기 애플리케이션
+- title: Reference
+  sections:
+  - local: reference/agents
+    title: 에이전트 관련 객체
+  - local: reference/models
+    title: 모델 관련 클래스
+#  - title: Tools
+#    sections:
+#    - title: Tool-related objects
+#      local: reference/tools
+#    - title: Built-in Tools
+#      local: reference/default_tools

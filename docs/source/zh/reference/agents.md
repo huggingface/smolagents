@@ -26,10 +26,6 @@ Smolagents 是一个实验性的 API，可能会随时发生变化。由于 API 
 
 [[autodoc]] ToolCallingAgent
 
-### ManagedAgent
-
-_此类自 1.8.0 起已被弃用：现在您只需向普通代理传递 `name` 和 `description` 属性即可使其可被管理代理调用。_
-
 ### stream_to_gradio
 
 [[autodoc]] stream_to_gradio
@@ -37,7 +33,7 @@ _此类自 1.8.0 起已被弃用：现在您只需向普通代理传递 `name` �
 ### GradioUI
 
 > [!TIP]
-> 您必须安装 `gradio` 才能使用 UI。如果尚未安装，请运行 `pip install smolagents[gradio]`。
+> 您必须安装 `gradio` 才能使用 UI。如果尚未安装，请运行 `pip install 'smolagents[gradio]'`。
 
 [[autodoc]] GradioUI
 

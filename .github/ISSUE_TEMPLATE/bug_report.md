@@ -1,26 +1,56 @@
 ---
 name: Bug report
 about: The clearer your bug report, the faster it will be fixed!
-title: "[BUG]"
+title: "BUG: "
 labels: bug
 assignees: ''
 
 ---
 
-**Describe the bug**
+<!--
+Thank you for reporting a bug!
+Please provide as much detail as possible to help us identify and fix the issue.
+-->
+
+**Problem**
 A clear and concise description of what the bug is.
 
-**Code to reproduce the error**
-The simplest code snippet that produces your bug.
+**Steps to reproduce**
+Please provide a minimal, self-contained, and reproducible example of the bug.
+1.  ...
+2.  ...
+3.  ...
 
-**Error logs (if any)**
-Provide error logs if there are any.
+```python
+# Your code to reproduce the bug here
+```
+
+**Actual behavior and error logs**
+A clear and concise description of what actually happened. Please include the full traceback if an exception was raised.
+```shell
+
+```
 
 **Expected behavior**
 A clear and concise description of what you expected to happen.
 
-**Packages version:**
-Run `pip freeze | grep smolagents` and paste it here.
+**Environment:**
+Please complete the following information:
+- OS: [e.g., Linux, macOS, Windows]
+- Python version: [e.g., 3.10]
+- Package version: (output of `pip show smolagents`)
+```
 
-**Additional context**
-Add any other context about the problem here.
+```
+
+**Additional context (optional)**
+Add any other context, screenshots, or links about the bug here.
+
+---
+
+### Checklist
+- [ ] I have searched the existing issues and have not found a similar bug report.
+- [ ] I have provided a minimal, reproducible example.
+- [ ] I have provided the full traceback of the error.
+- [ ] I have provided my environment details.
+- [ ] I am willing to work on this issue and submit a pull request. (optional)

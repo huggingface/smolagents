@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.20.0.dev0"
+version = "1.23.0.dev0"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" },
@@ -12,12 +12,13 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "huggingface-hub>=0.31.2",
+  "huggingface-hub>=0.31.2,<1.0.0",
   "requests>=2.32.3",
   "rich>=13.9.4",
   "jinja2>=3.1.4",
-  "pillow>=10.0.1",  # Security fix for CVE-2023-4863: https://pillow.readthedocs.io/en/stable/releasenotes/10.0.1.html
-  "python-dotenv"
+  "pillow>=10.0.1",
+  # Security fix for CVE-2023-4863: https://pillow.readthedocs.io/en/stable/releasenotes/10.0.1.html
+  "python-dotenv",
 ]
 
 [project.optional-dependencies]
@@ -48,23 +49,27 @@ litellm = [
   "litellm>=1.60.2",
 ]
 mcp = [
-  "mcpadapt>=0.1.8",  # Support Streamable HTTP transport
+  "mcpadapt>=0.1.13",  # Support structured output
   "mcp",
 ]
 mlx-lm = [
-  "mlx-lm"
+  "mlx-lm",
+]
+modal = [
+  "modal>=1.1.3",
+  "websocket-client",
 ]
 openai = [
   "openai>=1.58.1"
 ]
 telemetry = [
   "arize-phoenix",
-  "opentelemetry-sdk", 
+  "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
-  "openinference-instrumentation-smolagents>=0.1.4"
+  "openinference-instrumentation-smolagents>=0.1.15"  # Use new TokenUsage structure
 ]
 toolkit = [
-  "duckduckgo-search>=6.3.7",  # DuckDuckGoSearchTool
+  "ddgs>=9.0.0",  # DuckDuckGoSearchTool
   "markdownify>=0.14.1",  # VisitWebpageTool
 ]
 transformers = [
@@ -77,11 +82,11 @@ vision = [
   "selenium",
 ]
 vllm = [
-  "vllm",
+  "vllm>=0.10.2",
   "torch"
 ]
 all = [
-  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,openai,telemetry,toolkit,transformers,vision,bedrock]",
+  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
 ]
 quality = [
   "ruff>=0.9.0",
@@ -91,10 +96,12 @@ test = [
   "pandas>=2.2.3",
   "pytest>=8.1.0",
   "pytest-datadir",
+  "pytest-timeout",  # For test_all_docs: @pytest.mark.timeout
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
   "Wikipedia-API>=0.8.1",
+  "mlx[cpu]",  # GH-1588
 ]
 dev = [
   "smolagents[quality,test]",

@@ -29,8 +29,7 @@ from smolagents import (
     InferenceClientModel,
     LiteLLMModel,
     Model,
-    MultiStepAgent,
-    OpenAIServerModel,
+    OpenAIModel,
     Tool,
     ToolCallingAgent,
     TransformersModel,
@@ -56,7 +55,7 @@ def parse_arguments():
         "--model-type",
         type=str,
         default="InferenceClientModel",
-        help="The model type to use (e.g., InferenceClientModel, OpenAIServerModel, LiteLLMModel, TransformersModel)",
+        help="The model type to use (e.g., InferenceClientModel, OpenAIModel, LiteLLMModel, TransformersModel)",
     )
     parser.add_argument(
         "--action-type",
@@ -67,7 +66,7 @@ def parse_arguments():
     parser.add_argument(
         "--model-id",
         type=str,
-        default="Qwen/Qwen2.5-Coder-32B-Instruct",
+        default="Qwen/Qwen3-Next-80B-A3B-Thinking",
         help="The model ID to use for the specified model type",
     )
     parser.add_argument(
@@ -193,8 +192,8 @@ def load_model(
     api_key: str | None = None,
     provider: str | None = None,
 ) -> Model:
-    if model_type == "OpenAIServerModel":
-        return OpenAIServerModel(
+    if model_type == "OpenAIModel":
+        return OpenAIModel(
             api_key=api_key or os.getenv("FIREWORKS_API_KEY"),
             api_base=api_base or "https://api.fireworks.ai/inference/v1",
             model_id=model_id,
@@ -246,14 +245,14 @@ def run_smolagent(
                 raise ValueError(f"Tool {tool_name} is not recognized either as a default tool or a Space.")
 
     if action_type == "code":
-        agent: MultiStepAgent = CodeAgent(
+        agent = CodeAgent(
             tools=available_tools,
             model=model,
             additional_authorized_imports=imports,
             stream_outputs=True,
         )
     elif action_type == "tool_calling":
-        agent: MultiStepAgent = ToolCallingAgent(tools=available_tools, model=model, stream_outputs=True)
+        agent = ToolCallingAgent(tools=available_tools, model=model, stream_outputs=True)
     else:
         raise ValueError(f"Unsupported action type: {action_type}")
 

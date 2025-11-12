@@ -131,7 +131,7 @@ class AgentLogger:
     def __init__(self, level: LogLevel = LogLevel.INFO, console: Console | None = None):
         self.level = level
         if console is None:
-            self.console = Console()
+            self.console = Console(highlight=False)
         else:
             self.console = console
 
@@ -210,7 +210,7 @@ class AgentLogger:
         )
 
     def log_messages(self, messages: list[dict], level: LogLevel = LogLevel.DEBUG) -> None:
-        messages_as_string = "\n".join([json.dumps(dict(message), indent=4) for message in messages])
+        messages_as_string = "\n".join([json.dumps(message.dict(), indent=4) for message in messages])
         self.log(
             Syntax(
                 messages_as_string,

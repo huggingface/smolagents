@@ -18,13 +18,10 @@ import unittest
 import uuid
 
 import PIL.Image
-from transformers.testing_utils import (
-    require_soundfile,
-)
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 
-from .utils.markers import require_torch
+from .utils.markers import require_soundfile, require_torch
 
 
 def get_new_path(suffix="") -> str:

@@ -21,7 +21,7 @@
 - title: Conceptual guides
   sections:
   - local: conceptual_guides/intro_agents
-    title: 🤖 An introduction to agentic systems
+    title: 🤖 What are agents?
   - local: conceptual_guides/react
     title: 🤔 How do Multi-step agents work?
 - title: Examples

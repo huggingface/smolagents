@@ -196,10 +196,7 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
                     self.class_attributes.add(target.id)
 
             # Check if the assignment is more complex than simple literals
-            if not all(
-                isinstance(val, (ast.Str, ast.Num, ast.Constant, ast.Dict, ast.List, ast.Set))
-                for val in ast.walk(node.value)
-            ):
+            if not all(isinstance(val, (ast.Constant, ast.Dict, ast.List, ast.Set)) for val in ast.walk(node.value)):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
                         self.complex_attributes.add(target.id)
@@ -223,7 +220,7 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
                 if default is None:
                     if arg.arg != "self":
                         self.non_defaults.add(arg.arg)
-                elif not isinstance(default, (ast.Str, ast.Num, ast.Constant, ast.Dict, ast.List, ast.Set)):
+                elif not isinstance(default, (ast.Constant, ast.Dict, ast.List, ast.Set)):
                     self.non_literal_defaults.add(arg.arg)
 
     class_level_checker = ClassLevelChecker()
