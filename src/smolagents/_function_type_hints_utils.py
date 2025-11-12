@@ -51,7 +51,7 @@ def _get_pydantic():
         return pydantic
     except ImportError as e:
         raise ImportError(
-            "Pydantic is required to use Pydantic models in tools. Please install it with: pip install 'pydantic>=2.0'"
+            "Pydantic is required to use Pydantic models in tools. Please install it with: pip install pydantic"
         ) from e
 
 

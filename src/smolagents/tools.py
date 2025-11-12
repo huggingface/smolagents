@@ -71,18 +71,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _get_pydantic():
-    """Lazy import of pydantic to avoid hard dependency."""
-    try:
-        import pydantic
-
-        return pydantic
-    except ImportError as e:
-        raise ImportError(
-            "Pydantic is required to use Pydantic models in tools. Please install it with: pip install 'pydantic>=2.0'"
-        ) from e
-
-
 def validate_after_init(cls):
     original_init = cls.__init__
 
