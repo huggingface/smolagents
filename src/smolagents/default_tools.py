@@ -120,10 +120,11 @@ class DuckDuckGoSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results: int = 10, rate_limit: float | None = 1.0, **kwargs):
+    def __init__(self, max_results: int = 10, rate_limit: float | None = 1.0, site_denylist: list[str] | None = None, **kwargs):
         super().__init__()
         self.max_results = max_results
         self.rate_limit = rate_limit
+        self.site_denylist = site_denylist or []
         self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
         self._last_request_time = 0.0
         try:
@@ -136,6 +137,11 @@ class DuckDuckGoSearchTool(Tool):
 
     def forward(self, query: str) -> str:
         self._enforce_rate_limit()
+
+        if self.site_denylist:
+            exclusion_terms = " ".join([f"-site:{pattern}" for pattern in self.site_denylist])
+            query = f"{query} {exclusion_terms}"
+
         results = self.ddgs.text(query, max_results=self.max_results)
         if len(results) == 0:
             raise Exception("No results found! Try a less restrictive/shorter query.")
@@ -169,7 +175,7 @@ class GoogleSearchTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, provider: str = "serpapi"):
+    def __init__(self, provider: str = "serpapi", site_denylist: list[str] | None = None):
         super().__init__()
         import os
 
@@ -183,9 +189,14 @@ class GoogleSearchTool(Tool):
         self.api_key = os.getenv(api_key_env_name)
         if self.api_key is None:
             raise ValueError(f"Missing API key. Make sure you have '{api_key_env_name}' in your env variables.")
+        self.site_denylist = site_denylist or []
 
     def forward(self, query: str, filter_year: int | None = None) -> str:
         import requests
+
+        if self.site_denylist:
+            exclusion_terms = " ".join([f"-site:{pattern}" for pattern in self.site_denylist])
+            query = f"{query} {exclusion_terms}"
 
         if self.provider == "serpapi":
             params = {
@@ -279,6 +290,7 @@ class ApiWebSearchTool(Tool):
         api_key_name: str = "",
         headers: dict = None,
         params: dict = None,
+        site_denylist: list[str] | None = None,
         rate_limit: float | None = 1.0,
     ):
         import os
@@ -290,6 +302,7 @@ class ApiWebSearchTool(Tool):
         self.headers = headers or {"X-Subscription-Token": self.api_key}
         self.params = params or {"count": 10}
         self.rate_limit = rate_limit
+        self.site_denylist = site_denylist or []
         self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
         self._last_request_time = 0.0
 
@@ -310,6 +323,11 @@ class ApiWebSearchTool(Tool):
         import requests
 
         self._enforce_rate_limit()
+
+        if self.site_denylist:
+            exclusion_terms = " ".join([f"-site:{pattern}" for pattern in self.site_denylist])
+            query = f"{query} {exclusion_terms}"
+
         params = {**self.params, "q": query}
         response = requests.get(self.endpoint, headers=self.headers, params=params)
         response.raise_for_status()
@@ -342,12 +360,19 @@ class WebSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results: int = 10, engine: str = "duckduckgo"):
+    def __init__(self, max_results: int = 10, engine: str = "duckduckgo", site_denylist: list[str] | None = None):
         super().__init__()
         self.max_results = max_results
         self.engine = engine
+        self.site_denylist = site_denylist or []
 
     def forward(self, query: str) -> str:
+        if self.site_denylist:
+            exclusion_terms = " ".join(
+                [f"-site:{pattern}" for pattern in self.site_denylist]
+            )
+            query = f"{query} {exclusion_terms}"
+
         results = self.search(query)
         if len(results) == 0:
             raise Exception("No results found! Try a less restrictive/shorter query.")
