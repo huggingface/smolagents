@@ -1021,9 +1021,7 @@ You have been provided with these additional arguments, that you can access dire
         if model_class_name == "HfApiModel":
             model_class_name = "InferenceClientModel"
             logger.warning(
-                "Loading an agent created with the deprecated 'HfApiModel' class. "
-                "This class has been renamed to 'InferenceClientModel'. "
-                "The agent's model class has been automatically updated for compatibility."
+                "The agent you're loading uses the deprecated 'HfApiModel' class: it was automatically updated to  'InferenceClientModel'."
             )
         
         model_class = getattr(importlib.import_module("smolagents.models"), model_class_name)
