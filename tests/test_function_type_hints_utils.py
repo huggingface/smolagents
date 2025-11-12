@@ -13,9 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from enum import Enum
-from typing import Any, List, Literal, Optional
+from typing import Annotated, Any, List, Literal, Optional
 
+import pydantic
 import pytest
+from pydantic import Field
 
 from smolagents._function_type_hints_utils import (
     DocstringParsingException,
@@ -525,20 +527,8 @@ class TestGetCode:
 class TestPydanticIntegration:
     """Test Pydantic BaseModel integration with type hint parsing."""
 
-    @pytest.fixture
-    def pydantic_available(self):
-        """Check if Pydantic is available for testing."""
-        try:
-            import importlib.util
-
-            if importlib.util.find_spec("pydantic") is None:
-                pytest.skip("Pydantic not available")
-        except ImportError:
-            pytest.skip("Pydantic not available")
-
-    def test_pydantic_model_detection(self, pydantic_available):
+    def test_pydantic_model_detection(self):
         """Test that Pydantic models are correctly detected."""
-        import pydantic
 
         class TestModel(pydantic.BaseModel):
             name: str
@@ -549,9 +539,8 @@ class TestPydanticIntegration:
         assert not _is_pydantic_model(str), "Should not detect regular types as Pydantic"
         assert not _is_pydantic_model(dict), "Should not detect regular types as Pydantic"
 
-    def test_pydantic_schema_generation(self, pydantic_available):
+    def test_pydantic_schema_generation(self):
         """Test that Pydantic schemas are correctly generated."""
-        import pydantic
 
         class TestModel(pydantic.BaseModel):
             name: str
@@ -572,10 +561,11 @@ class TestPydanticIntegration:
         assert isinstance(processed_schema, dict)
         # Should not have $defs after processing
         assert "$defs" not in processed_schema
+        assert processed_schema["properties"]["email"]["nullable"]
+        assert "nullable" not in processed_schema["properties"]["name"]
 
-    def test_pydantic_type_hint_parsing(self, pydantic_available):
+    def test_pydantic_type_hint_parsing(self):
         """Test that Pydantic models are correctly parsed as type hints."""
-        import pydantic
 
         class SimpleModel(pydantic.BaseModel):
             value: str
@@ -588,25 +578,83 @@ class TestPydanticIntegration:
         assert "value" in result["properties"]
         assert "count" in result["properties"]
 
-    def test_pydantic_with_complex_types(self, pydantic_available):
-        """Test Pydantic models with complex field types."""
-        import pydantic
+    def test_pydantic_with_complex_types(self):
+        """Test Pydantic models with complex field types, constraints, and descriptions."""
+
+        class Profile(pydantic.BaseModel):
+            # String constraints with description and pattern
+            name: Annotated[str, Field(min_length=1, pattern=r"^[A-Za-z]+$", description="Alphabetic name")]
+            # Greater-than constraint maps to exclusiveMinimum
+            age: Annotated[int | None, Field(gt=0, description="Age strictly positive")] = None
 
         class ComplexModel(pydantic.BaseModel):
-            items: List[str]
-            metadata: Optional[dict] = None
+            # Numeric constraints with lesser-or-equal and greater-or-equal
+            id: Annotated[int, Field(ge=0, le=100, description="Identifier in range [0, 100]")]
+            # Array constraints: min/max items; item type is string
+            tags: Annotated[List[str], Field(min_length=1, max_length=3, description="1 to 3 tags")]
+            # Optional array of constrained floats -> items should carry bounds
+            scores: Annotated[
+                Optional[List[Annotated[float, Field(ge=0.0, le=1.0)]]],
+                Field(description="Scores between 0 and 1"),
+            ] = None
+            # Literal/enum field
             status: Literal["active", "inactive"] = "active"
+            # Nested Pydantic model
+            profile: Profile | None = None
+            # Tuple of fixed-length numbers
+            coords: tuple[float, float]
+            # Free-form metadata with description
+            metadata: dict[str, Any] | None = Field(default=None, description="Arbitrary key/value metadata")
 
         result = _parse_type_hint(ComplexModel)
-        assert isinstance(result, dict)
-        assert "properties" in result
-        assert "items" in result["properties"]
-        assert "metadata" in result["properties"]
-        assert "status" in result["properties"]
+        properties = result["properties"]
+
+        # id: inclusive bounds
+        assert properties["id"]["minimum"] == 0
+        assert properties["id"]["maximum"] == 100
+
+        # tags: array length bounds and item type
+        assert properties["tags"]["minItems"] == 1
+        assert properties["tags"]["maxItems"] == 3
+        assert properties["tags"]["items"]["type"] == "string"
+
+        # scores: optional array with per-item numeric bounds
+        assert properties["scores"]["nullable"] is True
+        assert properties["scores"]["anyOf"][0]["items"]["type"] == "number"
+        assert properties["scores"]["anyOf"][0]["items"]["minimum"] == 0.0
+        assert properties["scores"]["anyOf"][0]["items"]["maximum"] == 1.0
+
+        # ensure at least one field description is preserved
+        assert properties["scores"]["description"] == "Scores between 0 and 1"
+
+        # status: enum from Literal
+        assert sorted(properties["status"]["enum"]) == ["active", "inactive"]
+
+        # profile: nested constraints (profile is optional -> may be wrapped in anyOf)
+        profile_schema = properties["profile"]
+        if "properties" in profile_schema:
+            profile_props = profile_schema["properties"]
+        elif "anyOf" in profile_schema:
+            obj_branch = next((s for s in profile_schema["anyOf"] if s.get("type") == "object"), None)
+            assert obj_branch is not None, "Expected an object branch in anyOf for 'profile'"
+            profile_props = obj_branch.get("properties", {})
+        else:
+            profile_props = {}
+        assert profile_props["name"]["minLength"] == 1
+        assert profile_props["name"]["pattern"] == r"^[A-Za-z]+$"
+        # gt -> exclusiveMinimum
+        assert profile_props["age"]["anyOf"][0]["exclusiveMinimum"] == 0
+        assert profile_props["age"]["nullable"] is True
+
+        # coords: tuple -> fixed two numbers
+        assert len(properties["coords"]["prefixItems"]) == 2
+        assert all(item["type"] == "number" for item in properties["coords"]["prefixItems"])
+
+        # metadata: object is optional
+        assert properties["metadata"]["nullable"] is True
 
     def test_pydantic_with_enums(self, pydantic_available):
         """Test Pydantic models with enum constraints."""
-        import pydantic
 
         class Status(str, Enum):
             ACTIVE = "active"
@@ -621,9 +669,8 @@ class TestPydanticIntegration:
         assert "properties" in result
         assert "status" in result["properties"]
 
-    def test_pydantic_schema_with_refs(self, pydantic_available):
+    def test_pydantic_schema_with_refs(self):
         """Test that $refs in Pydantic schemas are properly resolved."""
-        import pydantic
 
         class Address(pydantic.BaseModel):
             street: str

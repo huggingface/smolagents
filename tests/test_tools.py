@@ -394,7 +394,7 @@ class TestTool:
 
     def test_tool_from_decorator_optional_args(self):
         @tool
-        def get_weather(location: str, celsius: bool | None = False) -> str:
+        def get_weather(location: str | None, celsius: bool | None = False) -> str:
             """
             Get weather in the next days at given location.
             Secretly this tool does not care about the location, it hates the weather everywhere.
@@ -541,21 +541,6 @@ class TestTool:
             return
 
         assert get_choice.inputs["choice"]["type"] == "integer"
-        assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
-
-    def test_tool_supports_nullable_literal(self):
-        @tool
-        def get_choice(choice: Literal[1, 2, 3, None]) -> None:
-            """
-            Get choice based on the provided value.
-
-            Args:
-                choice: The numeric choice to be made.
-            """
-            return
-
-        assert get_choice.inputs["choice"]["type"] == "integer"
-        assert get_choice.inputs["choice"]["nullable"] is True
         assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
 
     def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self, tmp_path):

@@ -42,7 +42,6 @@ from huggingface_hub import (
     hf_hub_download,
     metadata_update,
 )
-from pydantic import BaseModel, ValidationError
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
@@ -64,9 +63,22 @@ from .utils import (
 
 if TYPE_CHECKING:
     import mcp
+    from pydantic import BaseModel
 
 
 logger = logging.getLogger(__name__)
+
+
+def _get_pydantic():
+    """Lazy import of pydantic to avoid hard dependency."""
+    try:
+        import pydantic
+        return pydantic
+    except ImportError as e:
+        raise ImportError(
+            "Pydantic is required to use Pydantic models in tools. "
+            "Please install it with: pip install 'pydantic>=2.0'"
+        ) from e
 
 
 def validate_after_init(cls):
@@ -233,7 +245,7 @@ class Tool(BaseTool):
       `"text-classifier"` or `"image_generator"`.
     - **inputs** (`Dict[str, dict | type[pydantic.BaseModel]]`) -- The dict of
       modalities expected for the inputs. Each value can either be a JSON-schema-like dict (with at least a `type`
-      and `description` keys) or a Pydantic `BaseModel` subclass to describe a structured object input.
+      and `description` keys) or a Pydantic `BaseModel` subclass (v2 only) to describe a structured object input.
       This is used by `launch_gradio_demo` or to make a nice space from your tool, and also can be used in the generated
       description for your tool.
     - **output_type** (`type`) -- The type of the tool output. This is used by `launch_gradio_demo`
@@ -249,7 +261,7 @@ class Tool(BaseTool):
 
     name: str
     description: str
-    inputs: dict[str, dict | type[BaseModel]]
+    inputs: dict[str, dict | type["BaseModel"]]
     output_type: str
     output_schema: dict[str, Any] | None = None
 
@@ -610,6 +622,10 @@ class Tool(BaseTool):
         if not annotations:
             return args, kwargs
 
+        pydantic = _get_pydantic()
+        BaseModel = pydantic.BaseModel
+        ValidationError = pydantic.ValidationError
+
         signature = inspect.signature(self.forward)
         parameter_names = [name for name in signature.parameters.keys() if name != "self"]
 
@@ -623,15 +639,14 @@ class Tool(BaseTool):
                     continue
                 if isinstance(value, dict):
                     try:
-                        if hasattr(expected_type, "model_validate"):
-                            new_args[index] = expected_type.model_validate(value)  # pydantic v2
-                        else:
-                            new_args[index] = expected_type(**value)  # pydantic v1 fallback
-                    except Exception as e:  # pragma: no cover - exercised in tests
-                        # Re-raise Pydantic ValidationError as-is to keep error details
-                        if isinstance(e, ValidationError):
-                            raise e
-                        raise TypeError(f"Failed to convert argument '{param_name}' to {expected_type.__name__}: {e}")
+                        new_args[index] = expected_type.model_validate(value)
+                    except ValidationError:
+                        raise
+                    except AttributeError as e:
+                        raise TypeError(
+                            f"Pydantic model '{expected_type.__name__}' does not have 'model_validate' method. "
+                            "Only Pydantic v2 (>=2.0) is supported."
+                        ) from e
 
         # Convert keyword args
         new_kwargs = dict(kwargs)
@@ -642,14 +657,14 @@ class Tool(BaseTool):
                     continue
                 if isinstance(value, dict):
                     try:
-                        if hasattr(expected_type, "model_validate"):
-                            new_kwargs[param_name] = expected_type.model_validate(value)  # pydantic v2
-                        else:
-                            new_kwargs[param_name] = expected_type(**value)  # pydantic v1 fallback
-                    except ValidationError as e:  # pragma: no cover - exercised in tests
-                        raise e
-                    except Exception as e:
-                        raise TypeError(f"Failed to convert argument '{param_name}' to {expected_type.__name__}: {e}")
+                        new_kwargs[param_name] = expected_type.model_validate(value)
+                    except ValidationError:
+                        raise
+                    except AttributeError as e:
+                        raise TypeError(
+                            f"Pydantic model '{expected_type.__name__}' does not have 'model_validate' method. "
+                            "Only Pydantic v2 (>=2.0) is supported."
+                        ) from e
         return tuple(new_args), new_kwargs
 
     @staticmethod

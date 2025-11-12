@@ -37,12 +37,22 @@ from typing import (
     get_type_hints,
 )
 
-import pydantic
-
 
 IMPORT_TO_PACKAGE_MAPPING = {
     "wikipediaapi": "wikipedia-api",
 }
+
+
+def _get_pydantic():
+    """Lazy import of pydantic to avoid hard dependency."""
+    try:
+        import pydantic
+
+        return pydantic
+    except ImportError as e:
+        raise ImportError(
+            "Pydantic is required to use Pydantic models in tools. Please install it with: pip install 'pydantic>=2.0'"
+        ) from e
 
 
 def _is_pydantic_model(type_hint: type) -> bool:
@@ -55,90 +65,54 @@ def _is_pydantic_model(type_hint: type) -> bool:
     Returns:
         bool: True if the type is a Pydantic BaseModel, False otherwise
     """
-    return inspect.isclass(type_hint) and issubclass(type_hint, pydantic.BaseModel)
+    try:
+        pydantic = _get_pydantic()
+        return inspect.isclass(type_hint) and issubclass(type_hint, pydantic.BaseModel)
+    except ImportError:
+        return False
 
 
 def _process_pydantic_schema(schema: dict) -> dict:
-    """
-    Process a Pydantic JSON schema to make it compatible with smolagents.
-
-    This function handles:
-    - Resolving $refs to inline definitions
-    - Converting enum constraints to proper format
-    - Ensuring required fields are properly marked
-    - Converting anyOf patterns with null to nullable: True
-
-    Args:
-        schema: Raw Pydantic JSON schema
-
-    Returns:
-        dict: Processed schema compatible with smolagents
-    """
+    """Process a Pydantic JSON schema to make it compatible with smolagents."""
     # Make a copy to avoid modifying the original
     processed_schema = copy(schema)
 
     # Get definitions if they exist
     definitions = schema.get("$defs", {})
 
-    def resolve_refs(obj):
-        """Recursively resolve $ref references in the schema."""
+    def resolve_refs(obj, visited_refs=None):
+        """Recursively resolve $ref references in the schema with circular reference detection."""
+        if visited_refs is None:
+            visited_refs = set()
+
         if isinstance(obj, dict):
             if "$ref" in obj:
                 # Extract the reference path
                 ref_path = obj["$ref"]
                 if ref_path.startswith("#/$defs/"):
                     def_name = ref_path.split("/")[-1]
+
+                    # Check for circular reference
+                    if def_name in visited_refs:
+                        raise ValueError(
+                            f"Circular reference detected in schema: '{def_name}' references itself. "
+                            "Circular/recursive Pydantic models are not supported."
+                        )
+
                     if def_name in definitions:
+                        # Add to visited set to detect circularity
+                        new_visited = visited_refs | {def_name}
                         # Replace the $ref with the actual definition
-                        resolved = resolve_refs(definitions[def_name])
+                        resolved = resolve_refs(definitions[def_name], new_visited)
                         return resolved
                 # If we cannot resolve the ref, return the object as is
                 return obj
             else:
                 # Recursively process all values in the dictionary
-                return {k: resolve_refs(v) for k, v in obj.items()}
+                return {k: resolve_refs(v, visited_refs) for k, v in obj.items()}
         elif isinstance(obj, list):
             # Recursively process all items in the list
-            return [resolve_refs(item) for item in obj]
-        else:
-            # Return primitive values as-is
-            return obj
-
-    def convert_anyof_to_nullable(obj):
-        """Convert anyOf patterns with null to nullable: True for smolagents compatibility."""
-        if isinstance(obj, dict):
-            # Check if this is an anyOf pattern with null
-            if "anyOf" in obj and isinstance(obj["anyOf"], list):
-                # Look for a pattern like [{'type': 'string'}, {'type': 'null'}]
-                non_null_types = []
-                has_null = False
-
-                for item in obj["anyOf"]:
-                    if isinstance(item, dict) and item.get("type") == "null":
-                        has_null = True
-                    elif isinstance(item, dict) and "type" in item:
-                        non_null_types.append(item)
-
-                # If we have exactly one non-null type and a null type, convert to nullable
-                if has_null and len(non_null_types) == 1:
-                    # Create new schema based on the non-null type
-                    new_obj = non_null_types[0].copy()
-
-                    # Copy over any other properties from the original object
-                    for key, value in obj.items():
-                        if key not in ["anyOf"] and key not in new_obj:
-                            new_obj[key] = value
-
-                    # Mark as nullable
-                    new_obj["nullable"] = True
-
-                    return convert_anyof_to_nullable(new_obj)
-
-            # Recursively process all values in the dictionary
-            return {k: convert_anyof_to_nullable(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            # Recursively process all items in the list
-            return [convert_anyof_to_nullable(item) for item in obj]
+            return [resolve_refs(item, visited_refs) for item in obj]
         else:
             # Return primitive values as-is
             return obj
@@ -146,8 +120,28 @@ def _process_pydantic_schema(schema: dict) -> dict:
     # Resolve all $refs in the schema
     processed_schema = resolve_refs(processed_schema)
 
-    # Convert anyOf patterns to nullable
-    processed_schema = convert_anyof_to_nullable(processed_schema)
+    # Align nullable flags with required lists recursively
+    def align_nullable_with_required(obj):
+        if isinstance(obj, dict):
+            props = obj.get("properties")
+            if obj.get("type") == "object" and isinstance(props, dict):
+                required = set(obj.get("required", []))
+                for name, schema in props.items():
+                    if isinstance(schema, dict):
+                        # Only set nullable when True; omit when False
+                        if name not in required:
+                            schema["nullable"] = True
+                        else:
+                            schema.pop("nullable", None)
+                        align_nullable_with_required(schema)
+            else:
+                for v in obj.values():
+                    align_nullable_with_required(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                align_nullable_with_required(item)
+
+    align_nullable_with_required(processed_schema)
 
     # Remove $defs since we have inlined everything
     if "$defs" in processed_schema:
@@ -416,10 +410,22 @@ def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hin
         if param_name not in properties:
             properties[param_name] = {}
 
-        if param.default == inspect.Parameter.empty:
+        # Determine if the parameter is required (no default value)
+        has_default = param.default != inspect.Parameter.empty
+
+        if not has_default:
+            # Required parameter - add to required list
             required.append(param_name)
+        # Mark as nullable iff the parameter has a default
+        # Ensure property exists
+        prop = properties.get(param_name, {})
+        if has_default:
+            prop["nullable"] = True
         else:
-            properties[param_name]["nullable"] = True
+            # Remove any nullable flag that might have come from type hints
+            if "nullable" in prop:
+                prop.pop("nullable", None)
+        properties[param_name] = prop
 
     # Return: multi‐type union -> treat as any
     if (
@@ -515,8 +521,6 @@ def _parse_union_type(args: tuple[Any, ...]) -> dict:
     else:
         # A union of more complex types requires "anyOf"
         return_dict = {"anyOf": subtypes}
-    if type(None) in args:
-        return_dict["nullable"] = True
     return return_dict
 
 
