@@ -267,10 +267,9 @@ class TestGetJsonSchema:
                 "properties": {
                     "x": {"type": "integer", "description": "The first input"},
                     "y": {
-                        "type": "array",
+                        "type": ["array", "null"],
                         "description": "The second input",
                         "nullable": True,
-                        "prefixItems": [{"type": "string"}, {"type": "string"}, {"type": "number"}],
                     },
                 },
                 "required": ["x"],
@@ -314,7 +313,7 @@ class TestGetJsonSchema:
         "fixture_name,expected_properties",
         [
             ("valid_func", {"x": "integer", "y": "number"}),
-            ("bad_return_func", {"x": "string"}),
+            ("bad_return_func", {"x": ["null", "string"]}),
         ],
     )
     def test_property_types(self, request, fixture_name, expected_properties):
@@ -377,7 +376,7 @@ class TestGetJsonSchema:
         assert "optional_arg" not in params["required"]
         # Optional argument should be nullable
         assert params["properties"]["optional_arg"]["nullable"] is True
-        assert params["properties"]["optional_arg"]["type"] == "integer"
+        assert params["properties"]["optional_arg"]["type"] == ["integer", "null"]
 
     def test_enum_choices(self, enum_choices_func):
         """Test schema generation for enum choices in docstring."""

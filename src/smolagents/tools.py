@@ -144,16 +144,9 @@ def _validate_value_against_schema(value: Any, schema: dict, param_name: str) ->
 
     # Get actual type
     actual_type = _get_json_schema_type(type(value))["type"]
-    if actual_type == "integer":
-        actual_type = "number"
 
     # Check if actual type matches any of the expected types
-    type_matches = actual_type in valid_types
-    print("TYPE MATCHES", type_matches, actual_type, valid_types)
-
-    # Allow integer to number conversion
-    if not type_matches and actual_type == "integer" and "number" in valid_types:
-        type_matches = True
+    type_matches = actual_type in valid_types or (actual_type == "integer" and "number" in valid_types)
 
     if not type_matches:
         raise TypeError(f"Argument '{param_name}' has type '{actual_type}' but should be one of {valid_types}")

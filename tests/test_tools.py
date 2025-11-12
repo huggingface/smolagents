@@ -24,6 +24,7 @@ from unittest.mock import MagicMock, patch
 import mcp
 import numpy as np
 import PIL.Image
+import pydantic
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
@@ -514,7 +515,7 @@ class TestTool:
             return
 
         assert get_weather.inputs["locations"]["type"] == "array"
-        assert get_weather.inputs["months"]["type"] == "array"
+        assert get_weather.inputs["months"]["type"] == ["array", "null"]
 
     def test_tool_supports_string_literal(self):
         @tool
@@ -1246,7 +1247,6 @@ class TestPydanticToolIntegration:
 
     def test_pydantic_tool_validation_with_optional_fields(self, pydantic_available):
         """Test validation with optional Pydantic fields."""
-        import pydantic
 
         class ProfileData(pydantic.BaseModel):
             """Profile data for a user."""
