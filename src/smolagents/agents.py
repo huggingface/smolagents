@@ -1025,7 +1025,6 @@ You have been provided with these additional arguments, that you can access dire
             )
         
         model_class = getattr(importlib.import_module("smolagents.models"), model_class_name)
-        # --- END FIX ---
         model = model_class.from_dict(model_info["data"])
         # Load tools
         tools = []
