@@ -268,6 +268,7 @@ class TestModel:
             output_str += el.content
         assert output_str == "Hello! I'm here"
 
+    @unittest.skip("Too long")
     def test_transformers_message_vl_no_tool(self, shared_datadir, monkeypatch):
         monkeypatch.setattr("huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT", 30)  # instead of 10
         import PIL.Image

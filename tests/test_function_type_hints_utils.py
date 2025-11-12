@@ -653,7 +653,7 @@ class TestPydanticIntegration:
         # metadata: object is optional
         assert properties["metadata"]["nullable"] is True
 
-    def test_pydantic_with_enums(self, pydantic_available):
+    def test_pydantic_with_enums(self):
         """Test Pydantic models with enum constraints."""
 
         class Status(str, Enum):

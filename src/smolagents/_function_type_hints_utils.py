@@ -503,7 +503,8 @@ def _parse_type_hint(hint: type) -> dict:
         literal_types = set(type(arg) for arg in args)
         final_type = _parse_union_type(literal_types)
 
-        # None literal value is represented by 'nullable' field set by _parse_union_type
+        # Note: nullability is not derived from Literal/Union in this codebase;
+        # only default values control the presence of a 'nullable' flag elsewhere.
         final_type.update({"enum": [arg for arg in args if arg is not None]})
         return final_type
 
@@ -511,7 +512,7 @@ def _parse_type_hint(hint: type) -> dict:
 
 
 def _parse_union_type(args: tuple[Any, ...]) -> dict:
-    subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
+    subtypes = [_parse_type_hint(t) for t in args]
     if len(subtypes) == 1:
         # A single non-null type can be expressed directly
         return_dict = subtypes[0]

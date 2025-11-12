@@ -73,11 +73,11 @@ def _get_pydantic():
     """Lazy import of pydantic to avoid hard dependency."""
     try:
         import pydantic
+
         return pydantic
     except ImportError as e:
         raise ImportError(
-            "Pydantic is required to use Pydantic models in tools. "
-            "Please install it with: pip install 'pydantic>=2.0'"
+            "Pydantic is required to use Pydantic models in tools. Please install it with: pip install 'pydantic>=2.0'"
         ) from e
 
 
@@ -117,38 +117,24 @@ def _validate_value_against_schema(value: Any, schema: dict, param_name: str) ->
     This function provides validation for complex schemas,
     including those generated from Pydantic models.
 
-    Args:
-        value: The value to validate
-        schema: The JSON schema to validate against
-        param_name: Name of the parameter, used for error messages
-
     Raises:
         ValueError: If the value does not match the schema
         TypeError: If the value has an incorrect type
     """
 
-    # Handle nullable values
-    is_nullable = schema.get("nullable", False)
-    if value is None:
-        if is_nullable:
-            return
-        else:
-            # For non-nullable parameters, produce type mismatch error with expected type
-            expected_type = schema.get("type", "unknown")
-            raise TypeError(f"Argument {param_name} has type 'null' but should be '{expected_type}'")
-
     # Get the expected type(s)
     expected_type = schema.get("type")
+    print("VALIDATING", value, schema, param_name, expected_type)
 
     # Handle anyOf schemas (e.g., from Pydantic nullable fields)
-    if expected_type is None and "anyOf" in schema:
+    if expected_type == "any":
+        return
+    elif expected_type is None and "anyOf" in schema:
         # Extract types from anyOf
         valid_types = []
         for any_of_schema in schema["anyOf"]:
             if "type" in any_of_schema:
                 valid_types.append(any_of_schema["type"])
-    elif expected_type == "any":
-        return
     elif isinstance(expected_type, list):
         valid_types = expected_type
     else:
@@ -156,9 +142,12 @@ def _validate_value_against_schema(value: Any, schema: dict, param_name: str) ->
 
     # Get actual type
     actual_type = _get_json_schema_type(type(value))["type"]
+    if actual_type == "integer":
+        actual_type = "number"
 
     # Check if actual type matches any of the expected types
     type_matches = actual_type in valid_types
+    print("TYPE MATCHES", type_matches, actual_type, valid_types)
 
     # Allow integer to number conversion
     if not type_matches and actual_type == "integer" and "number" in valid_types:
@@ -887,11 +876,14 @@ class Tool(BaseTool):
                     parameter_type = parameter["type"]["type"]
                     if parameter_type == "object":
                         parameter_type = "any"
-                    self.inputs[parameter["parameter_name"]] = {
+                    # Build input schema; only include 'nullable' when True
+                    input_schema = {
                         "type": parameter_type,
                         "description": parameter["python_type"]["description"],
-                        "nullable": parameter["parameter_has_default"],
                     }
+                    if parameter.get("parameter_has_default"):
+                        input_schema["nullable"] = True
+                    self.inputs[parameter["parameter_name"]] = input_schema
                 output_component = space_description_api["returns"][0]["component"]
                 if output_component == "Image":
                     self.output_type = "image"
@@ -1575,7 +1567,6 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
 
 def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
     """Validate tool arguments against tool's input schema.
-
     Checks that all provided arguments match the tool's expected input types and that
     all required arguments are present. Supports both dictionary arguments and single
     value arguments for tools with one input parameter.
@@ -1594,38 +1585,31 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
     Note:
         - Supports type coercion from integer to number
         - Handles nullable parameters when explicitly marked in the schema
-        - Accepts "any" type as a wildcard that matches all types
     """
+    required_inputs = []
+    for key, schema in tool.inputs.items():
+        if isinstance(schema, dict):
+            key_is_nullable = schema.get("nullable", False)
+        else:
+            key_is_nullable = False
+        if not key_is_nullable:
+            required_inputs.append(key)
+
     if isinstance(arguments, dict):
+        for key in required_inputs:
+            if key not in arguments:
+                raise ValueError(f"Argument '{key}' is required")
         for key, value in arguments.items():
             if key not in tool.inputs:
-                raise ValueError(f"Argument {key} is not in the tool's input schema")
+                raise ValueError(f"Argument '{key}' is not in the tool's input schema")
 
             # Get the full schema for this input
             input_schema = tool.inputs[key]
 
             _validate_value_against_schema(value, input_schema, key)
-        # Check for missing required arguments
-        for key, schema in tool.inputs.items():
-            if isinstance(schema, dict):
-                key_is_nullable = schema.get("nullable", False)
-            else:
-                key_is_nullable = False
-            if key not in arguments and not key_is_nullable:
-                raise ValueError(f"Argument {key} is required")
         return None
     else:
         # Handle single argument case
-        # Count only non-nullable (required) parameters
-        required_inputs = []
-        for key, schema in tool.inputs.items():
-            if isinstance(schema, dict):
-                is_nullable = schema.get("nullable", False)
-            else:
-                is_nullable = False
-            if not is_nullable:
-                required_inputs.append(key)
-
         if len(required_inputs) != 1:
             raise ValueError(f"Single argument provided but {tool.name} expects multiple arguments")
 

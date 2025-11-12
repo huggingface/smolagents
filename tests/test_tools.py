@@ -14,6 +14,7 @@
 # limitations under the License.
 import inspect
 import os
+import re
 import warnings
 from enum import Enum
 from textwrap import dedent
@@ -965,9 +966,15 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         # - Valid input
         ("required_unsupported_none", str, ..., "text", None),
         # - None not allowed
-        ("required_unsupported_none", str, ..., None, "Argument param has type 'null' but should be 'string'"),
+        (
+            "required_unsupported_none",
+            str,
+            ...,
+            None,
+            "Argument 'param' has type 'null' but should be one of ['string']",
+        ),
         # - Missing required parameter is not allowed
-        ("required_unsupported_none", str, ..., ..., "Argument param is required"),
+        ("required_unsupported_none", str, ..., ..., "Argument 'param' is required"),
         #
         # Required parameters but supports None
         # - Valid input
@@ -975,62 +982,45 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         # - None allowed
         ("required_supported_none", str | None, ..., None, None),
         # - Missing required parameter is not allowed
-        # TODO: Fix this test case: property is marked as nullable because it can be None, but it can't be missing because it is required
-        # ("required_supported_none", str | None, ..., ..., "Argument param is required"),
-        pytest.param(
-            "required_supported_none",
-            str | None,
-            ...,
-            ...,
-            "Argument param is required",
-            marks=pytest.mark.skip(reason="TODO: Fix this test case"),
-        ),
+        ("required_supported_none", str | None, ..., ..., "Argument 'param' is required"),
         #
         # Optional parameters (has default, doesn't support None)
         # - Valid input
         ("optional_unsupported_none", str, "default", "text", None),
-        # - None not allowed
-        # TODO: Fix this test case: property is marked as nullable because it has a default value, but it can't be None
-        # ("optional_unsupported_none", str, "default", None, "Argument param has type 'null' but should be 'string'"),
-        pytest.param(
-            "optional_unsupported_none",
+        (
+            "none_not_allowed_for_string",
             str,
             "default",
             None,
-            "Argument 'param' cannot be 'null'",
-            marks=pytest.mark.skip(reason="TODO: Fix this test case"),
+            "Argument 'param' has type 'null' but should be one of ['string']",
         ),
-        # - Missing optional parameter is allowed
-        ("optional_unsupported_none", str, "default", ..., None),
+        ("missing_optional_works", str, "default", ..., None),
         #
         # Optional and supports None parameters with string default
         # - Valid input
-        ("optional_supported_none_str_default", str | None, "default", "text", None),
+        ("multitype_default_supports_str", str | None, "default", "text", None),
         # - None allowed
-        ("optional_supported_none_str_default", str | None, "default", None, None),
+        ("multitype_default_supports_none", str | None, "default", None, None),
         # - Missing optional parameter is allowed
-        ("optional_supported_none_str_default", str | None, "default", ..., None),
+        ("multitype_default_supports_skip", str | None, "default", ..., None),
         #
         # Optional and supports None parameters with None default
         # - Valid input
-        ("optional_supported_none_none_default", str | None, None, "text", None),
+        ("myltitype_nodefault_supports_str", str | None, ..., "text", None),
         # - None allowed
-        ("optional_supported_none_none_default", str | None, None, None, None),
+        ("multitype_nodefault_supports_none", str | None, ..., None, None),
         # - Missing optional parameter is allowed
-        ("optional_supported_none_none_default", str | None, None, ..., None),
+        (
+            "multitype_nodefault_raises_on_skipped_param",
+            str | None,
+            ...,
+            ...,
+            "Argument 'param' is required",
+        ),
     ],
 )
 def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_value, expected_error_message):
-    """Test validation of tool arguments with focus on nullable properties: optional (with default value) and supporting None value.
-
-    Args:
-        scenario: The scenario to test
-        type_hint: The type hint for the parameter
-        default: The default value for the parameter
-        input_value: The input value for the parameter
-        expected_error_message: The expected error message
-    """
-
+    """Test validation of tool arguments with focus on nullable properties: optional (with default value) and supporting None value."""
     # Create a tool with the appropriate signature
     if default is ...:  # Using Ellipsis to indicate no default value
 
@@ -1056,10 +1046,8 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     # Test with the input dictionary
     input_dict = {"param": input_value} if input_value is not ... else {}
 
-    print("INPUT", input_dict, type_hint, default)
-
     if expected_error_message:
-        with pytest.raises((ValueError, TypeError), match=expected_error_message):
+        with pytest.raises((ValueError, TypeError), match=re.escape(expected_error_message)):
             validate_tool_arguments(test_tool, input_dict)
     else:
         # Should not raise any exception
