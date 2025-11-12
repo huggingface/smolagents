@@ -120,7 +120,9 @@ class DuckDuckGoSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results: int = 10, rate_limit: float | None = 1.0, site_denylist: list[str] | None = None, **kwargs):
+    def __init__(
+        self, max_results: int = 10, rate_limit: float | None = 1.0, site_denylist: list[str] | None = None, **kwargs
+    ):
         super().__init__()
         self.max_results = max_results
         self.rate_limit = rate_limit
@@ -368,9 +370,7 @@ class WebSearchTool(Tool):
 
     def forward(self, query: str) -> str:
         if self.site_denylist:
-            exclusion_terms = " ".join(
-                [f"-site:{pattern}" for pattern in self.site_denylist]
-            )
+            exclusion_terms = " ".join([f"-site:{pattern}" for pattern in self.site_denylist])
             query = f"{query} {exclusion_terms}"
 
         results = self.search(query)

@@ -44,38 +44,30 @@ class DefaultToolTests(unittest.TestCase):
     def test_ddgs_with_kwargs(self):
         result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
         assert isinstance(result, str)
-    
+
     @patch("ddgs.DDGS")
     def test_ddgs_with_denylist(self, MockDDGS):
         mock_ddgs_instance = MockDDGS.return_value
-        mock_ddgs_instance.text.return_value = [
-            {"title": "Test", "href": "http://test.com", "body": "Test body"}
-        ]
+        mock_ddgs_instance.text.return_value = [{"title": "Test", "href": "http://test.com", "body": "Test body"}]
 
         tool = DuckDuckGoSearchTool(site_denylist=["example.com", "*.badsite.org"])
         base_query = "test query"
         expected_query = "test query -site:example.com -site:*.badsite.org"
 
         tool.forward(base_query)
-        mock_ddgs_instance.text.assert_called_once_with(
-            expected_query, max_results=10
-        )
+        mock_ddgs_instance.text.assert_called_once_with(expected_query, max_results=10)
 
     @patch("requests.get")
     def test_google_search_with_denylist(self, mock_get):
         serpapi_response = MagicMock()
         serpapi_response.status_code = 200
         serpapi_response.json.return_value = {
-            "organic_results": [
-                {"title": "Test", "link": "http://test.com", "snippet": "Test snippet"}
-            ]
+            "organic_results": [{"title": "Test", "link": "http://test.com", "snippet": "Test snippet"}]
         }
         mock_get.return_value = serpapi_response
 
         with patch("os.getenv", return_value="fake_api_key"):
-            tool_serpapi = GoogleSearchTool(
-                provider="serpapi", site_denylist=["google.com"]
-            )
+            tool_serpapi = GoogleSearchTool(provider="serpapi", site_denylist=["google.com"])
 
         base_query_1 = "search for something"
         expected_query_1 = "search for something -site:google.com"
@@ -90,16 +82,12 @@ class DefaultToolTests(unittest.TestCase):
         serper_response = MagicMock()
         serper_response.status_code = 200
         serper_response.json.return_value = {
-            "organic": [
-                {"title": "Test Serper", "link": "http://test.com", "snippet": "Test snippet"}
-            ]
+            "organic": [{"title": "Test Serper", "link": "http://test.com", "snippet": "Test snippet"}]
         }
         mock_get.return_value = serper_response
 
         with patch("os.getenv", return_value="fake_api_key"):
-            tool_serper = GoogleSearchTool(
-                provider="serper", site_denylist=["serper.dev"]
-            )
+            tool_serper = GoogleSearchTool(provider="serper", site_denylist=["serper.dev"])
 
         base_query_2 = "search serper"
         expected_query_2 = "search serper -site:serper.dev"
@@ -108,7 +96,7 @@ class DefaultToolTests(unittest.TestCase):
         mock_get.assert_called_once()
         _, called_kwargs_2 = mock_get.call_args
         self.assertEqual(called_kwargs_2["params"]["q"], expected_query_2)
-    
+
     @patch("requests.get")
     def test_api_web_search_with_denylist(self, mock_get):
         mock_response = MagicMock()
@@ -140,9 +128,7 @@ class DefaultToolTests(unittest.TestCase):
 
     @patch("smolagents.default_tools.WebSearchTool.search")
     def test_web_search_with_denylist(self, mock_search):
-        mock_search.return_value = [
-            {"title": "Test", "link": "http://test.com", "description": "Test snippet"}
-        ]
+        mock_search.return_value = [{"title": "Test", "link": "http://test.com", "description": "Test snippet"}]
         tool = WebSearchTool(site_denylist=["ddg.com", "bing.com"])
         base_query = "search engines"
         expected_query = "search engines -site:ddg.com -site:bing.com"
