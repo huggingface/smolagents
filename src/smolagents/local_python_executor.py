@@ -1553,10 +1553,9 @@ def evaluate_python_code(
         expression = ast.parse(code)
     except SyntaxError as e:
         raise InterpreterError(
-            f"Code parsing failed on line {e.lineno} due to: {type(e).__name__}\n"
+            f"Code parsing failed on line {e.lineno} due to: {type(e).__name__}: {str(e)}\n"
             f"{e.text}"
-            f"{' ' * (e.offset or 0)}^\n"
-            f"Error: {str(e)}"
+            f"{' ' * (e.offset or 0)}^"
         )
 
     if state is None:
