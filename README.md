@@ -178,8 +178,19 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`.
 `smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools.
 
 ```bash
+# Run with direct prompt and options
 smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen3-Next-80B-A3B-Thinking" --imports pandas numpy --tools web_search
+
+# Run in interactive mode (launches setup wizard when no prompt provided)
+smolagent
 ```
+
+Interactive mode guides you through:
+- Agent type selection (CodeAgent vs ToolCallingAgent)  
+- Tool selection from available toolbox
+- Model configuration (type, ID, API settings)
+- Advanced options like additional imports
+- Task prompt input
 
 Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
 

@@ -104,6 +104,18 @@ agent = ToolCallingAgent(tools=[WebSearchTool()], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
+## Using the CLI
+
+You can quickly get started with smolagents using the command line interface:
+
+```bash
+# Run with direct prompt and options
+smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
+
+# Run in interactive mode: launches when no prompt is provided, will guide you through argument selection
+smolagent
+```
+
 ## Building your agent
 
 To initialize a minimal agent, you need at least these two arguments:
