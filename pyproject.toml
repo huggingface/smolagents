@@ -19,7 +19,6 @@ dependencies = [
   "pillow>=10.0.1",
   # Security fix for CVE-2023-4863: https://pillow.readthedocs.io/en/stable/releasenotes/10.0.1.html
   "python-dotenv",
-  "pydantic>=2.11.3",
 ]
 
 [project.optional-dependencies]
@@ -86,8 +85,11 @@ vllm = [
   "vllm>=0.10.2",
   "torch"
 ]
+pydantic = [
+  "pydantic>=2.11.3",
+]
 all = [
-  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
+  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock,pydantic]",
 ]
 quality = [
   "ruff>=0.9.0",

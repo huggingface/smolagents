@@ -73,7 +73,12 @@ def _is_pydantic_model(type_hint: type) -> bool:
 
 
 def _process_pydantic_schema(schema: dict) -> dict:
-    """Process a Pydantic JSON schema to make it compatible with smolagents."""
+    """Process a Pydantic JSON schema to make it compatible with smolagents.
+
+    This consists in:
+        - resolving $ref fields
+        - creating 'nullable' attributes for 'required' parameters
+    """
     # Make a copy to avoid modifying the original
     processed_schema = copy(schema)
 
@@ -413,19 +418,14 @@ def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hin
         # Determine if the parameter is required (no default value)
         has_default = param.default != inspect.Parameter.empty
 
-        if not has_default:
+        if has_default:
+            # Mark as nullable iff the parameter has a default
+            parameter_properties = properties.get(param_name, {})
+            parameter_properties["nullable"] = True
+            properties[param_name] = parameter_properties
+        else:
             # Required parameter - add to required list
             required.append(param_name)
-        # Mark as nullable iff the parameter has a default
-        # Ensure property exists
-        prop = properties.get(param_name, {})
-        if has_default:
-            prop["nullable"] = True
-        else:
-            # Remove any nullable flag that might have come from type hints
-            if "nullable" in prop:
-                prop.pop("nullable", None)
-        properties[param_name] = prop
 
     # Return: multi‐type union -> treat as any
     if (
@@ -503,8 +503,6 @@ def _parse_type_hint(hint: type) -> dict:
         literal_types = set(type(arg) for arg in args)
         final_type = _parse_union_type(literal_types)
 
-        # Note: nullability is not derived from Literal/Union in this codebase;
-        # only default values control the presence of a 'nullable' flag elsewhere.
         final_type.update({"enum": [arg for arg in args if arg is not None]})
         return final_type
 

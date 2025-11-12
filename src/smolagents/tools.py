@@ -47,6 +47,8 @@ from ._function_type_hints_utils import (
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
     _get_json_schema_type,
+    _is_pydantic_model,
+    _parse_type_hint,
     get_imports,
     get_json_schema,
 )
@@ -289,8 +291,6 @@ class Tool(BaseTool):
                 f"Invalid Tool name '{self.name}': must be a valid Python identifier and not a reserved keyword"
             )
         # Validate inputs
-        from ._function_type_hints_utils import _is_pydantic_model, _parse_type_hint
-
         processed_inputs = {}
         for input_name, input_content in self.inputs.items():
             if _is_pydantic_model(input_content):
@@ -876,13 +876,11 @@ class Tool(BaseTool):
                     parameter_type = parameter["type"]["type"]
                     if parameter_type == "object":
                         parameter_type = "any"
-                    # Build input schema; only include 'nullable' when True
                     input_schema = {
                         "type": parameter_type,
                         "description": parameter["python_type"]["description"],
+                        "nullable": parameter["parameter_has_default"],
                     }
-                    if parameter.get("parameter_has_default"):
-                        input_schema["nullable"] = True
                     self.inputs[parameter["parameter_name"]] = input_schema
                 output_component = space_description_api["returns"][0]["component"]
                 if output_component == "Image":
@@ -1585,6 +1583,7 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
     Note:
         - Supports type coercion from integer to number
         - Handles nullable parameters when explicitly marked in the schema
+        - Accepts "any" type as a wildcard that matches all types
     """
     required_inputs = []
     for key, schema in tool.inputs.items():
