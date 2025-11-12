@@ -1013,21 +1013,9 @@ You have been provided with these additional arguments, that you can access dire
         Returns:
             `MultiStepAgent`: Instance of the agent class.
         """
-
         # Load model
         model_info = agent_dict["model"]
-        model_class_name = model_info["class"]
-        # --- START FIX: Handle backward compatibility for renamed HfApiModel ---
-        if model_class_name == "HfApiModel":
-            model_class_name = "InferenceClientModel"
-            logger.warning(  # This uses the logger defined at the top of agents.py
-                "Loading an agent created with the deprecated 'HfApiModel' class. "
-                "This class has been renamed to 'InferenceClientModel'. "
-                "The agent's model class has been automatically updated for compatibility."
-            )
-        
-        model_class = getattr(importlib.import_module("smolagents.models"), model_class_name)
-        # --- END FIX ---
+        model_class = getattr(importlib.import_module("smolagents.models"), model_info["class"])
         model = model_class.from_dict(model_info["data"])
         # Load tools
         tools = []
@@ -1123,7 +1111,11 @@ You have been provided with these additional arguments, that you can access dire
         # Load agent.json
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
-
+        if agent_dict.get("model", {}).get("class") == "HfApiModel":
+            agent_dict["model"]["class"] = "InferenceClientModel"
+            logger.warning(
+                "The agent you're loading uses the deprecated 'HfApiModel' class: it was automatically updated to 'InferenceClientModel'."
+            )
         # Load managed agents from their respective folders, recursively
         managed_agents = []
         for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
