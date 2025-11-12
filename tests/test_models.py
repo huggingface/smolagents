@@ -14,7 +14,6 @@
 # limitations under the License.
 import json
 import sys
-import unittest
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
@@ -228,14 +227,14 @@ class TestModel:
         data = json.loads(message.model_dump_json())
         assert data["content"] == [{"type": "text", "text": "Hello!"}]
 
-    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
         messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         output = model(messages, stop_sequences=["great"]).content
         assert output.startswith("Hello")
 
-    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_tricky_stop_sequence(self):
         # In this test HuggingFaceTB/SmolLM2-135M-Instruct generates the token ">'"
         # which is required to test capturing stop_sequences that have extra chars at the end.

@@ -1,3 +1,4 @@
+import importlib
 import io
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
@@ -567,12 +568,18 @@ class TestBlaxelExecutorUnit:
 
     @patch("smolagents.remote_executors._create_kernel_http")
     @patch("blaxel.core.SandboxInstance")
-    @patch("blaxel.core.client.api.compute.create_sandbox")
     @patch("blaxel.core.settings")
     def test_blaxel_executor_instantiation_with_blaxel_sdk(
-        self, mock_settings, mock_create_sandbox, mock_sandbox_instance, mock_create_kernel
+        self, mock_settings, mock_sandbox_instance, mock_create_kernel
     ):
         """Test BlaxelExecutor instantiation with mocked Blaxel SDK."""
+
+        # patch manually for Python 3.10 compatibility
+        from unittest.mock import patch
+        mod = importlib.import_module("blaxel.core.client.api.compute")
+        patcher = patch.object(mod, "create_sandbox")
+        mock_create_sandbox = patcher.start()
+
         logger = MagicMock()
         mock_settings.headers = {}
 
@@ -592,18 +599,20 @@ class TestBlaxelExecutorUnit:
 
         executor = BlaxelExecutor(additional_imports=[], logger=logger)
 
+        patcher.stop()
+
         assert executor.sandbox_name.startswith("smolagent-executor-")
         assert executor.image == "blaxel/jupyter-notebook"
         assert executor.memory == 4096
         assert executor.region is None
 
+
     @patch("smolagents.remote_executors.BlaxelExecutor.install_packages")
     @patch("smolagents.remote_executors._create_kernel_http")
     @patch("blaxel.core.SandboxInstance")
-    @patch("blaxel.core.client.api.compute.create_sandbox")
     @patch("blaxel.core.settings")
     def test_blaxel_executor_custom_parameters(
-        self, mock_settings, mock_create_sandbox, mock_sandbox_instance, mock_create_kernel, mock_install_packages
+        self, mock_settings, mock_sandbox_instance, mock_create_kernel, mock_install_packages
     ):
         """Test BlaxelExecutor with custom parameters."""
         logger = MagicMock()
@@ -612,6 +621,11 @@ class TestBlaxelExecutorUnit:
 
         # Mock sandbox response
         mock_response = MagicMock()
+
+        # patch manually for Python 3.10 compatibility
+        mod = importlib.import_module("blaxel.core.client.api.compute")
+        create_sandbox_patcher = patch.object(mod, "create_sandbox")
+        mock_create_sandbox = create_sandbox_patcher.start()
         mock_create_sandbox.sync.return_value = mock_response
 
         # Mock SandboxInstance
@@ -633,6 +647,8 @@ class TestBlaxelExecutorUnit:
             region="us-was-1",
         )
 
+        create_sandbox_patcher.stop()
+
         assert executor.sandbox_name == "test-sandbox"
         assert executor.image == "custom-image:latest"
         assert executor.memory == 8192
@@ -641,13 +657,20 @@ class TestBlaxelExecutorUnit:
 
     @patch("smolagents.remote_executors._create_kernel_http")
     @patch("blaxel.core.SandboxInstance")
-    @patch("blaxel.core.client.api.compute.create_sandbox")
-    @patch("blaxel.core.client.api.compute.delete_sandbox")
     @patch("blaxel.core.settings")
     def test_blaxel_executor_cleanup(
-        self, mock_settings, mock_delete_sandbox, mock_create_sandbox, mock_sandbox_instance, mock_create_kernel
+        self, mock_settings, mock_sandbox_instance, mock_create_kernel
     ):
         """Test BlaxelExecutor cleanup method."""
+
+        # patch manually for Python 3.10 compatibility
+        from unittest.mock import patch
+        mod = importlib.import_module("blaxel.core.client.api.compute")
+        create_sandbox_patcher = patch.object(mod, "create_sandbox")
+        mock_create_sandbox = create_sandbox_patcher.start()
+        delete_sandbox_patcher = patch.object(mod, "delete_sandbox")
+        mock_delete_sandbox = delete_sandbox_patcher.start()
+
         logger = MagicMock()
         mock_settings.headers = {}
 
@@ -669,6 +692,8 @@ class TestBlaxelExecutorUnit:
 
         # Test cleanup
         executor.cleanup()
+        create_sandbox_patcher.stop()
+        delete_sandbox_patcher.stop()
 
         # Verify that delete_sandbox.sync was called
         assert mock_delete_sandbox.sync.called
