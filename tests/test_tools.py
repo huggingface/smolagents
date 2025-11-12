@@ -14,7 +14,9 @@
 # limitations under the License.
 import inspect
 import os
+import re
 import warnings
+from enum import Enum
 from textwrap import dedent
 from typing import Any, Literal
 from unittest.mock import MagicMock, patch
@@ -22,6 +24,7 @@ from unittest.mock import MagicMock, patch
 import mcp
 import numpy as np
 import PIL.Image
+import pydantic
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
@@ -31,6 +34,8 @@ from .utils.markers import require_run_all
 
 
 class ToolTesterMixin:
+    tool: Tool
+
     def test_inputs_output(self):
         assert hasattr(self.tool, "inputs")
         assert hasattr(self.tool, "output_type")
@@ -63,7 +68,7 @@ class ToolTesterMixin:
     @pytest.fixture
     def create_inputs(self, shared_datadir):
         def _create_inputs(tool_inputs: dict[str, dict[str | type, str]]) -> dict[str, Any]:
-            inputs = {}
+            inputs: dict[str, Any] = {}
 
             for input_name, input_desc in tool_inputs.items():
                 input_type = input_desc["type"]
@@ -183,7 +188,7 @@ class TestTool:
                 a: The first argument
                 b: The second one
             """
-            return b + 2, a
+            return b + 2.0
 
         assert coolfunc.output_type == "number"
 
@@ -212,7 +217,7 @@ class TestTool:
         with pytest.raises(Exception) as e:
 
             @tool
-            def coolfunc(a: str, b: int):
+            def coolfunc(a: str, b: str):
                 """Cool function
 
                 Args:
@@ -227,7 +232,7 @@ class TestTool:
         with pytest.raises(Exception) as e:
 
             @tool
-            def coolfunc(a: str, b: int) -> int:
+            def coolfunc(a: str, b: str) -> str:
                 """Cool function
 
                 Args:
@@ -318,7 +323,7 @@ class TestTool:
             inputs = {"string_input": {"type": "string", "description": "input description"}}
             output_type = "string"
 
-            def __init__(self, url: str | None = "none"):
+            def __init__(self, url: str = "none"):
                 super().__init__(self)
                 self.url = url
 
@@ -391,7 +396,7 @@ class TestTool:
 
     def test_tool_from_decorator_optional_args(self):
         @tool
-        def get_weather(location: str, celsius: bool | None = False) -> str:
+        def get_weather(location: str | None, celsius: bool | None = False) -> str:
             """
             Get weather in the next days at given location.
             Secretly this tool does not care about the location, it hates the weather everywhere.
@@ -499,7 +504,7 @@ class TestTool:
 
     def test_tool_supports_array(self):
         @tool
-        def get_weather(locations: list[str], months: tuple[str, str] | None = None) -> dict[str, float]:
+        def get_weather(locations: list[str], months: tuple[str, str] | None = None) -> None:
             """
             Get weather in the next days at given locations.
 
@@ -510,7 +515,7 @@ class TestTool:
             return
 
         assert get_weather.inputs["locations"]["type"] == "array"
-        assert get_weather.inputs["months"]["type"] == "array"
+        assert get_weather.inputs["months"]["type"] == ["array", "null"]
 
     def test_tool_supports_string_literal(self):
         @tool
@@ -538,21 +543,6 @@ class TestTool:
             return
 
         assert get_choice.inputs["choice"]["type"] == "integer"
-        assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
-
-    def test_tool_supports_nullable_literal(self):
-        @tool
-        def get_choice(choice: Literal[1, 2, 3, None]) -> None:
-            """
-            Get choice based on the provided value.
-
-            Args:
-                choice: The numeric choice to be made.
-            """
-            return
-
-        assert get_choice.inputs["choice"]["type"] == "integer"
-        assert get_choice.inputs["choice"]["nullable"] is True
         assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
 
     def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self, tmp_path):
@@ -977,9 +967,15 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         # - Valid input
         ("required_unsupported_none", str, ..., "text", None),
         # - None not allowed
-        ("required_unsupported_none", str, ..., None, "Argument param has type 'null' but should be 'string'"),
+        (
+            "required_unsupported_none",
+            str,
+            ...,
+            None,
+            "Argument 'param' has type 'null' but should be one of ['string']",
+        ),
         # - Missing required parameter is not allowed
-        ("required_unsupported_none", str, ..., ..., "Argument param is required"),
+        ("required_unsupported_none", str, ..., ..., "Argument 'param' is required"),
         #
         # Required parameters but supports None
         # - Valid input
@@ -987,54 +983,45 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         # - None allowed
         ("required_supported_none", str | None, ..., None, None),
         # - Missing required parameter is not allowed
-        # TODO: Fix this test case: property is marked as nullable because it can be None, but it can't be missing because it is required
-        # ("required_supported_none", str | None, ..., ..., "Argument param is required"),
-        pytest.param(
-            "required_supported_none",
-            str | None,
-            ...,
-            ...,
-            "Argument param is required",
-            marks=pytest.mark.skip(reason="TODO: Fix this test case"),
-        ),
+        ("required_supported_none", str | None, ..., ..., "Argument 'param' is required"),
         #
         # Optional parameters (has default, doesn't support None)
         # - Valid input
         ("optional_unsupported_none", str, "default", "text", None),
-        # - None not allowed
-        # TODO: Fix this test case: property is marked as nullable because it has a default value, but it can't be None
-        # ("optional_unsupported_none", str, "default", None, "Argument param has type 'null' but should be 'string'"),
-        pytest.param(
-            "optional_unsupported_none",
+        (
+            "none_not_allowed_for_string",
             str,
             "default",
             None,
-            "Argument param has type 'null' but should be 'string'",
-            marks=pytest.mark.skip(reason="TODO: Fix this test case"),
+            "Argument 'param' has type 'null' but should be one of ['string']",
         ),
-        # - Missing optional parameter is allowed
-        ("optional_unsupported_none", str, "default", ..., None),
+        ("missing_optional_works", str, "default", ..., None),
         #
         # Optional and supports None parameters with string default
         # - Valid input
-        ("optional_supported_none_str_default", str | None, "default", "text", None),
+        ("multitype_default_supports_str", str | None, "default", "text", None),
         # - None allowed
-        ("optional_supported_none_str_default", str | None, "default", None, None),
+        ("multitype_default_supports_none", str | None, "default", None, None),
         # - Missing optional parameter is allowed
-        ("optional_supported_none_str_default", str | None, "default", ..., None),
+        ("multitype_default_supports_skip", str | None, "default", ..., None),
         #
         # Optional and supports None parameters with None default
         # - Valid input
-        ("optional_supported_none_none_default", str | None, None, "text", None),
+        ("myltitype_nodefault_supports_str", str | None, ..., "text", None),
         # - None allowed
-        ("optional_supported_none_none_default", str | None, None, None, None),
+        ("multitype_nodefault_supports_none", str | None, ..., None, None),
         # - Missing optional parameter is allowed
-        ("optional_supported_none_none_default", str | None, None, ..., None),
+        (
+            "multitype_nodefault_raises_on_skipped_param",
+            str | None,
+            ...,
+            ...,
+            "Argument 'param' is required",
+        ),
     ],
 )
 def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_value, expected_error_message):
     """Test validation of tool arguments with focus on nullable properties: optional (with default value) and supporting None value."""
-
     # Create a tool with the appropriate signature
     if default is ...:  # Using Ellipsis to indicate no default value
 
@@ -1061,8 +1048,516 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     input_dict = {"param": input_value} if input_value is not ... else {}
 
     if expected_error_message:
-        with pytest.raises((ValueError, TypeError), match=expected_error_message):
+        with pytest.raises((ValueError, TypeError), match=re.escape(expected_error_message)):
             validate_tool_arguments(test_tool, input_dict)
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class TestPydanticToolIntegration:
+    """Test Pydantic BaseModel integration with Tool creation and validation."""
+
+    @pytest.fixture
+    def pydantic_available(self):
+        """Check if Pydantic is available for testing."""
+        try:
+            import importlib.util
+
+            if importlib.util.find_spec("pydantic") is None:
+                pytest.skip("Pydantic not available")
+        except ImportError:
+            pytest.skip("Pydantic not available")
+
+    def test_tool_with_pydantic_model(self, pydantic_available):
+        """Test creating a tool that uses complex nested Pydantic models with constraints."""
+        import pydantic
+        from pydantic import Field
+
+        class Address(pydantic.BaseModel):
+            """Address information."""
+
+            street: str = Field(..., min_length=1, max_length=200, description="Street address")
+            city: str = Field(..., min_length=1, max_length=100, description="City name")
+            postal_code: str = Field(..., pattern=r"^\d{5}(-\d{4})?$", description="US postal code")
+            country: str = Field(default="US", description="Country code")
+
+        class PersonInfo(pydantic.BaseModel):
+            """Information about a person."""
+
+            name: str = Field(..., min_length=1, max_length=100, description="Person's full name")
+            age: int = Field(..., ge=0, le=150, description="Age in years")
+            email: str | None = Field(None, pattern=r"^[^@]+@[^@]+\.[^@]+$", description="Email address")
+            address: Address = Field(..., description="Primary address")
+            secondary_addresses: list[Address] = Field(
+                default_factory=list, max_length=3, description="Additional addresses"
+            )
+            is_active: bool = Field(default=True, description="Whether the person is active")
+
+        @tool
+        def process_person(person: PersonInfo) -> str:
+            """
+            Process comprehensive information about a person including nested address data.
+
+            Args:
+                person: Complete person information with address details
+
+            Returns:
+                A formatted string with the person's information including addresses
+            """
+            addr = person.address
+            addr_str = f"{addr.street}, {addr.city}, {addr.postal_code}, {addr.country}"
+            email_part = f" (email: {person.email})" if person.email else ""
+            secondary_count = len(person.secondary_addresses)
+            secondary_part = f" with {secondary_count} additional addresses" if secondary_count > 0 else ""
+            status = "active" if person.is_active else "inactive"
+            return f"Person: {person.name}, age {person.age}{email_part}, {status}, at {addr_str}{secondary_part}"
+
+        # Test tool creation
+        assert process_person.name == "process_person"
+        assert isinstance(process_person.inputs, dict)
+        assert "person" in process_person.inputs
+
+        # Check that the complex nested Pydantic schema was properly converted
+        person_schema = process_person.inputs["person"]
+        assert isinstance(person_schema, dict)
+        assert person_schema["type"] == "object"
+
+        # Verify nested address schema is properly included
+        properties = person_schema["properties"]
+        assert "address" in properties
+        address_schema = properties["address"]
+        assert address_schema["type"] == "object"
+        assert "properties" in address_schema
+
+        # Verify address properties have constraints
+        address_props = address_schema["properties"]
+        assert "street" in address_props
+        street_schema = address_props["street"]
+        assert street_schema["type"] == "string"
+        assert street_schema["minLength"] == 1
+        assert street_schema["maxLength"] == 200
+
+        # Verify postal code has pattern constraint
+        postal_schema = address_props["postal_code"]
+        assert postal_schema["type"] == "string"
+        assert "pattern" in postal_schema
+        assert postal_schema["pattern"] == r"^\d{5}(-\d{4})?$"
+
+        # Verify age has numerical constraints
+        age_schema = properties["age"]
+        assert age_schema["type"] == "integer"
+        assert age_schema["minimum"] == 0
+        assert age_schema["maximum"] == 150
+
+        # Verify array handling for secondary addresses
+        secondary_schema = properties["secondary_addresses"]
+        assert secondary_schema["type"] == "array"
+        assert secondary_schema["maxItems"] == 3
+        assert "items" in secondary_schema
+        assert secondary_schema["items"]["type"] == "object"
+
+        class ProcessPersonTool(Tool):
+            name = "process_person_class"
+            description = (
+                "Process comprehensive information about a person including nested address data using Tool subclass"
+            )
+            inputs = {"person": PersonInfo}
+            output_type = "string"
+
+            def forward(self, person: PersonInfo) -> str:
+                addr = person.address
+                addr_str = f"{addr.street}, {addr.city}, {addr.postal_code}, {addr.country}"
+                email_part = f" (email: {person.email})" if person.email else ""
+                secondary_count = len(person.secondary_addresses)
+                secondary_part = f" with {secondary_count} additional addresses" if secondary_count > 0 else ""
+                status = "active" if person.is_active else "inactive"
+                return f"Person: {person.name}, age {person.age}{email_part}, {status}, at {addr_str}{secondary_part}"
+
+        # Instantiate the class-based tool
+        process_person_class = ProcessPersonTool()
+
+        # Verify Tool subclass creates the same schema structure
+        assert process_person_class.name == "process_person_class"
+        assert isinstance(process_person_class.inputs, dict)
+        assert "person" in process_person_class.inputs
+
+        # Check that the Tool subclass generated the same complex nested Pydantic schema
+        person_schema_class = process_person_class.inputs["person"]
+        assert isinstance(person_schema_class, dict)
+        assert person_schema_class["type"] == "object"
+
+        # Verify the schemas are equivalent between decorator and class approaches
+        properties_class = person_schema_class["properties"]
+
+        # Compare key properties to ensure both approaches generate the same schema
+        assert set(properties.keys()) == set(properties_class.keys())
+
+        # Verify nested address schema is identical
+        address_schema_class = properties_class["address"]
+        assert address_schema_class["type"] == "object"
+        assert "properties" in address_schema_class
+
+        # Compare address properties
+        address_props_class = address_schema_class["properties"]
+        assert set(address_props.keys()) == set(address_props_class.keys())
+
+        # Verify constraints are preserved in class approach
+        street_schema_class = address_props_class["street"]
+        assert street_schema_class["type"] == "string"
+        assert street_schema_class["minLength"] == 1
+        assert street_schema_class["maxLength"] == 200
+
+        postal_schema_class = address_props_class["postal_code"]
+        assert postal_schema_class["type"] == "string"
+        assert "pattern" in postal_schema_class
+        assert postal_schema_class["pattern"] == r"^\d{5}(-\d{4})?$"
+
+        age_schema_class = properties_class["age"]
+        assert age_schema_class["type"] == "integer"
+        assert age_schema_class["minimum"] == 0
+        assert age_schema_class["maximum"] == 150
+
+    def test_pydantic_tool_validation_success(self, pydantic_available):
+        """Test successful validation of Pydantic tool arguments."""
+        import pydantic
+
+        class UserData(pydantic.BaseModel):
+            username: str
+            active: bool = True
+
+        @tool
+        def process_user(user: UserData) -> str:
+            """
+            Process user data.
+
+            Args:
+                user: User data to process
+
+            Returns:
+                User summary
+            """
+            return f"User {user.username} is {'active' if user.active else 'inactive'}"
+
+        # Test with valid input
+        valid_input = {"user": {"username": "alice", "active": True}}
+
+        # Should not raise any exception
+        validate_tool_arguments(process_user, valid_input)
+
+    def test_pydantic_tool_validation_with_optional_fields(self, pydantic_available):
+        """Test validation with optional Pydantic fields."""
+
+        class ProfileData(pydantic.BaseModel):
+            """Profile data for a user."""
+
+            name: str
+            bio: str | None = None
+            age: int | None = None
+
+        @tool
+        def create_profile(profile: ProfileData) -> str:
+            """
+            Create a user profile.
+
+            Args:
+                profile: Profile data
+
+            Returns:
+                Profile summary
+            """
+            return f"Profile for {profile.name}"
+
+        # Test with minimal required fields
+        minimal_input = {"profile": {"name": "Bob"}}
+
+        # Should not raise any exception
+        validate_tool_arguments(create_profile, minimal_input)
+
+        # Test with all fields
+        complete_input = {"profile": {"name": "Alice", "bio": "Software engineer", "age": 30}}
+
+        # Should not raise any exception
+        validate_tool_arguments(create_profile, complete_input)
+
+        # Test that optional fields are properly marked as nullable in schema
+        schema = create_profile.inputs["profile"]
+        properties = schema["properties"]
+        required_fields = schema.get("required", [])
+
+        # Check required field
+        assert "name" in required_fields
+        assert "nullable" not in properties["name"]
+
+        # Check optional fields are marked as nullable
+        assert "bio" not in required_fields
+        assert properties["bio"].get("nullable") is True
+
+        assert "age" not in required_fields
+        assert properties["age"].get("nullable") is True
+
+        # Test with Tool subclass to ensure same behavior
+        class ProfileTool(Tool):
+            name = "profile_tool"
+            description = "Tool with optional fields"
+            inputs = {"profile": ProfileData}
+            output_type = "string"
+
+            def forward(self, profile: ProfileData) -> str:
+                return f"Profile for {profile.name}"
+
+        tool_instance = ProfileTool()
+        schema_class = tool_instance.inputs["profile"]
+        properties_class = schema_class["properties"]
+        required_fields_class = schema_class.get("required", [])
+
+        # Check the Tool subclass generates the same nullable behavior
+        assert "name" in required_fields_class
+        assert "nullable" not in properties_class["name"]
+
+        assert "bio" not in required_fields_class
+        assert properties_class["bio"].get("nullable") is True
+
+        assert "age" not in required_fields_class
+        assert properties_class["age"].get("nullable") is True
+
+    def test_pydantic_tool_validation_failure(self, pydantic_available):
+        """Test validation failures with Pydantic tool arguments."""
+        import pydantic
+
+        class StrictData(pydantic.BaseModel):
+            count: int
+            message: str
+
+        @tool
+        def process_strict(data: StrictData) -> str:
+            """
+            Process strict data.
+
+            Args:
+                data: Strict data requirements
+
+            Returns:
+                Processing result
+            """
+            return f"Processed {data.count}: {data.message}"
+
+        # Test with missing required field
+        invalid_input = {
+            "data": {
+                "count": 5
+                # missing "message"
+            }
+        }
+
+        # Should raise validation error for missing required field
+        with pytest.raises(ValueError, match="Required property.*missing"):
+            validate_tool_arguments(process_strict, invalid_input)
+
+        # Test Tool subclass with Pydantic model missing docstring
+        class ModelWithoutDocstring(pydantic.BaseModel):
+            field: str
+
+        class InvalidTool(Tool):
+            name = "invalid_tool"
+            description = "Tool with invalid Pydantic model"
+            inputs = {"data": ModelWithoutDocstring}
+            output_type = "string"
+
+            def forward(self, data):
+                return str(data.field)
+
+        # Should raise ValueError for missing docstring
+        with pytest.raises(ValueError, match="must have a docstring to provide a description"):
+            InvalidTool()
+
+    def test_pydantic_tool_validation_error(self, pydantic_available):
+        """Test that incorrect Pydantic objects and incompatible dicts both raise validation errors."""
+        import pydantic
+        from pydantic import Field, ValidationError
+
+        class ContactInfo(pydantic.BaseModel):
+            email: str = Field(..., pattern=r"^[^@]+@[^@]+\.[^@]+$", description="Valid email address")
+            phone: str = Field(..., min_length=10, max_length=15, description="Phone number")
+
+        class UserProfile(pydantic.BaseModel):
+            name: str = Field(..., min_length=1, max_length=50, description="User name")
+            age: int = Field(..., ge=18, le=120, description="User age")
+            contact: ContactInfo = Field(..., description="Contact information")
+            active: bool = Field(default=True, description="Is user active")
+
+        @tool
+        def create_user_profile(profile: UserProfile) -> str:
+            """
+            Create a user profile with validation.
+
+            Args:
+                profile: User profile data with contact info
+
+            Returns:
+                Profile creation result
+            """
+            return f"Created profile for {profile.name}, age {profile.age}"
+
+        # Test 1: Invalid dictionary - constraint violations
+        invalid_dict_constraints = {
+            "profile": {
+                "name": "",  # violates min_length=1
+                "age": 15,  # violates ge=18
+                "contact": {
+                    "email": "invalid-email",  # violates email pattern
+                    "phone": "123",  # violates min_length=10
+                },
+                "active": True,
+            }
+        }
+
+        # Should raise validation error for constraint violations
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(create_user_profile, invalid_dict_constraints)
+
+        # Test 2: Invalid dictionary - missing required fields
+        invalid_dict_missing = {
+            "profile": {
+                "name": "John Doe"
+                # missing required 'age' and 'contact' fields
+            }
+        }
+
+        # Should raise validation error for missing required fields
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(create_user_profile, invalid_dict_missing)
+
+        # Test 3: Invalid dictionary - wrong types
+        invalid_dict_types = {
+            "profile": {
+                "name": "John Doe",
+                "age": "not-a-number",  # wrong type
+                "contact": {"email": "john@example.com", "phone": "1234567890"},
+            }
+        }
+
+        # Should raise validation error for wrong types
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(create_user_profile, invalid_dict_types)
+
+        # Test 4: Invalid nested dictionary structure
+        invalid_dict_nested = {
+            "profile": {
+                "name": "John Doe",
+                "age": 25,
+                "contact": "not-an-object",  # should be an object
+            }
+        }
+
+        # Should raise validation error for invalid nested structure
+        with pytest.raises((ValueError, TypeError)):
+            validate_tool_arguments(create_user_profile, invalid_dict_nested)
+
+        # Test 5: Direct Pydantic validation error during conversion
+        # This tests the _convert_dict_args_to_pydantic_models method
+        try:
+            # This should trigger a ValidationError during Pydantic model creation
+            invalid_contact_data = {
+                "email": "bad-email-format",
+                "phone": "123",  # too short
+            }
+            invalid_profile_data = {"name": "John Doe", "age": 25, "contact": invalid_contact_data}
+
+            # Try to create the tool with invalid data - this should fail
+            create_user_profile(profile=invalid_profile_data)
+            assert False, "Expected ValidationError but none was raised"
+
+        except (ValidationError, ValueError, TypeError):
+            # This is expected - the validation should catch the errors
+            assert True
+
+    def test_pydantic_tool_with_enum_constraints(self, pydantic_available):
+        """Test Pydantic tool with enum field constraints."""
+        import pydantic
+
+        class Priority(str, Enum):
+            LOW = "low"
+            MEDIUM = "medium"
+            HIGH = "high"
+
+        class TaskData(pydantic.BaseModel):
+            title: str
+            priority: Priority = Priority.MEDIUM
+
+        @tool
+        def create_task(task: TaskData) -> str:
+            """
+            Create a task.
+
+            Args:
+                task: Task data
+
+            Returns:
+                Task summary
+            """
+            return f"Task '{task.title}' with priority {task.priority.value}"
+
+        # Test with valid enum value
+        valid_input = {"task": {"title": "Fix bug", "priority": "high"}}
+
+        # Should not raise any exception
+        validate_tool_arguments(create_task, valid_input)
+
+        # Test with invalid enum value
+        invalid_input = {
+            "task": {
+                "title": "Fix bug",
+                "priority": "urgent",  # Not in enum
+            }
+        }
+
+        # Should raise validation error for invalid enum value
+        with pytest.raises(ValueError, match="not in allowed values"):
+            validate_tool_arguments(create_task, invalid_input)
+
+    def test_pydantic_tool_with_nested_models(self, pydantic_available):
+        """Test Pydantic tool with nested model structures."""
+        import pydantic
+
+        class Address(pydantic.BaseModel):
+            street: str
+            city: str
+
+        class Contact(pydantic.BaseModel):
+            name: str
+            address: Address
+
+        @tool
+        def process_contact(contact: Contact) -> str:
+            """
+            Process contact information.
+
+            Args:
+                contact: Contact data
+
+            Returns:
+                Contact summary
+            """
+            return f"{contact.name} lives at {contact.address.street}, {contact.address.city}"
+
+        # Test with valid nested structure
+        valid_input = {"contact": {"name": "John Doe", "address": {"street": "123 Main St", "city": "Anytown"}}}
+
+        # Should not raise any exception
+        validate_tool_arguments(process_contact, valid_input)
+
+        # Test with missing nested field
+        invalid_input = {
+            "contact": {
+                "name": "John Doe",
+                "address": {
+                    "street": "123 Main St"
+                    # missing "city"
+                },
+            }
+        }
+
+        # Should raise validation error for missing nested field
+        with pytest.raises(ValueError, match="Required property.*missing"):
+            validate_tool_arguments(process_contact, invalid_input)
