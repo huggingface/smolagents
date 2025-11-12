@@ -195,7 +195,7 @@ class Tool(BaseTool):
         # Validate output type
         output_type = getattr(self, "output_type", None)
         assert output_type in AUTHORIZED_TYPES, (
-            f"Output type '{output_type}': type must be one of the following values: {AUTHORIZED_TYPES}."
+            f"Output type '{output_type}': type must be one of {AUTHORIZED_TYPES}."
         )
 
         # Validate forward function signature, except for Tools that use a "generic" signature (PipelineTool, SpaceToolWrapper, LangChainToolWrapper)
