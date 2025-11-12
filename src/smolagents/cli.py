@@ -133,7 +133,9 @@ def run_smolagent(
     available_tools = []
     for tool_name in tools:
         if "/" in tool_name:
-            available_tools.append(Tool.from_space(tool_name))
+            space_name = tool_name.split("/")[-1].lower().replace("-", "_").replace(".", "_")
+            description = f"Tool loaded from Hugging Face Space: {tool_name}"
+            available_tools.append(Tool.from_space(space_id=tool_name, name=space_name, description=description))
         else:
             if tool_name in TOOL_MAPPING:
                 available_tools.append(TOOL_MAPPING[tool_name]())
