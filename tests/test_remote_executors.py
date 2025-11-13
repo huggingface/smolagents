@@ -446,9 +446,14 @@ class TestWasmExecutorUnit:
             patch("subprocess.Popen") as mock_popen,
             patch("requests.get") as mock_get,
             patch("time.sleep"),
+            patch("smolagents.remote_executors.find_free_port", return_value=12345),
         ):
             # Configure mocks
-            mock_run.return_value.returncode = 0
+            mock_version_run = MagicMock()
+            mock_version_run.returncode = 0
+            mock_info_run = MagicMock()
+            mock_info_run.stdout = '{"denoDir": "/tmp/deno"}'
+            mock_run.side_effect = [mock_version_run, mock_info_run]
             mock_process = MagicMock()
             mock_process.poll.return_value = None
             mock_popen.return_value = mock_process
@@ -465,9 +470,9 @@ class TestWasmExecutorUnit:
             assert "pandas" in executor.installed_packages
 
             # Verify Deno was checked
-            assert mock_run.call_count == 1
-            assert mock_run.call_args.args[0][0] == "deno"
-            assert mock_run.call_args.args[0][1] == "--version"
+            assert mock_run.call_count == 2
+            assert mock_run.call_args_list[0].args[0][:2] == ["deno", "--version"]
+            assert mock_run.call_args_list[1].args[0][:3] == ["deno", "info", "--json"]
 
             # Verify server was started
             assert mock_popen.call_count == 1
