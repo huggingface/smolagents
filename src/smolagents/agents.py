@@ -24,6 +24,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
@@ -1399,9 +1400,10 @@ class ToolCallingAgent(MultiStepAgent):
         else:
             # If multiple tool calls, process them in parallel
             with ThreadPoolExecutor(self.max_tool_threads) as executor:
-                futures = [
-                    executor.submit(process_single_tool_call, tool_call) for tool_call in parallel_calls.values()
-                ]
+                futures = []
+                for tool_call in parallel_calls.values():
+                    ctx = copy_context()
+                    futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
                 for future in as_completed(futures):
                     tool_output = future.result()
                     outputs[tool_output.id] = tool_output
