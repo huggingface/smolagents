@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import ast
+import asyncio
 import base64
 import importlib.util
 import inspect
@@ -505,4 +506,19 @@ class RateLimiter:
         elapsed = now - self._last_call
         if elapsed < self._interval:
             time.sleep(self._interval - elapsed)
+        self._last_call = time.time()
+
+    async def athrottle(self):
+        """Async pause execution to respect the rate limit, if enabled.
+
+        Uses asyncio.sleep() instead of time.sleep() to avoid blocking the event loop.
+        This is critical for async operations where blocking would prevent other tasks
+        from running during the rate limit delay.
+        """
+        if not self._enabled:
+            return
+        now = time.time()
+        elapsed = now - self._last_call
+        if elapsed < self._interval:
+            await asyncio.sleep(self._interval - elapsed)
         self._last_call = time.time()

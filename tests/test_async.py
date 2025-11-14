@@ -785,6 +785,83 @@ final_answer(user_data)
         assert "John Doe" in output.output
 
 
+class TestAsyncRateLimiter:
+    """Test async rate limiter functionality."""
+
+    @pytest.mark.asyncio
+    async def test_rate_limiter_athrottle(self):
+        """Test that async rate limiter doesn't block event loop."""
+        import time
+        from smolagents.utils import RateLimiter
+
+        # Create rate limiter: 60 requests/minute = 1 req/second
+        rate_limiter = RateLimiter(requests_per_minute=60)
+
+        # First call should be immediate
+        start = time.time()
+        await rate_limiter.athrottle()
+        first_call_time = time.time() - start
+        assert first_call_time < 0.1  # Should be nearly instant
+
+        # Second call should wait ~1 second but not block
+        start = time.time()
+        await rate_limiter.athrottle()
+        second_call_time = time.time() - start
+        assert 0.9 < second_call_time < 1.2  # Should wait ~1 second
+
+    @pytest.mark.asyncio
+    async def test_rate_limiter_non_blocking(self):
+        """Test that async rate limiter allows other tasks to run during wait."""
+        import time
+        from smolagents.utils import RateLimiter
+
+        # Create rate limiter: 120 requests/minute = 0.5 second delay
+        rate_limiter = RateLimiter(requests_per_minute=120)
+
+        # Track execution order
+        execution_order = []
+
+        async def task1():
+            execution_order.append("task1_start")
+            await rate_limiter.athrottle()
+            execution_order.append("task1_throttle1")
+            await rate_limiter.athrottle()  # Will wait 0.5s
+            execution_order.append("task1_throttle2")
+
+        async def task2():
+            await asyncio.sleep(0.1)
+            execution_order.append("task2_during_wait")
+
+        # Run both tasks concurrently
+        await asyncio.gather(task1(), task2())
+
+        # task2 should have executed during task1's throttle wait
+        assert "task1_throttle1" in execution_order
+        assert "task2_during_wait" in execution_order
+        # task2 should run during the wait (proof of non-blocking)
+        task1_throttle1_idx = execution_order.index("task1_throttle1")
+        task2_idx = execution_order.index("task2_during_wait")
+        task1_throttle2_idx = execution_order.index("task1_throttle2")
+        assert task1_throttle1_idx < task2_idx < task1_throttle2_idx
+
+    @pytest.mark.asyncio
+    async def test_rate_limiter_disabled(self):
+        """Test that rate limiter with None is disabled."""
+        from smolagents.utils import RateLimiter
+
+        rate_limiter = RateLimiter(requests_per_minute=None)
+
+        # Should be instant even with multiple calls
+        import time
+        start = time.time()
+        for _ in range(10):
+            await rate_limiter.athrottle()
+        elapsed = time.time() - start
+
+        # All 10 calls should complete nearly instantly
+        assert elapsed < 0.1
+
+
 # Note: These tests mock most functionality to avoid requiring actual API calls
 # For full integration testing with real models, use separate integration test suite
 # with appropriate API keys and markers (e.g., @pytest.mark.requires_api_key)

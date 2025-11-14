@@ -1121,6 +1121,13 @@ class ApiModel(Model):
         """Apply rate limiting before making API calls."""
         self.rate_limiter.throttle()
 
+    async def _apply_rate_limit_async(self):
+        """Apply rate limiting before making async API calls.
+
+        Uses asyncio.sleep() instead of time.sleep() to avoid blocking the event loop.
+        """
+        await self.rate_limiter.athrottle()
+
 
 class LiteLLMModel(ApiModel):
     """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
@@ -1292,7 +1299,7 @@ class LiteLLMModel(ApiModel):
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit_async()
         # Use litellm's async completion method
         response = await self.client.acompletion(**completion_kwargs)
         if not response.choices:
@@ -1331,7 +1338,7 @@ class LiteLLMModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit_async()
         async for event in self.client.acompletion(**completion_kwargs, stream=True, stream_options={"include_usage": True}):
             if getattr(event, "usage", None):
                 yield ChatMessageStreamDelta(
@@ -1659,7 +1666,7 @@ class InferenceClientModel(ApiModel):
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit_async()
 
         # Create async client on-the-fly
         from huggingface_hub import AsyncInferenceClient
@@ -1694,7 +1701,7 @@ class InferenceClientModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit_async()
 
         # Create async client on-the-fly
         from huggingface_hub import AsyncInferenceClient
@@ -1893,7 +1900,7 @@ class OpenAIServerModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit_async()
 
         # Create async client on-the-fly
         import openai
@@ -1928,7 +1935,7 @@ class OpenAIServerModel(ApiModel):
             convert_images_to_image_urls=True,
             **kwargs,
         )
-        self._apply_rate_limit()
+        await self._apply_rate_limit_async()
 
         # Create async client on-the-fly
         import openai
