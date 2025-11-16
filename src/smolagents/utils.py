@@ -179,6 +179,13 @@ def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str |
         return "\n\n".join(match.strip() for match in matches)
     return None
 
+def extract_and_fix_code(text: str, code_block_tags: tuple[str, str] | None = None) -> str | None:
+    """Extracts code pattern between ``` and ```</code>, from LLM's output"""
+    pattern = r"```(?:[a-zA-Z0-9_-]*)?(.*?)```</code>"
+    matches = re.search(pattern, text, re.DOTALL)
+    if matches:
+        return f"{matches.group(1).strip()}"
+    return None
 
 def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     """Extract code blocs from the LLM's output.
@@ -197,6 +204,8 @@ def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     matches = extract_code_from_text(text, code_block_tags)
     if not matches:  # Fallback to markdown pattern
         matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
+    if not matches:
+        matches=extract_and_fix_code(text)
     if matches:
         return matches
     # Maybe the LLM outputted a code blob directly
