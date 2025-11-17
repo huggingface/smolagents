@@ -227,6 +227,22 @@ class TestModel:
         data = json.loads(message.model_dump_json())
         assert data["content"] == [{"type": "text", "text": "Hello!"}]
 
+    def test_chatmessage_from_dict_role_conversion(self):
+        message_data = {
+            "role": "user",
+            "content": [{"type": "text", "text": "Hello!"}],
+        }
+        message = ChatMessage.from_dict(message_data)
+        assert isinstance(message.role, MessageRole)
+        assert message.role == MessageRole.USER
+        assert message.role.value == "user"
+        assert message.content == [{"type": "text", "text": "Hello!"}]
+
+        message_data["role"] = MessageRole.ASSISTANT
+        message2 = ChatMessage.from_dict(message_data)
+        assert isinstance(message2.role, MessageRole)
+        assert message2.role == MessageRole.ASSISTANT
+
     @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)

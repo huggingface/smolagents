@@ -142,7 +142,7 @@ class ChatMessage:
             ]
             data["tool_calls"] = tool_calls
         return cls(
-            role=data["role"],
+            role=MessageRole(data["role"]),
             content=data.get("content"),
             tool_calls=data.get("tool_calls"),
             raw=raw,
