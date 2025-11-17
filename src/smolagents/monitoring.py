@@ -190,7 +190,7 @@ class AgentLogger:
     def log_rule(self, title: str, level: int = LogLevel.INFO) -> None:
         self.log(
             Rule(
-                "[bold]" + title,
+                "[bold white]" + title,
                 characters="━",
                 style=YELLOW_HEX,
             ),

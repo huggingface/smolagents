@@ -12,7 +12,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "huggingface-hub>=0.31.2",
+  "huggingface-hub>=0.31.2,<1.0.0",
   "requests>=2.32.3",
   "rich>=13.9.4",
   "jinja2>=3.1.4",
@@ -24,6 +24,10 @@ dependencies = [
 [project.optional-dependencies]
 bedrock = [
   "boto3>=1.36.18"
+]
+blaxel = [
+  "blaxel>=0.2.19",
+  "websocket-client",
 ]
 torch = [
   "torch",
@@ -82,11 +86,11 @@ vision = [
   "selenium",
 ]
 vllm = [
-  "vllm",
+  "vllm>=0.10.2",
   "torch"
 ]
 all = [
-  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
+  "smolagents[audio,blaxel,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
 ]
 quality = [
   "ruff>=0.9.0",

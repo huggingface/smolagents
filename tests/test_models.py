@@ -14,7 +14,6 @@
 # limitations under the License.
 import json
 import sys
-import unittest
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
@@ -244,14 +243,14 @@ class TestModel:
         assert isinstance(message2.role, MessageRole)
         assert message2.role == MessageRole.ASSISTANT
 
-    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
         messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         output = model(messages, stop_sequences=["great"]).content
         assert output.startswith("Hello")
 
-    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_tricky_stop_sequence(self):
         # In this test HuggingFaceTB/SmolLM2-135M-Instruct generates the token ">'"
         # which is required to test capturing stop_sequences that have extra chars at the end.
@@ -435,7 +434,8 @@ class TestLiteLLMModel:
         mock_litellm = MagicMock()
 
         with (
-            patch("smolagents.models.RETRY_WAIT", 1),
+            patch("smolagents.models.RETRY_WAIT", 0.1),
+            patch("smolagents.utils.random.random", side_effect=[0.1, 0.1]),
             patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
         ):
             model = LiteLLMModel(model_id="test-model")
@@ -454,22 +454,25 @@ class TestLiteLLMModel:
             # Create a 429 rate limit error
             rate_limit_error = Exception("Error code: 429 - Rate limit exceeded")
 
-            # Mock the litellm client to raise error first, then succeed
-            model.client.completion.side_effect = [rate_limit_error, mock_success_response]
+            # Mock the litellm client to raise an error twice, and then succeed
+            model.client.completion.side_effect = [rate_limit_error, rate_limit_error, mock_success_response]
 
             # Measure time to verify retry wait time
             start_time = time.time()
             result = model.generate(messages)
             elapsed_time = time.time() - start_time
 
-            # Verify that completion was called twice (once failed, once succeeded)
-            assert model.client.completion.call_count == 2
+            # Verify that completion was called thrice (twice failed, once succeeded)
+            assert model.client.completion.call_count == 3
             assert result.content == "Success response"
             assert result.token_usage.input_tokens == 10
             assert result.token_usage.output_tokens == 20
 
-            # Verify that the wait time was around 1s (allow some tolerance)
-            assert 0.9 <= elapsed_time <= 1.2
+            # Verify that the wait time was around
+            # 0.22s (1st retry) [0.1 * 2.0 * (1 + 1 * 0.1)]
+            # + 0.48s (2nd retry) [0.22 * 2.0 * (1 + 1 * 0.1)]
+            # = 0.704s (allow some tolerance)
+            assert 0.67 <= elapsed_time <= 0.73
 
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
@@ -858,6 +861,7 @@ def test_flatten_messages_as_text_for_all_models(
         # Unsupported base models
         ("o3", False),
         ("o4-mini", False),
+        ("gpt-5.1", False),
         ("gpt-5", False),
         ("gpt-5-mini", False),
         ("gpt-5-nano", False),
