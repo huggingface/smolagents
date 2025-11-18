@@ -1111,7 +1111,6 @@ You have been provided with these additional arguments, that you can access dire
         # Load agent.json
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
-
         # Handle HfApiModel -> InferenceClientModel rename for old agents
         if agent_dict.get("model", {}).get("class") == "HfApiModel":
             agent_dict["model"]["class"] = "InferenceClientModel"
