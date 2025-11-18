@@ -1246,6 +1246,9 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
+        # LiteLLM's completion() returns a Pydantic model (litellm.ModelResponse)
+        # The tool_calls in response.choices[0].message.tool_calls are Pydantic ChatCompletionMessageToolCall objects
+        # which need to be converted to dataclasses for JSON serialization
         response = self.retryer(self.client.completion, **completion_kwargs)
 
         if not response.choices:
@@ -1257,10 +1260,27 @@ class LiteLLMModel(ApiModel):
         content = response.choices[0].message.content
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
+
+        # Convert Pydantic tool_calls to dataclasses
+        tool_calls = None
+        if response.choices[0].message.tool_calls:
+            tool_calls = [
+                ChatMessageToolCall(
+                    function=ChatMessageToolCallFunction(
+                        name=tc.function.name,
+                        arguments=tc.function.arguments,
+                        description=getattr(tc.function, "description", None),
+                    ),
+                    id=tc.id,
+                    type=tc.type,
+                )
+                for tc in response.choices[0].message.tool_calls
+            ]
+
         return ChatMessage(
             role=response.choices[0].message.role,
             content=content,
-            tool_calls=response.choices[0].message.tool_calls,
+            tool_calls=tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1303,19 +1323,29 @@ class LiteLLMModel(ApiModel):
             if event.choices:
                 choice = event.choices[0]
                 if choice.delta:
-                    yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
-                        tool_calls=[
+                    # Convert Pydantic function deltas to dataclasses
+                    tool_calls = None
+                    if choice.delta.tool_calls:
+                        tool_calls = [
                             ChatMessageToolCallStreamDelta(
                                 index=delta.index,
                                 id=delta.id,
                                 type=delta.type,
-                                function=delta.function,
+                                function=ChatMessageToolCallFunction(
+                                    name=getattr(delta.function, "name", "") if delta.function else "",
+                                    arguments=getattr(delta.function, "arguments", "") if delta.function else "",
+                                    description=getattr(delta.function, "description", None)
+                                    if delta.function
+                                    else None,
+                                )
+                                if delta.function
+                                else None,
                             )
                             for delta in choice.delta.tool_calls
                         ]
-                        if choice.delta.tool_calls
-                        else None,
+                    yield ChatMessageStreamDelta(
+                        content=choice.delta.content,
+                        tool_calls=tool_calls,
                     )
                 else:
                     if not getattr(choice, "finish_reason", None):
