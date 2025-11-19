@@ -138,14 +138,14 @@ print(model(messages))
 
 [[autodoc]] LiteLLMRouterModel
 
-### OpenAIServerModel[[smolagents.OpenAIServerModel]]
+### OpenAIModel[[smolagents.OpenAIModel]]
 
 이 클래스를 사용하면 OpenAIServer와 호환되는 모든 모델을 호출할 수 있습니다. 설정 방법은 다음과 같습니다 (`api_base` url을 다른 서버를 가리키도록 사용자 정의할 수 있습니다):
 ```py
 import os
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="gpt-4o",
     api_base="https://api.openai.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
@@ -155,7 +155,7 @@ model = OpenAIServerModel(
 기반 모델에서 지원하는 모든 키워드 인수(`temperature`, `max_tokens`, `top_p` 등)를 인스턴스화 시점에 직접 전달할 수 있습니다. 이들은 모델 생성 호출로 전달됩니다:
 
 ```py
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="gpt-4o",
     api_base="https://api.openai.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
@@ -165,11 +165,11 @@ model = OpenAIServerModel(
 )
 ```
 
-[[autodoc]] OpenAIServerModel
+[[autodoc]] OpenAIModel
 
-### AzureOpenAIServerModel[[smolagents.AzureOpenAIServerModel]]
+### AzureOpenAIModel[[smolagents.AzureOpenAIModel]]
 
-`AzureOpenAIServerModel`을 사용하면 모든 Azure OpenAI 배포에 연결할 수 있습니다.
+`AzureOpenAIModel`을 사용하면 모든 Azure OpenAI 배포에 연결할 수 있습니다.
 
 아래에서 설정 예시를 확인할 수 있습니다. `azure_endpoint`, `api_key`, `api_version` 인수는 환경 변수(`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `OPENAI_API_VERSION`)를 설정해 두면 생략할 수 있습니다.
 
@@ -178,9 +178,9 @@ model = OpenAIServerModel(
 ```py
 import os
 
-from smolagents import AzureOpenAIServerModel
+from smolagents import AzureOpenAIModel
 
-model = AzureOpenAIServerModel(
+model = AzureOpenAIModel(
     model_id = os.environ.get("AZURE_OPENAI_MODEL"),
     azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
     api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
@@ -188,25 +188,25 @@ model = AzureOpenAIServerModel(
 )
 ```
 
-[[autodoc]] AzureOpenAIServerModel
+[[autodoc]] AzureOpenAIModel
 
-### AmazonBedrockServerModel[[smolagents.AmazonBedrockServerModel]]
+### AmazonBedrockModel[[smolagents.AmazonBedrockModel]]
 
-`AmazonBedrockServerModel`은 Amazon Bedrock에 연결하고, 사용할 수 있는 모든 모델에서 에이전트를 실행할 수 있도록 지원합니다.
+`AmazonBedrockModel`은 Amazon Bedrock에 연결하고, 사용할 수 있는 모든 모델에서 에이전트를 실행할 수 있도록 지원합니다.
 
 아래는 설정 예시입니다. 이 클래스는 사용자 정의를 위한 추가 옵션도 제공합니다.
 
 ```py
 import os
 
-from smolagents import AmazonBedrockServerModel
+from smolagents import AmazonBedrockModel
 
-model = AmazonBedrockServerModel(
+model = AmazonBedrockModel(
     model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID"),
 )
 ```
 
-[[autodoc]] AmazonBedrockServerModel
+[[autodoc]] AmazonBedrockModel
 
 ### MLXModel[[smolagents.MLXModel]]
 

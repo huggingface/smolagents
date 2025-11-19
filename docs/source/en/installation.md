@@ -180,23 +180,31 @@ Extras for handling different types of media and input:
 Extras for executing code remotely:
 <hfoptions id="installation">
 <hfoption id="pip">
-- **docker**: Add support for executing code in Docker containers.
+- **blaxel**: Add support for Blaxel sandboxes - fast-launching VMs with hibernation (recommended).
   ```bash
-  pip install "smolagents[docker]"
+  pip install "smolagents[blaxel]"
   ```
 - **e2b**: Enable E2B support for remote execution.
   ```bash
   pip install "smolagents[e2b]"
   ```
-</hfoption>
-<hfoption id="uv">
 - **docker**: Add support for executing code in Docker containers.
   ```bash
-  uv pip install "smolagents[docker]"
+  pip install "smolagents[docker]"
+  ```
+</hfoption>
+<hfoption id="uv">
+- **blaxel**: Add support for Blaxel sandboxes - fast-launching VMs with hibernation (recommended).
+  ```bash
+  uv pip install "smolagents[blaxel]"
   ```
 - **e2b**: Enable E2B support for remote execution.
   ```bash
   uv pip install "smolagents[e2b]"
+  ```
+- **docker**: Add support for executing code in Docker containers.
+  ```bash
+  uv pip install "smolagents[docker]"
   ```
 </hfoption>
 </hfoptions>
