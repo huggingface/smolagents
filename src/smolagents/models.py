@@ -108,6 +108,77 @@ class ChatMessageToolCall:
         return f"Call: {self.id}: Calling {str(self.function.name)} with arguments: {str(self.function.arguments)}"
 
 
+def convert_tool_calls_to_dataclasses(tool_calls: Any) -> list[ChatMessageToolCall] | None:
+    """
+    Convert tool_calls from various formats (Pydantic models, dataclasses, dicts) to ChatMessageToolCall dataclasses.
+
+    This ensures JSON serialization works regardless of the source format.
+
+    Args:
+        tool_calls: Tool calls in any format (Pydantic model, dataclass, dict, list, or None)
+
+    Returns:
+        List of ChatMessageToolCall dataclasses, or None if tool_calls is None/empty
+    """
+    if not tool_calls:
+        return None
+
+    result = []
+    for tc in tool_calls:
+        # Handle Pydantic models - they have model_dump() method
+        if hasattr(tc, "model_dump"):
+            tc_dict = tc.model_dump()
+        # Handle dataclasses - use asdict
+        elif hasattr(tc, "__dataclass_fields__"):
+            tc_dict = asdict(tc)
+        # Handle dict-like objects (including dict from AmazonBedrock)
+        elif isinstance(tc, dict):
+            tc_dict = tc
+        # Handle objects with attributes (fallback)
+        else:
+            tc_dict = {
+                "id": getattr(tc, "id", ""),
+                "type": getattr(tc, "type", "function"),
+                "function": {
+                    "name": getattr(tc.function, "name", "") if hasattr(tc, "function") else "",
+                    "arguments": getattr(tc.function, "arguments", "") if hasattr(tc, "function") else "",
+                    "description": getattr(tc.function, "description", None) if hasattr(tc, "function") else None,
+                },
+            }
+
+        # Extract function info - handle both dict and object formats
+        if isinstance(tc_dict.get("function"), dict):
+            func_dict = tc_dict["function"]
+        elif hasattr(tc, "function"):
+            func = tc.function
+            if hasattr(func, "model_dump"):
+                func_dict = func.model_dump()
+            elif hasattr(func, "__dataclass_fields__"):
+                func_dict = asdict(func)
+            else:
+                func_dict = {
+                    "name": getattr(func, "name", ""),
+                    "arguments": getattr(func, "arguments", ""),
+                    "description": getattr(func, "description", None),
+                }
+        else:
+            func_dict = {}
+
+        result.append(
+            ChatMessageToolCall(
+                function=ChatMessageToolCallFunction(
+                    name=func_dict.get("name", ""),
+                    arguments=func_dict.get("arguments", ""),
+                    description=func_dict.get("description"),
+                ),
+                id=tc_dict.get("id", ""),
+                type=tc_dict.get("type", "function"),
+            )
+        )
+
+    return result if result else None
+
+
 class MessageRole(str, Enum):
     USER = "user"
     ASSISTANT = "assistant"
@@ -1261,21 +1332,8 @@ class LiteLLMModel(ApiModel):
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
 
-        # Convert Pydantic tool_calls to dataclasses
-        tool_calls = None
-        if response.choices[0].message.tool_calls:
-            tool_calls = [
-                ChatMessageToolCall(
-                    function=ChatMessageToolCallFunction(
-                        name=tc.function.name,
-                        arguments=tc.function.arguments,
-                        description=getattr(tc.function, "description", None),
-                    ),
-                    id=tc.id,
-                    type=tc.type,
-                )
-                for tc in response.choices[0].message.tool_calls
-            ]
+        # Convert tool_calls to dataclasses (handles Pydantic, dataclass, dict formats)
+        tool_calls = convert_tool_calls_to_dataclasses(response.choices[0].message.tool_calls)
 
         return ChatMessage(
             role=response.choices[0].message.role,
@@ -1569,10 +1627,13 @@ class InferenceClientModel(ApiModel):
         content = response.choices[0].message.content
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
+        # Convert tool_calls to dataclasses (handles Pydantic, dataclass, dict formats)
+        tool_calls = convert_tool_calls_to_dataclasses(response.choices[0].message.tool_calls)
+
         return ChatMessage(
             role=response.choices[0].message.role,
             content=content,
-            tool_calls=response.choices[0].message.tool_calls,
+            tool_calls=tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1616,19 +1677,44 @@ class InferenceClientModel(ApiModel):
             if event.choices:
                 choice = event.choices[0]
                 if choice.delta:
+                    # Convert tool call deltas to dataclasses (handles Pydantic, dataclass, dict formats)
+                    tool_calls = None
+                    if choice.delta.tool_calls:
+                        tool_calls = []
+                        for delta in choice.delta.tool_calls:
+                            # Handle function delta - can be Pydantic, dataclass, dict, or object
+                            func = None
+                            if delta.function:
+                                if hasattr(delta.function, "model_dump"):
+                                    func_dict = delta.function.model_dump()
+                                elif hasattr(delta.function, "__dataclass_fields__"):
+                                    func_dict = asdict(delta.function)
+                                elif isinstance(delta.function, dict):
+                                    func_dict = delta.function
+                                else:
+                                    func_dict = {
+                                        "name": getattr(delta.function, "name", ""),
+                                        "arguments": getattr(delta.function, "arguments", ""),
+                                        "description": getattr(delta.function, "description", None),
+                                    }
+                                func = ChatMessageToolCallFunction(
+                                    name=func_dict.get("name", ""),
+                                    arguments=func_dict.get("arguments", ""),
+                                    description=func_dict.get("description"),
+                                )
+
+                            tool_calls.append(
+                                ChatMessageToolCallStreamDelta(
+                                    index=getattr(delta, "index", None),
+                                    id=getattr(delta, "id", None),
+                                    type=getattr(delta, "type", None),
+                                    function=func,
+                                )
+                            )
+
                     yield ChatMessageStreamDelta(
                         content=choice.delta.content,
-                        tool_calls=[
-                            ChatMessageToolCallStreamDelta(
-                                index=delta.index,
-                                id=delta.id,
-                                type=delta.type,
-                                function=delta.function,
-                            )
-                            for delta in choice.delta.tool_calls
-                        ]
-                        if choice.delta.tool_calls
-                        else None,
+                        tool_calls=tool_calls,
                     )
                 else:
                     if not getattr(choice, "finish_reason", None):
@@ -1732,19 +1818,44 @@ class OpenAIModel(ApiModel):
             if event.choices:
                 choice = event.choices[0]
                 if choice.delta:
+                    # Convert tool call deltas to dataclasses (handles Pydantic, dataclass, dict formats)
+                    tool_calls = None
+                    if choice.delta.tool_calls:
+                        tool_calls = []
+                        for delta in choice.delta.tool_calls:
+                            # Handle function delta - can be Pydantic, dataclass, dict, or object
+                            func = None
+                            if delta.function:
+                                if hasattr(delta.function, "model_dump"):
+                                    func_dict = delta.function.model_dump()
+                                elif hasattr(delta.function, "__dataclass_fields__"):
+                                    func_dict = asdict(delta.function)
+                                elif isinstance(delta.function, dict):
+                                    func_dict = delta.function
+                                else:
+                                    func_dict = {
+                                        "name": getattr(delta.function, "name", ""),
+                                        "arguments": getattr(delta.function, "arguments", ""),
+                                        "description": getattr(delta.function, "description", None),
+                                    }
+                                func = ChatMessageToolCallFunction(
+                                    name=func_dict.get("name", ""),
+                                    arguments=func_dict.get("arguments", ""),
+                                    description=func_dict.get("description"),
+                                )
+
+                            tool_calls.append(
+                                ChatMessageToolCallStreamDelta(
+                                    index=getattr(delta, "index", None),
+                                    id=getattr(delta, "id", None),
+                                    type=getattr(delta, "type", None),
+                                    function=func,
+                                )
+                            )
+
                     yield ChatMessageStreamDelta(
                         content=choice.delta.content,
-                        tool_calls=[
-                            ChatMessageToolCallStreamDelta(
-                                index=delta.index,
-                                id=delta.id,
-                                type=delta.type,
-                                function=delta.function,
-                            )
-                            for delta in choice.delta.tool_calls
-                        ]
-                        if choice.delta.tool_calls
-                        else None,
+                        tool_calls=tool_calls,
                     )
                 else:
                     if not getattr(choice, "finish_reason", None):
@@ -1773,10 +1884,13 @@ class OpenAIModel(ApiModel):
         content = response.choices[0].message.content
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
+        # Convert tool_calls to dataclasses (handles Pydantic, dataclass, dict formats)
+        tool_calls = convert_tool_calls_to_dataclasses(response.choices[0].message.tool_calls)
+
         return ChatMessage(
             role=response.choices[0].message.role,
             content=content,
-            tool_calls=response.choices[0].message.tool_calls,
+            tool_calls=tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -2040,10 +2154,13 @@ class AmazonBedrockModel(ApiModel):
         content = message_content_blocks_with_text[-1]["text"]
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
+        # Convert tool_calls to dataclasses (handles dict format from Bedrock)
+        tool_calls = convert_tool_calls_to_dataclasses(response["output"]["message"].get("tool_calls"))
+
         return ChatMessage(
             role=response["output"]["message"]["role"],
             content=content,
-            tool_calls=response["output"]["message"]["tool_calls"],
+            tool_calls=tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response["usage"]["inputTokens"],

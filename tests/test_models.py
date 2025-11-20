@@ -481,6 +481,49 @@ class TestLiteLLMModel:
         model = LiteLLMModel(model_id="fal/llama-3.3-70b", flatten_messages_as_text=True)
         assert model.flatten_messages_as_text
 
+    @pytest.mark.parametrize(
+        "model_class,model_id",
+        [
+            (LiteLLMModel, "gpt-4o-mini"),
+            (OpenAIModel, "gpt-4o-mini"),
+        ],
+    )
+    @require_run_all
+    def test_tool_calls_json_serialization(self, model_class, model_id):
+        """Test that tool_calls from various API models (Pydantic, dataclass, dict) are properly converted to dataclasses and can be JSON serialized.
+
+        This tests the horizontal fix that ensures all models (LiteLLM, OpenAI, InferenceClient, AmazonBedrock)
+        properly convert tool_calls to dataclasses regardless of the source format (Pydantic models, dataclasses, or dicts).
+        """
+        model = model_class(model_id=model_id)
+        messages = [
+            ChatMessage(
+                role=MessageRole.USER,
+                content=[
+                    {
+                        "type": "text",
+                        "text": "Hello! Please return the final answer 'test_result' in a tool call",
+                    }
+                ],
+            ),
+        ]
+        result = model.generate(messages, tools_to_call_from=[FinalAnswerTool()])
+
+        # Verify tool_calls are converted to dataclasses
+        assert result.tool_calls is not None
+        assert len(result.tool_calls) > 0
+        assert isinstance(result.tool_calls[0], ChatMessageToolCall)
+        assert result.tool_calls[0].function.name == "final_answer"
+
+        # The critical test: verify JSON serialization works
+        # This would fail before the fix with: "Object of type ChatCompletionMessageToolCall is not JSON serializable"
+        # or similar errors for other model types
+        json_str = result.model_dump_json()
+        data = json.loads(json_str)
+        assert "tool_calls" in data
+        assert len(data["tool_calls"]) > 0
+        assert data["tool_calls"][0]["function"]["name"] == "final_answer"
+
 
 class TestLiteLLMRouterModel:
     @pytest.mark.parametrize(
