@@ -32,7 +32,6 @@ from tqdm import tqdm
 
 from smolagents import (
     CodeAgent,
-    FinalAnswerStep,
     GoogleSearchTool,
     LiteLLMModel,
     Model,
@@ -97,11 +96,11 @@ def create_agent_team(model: Model, token_counts: TokenUsage):
         TextInspectorTool(model, text_limit),
     ]
 
-    def increment_web_agent_token_counts(memory_step, agent):
-        if isinstance(memory_step, FinalAnswerStep):
-            token_counts_web = agent.monitor.get_total_token_counts()
-            token_counts.input_tokens += token_counts_web["input"]
-            token_counts.output_tokens += token_counts_web["output"]
+    def increment_web_agent_token_counts(final_answer, memory_step, agent):
+        token_counts_web = agent.monitor.get_total_token_counts()
+        token_counts.input_tokens += token_counts_web["input"]
+        token_counts.output_tokens += token_counts_web["output"]
+        return True
 
     text_webbrowser_agent = ToolCallingAgent(
         model=model,
@@ -117,7 +116,7 @@ def create_agent_team(model: Model, token_counts: TokenUsage):
     Your request must be a real sentence, not a google search! Like "Find me this information (...)" rather than a few keywords.
     """,
         provide_run_summary=True,
-        step_callbacks={FinalAnswerStep: increment_web_agent_token_counts},
+        final_answer_checks=[increment_web_agent_token_counts],
     )
     text_webbrowser_agent.prompt_templates["managed_agent"]["task"] += """You can navigate to .txt online files.
     If a non-html page is in another format, especially .pdf or a Youtube video, use tool 'inspect_file_as_text' to inspect it.
