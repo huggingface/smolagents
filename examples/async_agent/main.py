@@ -18,7 +18,7 @@ from smolagents import CodeAgent, InferenceClientModel
 def get_agent():
     # You can set custom model, or tools as needed
     return CodeAgent(
-        model=InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"),
+        model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking"),
         tools=[],
     )
 

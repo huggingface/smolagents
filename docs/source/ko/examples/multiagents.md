@@ -36,13 +36,13 @@ from huggingface_hub import login
 login()
 ```
 
-⚡️ 에이전트는 Hugging Face의 Inference API를 사용하는 `InferenceClientModel` 클래스를 통해 [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct)로 구동됩니다. Inference API를 사용하면 모든 오픈소스 모델을 빠르고 쉽게 실행할 수 있습니다.
+⚡️ 에이전트는 Hugging Face의 Inference API를 사용하는 `InferenceClientModel` 클래스를 통해 [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking)로 구동됩니다. Inference API를 사용하면 모든 오픈소스 모델을 빠르고 쉽게 실행할 수 있습니다.
 
 > [!TIP]
 > Inference Providers는 서버리스 추론 파트너가 지원하는 수백 개의 모델에 대한 액세스를 제공합니다. 지원되는 프로바이더 목록은 [여기](https://huggingface.co/docs/inference-providers/index)에서 확인할 수 있습니다.
 
 ```py
-model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
+model_id = "Qwen/Qwen3-Next-80B-A3B-Thinking"
 ```
 
 ## 🔍 웹 검색 도구 생성
@@ -111,7 +111,6 @@ from smolagents import (
     ToolCallingAgent,
     InferenceClientModel,
     WebSearchTool,
-    LiteLLMModel,
 )
 
 model = InferenceClientModel(model_id=model_id)

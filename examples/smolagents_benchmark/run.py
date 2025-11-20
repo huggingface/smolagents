@@ -60,7 +60,6 @@ def parse_arguments():
     parser.add_argument(
         "--provider",
         type=str,
-        default="hf-inference",
         help="The provider for InferenceClientModel - will not be used for LiteLLMModel",
     )
     parser.add_argument(
@@ -135,9 +134,12 @@ def answer_single_question(example, model, answers_file, action_type):
         )
     elif action_type == "tool-calling":
         agent = ToolCallingAgent(
-            tools=[GoogleSearchTool(provider="serper"), VisitWebpageTool(), PythonInterpreterTool()],
+            tools=[
+                GoogleSearchTool(provider="serper"),
+                VisitWebpageTool(),
+                PythonInterpreterTool(authorized_imports=["numpy", "sympy"]),
+            ],
             model=model,
-            additional_authorized_imports=["numpy", "sympy"],
             max_steps=10,
         )
 
@@ -158,7 +160,7 @@ def answer_single_question(example, model, answers_file, action_type):
             # Run agent 🚀
             answer = str(agent.run(augmented_question))
             token_counts = agent.monitor.get_total_token_counts()
-            intermediate_steps = [dict(message) for message in agent.write_memory_to_messages()]
+            intermediate_steps = [message.dict() for message in agent.write_memory_to_messages()]
 
         end_time = time.time()
     except Exception as e:

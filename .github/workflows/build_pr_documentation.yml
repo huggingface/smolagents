@@ -18,5 +18,5 @@ jobs:
       commit_sha: ${{ github.event.pull_request.head.sha }}
       pr_number: ${{ github.event.number }}
       package: smolagents
-      languages: en
+      languages: en hi ko zh
       # additional_args: --not_python_module # use this arg if repository is documentation only
