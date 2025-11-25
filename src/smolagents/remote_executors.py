@@ -1174,10 +1174,6 @@ json.dumps([name for name in _packages.to_py() if _needs_install(name)])
                       status: 500,
                       headers: {{ "Content-Type": "application/json" }}
                     }});
-                  }} finally {{
-                    if (typeof micropip.destroy === "function") {{
-                      micropip.destroy();
-                    }}
                   }}
                 }}
               }}
