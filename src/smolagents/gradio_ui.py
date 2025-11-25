@@ -403,6 +403,9 @@ class GradioUI:
             gr.Button(interactive=False),
         )
 
+    def clear_memory(self):
+        self.agent.memory.reset()
+
     def launch(self, share: bool = True, **kwargs):
         """
         Launch the Gradio app with the agent interface.
@@ -470,6 +473,9 @@ class GradioUI:
                     {"left": r"\(", "right": r"\)", "display": False},
                 ],
             )
+
+            # Clear the agent memory also
+            chatbot.clear(self.clear_memory)
 
             # Set up event handlers
             text_input.submit(
