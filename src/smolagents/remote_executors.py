@@ -942,7 +942,7 @@ class WasmExecutor(RemotePythonExecutor):
         max_retries = 20
         retry_delay = 0.5
 
-        for i in range(max_retries):
+        for _ in range(max_retries):
             # Check if process died
             if self.server_process.poll() is not None:
                 stderr = self.server_process.stderr.read()
