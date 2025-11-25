@@ -84,6 +84,68 @@ You can then navigate to `http://0.0.0.0:6006/projects/` to inspect your run!
 
 You can see that the CodeAgent called its managed ToolCallingAgent (by the way, the managed agent could have been a CodeAgent as well) to ask it to run the web search for the U.S. 2024 growth rate. Then the managed agent returned its report and the manager agent acted upon it to calculate the economy doubling time! Sweet, isn't it?
 
+## Setting up telemetry with MLflow
+
+MLflow provides one-line automatic tracing integration for Smolagents. It records agent runs, spans, inputs/outputs, and token usage so you can inspect and analyze executions in the MLflow UI.
+
+### Step 1: Install dependencies
+
+```python
+%pip install mlflow smolagents
+```
+
+### Step 2: Enable smolagents autologging
+
+Enable MLflow’s autologging for smolagents is extremely easy, just insert the following code before running your agent:
+
+```python
+import mlflow
+
+mlflow.smolagents.autolog()
+```
+
+### Step 3: Run your smolagent
+
+Define your agent and run it as usual.
+
+```python
+from smolagents import (
+    CodeAgent,
+    ToolCallingAgent,
+    WebSearchTool,
+    VisitWebpageTool,
+    InferenceClientModel,
+)
+
+model = InferenceClientModel()
+
+search_agent = ToolCallingAgent(
+    tools=[WebSearchTool(), VisitWebpageTool()],
+    model=model,
+    name="search_agent",
+    description="This is an agent that can do web search.",
+)
+
+manager_agent = CodeAgent(
+    tools=[],
+    model=model,
+    managed_agents=[search_agent],
+)
+manager_agent.run(
+    "If the US keeps its 2024 growth rate, how many years will it take for the GDP to double?"
+)
+```
+
+### Step 4: View traces in MLflow
+
+Open the MLflow UI for your MLflow server to inspect the run and its spans. If you don’t already have a server running locally, you can launch one quickly for exploration:
+
+```shell
+mlflow ui --port 5000
+```
+
+Then open the UI in your browser and navigate to the Traces view to explore the execution.
+
 ## Setting up telemetry with 🪢 Langfuse
 
 This part shows how to monitor and debug your Hugging Face **smolagents** with **Langfuse** using the `SmolagentsInstrumentor`.
