@@ -142,7 +142,7 @@ class DuckDuckGoSearchTool(Tool):
 
     def forward(self, query: str, timelimit: str | None = None) -> str:
         self._enforce_rate_limit()
-        results = self.ddgs.text(query, max_results=self.max_results)
+        results = self.ddgs.text(query, max_results=self.max_results, timelimit=timelimit)
         if len(results) == 0:
             raise Exception("No results found! Try a less restrictive/shorter query.")
         postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
