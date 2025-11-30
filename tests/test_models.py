@@ -14,7 +14,6 @@
 # limitations under the License.
 import json
 import sys
-import unittest
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
@@ -228,14 +227,30 @@ class TestModel:
         data = json.loads(message.model_dump_json())
         assert data["content"] == [{"type": "text", "text": "Hello!"}]
 
-    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    def test_chatmessage_from_dict_role_conversion(self):
+        message_data = {
+            "role": "user",
+            "content": [{"type": "text", "text": "Hello!"}],
+        }
+        message = ChatMessage.from_dict(message_data)
+        assert isinstance(message.role, MessageRole)
+        assert message.role == MessageRole.USER
+        assert message.role.value == "user"
+        assert message.content == [{"type": "text", "text": "Hello!"}]
+
+        message_data["role"] = MessageRole.ASSISTANT
+        message2 = ChatMessage.from_dict(message_data)
+        assert isinstance(message2.role, MessageRole)
+        assert message2.role == MessageRole.ASSISTANT
+
+    @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
         messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         output = model(messages, stop_sequences=["great"]).content
         assert output.startswith("Hello")
 
-    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_tricky_stop_sequence(self):
         # In this test HuggingFaceTB/SmolLM2-135M-Instruct generates the token ">'"
         # which is required to test capturing stop_sequences that have extra chars at the end.
@@ -846,6 +861,7 @@ def test_flatten_messages_as_text_for_all_models(
         # Unsupported base models
         ("o3", False),
         ("o4-mini", False),
+        ("gpt-5.1", False),
         ("gpt-5", False),
         ("gpt-5-mini", False),
         ("gpt-5-nano", False),

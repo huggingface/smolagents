@@ -142,7 +142,7 @@ class ChatMessage:
             ]
             data["tool_calls"] = tool_calls
         return cls(
-            role=data["role"],
+            role=MessageRole(data["role"]),
             content=data.get("content"),
             tool_calls=data.get("tool_calls"),
             raw=raw,
@@ -267,6 +267,28 @@ def get_tool_json_schema(tool: Tool) -> dict:
             value["type"] = "string"
         if not ("nullable" in value and value["nullable"]):
             required.append(key)
+
+        # parse anyOf
+        if "anyOf" in value:
+            types = []
+            enum = None
+            for t in value["anyOf"]:
+                if t["type"] == "null":
+                    value["nullable"] = True
+                    continue
+                if t["type"] == "any":
+                    types.append("string")
+                else:
+                    types.append(t["type"])
+                if "enum" in t:  # assuming there is only one enum in anyOf
+                    enum = t["enum"]
+
+            value["type"] = types if len(types) > 1 else types[0]
+            if enum is not None:
+                value["enum"] = enum
+
+            value.pop("anyOf")
+
     return {
         "type": "function",
         "function": {
@@ -381,7 +403,7 @@ def supports_stop_parameter(model_id: str) -> bool:
     """
     model_name = model_id.split("/")[-1]
     # o3, o4-mini, grok-3-mini, grok-4, grok-code-fast and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
-    openai_model_pattern = r"(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*)"
+    openai_model_pattern = r"(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*|gpt-5.1[-\d]*)"
     grok_model_pattern = r"([a-zA-Z]+\.)?(grok-3-mini|grok-4|grok-code-fast)(-[A-Za-z0-9]*)?"
     pattern = rf"^({openai_model_pattern}|{grok_model_pattern})$"
 
