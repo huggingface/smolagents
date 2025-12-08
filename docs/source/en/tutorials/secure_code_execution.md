@@ -66,7 +66,7 @@ from smolagents.local_python_executor import LocalPythonExecutor
 # Set up custom executor, authorize package "numpy"
 custom_executor = LocalPythonExecutor(["numpy"])
 
-# Utilisty for pretty printing errors
+# Utility for pretty printing errors
 def run_capture_exception(command: str):
     try:
         custom_executor(harmful_command)
