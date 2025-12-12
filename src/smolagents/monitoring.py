@@ -33,6 +33,37 @@ from smolagents.utils import escape_code_brackets
 __all__ = ["AgentLogger", "LogLevel", "Monitor", "TokenUsage", "Timing"]
 
 
+def _coerce_to_safe_str(value) -> str:
+    """
+    Convert arbitrary values (including bytes / control characters) into a string that
+    Rich can safely render without triggering markup parsing issues.
+
+    Note: We intentionally avoid Rich markup entirely for user-provided content by
+    rendering it via `rich.text.Text` instead of embedding it in markup strings.
+    """
+
+    if value is None:
+        s = ""
+    elif isinstance(value, str):
+        s = value
+    elif isinstance(value, (bytes, bytearray, memoryview)):
+        s = bytes(value).decode("utf-8", errors="replace")
+    else:
+        s = str(value)
+
+    # Replace ASCII control chars (except common whitespace) with visible escape sequences.
+    out: list[str] = []
+    for ch in s:
+        code = ord(ch)
+        if ch in ("\n", "\t", "\r"):
+            out.append(ch)
+        elif code < 32 or code == 127:
+            out.append(f"\\x{code:02x}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 @dataclass
 class TokenUsage:
     """
@@ -190,7 +221,7 @@ class AgentLogger:
     def log_rule(self, title: str, level: int = LogLevel.INFO) -> None:
         self.log(
             Rule(
-                "[bold white]" + title,
+                "[bold]" + title,
                 characters="━",
                 style=YELLOW_HEX,
             ),
@@ -198,11 +229,19 @@ class AgentLogger:
         )
 
     def log_task(self, content: str, subtitle: str, title: str | None = None, level: LogLevel = LogLevel.INFO) -> None:
+        # Important: `content` can contain arbitrary tool logs / payloads. If we embed it
+        # inside Rich markup (e.g. f"[bold]{content}"), any stray "[/...]" sequences or
+        # binary-ish characters can crash Rich's markup parser. Render the content as
+        # `Text` instead, and apply styling via Text/style, not markup.
+        safe_content = _coerce_to_safe_str(content)
+        safe_subtitle = _coerce_to_safe_str(subtitle)
+        content_text = Text("\n") + Text(safe_content, style="bold") + Text("\n")
+        subtitle_text = Text(safe_subtitle)
         self.log(
             Panel(
-                f"\n[bold]{escape_code_brackets(content)}\n",
+                content_text,
                 title="[bold]New run" + (f" - {title}" if title else ""),
-                subtitle=subtitle,
+                subtitle=subtitle_text,
                 border_style=YELLOW_HEX,
                 subtitle_align="left",
             ),
@@ -210,7 +249,7 @@ class AgentLogger:
         )
 
     def log_messages(self, messages: list[dict], level: LogLevel = LogLevel.DEBUG) -> None:
-        messages_as_string = "\n".join([json.dumps(message.dict(), indent=4) for message in messages])
+        messages_as_string = "\n".join([json.dumps(dict(message), indent=4) for message in messages])
         self.log(
             Syntax(
                 messages_as_string,
