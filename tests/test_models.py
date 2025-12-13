@@ -904,7 +904,8 @@ def test_flatten_messages_as_text_for_all_models(
         ("", True),  # Empty string doesn't match pattern
         ("o3x", True),  # Not exactly o3
         ("o4x", True),  # Not exactly o4
-        ("gpt-5x", True),  # Not gpt-5 family format
+        ("gpt-5x", False),
+        ("gpt-50", False),
         ("o3_mini", True),  # Not o3-mini format
         ("prefix-o3", True),  # o3 not at start
     ],
