@@ -86,65 +86,34 @@ You can see that the CodeAgent called its managed ToolCallingAgent (by the way, 
 
 ## Setting up telemetry with MLflow
 
-MLflow provides one-line automatic tracing integration for Smolagents. It records agent runs, spans, inputs/outputs, and token usage so you can inspect and analyze executions in the MLflow UI.
+MLflow has one-line autologging for Smolagents: it tracks runs, spans, inputs/outputs, and token usage in the MLflow UI.
 
-### Step 1: Install dependencies
+Install MLflow, enable autologging, then run your agent with a couple of tools:
 
 ```python
 %pip install mlflow smolagents
-```
 
-### Step 2: Enable smolagents autologging
-
-Enable MLflow’s autologging for smolagents is extremely easy, just insert the following code before running your agent:
-
-```python
 import mlflow
+from smolagents import CodeAgent, ToolCallingAgent, WebSearchTool, VisitWebpageTool, InferenceClientModel
 
-mlflow.smolagents.autolog()
-```
-
-### Step 3: Run your smolagent
-
-Define your agent and run it as usual.
-
-```python
-from smolagents import (
-    CodeAgent,
-    ToolCallingAgent,
-    WebSearchTool,
-    VisitWebpageTool,
-    InferenceClientModel,
-)
+mlflow.smolagents.autolog()  # start tracing everything below
 
 model = InferenceClientModel()
-
-search_agent = ToolCallingAgent(
+browser = ToolCallingAgent(
     tools=[WebSearchTool(), VisitWebpageTool()],
     model=model,
     name="search_agent",
-    description="This is an agent that can do web search.",
+    description="Web search helper",
 )
-
-manager_agent = CodeAgent(
-    tools=[],
-    model=model,
-    managed_agents=[search_agent],
-)
-manager_agent.run(
-    "If the US keeps its 2024 growth rate, how many years will it take for the GDP to double?"
-)
+manager = CodeAgent(model=model, managed_agents=[browser])
+manager.run("Find the latest US GDP growth rate and estimate when it would double.")
 ```
 
-### Step 4: View traces in MLflow
-
-Open the MLflow UI for your MLflow server to inspect the run and its spans. If you don’t already have a server running locally, you can launch one quickly for exploration:
+Start the UI to inspect traces, then open the Traces view in your browser:
 
 ```shell
-mlflow ui --port 5000
+mlflow server --port 5000
 ```
-
-Then open the UI in your browser and navigate to the Traces view to explore the execution.
 
 ## Setting up telemetry with 🪢 Langfuse
 
