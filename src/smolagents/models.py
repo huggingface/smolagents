@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import json
 import logging
 import os
@@ -611,6 +612,9 @@ class VLLMModel(Model):
             This can be a path or model identifier from the Hugging Face model hub.
         model_kwargs (`dict[str, Any]`, *optional*):
             Additional keyword arguments to forward to the vLLM LLM instantiation, such as `revision`, `max_model_len`, etc.
+        sampling_params (`dict[str, Any]`, *optional*):
+            Default sampling parameters (e.g., max_tokens, top_p) to be used for generation.
+            These can be overridden at runtime by passing kwargs to `generate()`
         **kwargs:
             Additional keyword arguments to forward to the underlying vLLM model generate call.
     """
@@ -619,15 +623,22 @@ class VLLMModel(Model):
         self,
         model_id,
         model_kwargs: dict[str, Any] | None = None,
+        sampling_params: dict[str, Any] | None = None,
         **kwargs,
     ):
         if not _is_package_available("vllm"):
             raise ModuleNotFoundError("Please install 'vllm' extra to use VLLMModel: `pip install 'smolagents[vllm]'`")
 
-        from vllm import LLM  # type: ignore
+        from vllm import (
+            LLM,  # type: ignore
+            SamplingParams,  # type: ignore
+        )
         from vllm.transformers_utils.tokenizer import get_tokenizer  # type: ignore
 
+        self._valid_sampling_keys = set(inspect.signature(SamplingParams).parameters.keys())
+
         self.model_kwargs = model_kwargs or {}
+        self.sampling_params = sampling_params or {}
         super().__init__(**kwargs)
         self.model_id = model_id
         self.model = LLM(model=model_id, **self.model_kwargs)
@@ -687,17 +698,21 @@ class VLLMModel(Model):
             tokenize=False,
         )
 
-        sampling_params = SamplingParams(
-            n=kwargs.get("n", 1),
-            temperature=kwargs.get("temperature", 0.0),
-            max_tokens=kwargs.get("max_tokens", 2048),
-            stop=prepared_stop_sequences,
-            structured_outputs=structured_outputs,
-        )
+        sampling_kwargs = {
+            "n": kwargs.get("n", 1),
+            "temperature": kwargs.get("temperature", 0.0),
+            "max_tokens": kwargs.get("max_tokens", 2048),
+            "stop": prepared_stop_sequences,
+            "structured_outputs": structured_outputs,
+            **self.sampling_params,
+            **kwargs,
+        }
+
+        sampling_params = {key: value for key, value in sampling_kwargs.items() if key in self._valid_sampling_keys}
 
         out = self.model.generate(
             prompt,
-            sampling_params=sampling_params,
+            sampling_params=SamplingParams(**sampling_params),
             **completion_kwargs,
         )
 
