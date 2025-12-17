@@ -860,10 +860,7 @@ def test_flatten_messages_as_text_for_all_models(
     [
         # Unsupported base models
         ("o3", False),
-        ("o3-mini", False),
-        ("o4", False),
         ("o4-mini", False),
-        ("o4-turbo", False),
         ("gpt-5.1", False),
         ("gpt-5.2", False),
         ("gpt-5", False),
@@ -878,7 +875,6 @@ def test_flatten_messages_as_text_for_all_models(
         ("grok-3-mini", False),
         ("grok-code-fast-1", False),
         # Unsupported versioned models
-        ("o3-2025-04-16", False),
         ("o4-mini-2025-04-16", False),
         ("gpt-5-2025-01-01", False),
         # Unsupported models with path prefixes
@@ -886,19 +882,20 @@ def test_flatten_messages_as_text_for_all_models(
         ("openai/o4-mini", False),
         ("openai/o3-2025-04-16", False),
         ("openai/o4-mini-2025-04-16", False),
-        ("openai/o4-turbo", False),
         ("openai/gpt-5.2", False),
         ("openai/gpt-5.2-mini", False),
         ("openai/gpt-5.2-2025-01-01", False),
         ("oci/xai.grok-4", False),
         ("oci/xai.grok-3-mini", False),
         # Supported models
+        ("o3-mini", True),
         ("gpt-4", True),
         ("claude-3-5-sonnet", True),
         ("mistral-large", True),
         # Supported models with path prefixes
         ("openai/gpt-4", True),
         ("anthropic/claude-3-5-sonnet", True),
+        ("anthropic/claude-opus-4-5", True),
         ("mistralai/mistral-large", True),
         # Edge cases
         ("", True),  # Empty string doesn't match pattern
