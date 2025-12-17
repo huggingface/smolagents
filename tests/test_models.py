@@ -862,40 +862,47 @@ def test_flatten_messages_as_text_for_all_models(
         ("o3", False),
         ("o4-mini", False),
         ("gpt-5.1", False),
+        ("gpt-5.2", False),
         ("gpt-5", False),
         ("gpt-5-mini", False),
         ("gpt-5-nano", False),
+        ("gpt-5-turbo", False),
+        ("gpt-5.2-mini", False),
         ("grok-4", False),
         ("grok-4-latest", False),
+        ("grok-4.1", False),
+        ("grok-3", False),
         ("grok-3-mini", False),
         ("grok-code-fast-1", False),
         # Unsupported versioned models
-        ("o3-2025-04-16", False),
         ("o4-mini-2025-04-16", False),
+        ("gpt-5-2025-01-01", False),
         # Unsupported models with path prefixes
         ("openai/o3", False),
         ("openai/o4-mini", False),
         ("openai/o3-2025-04-16", False),
         ("openai/o4-mini-2025-04-16", False),
+        ("openai/gpt-5.2", False),
+        ("openai/gpt-5.2-mini", False),
+        ("openai/gpt-5.2-2025-01-01", False),
         ("oci/xai.grok-4", False),
         ("oci/xai.grok-3-mini", False),
         # Supported models
-        ("o3-mini", True),  # Different from o3
-        ("o3-mini-2025-01-31", True),  # Different from o3
-        ("o4", True),  # Different from o4-mini
-        ("o4-turbo", True),  # Different from o4-mini
+        ("o3-mini", True),
         ("gpt-4", True),
-        ("gpt-5-turbo", True),  # Different from gpt-5
-        ("grok-3", True),  # Different from grok-3-mini
         ("claude-3-5-sonnet", True),
         ("mistral-large", True),
         # Supported models with path prefixes
         ("openai/gpt-4", True),
         ("anthropic/claude-3-5-sonnet", True),
+        ("anthropic/claude-opus-4-5", True),
         ("mistralai/mistral-large", True),
         # Edge cases
         ("", True),  # Empty string doesn't match pattern
         ("o3x", True),  # Not exactly o3
+        ("o4x", True),  # Not exactly o4
+        ("gpt-5x", False),
+        ("gpt-50", False),
         ("o3_mini", True),  # Not o3-mini format
         ("prefix-o3", True),  # o3 not at start
     ],
