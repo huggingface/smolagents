@@ -404,7 +404,7 @@ def supports_stop_parameter(model_id: str) -> bool:
     model_name = model_id.split("/")[-1]
     if model_name == "o3-mini":
         return True
-    # o3*, o4*, all grok-* models, and the gpt-5* family (including versioned variants) don't support stop parameter
+    # o3* (except mini), o4*, all grok-* models, and the gpt-5* family (including versioned variants) don't support stop parameter
     openai_model_pattern = r"(o3(?:$|[-.].*)|o4(?:$|[-.].*)|gpt-5.*)"
     grok_model_pattern = r"([A-Za-z][A-Za-z0-9_-]*\.)?grok-[A-Za-z0-9][A-Za-z0-9_.-]*"
     pattern = rf"^({openai_model_pattern}|{grok_model_pattern})$"
