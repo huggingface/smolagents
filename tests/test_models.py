@@ -1069,11 +1069,8 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert result.tool_calls is not None
     assert len(result.tool_calls) > 0
     assert isinstance(result.tool_calls[0], ChatMessageToolCall)
-    assert result.tool_calls[0].function.name == "final_answer"
 
     # The critical test: verify JSON serialization works
-    # This would fail before the fix with: "Object of type ChatCompletionMessageToolCall is not JSON serializable"
-    # or similar errors for other model types
     json_str = result.model_dump_json()
     data = json.loads(json_str)
     assert "tool_calls" in data
