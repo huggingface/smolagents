@@ -85,6 +85,15 @@ target/
 profile_default/
 ipython_config.py
 
+# pyenv
+# .python-version
+
+# pipenv
+#Pipfile.lock
+
+# poetry
+#poetry.lock
+
 # pdm
 .pdm.toml
 .pdm-python
@@ -138,7 +147,6 @@ archive/
 savedir/
 output/
 tool_output/
-examples/open_deep_research/downloads_folder/
 
 # Gradio runtime
 .gradio/
