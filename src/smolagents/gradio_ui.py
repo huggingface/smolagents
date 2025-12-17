@@ -332,6 +332,33 @@ class GradioUI:
         shutil.copy(file_path, dest_path)
         return dest_path
 
+    def upload_file(self, file, file_uploads_log: list, allowed_file_types: list | None = None):
+        """
+        Handle file upload with validation.
+
+        Args:
+            file: The uploaded file object.
+            file_uploads_log: List to track uploaded files.
+            allowed_file_types: List of allowed extensions. Defaults to [".pdf", ".docx", ".txt"].
+
+        Returns:
+            Tuple of (status textbox, updated file log).
+        """
+        import gradio as gr
+
+        if file is None:
+            return gr.Textbox(value="No file uploaded", visible=True), file_uploads_log
+
+        if allowed_file_types is None:
+            allowed_file_types = [".pdf", ".docx", ".txt"]
+
+        file_ext = os.path.splitext(file.name)[1].lower()
+        if file_ext not in allowed_file_types:
+            return gr.Textbox(value="File type disallowed", visible=True), file_uploads_log
+
+        file_path = self._save_uploaded_file(file.name)
+        return gr.Textbox(value=f"File uploaded: {file_path}", visible=True), file_uploads_log + [file_path]
+
     def _process_message(self, message: str | dict) -> tuple[str, list[str] | None]:
         """Process incoming message and extract text and files."""
         if isinstance(message, str):
