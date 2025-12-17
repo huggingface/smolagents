@@ -281,9 +281,9 @@ class GradioUI:
     Gradio interface for interacting with a [`MultiStepAgent`].
 
     This class provides a web interface to interact with the agent in real-time, allowing users to submit prompts, upload files, and receive responses in a chat-like format.
-    It  can reset the agent's memory at the start of each interaction if desired.
-    It supports file uploads, which are saved to a specified folder.
-    It uses the [`gradio.Chatbot`] component to display the conversation history.
+    It uses the modern [`gradio.ChatInterface`] component for a native chatbot experience.
+    It can reset the agent's memory at the start of each interaction if desired.
+    It supports file uploads via multimodal input.
     This class requires the `gradio` extra to be installed: `pip install 'smolagents[gradio]'`.
 
     Args:
@@ -321,87 +321,59 @@ class GradioUI:
             if not self.file_upload_folder.exists():
                 self.file_upload_folder.mkdir(parents=True, exist_ok=True)
 
-    def interact_with_agent(self, prompt, messages, session_state):
+    def _save_uploaded_file(self, file_path: str) -> str:
+        """Save an uploaded file to the upload folder and return the new path."""
+        if self.file_upload_folder is None:
+            return file_path
+
+        original_name = os.path.basename(file_path)
+        sanitized_name = re.sub(r"[^\w\-.]", "_", original_name)
+        dest_path = os.path.join(self.file_upload_folder, sanitized_name)
+        shutil.copy(file_path, dest_path)
+        return dest_path
+
+    def _process_message(self, message: str | dict) -> tuple[str, list[str] | None]:
+        """Process incoming message and extract text and files."""
+        if isinstance(message, str):
+            return message, None
+
+        text = message.get("text", "")
+        files = message.get("files", [])
+
+        if files and self.file_upload_folder:
+            saved_files = [self._save_uploaded_file(f) for f in files]
+            if saved_files:
+                text += f"\nYou have been provided with these files: {saved_files}"
+            return text, saved_files
+
+        return text, files if files else None
+
+    def _stream_response(self, message: str | dict, history: list[dict]) -> Generator:  # noqa: ARG002
+        """Stream agent responses for ChatInterface."""
         import gradio as gr
 
-        # Get the agent type from the template agent
-        if "agent" not in session_state:
-            session_state["agent"] = self.agent
+        task, task_files = self._process_message(message)
 
-        try:
-            messages.append(gr.ChatMessage(role="user", content=prompt, metadata={"status": "done"}))
-            yield messages
-
-            for msg in stream_to_gradio(
-                session_state["agent"], task=prompt, reset_agent_memory=self.reset_agent_memory
-            ):
-                if isinstance(msg, gr.ChatMessage):
-                    messages[-1].metadata["status"] = "done"
-                    messages.append(msg)
-                elif isinstance(msg, str):  # Then it's only a completion delta
-                    msg = msg.replace("<", r"\<").replace(">", r"\>")  # HTML tags seem to break Gradio Chatbot
-                    if messages[-1].metadata["status"] == "pending":
-                        messages[-1].content = msg
-                    else:
-                        messages.append(
-                            gr.ChatMessage(role=MessageRole.ASSISTANT, content=msg, metadata={"status": "pending"})
-                        )
-                yield messages
-
-            yield messages
-        except Exception as e:
-            yield messages
-            raise gr.Error(f"Error in interaction: {str(e)}")
-
-    def upload_file(self, file, file_uploads_log, allowed_file_types=None):
-        """
-        Upload a file and add it to the list of uploaded files in the session state.
-
-        The file is saved to the `self.file_upload_folder` folder.
-        If the file type is not allowed, it returns a message indicating the disallowed file type.
-
-        Args:
-            file (`gradio.File`): The uploaded file.
-            file_uploads_log (`list`): A list to log uploaded files.
-            allowed_file_types (`list`, *optional*): List of allowed file extensions. Defaults to [".pdf", ".docx", ".txt"].
-        """
-        import gradio as gr
-
-        if file is None:
-            return gr.Textbox(value="No file uploaded", visible=True), file_uploads_log
-
-        if allowed_file_types is None:
-            allowed_file_types = [".pdf", ".docx", ".txt"]
-
-        file_ext = os.path.splitext(file.name)[1].lower()
-        if file_ext not in allowed_file_types:
-            return gr.Textbox("File type disallowed", visible=True), file_uploads_log
-
-        # Sanitize file name
-        original_name = os.path.basename(file.name)
-        sanitized_name = re.sub(
-            r"[^\w\-.]", "_", original_name
-        )  # Replace any non-alphanumeric, non-dash, or non-dot characters with underscores
-
-        # Save the uploaded file to the specified folder
-        file_path = os.path.join(self.file_upload_folder, os.path.basename(sanitized_name))
-        shutil.copy(file.name, file_path)
-
-        return gr.Textbox(f"File uploaded: {file_path}", visible=True), file_uploads_log + [file_path]
-
-    def log_user_message(self, text_input, file_uploads_log):
-        import gradio as gr
-
-        return (
-            text_input
-            + (
-                f"\nYou have been provided with these files, which might be helpful or not: {file_uploads_log}"
-                if len(file_uploads_log) > 0
-                else ""
-            ),
-            "",
-            gr.Button(interactive=False),
-        )
+        accumulated_events: list[ChatMessageStreamDelta] = []
+        for event in self.agent.run(
+            task, images=task_files, stream=True, reset=self.reset_agent_memory, additional_args=None
+        ):
+            if isinstance(event, ActionStep | PlanningStep | FinalAnswerStep):
+                for msg in pull_messages_from_step(
+                    event,
+                    skip_model_outputs=getattr(self.agent, "stream_outputs", False),
+                ):
+                    yield gr.ChatMessage(
+                        role=msg.role,
+                        content=msg.content,
+                        metadata=msg.metadata,
+                    )
+                accumulated_events = []
+            elif isinstance(event, ChatMessageStreamDelta):
+                accumulated_events.append(event)
+                text = agglomerate_stream_deltas(accumulated_events).render_as_markdown()
+                text = text.replace("<", r"\<").replace(">", r"\>")
+                yield text
 
     def launch(self, share: bool = True, **kwargs):
         """
@@ -416,93 +388,27 @@ class GradioUI:
     def create_app(self):
         import gradio as gr
 
-        with gr.Blocks(theme="ocean", fill_height=True) as demo:
-            # Add session state to store session-specific data
-            session_state = gr.State({})
-            stored_messages = gr.State([])
-            file_uploads_log = gr.State([])
-
-            with gr.Sidebar():
-                gr.Markdown(
-                    f"# {self.name.replace('_', ' ').capitalize()}"
-                    "\n> This web ui allows you to interact with a `smolagents` agent that can use tools and execute steps to complete tasks."
-                    + (f"\n\n**Agent description:**\n{self.description}" if self.description else "")
-                )
-
-                with gr.Group():
-                    gr.Markdown("**Your request**", container=True)
-                    text_input = gr.Textbox(
-                        lines=3,
-                        label="Chat Message",
-                        container=False,
-                        placeholder="Enter your prompt here and press Shift+Enter or press the button",
-                    )
-                    submit_btn = gr.Button("Submit", variant="primary")
-
-                # If an upload folder is provided, enable the upload feature
-                if self.file_upload_folder is not None:
-                    upload_file = gr.File(label="Upload a file")
-                    upload_status = gr.Textbox(label="Upload Status", interactive=False, visible=False)
-                    upload_file.change(
-                        self.upload_file,
-                        [upload_file, file_uploads_log],
-                        [upload_status, file_uploads_log],
-                    )
-
-                gr.HTML(
-                    "<br><br><h4><center>Powered by <a target='_blank' href='https://github.com/huggingface/smolagents'><b>smolagents</b></a></center></h4>"
-                )
-
-            # Main chat interface
-            chatbot = gr.Chatbot(
-                label="Agent",
-                type="messages",
-                avatar_images=(
-                    None,
-                    "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png",
-                ),
-                resizeable=True,
-                scale=1,
-                latex_delimiters=[
-                    {"left": r"$$", "right": r"$$", "display": True},
-                    {"left": r"$", "right": r"$", "display": False},
-                    {"left": r"\[", "right": r"\]", "display": True},
-                    {"left": r"\(", "right": r"\)", "display": False},
-                ],
-            )
-
-            # Set up event handlers
-            text_input.submit(
-                self.log_user_message,
-                [text_input, file_uploads_log],
-                [stored_messages, text_input, submit_btn],
-            ).then(self.interact_with_agent, [stored_messages, chatbot, session_state], [chatbot]).then(
-                lambda: (
-                    gr.Textbox(
-                        interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"
-                    ),
-                    gr.Button(interactive=True),
-                ),
+        chatbot = gr.Chatbot(
+            label="Agent",
+            avatar_images=(
                 None,
-                [text_input, submit_btn],
-            )
+                "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png",
+            ),
+            latex_delimiters=[
+                {"left": r"$$", "right": r"$$", "display": True},
+                {"left": r"$", "right": r"$", "display": False},
+                {"left": r"\[", "right": r"\]", "display": True},
+                {"left": r"\(", "right": r"\)", "display": False},
+            ],
+        )
 
-            submit_btn.click(
-                self.log_user_message,
-                [text_input, file_uploads_log],
-                [stored_messages, text_input, submit_btn],
-            ).then(self.interact_with_agent, [stored_messages, chatbot, session_state], [chatbot]).then(
-                lambda: (
-                    gr.Textbox(
-                        interactive=True, placeholder="Enter your prompt here and press Shift+Enter or the button"
-                    ),
-                    gr.Button(interactive=True),
-                ),
-                None,
-                [text_input, submit_btn],
-            )
-
-            chatbot.clear(self.agent.memory.reset)
+        demo = gr.ChatInterface(
+            fn=self._stream_response,
+            chatbot=chatbot,
+            title=self.name.replace("_", " ").capitalize(),
+            multimodal=self.file_upload_folder is not None,
+            save_history=True,
+        )
         return demo
 
 
