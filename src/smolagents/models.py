@@ -613,6 +613,8 @@ class VLLMModel(Model):
             This can be a path or model identifier from the Hugging Face model hub.
         model_kwargs (`dict[str, Any]`, *optional*):
             Additional keyword arguments to forward to the vLLM LLM instantiation, such as `revision`, `max_model_len`, etc.
+        apply_chat_template_kwargs (dict, *optional*):
+            Additional keyword arguments to pass to the `apply_chat_template` method of the tokenizer.
         **kwargs:
             Additional keyword arguments to forward to the underlying vLLM model generate call.
     """
@@ -621,6 +623,7 @@ class VLLMModel(Model):
         self,
         model_id,
         model_kwargs: dict[str, Any] | None = None,
+        apply_chat_template_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
         if not _is_package_available("vllm"):
@@ -630,6 +633,7 @@ class VLLMModel(Model):
         from vllm.transformers_utils.tokenizer import get_tokenizer  # type: ignore
 
         self.model_kwargs = model_kwargs or {}
+        self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
         super().__init__(**kwargs)
         self.model_id = model_id
         self.model = LLM(model=model_id, **self.model_kwargs)
@@ -687,6 +691,7 @@ class VLLMModel(Model):
             tools=tools,
             add_generation_prompt=True,
             tokenize=False,
+            **self.apply_chat_template_kwargs,
         )
 
         sampling_params = SamplingParams(
@@ -850,6 +855,8 @@ class TransformersModel(Model):
             Maximum number of new tokens to generate, ignoring the number of tokens in the prompt.
         max_tokens (`int`, *optional*):
             Alias for `max_new_tokens`. If provided, this value takes precedence.
+        apply_chat_template_kwargs (dict, *optional*):
+            Additional keyword arguments to pass to the `apply_chat_template` method of the tokenizer.
         **kwargs:
             Additional keyword arguments to forward to the underlying Transformers model generate call, such as `device`.
     Raises:
@@ -879,6 +886,7 @@ class TransformersModel(Model):
         model_kwargs: dict[str, Any] | None = None,
         max_new_tokens: int = 4096,
         max_tokens: int | None = None,
+        apply_chat_template_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
         try:
@@ -911,6 +919,7 @@ class TransformersModel(Model):
         logger.info(f"Using device: {device_map}")
         self._is_vlm = False
         self.model_kwargs = model_kwargs or {}
+        self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
         try:
             self.model = AutoModelForImageTextToText.from_pretrained(
                 model_id,
@@ -996,6 +1005,7 @@ class TransformersModel(Model):
             add_generation_prompt=True,
             tokenize=True,
             return_dict=True,
+            **self.apply_chat_template_kwargs,
         )
         prompt_tensor = prompt_tensor.to(self.model.device)  # type: ignore
         if hasattr(prompt_tensor, "input_ids"):
