@@ -128,6 +128,11 @@ class ChatMessage:
     raw: Any | None = None  # Stores the raw output from the API
     token_usage: TokenUsage | None = None
 
+    def __post_init__(self) -> None:
+        if self.tool_calls is None:
+            return
+        self.tool_calls = [_coerce_tool_call(tool_call) for tool_call in self.tool_calls]
+
     def model_dump_json(self):
         return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
 
@@ -162,6 +167,27 @@ class ChatMessage:
                 ]
             )
         return rendered
+
+
+def _coerce_tool_call(tool_call: Any) -> ChatMessageToolCall:
+    if isinstance(tool_call, ChatMessageToolCall):
+        return tool_call
+
+    if isinstance(tool_call, dict):
+        tool_call_dict = tool_call
+    elif hasattr(tool_call, "model_dump"):
+        tool_call_dict = tool_call.model_dump()
+    elif hasattr(tool_call, "dict") and callable(tool_call.dict):
+        tool_call_dict = tool_call.dict()
+
+    return ChatMessageToolCall(
+        function=ChatMessageToolCallFunction(
+            arguments=tool_call_dict["function"]["arguments"],
+            name=tool_call_dict["function"]["name"],
+        ),
+        id=tool_call_dict["id"],
+        type=tool_call_dict["type"],
+    )
 
 
 def parse_json_if_needed(arguments: str | dict) -> str | dict:
