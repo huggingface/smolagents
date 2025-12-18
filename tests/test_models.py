@@ -961,3 +961,119 @@ class TestGetToolCallFromText:
         result = get_tool_call_from_text(text, "name", "arguments")
         assert result.function.name == "calculator"
         assert result.function.arguments == 42
+
+
+@pytest.mark.parametrize(
+    "model_class,model_id",
+    [
+        (LiteLLMModel, "gpt-4o-mini"),
+        (OpenAIModel, "gpt-4o-mini"),
+    ],
+)
+def test_tool_calls_json_serialization(model_class, model_id):
+    """Test that tool_calls from various API models (Pydantic, dataclass, dict) are properly converted to dataclasses and can be JSON serialized.
+    This tests the horizontal fix that ensures all models (LiteLLM, OpenAI, InferenceClient, AmazonBedrock)
+    properly convert tool_calls to dataclasses regardless of the source format (Pydantic models, dataclasses, or dicts).
+    """
+    tool_arguments = "test_result"
+    messages = [
+        ChatMessage(
+            role=MessageRole.USER,
+            content=[
+                {
+                    "type": "text",
+                    "text": "Hello! Please return the final answer 'hi there' in a tool call",
+                }
+            ],
+        ),
+    ]
+
+    if model_class == OpenAIModel:
+        from openai.types.chat.chat_completion import ChatCompletion, Choice
+        from openai.types.chat.chat_completion_message import ChatCompletionMessage
+        from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
+        from openai.types.completion_usage import CompletionUsage
+
+        response = ChatCompletion(
+            id="chatcmpl-test",
+            created=0,
+            model="gpt-4o-mini-2024-07-18",
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="tool_calls",
+                    index=0,
+                    logprobs=None,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChatCompletionMessageToolCall(
+                                id="call_test",
+                                type="function",
+                                function=Function(name="final_answer", arguments=tool_arguments),
+                            )
+                        ],
+                    ),
+                )
+            ],
+            usage=CompletionUsage(prompt_tokens=69, completion_tokens=15, total_tokens=84),
+        )
+        client = MagicMock()
+        client.chat.completions.create.return_value = response
+        create_call = client.chat.completions.create
+        patch_target = "smolagents.models.OpenAIModel.create_client"
+    elif model_class == LiteLLMModel:
+        from litellm.types.utils import ChatCompletionMessageToolCall, Choices, Function, Message, ModelResponse, Usage
+
+        response = ModelResponse(
+            id="chatcmpl-test",
+            created=0,
+            object="chat.completion",
+            choices=[
+                Choices(
+                    finish_reason="tool_calls",
+                    index=0,
+                    message=Message(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChatCompletionMessageToolCall(
+                                id="call_test",
+                                type="function",
+                                function=Function(name="final_answer", arguments=tool_arguments),
+                            )
+                        ],
+                        function_call=None,
+                        provider_specific_fields={"refusal": None, "annotations": []},
+                    ),
+                )
+            ],
+            usage=Usage(prompt_tokens=69, completion_tokens=15, total_tokens=84),
+            model="gpt-4o-mini-2024-07-18",
+        )
+        client = MagicMock()
+        client.completion.return_value = response
+        create_call = client.completion
+        patch_target = "smolagents.models.LiteLLMModel.create_client"
+    else:
+        raise ValueError(f"Unexpected model class: {model_class}")
+
+    with patch(patch_target, return_value=client):
+        model = model_class(model_id=model_id)
+        result = model.generate(messages, tools_to_call_from=[FinalAnswerTool()])
+
+    assert create_call.call_count == 1
+
+    # Verify tool_calls are converted to dataclasses
+    assert result.tool_calls is not None
+    assert len(result.tool_calls) > 0
+    assert isinstance(result.tool_calls[0], ChatMessageToolCall)
+
+    # The critical test: verify JSON serialization works
+    json_str = result.model_dump_json()
+    data = json.loads(json_str)
+    assert "tool_calls" in data
+    assert len(data["tool_calls"]) > 0
+    assert data["tool_calls"][0]["function"]["name"] == "final_answer"
+    assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
