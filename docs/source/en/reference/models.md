@@ -142,15 +142,15 @@ print(model(messages))
 
 [[autodoc]] LiteLLMRouterModel
 
-### OpenAIServerModel
+### OpenAIModel
 
 This class lets you call any OpenAIServer compatible model.
 Here's how you can set it (you can customise the `api_base` url to point to another server):
 ```py
 import os
-from smolagents import OpenAIServerModel
+from smolagents import OpenAIModel
 
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="gpt-4o",
     api_base="https://api.openai.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
@@ -160,7 +160,7 @@ model = OpenAIServerModel(
 You can pass any keyword arguments supported by the underlying model (such as `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time. These are forwarded to the model completion call:
 
 ```py
-model = OpenAIServerModel(
+model = OpenAIModel(
     model_id="gpt-4o",
     api_base="https://api.openai.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
@@ -170,11 +170,11 @@ model = OpenAIServerModel(
 )
 ```
 
-[[autodoc]] OpenAIServerModel
+[[autodoc]] OpenAIModel
 
-### AzureOpenAIServerModel
+### AzureOpenAIModel
 
-`AzureOpenAIServerModel` allows you to connect to any Azure OpenAI deployment. 
+`AzureOpenAIModel` allows you to connect to any Azure OpenAI deployment. 
 
 Below you can find an example of how to set it up, note that you can omit the `azure_endpoint`, `api_key`, and `api_version` arguments, provided you've set the corresponding environment variables -- `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `OPENAI_API_VERSION`.
 
@@ -183,9 +183,9 @@ Pay attention to the lack of an `AZURE_` prefix for `OPENAI_API_VERSION`, this i
 ```py
 import os
 
-from smolagents import AzureOpenAIServerModel
+from smolagents import AzureOpenAIModel
 
-model = AzureOpenAIServerModel(
+model = AzureOpenAIModel(
     model_id = os.environ.get("AZURE_OPENAI_MODEL"),
     azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
     api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
@@ -193,25 +193,25 @@ model = AzureOpenAIServerModel(
 )
 ```
 
-[[autodoc]] AzureOpenAIServerModel
+[[autodoc]] AzureOpenAIModel
 
-### AmazonBedrockServerModel
+### AmazonBedrockModel
 
-`AmazonBedrockServerModel` helps you connect to Amazon Bedrock and run your agent with any available models.
+`AmazonBedrockModel` helps you connect to Amazon Bedrock and run your agent with any available models.
 
 Below is an example setup. This class also offers additional options for customization.
 
 ```py
 import os
 
-from smolagents import AmazonBedrockServerModel
+from smolagents import AmazonBedrockModel
 
-model = AmazonBedrockServerModel(
+model = AmazonBedrockModel(
     model_id = os.environ.get("AMAZON_BEDROCK_MODEL_ID"),
 )
 ```
 
-[[autodoc]] AmazonBedrockServerModel
+[[autodoc]] AmazonBedrockModel
 
 ### MLXModel
 

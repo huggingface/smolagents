@@ -56,7 +56,7 @@ model_downloads_tool = HFModelDownloadsTool()
 - 一个属性 `name`，对应于工具本身的名称。名称通常描述工具的功能。由于代码返回任务中下载量最多的模型，我们将其命名为 `model_download_counter`。
 - 一个属性 `description`，用于填充 agent 的系统提示。
 - 一个 `inputs` 属性，它是一个带有键 `"type"` 和 `"description"` 的字典。它包含帮助 Python 解释器对输入做出明智选择的信息。
-- 一个 `output_type` 属性，指定输出类型。`inputs` 和 `output_type` 的类型应为 [Pydantic 格式](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema)，它们可以是以下之一：[`~AUTHORIZED_TYPES`]。
+- 一个 `output_type` 属性，指定输出类型。`inputs` 和 `output_type` 的类型应为 [Pydantic 格式](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema)，它们可以是以下之一：`["string", "boolean","integer", "number", "image", "audio", "array", "object", "any", "null"]`。
 - 一个 `forward` 方法，包含要执行的推理代码。
 
 这就是它在 agent 中使用所需的全部内容！
@@ -120,7 +120,7 @@ image_generation_tool("A sunny beach")
 ```python
 from smolagents import CodeAgent, InferenceClientModel
 
-model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
@@ -168,7 +168,7 @@ agent.run("How many more blocks (also denoted as layers) are in BERT base encode
 ```python
 from smolagents import InferenceClientModel
 
-model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.tools[model_download_tool.name] = model_download_tool

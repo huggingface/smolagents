@@ -1006,6 +1006,49 @@ def evaluate_for(
     return result
 
 
+def _evaluate_comprehensions(
+    comprehensions: list[ast.comprehension],
+    evaluate_element: Callable[[dict[str, Any]], Any],
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Generator[Any, None, None]:
+    """
+    Recursively evaluate nested comprehensions and yields elements.
+
+    Args:
+        comprehensions (`list[ast.comprehension]`): Comprehensions to evaluate.
+        evaluate_element (`Callable`): Function that evaluates the final element when comprehensions are exhausted.
+        state (`dict[str, Any]`): Current evaluation state.
+        static_tools (`dict[str, Callable]`): Static tools.
+        custom_tools (`dict[str, Callable]`): Custom tools.
+        authorized_imports (`list[str]`): Authorized imports.
+
+    Yields:
+        `Any`: Individual elements produced by the comprehension
+    """
+    # Base case: no more comprehensions
+    if not comprehensions:
+        yield evaluate_element(state)
+        return
+    # Evaluate first comprehension
+    comprehension = comprehensions[0]
+    iter_value = evaluate_ast(comprehension.iter, state, static_tools, custom_tools, authorized_imports)
+    for value in iter_value:
+        new_state = state.copy()
+        set_value(comprehension.target, value, new_state, static_tools, custom_tools, authorized_imports)
+        # Check all filter conditions
+        if all(
+            evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+            for if_clause in comprehension.ifs
+        ):
+            # Recurse with remaining comprehensions
+            yield from _evaluate_comprehensions(
+                comprehensions[1:], evaluate_element, new_state, static_tools, custom_tools, authorized_imports
+            )
+
+
 def evaluate_listcomp(
     listcomp: ast.ListComp,
     state: dict[str, Any],
@@ -1013,41 +1056,16 @@ def evaluate_listcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> list[Any]:
-    def inner_evaluate(generators: list[ast.comprehension], index: int, current_state: dict[str, Any]) -> list[Any]:
-        if index >= len(generators):
-            return [
-                evaluate_ast(
-                    listcomp.elt,
-                    current_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-            ]
-        generator = generators[index]
-        iter_value = evaluate_ast(
-            generator.iter,
-            current_state,
+    return list(
+        _evaluate_comprehensions(
+            listcomp.generators,
+            lambda comp_state: evaluate_ast(listcomp.elt, comp_state, static_tools, custom_tools, authorized_imports),
+            state,
             static_tools,
             custom_tools,
             authorized_imports,
         )
-        result = []
-        for value in iter_value:
-            new_state = current_state.copy()
-            if isinstance(generator.target, ast.Tuple):
-                for idx, elem in enumerate(generator.target.elts):
-                    new_state[elem.id] = value[idx]
-            else:
-                new_state[generator.target.id] = value
-            if all(
-                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                for if_clause in generator.ifs
-            ):
-                result.extend(inner_evaluate(generators, index + 1, new_state))
-        return result
-
-    return inner_evaluate(listcomp.generators, 0, state)
+    )
 
 
 def evaluate_setcomp(
@@ -1057,32 +1075,38 @@ def evaluate_setcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> set[Any]:
-    result = set()
-    for gen in setcomp.generators:
-        iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
-        for value in iter_value:
-            new_state = state.copy()
-            set_value(
-                gen.target,
-                value,
-                new_state,
-                static_tools,
-                custom_tools,
-                authorized_imports,
-            )
-            if all(
-                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                for if_clause in gen.ifs
-            ):
-                element = evaluate_ast(
-                    setcomp.elt,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                result.add(element)
-    return result
+    return set(
+        _evaluate_comprehensions(
+            setcomp.generators,
+            lambda comp_state: evaluate_ast(setcomp.elt, comp_state, static_tools, custom_tools, authorized_imports),
+            state,
+            static_tools,
+            custom_tools,
+            authorized_imports,
+        )
+    )
+
+
+def evaluate_dictcomp(
+    dictcomp: ast.DictComp,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> dict[Any, Any]:
+    return dict(
+        _evaluate_comprehensions(
+            dictcomp.generators,
+            lambda comp_state: (
+                evaluate_ast(dictcomp.key, comp_state, static_tools, custom_tools, authorized_imports),
+                evaluate_ast(dictcomp.value, comp_state, static_tools, custom_tools, authorized_imports),
+            ),
+            state,
+            static_tools,
+            custom_tools,
+            authorized_imports,
+        )
+    )
 
 
 def evaluate_try(
@@ -1263,48 +1287,6 @@ def evaluate_import(expression, state, authorized_imports):
                 f"Import from {expression.module} is not allowed. Authorized imports are: {str(authorized_imports)}"
             )
         return None
-
-
-def evaluate_dictcomp(
-    dictcomp: ast.DictComp,
-    state: dict[str, Any],
-    static_tools: dict[str, Callable],
-    custom_tools: dict[str, Callable],
-    authorized_imports: list[str],
-) -> dict[Any, Any]:
-    result = {}
-    for gen in dictcomp.generators:
-        iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
-        for value in iter_value:
-            new_state = state.copy()
-            set_value(
-                gen.target,
-                value,
-                new_state,
-                static_tools,
-                custom_tools,
-                authorized_imports,
-            )
-            if all(
-                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                for if_clause in gen.ifs
-            ):
-                key = evaluate_ast(
-                    dictcomp.key,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                val = evaluate_ast(
-                    dictcomp.value,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                result[key] = val
-    return result
 
 
 def evaluate_generatorexp(
@@ -1571,10 +1553,9 @@ def evaluate_python_code(
         expression = ast.parse(code)
     except SyntaxError as e:
         raise InterpreterError(
-            f"Code parsing failed on line {e.lineno} due to: {type(e).__name__}\n"
+            f"Code parsing failed on line {e.lineno} due to: {type(e).__name__}: {str(e)}\n"
             f"{e.text}"
-            f"{' ' * (e.offset or 0)}^\n"
-            f"Error: {str(e)}"
+            f"{' ' * (e.offset or 0)}^"
         )
 
     if state is None:

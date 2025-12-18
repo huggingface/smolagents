@@ -1,6 +1,6 @@
 # Smolagents Chat Server Demo
 
-This is a simple web server that provides a chat interface for interacting with an AI code agent powered by `smolagents` and the Qwen2.5-Coder-32B-Instruct model, enhanced with MCP (Model Control Protocol) tools.
+This is a simple web server that provides a chat interface for interacting with an AI code agent powered by `smolagents` and the Qwen3-Next-80B-A3B-Thinking model, enhanced with MCP (Model Control Protocol) tools.
 
 ## Features
 
@@ -60,7 +60,7 @@ mcp_client = MCPClient(server_parameters=mcp_server_parameters)
 2. CodeAgent with MCP Tools:
 ```python
 agent = CodeAgent(
-    model=InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct"),
+    model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking"),
     tools=mcp_client.get_tools(),
 )
 ```

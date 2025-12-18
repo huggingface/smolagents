@@ -97,9 +97,9 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 코드를 실행하지 않으므로 `additional_authorized_imports` 없이도 [`CodeAgent`]와 거의 동일한 방식으로 작동합니다:
 
 ```py
-from smolagents import ToolCallingAgent
+from smolagents import ToolCallingAgent, WebSearchTool
 
-agent = ToolCallingAgent(tools=[], model=model)
+agent = ToolCallingAgent(tools=[WebSearchTool()], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
@@ -111,8 +111,8 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
     - [`TransformersModel`]은 사전 초기화된 `transformers` 파이프라인을 가져와 `transformers`를 사용하여 로컬 머신에서 추론을 실행합니다.
     - [`InferenceClientModel`]은 내부적으로 `huggingface_hub.InferenceClient`를 활용하며 Hub의 모든 추론 제공자를 지원합니다: Cerebras, Cohere, Fal, Fireworks, HF-Inference, Hyperbolic, Nebius, Novita, Replicate, SambaNova, Together 등.
     - [`LiteLLMModel`]은 마찬가지로 [LiteLLM](https://docs.litellm.ai/)을 통해 100개 이상의 다양한 모델과 제공자를 호출할 수 있습니다!
-    - [`AzureOpenAIServerModel`]은 [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service)에 배포된 OpenAI 모델을 사용할 수 있게 해줍니다.
-    - [`AmazonBedrockServerModel`]은 [AWS](https://aws.amazon.com/bedrock/?nc1=h_ls)의 Amazon Bedrock을 사용할 수 있게 해줍니다.
+    - [`AzureOpenAIModel`]은 [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service)에 배포된 OpenAI 모델을 사용할 수 있게 해줍니다.
+    - [`AmazonBedrockModel`]은 [AWS](https://aws.amazon.com/bedrock/?nc1=h_ls)의 Amazon Bedrock을 사용할 수 있게 해줍니다.
     - [`MLXModel`]은 로컬 머신에서 추론을 실행하기 위한 [mlx-lm](https://pypi.org/project/mlx-lm/) 파이프라인을 생성합니다.
 
 - `tools`, 에이전트가 작업 해결에 사용할 수 있는 도구 목록입니다. 빈 목록으로 설정할 수도 있습니다. add_base_tools=True 옵션을 사용하면 기본 제공되는 도구들(웹 검색, 코드 실행, 음성 인식 등)을 `tools` 목록에 추가할 수 있습니다.
@@ -197,15 +197,15 @@ agent.run(
 </hfoption>
 <hfoption id="Azure OpenAI">
 
-Azure OpenAI에 연결하려면 `AzureOpenAIServerModel`을 직접 사용하거나 `LiteLLMModel`을 사용하여 적절히 구성할 수 있습니다.
+Azure OpenAI에 연결하려면 `AzureOpenAIModel`을 직접 사용하거나 `LiteLLMModel`을 사용하여 적절히 구성할 수 있습니다.
 
-`AzureOpenAIServerModel`의 인스턴스를 초기화하려면 모델 배포 이름을 전달한 다음 `azure_endpoint`, `api_key`, `api_version` 인수를 전달하거나 환경 변수 `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `OPENAI_API_VERSION`을 설정해야 합니다.
+`AzureOpenAIModel`의 인스턴스를 초기화하려면 모델 배포 이름을 전달한 다음 `azure_endpoint`, `api_key`, `api_version` 인수를 전달하거나 환경 변수 `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `OPENAI_API_VERSION`을 설정해야 합니다.
 
 ```python
 # !pip install smolagents[openai]
-from smolagents import CodeAgent, AzureOpenAIServerModel
+from smolagents import CodeAgent, AzureOpenAIModel
 
-model = AzureOpenAIServerModel(model_id="gpt-4o-mini")
+model = AzureOpenAIModel(model_id="gpt-4o-mini")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -240,15 +240,15 @@ agent.run(
 </hfoption>
 <hfoption id="Amazon Bedrock">
 
-`AmazonBedrockServerModel` 클래스는 Amazon Bedrock과 직접 연동되어 API 호출과 세부 구성을 지원합니다.
+`AmazonBedrockModel` 클래스는 Amazon Bedrock과 직접 연동되어 API 호출과 세부 구성을 지원합니다.
 
 기본 사용법:
 
 ```python
 # !pip install smolagents[aws_sdk]
-from smolagents import CodeAgent, AmazonBedrockServerModel
+from smolagents import CodeAgent, AmazonBedrockModel
 
-model = AmazonBedrockServerModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
+model = AmazonBedrockModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -260,7 +260,7 @@ agent.run(
 
 ```python
 import boto3
-from smolagents import AmazonBedrockServerModel
+from smolagents import AmazonBedrockModel
 
 # Create a custom Bedrock client
 bedrock_client = boto3.client(
@@ -281,7 +281,7 @@ additional_api_config = {
 }
 
 # Initialize with comprehensive configuration
-model = AmazonBedrockServerModel(
+model = AmazonBedrockModel(
     model_id="us.amazon.nova-pro-v1:0",
     client=bedrock_client,  # Use custom client
     **additional_api_config
@@ -450,6 +450,16 @@ def model_download_tool(task: str) -> str:
 
 > [!TIP]
 > 이 정의 형식은 `apply_chat_template`에서 사용되는 도구 스키마와 동일하며, 유일한 차이점은 추가된 `tool` 데코레이터입니다: 도구 사용 API에 대해 더 자세히 알아보려면 [여기](https://huggingface.co/blog/unified-tool-use#passing-tools-to-a-chat-template)를 읽어보세요.
+
+
+그런 다음 에이전트를 직접 초기화할 수 있습니다:
+```py
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
+agent.run(
+    "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
+)
+```
 </hfoption>
 <hfoption id="Subclass Tool">
 
@@ -473,17 +483,18 @@ class ModelDownloadTool(Tool):
 - 입력 타입과 설명
 - 출력 타입
 이 모든 속성은 초기화 시 에이전트의 시스템 프롬프트에 자동으로 포함됩니다: 따라서 최대한 명확하게 만들도록 노력하세요!
-</hfoption>
-</hfoptions>
+
 
 그런 다음 에이전트를 직접 초기화할 수 있습니다:
 ```py
 from smolagents import CodeAgent, InferenceClientModel
-agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
+agent = CodeAgent(tools=[ModelDownloadTool()], model=InferenceClientModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
 ```
+</hfoption>
+</hfoptions>
 
 다음 로그를 얻습니다:
 ```text

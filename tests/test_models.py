@@ -14,7 +14,6 @@
 # limitations under the License.
 import json
 import sys
-import unittest
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
@@ -23,8 +22,8 @@ from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.default_tools import FinalAnswerTool
 from smolagents.models import (
-    AmazonBedrockServerModel,
-    AzureOpenAIServerModel,
+    AmazonBedrockModel,
+    AzureOpenAIModel,
     ChatMessage,
     ChatMessageToolCall,
     InferenceClientModel,
@@ -33,12 +32,13 @@ from smolagents.models import (
     MessageRole,
     MLXModel,
     Model,
-    OpenAIServerModel,
+    OpenAIModel,
     TransformersModel,
     get_clean_message_list,
     get_tool_call_from_text,
     get_tool_json_schema,
     parse_json_if_needed,
+    remove_content_after_stop_sequences,
     supports_stop_parameter,
 )
 from smolagents.tools import tool
@@ -227,14 +227,30 @@ class TestModel:
         data = json.loads(message.model_dump_json())
         assert data["content"] == [{"type": "text", "text": "Hello!"}]
 
-    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    def test_chatmessage_from_dict_role_conversion(self):
+        message_data = {
+            "role": "user",
+            "content": [{"type": "text", "text": "Hello!"}],
+        }
+        message = ChatMessage.from_dict(message_data)
+        assert isinstance(message.role, MessageRole)
+        assert message.role == MessageRole.USER
+        assert message.role.value == "user"
+        assert message.content == [{"type": "text", "text": "Hello!"}]
+
+        message_data["role"] = MessageRole.ASSISTANT
+        message2 = ChatMessage.from_dict(message_data)
+        assert isinstance(message2.role, MessageRole)
+        assert message2.role == MessageRole.ASSISTANT
+
+    @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
         messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         output = model(messages, stop_sequences=["great"]).content
         assert output.startswith("Hello")
 
-    @unittest.skipUnless(sys.platform.startswith("darwin"), "requires macOS")
+    @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_tricky_stop_sequence(self):
         # In this test HuggingFaceTB/SmolLM2-135M-Instruct generates the token ">'"
         # which is required to test capturing stop_sequences that have extra chars at the end.
@@ -410,6 +426,54 @@ class TestLiteLLMModel:
             f"Error message '{error_message}' does not contain any expected phrases"
         )
 
+    def test_retry_on_rate_limit_error(self):
+        """Test that the retry mechanism does trigger on 429 rate limit errors"""
+        import time
+
+        # Patch RETRY_WAIT to 1 second for faster testing
+        mock_litellm = MagicMock()
+
+        with (
+            patch("smolagents.models.RETRY_WAIT", 0.1),
+            patch("smolagents.utils.random.random", side_effect=[0.1, 0.1]),
+            patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
+        ):
+            model = LiteLLMModel(model_id="test-model")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
+
+            # Create a mock response for successful call
+            mock_success_response = MagicMock()
+            mock_success_response.choices = [MagicMock()]
+            # Set content directly (not through model_dump)
+            mock_success_response.choices[0].message.content = "Success response"
+            mock_success_response.choices[0].message.role = "assistant"
+            mock_success_response.choices[0].message.tool_calls = None
+            mock_success_response.usage.prompt_tokens = 10
+            mock_success_response.usage.completion_tokens = 20
+
+            # Create a 429 rate limit error
+            rate_limit_error = Exception("Error code: 429 - Rate limit exceeded")
+
+            # Mock the litellm client to raise an error twice, and then succeed
+            model.client.completion.side_effect = [rate_limit_error, rate_limit_error, mock_success_response]
+
+            # Measure time to verify retry wait time
+            start_time = time.time()
+            result = model.generate(messages)
+            elapsed_time = time.time() - start_time
+
+            # Verify that completion was called thrice (twice failed, once succeeded)
+            assert model.client.completion.call_count == 3
+            assert result.content == "Success response"
+            assert result.token_usage.input_tokens == 10
+            assert result.token_usage.output_tokens == 20
+
+            # Verify that the wait time was around
+            # 0.22s (1st retry) [0.1 * 2.0 * (1 + 1 * 0.1)]
+            # + 0.48s (2nd retry) [0.22 * 2.0 * (1 + 1 * 0.1)]
+            # = 0.704s (allow some tolerance)
+            assert 0.67 <= elapsed_time <= 0.73
+
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
         assert not model.flatten_messages_as_text
@@ -453,7 +517,7 @@ class TestLiteLLMRouterModel:
             assert router_model.client == mock_router.return_value
 
 
-class TestOpenAIServerModel:
+class TestOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
         model_id = "gpt-3.5-turbo"
         api_base = "https://api.openai.com/v1"
@@ -463,7 +527,7 @@ class TestOpenAIServerModel:
         client_kwargs = {"max_retries": 5}
 
         with patch("openai.OpenAI") as MockOpenAI:
-            model = OpenAIServerModel(
+            model = OpenAIModel(
                 model_id=model_id,
                 api_base=api_base,
                 api_key=api_key,
@@ -478,7 +542,7 @@ class TestOpenAIServerModel:
 
     @require_run_all
     def test_streaming_tool_calls(self):
-        model = OpenAIServerModel(model_id="gpt-4o-mini")
+        model = OpenAIModel(model_id="gpt-4o-mini")
         messages = [
             ChatMessage(
                 role=MessageRole.USER,
@@ -500,20 +564,45 @@ class TestOpenAIServerModel:
         assert args == '{"answer": "blob"}'
         assert args2 == '{"answer": "blob2"}'
 
+    def test_stop_sequence_cutting_for_o4_mini(self):
+        """Test that stop sequences are cut a posteriori for models that don't support stop parameter"""
+        # Create a mock response that contains a stop sequence in the middle
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.content = "This is some text<STOP>and this should be removed"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
 
-class TestAmazonBedrockServerModel:
+        with patch("openai.OpenAI") as MockOpenAI:
+            mock_client = MagicMock()
+            MockOpenAI.return_value = mock_client
+            mock_client.chat.completions.create.return_value = mock_response
+
+            model = OpenAIModel(model_id="o4-mini")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+            result = model.generate(messages, stop_sequences=["<STOP>"])
+
+            # Verify the stop sequence was removed
+            assert result.content == "This is some text"
+            assert "<STOP>" not in result.content
+            assert "and this should be removed" not in result.content
+
+
+class TestAmazonBedrockModel:
     def test_client_for_bedrock(self):
         model_id = "us.amazon.nova-pro-v1:0"
 
         with patch("boto3.client") as MockBoto3:
-            model = AmazonBedrockServerModel(
+            model = AmazonBedrockModel(
                 model_id=model_id,
             )
 
         assert model.client == MockBoto3.return_value
 
 
-class TestAzureOpenAIServerModel:
+class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
         model_id = "gpt-3.5-turbo"
         api_key = "test_api_key"
@@ -524,7 +613,7 @@ class TestAzureOpenAIServerModel:
         client_kwargs = {"max_retries": 5}
 
         with patch("openai.OpenAI") as MockOpenAI, patch("openai.AzureOpenAI") as MockAzureOpenAI:
-            model = AzureOpenAIServerModel(
+            model = AzureOpenAIModel(
                 model_id=model_id,
                 api_key=api_key,
                 api_version=api_version,
@@ -647,6 +736,24 @@ def test_get_clean_message_list_role_conversions():
     assert result[1]["content"][0]["text"] == "Tool response"
 
 
+def test_remove_content_after_stop_sequences():
+    content = "Hello<code>world!"
+    stop_sequences = ["<code>"]
+    removed_content = remove_content_after_stop_sequences(content, stop_sequences)
+    assert removed_content == "Hello"
+
+
+def test_remove_content_after_stop_sequences_handles_none():
+    # Test with None stop sequence
+    content = "Hello world!"
+    removed_content = remove_content_after_stop_sequences(content, None)
+    assert removed_content == content
+
+    # Test with None content
+    removed_content = remove_content_after_stop_sequences(None, ["<code>"])
+    assert removed_content is None
+
+
 @pytest.mark.parametrize(
     "convert_images_to_image_urls, expected_clean_message",
     [
@@ -700,15 +807,15 @@ def test_get_clean_message_list_flatten_messages_as_text():
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
-        (AzureOpenAIServerModel, {}, ("openai.AzureOpenAI", {}), False),
+        (AzureOpenAIModel, {}, ("openai.AzureOpenAI", {}), False),
         (InferenceClientModel, {}, ("huggingface_hub.InferenceClient", {}), False),
         (LiteLLMModel, {}, None, False),
         (LiteLLMModel, {"model_id": "ollama"}, None, True),
         (LiteLLMModel, {"model_id": "groq"}, None, True),
         (LiteLLMModel, {"model_id": "cerebras"}, None, True),
         (MLXModel, {}, ("mlx_lm.load", {"return_value": (MagicMock(), MagicMock())}), True),
-        (OpenAIServerModel, {}, ("openai.OpenAI", {}), False),
-        (OpenAIServerModel, {"flatten_messages_as_text": True}, ("openai.OpenAI", {}), True),
+        (OpenAIModel, {}, ("openai.OpenAI", {}), False),
+        (OpenAIModel, {"flatten_messages_as_text": True}, ("openai.OpenAI", {}), True),
         (
             TransformersModel,
             {},
@@ -754,40 +861,48 @@ def test_flatten_messages_as_text_for_all_models(
         # Unsupported base models
         ("o3", False),
         ("o4-mini", False),
+        ("gpt-5.1", False),
+        ("gpt-5.2", False),
         ("gpt-5", False),
         ("gpt-5-mini", False),
         ("gpt-5-nano", False),
+        ("gpt-5-turbo", False),
+        ("gpt-5.2-mini", False),
         ("grok-4", False),
         ("grok-4-latest", False),
+        ("grok-4.1", False),
+        ("grok-3", False),
         ("grok-3-mini", False),
         ("grok-code-fast-1", False),
         # Unsupported versioned models
-        ("o3-2025-04-16", False),
         ("o4-mini-2025-04-16", False),
+        ("gpt-5-2025-01-01", False),
         # Unsupported models with path prefixes
         ("openai/o3", False),
         ("openai/o4-mini", False),
         ("openai/o3-2025-04-16", False),
         ("openai/o4-mini-2025-04-16", False),
+        ("openai/gpt-5.2", False),
+        ("openai/gpt-5.2-mini", False),
+        ("openai/gpt-5.2-2025-01-01", False),
         ("oci/xai.grok-4", False),
         ("oci/xai.grok-3-mini", False),
         # Supported models
-        ("o3-mini", True),  # Different from o3
-        ("o3-mini-2025-01-31", True),  # Different from o3
-        ("o4", True),  # Different from o4-mini
-        ("o4-turbo", True),  # Different from o4-mini
+        ("o3-mini", True),
         ("gpt-4", True),
-        ("gpt-5-turbo", True),  # Different from gpt-5
-        ("grok-3", True),  # Different from grok-3-mini
         ("claude-3-5-sonnet", True),
         ("mistral-large", True),
         # Supported models with path prefixes
         ("openai/gpt-4", True),
         ("anthropic/claude-3-5-sonnet", True),
+        ("anthropic/claude-opus-4-5", True),
         ("mistralai/mistral-large", True),
         # Edge cases
         ("", True),  # Empty string doesn't match pattern
         ("o3x", True),  # Not exactly o3
+        ("o4x", True),  # Not exactly o4
+        ("gpt-5x", False),
+        ("gpt-50", False),
         ("o3_mini", True),  # Not o3-mini format
         ("prefix-o3", True),  # o3 not at start
     ],
@@ -846,3 +961,119 @@ class TestGetToolCallFromText:
         result = get_tool_call_from_text(text, "name", "arguments")
         assert result.function.name == "calculator"
         assert result.function.arguments == 42
+
+
+@pytest.mark.parametrize(
+    "model_class,model_id",
+    [
+        (LiteLLMModel, "gpt-4o-mini"),
+        (OpenAIModel, "gpt-4o-mini"),
+    ],
+)
+def test_tool_calls_json_serialization(model_class, model_id):
+    """Test that tool_calls from various API models (Pydantic, dataclass, dict) are properly converted to dataclasses and can be JSON serialized.
+    This tests the horizontal fix that ensures all models (LiteLLM, OpenAI, InferenceClient, AmazonBedrock)
+    properly convert tool_calls to dataclasses regardless of the source format (Pydantic models, dataclasses, or dicts).
+    """
+    tool_arguments = "test_result"
+    messages = [
+        ChatMessage(
+            role=MessageRole.USER,
+            content=[
+                {
+                    "type": "text",
+                    "text": "Hello! Please return the final answer 'hi there' in a tool call",
+                }
+            ],
+        ),
+    ]
+
+    if model_class == OpenAIModel:
+        from openai.types.chat.chat_completion import ChatCompletion, Choice
+        from openai.types.chat.chat_completion_message import ChatCompletionMessage
+        from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
+        from openai.types.completion_usage import CompletionUsage
+
+        response = ChatCompletion(
+            id="chatcmpl-test",
+            created=0,
+            model="gpt-4o-mini-2024-07-18",
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="tool_calls",
+                    index=0,
+                    logprobs=None,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChatCompletionMessageToolCall(
+                                id="call_test",
+                                type="function",
+                                function=Function(name="final_answer", arguments=tool_arguments),
+                            )
+                        ],
+                    ),
+                )
+            ],
+            usage=CompletionUsage(prompt_tokens=69, completion_tokens=15, total_tokens=84),
+        )
+        client = MagicMock()
+        client.chat.completions.create.return_value = response
+        create_call = client.chat.completions.create
+        patch_target = "smolagents.models.OpenAIModel.create_client"
+    elif model_class == LiteLLMModel:
+        from litellm.types.utils import ChatCompletionMessageToolCall, Choices, Function, Message, ModelResponse, Usage
+
+        response = ModelResponse(
+            id="chatcmpl-test",
+            created=0,
+            object="chat.completion",
+            choices=[
+                Choices(
+                    finish_reason="tool_calls",
+                    index=0,
+                    message=Message(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChatCompletionMessageToolCall(
+                                id="call_test",
+                                type="function",
+                                function=Function(name="final_answer", arguments=tool_arguments),
+                            )
+                        ],
+                        function_call=None,
+                        provider_specific_fields={"refusal": None, "annotations": []},
+                    ),
+                )
+            ],
+            usage=Usage(prompt_tokens=69, completion_tokens=15, total_tokens=84),
+            model="gpt-4o-mini-2024-07-18",
+        )
+        client = MagicMock()
+        client.completion.return_value = response
+        create_call = client.completion
+        patch_target = "smolagents.models.LiteLLMModel.create_client"
+    else:
+        raise ValueError(f"Unexpected model class: {model_class}")
+
+    with patch(patch_target, return_value=client):
+        model = model_class(model_id=model_id)
+        result = model.generate(messages, tools_to_call_from=[FinalAnswerTool()])
+
+    assert create_call.call_count == 1
+
+    # Verify tool_calls are converted to dataclasses
+    assert result.tool_calls is not None
+    assert len(result.tool_calls) > 0
+    assert isinstance(result.tool_calls[0], ChatMessageToolCall)
+
+    # The critical test: verify JSON serialization works
+    json_str = result.model_dump_json()
+    data = json.loads(json_str)
+    assert "tool_calls" in data
+    assert len(data["tool_calls"]) > 0
+    assert data["tool_calls"][0]["function"]["name"] == "final_answer"
+    assert data["tool_calls"][0]["function"]["arguments"] == "test_result"

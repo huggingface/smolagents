@@ -507,15 +507,64 @@ print(check_digits)
             state,
         )
 
+    def test_dictcomp(self):
+        code = "x = {i: i**2 for i in range(3)}"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == {0: 0, 1: 1, 2: 4}
+
+        code = "{num: name for num, name in {101: 'a', 102: 'b'}.items() if name not in ['a']}"
+        result, _ = evaluate_python_code(code, {"print": print}, state={}, authorized_imports=["pandas"])
+        assert result == {102: "b"}
+
+        code = """
+shifts = {'A': ('6:45', '8:00'), 'B': ('10:00', '11:45')}
+shift_minutes = {worker: ('a', 'b') for worker, (start, end) in shifts.items()}
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {"A": ("a", "b"), "B": ("a", "b")}
+
+    def test_dictcomp_nested(self):
+        code = """
+simple_map = {
+    (x, y): f"key_{x}_{y}"
+    for x in [1, 2]
+    for y in ['a', 'b']
+}
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {(1, "a"): "key_1_a", (1, "b"): "key_1_b", (2, "a"): "key_2_a", (2, "b"): "key_2_b"}
+
     def test_listcomp(self):
         code = "x = [i for i in range(3)]"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == [0, 1, 2]
 
+    def test_listcomp_nested(self):
+        code = """
+simple_list = [
+    (x, y)
+    for x in [1, 2, 1]
+    for y in ['a', 'b']
+]
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == [(1, "a"), (1, "b"), (2, "a"), (2, "b"), (1, "a"), (1, "b")]
+
     def test_setcomp(self):
         code = "batman_times = {entry['time'] for entry in [{'time': 10}, {'time': 19}, {'time': 20}]}"
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == {10, 19, 20}
+
+    def test_setcomp_nested(self):
+        code = """
+simple_set = {
+    (x, y)
+    for x in [1, 2, 1]
+    for y in ['a', 'b']
+}
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {(1, "a"), (1, "b"), (2, "a"), (2, "b")}
 
     def test_generatorexp(self):
         code = "x = (i for i in range(3))"
@@ -587,22 +636,6 @@ print(check_digits)
         code = "f = lambda x: x + 2\nf(3)"
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == 5
-
-    def test_dictcomp(self):
-        code = "x = {i: i**2 for i in range(3)}"
-        result, _ = evaluate_python_code(code, {"range": range}, state={})
-        assert result == {0: 0, 1: 1, 2: 4}
-
-        code = "{num: name for num, name in {101: 'a', 102: 'b'}.items() if name not in ['a']}"
-        result, _ = evaluate_python_code(code, {"print": print}, state={}, authorized_imports=["pandas"])
-        assert result == {102: "b"}
-
-        code = """
-shifts = {'A': ('6:45', '8:00'), 'B': ('10:00', '11:45')}
-shift_minutes = {worker: ('a', 'b') for worker, (start, end) in shifts.items()}
-"""
-        result, _ = evaluate_python_code(code, {}, state={})
-        assert result == {"A": ("a", "b"), "B": ("a", "b")}
 
     def test_tuple_assignment(self):
         code = "a, b = 0, 1\nb"

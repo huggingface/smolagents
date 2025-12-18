@@ -2,7 +2,7 @@ from smolagents import (
     CodeAgent,
     InferenceClientModel,
     LiteLLMModel,
-    OpenAIServerModel,
+    OpenAIModel,
     ToolCallingAgent,
     TransformersModel,
     tool,
@@ -36,7 +36,7 @@ elif chosen_inference == "litellm":
 
 elif chosen_inference == "openai":
     # For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-latest'
-    model = OpenAIServerModel(model_id="gpt-4o")
+    model = OpenAIModel(model_id="gpt-4o")
 
 
 @tool
