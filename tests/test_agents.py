@@ -1169,7 +1169,7 @@ class TestMultiStepAgent:
             model_output_message=ChatMessage(role="assistant", content="Test plan"),
             plan="Test planning step",
         )
-        final_answer_step=FinalAnswerStep(output="Sample output")
+        final_answer_step = FinalAnswerStep(output="Sample output")
 
         # Test with ActionStep
         agent._finalize_step(action_step)
