@@ -432,27 +432,37 @@ class GradioUI:
     def create_app(self):
         import gradio as gr
 
-        chatbot = gr.Chatbot(
-            label="Agent",
-            avatar_images=(
+        # Gradio 5.x requires type="messages", but Gradio 6 removed this parameter
+        chatbot_kwargs = {
+            "label": "Agent",
+            "avatar_images": (
                 None,
                 "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/mascot_smol.png",
             ),
-            latex_delimiters=[
+            "latex_delimiters": [
                 {"left": r"$$", "right": r"$$", "display": True},
                 {"left": r"$", "right": r"$", "display": False},
                 {"left": r"\[", "right": r"\]", "display": True},
                 {"left": r"\(", "right": r"\)", "display": False},
             ],
-        )
+        }
+        if gr.__version__.startswith("5"):
+            chatbot_kwargs["type"] = "messages"
 
-        demo = gr.ChatInterface(
-            fn=self._stream_response,
-            chatbot=chatbot,
-            title=self.name.replace("_", " ").capitalize(),
-            multimodal=self.file_upload_folder is not None,
-            save_history=True,
-        )
+        chatbot = gr.Chatbot(**chatbot_kwargs)
+
+        # Build ChatInterface kwargs with version-specific parameters
+        chat_kwargs = {
+            "fn": self._stream_response,
+            "chatbot": chatbot,
+            "title": self.name.replace("_", " ").capitalize(),
+            "multimodal": self.file_upload_folder is not None,
+            "save_history": True,
+        }
+        if gr.__version__.startswith("5"):
+            chat_kwargs["type"] = "messages"
+
+        demo = gr.ChatInterface(**chat_kwargs)
         return demo
 
 
