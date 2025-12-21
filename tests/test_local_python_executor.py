@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ast
+import time
 import types
 from contextlib import nullcontext as does_not_raise
 from textwrap import dedent
@@ -27,6 +28,7 @@ from smolagents.default_tools import BASE_PYTHON_TOOLS, FinalAnswerTool
 from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_MODULES,
+    ExecutionTimeoutError,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -38,6 +40,7 @@ from smolagents.local_python_executor import (
     evaluate_subscript,
     fix_final_answer_code,
     get_safe_module,
+    timeout,
 )
 
 
@@ -1986,6 +1989,86 @@ Input:    {input_code}
 Expected: {expected}
 Got:      {result}
 """
+
+
+class TestTimeout:
+    """Test the timeout mechanism for code execution."""
+
+    def test_timeout_decorator_completes_within_limit(self):
+        """Test that code completing within the timeout limit works correctly."""
+
+        @timeout(2)
+        def short_task():
+            time.sleep(0.1)
+            return "completed"
+
+        assert short_task() == "completed"
+
+    def test_timeout_decorator_raises_error_when_exceeded(self):
+        """Test that code exceeding the timeout limit raises ExecutionTimeoutError."""
+
+        @timeout(1)
+        def long_task():
+            time.sleep(2)
+            return "should not complete"
+
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            long_task()
+
+    def test_evaluate_python_code_with_timeout_completes(self):
+        """Test that evaluate_python_code completes within timeout for quick code."""
+        code = "result = 2 + 2"
+        result, is_final = evaluate_python_code(code)
+        assert result == 4
+
+    def test_evaluate_python_code_with_timeout_raises(self):
+        """Test that evaluate_python_code raises timeout error for long-running code."""
+        # This code should timeout after MAX_EXECUTION_TIME_SECONDS (10 seconds)
+        code = """
+import time
+time.sleep(15)
+result = "should not complete"
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            evaluate_python_code(code, authorized_imports=["time"])
+
+    def test_timeout_works_in_thread(self):
+        """Test that timeout mechanism works when called from a non-main thread.
+
+        This verifies the fix for the issue where signal-based timeouts failed
+        in threads (signals only work in the main thread).
+        """
+        import threading
+
+        result = {"success": False, "error": None}
+
+        def run_in_thread():
+            try:
+                # Quick code should work
+                code = "result = 42"
+                res, _ = evaluate_python_code(code)
+                assert res == 42
+
+                # Timeout should still work in thread
+                timeout_code = """
+import time
+time.sleep(15)
+"""
+                try:
+                    evaluate_python_code(timeout_code, authorized_imports=["time"])
+                    result["error"] = "Code should have timed out but didn't"
+                except ExecutionTimeoutError:
+                    result["success"] = True
+            except Exception as e:
+                result["error"] = f"{type(e).__name__}: {e}"
+
+        thread = threading.Thread(target=run_in_thread)
+        thread.start()
+        thread.join(timeout=20)
+
+        assert not thread.is_alive(), "Thread should have completed"
+        assert result["error"] is None, f"Error in thread: {result['error']}"
+        assert result["success"], "Timeout should have been raised in thread"
 
 
 @pytest.mark.parametrize(
