@@ -213,7 +213,7 @@ class AgentLoggerLogTaskTester(unittest.TestCase):
         logger = AgentLogger(console=console)
 
         # These inputs would crash Rich markup parsing if passed through as markup strings.
-        content = b"hello [/bad]\x00\x1b world"
+        content = b"hello [/bad]\x00\x1b world [bold]bold[/bold]"
         subtitle = "sub[/bad]title"
 
         logger.log_task(content=content, subtitle=subtitle, title=None)
@@ -224,6 +224,7 @@ class AgentLoggerLogTaskTester(unittest.TestCase):
         self.assertIn("\\x00", rendered)
         self.assertIn("\\x1b", rendered)
         self.assertIn("sub[/bad]title", rendered)
+        self.assertIn("bold", rendered)
 
     def test_logger_log_task_accepts_non_string_payloads(self):
         console = Console(record=True, width=120, highlight=False)

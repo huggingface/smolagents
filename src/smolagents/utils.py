@@ -77,17 +77,6 @@ def sanitize_for_rich(value) -> str:
     else:
         s = str(value)
     
-    # Escapes square brackets in code segments while preserving Rich styling tags.
-    def replace_bracketed_content(match):
-        content = match.group(1)
-        cleaned = re.sub(
-            r"bold|red|green|blue|yellow|magenta|cyan|white|black|italic|dim|\s|#[0-9a-fA-F]{6}", "", content
-        )
-        return f"\\[{content}\\]" if cleaned.strip() else f"[{content}]"
-
-    s = re.sub(r"\[([^\]]*)\]", replace_bracketed_content, s)
-
-    # Replace ASCII control chars (except common whitespace) with visible escape sequences.
     out: list[str] = []
     for ch in s:
         code = ord(ch)
