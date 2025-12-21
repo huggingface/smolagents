@@ -23,7 +23,8 @@ import math
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
