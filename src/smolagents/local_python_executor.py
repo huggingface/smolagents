@@ -23,6 +23,7 @@ import math
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
@@ -55,6 +56,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+MAX_EXECUTION_TIME_SECONDS = 10
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
@@ -271,6 +273,50 @@ class ContinueException(Exception):
 class ReturnException(Exception):
     def __init__(self, value):
         self.value = value
+
+
+class ExecutionTimeoutError(Exception):
+    """Exception raised when code execution exceeds the maximum allowed time."""
+
+    pass
+
+
+def timeout(timeout_seconds: int):
+    """
+    Decorator to limit the execution time of a function using threading.
+
+    This implementation is cross-platform (works on Windows) and thread-safe (works when
+    called from any thread, not just the main thread), unlike signal-based approaches.
+
+    Args:
+        timeout_seconds (`int`): Maximum time in seconds allowed for function execution.
+
+    Raises:
+        ExecutionTimeoutError: If the function execution exceeds the timeout period.
+
+    Note:
+        If a timeout occurs, the thread running the function cannot be forcefully killed
+        in Python, so it will continue running in the background until completion. However,
+        the caller will receive a TimeoutError and can continue execution.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Create a new ThreadPoolExecutor for each call to avoid threading issues
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(func, *args, **kwargs)
+                try:
+                    result = future.result(timeout=timeout_seconds)
+                    return result
+                except FuturesTimeoutError:
+                    raise ExecutionTimeoutError(
+                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                    )
+
+        return wrapper
+
+    return decorator
 
 
 def get_iterable(obj):
@@ -1521,6 +1567,7 @@ class FinalAnswerException(Exception):
         self.value = value
 
 
+@timeout(MAX_EXECUTION_TIME_SECONDS)
 def evaluate_python_code(
     code: str,
     static_tools: dict[str, Callable] | None = None,
