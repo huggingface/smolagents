@@ -449,6 +449,15 @@ class _ParameterRemove:
 REMOVE_PARAMETER = _ParameterRemove()
 
 
+
+def parse_tool_calls_from_text(text: str) -> list[dict]:
+        """Parse tool calls from text format."""
+        tool_calls = []
+        try:
+                    tool_calls = json.loads(text)
+                except Exception:
+                            pass
+                        return tool_calls
 class Model:
     """Base class for all language model implementations.
 
