@@ -1786,3 +1786,454 @@ class CodeAgent(MultiStepAgent):
         code_agent_kwargs.update(kwargs)
         # Call the parent class's from_dict method
         return super().from_dict(agent_dict, **code_agent_kwargs)
+
+
+class CustomCodeAgent(CodeAgent):
+    """
+    A CodeAgent that integrates with custom providers for LLM calls and optionally code execution.
+
+    This agent routes all LLM calls through a custom provider while maintaining compatibility
+    with the smolagents framework. It supports two execution modes:
+
+    - When `use_custom_provider_code_execution_sandbox=False` (default): Uses custom provider
+      for code generation but executes code locally using smolagents' built-in executor.
+    - When `use_custom_provider_code_execution_sandbox=True`: Delegates both code generation
+      AND execution to the custom provider's sandboxed environment.
+
+    Args:
+        tools (`list[Tool]`): [`Tool`]s that the agent can use.
+        model (`Model`): A smolagents Model (e.g., `LiteLLMModel`) whose configuration will be
+            extracted and used to create a provider-specific LLM instance.
+        provider (`str`, default `"OpenHandsSDKDocker"`): Provider identifier. Currently supported:
+            - "OpenHandsSDKDocker": OpenHands SDK with Docker-based sandboxing
+        use_custom_provider_code_execution_sandbox (`bool`, default `False`): If True, uses
+            the provider's sandboxed execution. If False, uses smolagents' built-in executor.
+        container_handler (`str`, default `"auto"`): Container management mode. Only applies when
+            `use_custom_provider_code_execution_sandbox=True`:
+            - "auto": Automatically manage Docker container lifecycle (build, start, stop)
+            - "manual": Connect to existing running container (user manages lifecycle)
+        openhands_agent_auto_image (`str`, *optional*): Docker image for OpenHands agent server.
+            Required when `container_handler="auto"`.
+        openhands_agent_manual_host (`str`, *optional*): Host URL for manual mode (e.g., "http://localhost:8010").
+            Required when `container_handler="manual"`.
+        openhands_agent_manual_port (`int`, *optional*): Port for manual mode.
+            Only used when `container_handler="manual"`.
+        openhands_agent_platform (`str`, *optional*): Docker platform (e.g., "linux/amd64", "linux/arm64").
+            Auto-detected if not provided.
+        **kwargs: Additional keyword arguments passed to `CodeAgent`.
+
+    Example:
+        >>> # Auto mode: agent manages container
+        >>> from smolagents import CustomCodeAgent, LiteLLMModel
+        >>> model = LiteLLMModel(model_id="gpt-4")
+        >>> agent = CustomCodeAgent(
+        ...     tools=[],
+        ...     model=model,
+        ...     use_custom_provider_code_execution_sandbox=True,
+        ...     container_handler="auto",
+        ...     openhands_agent_auto_image="ghcr.io/openhands/agent-server:latest-python"
+        ... )
+        >>> result = agent.run("What is 2 + 2?")
+        >>>
+        >>> # Manual mode: user manages container
+        >>> agent = CustomCodeAgent(
+        ...     tools=[],
+        ...     model=model,
+        ...     use_custom_provider_code_execution_sandbox=True,
+        ...     container_handler="manual",
+        ...     openhands_agent_manual_host="http://localhost:8010"
+        ... )
+    """
+
+    def __init__(
+        self,
+        tools: list[Tool],
+        model: Model,
+        provider: str = "OpenHandsSDKDocker",
+        use_custom_provider_code_execution_sandbox: bool = False,
+        container_handler: str = "auto",
+        openhands_agent_auto_image: str | None = None,
+        openhands_agent_manual_host: str | None = None,
+        openhands_agent_manual_port: int | None = None,
+        openhands_agent_platform: str | None = None,
+        **kwargs,
+    ):
+        self.provider = provider
+        self.use_custom_provider_code_execution_sandbox = use_custom_provider_code_execution_sandbox
+        self.container_handler = container_handler
+        self.openhands_agent_auto_image = openhands_agent_auto_image
+        self.openhands_agent_manual_host = openhands_agent_manual_host
+        self.openhands_agent_manual_port = openhands_agent_manual_port
+        self.openhands_agent_platform = openhands_agent_platform
+
+        # Validate provider
+        if provider not in ["OpenHandsSDKDocker"]:
+            raise ValueError(
+                f"Unsupported provider: {provider}. Supported providers: OpenHandsSDKDocker"
+            )
+
+        # Validate container_handler
+        if container_handler not in ["auto", "manual"]:
+            raise ValueError(
+                f"Invalid container_handler: {container_handler}. Must be 'auto' or 'manual'"
+            )
+
+        # Store the original model for config extraction
+        self._original_model = model
+
+        # Create provider-specific LLM wrapper
+        provider_model = self._create_provider_model_wrapper(model)
+
+        # Initialize parent with the wrapped model
+        super().__init__(tools=tools, model=provider_model, **kwargs)
+
+        # Initialize provider components for sandbox mode
+        self._openhands_workspace = None
+        self._openhands_agent = None
+        self._openhands_conversation = None
+
+        if self.use_custom_provider_code_execution_sandbox:
+            if self.provider == "OpenHandsSDKDocker":
+                self._initialize_openhands_sandbox()
+            else:
+                raise NotImplementedError(f"Sandbox mode not implemented for provider: {self.provider}")
+
+    def _create_provider_model_wrapper(self, model: Model) -> Model:
+        """Create a model wrapper that uses OpenHands SDK for LLM calls.
+
+        Args:
+            model: The original smolagents Model to extract configuration from.
+
+        Returns:
+            A Model instance that delegates LLM calls to OpenHands SDK.
+        """
+        try:
+            from pydantic import SecretStr
+
+            from openhands.sdk import LLM as OpenHandsLLM
+        except ImportError as e:
+            raise ImportError(
+                "OpenHands SDK is required for CustomCodeAgent. "
+                "Please install it with: pip install openhands-sdk"
+            ) from e
+
+        # Extract configuration from the smolagents model
+        model_id = getattr(model, "model_id", "claude-sonnet-4-20250514")
+        api_key = getattr(model, "api_key", None)
+        api_base = getattr(model, "api_base", None)
+
+        # Create OpenHands LLM instance
+        openhands_llm_kwargs = {
+            "model": model_id,
+            "usage_id": "custom_code_agent",
+        }
+        if api_key:
+            openhands_llm_kwargs["api_key"] = (
+                SecretStr(api_key) if isinstance(api_key, str) else api_key
+            )
+        if api_base:
+            openhands_llm_kwargs["base_url"] = api_base
+
+        openhands_llm = OpenHandsLLM(**openhands_llm_kwargs)
+
+        # Create and return wrapper model
+        return OpenHandsModelWrapper(openhands_llm=openhands_llm, original_model=model)
+
+    def _initialize_openhands_sandbox(self) -> None:
+        """Initialize OpenHands SDK components for sandboxed execution."""
+        try:
+            from openhands.sdk import Agent as OpenHandsAgent
+            from openhands.workspace import DockerWorkspace, RemoteWorkspace
+        except ImportError as e:
+            raise ImportError(
+                "OpenHands SDK with workspace support is required for sandbox mode. "
+                "Please install it with: pip install openhands-sdk openhands-workspace"
+            ) from e
+
+        # Get the OpenHands LLM from the wrapper
+        openhands_llm = self.model._openhands_llm
+
+        # Create workspace based on container_handler mode
+        if self.container_handler == "auto":
+            # Auto mode: manage container lifecycle
+            if not self.openhands_agent_auto_image:
+                raise ValueError(
+                    "openhands_agent_auto_image is required when container_handler='auto'"
+                )
+
+            workspace_kwargs = {"server_image": self.openhands_agent_auto_image}
+            if self.openhands_agent_platform:
+                workspace_kwargs["platform"] = self.openhands_agent_platform
+            else:
+                # Auto-detect platform
+                workspace_kwargs["platform"] = self._detect_platform()
+
+            self._openhands_workspace = DockerWorkspace(**workspace_kwargs)
+
+        elif self.container_handler == "manual":
+            # Manual mode: connect to existing container
+            if not self.openhands_agent_manual_host:
+                raise ValueError(
+                    "openhands_agent_manual_host is required when container_handler='manual' "
+                    "(e.g., 'http://localhost:8010')"
+                )
+
+            # Create a RemoteWorkspace that connects to existing container
+            workspace_kwargs = {"host": self.openhands_agent_manual_host, "working_dir": "/workspace"}
+            if self.openhands_agent_manual_port:
+                workspace_kwargs["port"] = self.openhands_agent_manual_port
+
+            self._openhands_workspace = RemoteWorkspace(**workspace_kwargs)
+
+        # Create OpenHands agent with default tools
+        try:
+            from openhands.tools.preset.default import get_default_agent
+            self._openhands_agent = get_default_agent(llm=openhands_llm, cli_mode=True)
+        except ImportError:
+            # Fallback: create agent without preset tools
+            self._openhands_agent = OpenHandsAgent(llm=openhands_llm, tools=[])
+
+    def _detect_platform(self) -> str:
+        """Detect the correct Docker platform string."""
+        import platform
+
+        machine = platform.machine().lower()
+        if "arm" in machine or "aarch64" in machine:
+            return "linux/arm64"
+        return "linux/amd64"
+
+    def _step_stream(
+        self, memory_step: ActionStep
+    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput, None, None]:
+        """
+        Perform one step in the ReAct framework using custom provider.
+
+        When sandbox mode is disabled, this uses the custom provider for LLM calls
+        but smolagents' executor for code execution.
+
+        When sandbox mode is enabled, this delegates to the custom provider for
+        both code generation and execution in a sandboxed environment.
+        """
+        if self.use_custom_provider_code_execution_sandbox:
+            if self.provider == "OpenHandsSDKDocker":
+                yield from self._step_stream_with_openhands_sandbox(memory_step)
+            else:
+                raise NotImplementedError(f"Sandbox execution not implemented for provider: {self.provider}")
+        else:
+            # Use parent's implementation which will use our wrapped model
+            yield from super()._step_stream(memory_step)
+
+    def _step_stream_with_openhands_sandbox(
+        self, memory_step: ActionStep
+    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput, None, None]:
+        """Execute a step using OpenHands SDK's Docker-sandboxed execution.
+
+        This method routes execution through the OpenHands Agent running in a Docker container,
+        using the Conversation API to communicate with the sandboxed agent and process events.
+        """
+        from openhands.sdk import Conversation as OpenHandsConversation
+        from openhands.sdk.event import ActionEvent, ObservationEvent
+
+        # Build the task from memory
+        task = self._build_task_from_memory()
+
+        # Create a new conversation for this step
+        conversation = OpenHandsConversation(
+            agent=self._openhands_agent,
+            workspace=self._openhands_workspace,
+            max_iteration_per_run=1,  # Single step
+        )
+
+        # Collect events from the conversation
+        collected_events = []
+
+        def event_callback(event):
+            collected_events.append(event)
+
+        conversation._callbacks = [event_callback]
+
+        # Send the task and run one step
+        conversation.send_message(task)
+        conversation.run()
+
+        # Process collected events and yield appropriate outputs
+        for event in collected_events:
+            if isinstance(event, ActionEvent):
+                # Extract code from the action if available
+                action = event.action
+                if action and hasattr(action, "command"):
+                    code_action = action.command
+                    memory_step.code_action = code_action
+
+                    tool_call = ToolCall(
+                        name="python_interpreter",
+                        arguments=code_action,
+                        id=f"call_{len(self.memory.steps)}",
+                    )
+                    yield tool_call
+                    memory_step.tool_calls = [tool_call]
+
+            elif isinstance(event, ObservationEvent):
+                # Extract observation
+                observation = event.observation
+                if observation:
+                    obs_text = str(observation)
+                    memory_step.observations = obs_text
+
+                    # Check if this is a final answer
+                    is_final = self._check_if_final_answer(obs_text)
+                    yield ActionOutput(output=obs_text, is_final_answer=is_final)
+
+    def _build_task_from_memory(self) -> str:
+        """Build a task string from the current memory state."""
+        messages = self.write_memory_to_messages()
+        # Extract the last user message as the task
+        for msg in reversed(messages):
+            if hasattr(msg, "role") and msg.role == MessageRole.USER:
+                if isinstance(msg.content, str):
+                    return msg.content
+                elif isinstance(msg.content, list):
+                    # Extract text from content list
+                    texts = [c.get("text", "") for c in msg.content if isinstance(c, dict)]
+                    return " ".join(texts)
+        return ""
+
+    def _check_if_final_answer(self, observation: str) -> bool:
+        """Check if the observation indicates a final answer."""
+        # Check for common final answer patterns
+        final_patterns = ["final_answer(", "Final Answer:", "FINAL ANSWER"]
+        return any(pattern.lower() in observation.lower() for pattern in final_patterns)
+
+    def cleanup(self) -> None:
+        """Clean up resources including provider-specific components.
+
+        In auto mode, this stops and removes the Docker container.
+        In manual mode, this only closes the conversation (container remains running).
+        """
+        super().cleanup()
+
+        # Close conversation if it exists
+        if self._openhands_conversation:
+            try:
+                self._openhands_conversation.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
+            self._openhands_conversation = None
+
+        # Clean up workspace (only in auto mode will this stop the container)
+        if self._openhands_workspace:
+            if self.container_handler == "auto":
+                # Auto mode: cleanup stops and removes the container
+                self._openhands_workspace.cleanup()
+            # Manual mode: workspace cleanup doesn't affect the container
+            self._openhands_workspace = None
+
+
+class OpenHandsModelWrapper(Model):
+    """A smolagents Model wrapper that delegates LLM calls to OpenHands SDK.
+
+    This wrapper maintains the smolagents Model interface while routing all
+    LLM calls through the OpenHands SDK's LLM class.
+    """
+
+    def __init__(self, openhands_llm, original_model: Model):
+        """Initialize the wrapper.
+
+        Args:
+            openhands_llm: The OpenHands LLM instance to delegate calls to.
+            original_model: The original smolagents Model for fallback/config.
+        """
+        self._openhands_llm = openhands_llm
+        self._original_model = original_model
+        # Copy attributes from original model
+        self.model_id = getattr(original_model, "model_id", "unknown")
+
+    def generate(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """Generate a response using OpenHands SDK.
+
+        Args:
+            messages: List of chat messages.
+            stop_sequences: Optional stop sequences (currently unused).
+            response_format: Optional response format specification (currently unused).
+            tools_to_call_from: Optional list of tools (currently unused).
+            **kwargs: Additional arguments (currently unused).
+
+        Returns:
+            ChatMessage with the generated response.
+        """
+        # Suppress unused parameter warnings - these are part of the interface
+        _ = stop_sequences, response_format, tools_to_call_from, kwargs
+
+        # Convert smolagents messages to OpenHands format
+        oh_messages = self._convert_messages_to_openhands(messages)
+
+        # Make the LLM call through OpenHands SDK
+        response = self._openhands_llm.completion(messages=oh_messages)
+
+        # Convert response back to smolagents format
+        return self._convert_response_to_smolagents(response)
+
+    def _convert_messages_to_openhands(self, messages: list) -> list:
+        """Convert smolagents messages to OpenHands format."""
+        from openhands.sdk.llm import Message as OpenHandsMessage
+        from openhands.sdk.llm import TextContent
+
+        oh_messages = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+            else:
+                role = getattr(msg, "role", "user")
+                if hasattr(role, "value"):
+                    role = role.value
+                content = getattr(msg, "content", "")
+
+            # Handle content that might be a list
+            if isinstance(content, list):
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict) and "text" in item:
+                        text_parts.append(item["text"])
+                    elif isinstance(item, str):
+                        text_parts.append(item)
+                content = " ".join(text_parts)
+
+            oh_messages.append(
+                OpenHandsMessage(
+                    role=role,
+                    content=[TextContent(text=str(content))],
+                )
+            )
+        return oh_messages
+
+    def _convert_response_to_smolagents(self, response) -> ChatMessage:
+        """Convert OpenHands response to smolagents ChatMessage."""
+        # Extract content from OpenHands response
+        message = response.message
+        content_parts = []
+        for c in message.content:
+            if hasattr(c, "text"):
+                content_parts.append(c.text)
+        content = "".join(content_parts)
+
+        # Build token usage if available
+        token_usage = None
+        if hasattr(response, "usage") and response.usage:
+            token_usage = TokenUsage(
+                input_tokens=getattr(response.usage, "prompt_tokens", 0),
+                output_tokens=getattr(response.usage, "completion_tokens", 0),
+            )
+
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=content,
+            token_usage=token_usage,
+        )
