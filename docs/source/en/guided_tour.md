@@ -36,6 +36,7 @@ agent = CustomCodeAgent(
     is_code_executed_by_the_custom_agent=True,
     agent_type="remote",
     openhands_agent_host="http://localhost:8010",
+    additional_authorized_imports=["time", "json", "pandas"],
     openhands_runtime_api_key="your-api-key"  # optional
 )
 

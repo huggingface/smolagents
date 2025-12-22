@@ -314,15 +314,15 @@ class MultiStepAgent(ABC):
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         if prompt_templates is not None:
             missing_keys = set(EMPTY_PROMPT_TEMPLATES.keys()) - set(prompt_templates.keys())
-            assert not missing_keys, (
-                f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
-            )
+            assert (
+                not missing_keys
+            ), f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
             for key, value in EMPTY_PROMPT_TEMPLATES.items():
                 if isinstance(value, dict):
                     for subkey in value.keys():
-                        assert key in prompt_templates.keys() and (subkey in prompt_templates[key].keys()), (
-                            f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
-                        )
+                        assert (
+                            key in prompt_templates.keys() and (subkey in prompt_templates[key].keys())
+                        ), f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
 
         self.max_steps = max_steps
         self.step_number = 0
@@ -369,9 +369,9 @@ class MultiStepAgent(ABC):
         """Setup managed agents with proper logging."""
         self.managed_agents = {}
         if managed_agents:
-            assert all(agent.name and agent.description for agent in managed_agents), (
-                "All managed agents need both a name and a description!"
-            )
+            assert all(
+                agent.name and agent.description for agent in managed_agents
+            ), "All managed agents need both a name and a description!"
             self.managed_agents = {agent.name: agent for agent in managed_agents}
             # Ensure managed agents can be called as tools by the model: set their inputs and output_type
             for agent in self.managed_agents.values():
@@ -386,9 +386,9 @@ class MultiStepAgent(ABC):
                 agent.output_type = "string"
 
     def _setup_tools(self, tools, add_base_tools):
-        assert all(isinstance(tool, BaseTool) for tool in tools), (
-            "All elements must be instance of BaseTool (or a subclass)"
-        )
+        assert all(
+            isinstance(tool, BaseTool) for tool in tools
+        ), "All elements must be instance of BaseTool (or a subclass)"
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(
@@ -1911,15 +1911,11 @@ class CustomCodeAgent(CodeAgent):
 
         # Validate provider
         if provider not in ["OpenHandsSDK"]:
-            raise ValueError(
-                f"Unsupported provider: {provider}. Supported providers: OpenHandsSDK"
-            )
+            raise ValueError(f"Unsupported provider: {provider}. Supported providers: OpenHandsSDK")
 
         # Validate agent_type
         if agent_type not in ["local_container", "remote", "remote_api"]:
-            raise ValueError(
-                f"Invalid agent_type: {agent_type}. Must be 'local_container', 'remote', or 'remote_api'"
-            )
+            raise ValueError(f"Invalid agent_type: {agent_type}. Must be 'local_container', 'remote', or 'remote_api'")
 
         # Store the original model for config extraction
         self._original_model = model
@@ -1951,13 +1947,11 @@ class CustomCodeAgent(CodeAgent):
             A Model instance that delegates LLM calls to OpenHands SDK.
         """
         try:
-            from pydantic import SecretStr
-
             from openhands.sdk import LLM as OpenHandsLLM
+            from pydantic import SecretStr
         except ImportError as e:
             raise ImportError(
-                "OpenHands SDK is required for CustomCodeAgent. "
-                "Please install it with: pip install openhands-sdk"
+                "OpenHands SDK is required for CustomCodeAgent. " "Please install it with: pip install openhands-sdk"
             ) from e
 
         # Extract configuration from the smolagents model
@@ -1972,9 +1966,7 @@ class CustomCodeAgent(CodeAgent):
             "max_output_tokens": 4096,  # Reasonable limit to avoid context window issues
         }
         if api_key:
-            openhands_llm_kwargs["api_key"] = (
-                SecretStr(api_key) if isinstance(api_key, str) else api_key
-            )
+            openhands_llm_kwargs["api_key"] = SecretStr(api_key) if isinstance(api_key, str) else api_key
         if api_base:
             openhands_llm_kwargs["base_url"] = api_base
 
@@ -2001,9 +1993,7 @@ class CustomCodeAgent(CodeAgent):
         if self.agent_type == "local_container":
             # Local container mode: manage container lifecycle
             if not self.openhands_agent_image:
-                raise ValueError(
-                    "openhands_agent_image is required when agent_type='local_container'"
-                )
+                raise ValueError("openhands_agent_image is required when agent_type='local_container'")
 
             workspace_kwargs = {"server_image": self.openhands_agent_image}
             if self.openhands_agent_platform:
@@ -2018,8 +2008,7 @@ class CustomCodeAgent(CodeAgent):
             # Remote mode: connect to existing local container
             if not self.openhands_agent_host:
                 raise ValueError(
-                    "openhands_agent_host is required when agent_type='remote' "
-                    "(e.g., 'http://localhost:8010')"
+                    "openhands_agent_host is required when agent_type='remote' " "(e.g., 'http://localhost:8010')"
                 )
 
             # Create a RemoteWorkspace that connects to existing container
@@ -2039,9 +2028,7 @@ class CustomCodeAgent(CodeAgent):
                     "(e.g., 'https://runtime.all-hands.dev')"
                 )
             if not self.openhands_runtime_api_key:
-                raise ValueError(
-                    "openhands_runtime_api_key is required when agent_type='remote_api'"
-                )
+                raise ValueError("openhands_runtime_api_key is required when agent_type='remote_api'")
             if not self.openhands_agent_image:
                 raise ValueError(
                     "openhands_agent_image is required when agent_type='remote_api' "
@@ -2067,10 +2054,10 @@ class CustomCodeAgent(CodeAgent):
             self._openhands_workspace = APIRemoteWorkspace(**workspace_kwargs)
 
         # Create OpenHands agent configured for the appropriate mode
+        import yaml
         from openhands.sdk import AgentContext
         from openhands.sdk.tool import Tool
         from openhands.tools.terminal import TerminalTool
-        import yaml
 
         # Load the appropriate prompt based on execution mode
         prompt_dir = os.path.join(os.path.dirname(__file__), "prompts")
@@ -2083,14 +2070,12 @@ class CustomCodeAgent(CodeAgent):
             prompt_file = os.path.join(prompt_dir, "openhands_code_generation_mode.yaml")
 
         # Load prompt from YAML file
-        with open(prompt_file, 'r') as f:
+        with open(prompt_file, "r") as f:
             prompt_config = yaml.safe_load(f)
 
-        system_message_suffix = prompt_config.get('system_message_suffix', '')
+        system_message_suffix = prompt_config.get("system_message_suffix", "")
 
-        agent_context = AgentContext(
-            system_message_suffix=system_message_suffix
-        )
+        agent_context = AgentContext(system_message_suffix=system_message_suffix)
 
         self._openhands_agent = OpenHandsAgent(
             llm=openhands_llm,
@@ -2137,6 +2122,7 @@ class CustomCodeAgent(CodeAgent):
         the final result. smolagents should NOT re-execute the code.
         """
         from openhands.sdk import Conversation as OpenHandsConversation
+        from openhands.sdk.conversation.response_utils import get_agent_final_response
 
         # Build the task from memory
         task = self._build_task_from_memory()
@@ -2156,44 +2142,12 @@ class CustomCodeAgent(CodeAgent):
         # Get the conversation history to extract the final result
         events = self._openhands_conversation.state.events
 
-        # Extract the final result from the last message or observation
-        final_result = None
-
-        for event in reversed(events):
-            event_type = type(event).__name__
-
-            # Check for MessageEvent (agent's LLM responses)
-            if event_type == 'MessageEvent' and hasattr(event, 'llm_message'):
-                llm_msg = event.llm_message
-                if hasattr(llm_msg, 'content') and llm_msg.content:
-                    content = llm_msg.content
-                    # Content can be a list of TextContent objects or a string
-                    if isinstance(content, list):
-                        # Extract text from TextContent objects
-                        text_parts = []
-                        for item in content:
-                            if hasattr(item, 'text'):
-                                text_parts.append(item.text)
-                            elif isinstance(item, str):
-                                text_parts.append(item)
-                        final_result = '\n'.join(text_parts) if text_parts else None
-                    elif isinstance(content, str):
-                        final_result = content
-
-                    if final_result:
-                        break
-
-            # Check for ObservationEvent (tool execution results)
-            elif event_type == 'ObservationEvent' and hasattr(event, 'observation'):
-                obs = event.observation
-                if hasattr(obs, 'content') and obs.content:
-                    content = obs.content
-                    if isinstance(content, str) and content.strip():
-                        final_result = content.strip()
-                        # Keep looking for a MessageEvent, but save this as fallback
+        # Use OpenHands SDK's utility function to extract the final response
+        # This properly handles both finish tool calls and message events
+        final_result = get_agent_final_response(events)
 
         # If we found a result, yield it as the final answer
-        if final_result:
+        if final_result and final_result.strip():
             memory_step.observations = final_result
             yield ActionOutput(output=final_result, is_final_answer=True)
         else:
@@ -2246,14 +2200,18 @@ class CustomCodeAgent(CodeAgent):
             if self.agent_type == "local_container":
                 # Local container mode: cleanup based on configuration
                 try:
-                    if hasattr(self._openhands_workspace, '_container_id') and self._openhands_workspace._container_id:
+                    if hasattr(self._openhands_workspace, "_container_id") and self._openhands_workspace._container_id:
                         import subprocess
+
                         container_id = self._openhands_workspace._container_id
 
                         # Stop logs streaming first
-                        if hasattr(self._openhands_workspace, '_stop_logs'):
+                        if hasattr(self._openhands_workspace, "_stop_logs"):
                             self._openhands_workspace._stop_logs.set()
-                        if hasattr(self._openhands_workspace, '_logs_thread') and self._openhands_workspace._logs_thread:
+                        if (
+                            hasattr(self._openhands_workspace, "_logs_thread")
+                            and self._openhands_workspace._logs_thread
+                        ):
                             if self._openhands_workspace._logs_thread.is_alive():
                                 self._openhands_workspace._logs_thread.join(timeout=2)
 
@@ -2261,6 +2219,8 @@ class CustomCodeAgent(CodeAgent):
                             subprocess.run(["docker", "stop", container_id], check=False, capture_output=True)
 
                         if self.delete_container_on_completion:
+                            # Note: docker stop may already trigger container removal in some configurations
+                            # We ignore errors here as the container may already be removed
                             subprocess.run(["docker", "rm", container_id], check=False, capture_output=True)
 
                         # Clear the container ID if we stopped or deleted it
@@ -2332,9 +2292,20 @@ class OpenHandsModelWrapper(Model):
         return self._convert_response_to_smolagents(response)
 
     def _convert_messages_to_openhands(self, messages: list) -> list:
-        """Convert smolagents messages to OpenHands format."""
+        """Convert smolagents messages to OpenHands format.
+
+        OpenHands only supports roles: 'user', 'system', 'assistant', 'tool'
+        SmolAgents has additional roles: 'tool-call', 'tool-response'
+        We convert these to OpenHands-compatible roles.
+        """
         from openhands.sdk.llm import Message as OpenHandsMessage
         from openhands.sdk.llm import TextContent
+
+        # Role conversion mapping: SmolAgents -> OpenHands
+        role_conversions = {
+            "tool-call": "assistant",  # Tool calls are made by the assistant
+            "tool-response": "user",   # Tool responses come back as user messages
+        }
 
         oh_messages = []
         for msg in messages:
@@ -2346,6 +2317,15 @@ class OpenHandsModelWrapper(Model):
                 if hasattr(role, "value"):
                     role = role.value
                 content = getattr(msg, "content", "")
+
+            # Convert SmolAgents roles to OpenHands-compatible roles
+            role = role_conversions.get(role, role)
+
+            # Validate role is one of the OpenHands-supported roles
+            valid_roles = {"user", "system", "assistant", "tool"}
+            if role not in valid_roles:
+                # Default to 'user' for unknown roles
+                role = "user"
 
             # Handle content that might be a list
             if isinstance(content, list):
@@ -2359,7 +2339,7 @@ class OpenHandsModelWrapper(Model):
 
             oh_messages.append(
                 OpenHandsMessage(
-                    role=role,
+                    role=role,  # type: ignore[arg-type]
                     content=[TextContent(text=str(content))],
                 )
             )
