@@ -1951,7 +1951,7 @@ class CustomCodeAgent(CodeAgent):
         """Initialize OpenHands SDK components for sandboxed execution."""
         try:
             from openhands.sdk import Agent as OpenHandsAgent
-            from openhands.workspace import DockerWorkspace, RemoteWorkspace
+            from openhands.workspace import APIRemoteWorkspace, DockerWorkspace
         except ImportError as e:
             raise ImportError(
                 "OpenHands SDK with workspace support is required for sandbox mode. "
@@ -1995,7 +1995,7 @@ class CustomCodeAgent(CodeAgent):
             if self.openhands_runtime_api_url:
                 workspace_kwargs["api_url"] = self.openhands_runtime_api_url
 
-            self._openhands_workspace = RemoteWorkspace(**workspace_kwargs)
+            self._openhands_workspace = APIRemoteWorkspace(**workspace_kwargs)
 
         # Create OpenHands agent with default tools
         try:
