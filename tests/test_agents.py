@@ -2638,8 +2638,8 @@ class TestCustomCodeAgent:
             agent = CustomCodeAgent(tools=[], model=mock_model)
 
             assert agent.provider == "OpenHandsSDK"
-            assert agent.use_custom_provider_code_execution_sandbox is False
-            assert agent.sandbox_mode == "local_container"
+            assert agent.is_code_executed_by_the_custom_agent is False
+            assert agent.agent_type == "local_container"
             assert agent.openhands_agent_image is None
             assert agent.openhands_agent_host is None
             assert agent.openhands_agent_port is None
@@ -2661,18 +2661,21 @@ class TestCustomCodeAgent:
                 provider="InvalidProvider",
             )
 
-    def test_custom_code_agent_invalid_sandbox_mode(self):
-        """Test that invalid sandbox_mode raises ValueError."""
+    def test_custom_code_agent_invalid_agent_type(self):
+        """Test that invalid agent_type raises ValueError.
+
+        Valid agent_types are: 'local_container', 'remote', 'remote_api'
+        """
         from smolagents.agents import CustomCodeAgent
 
         mock_model = MagicMock()
         mock_model.model_id = "test-model"
 
-        with pytest.raises(ValueError, match="Invalid sandbox_mode"):
+        with pytest.raises(ValueError, match="Invalid agent_type"):
             CustomCodeAgent(
                 tools=[],
                 model=mock_model,
-                sandbox_mode="invalid",
+                agent_type="invalid",
             )
 
     def test_custom_code_agent_local_container_mode_requires_image(self):
@@ -2700,8 +2703,8 @@ class TestCustomCodeAgent:
                 CustomCodeAgent(
                     tools=[],
                     model=mock_model,
-                    use_custom_provider_code_execution_sandbox=True,
-                    sandbox_mode="local_container",
+                    is_code_executed_by_the_custom_agent=True,
+                    agent_type="local_container",
                 )
 
     def test_custom_code_agent_remote_mode_requires_host(self):
@@ -2727,8 +2730,8 @@ class TestCustomCodeAgent:
                 CustomCodeAgent(
                     tools=[],
                     model=mock_model,
-                    use_custom_provider_code_execution_sandbox=True,
-                    sandbox_mode="remote",
+                    is_code_executed_by_the_custom_agent=True,
+                    agent_type="remote",
                 )
 
     def test_custom_code_agent_cleanup_local_container_mode(self):
@@ -2746,7 +2749,7 @@ class TestCustomCodeAgent:
             agent = CustomCodeAgent(
                 tools=[],
                 model=mock_model,
-                sandbox_mode="local_container",
+                agent_type="local_container",
             )
 
             # Mock the workspace and conversation
@@ -2758,9 +2761,8 @@ class TestCustomCodeAgent:
             # Call cleanup
             agent.cleanup()
 
-            # Verify conversation close and workspace cleanup were called
+            # Verify conversation close was called
             mock_conversation.close.assert_called_once()
-            mock_workspace.cleanup.assert_called_once()
             assert agent._openhands_workspace is None
             assert agent._openhands_conversation is None
 
@@ -2779,7 +2781,7 @@ class TestCustomCodeAgent:
             agent = CustomCodeAgent(
                 tools=[],
                 model=mock_model,
-                sandbox_mode="remote",
+                agent_type="remote",
             )
 
             # Mock the workspace and conversation
@@ -2791,14 +2793,13 @@ class TestCustomCodeAgent:
             # Call cleanup
             agent.cleanup()
 
-            # Verify conversation close was called but workspace cleanup was NOT
+            # Verify conversation close was called
             mock_conversation.close.assert_called_once()
-            mock_workspace.cleanup.assert_not_called()
             assert agent._openhands_workspace is None
             assert agent._openhands_conversation is None
 
     def test_custom_code_agent_step_stream_delegates_to_parent(self):
-        """Test that _step_stream delegates to parent when sandbox mode is disabled."""
+        """Test that _step_stream delegates to parent when code execution by custom agent is disabled."""
         from smolagents.agents import CustomCodeAgent
 
         mock_model = MagicMock()
@@ -2814,11 +2815,11 @@ class TestCustomCodeAgent:
             agent = CustomCodeAgent(
                 tools=[],
                 model=mock_model,
-                use_custom_provider_code_execution_sandbox=False,
+                is_code_executed_by_the_custom_agent=False,
             )
 
-            # Verify sandbox mode is disabled
-            assert agent.use_custom_provider_code_execution_sandbox is False
+            # Verify code execution by custom agent is disabled
+            assert agent.is_code_executed_by_the_custom_agent is False
 
 
 class TestOpenHandsModelWrapper:

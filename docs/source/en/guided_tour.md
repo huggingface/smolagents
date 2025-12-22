@@ -24,20 +24,30 @@ agent = CustomCodeAgent(tools=[], model=model)
 agent = CustomCodeAgent(
     tools=[],
     model=model,
-    use_custom_provider_code_execution_sandbox=True,
-    sandbox_mode="local_container",  # default
-    openhands_agent_image="ghcr.io/openhands/agent-server:latest-python"
+    is_code_executed_by_the_custom_agent=True,
+    agent_type="local_container",  # default
+    openhands_agent_image="ghcr.io/openhands/agent-server:1.6.0-python" # important: must correstond with the installed version of the OpenHands SDK (openhands-sdk==1.6.0", "openhands-tools==1.6.0", "openhands-workspace==1.6.0")
 )
 
-# Remote: connect to existing container
+# Remote: connect to existing local container
 agent = CustomCodeAgent(
     tools=[],
     model=model,
-    use_custom_provider_code_execution_sandbox=True,
-    sandbox_mode="remote",
+    is_code_executed_by_the_custom_agent=True,
+    agent_type="remote",
     openhands_agent_host="http://localhost:8010",
-    openhands_runtime_api_key="your-api-key",  # optional
-    openhands_runtime_api_url="https://api.example.com"  # optional
+    openhands_runtime_api_key="your-api-key"  # optional
+)
+
+# Remote API: connect to runtime API service
+agent = CustomCodeAgent(
+    tools=[],
+    model=model,
+    is_code_executed_by_the_custom_agent=True,
+    agent_type="remote_api",
+    openhands_runtime_api_url="https://runtime.all-hands.dev",
+    openhands_runtime_api_key="your-api-key",
+    openhands_agent_image="ghcr.io/openhands/agent-server:1.6.0-python" # important: must correstond with the installed version of the OpenHands SDK (openhands-sdk==1.6.0", "openhands-tools==1.6.0")
 )
 ```
 
