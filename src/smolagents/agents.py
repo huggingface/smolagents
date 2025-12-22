@@ -1804,44 +1804,48 @@ class CustomCodeAgent(CodeAgent):
         tools (`list[Tool]`): [`Tool`]s that the agent can use.
         model (`Model`): A smolagents Model (e.g., `LiteLLMModel`) whose configuration will be
             extracted and used to create a provider-specific LLM instance.
-        provider (`str`, default `"OpenHandsSDKDocker"`): Provider identifier. Currently supported:
-            - "OpenHandsSDKDocker": OpenHands SDK with Docker-based sandboxing
+        provider (`str`, default `"OpenHandsSDK"`): Provider identifier. Currently supported:
+            - "OpenHandsSDK": OpenHands SDK with Docker-based sandboxing
         use_custom_provider_code_execution_sandbox (`bool`, default `False`): If True, uses
             the provider's sandboxed execution. If False, uses smolagents' built-in executor.
-        container_handler (`str`, default `"auto"`): Container management mode. Only applies when
+        sandbox_mode (`str`, default `"local_container"`): Sandbox mode. Only applies when
             `use_custom_provider_code_execution_sandbox=True`:
-            - "auto": Automatically manage Docker container lifecycle (build, start, stop)
-            - "manual": Connect to existing running container (user manages lifecycle)
-        openhands_agent_auto_image (`str`, *optional*): Docker image for OpenHands agent server.
-            Required when `container_handler="auto"`.
-        openhands_agent_manual_host (`str`, *optional*): Host URL for manual mode (e.g., "http://localhost:8010").
-            Required when `container_handler="manual"`.
-        openhands_agent_manual_port (`int`, *optional*): Port for manual mode.
-            Only used when `container_handler="manual"`.
+            - "local_container": Automatically manage Docker container lifecycle (build, start, stop)
+            - "remote": Connect to existing running container (user manages lifecycle)
+        openhands_agent_image (`str`, *optional*): Docker image for OpenHands agent server.
+            Required when `sandbox_mode="local_container"`.
+        openhands_agent_host (`str`, *optional*): Host URL for remote mode (e.g., "http://localhost:8010").
+            Required when `sandbox_mode="remote"`.
+        openhands_agent_port (`int`, *optional*): Port for remote mode.
+            Only used when `sandbox_mode="remote"`.
         openhands_agent_platform (`str`, *optional*): Docker platform (e.g., "linux/amd64", "linux/arm64").
             Auto-detected if not provided.
+        openhands_runtime_api_key (`str`, *optional*): API key for OpenHands runtime.
+            Only used when `sandbox_mode="remote"`.
+        openhands_runtime_api_url (`str`, *optional*): API URL for OpenHands runtime.
+            Only used when `sandbox_mode="remote"`.
         **kwargs: Additional keyword arguments passed to `CodeAgent`.
 
     Example:
-        >>> # Auto mode: agent manages container
+        >>> # Local container mode: agent manages container
         >>> from smolagents import CustomCodeAgent, LiteLLMModel
         >>> model = LiteLLMModel(model_id="gpt-4")
         >>> agent = CustomCodeAgent(
         ...     tools=[],
         ...     model=model,
         ...     use_custom_provider_code_execution_sandbox=True,
-        ...     container_handler="auto",
-        ...     openhands_agent_auto_image="ghcr.io/openhands/agent-server:latest-python"
+        ...     sandbox_mode="local_container",
+        ...     openhands_agent_image="ghcr.io/openhands/agent-server:latest-python"
         ... )
         >>> result = agent.run("What is 2 + 2?")
         >>>
-        >>> # Manual mode: user manages container
+        >>> # Remote mode: connect to existing container
         >>> agent = CustomCodeAgent(
         ...     tools=[],
         ...     model=model,
         ...     use_custom_provider_code_execution_sandbox=True,
-        ...     container_handler="manual",
-        ...     openhands_agent_manual_host="http://localhost:8010"
+        ...     sandbox_mode="remote",
+        ...     openhands_agent_host="http://localhost:8010"
         ... )
     """
 
@@ -1849,33 +1853,37 @@ class CustomCodeAgent(CodeAgent):
         self,
         tools: list[Tool],
         model: Model,
-        provider: str = "OpenHandsSDKDocker",
+        provider: str = "OpenHandsSDK",
         use_custom_provider_code_execution_sandbox: bool = False,
-        container_handler: str = "auto",
-        openhands_agent_auto_image: str | None = None,
-        openhands_agent_manual_host: str | None = None,
-        openhands_agent_manual_port: int | None = None,
+        sandbox_mode: str = "local_container",
+        openhands_agent_image: str | None = None,
+        openhands_agent_host: str | None = None,
+        openhands_agent_port: int | None = None,
         openhands_agent_platform: str | None = None,
+        openhands_runtime_api_key: str | None = None,
+        openhands_runtime_api_url: str | None = None,
         **kwargs,
     ):
         self.provider = provider
         self.use_custom_provider_code_execution_sandbox = use_custom_provider_code_execution_sandbox
-        self.container_handler = container_handler
-        self.openhands_agent_auto_image = openhands_agent_auto_image
-        self.openhands_agent_manual_host = openhands_agent_manual_host
-        self.openhands_agent_manual_port = openhands_agent_manual_port
+        self.sandbox_mode = sandbox_mode
+        self.openhands_agent_image = openhands_agent_image
+        self.openhands_agent_host = openhands_agent_host
+        self.openhands_agent_port = openhands_agent_port
         self.openhands_agent_platform = openhands_agent_platform
+        self.openhands_runtime_api_key = openhands_runtime_api_key
+        self.openhands_runtime_api_url = openhands_runtime_api_url
 
         # Validate provider
-        if provider not in ["OpenHandsSDKDocker"]:
+        if provider not in ["OpenHandsSDK"]:
             raise ValueError(
-                f"Unsupported provider: {provider}. Supported providers: OpenHandsSDKDocker"
+                f"Unsupported provider: {provider}. Supported providers: OpenHandsSDK"
             )
 
-        # Validate container_handler
-        if container_handler not in ["auto", "manual"]:
+        # Validate sandbox_mode
+        if sandbox_mode not in ["local_container", "remote"]:
             raise ValueError(
-                f"Invalid container_handler: {container_handler}. Must be 'auto' or 'manual'"
+                f"Invalid sandbox_mode: {sandbox_mode}. Must be 'local_container' or 'remote'"
             )
 
         # Store the original model for config extraction
@@ -1893,7 +1901,7 @@ class CustomCodeAgent(CodeAgent):
         self._openhands_conversation = None
 
         if self.use_custom_provider_code_execution_sandbox:
-            if self.provider == "OpenHandsSDKDocker":
+            if self.provider == "OpenHandsSDK":
                 self._initialize_openhands_sandbox()
             else:
                 raise NotImplementedError(f"Sandbox mode not implemented for provider: {self.provider}")
@@ -1953,15 +1961,15 @@ class CustomCodeAgent(CodeAgent):
         # Get the OpenHands LLM from the wrapper
         openhands_llm = self.model._openhands_llm
 
-        # Create workspace based on container_handler mode
-        if self.container_handler == "auto":
-            # Auto mode: manage container lifecycle
-            if not self.openhands_agent_auto_image:
+        # Create workspace based on sandbox_mode
+        if self.sandbox_mode == "local_container":
+            # Local container mode: manage container lifecycle
+            if not self.openhands_agent_image:
                 raise ValueError(
-                    "openhands_agent_auto_image is required when container_handler='auto'"
+                    "openhands_agent_image is required when sandbox_mode='local_container'"
                 )
 
-            workspace_kwargs = {"server_image": self.openhands_agent_auto_image}
+            workspace_kwargs = {"server_image": self.openhands_agent_image}
             if self.openhands_agent_platform:
                 workspace_kwargs["platform"] = self.openhands_agent_platform
             else:
@@ -1970,18 +1978,22 @@ class CustomCodeAgent(CodeAgent):
 
             self._openhands_workspace = DockerWorkspace(**workspace_kwargs)
 
-        elif self.container_handler == "manual":
-            # Manual mode: connect to existing container
-            if not self.openhands_agent_manual_host:
+        elif self.sandbox_mode == "remote":
+            # Remote mode: connect to existing container
+            if not self.openhands_agent_host:
                 raise ValueError(
-                    "openhands_agent_manual_host is required when container_handler='manual' "
+                    "openhands_agent_host is required when sandbox_mode='remote' "
                     "(e.g., 'http://localhost:8010')"
                 )
 
             # Create a RemoteWorkspace that connects to existing container
-            workspace_kwargs = {"host": self.openhands_agent_manual_host, "working_dir": "/workspace"}
-            if self.openhands_agent_manual_port:
-                workspace_kwargs["port"] = self.openhands_agent_manual_port
+            workspace_kwargs = {"host": self.openhands_agent_host, "working_dir": "/workspace"}
+            if self.openhands_agent_port:
+                workspace_kwargs["port"] = self.openhands_agent_port
+            if self.openhands_runtime_api_key:
+                workspace_kwargs["api_key"] = self.openhands_runtime_api_key
+            if self.openhands_runtime_api_url:
+                workspace_kwargs["api_url"] = self.openhands_runtime_api_url
 
             self._openhands_workspace = RemoteWorkspace(**workspace_kwargs)
 
@@ -2015,7 +2027,7 @@ class CustomCodeAgent(CodeAgent):
         both code generation and execution in a sandboxed environment.
         """
         if self.use_custom_provider_code_execution_sandbox:
-            if self.provider == "OpenHandsSDKDocker":
+            if self.provider == "OpenHandsSDK":
                 yield from self._step_stream_with_openhands_sandbox(memory_step)
             else:
                 raise NotImplementedError(f"Sandbox execution not implemented for provider: {self.provider}")
@@ -2107,8 +2119,8 @@ class CustomCodeAgent(CodeAgent):
     def cleanup(self) -> None:
         """Clean up resources including provider-specific components.
 
-        In auto mode, this stops and removes the Docker container.
-        In manual mode, this only closes the conversation (container remains running).
+        In local_container mode, this stops and removes the Docker container.
+        In remote mode, this only closes the conversation (container remains running).
         """
         super().cleanup()
 
@@ -2120,12 +2132,12 @@ class CustomCodeAgent(CodeAgent):
                 pass  # Ignore errors during cleanup
             self._openhands_conversation = None
 
-        # Clean up workspace (only in auto mode will this stop the container)
+        # Clean up workspace (only in local_container mode will this stop the container)
         if self._openhands_workspace:
-            if self.container_handler == "auto":
-                # Auto mode: cleanup stops and removes the container
+            if self.sandbox_mode == "local_container":
+                # Local container mode: cleanup stops and removes the container
                 self._openhands_workspace.cleanup()
-            # Manual mode: workspace cleanup doesn't affect the container
+            # Remote mode: workspace cleanup doesn't affect the container
             self._openhands_workspace = None
 
 

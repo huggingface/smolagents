@@ -2637,13 +2637,15 @@ class TestCustomCodeAgent:
         ):
             agent = CustomCodeAgent(tools=[], model=mock_model)
 
-            assert agent.provider == "OpenHandsSDKDocker"
+            assert agent.provider == "OpenHandsSDK"
             assert agent.use_custom_provider_code_execution_sandbox is False
-            assert agent.container_handler == "auto"
-            assert agent.openhands_agent_auto_image is None
-            assert agent.openhands_agent_manual_host is None
-            assert agent.openhands_agent_manual_port is None
+            assert agent.sandbox_mode == "local_container"
+            assert agent.openhands_agent_image is None
+            assert agent.openhands_agent_host is None
+            assert agent.openhands_agent_port is None
             assert agent.openhands_agent_platform is None
+            assert agent.openhands_runtime_api_key is None
+            assert agent.openhands_runtime_api_url is None
 
     def test_custom_code_agent_invalid_provider(self):
         """Test that invalid provider raises ValueError."""
@@ -2659,22 +2661,22 @@ class TestCustomCodeAgent:
                 provider="InvalidProvider",
             )
 
-    def test_custom_code_agent_invalid_container_handler(self):
-        """Test that invalid container_handler raises ValueError."""
+    def test_custom_code_agent_invalid_sandbox_mode(self):
+        """Test that invalid sandbox_mode raises ValueError."""
         from smolagents.agents import CustomCodeAgent
 
         mock_model = MagicMock()
         mock_model.model_id = "test-model"
 
-        with pytest.raises(ValueError, match="Invalid container_handler"):
+        with pytest.raises(ValueError, match="Invalid sandbox_mode"):
             CustomCodeAgent(
                 tools=[],
                 model=mock_model,
-                container_handler="invalid",
+                sandbox_mode="invalid",
             )
 
-    def test_custom_code_agent_auto_mode_requires_server_image(self):
-        """Test that auto mode requires openhands_server_image."""
+    def test_custom_code_agent_local_container_mode_requires_image(self):
+        """Test that local_container mode requires openhands_agent_auto_image."""
         from smolagents.agents import CustomCodeAgent
 
         mock_model = MagicMock()
@@ -2692,18 +2694,18 @@ class TestCustomCodeAgent:
             return_value=mock_wrapper,
         ):
             # When SDK is not installed, it raises ImportError
-            # When SDK is installed but no server_image in auto mode, it should raise ValueError
+            # When SDK is installed but no image in local_container mode, it should raise ValueError
             # We test both cases by checking for either exception
             with pytest.raises((ValueError, ImportError)):
                 CustomCodeAgent(
                     tools=[],
                     model=mock_model,
                     use_custom_provider_code_execution_sandbox=True,
-                    container_handler="auto",
+                    sandbox_mode="local_container",
                 )
 
-    def test_custom_code_agent_manual_mode_requires_host(self):
-        """Test that manual mode requires openhands_host."""
+    def test_custom_code_agent_remote_mode_requires_host(self):
+        """Test that remote mode requires openhands_agent_manual_host."""
         from smolagents.agents import CustomCodeAgent
 
         mock_model = MagicMock()
@@ -2720,17 +2722,17 @@ class TestCustomCodeAgent:
             "_create_provider_model_wrapper",
             return_value=mock_wrapper,
         ):
-            # Manual mode without openhands_host should raise ValueError or ImportError
+            # Remote mode without openhands_agent_manual_host should raise ValueError or ImportError
             with pytest.raises((ValueError, ImportError)):
                 CustomCodeAgent(
                     tools=[],
                     model=mock_model,
                     use_custom_provider_code_execution_sandbox=True,
-                    container_handler="manual",
+                    sandbox_mode="remote",
                 )
 
-    def test_custom_code_agent_cleanup_auto_mode(self):
-        """Test that cleanup properly cleans up workspace in auto mode."""
+    def test_custom_code_agent_cleanup_local_container_mode(self):
+        """Test that cleanup properly cleans up workspace in local_container mode."""
         from smolagents.agents import CustomCodeAgent
 
         mock_model = MagicMock()
@@ -2744,7 +2746,7 @@ class TestCustomCodeAgent:
             agent = CustomCodeAgent(
                 tools=[],
                 model=mock_model,
-                container_handler="auto",
+                sandbox_mode="local_container",
             )
 
             # Mock the workspace and conversation
@@ -2762,8 +2764,8 @@ class TestCustomCodeAgent:
             assert agent._openhands_workspace is None
             assert agent._openhands_conversation is None
 
-    def test_custom_code_agent_cleanup_manual_mode(self):
-        """Test that cleanup doesn't stop container in manual mode."""
+    def test_custom_code_agent_cleanup_remote_mode(self):
+        """Test that cleanup doesn't stop container in remote mode."""
         from smolagents.agents import CustomCodeAgent
 
         mock_model = MagicMock()
@@ -2777,7 +2779,7 @@ class TestCustomCodeAgent:
             agent = CustomCodeAgent(
                 tools=[],
                 model=mock_model,
-                container_handler="manual",
+                sandbox_mode="remote",
             )
 
             # Mock the workspace and conversation

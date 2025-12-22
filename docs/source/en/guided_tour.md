@@ -20,22 +20,24 @@ model = LiteLLMModel(model_id="gpt-4")
 # Default: custom LLM, local execution
 agent = CustomCodeAgent(tools=[], model=model)
 
-# Auto mode: agent manages Docker container
+# Local container: agent manages Docker container
 agent = CustomCodeAgent(
     tools=[],
     model=model,
     use_custom_provider_code_execution_sandbox=True,
-    container_handler="auto",  # default
-    openhands_agent_auto_image="ghcr.io/openhands/agent-server:latest-python"
+    sandbox_mode="local_container",  # default
+    openhands_agent_image="ghcr.io/openhands/agent-server:latest-python"
 )
 
-# Manual mode: connect to existing container
+# Remote: connect to existing container
 agent = CustomCodeAgent(
     tools=[],
     model=model,
     use_custom_provider_code_execution_sandbox=True,
-    container_handler="manual",
-    openhands_agent_manual_host="http://localhost:8010"
+    sandbox_mode="remote",
+    openhands_agent_host="http://localhost:8010",
+    openhands_runtime_api_key="your-api-key",  # optional
+    openhands_runtime_api_url="https://api.example.com"  # optional
 )
 ```
 
