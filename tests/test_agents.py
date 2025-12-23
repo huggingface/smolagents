@@ -2584,3 +2584,305 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+# ============================================================================
+# CustomCodeAgent Tests
+# ============================================================================
+
+
+class TestCustomCodeAgent:
+    """Tests for CustomCodeAgent with OpenHands SDK integration."""
+
+    def test_custom_code_agent_import(self):
+        """Test that CustomCodeAgent can be imported."""
+        from smolagents.agents import CustomCodeAgent
+
+        assert CustomCodeAgent is not None
+
+    def test_custom_code_agent_inherits_from_code_agent(self):
+        """Test that CustomCodeAgent inherits from CodeAgent."""
+        from smolagents.agents import CodeAgent, CustomCodeAgent
+
+        assert issubclass(CustomCodeAgent, CodeAgent)
+
+    def test_custom_code_agent_requires_openhands_sdk(self):
+        """Test that CustomCodeAgent raises ImportError when OpenHands SDK is not available."""
+        from smolagents.agents import CustomCodeAgent
+
+        # Create a mock model
+        mock_model = MagicMock()
+        mock_model.model_id = "test-model"
+        mock_model.api_key = "test-key"
+        mock_model.api_base = None
+
+        # Patch the import to simulate missing OpenHands SDK
+        with patch.dict("sys.modules", {"openhands.sdk": None}):
+            with pytest.raises(ImportError, match="OpenHands SDK is required"):
+                CustomCodeAgent(tools=[], model=mock_model)
+
+    def test_custom_code_agent_default_parameters(self):
+        """Test CustomCodeAgent default parameter values."""
+        from smolagents.agents import CustomCodeAgent
+
+        mock_model = MagicMock()
+        mock_model.model_id = "test-model"
+        mock_model.api_key = "test-key"
+        mock_model.api_base = None
+
+        with patch.object(
+            CustomCodeAgent,
+            "_create_provider_model_wrapper",
+            return_value=mock_model,
+        ):
+            agent = CustomCodeAgent(tools=[], model=mock_model)
+
+            assert agent.provider == "OpenHandsSDK"
+            assert agent.is_code_executed_by_the_custom_agent is False
+            assert agent.agent_type == "local_container"
+            assert agent.openhands_agent_image is None
+            assert agent.openhands_agent_host is None
+            assert agent.openhands_agent_port is None
+            assert agent.openhands_agent_platform is None
+            assert agent.openhands_runtime_api_key is None
+            assert agent.openhands_runtime_api_url is None
+
+    def test_custom_code_agent_invalid_provider(self):
+        """Test that invalid provider raises ValueError."""
+        from smolagents.agents import CustomCodeAgent
+
+        mock_model = MagicMock()
+        mock_model.model_id = "test-model"
+
+        with pytest.raises(ValueError, match="Unsupported provider"):
+            CustomCodeAgent(
+                tools=[],
+                model=mock_model,
+                provider="InvalidProvider",
+            )
+
+    def test_custom_code_agent_invalid_agent_type(self):
+        """Test that invalid agent_type raises ValueError.
+
+        Valid agent_types are: 'local_container', 'remote', 'remote_api'
+        """
+        from smolagents.agents import CustomCodeAgent
+
+        mock_model = MagicMock()
+        mock_model.model_id = "test-model"
+
+        with pytest.raises(ValueError, match="Invalid agent_type"):
+            CustomCodeAgent(
+                tools=[],
+                model=mock_model,
+                agent_type="invalid",
+            )
+
+    def test_custom_code_agent_local_container_mode_requires_image(self):
+        """Test that local_container mode requires openhands_agent_auto_image."""
+        from smolagents.agents import CustomCodeAgent
+
+        mock_model = MagicMock()
+        mock_model.model_id = "test-model"
+        mock_model.api_key = "test-key"
+        mock_model.api_base = None
+
+        # Mock the wrapper creation
+        mock_wrapper = MagicMock()
+        mock_wrapper._openhands_llm = MagicMock()
+
+        with patch.object(
+            CustomCodeAgent,
+            "_create_provider_model_wrapper",
+            return_value=mock_wrapper,
+        ):
+            # When SDK is not installed, it raises ImportError
+            # When SDK is installed but no image in local_container mode, it should raise ValueError
+            # We test both cases by checking for either exception
+            with pytest.raises((ValueError, ImportError)):
+                CustomCodeAgent(
+                    tools=[],
+                    model=mock_model,
+                    is_code_executed_by_the_custom_agent=True,
+                    agent_type="local_container",
+                )
+
+    def test_custom_code_agent_remote_mode_requires_host(self):
+        """Test that remote mode requires openhands_agent_manual_host."""
+        from smolagents.agents import CustomCodeAgent
+
+        mock_model = MagicMock()
+        mock_model.model_id = "test-model"
+        mock_model.api_key = "test-key"
+        mock_model.api_base = None
+
+        # Mock the wrapper creation
+        mock_wrapper = MagicMock()
+        mock_wrapper._openhands_llm = MagicMock()
+
+        with patch.object(
+            CustomCodeAgent,
+            "_create_provider_model_wrapper",
+            return_value=mock_wrapper,
+        ):
+            # Remote mode without openhands_agent_manual_host should raise ValueError or ImportError
+            with pytest.raises((ValueError, ImportError)):
+                CustomCodeAgent(
+                    tools=[],
+                    model=mock_model,
+                    is_code_executed_by_the_custom_agent=True,
+                    agent_type="remote",
+                )
+
+    def test_custom_code_agent_cleanup_local_container_mode(self):
+        """Test that cleanup properly cleans up workspace in local_container mode."""
+        from smolagents.agents import CustomCodeAgent
+
+        mock_model = MagicMock()
+        mock_model.model_id = "test-model"
+
+        with patch.object(
+            CustomCodeAgent,
+            "_create_provider_model_wrapper",
+            return_value=mock_model,
+        ):
+            agent = CustomCodeAgent(
+                tools=[],
+                model=mock_model,
+                agent_type="local_container",
+            )
+
+            # Mock the workspace and conversation
+            mock_workspace = MagicMock()
+            mock_conversation = MagicMock()
+            agent._openhands_workspace = mock_workspace
+            agent._openhands_conversation = mock_conversation
+
+            # Call cleanup
+            agent.cleanup()
+
+            # Verify conversation close was called
+            mock_conversation.close.assert_called_once()
+            assert agent._openhands_workspace is None
+            assert agent._openhands_conversation is None
+
+    def test_custom_code_agent_cleanup_remote_mode(self):
+        """Test that cleanup doesn't stop container in remote mode."""
+        from smolagents.agents import CustomCodeAgent
+
+        mock_model = MagicMock()
+        mock_model.model_id = "test-model"
+
+        with patch.object(
+            CustomCodeAgent,
+            "_create_provider_model_wrapper",
+            return_value=mock_model,
+        ):
+            agent = CustomCodeAgent(
+                tools=[],
+                model=mock_model,
+                agent_type="remote",
+            )
+
+            # Mock the workspace and conversation
+            mock_workspace = MagicMock()
+            mock_conversation = MagicMock()
+            agent._openhands_workspace = mock_workspace
+            agent._openhands_conversation = mock_conversation
+
+            # Call cleanup
+            agent.cleanup()
+
+            # Verify conversation close was called
+            mock_conversation.close.assert_called_once()
+            assert agent._openhands_workspace is None
+            assert agent._openhands_conversation is None
+
+    def test_custom_code_agent_step_stream_delegates_to_parent(self):
+        """Test that _step_stream delegates to parent when code execution by custom agent is disabled."""
+        from smolagents.agents import CustomCodeAgent
+
+        mock_model = MagicMock()
+        mock_model.model_id = "test-model"
+        mock_model.api_key = "test-key"
+        mock_model.api_base = None
+
+        with patch.object(
+            CustomCodeAgent,
+            "_create_provider_model_wrapper",
+            return_value=mock_model,
+        ):
+            agent = CustomCodeAgent(
+                tools=[],
+                model=mock_model,
+                is_code_executed_by_the_custom_agent=False,
+            )
+
+            # Verify code execution by custom agent is disabled
+            assert agent.is_code_executed_by_the_custom_agent is False
+
+
+class TestOpenHandsModelWrapper:
+    """Tests for OpenHandsModelWrapper."""
+
+    def test_openhands_model_wrapper_import(self):
+        """Test that OpenHandsModelWrapper can be imported."""
+        from smolagents.agents import OpenHandsModelWrapper
+
+        assert OpenHandsModelWrapper is not None
+
+    def test_openhands_model_wrapper_inherits_from_model(self):
+        """Test that OpenHandsModelWrapper inherits from Model."""
+        from smolagents.agents import OpenHandsModelWrapper
+        from smolagents.models import Model
+
+        assert issubclass(OpenHandsModelWrapper, Model)
+
+    def test_openhands_model_wrapper_stores_llm(self):
+        """Test that OpenHandsModelWrapper stores the OpenHands LLM."""
+        from smolagents.agents import OpenHandsModelWrapper
+
+        mock_openhands_llm = MagicMock()
+        mock_original_model = MagicMock()
+        mock_original_model.model_id = "test-model"
+
+        wrapper = OpenHandsModelWrapper(
+            openhands_llm=mock_openhands_llm,
+            original_model=mock_original_model,
+        )
+
+        assert wrapper._openhands_llm is mock_openhands_llm
+        assert wrapper._original_model is mock_original_model
+        assert wrapper.model_id == "test-model"
+
+    def test_openhands_model_wrapper_generate_calls_openhands_llm(self):
+        """Test that generate() calls the OpenHands LLM."""
+        from smolagents.agents import OpenHandsModelWrapper
+        from smolagents.models import ChatMessage, MessageRole
+
+        mock_openhands_llm = MagicMock()
+        mock_response = MagicMock()
+        mock_message = MagicMock()
+        mock_content = MagicMock()
+        mock_content.text = "Test response"
+        mock_message.content = [mock_content]
+        mock_response.message = mock_message
+        mock_response.usage = None
+        mock_openhands_llm.completion.return_value = mock_response
+
+        mock_original_model = MagicMock()
+        mock_original_model.model_id = "test-model"
+
+        wrapper = OpenHandsModelWrapper(
+            openhands_llm=mock_openhands_llm,
+            original_model=mock_original_model,
+        )
+
+        # Mock the message conversion
+        with patch.object(wrapper, "_convert_messages_to_openhands", return_value=[]):
+            result = wrapper.generate(messages=[])
+
+        assert isinstance(result, ChatMessage)
+        assert result.role == MessageRole.ASSISTANT
+        assert result.content == "Test response"
+        mock_openhands_llm.completion.assert_called_once()

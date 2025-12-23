@@ -10,7 +10,7 @@ authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" },
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
   "huggingface-hub>=0.31.2,<1.0.0",
   "requests>=2.32.3",
@@ -19,6 +19,9 @@ dependencies = [
   "pillow>=10.0.1",
   # Security fix for CVE-2023-4863: https://pillow.readthedocs.io/en/stable/releasenotes/10.0.1.html
   "python-dotenv",
+  "openhands-sdk==1.6.0",
+  "openhands-tools==1.6.0",
+  "openhands-workspace==1.6.0",
 ]
 
 [project.optional-dependencies]

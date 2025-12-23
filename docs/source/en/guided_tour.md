@@ -4,10 +4,57 @@
 
 In this guided visit, you will learn how to build an agent, how to run it, and how to customize it to make it work better for your use-case.
 
-## Choosing an agent type: CodeAgent or ToolCallingAgent
+## Choosing an agent type: CodeAgent, CustomCodeAgent, or ToolCallingAgent
 
-`smolagents` comes with two agent classes: [`CodeAgent`] and [`ToolCallingAgent`], which represent two different paradigms for how agents interact with tools.
-The key difference lies in how actions are specified and executed: code generation vs structured tool calling.
+`smolagents` comes with three agent classes: [`CodeAgent`], [`CustomCodeAgent`], and [`ToolCallingAgent`], which represent different paradigms for how agents interact with tools.
+
+### CustomCodeAgent
+
+[`CustomCodeAgent`] integrates custom providers (like OpenHands SDK) for LLM calls and optional Docker-sandboxed code execution:
+
+```python
+from smolagents import CustomCodeAgent, LiteLLMModel
+
+model = LiteLLMModel(model_id="gpt-4")
+
+# Default: custom LLM, local execution
+agent = CustomCodeAgent(tools=[], model=model)
+
+# Local container: agent manages Docker container
+agent = CustomCodeAgent(
+    tools=[],
+    model=model,
+    is_code_executed_by_the_custom_agent=True,
+    agent_type="local_container",  # default
+    openhands_agent_image="ghcr.io/openhands/agent-server:1.6.0-python" # important: must correstond with the installed version of the OpenHands SDK (openhands-sdk==1.6.0", "openhands-tools==1.6.0", "openhands-workspace==1.6.0")
+)
+
+# Remote: connect to existing local container
+agent = CustomCodeAgent(
+    tools=[],
+    model=model,
+    is_code_executed_by_the_custom_agent=True,
+    agent_type="remote",
+    openhands_agent_host="http://localhost:8010",
+    additional_authorized_imports=["time", "json", "pandas"],
+    openhands_runtime_api_key="your-api-key"  # optional
+)
+
+# Remote API: connect to runtime API service
+agent = CustomCodeAgent(
+    tools=[],
+    model=model,
+    is_code_executed_by_the_custom_agent=True,
+    agent_type="remote_api",
+    openhands_runtime_api_url="https://runtime.all-hands.dev",
+    openhands_runtime_api_key="your-api-key",
+    openhands_agent_image="ghcr.io/openhands/agent-server:1.6.0-python" # important: must correstond with the installed version of the OpenHands SDK (openhands-sdk==1.6.0", "openhands-tools==1.6.0")
+)
+```
+
+### CodeAgent vs ToolCallingAgent
+
+The key difference between [`CodeAgent`] and [`ToolCallingAgent`] lies in how actions are specified and executed: code generation vs structured tool calling.
 
 - [`CodeAgent`] generates tool calls as Python code snippets.
   - The code is executed either locally (potentially unsecure) or in a secure sandbox.
