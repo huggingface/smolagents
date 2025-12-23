@@ -47,6 +47,7 @@ from ._function_type_hints_utils import (
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
     _get_json_schema_type,
+    _get_pydantic,
     _is_pydantic_model,
     _parse_type_hint,
     get_imports,
