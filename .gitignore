@@ -91,9 +91,6 @@ ipython_config.py
 # pipenv
 #Pipfile.lock
 
-# UV
-#uv.lock
-
 # poetry
 #poetry.lock
 

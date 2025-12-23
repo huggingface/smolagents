@@ -24,6 +24,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
@@ -75,7 +76,7 @@ from .monitoring import (
     LogLevel,
     Monitor,
 )
-from .remote_executors import DockerExecutor, E2BExecutor, ModalExecutor, WasmExecutor
+from .remote_executors import BlaxelExecutor, DockerExecutor, E2BExecutor, ModalExecutor, WasmExecutor
 from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
     AgentError,
@@ -604,7 +605,9 @@ You have been provided with these additional arguments, that you can access dire
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
             yield action_step
-        yield FinalAnswerStep(handle_agent_output_types(final_answer))
+        final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
+        self._finalize_step(final_answer_step)
+        yield final_answer_step
 
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
@@ -613,8 +616,9 @@ You have been provided with these additional arguments, that you can access dire
             except Exception as e:
                 raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
 
-    def _finalize_step(self, memory_step: ActionStep | PlanningStep):
-        memory_step.timing.end_time = time.time()
+    def _finalize_step(self, memory_step: ActionStep | PlanningStep | FinalAnswerStep):
+        if not isinstance(memory_step, FinalAnswerStep):
+            memory_step.timing.end_time = time.time()
         self.step_callbacks.callback(memory_step, agent=self)
 
     def _handle_max_steps_reached(self, task: str) -> Any:
@@ -1111,7 +1115,12 @@ You have been provided with these additional arguments, that you can access dire
         # Load agent.json
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
-
+        # Handle HfApiModel -> InferenceClientModel rename for old agents
+        if agent_dict.get("model", {}).get("class") == "HfApiModel":
+            agent_dict["model"]["class"] = "InferenceClientModel"
+            logger.warning(
+                "The agent you're loading uses the deprecated 'HfApiModel' class: it was automatically updated to 'InferenceClientModel'."
+            )
         # Load managed agents from their respective folders, recursively
         managed_agents = []
         for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
@@ -1399,9 +1408,10 @@ class ToolCallingAgent(MultiStepAgent):
         else:
             # If multiple tool calls, process them in parallel
             with ThreadPoolExecutor(self.max_tool_threads) as executor:
-                futures = [
-                    executor.submit(process_single_tool_call, tool_call) for tool_call in parallel_calls.values()
-                ]
+                futures = []
+                for tool_call in parallel_calls.values():
+                    ctx = copy_context()
+                    futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
                 for future in as_completed(futures):
                     tool_output = future.result()
                     outputs[tool_output.id] = tool_output
@@ -1487,7 +1497,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         executor ([`PythonExecutor`], *optional*): Custom Python code executor. If not provided, a default executor will be created based on `executor_type`.
-        executor_type (`Literal["local", "e2b", "modal", "docker", "wasm"]`, default `"local"`): Type of code executor.
+        executor_type (`Literal["local", "blaxel", "e2b", "modal", "docker", "wasm"]`, default `"local"`): Type of code executor.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
@@ -1506,7 +1516,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
         executor: PythonExecutor = None,
-        executor_type: Literal["local", "e2b", "modal", "docker", "wasm"] = "local",
+        executor_type: Literal["local", "blaxel", "e2b", "modal", "docker", "wasm"] = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
@@ -1570,7 +1580,7 @@ class CodeAgent(MultiStepAgent):
             self.python_executor.cleanup()
 
     def create_python_executor(self) -> PythonExecutor:
-        if self.executor_type not in {"local", "e2b", "modal", "docker", "wasm"}:
+        if self.executor_type not in {"local", "blaxel", "e2b", "modal", "docker", "wasm"}:
             raise ValueError(f"Unsupported executor type: {self.executor_type}")
 
         if self.executor_type == "local":
@@ -1582,6 +1592,7 @@ class CodeAgent(MultiStepAgent):
             if self.managed_agents:
                 raise Exception("Managed agents are not yet supported with remote code execution.")
             remote_executors = {
+                "blaxel": BlaxelExecutor,
                 "e2b": E2BExecutor,
                 "docker": DockerExecutor,
                 "wasm": WasmExecutor,

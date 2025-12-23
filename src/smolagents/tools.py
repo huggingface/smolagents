@@ -780,7 +780,7 @@ class Tool(BaseTool):
     def from_space(
         space_id: str,
         name: str,
-        description: str,
+        description: str = "",
         api_name: str | None = None,
         token: str | None = None,
     ):
@@ -829,7 +829,7 @@ class Tool(BaseTool):
                 self,
                 space_id: str,
                 name: str,
-                description: str,
+                description: str = "",
                 api_name: str | None = None,
                 token: str | None = None,
             ):

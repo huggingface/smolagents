@@ -1150,12 +1150,14 @@ class TestMultiStepAgent:
         action_step_callback_2 = MagicMock()
         planning_step_callback = MagicMock()
         step_callback = MagicMock()
+        final_answer_step_callback = MagicMock()
 
         # Register callbacks for different step types
         step_callbacks = {
             ActionStep: [action_step_callback, action_step_callback_2],
             PlanningStep: planning_step_callback,
             MemoryStep: step_callback,
+            FinalAnswerStep: final_answer_step_callback,
         }
         agent = DummyMultiStepAgent(tools=[], model=MagicMock(), step_callbacks=step_callbacks)
 
@@ -1167,6 +1169,7 @@ class TestMultiStepAgent:
             model_output_message=ChatMessage(role="assistant", content="Test plan"),
             plan="Test planning step",
         )
+        final_answer_step = FinalAnswerStep(output="Sample output")
 
         # Test with ActionStep
         agent._finalize_step(action_step)
@@ -1176,12 +1179,14 @@ class TestMultiStepAgent:
         action_step_callback_2.assert_called_once_with(action_step, agent=agent)
         step_callback.assert_called_once_with(action_step, agent=agent)
         planning_step_callback.assert_not_called()
+        final_answer_step_callback.assert_not_called()
 
         # Reset mocks
         action_step_callback.reset_mock()
         action_step_callback_2.reset_mock()
         planning_step_callback.reset_mock()
         step_callback.reset_mock()
+        final_answer_step_callback.reset_mock()
 
         # Test with PlanningStep
         agent._finalize_step(planning_step)
@@ -1191,6 +1196,24 @@ class TestMultiStepAgent:
         step_callback.assert_called_once_with(planning_step, agent=agent)
         action_step_callback.assert_not_called()
         action_step_callback_2.assert_not_called()
+        final_answer_step_callback.assert_not_called()
+
+        # Reset mocks
+        action_step_callback.reset_mock()
+        action_step_callback_2.reset_mock()
+        planning_step_callback.reset_mock()
+        step_callback.reset_mock()
+        final_answer_step_callback.reset_mock()
+
+        # Test with PlanningStep
+        agent._finalize_step(final_answer_step)
+
+        # Verify correct callbacks were called
+        planning_step_callback.assert_not_called()
+        step_callback.assert_called_once_with(final_answer_step, agent=agent)
+        action_step_callback.assert_not_called()
+        action_step_callback_2.assert_not_called()
+        final_answer_step_callback.assert_called_once_with(final_answer_step, agent=agent)
 
     def test_logs_display_thoughts_even_if_error(self):
         class FakeJsonModelNoCall(Model):
