@@ -1335,7 +1335,7 @@ class PipelineTool(Tool):
 def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     tool_codes = []
     for tool in tools.values():
-        validate_tool_attributes(tool.__class__, check_imports=False)
+        validate_tool_attributes(tool.__class__, check_imports=False, check_init_defaults=False)
         tool_code = instance_to_source(tool, base_cls=Tool)
         tool_code = tool_code.replace("from smolagents.tools import Tool", "")
         tool_code += f"\n\n{tool.name} = {tool.__class__.__name__}()\n"
