@@ -84,6 +84,37 @@ You can then navigate to `http://0.0.0.0:6006/projects/` to inspect your run!
 
 You can see that the CodeAgent called its managed ToolCallingAgent (by the way, the managed agent could have been a CodeAgent as well) to ask it to run the web search for the U.S. 2024 growth rate. Then the managed agent returned its report and the manager agent acted upon it to calculate the economy doubling time! Sweet, isn't it?
 
+## Setting up telemetry with MLflow
+
+MLflow has one-line autologging for Smolagents: it tracks runs, spans, inputs/outputs, and token usage in the MLflow UI.
+
+Install MLflow, enable autologging, then run your agent with a couple of tools:
+
+```python
+%pip install mlflow smolagents
+
+import mlflow
+from smolagents import CodeAgent, ToolCallingAgent, WebSearchTool, VisitWebpageTool, InferenceClientModel
+
+mlflow.smolagents.autolog()  # start tracing everything below
+
+model = InferenceClientModel()
+browser = ToolCallingAgent(
+    tools=[WebSearchTool(), VisitWebpageTool()],
+    model=model,
+    name="search_agent",
+    description="Web search helper",
+)
+manager = CodeAgent(model=model, managed_agents=[browser])
+manager.run("Find the latest US GDP growth rate and estimate when it would double.")
+```
+
+Start the UI to inspect traces, then open the Traces view in your browser:
+
+```shell
+mlflow server --port 5000
+```
+
 ## Setting up telemetry with 🪢 Langfuse
 
 This part shows how to monitor and debug your Hugging Face **smolagents** with **Langfuse** using the `SmolagentsInstrumentor`.
