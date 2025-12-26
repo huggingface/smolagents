@@ -1026,10 +1026,22 @@ You have been provided with these additional arguments, that you can access dire
         for tool_info in agent_dict["tools"]:
             tools.append(Tool.from_code(tool_info["code"]))
         # Load managed agents
+                
+        # Only pass shared parameters to avoid overriding child agent configurations
+        # Shared params are global resources/runtime settings that should be consistent across all agents
+        SHARED_PARAMS = {
+            "model",              # Shared model instance (contains API key)
+            "verbosity_level",    # Logging level should be consistent
+            "logger",             # Share the same logger instance if provided
+            "executor_type",      # Code execution environment should be consistent
+            "executor_kwargs",    # Executor configuration should be consistent
+        }
+        shared_kwargs = {k: v for k, v in kwargs.items() if k in SHARED_PARAMS}
+        
         managed_agents = []
         for managed_agent_dict in agent_dict["managed_agents"]:
             agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_dict["class"])
-            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            managed_agent = agent_class.from_dict(managed_agent_dict, **shared_kwargs)
             managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {
