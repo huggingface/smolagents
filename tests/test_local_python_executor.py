@@ -1235,6 +1235,24 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         result, _ = evaluate_python_code(code, {"final_answer": (lambda answer: 2 * answer)}, state={})
         assert result == 4
 
+    def test_final_answer_not_caught_by_except_exception(self):
+        """Test that final_answer is not caught by generic 'except Exception' clauses.
+
+        This test reproduces the issue from GitHub issue #1905 where agent-generated
+        code with try/except Exception blocks would incorrectly catch FinalAnswerException.
+        """
+        code = dedent("""
+            try:
+                final_answer(1)
+            except Exception as e:
+                final_answer(2)
+        """)
+        result, is_final_answer = evaluate_python_code(code, {"final_answer": (lambda answer: answer)}, state={})
+        # The result should be 1 (from the first final_answer call),
+        # not 2 (which would happen if FinalAnswerException was caught)
+        assert result == 1
+        assert is_final_answer is True
+
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
             eval("1 + 1")

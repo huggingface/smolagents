@@ -1516,7 +1516,13 @@ def evaluate_ast(
         raise InterpreterError(f"{expression.__class__.__name__} is not supported.")
 
 
-class FinalAnswerException(Exception):
+class FinalAnswerException(BaseException):
+    """Exception raised when final_answer is called.
+
+    Inherits from BaseException instead of Exception to prevent being caught
+    by generic `except Exception` clauses in agent-generated code.
+    """
+
     def __init__(self, value):
         self.value = value
 
