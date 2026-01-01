@@ -26,61 +26,46 @@ __all__ = ["DomainFilter"]
 
 class DomainFilter:
     """
-    Filters URLs based on domain blocklists and allowlists with support for wildcard patterns.
+    Filters URLs based on domain allowlists with support for wildcard patterns.
 
-    This class provides flexible domain filtering for web search results, supporting both
-    blocklists (domains to exclude) and allowlists (domains to allow exclusively). It handles
-    wildcard patterns, subdomain matching, and follows the principle that allowlists take
-    precedence over blocklists when both are specified.
+    This class provides flexible domain filtering for web search results by restricting
+    results to a defined set of trusted domains. It handles wildcard patterns and subdomain
+    matching, ensuring that agents only access approved sources.
 
     Args:
-        blocked_domains (`list[str]`, *optional*):
-            List of domain patterns to block. Supports wildcards (e.g., "*.ads.com", "spam.*").
-            If a domain is blocked, all its subdomains are also blocked (e.g., "example.com"
-            blocks "www.example.com" and "api.example.com"). Defaults to None (no blocking).
         allowed_domains (`list[str]`, *optional*):
             List of domain patterns to allow. When specified, ONLY these domains (and their
-            subdomains) will be permitted. Supports wildcards. Takes precedence over
-            blocked_domains. Defaults to None (allow all except blocked).
+            subdomains) will be permitted in search results. Supports wildcards (e.g., "*.edu",
+            "*.gov", "wikipedia.org"). If not specified, no filtering is applied.
+            Defaults to None (no filtering).
 
     Examples:
         ```python
-        >>> # Block specific domains
-        >>> filter = DomainFilter(blocked_domains=["example.com", "spam.net", "*.ads.*"])
-        >>> filter.is_allowed("https://example.com/page")
-        False
-        >>> filter.is_allowed("https://safe-site.org/page")
-        True
-
         >>> # Allow only specific domains
         >>> filter = DomainFilter(allowed_domains=["wikipedia.org", "*.edu", "*.gov"])
         >>> filter.is_allowed("https://en.wikipedia.org/wiki/Python")
         True
+        >>> filter.is_allowed("https://mit.edu/research")
+        True
         >>> filter.is_allowed("https://example.com")
         False
 
-        >>> # Combined filtering (allowlist takes priority)
-        >>> filter = DomainFilter(
-        ...     allowed_domains=["*.edu"],
-        ...     blocked_domains=["baduniversity.edu"]
-        ... )
+        >>> # Allow educational and government sources
+        >>> filter = DomainFilter(allowed_domains=["*.edu", "*.gov", "*.ac.uk"])
         >>> filter.is_allowed("https://harvard.edu")
         True
-        >>> filter.is_allowed("https://baduniversity.edu")
-        False
+        >>> filter.is_allowed("https://nasa.gov")
+        True
         ```
     """
 
     def __init__(
         self,
-        blocked_domains: list[str] | None = None,
         allowed_domains: list[str] | None = None,
     ):
-        self.blocked_domains = blocked_domains or []
         self.allowed_domains = allowed_domains or []
 
         # Compile patterns for efficient matching
-        self._blocked_patterns = [self._compile_domain_pattern(d) for d in self.blocked_domains]
         self._allowed_patterns = [self._compile_domain_pattern(d) for d in self.allowed_domains]
 
     def _compile_domain_pattern(self, pattern: str) -> re.Pattern:
@@ -187,13 +172,10 @@ class DomainFilter:
 
     def is_allowed(self, url: str) -> bool:
         """
-        Check if a URL is allowed based on the configured filters.
+        Check if a URL is allowed based on the configured allowlist.
 
-        The filtering logic follows these rules:
-        1. If allowlist is specified, ONLY domains matching allowlist patterns are allowed
-        2. Within allowed domains, blocklist can further restrict specific domains
-        3. If only blocklist is specified, all domains except blocked ones are allowed
-        4. If neither is specified, all domains are allowed
+        When an allowlist is specified, ONLY domains matching the allowlist patterns
+        are permitted. This provides a clear boundary of trusted sources.
 
         Args:
             url: URL to check
@@ -201,33 +183,28 @@ class DomainFilter:
         Returns:
             True if the URL is allowed, False if it should be filtered out
         """
+        # If no allowlist is specified, all URLs are allowed
+        if not self.allowed_domains:
+            return True
+
         domain = self._extract_domain(url)
         if not domain:
-            # Invalid URL, block by default
+            # Invalid URL, reject by default
             return False
 
-        # If allowlist is specified, domain must match allowlist
-        if self.allowed_domains:
-            if not self._matches_pattern(domain, self._allowed_patterns):
-                return False
-
-        # Check if domain is blocked
-        if self.blocked_domains:
-            if self._matches_pattern(domain, self._blocked_patterns):
-                return False
-
-        return True
+        # Check if domain matches allowlist
+        return self._matches_pattern(domain, self._allowed_patterns)
 
     def filter_results(self, results: list[dict[str, Any]], url_key: str = "url") -> list[dict[str, Any]]:
         """
-        Filter a list of search results based on domain rules.
+        Filter a list of search results based on domain allowlist.
 
         Args:
             results: List of result dictionaries containing URLs
             url_key: Key name in result dict that contains the URL (default: "url")
 
         Returns:
-            Filtered list of results with blocked domains removed
+            Filtered list of results with non-allowed domains removed
         """
         filtered = []
         for result in results:
@@ -237,4 +214,4 @@ class DomainFilter:
         return filtered
 
     def __repr__(self) -> str:
-        return f"DomainFilter(blocked_domains={self.blocked_domains}, allowed_domains={self.allowed_domains})"
+        return f"DomainFilter(allowed_domains={self.allowed_domains})"

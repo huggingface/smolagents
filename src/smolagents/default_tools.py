@@ -104,10 +104,9 @@ class DuckDuckGoSearchTool(Tool):
     Args:
         max_results (`int`, default `10`): Maximum number of search results to return.
         rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
-        blocked_domains (`list[str]`, *optional*): List of domain patterns to exclude from results.
-            Supports wildcards (e.g., "*.ads.com"). Blocks subdomains automatically.
         allowed_domains (`list[str]`, *optional*): List of domain patterns to allow exclusively.
-            When specified, only these domains will be included in results. Takes precedence over blocked_domains.
+            When specified, only these domains will be included in results.
+            Supports wildcards (e.g., "*.edu", "*.gov"). Subdomains are automatically included.
         **kwargs: Additional keyword arguments for the `DDGS` client.
 
     Examples:
@@ -116,11 +115,6 @@ class DuckDuckGoSearchTool(Tool):
         >>> web_search_tool = DuckDuckGoSearchTool(max_results=5, rate_limit=2.0)
         >>> results = web_search_tool("Hugging Face")
         >>> print(results)
-
-        >>> # Block specific domains
-        >>> web_search_tool = DuckDuckGoSearchTool(
-        ...     blocked_domains=["example.com", "*.ads.*"]
-        ... )
 
         >>> # Allow only trusted domains
         >>> web_search_tool = DuckDuckGoSearchTool(
@@ -138,7 +132,6 @@ class DuckDuckGoSearchTool(Tool):
         self,
         max_results: int = 10,
         rate_limit: float | None = 1.0,
-        blocked_domains: list[str] | None = None,
         allowed_domains: list[str] | None = None,
         **kwargs,
     ):
@@ -149,7 +142,7 @@ class DuckDuckGoSearchTool(Tool):
         self.rate_limit = rate_limit
         self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
         self._last_request_time = 0.0
-        self.domain_filter = DomainFilter(blocked_domains=blocked_domains, allowed_domains=allowed_domains)
+        self.domain_filter = DomainFilter(allowed_domains=allowed_domains)
         try:
             from ddgs import DDGS
         except ImportError as e:
@@ -166,7 +159,7 @@ class DuckDuckGoSearchTool(Tool):
         filtered_results = self.domain_filter.filter_results(results, url_key="href")
 
         if len(filtered_results) == 0:
-            raise Exception("No results found! Try a less restrictive/shorter query, or adjust domain filters.")
+            raise Exception("No results found! Try a less restrictive/shorter query.")
         postprocessed_results = [
             f"[{result['title']}]({result['href']})\n{result['body']}" for result in filtered_results
         ]
@@ -202,7 +195,6 @@ class GoogleSearchTool(Tool):
     def __init__(
         self,
         provider: str = "serpapi",
-        blocked_domains: list[str] | None = None,
         allowed_domains: list[str] | None = None,
     ):
         import os
@@ -221,7 +213,7 @@ class GoogleSearchTool(Tool):
         self.api_key = os.getenv(api_key_env_name)
         if self.api_key is None:
             raise ValueError(f"Missing API key. Make sure you have '{api_key_env_name}' in your env variables.")
-        self.domain_filter = DomainFilter(blocked_domains=blocked_domains, allowed_domains=allowed_domains)
+        self.domain_filter = DomainFilter(allowed_domains=allowed_domains)
 
     def forward(self, query: str, filter_year: int | None = None) -> str:
         import requests
@@ -266,7 +258,7 @@ class GoogleSearchTool(Tool):
 
         if len(filtered_results) == 0:
             year_filter_message = f" with filter year={filter_year}" if filter_year is not None else ""
-            return f"No results found for '{query}'{year_filter_message}. Try with a more general query, adjust domain filters, or remove the year filter."
+            return f"No results found for '{query}'{year_filter_message}. Try with a more general query or remove the year filter."
 
         web_snippets = []
         if filtered_results:
@@ -317,7 +309,6 @@ class ApiWebSearchTool(Tool):
 
         >>> # With domain filtering
         >>> web_search_tool = ApiWebSearchTool(
-        ...     blocked_domains=["spam.com", "*.ads.*"],
         ...     allowed_domains=["*.edu", "wikipedia.org"]
         ... )
         ```
@@ -336,7 +327,6 @@ class ApiWebSearchTool(Tool):
         headers: dict = None,
         params: dict = None,
         rate_limit: float | None = 1.0,
-        blocked_domains: list[str] | None = None,
         allowed_domains: list[str] | None = None,
     ):
         import os
@@ -352,7 +342,7 @@ class ApiWebSearchTool(Tool):
         self.rate_limit = rate_limit
         self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
         self._last_request_time = 0.0
-        self.domain_filter = DomainFilter(blocked_domains=blocked_domains, allowed_domains=allowed_domains)
+        self.domain_filter = DomainFilter(allowed_domains=allowed_domains)
 
     def _enforce_rate_limit(self) -> None:
         import time
@@ -411,7 +401,6 @@ class WebSearchTool(Tool):
         self,
         max_results: int = 10,
         engine: str = "duckduckgo",
-        blocked_domains: list[str] | None = None,
         allowed_domains: list[str] | None = None,
     ):
         from .domain_filter import DomainFilter
@@ -419,7 +408,7 @@ class WebSearchTool(Tool):
         super().__init__()
         self.max_results = max_results
         self.engine = engine
-        self.domain_filter = DomainFilter(blocked_domains=blocked_domains, allowed_domains=allowed_domains)
+        self.domain_filter = DomainFilter(allowed_domains=allowed_domains)
 
     def forward(self, query: str) -> str:
         results = self.search(query)
@@ -428,7 +417,7 @@ class WebSearchTool(Tool):
         filtered_results = self.domain_filter.filter_results(results, url_key="link")
 
         if len(filtered_results) == 0:
-            raise Exception("No results found! Try a less restrictive/shorter query, or adjust domain filters.")
+            raise Exception("No results found! Try a less restrictive/shorter query.")
         return self.parse_results(filtered_results)
 
     def search(self, query: str) -> list:
