@@ -1080,8 +1080,8 @@ class WasmExecutor(RemotePythonExecutor):
                         "pypi.org:443,files.pythonhosted.org:443",  # allow pyodide install packages from PyPI
                     ]
                 ),
-                f"allow-read",#={home_dir}/.cache/deno",
-                f"allow-write",#={home_dir}/.cache/deno",
+                f"allow-read={home_dir}/.cache/deno",
+                f"allow-write={home_dir}/.cache/deno",
             ]
         self.deno_permissions = [f"--{perm}" for perm in deno_permissions]
 
