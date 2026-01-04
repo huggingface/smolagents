@@ -50,7 +50,7 @@ class SafeSerializer(Tool):
 
     The serializer uses a prefix system to distinguish between formats:
     - "safe:" prefix for JSON-serialized data
-    - "pickle:" prefix for pickle-serialized data (fallback)
+    - No prefix for pickle-serialized data (legacy fallback)
     """
 
     # Tool interface
@@ -62,7 +62,6 @@ class SafeSerializer(Tool):
     output_type = "any"
 
     SAFE_PREFIX = "safe:"
-    PICKLE_PREFIX = "pickle:"
 
     # Cache for optional type classes (avoids repeated import attempts)
     _optional_types_cache: dict = {}
@@ -259,7 +258,7 @@ class SafeSerializer(Tool):
     @staticmethod
     def dumps(obj: Any, safe_serialization: bool = False) -> str:
         """
-        Serialize object to string with format prefix.
+        Serialize object to string.
 
         Args:
             obj: Object to serialize
@@ -267,7 +266,7 @@ class SafeSerializer(Tool):
                                If False, try safe first, fallback to pickle.
 
         Returns:
-            str: Prefixed serialized string ("safe:..." or "pickle:...")
+            str: Serialized string ("safe:..." for JSON, no prefix for pickle)
 
         Raises:
             SerializationError: If safe_serialization=True and object cannot be safely serialized
@@ -282,9 +281,9 @@ class SafeSerializer(Tool):
                 json_safe = SafeSerializer.to_json_safe(obj)
                 return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
             except SerializationError:
-                # Fallback to pickle
+                # Fallback to pickle (no prefix)
                 try:
-                    return SafeSerializer.PICKLE_PREFIX + base64.b64encode(pickle.dumps(obj)).decode()
+                    return base64.b64encode(pickle.dumps(obj)).decode()
                 except (pickle.PicklingError, TypeError, AttributeError) as e:
                     raise SerializationError(f"Cannot serialize object: {e}") from e
 
@@ -294,7 +293,7 @@ class SafeSerializer(Tool):
         Deserialize string with format detection.
 
         Args:
-            data: Prefixed serialized string
+            data: Serialized string (with "safe:" prefix for JSON, no prefix for pickle)
             safe_serialization: If True, reject pickle data (strict safe mode).
                                If False, accept both safe and pickle formats.
 
@@ -307,19 +306,11 @@ class SafeSerializer(Tool):
         if data.startswith(SafeSerializer.SAFE_PREFIX):
             json_data = json.loads(data[len(SafeSerializer.SAFE_PREFIX) :])
             return SafeSerializer.from_json_safe(json_data)
-        elif data.startswith(SafeSerializer.PICKLE_PREFIX):
+        else:
+            # No safe prefix - assume pickle
             if safe_serialization:
                 raise SerializationError("Pickle data rejected: safe_serialization=True requires safe-only data")
-            return pickle.loads(base64.b64decode(data[len(SafeSerializer.PICKLE_PREFIX) :]))
-        else:
-            # Legacy format (no prefix) - try JSON first, then pickle
-            try:
-                json_data = json.loads(data)
-                return SafeSerializer.from_json_safe(json_data)
-            except (json.JSONDecodeError, TypeError):
-                if safe_serialization:
-                    raise SerializationError("Unknown data format rejected: safe_serialization=True")
-                return pickle.loads(base64.b64decode(data))
+            return pickle.loads(base64.b64decode(data))
 
     @staticmethod
     def get_safe_serializer_code() -> str:
@@ -338,7 +329,6 @@ class SafeSerializer:
     """Safe JSON-based serializer for sandbox use."""
 
     SAFE_PREFIX = "safe:"
-    PICKLE_PREFIX = "pickle:"
 
     @staticmethod
     def to_json_safe(obj):
@@ -516,7 +506,7 @@ class SafeSerializer:
                 return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
             except SerializationError:
                 try:
-                    return SafeSerializer.PICKLE_PREFIX + base64.b64encode(pickle.dumps(obj)).decode()
+                    return base64.b64encode(pickle.dumps(obj)).decode()
                 except (pickle.PicklingError, TypeError, AttributeError) as e:
                     raise SerializationError(f"Cannot serialize object: {e}") from e
 
@@ -529,19 +519,11 @@ class SafeSerializer:
         if data.startswith(SafeSerializer.SAFE_PREFIX):
             json_data = json.loads(data[len(SafeSerializer.SAFE_PREFIX):])
             return SafeSerializer.from_json_safe(json_data)
-        elif data.startswith(SafeSerializer.PICKLE_PREFIX):
+        else:
+            # No safe prefix - assume pickle
             if safe_serialization:
                 raise SerializationError("Pickle data rejected: safe_serialization=True")
-            return pickle.loads(base64.b64decode(data[len(SafeSerializer.PICKLE_PREFIX):]))
-        else:
-            # Legacy format
-            try:
-                json_data = json.loads(data)
-                return SafeSerializer.from_json_safe(json_data)
-            except:
-                if safe_serialization:
-                    raise SerializationError("Unknown format rejected: safe_serialization=True")
-                return pickle.loads(base64.b64decode(data))
+            return pickle.loads(base64.b64decode(data))
 '''
 
     @staticmethod
@@ -555,15 +537,13 @@ class SafeSerializer:
         Returns:
             Python code string with _deserialize function
         """
-        pickle_block = (
+        pickle_fallback = (
             '''
         import pickle
-        return pickle.loads(base64.b64decode(data[7:]))
-'''
+        return pickle.loads(base64.b64decode(data))'''
             if not safe_serialization
             else '''
-        raise SerializationError("Pickle data rejected: safe_serialization is enabled")
-'''
+        raise SerializationError("Pickle data rejected: safe_serialization is enabled")'''
         )
 
         return f'''
@@ -637,14 +617,6 @@ def _deserialize(data):
     if isinstance(data, str) and data.startswith("safe:"):
         json_data = json.loads(data[5:])
         return _from_json_safe(json_data)
-    elif isinstance(data, str) and data.startswith("pickle:"):{pickle_block}
     else:
-        # Legacy format - try JSON first
-        if isinstance(data, str):
-            try:
-                data = json.loads(data)
-                return _from_json_safe(data)
-            except json.JSONDecodeError:
-                pass
-        {"raise SerializationError('Unknown format rejected')" if safe_serialization else "return pickle.loads(base64.b64decode(data))"}
+        # No safe prefix - assume pickle{pickle_fallback}
 '''
