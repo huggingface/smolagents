@@ -1505,6 +1505,8 @@ class CodeAgent(MultiStepAgent):
 
             <Added version="1.17.0"/>
         code_block_tags (`tuple[str, str]` | `Literal["markdown"]`, *optional*): Opening and closing tags for code blocks (regex strings). Pass a custom tuple, or pass 'markdown' to use ("```(?:python|py)", "\\n```"), leave empty to use ("<code>", "</code>").
+        allow_unsecure_serializer (`bool`, default `True`): Whether to allow pickle fallback for legacy serialization.
+        safe_serialization (`bool`, default `False`): When True, uses ONLY safe JSON-based serialization (raises error if object can't be safely serialized). When False, tries safe serialization first and falls back to pickle if needed.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1522,6 +1524,8 @@ class CodeAgent(MultiStepAgent):
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
         code_block_tags: str | tuple[str, str] | None = None,
+        allow_unsecure_serializer: bool = True,
+        safe_serialization: bool = False,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
@@ -1566,6 +1570,12 @@ class CodeAgent(MultiStepAgent):
             )
         self.executor_type = executor_type
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
+        self.allow_unsecure_serializer = allow_unsecure_serializer
+        self.executor_kwargs["allow_unsecure_serializer"] = allow_unsecure_serializer
+        # Propagate safe_serialization to executor for remote executors
+        self.safe_serialization = safe_serialization
+        if self.executor_type != "local":
+            self.executor_kwargs["safe_serialization"] = safe_serialization
         self.python_executor = executor or self.create_python_executor()
 
     def __enter__(self):
@@ -1759,6 +1769,7 @@ class CodeAgent(MultiStepAgent):
         agent_dict["executor_type"] = self.executor_type
         agent_dict["executor_kwargs"] = self.executor_kwargs
         agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
+        agent_dict["allow_unsecure_serializer"] = self.allow_unsecure_serializer
         return agent_dict
 
     @classmethod
@@ -1779,6 +1790,7 @@ class CodeAgent(MultiStepAgent):
             "executor_kwargs": agent_dict.get("executor_kwargs"),
             "max_print_outputs_length": agent_dict.get("max_print_outputs_length"),
             "code_block_tags": agent_dict.get("code_block_tags"),
+            "allow_unsecure_serializer": agent_dict.get("allow_unsecure_serializer", True),
         }
         # Filter out None values
         code_agent_kwargs = {k: v for k, v in code_agent_kwargs.items() if v is not None}
