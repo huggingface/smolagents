@@ -364,12 +364,11 @@ class ApiWebSearchTool(Tool):
                 )
         else:  # exa
             # Exa response structure: data["results"]
-            # Each result has: title, url, publishedDate, text, summary, etc.
             for result in data.get("results", []):
                 published_date = result.get("publishedDate", "")
+                description = f"Published: {published_date}\n" if published_date else ""
                 highlights = result.get("highlights") or []
-                # Keep the web_search output small and skimmable: highlights only.
-                description = f"Published: {published_date}\n" + "\n".join(str(h).strip() for h in highlights if str(h).strip())
+                description += "\n".join(str(h).strip() for h in highlights if str(h).strip())
                 results.append(
                     {
                         "title": result.get("title", ""),
