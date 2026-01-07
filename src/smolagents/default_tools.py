@@ -245,16 +245,19 @@ class GoogleSearchTool(Tool):
 
 class ApiWebSearchTool(Tool):
     """Web search tool that performs API-based searches.
+    Supports both Brave Search API and Exa Search API.
     By default, it uses the Brave Search API.
 
     This tool implements a rate limiting mechanism to ensure compliance with API usage policies.
     By default, it limits requests to 1 query per second.
 
     Args:
-        endpoint (`str`): API endpoint URL. Defaults to Brave Search API.
-        api_key (`str`): API key for authentication.
-        api_key_name (`str`): Environment variable name containing the API key. Defaults to "BRAVE_API_KEY".
-        headers (`dict`, *optional*): Headers for API requests.
+        provider (`str`, default `"brave"`): Search provider to use. Options: "brave" or "exa".
+        endpoint (`str`, *optional*): API endpoint URL. Auto-configured based on provider if not provided.
+        api_key (`str`, *optional*): API key for authentication.
+        api_key_name (`str`, *optional*): Environment variable name containing the API key.
+            Defaults to "BRAVE_API_KEY" for Brave or "EXA_API_KEY" for Exa.
+        headers (`dict`, *optional*): Headers for API requests. Auto-configured based on provider if not provided.
         params (`dict`, *optional*): Parameters for API requests.
         rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable rate limiting.
 
@@ -274,6 +277,7 @@ class ApiWebSearchTool(Tool):
 
     def __init__(
         self,
+        provider: str = "brave",
         endpoint: str = "",
         api_key: str = "",
         api_key_name: str = "",
@@ -284,11 +288,29 @@ class ApiWebSearchTool(Tool):
         import os
 
         super().__init__()
-        self.endpoint = endpoint or "https://api.search.brave.com/res/v1/web/search"
-        self.api_key_name = api_key_name or "BRAVE_API_KEY"
-        self.api_key = api_key or os.getenv(self.api_key_name)
-        self.headers = headers or {"X-Subscription-Token": self.api_key}
-        self.params = params or {"count": 10}
+        self.provider = provider.lower()
+
+        if self.provider not in ["brave", "exa"]:
+            raise ValueError(f"Unsupported provider: {provider}. Choose 'brave' or 'exa'.")
+
+        # Configure based on provider
+        if self.provider == "brave":
+            self.endpoint = endpoint or "https://api.search.brave.com/res/v1/web/search"
+            self.api_key_name = api_key_name or "BRAVE_API_KEY"
+            self.api_key = api_key or os.getenv(self.api_key_name)
+            self.headers = headers or {"X-Subscription-Token": self.api_key}
+            self.params = params or {"count": 10}
+        else:  # exa
+            self.endpoint = endpoint or "https://api.exa.ai/search"
+            self.api_key_name = api_key_name or "EXA_API_KEY"
+            self.api_key = api_key or os.getenv(self.api_key_name)
+            self.headers = headers or {
+                "accept": "application/json",
+                "content-type": "application/json",
+                "x-api-key": self.api_key,
+            }
+            self.params = params or {"type": "auto", "contents": {"highlights": True}}
+
         self.rate_limit = rate_limit
         self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
         self._last_request_time = 0.0
@@ -310,19 +332,52 @@ class ApiWebSearchTool(Tool):
         import requests
 
         self._enforce_rate_limit()
-        params = {**self.params, "q": query}
-        response = requests.get(self.endpoint, headers=self.headers, params=params)
+
+        if self.provider == "brave":
+            # Brave: GET request with query params
+            params = {**self.params, "q": query}
+            response = requests.get(self.endpoint, headers=self.headers, params=params)
+        else:  # exa
+            # Exa: POST request with JSON body
+            # We intentionally request only highlights here. Full-text retrieval should be done via another tool.
+            data = {**self.params, "query": query}
+            response = requests.post(self.endpoint, headers=self.headers, json=data)
+
         response.raise_for_status()
         data = response.json()
         results = self.extract_results(data)
         return self.format_markdown(results)
 
     def extract_results(self, data: dict) -> list:
+        """Extract results from API response based on provider."""
         results = []
-        for result in data.get("web", {}).get("results", []):
-            results.append(
-                {"title": result["title"], "url": result["url"], "description": result.get("description", "")}
-            )
+        
+        if self.provider == "brave":
+            # Brave response structure: data["web"]["results"]
+            for result in data.get("web", {}).get("results", []):
+                results.append(
+                    {
+                        "title": result["title"],
+                        "url": result["url"],
+                        "description": result.get("description", ""),
+                    }
+                )
+        else:  # exa
+            # Exa response structure: data["results"]
+            # Each result has: title, url, publishedDate, text, summary, etc.
+            for result in data.get("results", []):
+                published_date = result.get("publishedDate", "")
+                highlights = result.get("highlights") or []
+                # Keep the web_search output small and skimmable: highlights only.
+                description = f"Published: {published_date}\n" + "\n".join(str(h).strip() for h in highlights if str(h).strip())
+                results.append(
+                    {
+                        "title": result.get("title", ""),
+                        "url": result.get("url", ""),
+                        "description": description,
+                    }
+                )
+
         return results
 
     def format_markdown(self, results: list) -> str:
