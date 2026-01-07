@@ -17,6 +17,7 @@ from scripts.text_web_browser import (
 from scripts.visual_qa import visualizer
 
 from smolagents import (
+    ApiWebSearchTool,
     CodeAgent,
     GoogleSearchTool,
     # InferenceClientModel,
@@ -37,6 +38,13 @@ def parse_args():
         "question", type=str, help="for example: 'How many studio albums did Mercedes Sosa release before 2007?'"
     )
     parser.add_argument("--model-id", type=str, default="o1")
+    parser.add_argument(
+        "--search-provider",
+        type=str,
+        default="serper",
+        choices=["serper", "exa"],
+        help="Search provider to use: 'serper' (default) or 'exa'",
+    )
     return parser.parse_args()
 
 
@@ -57,7 +65,7 @@ BROWSER_CONFIG = {
 os.makedirs(f"./{BROWSER_CONFIG['downloads_folder']}", exist_ok=True)
 
 
-def create_agent(model_id="o1"):
+def create_agent(model_id="o1", search_provider="serper"):
     model_params = {
         "model_id": model_id,
         "custom_role_conversions": custom_role_conversions,
@@ -69,8 +77,17 @@ def create_agent(model_id="o1"):
 
     text_limit = 100000
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
+
+    # Create search tool based on provider choice
+    if search_provider == "serper":
+        search_tool = GoogleSearchTool(provider="serper")
+    elif search_provider == "exa":
+        search_tool = ApiWebSearchTool(provider="exa")
+    else:
+        raise ValueError(f"Unsupported search provider: {search_provider}. Choose 'serper' or 'exa'.")
+
     WEB_TOOLS = [
-        GoogleSearchTool(provider="serper"),
+        search_tool,
         VisitTool(browser),
         PageUpTool(browser),
         PageDownTool(browser),
@@ -114,7 +131,7 @@ def create_agent(model_id="o1"):
 def main():
     args = parse_args()
 
-    agent = create_agent(model_id=args.model_id)
+    agent = create_agent(model_id=args.model_id, search_provider=args.search_provider)
 
     answer = agent.run(args.question)
 
