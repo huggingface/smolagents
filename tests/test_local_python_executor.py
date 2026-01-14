@@ -2023,14 +2023,14 @@ class TestTimeout:
 
     def test_evaluate_python_code_with_timeout_raises(self):
         """Test that evaluate_python_code raises timeout error for long-running code."""
-        # This code should timeout after MAX_EXECUTION_TIME_SECONDS (10 seconds)
+        # Use a short custom timeout (2 seconds) with longer sleep (3 seconds) to test quickly
         code = """
 import time
-time.sleep(15)
+time.sleep(3)
 result = "should not complete"
 """
         with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
-            evaluate_python_code(code, authorized_imports=["time"])
+            evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=2)
 
     def test_timeout_works_in_thread(self):
         """Test that timeout mechanism works when called from a non-main thread.
@@ -2049,13 +2049,13 @@ result = "should not complete"
                 res, _ = evaluate_python_code(code)
                 assert res == 42
 
-                # Timeout should still work in thread
+                # Timeout should still work in thread - use short timeout for fast test
                 timeout_code = """
 import time
-time.sleep(15)
+time.sleep(3)
 """
                 try:
-                    evaluate_python_code(timeout_code, authorized_imports=["time"])
+                    evaluate_python_code(timeout_code, authorized_imports=["time"], timeout_seconds=2)
                     result["error"] = "Code should have timed out but didn't"
                 except ExecutionTimeoutError:
                     result["success"] = True
@@ -2064,7 +2064,7 @@ time.sleep(15)
 
         thread = threading.Thread(target=run_in_thread)
         thread.start()
-        thread.join(timeout=20)
+        thread.join(timeout=10)
 
         assert not thread.is_alive(), "Thread should have completed"
         assert result["error"] is None, f"Error in thread: {result['error']}"
