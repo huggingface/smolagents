@@ -2070,6 +2070,66 @@ time.sleep(15)
         assert result["error"] is None, f"Error in thread: {result['error']}"
         assert result["success"], "Timeout should have been raised in thread"
 
+    def test_custom_timeout_value(self):
+        """Test that a custom timeout value can be specified."""
+        # Code that sleeps for 2 seconds should timeout with 1-second limit
+        code = """
+import time
+time.sleep(2)
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=1)
+
+    def test_longer_timeout_value(self):
+        """Test that a longer custom timeout value allows longer execution."""
+        # Code that sleeps for 2 seconds should complete with 5-second limit
+        code = """
+import time
+time.sleep(2)
+result = "completed"
+"""
+        result, is_final = evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=5)
+        assert result == "completed"
+
+    def test_disabled_timeout(self):
+        """Test that timeout can be disabled by setting it to None."""
+        # Even slow code should complete when timeout is disabled
+        # Using a shorter sleep to keep test fast, but demonstrating None works
+        code = """
+import time
+time.sleep(0.5)
+result = "completed without timeout"
+"""
+        result, is_final = evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=None)
+        assert result == "completed without timeout"
+
+    def test_local_executor_custom_timeout(self):
+        """Test that LocalPythonExecutor respects custom timeout."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+
+        # Code that sleeps for 2 seconds should timeout with 1-second executor limit
+        code = """
+import time
+time.sleep(2)
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(code)
+
+    def test_local_executor_disabled_timeout(self):
+        """Test that LocalPythonExecutor can disable timeout."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=None)
+        executor.send_tools({})
+
+        # Code should complete even without timeout
+        code = """
+import time
+time.sleep(0.5)
+result = "completed"
+"""
+        output = executor(code)
+        assert output.output == "completed"
+
 
 @pytest.mark.parametrize(
     "module,authorized_imports,expected",
