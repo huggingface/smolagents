@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ast
+import time
 import types
 from contextlib import nullcontext as does_not_raise
 from textwrap import dedent
@@ -27,6 +28,7 @@ from smolagents.default_tools import BASE_PYTHON_TOOLS, FinalAnswerTool
 from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_MODULES,
+    ExecutionTimeoutError,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -38,6 +40,7 @@ from smolagents.local_python_executor import (
     evaluate_subscript,
     fix_final_answer_code,
     get_safe_module,
+    timeout,
 )
 
 
@@ -2004,6 +2007,146 @@ Input:    {input_code}
 Expected: {expected}
 Got:      {result}
 """
+
+
+class TestTimeout:
+    """Test the timeout mechanism for code execution."""
+
+    def test_timeout_decorator_completes_within_limit(self):
+        """Test that code completing within the timeout limit works correctly."""
+
+        @timeout(2)
+        def short_task():
+            time.sleep(0.1)
+            return "completed"
+
+        assert short_task() == "completed"
+
+    def test_timeout_decorator_raises_error_when_exceeded(self):
+        """Test that code exceeding the timeout limit raises ExecutionTimeoutError."""
+
+        @timeout(1)
+        def long_task():
+            time.sleep(2)
+            return "should not complete"
+
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            long_task()
+
+    def test_evaluate_python_code_with_timeout_completes(self):
+        """Test that evaluate_python_code completes within timeout for quick code."""
+        code = "result = 2 + 2"
+        result, is_final = evaluate_python_code(code)
+        assert result == 4
+
+    def test_evaluate_python_code_with_timeout_raises(self):
+        """Test that evaluate_python_code raises timeout error for long-running code."""
+        # Use a short custom timeout (2 seconds) with longer sleep (3 seconds) to test quickly
+        code = """
+import time
+time.sleep(3)
+result = "should not complete"
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=2)
+
+    def test_timeout_works_in_thread(self):
+        """Test that timeout mechanism works when called from a non-main thread.
+
+        This verifies the fix for the issue where signal-based timeouts failed
+        in threads (signals only work in the main thread).
+        """
+        import threading
+
+        result = {"success": False, "error": None}
+
+        def run_in_thread():
+            try:
+                # Quick code should work
+                code = "result = 42"
+                res, _ = evaluate_python_code(code)
+                assert res == 42
+
+                # Timeout should still work in thread - use short timeout for fast test
+                timeout_code = """
+import time
+time.sleep(3)
+"""
+                try:
+                    evaluate_python_code(timeout_code, authorized_imports=["time"], timeout_seconds=2)
+                    result["error"] = "Code should have timed out but didn't"
+                except ExecutionTimeoutError:
+                    result["success"] = True
+            except Exception as e:
+                result["error"] = f"{type(e).__name__}: {e}"
+
+        thread = threading.Thread(target=run_in_thread)
+        thread.start()
+        thread.join(timeout=10)
+
+        assert not thread.is_alive(), "Thread should have completed"
+        assert result["error"] is None, f"Error in thread: {result['error']}"
+        assert result["success"], "Timeout should have been raised in thread"
+
+    def test_custom_timeout_value(self):
+        """Test that a custom timeout value can be specified."""
+        # Code that sleeps for 2 seconds should timeout with 1-second limit
+        code = """
+import time
+time.sleep(2)
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=1)
+
+    def test_longer_timeout_value(self):
+        """Test that a longer custom timeout value allows longer execution."""
+        # Code that sleeps for 2 seconds should complete with 5-second limit
+        code = """
+import time
+time.sleep(2)
+result = "completed"
+"""
+        result, is_final = evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=5)
+        assert result == "completed"
+
+    def test_disabled_timeout(self):
+        """Test that timeout can be disabled by setting it to None."""
+        # Even slow code should complete when timeout is disabled
+        # Using a shorter sleep to keep test fast, but demonstrating None works
+        code = """
+import time
+time.sleep(0.5)
+result = "completed without timeout"
+"""
+        result, is_final = evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=None)
+        assert result == "completed without timeout"
+
+    def test_local_executor_custom_timeout(self):
+        """Test that LocalPythonExecutor respects custom timeout."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+
+        # Code that sleeps for 2 seconds should timeout with 1-second executor limit
+        code = """
+import time
+time.sleep(2)
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(code)
+
+    def test_local_executor_disabled_timeout(self):
+        """Test that LocalPythonExecutor can disable timeout."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=None)
+        executor.send_tools({})
+
+        # Code should complete even without timeout
+        code = """
+import time
+time.sleep(0.5)
+result = "completed"
+"""
+        output = executor(code)
+        assert output.output == "completed"
 
 
 @pytest.mark.parametrize(

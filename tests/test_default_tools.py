@@ -24,6 +24,7 @@ from smolagents.default_tools import (
     VisitWebpageTool,
     WikipediaSearchTool,
 )
+from smolagents.local_python_executor import ExecutionTimeoutError
 
 from .test_tools import ToolTesterMixin
 from .utils.markers import require_run_all
@@ -85,6 +86,33 @@ class TestPythonInterpreterTool(ToolTesterMixin):
         with pytest.raises(Exception) as e:
             self.tool("import sympy as sp")
         assert "sympy" in str(e).lower()
+
+    def test_custom_timeout(self):
+        """Test that PythonInterpreterTool respects custom timeout."""
+        tool = PythonInterpreterTool(authorized_imports=["time"], timeout_seconds=1)
+        tool.setup()
+
+        # Code that sleeps for 2 seconds should timeout with 1-second limit
+        code = """
+import time
+time.sleep(2)
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            tool(code)
+
+    def test_disabled_timeout(self):
+        """Test that PythonInterpreterTool can disable timeout."""
+        tool = PythonInterpreterTool(authorized_imports=["time"], timeout_seconds=None)
+        tool.setup()
+
+        # Code should complete even without timeout
+        code = """
+import time
+time.sleep(0.5)
+result = "completed"
+"""
+        result = tool(code)
+        assert "completed" in result
 
 
 class TestSpeechToTextTool:

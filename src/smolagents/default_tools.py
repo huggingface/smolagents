@@ -20,6 +20,7 @@ from typing import Any
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
     BASE_PYTHON_TOOLS,
+    MAX_EXECUTION_TIME_SECONDS,
     evaluate_python_code,
 )
 from .tools import PipelineTool, Tool
@@ -46,7 +47,7 @@ class PythonInterpreterTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, *args, authorized_imports=None, **kwargs):
+    def __init__(self, *args, authorized_imports=None, timeout_seconds=MAX_EXECUTION_TIME_SECONDS, **kwargs):
         if authorized_imports is None:
             self.authorized_imports = list(set(BASE_BUILTIN_MODULES))
         else:
@@ -62,6 +63,7 @@ class PythonInterpreterTool(Tool):
         }
         self.base_python_tools = BASE_PYTHON_TOOLS
         self.python_evaluator = evaluate_python_code
+        self.timeout_seconds = timeout_seconds
         super().__init__(*args, **kwargs)
 
     def forward(self, code: str) -> str:
@@ -72,6 +74,7 @@ class PythonInterpreterTool(Tool):
                 state=state,
                 static_tools=self.base_python_tools,
                 authorized_imports=self.authorized_imports,
+                timeout_seconds=self.timeout_seconds,
             )[0]  # The second element is boolean is_final_answer
         )
         return f"Stdout:\n{str(state['_print_outputs'])}\nOutput: {output}"
