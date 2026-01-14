@@ -314,15 +314,15 @@ class MultiStepAgent(ABC):
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         if prompt_templates is not None:
             missing_keys = set(EMPTY_PROMPT_TEMPLATES.keys()) - set(prompt_templates.keys())
-            assert not missing_keys, (
-                f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
-            )
+            assert (
+                not missing_keys
+            ), f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
             for key, value in EMPTY_PROMPT_TEMPLATES.items():
                 if isinstance(value, dict):
                     for subkey in value.keys():
-                        assert key in prompt_templates.keys() and (subkey in prompt_templates[key].keys()), (
-                            f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
-                        )
+                        assert (
+                            key in prompt_templates.keys() and (subkey in prompt_templates[key].keys())
+                        ), f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
 
         self.max_steps = max_steps
         self.step_number = 0
@@ -369,9 +369,9 @@ class MultiStepAgent(ABC):
         """Setup managed agents with proper logging."""
         self.managed_agents = {}
         if managed_agents:
-            assert all(agent.name and agent.description for agent in managed_agents), (
-                "All managed agents need both a name and a description!"
-            )
+            assert all(
+                agent.name and agent.description for agent in managed_agents
+            ), "All managed agents need both a name and a description!"
             self.managed_agents = {agent.name: agent for agent in managed_agents}
             # Ensure managed agents can be called as tools by the model: set their inputs and output_type
             for agent in self.managed_agents.values():
@@ -386,9 +386,9 @@ class MultiStepAgent(ABC):
                 agent.output_type = "string"
 
     def _setup_tools(self, tools, add_base_tools):
-        assert all(isinstance(tool, BaseTool) for tool in tools), (
-            "All elements must be instance of BaseTool (or a subclass)"
-        )
+        assert all(
+            isinstance(tool, BaseTool) for tool in tools
+        ), "All elements must be instance of BaseTool (or a subclass)"
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(
@@ -1786,3 +1786,585 @@ class CodeAgent(MultiStepAgent):
         code_agent_kwargs.update(kwargs)
         # Call the parent class's from_dict method
         return super().from_dict(agent_dict, **code_agent_kwargs)
+
+
+class CustomCodeAgent(CodeAgent):
+    """
+    A CodeAgent that integrates with custom providers for LLM calls and optionally code execution.
+
+    This agent routes all LLM calls through a custom provider while maintaining compatibility
+    with the smolagents framework. It supports two execution modes:
+
+    - When `is_code_executed_by_the_custom_agent=False` (default): Uses custom provider
+      for code generation but executes code locally using smolagents' built-in executor.
+    - When `is_code_executed_by_the_custom_agent=True`: Delegates both code generation
+      AND execution to the custom provider's sandboxed environment.
+
+    Args:
+        tools (`list[Tool]`): [`Tool`]s that the agent can use.
+        model (`Model`): A smolagents Model (e.g., `LiteLLMModel`) whose configuration will be
+            extracted and used to create a provider-specific LLM instance.
+        provider (`str`, default `"OpenHandsSDK"`): Provider identifier. Currently supported:
+            - "OpenHandsSDK": OpenHands SDK with Docker-based sandboxing
+        is_code_executed_by_the_custom_agent (`bool`, default `False`): If True, uses
+            the provider's sandboxed execution. If False, uses smolagents' built-in executor.
+        agent_type (`str`, default `"local_container"`): Agent type. Only applies when
+            `is_code_executed_by_the_custom_agent=True`:
+            - "local_container": Automatically manage Docker container lifecycle locally
+            - "remote": Connect to existing local container (user manages lifecycle)
+            - "remote_api": Connect to remote runtime API service (e.g., https://runtime.all-hands.dev/)
+        stop_container_on_completion (`bool`, default `True`): Whether to stop the container after
+            completion. Only applies when `agent_type="local_container"`.
+        delete_container_on_completion (`bool`, default `True`): Whether to delete the container after
+            completion. Only applies when `agent_type="local_container"`.
+        openhands_agent_image (`str`, *optional*): Docker image for OpenHands agent server.
+            Required when `agent_type="local_container"` or `agent_type="remote_api"`.
+        openhands_agent_host (`str`, *optional*): Host URL for remote mode (e.g., "http://localhost:8010").
+            Required when `agent_type="remote"`.
+        openhands_agent_port (`int`, *optional*): Port for remote mode.
+            Only used when `agent_type="remote"`.
+        openhands_agent_platform (`str`, *optional*): Docker platform (e.g., "linux/amd64", "linux/arm64").
+            Auto-detected if not provided. Only used when `agent_type="local_container"`.
+        openhands_runtime_api_key (`str`, *optional*): API key for authentication.
+            Required when `agent_type="remote_api"`. Optional when `agent_type="remote"`.
+        openhands_runtime_api_url (`str`, *optional*): Base URL of the runtime API.
+            Required when `agent_type="remote_api"` (e.g., "https://runtime.all-hands.dev").
+        openhands_image_pull_policy (`str`, *optional*): Image pull policy for remote_api mode.
+            Options: "Always", "IfNotPresent", "Never". Default: "IfNotPresent".
+            Only used when `agent_type="remote_api"`.
+        openhands_resource_factor (`int`, *optional*): Resource scaling factor for remote_api mode.
+            Options: 1, 2, 4, or 8. Default: 1.
+            Only used when `agent_type="remote_api"`.
+        openhands_runtime_class (`str`, *optional*): Runtime class for remote_api mode.
+            Default: "sysbox-runc".
+            Only used when `agent_type="remote_api"`.
+        **kwargs: Additional keyword arguments passed to `CodeAgent`.
+
+    Example:
+        >>> # Local container mode: agent manages container locally
+        >>> from smolagents import CustomCodeAgent, LiteLLMModel
+        >>> model = LiteLLMModel(model_id="gpt-4")
+        >>> agent = CustomCodeAgent(
+        ...     tools=[],
+        ...     model=model,
+        ...     is_code_executed_by_the_custom_agent=True,
+        ...     agent_type="local_container",
+        ...     openhands_agent_image="ghcr.io/openhands/agent-server:latest-python"
+        ... )
+        >>> result = agent.run("What is 2 + 2?")
+        >>>
+        >>> # Remote mode: connect to existing local container
+        >>> agent = CustomCodeAgent(
+        ...     tools=[],
+        ...     model=model,
+        ...     is_code_executed_by_the_custom_agent=True,
+        ...     agent_type="remote",
+        ...     openhands_agent_host="http://localhost:8010"
+        ... )
+        >>>
+        >>> # Remote API mode: connect to runtime API service
+        >>> agent = CustomCodeAgent(
+        ...     tools=[],
+        ...     model=model,
+        ...     is_code_executed_by_the_custom_agent=True,
+        ...     agent_type="remote_api",
+        ...     openhands_runtime_api_url="https://runtime.all-hands.dev",
+        ...     openhands_runtime_api_key="your-api-key",
+        ...     openhands_agent_image="ghcr.io/openhands/agent-server:latest-python"
+        ... )
+    """
+
+    def __init__(
+        self,
+        tools: list[Tool],
+        model: Model,
+        provider: str = "OpenHandsSDK",
+        is_code_executed_by_the_custom_agent: bool = False,
+        agent_type: str = "local_container",
+        stop_container_on_completion: bool = True,
+        delete_container_on_completion: bool = True,
+        openhands_agent_image: str | None = None,
+        openhands_agent_host: str | None = None,
+        openhands_agent_port: int | None = None,
+        openhands_agent_platform: str | None = None,
+        openhands_runtime_api_key: str | None = None,
+        openhands_runtime_api_url: str | None = None,
+        openhands_image_pull_policy: str = "IfNotPresent",
+        openhands_resource_factor: int = 1,
+        openhands_runtime_class: str | None = "sysbox-runc",
+        **kwargs,
+    ):
+        self.provider = provider
+        self.is_code_executed_by_the_custom_agent = is_code_executed_by_the_custom_agent
+        self.agent_type = agent_type
+        self.stop_container_on_completion = stop_container_on_completion
+        self.delete_container_on_completion = delete_container_on_completion
+        self.openhands_agent_image = openhands_agent_image
+        self.openhands_agent_host = openhands_agent_host
+        self.openhands_agent_port = openhands_agent_port
+        self.openhands_agent_platform = openhands_agent_platform
+        self.openhands_runtime_api_key = openhands_runtime_api_key
+        self.openhands_runtime_api_url = openhands_runtime_api_url
+        self.openhands_image_pull_policy = openhands_image_pull_policy
+        self.openhands_resource_factor = openhands_resource_factor
+        self.openhands_runtime_class = openhands_runtime_class
+
+        # Validate provider
+        if provider not in ["OpenHandsSDK"]:
+            raise ValueError(f"Unsupported provider: {provider}. Supported providers: OpenHandsSDK")
+
+        # Validate agent_type
+        if agent_type not in ["local_container", "remote", "remote_api"]:
+            raise ValueError(f"Invalid agent_type: {agent_type}. Must be 'local_container', 'remote', or 'remote_api'")
+
+        # Store the original model for config extraction
+        self._original_model = model
+
+        # Create provider-specific LLM wrapper
+        provider_model = self._create_provider_model_wrapper(model)
+
+        # Initialize parent with the wrapped model
+        super().__init__(tools=tools, model=provider_model, **kwargs)
+
+        # Initialize provider components for sandbox mode
+        self._openhands_workspace = None
+        self._openhands_agent = None
+        self._openhands_conversation = None
+
+        if self.is_code_executed_by_the_custom_agent:
+            if self.provider == "OpenHandsSDK":
+                self._initialize_openhands_sandbox()
+            else:
+                raise NotImplementedError(f"Sandbox mode not implemented for provider: {self.provider}")
+
+    def _create_provider_model_wrapper(self, model: Model) -> Model:
+        """Create a model wrapper that uses OpenHands SDK for LLM calls.
+
+        Args:
+            model: The original smolagents Model to extract configuration from.
+
+        Returns:
+            A Model instance that delegates LLM calls to OpenHands SDK.
+        """
+        try:
+            from openhands.sdk import LLM as OpenHandsLLM
+            from pydantic import SecretStr
+        except ImportError as e:
+            raise ImportError(
+                "OpenHands SDK is required for CustomCodeAgent. " "Please install it with: pip install openhands-sdk"
+            ) from e
+
+        # Extract configuration from the smolagents model
+        model_id = getattr(model, "model_id", "claude-sonnet-4-20250514")
+        api_key = getattr(model, "api_key", None)
+        api_base = getattr(model, "api_base", None)
+
+        # Create OpenHands LLM instance
+        openhands_llm_kwargs = {
+            "model": model_id,
+            "usage_id": "custom_code_agent",
+            "max_output_tokens": 4096,  # Reasonable limit to avoid context window issues
+        }
+        if api_key:
+            openhands_llm_kwargs["api_key"] = SecretStr(api_key) if isinstance(api_key, str) else api_key
+        if api_base:
+            openhands_llm_kwargs["base_url"] = api_base
+
+        openhands_llm = OpenHandsLLM(**openhands_llm_kwargs)
+
+        # Create and return wrapper model
+        return OpenHandsModelWrapper(openhands_llm=openhands_llm, original_model=model)
+
+    def _initialize_openhands_sandbox(self) -> None:
+        """Initialize OpenHands SDK components for sandboxed execution."""
+        try:
+            from openhands.sdk import Agent as OpenHandsAgent
+            from openhands.workspace import APIRemoteWorkspace, DockerWorkspace
+        except ImportError as e:
+            raise ImportError(
+                "OpenHands SDK with workspace support is required for sandbox mode. "
+                "Please install it with: pip install openhands-sdk openhands-workspace"
+            ) from e
+
+        # Get the OpenHands LLM from the wrapper
+        openhands_llm = self.model._openhands_llm
+
+        # Create workspace based on agent_type
+        if self.agent_type == "local_container":
+            # Local container mode: manage container lifecycle
+            if not self.openhands_agent_image:
+                raise ValueError("openhands_agent_image is required when agent_type='local_container'")
+
+            workspace_kwargs = {"server_image": self.openhands_agent_image}
+            if self.openhands_agent_platform:
+                workspace_kwargs["platform"] = self.openhands_agent_platform
+            else:
+                # Auto-detect platform
+                workspace_kwargs["platform"] = self._detect_platform()
+
+            self._openhands_workspace = DockerWorkspace(**workspace_kwargs)
+
+        elif self.agent_type == "remote":
+            # Remote mode: connect to existing local container
+            if not self.openhands_agent_host:
+                raise ValueError(
+                    "openhands_agent_host is required when agent_type='remote' " "(e.g., 'http://localhost:8010')"
+                )
+
+            # Create a RemoteWorkspace that connects to existing container
+            from openhands.sdk.workspace.remote import RemoteWorkspace
+
+            workspace_kwargs = {"host": self.openhands_agent_host, "working_dir": "/workspace"}
+            if self.openhands_runtime_api_key:
+                workspace_kwargs["api_key"] = self.openhands_runtime_api_key
+
+            self._openhands_workspace = RemoteWorkspace(**workspace_kwargs)
+
+        elif self.agent_type == "remote_api":
+            # Remote API mode: connect to runtime API service
+            if not self.openhands_runtime_api_url:
+                raise ValueError(
+                    "openhands_runtime_api_url is required when agent_type='remote_api' "
+                    "(e.g., 'https://runtime.all-hands.dev')"
+                )
+            if not self.openhands_runtime_api_key:
+                raise ValueError("openhands_runtime_api_key is required when agent_type='remote_api'")
+            if not self.openhands_agent_image:
+                raise ValueError(
+                    "openhands_agent_image is required when agent_type='remote_api' "
+                    "(must be publicly accessible or in a registry accessible by the runtime API)"
+                )
+
+            # Create an APIRemoteWorkspace that connects to runtime API service
+            workspace_kwargs = {
+                "runtime_api_url": self.openhands_runtime_api_url,
+                "runtime_api_key": self.openhands_runtime_api_key,
+                "server_image": self.openhands_agent_image,
+                "working_dir": "/workspace",
+            }
+
+            # Add optional parameters
+            if self.openhands_image_pull_policy:
+                workspace_kwargs["image_pull_policy"] = self.openhands_image_pull_policy
+            if self.openhands_resource_factor:
+                workspace_kwargs["resource_factor"] = self.openhands_resource_factor
+            if self.openhands_runtime_class:
+                workspace_kwargs["runtime_class"] = self.openhands_runtime_class
+
+            self._openhands_workspace = APIRemoteWorkspace(**workspace_kwargs)
+
+        # Create OpenHands agent configured for the appropriate mode
+        import yaml
+        from openhands.sdk import AgentContext
+        from openhands.sdk.tool import Tool
+        from openhands.tools.terminal import TerminalTool
+
+        # Load the appropriate prompt based on execution mode
+        prompt_dir = os.path.join(os.path.dirname(__file__), "prompts")
+
+        if self.is_code_executed_by_the_custom_agent:
+            # Mode 2: OpenHands generates AND executes code, returns final result
+            prompt_file = os.path.join(prompt_dir, "openhands_code_execution_mode.yaml")
+        else:
+            # Mode 1: OpenHands generates code, smolagents executes it locally
+            prompt_file = os.path.join(prompt_dir, "openhands_code_generation_mode.yaml")
+
+        # Load prompt from YAML file
+        with open(prompt_file, "r") as f:
+            prompt_config = yaml.safe_load(f)
+
+        system_message_suffix = prompt_config.get("system_message_suffix", "")
+
+        agent_context = AgentContext(system_message_suffix=system_message_suffix)
+
+        self._openhands_agent = OpenHandsAgent(
+            llm=openhands_llm,
+            tools=[Tool(name=TerminalTool.name)],
+            agent_context=agent_context,
+        )
+
+    def _detect_platform(self) -> str:
+        """Detect the correct Docker platform string."""
+        import platform
+
+        machine = platform.machine().lower()
+        if "arm" in machine or "aarch64" in machine:
+            return "linux/arm64"
+        return "linux/amd64"
+
+    def _step_stream(
+        self, memory_step: ActionStep
+    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput, None, None]:
+        """
+        Perform one step in the ReAct framework using custom provider.
+
+        When code execution by custom agent is disabled, this uses the custom provider for LLM calls
+        but smolagents' executor for code execution.
+
+        When code execution by custom agent is enabled, this delegates to the custom provider for
+        both code generation and execution in a sandboxed environment.
+        """
+        if self.is_code_executed_by_the_custom_agent:
+            if self.provider == "OpenHandsSDK":
+                yield from self._step_stream_with_openhands_sandbox(memory_step)
+            else:
+                raise NotImplementedError(f"Sandbox execution not implemented for provider: {self.provider}")
+        else:
+            # Use parent's implementation which will use our wrapped model
+            yield from super()._step_stream(memory_step)
+
+    def _step_stream_with_openhands_sandbox(
+        self, memory_step: ActionStep
+    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput, None, None]:
+        """Execute a step using OpenHands SDK's Docker-sandboxed execution.
+
+        In this mode, OpenHands generates AND executes code in the sandbox, then returns
+        the final result. smolagents should NOT re-execute the code.
+        """
+        from openhands.sdk import Conversation as OpenHandsConversation
+        from openhands.sdk.conversation.response_utils import get_agent_final_response
+
+        # Build the task from memory
+        task = self._build_task_from_memory()
+
+        # Create or reuse conversation
+        if not self._openhands_conversation:
+            self._openhands_conversation = OpenHandsConversation(
+                agent=self._openhands_agent,
+                workspace=self._openhands_workspace,
+                max_iteration_per_run=10,  # Allow multiple iterations to complete the task
+            )
+
+        # Send the task and run until completion
+        self._openhands_conversation.send_message(task)
+        self._openhands_conversation.run()
+
+        # Get the conversation history to extract the final result
+        events = self._openhands_conversation.state.events
+
+        # Use OpenHands SDK's utility function to extract the final response
+        # This properly handles both finish tool calls and message events
+        final_result = get_agent_final_response(events)
+
+        # If we found a result, yield it as the final answer
+        if final_result and final_result.strip():
+            memory_step.observations = final_result
+            yield ActionOutput(output=final_result, is_final_answer=True)
+        else:
+            # No result found - yield a generic message
+            error_msg = "OpenHands completed but no result was found."
+            memory_step.observations = error_msg
+            yield ActionOutput(output=error_msg, is_final_answer=True)
+
+    def _build_task_from_memory(self) -> str:
+        """Build a task string from the current memory state."""
+        messages = self.write_memory_to_messages()
+        # Extract the last user message as the task
+        for msg in reversed(messages):
+            if hasattr(msg, "role") and msg.role == MessageRole.USER:
+                if isinstance(msg.content, str):
+                    return msg.content
+                elif isinstance(msg.content, list):
+                    # Extract text from content list
+                    texts = [c.get("text", "") for c in msg.content if isinstance(c, dict)]
+                    return " ".join(texts)
+        return ""
+
+    def _check_if_final_answer(self, observation: str) -> bool:
+        """Check if the observation indicates a final answer."""
+        # Check for common final answer patterns
+        final_patterns = ["final_answer(", "Final Answer:", "FINAL ANSWER"]
+        return any(pattern.lower() in observation.lower() for pattern in final_patterns)
+
+    def cleanup(self) -> None:
+        """Clean up resources including provider-specific components.
+
+        In local_container mode, this stops and removes the Docker container based on
+        stop_container_on_completion and delete_container_on_completion settings.
+        In remote mode, this only closes the conversation (container remains running).
+        In remote_api mode, this delegates cleanup to APIRemoteWorkspace which handles
+        stopping/pausing the remote runtime based on its configuration.
+        """
+        super().cleanup()
+
+        # Close conversation if it exists
+        if self._openhands_conversation:
+            try:
+                self._openhands_conversation.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
+            self._openhands_conversation = None
+
+        # Clean up workspace
+        if self._openhands_workspace:
+            if self.agent_type == "local_container":
+                # Local container mode: cleanup based on configuration
+                try:
+                    if hasattr(self._openhands_workspace, "_container_id") and self._openhands_workspace._container_id:
+                        import subprocess
+
+                        container_id = self._openhands_workspace._container_id
+
+                        # Stop logs streaming first
+                        if hasattr(self._openhands_workspace, "_stop_logs"):
+                            self._openhands_workspace._stop_logs.set()
+                        if (
+                            hasattr(self._openhands_workspace, "_logs_thread")
+                            and self._openhands_workspace._logs_thread
+                        ):
+                            if self._openhands_workspace._logs_thread.is_alive():
+                                self._openhands_workspace._logs_thread.join(timeout=2)
+
+                        if self.stop_container_on_completion:
+                            subprocess.run(["docker", "stop", container_id], check=False, capture_output=True)
+
+                        if self.delete_container_on_completion:
+                            # Note: docker stop may already trigger container removal in some configurations
+                            # We ignore errors here as the container may already be removed
+                            subprocess.run(["docker", "rm", container_id], check=False, capture_output=True)
+
+                        # Clear the container ID if we stopped or deleted it
+                        if self.stop_container_on_completion or self.delete_container_on_completion:
+                            self._openhands_workspace._container_id = None
+                except Exception:
+                    pass  # Ignore errors during cleanup
+            elif self.agent_type == "remote_api":
+                # Remote API mode: delegate cleanup to APIRemoteWorkspace
+                # APIRemoteWorkspace has its own cleanup logic that handles stopping/pausing
+                # the remote runtime based on keep_alive and pause_on_close settings
+                try:
+                    self._openhands_workspace.cleanup()
+                except Exception:
+                    pass  # Ignore errors during cleanup
+            # Remote mode: workspace cleanup doesn't affect the container
+            self._openhands_workspace = None
+
+
+class OpenHandsModelWrapper(Model):
+    """A smolagents Model wrapper that delegates LLM calls to OpenHands SDK.
+
+    This wrapper maintains the smolagents Model interface while routing all
+    LLM calls through the OpenHands SDK's LLM class.
+    """
+
+    def __init__(self, openhands_llm, original_model: Model):
+        """Initialize the wrapper.
+
+        Args:
+            openhands_llm: The OpenHands LLM instance to delegate calls to.
+            original_model: The original smolagents Model for fallback/config.
+        """
+        self._openhands_llm = openhands_llm
+        self._original_model = original_model
+        # Copy attributes from original model
+        self.model_id = getattr(original_model, "model_id", "unknown")
+
+    def generate(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """Generate a response using OpenHands SDK.
+
+        Args:
+            messages: List of chat messages.
+            stop_sequences: Optional stop sequences (currently unused).
+            response_format: Optional response format specification (currently unused).
+            tools_to_call_from: Optional list of tools (currently unused).
+            **kwargs: Additional arguments (currently unused).
+
+        Returns:
+            ChatMessage with the generated response.
+        """
+        # Suppress unused parameter warnings - these are part of the interface
+        _ = stop_sequences, response_format, tools_to_call_from, kwargs
+
+        # Convert smolagents messages to OpenHands format
+        oh_messages = self._convert_messages_to_openhands(messages)
+
+        # Make the LLM call through OpenHands SDK
+        response = self._openhands_llm.completion(messages=oh_messages)
+
+        # Convert response back to smolagents format
+        return self._convert_response_to_smolagents(response)
+
+    def _convert_messages_to_openhands(self, messages: list) -> list:
+        """Convert smolagents messages to OpenHands format.
+
+        OpenHands only supports roles: 'user', 'system', 'assistant', 'tool'
+        SmolAgents has additional roles: 'tool-call', 'tool-response'
+        We convert these to OpenHands-compatible roles.
+        """
+        from openhands.sdk.llm import Message as OpenHandsMessage
+        from openhands.sdk.llm import TextContent
+
+        # Role conversion mapping: SmolAgents -> OpenHands
+        role_conversions = {
+            "tool-call": "assistant",  # Tool calls are made by the assistant
+            "tool-response": "user",   # Tool responses come back as user messages
+        }
+
+        oh_messages = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+            else:
+                role = getattr(msg, "role", "user")
+                if hasattr(role, "value"):
+                    role = role.value
+                content = getattr(msg, "content", "")
+
+            # Convert SmolAgents roles to OpenHands-compatible roles
+            role = role_conversions.get(role, role)
+
+            # Validate role is one of the OpenHands-supported roles
+            valid_roles = {"user", "system", "assistant", "tool"}
+            if role not in valid_roles:
+                # Default to 'user' for unknown roles
+                role = "user"
+
+            # Handle content that might be a list
+            if isinstance(content, list):
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict) and "text" in item:
+                        text_parts.append(item["text"])
+                    elif isinstance(item, str):
+                        text_parts.append(item)
+                content = " ".join(text_parts)
+
+            oh_messages.append(
+                OpenHandsMessage(
+                    role=role,  # type: ignore[arg-type]
+                    content=[TextContent(text=str(content))],
+                )
+            )
+        return oh_messages
+
+    def _convert_response_to_smolagents(self, response) -> ChatMessage:
+        """Convert OpenHands response to smolagents ChatMessage."""
+        # Extract content from OpenHands response
+        message = response.message
+        content_parts = []
+        for c in message.content:
+            if hasattr(c, "text"):
+                content_parts.append(c.text)
+        content = "".join(content_parts)
+
+        # Build token usage if available
+        token_usage = None
+        if hasattr(response, "usage") and response.usage:
+            token_usage = TokenUsage(
+                input_tokens=getattr(response.usage, "prompt_tokens", 0),
+                output_tokens=getattr(response.usage, "completion_tokens", 0),
+            )
+
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=content,
+            token_usage=token_usage,
+        )
