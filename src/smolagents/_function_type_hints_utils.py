@@ -43,6 +43,118 @@ IMPORT_TO_PACKAGE_MAPPING = {
 }
 
 
+def _get_pydantic():
+    """Lazy import of pydantic to avoid hard dependency."""
+    try:
+        import pydantic
+
+        return pydantic
+    except ImportError as e:
+        raise ImportError(
+            "Pydantic is required to use Pydantic models in tools. Please install it with: pip install pydantic"
+        ) from e
+
+
+def _is_pydantic_model(type_hint: type) -> bool:
+    """
+    Check if a type hint represents a Pydantic BaseModel.
+
+    Args:
+        type_hint: The type to check
+
+    Returns:
+        bool: True if the type is a Pydantic BaseModel, False otherwise
+    """
+    try:
+        pydantic = _get_pydantic()
+        return inspect.isclass(type_hint) and issubclass(type_hint, pydantic.BaseModel)
+    except ImportError:
+        return False
+
+
+def _process_pydantic_schema(schema: dict) -> dict:
+    """Process a Pydantic JSON schema to make it compatible with smolagents.
+
+    This consists in:
+        - resolving $ref fields
+        - creating 'nullable' attributes for 'required' parameters
+    """
+    # Make a copy to avoid modifying the original
+    processed_schema = copy(schema)
+
+    # Get definitions if they exist
+    definitions = schema.get("$defs", {})
+
+    def resolve_refs(obj, visited_refs=None):
+        """Recursively resolve $ref references in the schema with circular reference detection."""
+        if visited_refs is None:
+            visited_refs = set()
+
+        if isinstance(obj, dict):
+            if "$ref" in obj:
+                # Extract the reference path
+                ref_path = obj["$ref"]
+                if ref_path.startswith("#/$defs/"):
+                    def_name = ref_path.split("/")[-1]
+
+                    # Check for circular reference
+                    if def_name in visited_refs:
+                        raise ValueError(
+                            f"Circular reference detected in schema: '{def_name}' references itself. "
+                            "Circular/recursive Pydantic models are not supported."
+                        )
+
+                    if def_name in definitions:
+                        # Add to visited set to detect circularity
+                        new_visited = visited_refs | {def_name}
+                        # Replace the $ref with the actual definition
+                        resolved = resolve_refs(definitions[def_name], new_visited)
+                        return resolved
+                # If we cannot resolve the ref, return the object as is
+                return obj
+            else:
+                # Recursively process all values in the dictionary
+                return {k: resolve_refs(v, visited_refs) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            # Recursively process all items in the list
+            return [resolve_refs(item, visited_refs) for item in obj]
+        else:
+            # Return primitive values as-is
+            return obj
+
+    # Resolve all $refs in the schema
+    processed_schema = resolve_refs(processed_schema)
+
+    # Align nullable flags with required lists recursively
+    def align_nullable_with_required(obj):
+        if isinstance(obj, dict):
+            props = obj.get("properties")
+            if obj.get("type") == "object" and isinstance(props, dict):
+                required = set(obj.get("required", []))
+                for name, schema in props.items():
+                    if isinstance(schema, dict):
+                        # Only set nullable when True; omit when False
+                        if name not in required:
+                            schema["nullable"] = True
+                        else:
+                            schema.pop("nullable", None)
+                        align_nullable_with_required(schema)
+            else:
+                for v in obj.values():
+                    align_nullable_with_required(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                align_nullable_with_required(item)
+
+    align_nullable_with_required(processed_schema)
+
+    # Remove $defs since we have inlined everything
+    if "$defs" in processed_schema:
+        del processed_schema["$defs"]
+
+    return processed_schema
+
+
 def get_package_name(import_name: str) -> str:
     """
     Return the package name for a given import name.
@@ -303,10 +415,17 @@ def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hin
         if param_name not in properties:
             properties[param_name] = {}
 
-        if param.default == inspect.Parameter.empty:
-            required.append(param_name)
+        # Determine if the parameter is required (no default value)
+        has_default = param.default != inspect.Parameter.empty
+
+        if has_default:
+            # Mark as nullable iff the parameter has a default
+            parameter_properties = properties.get(param_name, {})
+            parameter_properties["nullable"] = True
+            properties[param_name] = parameter_properties
         else:
-            properties[param_name]["nullable"] = True
+            # Required parameter - add to required list
+            required.append(param_name)
 
     # Return: multi‐type union -> treat as any
     if (
@@ -328,6 +447,13 @@ def _parse_type_hint(hint: type) -> dict:
     args = get_args(hint)
 
     if origin is None:
+        # Check if this is a Pydantic model before falling back to regular type parsing
+        if _is_pydantic_model(hint):
+            # Get the Pydantic schema and process it
+            pydantic_schema = hint.model_json_schema()
+            processed_schema = _process_pydantic_schema(pydantic_schema)
+            return processed_schema
+
         try:
             return _get_json_schema_type(hint)
         except KeyError:
@@ -377,7 +503,6 @@ def _parse_type_hint(hint: type) -> dict:
         literal_types = set(type(arg) for arg in args)
         final_type = _parse_union_type(literal_types)
 
-        # None literal value is represented by 'nullable' field set by _parse_union_type
         final_type.update({"enum": [arg for arg in args if arg is not None]})
         return final_type
 
@@ -385,7 +510,7 @@ def _parse_type_hint(hint: type) -> dict:
 
 
 def _parse_union_type(args: tuple[Any, ...]) -> dict:
-    subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
+    subtypes = [_parse_type_hint(t) for t in args]
     if len(subtypes) == 1:
         # A single non-null type can be expressed directly
         return_dict = subtypes[0]
@@ -395,8 +520,6 @@ def _parse_union_type(args: tuple[Any, ...]) -> dict:
     else:
         # A union of more complex types requires "anyOf"
         return_dict = {"anyOf": subtypes}
-    if type(None) in args:
-        return_dict["nullable"] = True
     return return_dict
 
 
