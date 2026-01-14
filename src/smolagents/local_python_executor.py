@@ -1568,7 +1568,6 @@ class FinalAnswerException(Exception):
         self.value = value
 
 
-@timeout(MAX_EXECUTION_TIME_SECONDS)
 def evaluate_python_code(
     code: str,
     static_tools: dict[str, Callable] | None = None,
@@ -1576,6 +1575,7 @@ def evaluate_python_code(
     state: dict[str, Any] | None = None,
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
     max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
+    timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
 ):
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
@@ -1596,6 +1596,8 @@ def evaluate_python_code(
             A dictionary mapping variable names to values. The `state` should contain the initial inputs but will be
             updated by this function to contain all variables as they are evaluated.
             The print outputs will be stored in the state under the key "_print_outputs".
+        timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
+            Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
     """
     try:
         expression = ast.parse(code)
