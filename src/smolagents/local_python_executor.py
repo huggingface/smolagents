@@ -1689,6 +1689,8 @@ class LocalPythonExecutor(PythonExecutor):
             Maximum length of the print outputs.
         additional_functions (`dict[str, Callable]`, *optional*):
             Additional Python functions to be added to the executor.
+        timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
+            Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
     """
 
     def __init__(
@@ -1696,6 +1698,7 @@ class LocalPythonExecutor(PythonExecutor):
         additional_authorized_imports: list[str],
         max_print_outputs_length: int | None = None,
         additional_functions: dict[str, Callable] | None = None,
+        timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
     ):
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}
@@ -1707,6 +1710,7 @@ class LocalPythonExecutor(PythonExecutor):
         self._check_authorized_imports_are_installed()
         self.static_tools = None
         self.additional_functions = additional_functions or {}
+        self.timeout_seconds = timeout_seconds
 
     def _check_authorized_imports_are_installed(self):
         """
@@ -1736,6 +1740,7 @@ class LocalPythonExecutor(PythonExecutor):
             state=self.state,
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
+            timeout_seconds=self.timeout_seconds,
         )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
