@@ -6,49 +6,49 @@
     title: Options d'installation
   - local: guided_tour
     title: Visite guidée
-- title: Tutoriels
-  sections:
-  - local: tutorials/building_good_agents
-    title: ✨ Créer de bons agents
-  - local: tutorials/inspect_runs
-    title: 📊 Inspecter les exécutions d'agents avec la télémétrie
-  - local: tutorials/tools
-    title: 🛠️ Outils - guide approfondi
-  - local: tutorials/secure_code_execution
-    title: 🛡️ Exécution de code sécurisée
-  - local: tutorials/memory
-    title: 📚 Gérer la mémoire de votre agent
-- title: Guides conceptuels
-  sections:
-  - local: conceptual_guides/intro_agents
-    title: 🤖 Qu'est‑ce qu'un agent&nbsp;?
-  - local: conceptual_guides/react
-    title: 🤔 Comment fonctionnent les agents multi‑étapes&nbsp;?
-- title: Exemples
-  sections:
-  - local: examples/text_to_sql
-    title: Text-to-SQL auto‑correctif
-  - local: examples/rag
-    title: Maîtriser votre base de connaissances avec un RAG agentique
-  - local: examples/multiagents
-    title: Orchestrer un système multi‑agents
-  - local: examples/web_browser
-    title: Construire un agent navigateur web avec des modèles de vision
-  - local: examples/using_different_models
-    title: Utiliser différents modèles
-  - local: examples/plan_customization
-    title: "Human-in-the-Loop : personnaliser le plan de l'agent de manière interactive"
-  - local: examples/async_agent
-    title: Applications asynchrones avec des agents
-- title: Référence
-  sections:
-  - local: reference/agents
-    title: Objets liés aux agents
-  - local: reference/models
-    title: Objets liés aux modèles
-  - title: Outils
-    sections:
-    - title: Objets liés aux outils
-      local: reference/tools
-    - title: Outils intégrés
-      local: reference/default_tools
+# - title: Tutoriels
+#   sections:
+#   - local: tutorials/building_good_agents
+#     title: ✨ Créer de bons agents
+#   - local: tutorials/inspect_runs
+#     title: 📊 Inspecter les exécutions d'agents avec la télémétrie
+#   - local: tutorials/tools
+#     title: 🛠️ Outils - guide approfondi
+#   - local: tutorials/secure_code_execution
+#     title: 🛡️ Exécution de code sécurisée
+#   - local: tutorials/memory
+#     title: 📚 Gérer la mémoire de votre agent
+# - title: Guides conceptuels
+#   sections:
+#   - local: conceptual_guides/intro_agents
+#     title: 🤖 Qu'est‑ce qu'un agent&nbsp;?
+#   - local: conceptual_guides/react
+#     title: 🤔 Comment fonctionnent les agents multi‑étapes&nbsp;?
+# - title: Exemples
+#   sections:
+#   - local: examples/text_to_sql
+#     title: Text-to-SQL auto‑correctif
+#   - local: examples/rag
+#     title: Maîtriser votre base de connaissances avec un RAG agentique
+#   - local: examples/multiagents
+#     title: Orchestrer un système multi‑agents
+#   - local: examples/web_browser
+#     title: Construire un agent navigateur web avec des modèles de vision
+#   - local: examples/using_different_models
+#     title: Utiliser différents modèles
+#   - local: examples/plan_customization
+#     title: "Human-in-the-Loop : personnaliser le plan de l'agent de manière interactive"
+#   - local: examples/async_agent
+#     title: Applications asynchrones avec des agents
+# - title: Référence
+#   sections:
+#   - local: reference/agents
+#     title: Objets liés aux agents
+#   - local: reference/models
+#     title: Objets liés aux modèles
+#   - title: Outils
+#     sections:
+#     - title: Objets liés aux outils
+#       local: reference/tools
+#     - title: Outils intégrés
+#       local: reference/default_tools
