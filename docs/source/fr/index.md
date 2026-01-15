@@ -4,7 +4,7 @@
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/license_to_call.png" style="max-width:700px"/>
 </div>
 
-## Qu'est ce que Smolagents?
+## Qu'est-ce que Smolagents ?
 
 `smolagents` est une bibliothèque Python open source conçue pour rendre la création et l'exécution d'agents extrêmement simple, avec seulement quelques lignes de code.
 
