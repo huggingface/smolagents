@@ -12,6 +12,7 @@ env:
 jobs:
   build-ubuntu:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       UV_HTTP_TIMEOUT: 600 # max 10min to install deps
 
