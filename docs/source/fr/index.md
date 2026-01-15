@@ -4,7 +4,7 @@
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/license_to_call.png" style="max-width:700px"/>
 </div>
 
-## Qu'est ce que Smolagents?
+## Qu'est-ce que Smolagents ?
 
 `smolagents` est une bibliothèque Python open source conçue pour rendre la création et l'exécution d'agents extrêmement simple, avec seulement quelques lignes de code.
 
@@ -35,12 +35,6 @@ Commencez avec smolagents en quelques minutes ! Ce guide vous montre comment cr�
 ### Installation
 
 Installez smolagents avec pip :
-
-Get started with smolagents in just a few minutes! This guide will show you how to create and run your first agent.
-
-### Installation
-
-Install smolagents with pip:
 
 ```bash
 pip install 'smolagents[toolkit]'  # Includes default tools like web search
