@@ -36,12 +36,6 @@ Commencez avec smolagents en quelques minutes ! Ce guide vous montre comment cr√
 
 Installez smolagents avec pip :
 
-Get started with smolagents in just a few minutes! This guide will show you how to create and run your first agent.
-
-### Installation
-
-Install smolagents with pip:
-
 ```bash
 pip install 'smolagents[toolkit]'  # Includes default tools like web search
 ```
