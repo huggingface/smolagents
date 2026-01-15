@@ -1,6 +1,6 @@
 # Options d'installation
 
-La librairie `smolagents` peut être installée en utilisant pip. Voici quelques méthodes d'installation et options différentes.
+La bibliothèque `smolagents` peut être installée en utilisant pip. Voici quelques méthodes d'installation et options différentes.
 
 ## Prérequis
 - Python 3.10 ou plus récent
