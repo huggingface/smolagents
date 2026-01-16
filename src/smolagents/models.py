@@ -133,7 +133,14 @@ class ChatMessage:
             return
         self.tool_calls = [_coerce_tool_call(tool_call) for tool_call in self.tool_calls]
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "tool_calls" and value is not None:
+            value = [_coerce_tool_call(tool_call) for tool_call in value]
+        object.__setattr__(self, name, value)
+
     def model_dump_json(self):
+        if self.tool_calls is not None:
+            self.tool_calls = [_coerce_tool_call(tool_call) for tool_call in self.tool_calls]
         return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
 
     @classmethod
