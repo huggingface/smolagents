@@ -57,7 +57,6 @@ from .memory import (
     SystemPromptStep,
     TaskStep,
     Timing,
-    TokenUsage,
     ToolCall,
 )
 from .models import (
@@ -75,6 +74,7 @@ from .monitoring import (
     AgentLogger,
     LogLevel,
     Monitor,
+    TokenUsage,
 )
 from .remote_executors import BlaxelExecutor, DockerExecutor, E2BExecutor, ModalExecutor, WasmExecutor
 from .tools import BaseTool, Tool, validate_tool_arguments
