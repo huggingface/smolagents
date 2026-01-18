@@ -21,14 +21,6 @@ import pytest
 from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.default_tools import FinalAnswerTool
-from smolagents.formats import (
-    ChatMessage,
-    ChatMessageToolCall,
-    MessageRole,
-    get_clean_message_list,
-    get_tool_call_from_text,
-    parse_json_if_needed,
-)
 from smolagents.models import (
     AmazonBedrockModel,
     AzureOpenAIModel,
@@ -42,6 +34,14 @@ from smolagents.models import (
     get_tool_json_schema,
     remove_content_after_stop_sequences,
     supports_stop_parameter,
+)
+from smolagents.models.formats import (
+    ChatMessage,
+    ChatMessageToolCall,
+    MessageRole,
+    get_clean_message_list,
+    get_tool_call_from_text,
+    parse_json_if_needed,
 )
 from smolagents.tools import tool
 
@@ -80,7 +80,7 @@ class TestModel:
         assert completion_kwargs["top_p"] == 0.8
 
     def test_agglomerate_stream_deltas(self):
-        from smolagents.formats import (
+        from smolagents.models.formats import (
             ChatMessageStreamDelta,
             ChatMessageToolCallFunction,
             ChatMessageToolCallStreamDelta,

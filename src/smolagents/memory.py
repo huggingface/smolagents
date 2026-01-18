@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Callable, Type
 
-from smolagents.formats import ChatMessage, MessageRole, get_dict_from_nested_dataclasses
+from smolagents.models.formats import ChatMessage, MessageRole, get_dict_from_nested_dataclasses
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.utils import AgentError, make_json_serializable
 
@@ -11,7 +11,7 @@ from smolagents.utils import AgentError, make_json_serializable
 if TYPE_CHECKING:
     import PIL.Image
 
-    from smolagents.formats import ChatMessage
+    from smolagents.models.formats import ChatMessage
     from smolagents.monitoring import AgentLogger
 
 

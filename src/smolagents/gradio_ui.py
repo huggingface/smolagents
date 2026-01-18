@@ -21,8 +21,8 @@ from typing import Generator
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
-from smolagents.formats import ChatMessageStreamDelta, MessageRole, agglomerate_stream_deltas
 from smolagents.memory import ActionStep, FinalAnswerStep
+from smolagents.models.formats import ChatMessageStreamDelta, MessageRole, agglomerate_stream_deltas
 from smolagents.utils import _is_package_available
 
 

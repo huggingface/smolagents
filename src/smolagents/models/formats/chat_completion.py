@@ -25,8 +25,8 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any
 
-from ..monitoring import TokenUsage
-from ..utils import encode_image_base64, make_image_url, parse_json_blob
+from ...monitoring import TokenUsage
+from ...utils import encode_image_base64, make_image_url, parse_json_blob
 
 
 def get_dict_from_nested_dataclasses(obj, ignore_key=None):

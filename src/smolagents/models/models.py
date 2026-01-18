@@ -20,7 +20,10 @@ from copy import deepcopy
 from threading import Thread
 from typing import TYPE_CHECKING, Any
 
-from ..formats import (
+from ..monitoring import TokenUsage
+from ..tools import Tool
+from ..utils import RateLimiter, Retrying, _is_package_available
+from .formats import (
     ChatMessage,
     ChatMessageStreamDelta,
     ChatMessageToolCallStreamDelta,
@@ -30,9 +33,6 @@ from ..formats import (
     parse_json_if_needed,
     tool_role_conversions,
 )
-from ..monitoring import TokenUsage
-from ..tools import Tool
-from ..utils import RateLimiter, Retrying, _is_package_available
 
 
 if TYPE_CHECKING:
