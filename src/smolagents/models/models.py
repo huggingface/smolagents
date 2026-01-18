@@ -26,9 +26,13 @@ from ..utils import RateLimiter, Retrying, _is_package_available
 from .formats import (
     ChatMessage,
     ChatMessageStreamDelta,
+    ChatMessageToolCall,
+    ChatMessageToolCallFunction,
     ChatMessageToolCallStreamDelta,
     MessageRole,
+    agglomerate_stream_deltas,
     get_clean_message_list,
+    get_dict_from_nested_dataclasses,
     get_tool_call_from_text,
     parse_json_if_needed,
     tool_role_conversions,
@@ -1780,11 +1784,13 @@ class AmazonBedrockModel(ApiModel):
 AmazonBedrockServerModel = AmazonBedrockModel
 
 __all__ = [
+    # Model-specific constants and utilities
     "CODEAGENT_RESPONSE_FORMAT",
     "REMOVE_PARAMETER",
-    "MessageRole",
-    "tool_role_conversions",
-    "get_clean_message_list",
+    "get_tool_json_schema",
+    "remove_content_after_stop_sequences",
+    "supports_stop_parameter",
+    # Model classes
     "Model",
     "MLXModel",
     "TransformersModel",
@@ -1799,8 +1805,17 @@ __all__ = [
     "AzureOpenAIModel",
     "AmazonBedrockServerModel",
     "AmazonBedrockModel",
+    # Format classes (re-exported for backward compatibility)
     "ChatMessage",
-    "get_tool_json_schema",
-    "remove_content_after_stop_sequences",
-    "supports_stop_parameter",
+    "ChatMessageStreamDelta",
+    "ChatMessageToolCall",
+    "ChatMessageToolCallFunction",
+    "ChatMessageToolCallStreamDelta",
+    "MessageRole",
+    "agglomerate_stream_deltas",
+    "get_clean_message_list",
+    "get_dict_from_nested_dataclasses",
+    "get_tool_call_from_text",
+    "parse_json_if_needed",
+    "tool_role_conversions",
 ]
