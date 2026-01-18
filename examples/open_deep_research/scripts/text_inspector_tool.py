@@ -30,7 +30,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         self.md_converter = MarkdownConverter()
 
     def forward_initial_exam_mode(self, file_path, question):
-        from smolagents.models.formats import MessageRole
+        from smolagents.models import MessageRole
 
         result = self.md_converter.convert(file_path)
 
@@ -74,7 +74,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         return self.model(messages).content
 
     def forward(self, file_path, question: str | None = None) -> str:
-        from smolagents.models.formats import MessageRole
+        from smolagents.models import MessageRole
 
         result = self.md_converter.convert(file_path)
 
