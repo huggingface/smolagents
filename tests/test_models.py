@@ -436,7 +436,7 @@ class TestLiteLLMModel:
         mock_litellm = MagicMock()
 
         with (
-            patch("smolagents.models.models.RETRY_WAIT", 0.1),
+            patch("smolagents.models.RETRY_WAIT", 0.1),
             patch("smolagents.utils.random.random", side_effect=[0.1, 0.1]),
             patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
         ):
