@@ -21,23 +21,25 @@ import pytest
 from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.default_tools import FinalAnswerTool
+from smolagents.formats import (
+    ChatMessage,
+    ChatMessageToolCall,
+    MessageRole,
+    get_clean_message_list,
+    get_tool_call_from_text,
+    parse_json_if_needed,
+)
 from smolagents.models import (
     AmazonBedrockModel,
     AzureOpenAIModel,
-    ChatMessage,
-    ChatMessageToolCall,
     InferenceClientModel,
     LiteLLMModel,
     LiteLLMRouterModel,
-    MessageRole,
     MLXModel,
     Model,
     OpenAIModel,
     TransformersModel,
-    get_clean_message_list,
-    get_tool_call_from_text,
     get_tool_json_schema,
-    parse_json_if_needed,
     remove_content_after_stop_sequences,
     supports_stop_parameter,
 )
@@ -78,13 +80,13 @@ class TestModel:
         assert completion_kwargs["top_p"] == 0.8
 
     def test_agglomerate_stream_deltas(self):
-        from smolagents.models import (
+        from smolagents.formats import (
             ChatMessageStreamDelta,
             ChatMessageToolCallFunction,
             ChatMessageToolCallStreamDelta,
-            TokenUsage,
             agglomerate_stream_deltas,
         )
+        from smolagents.monitoring import TokenUsage
 
         stream_deltas = [
             ChatMessageStreamDelta(
@@ -784,7 +786,7 @@ def test_get_clean_message_list_image_encoding(convert_images_to_image_urls, exp
         role=MessageRole.USER,
         content=[{"type": "image", "image": b"image_data"}, {"type": "image", "image": b"second_image_data"}],
     )
-    with patch("smolagents.models.encode_image_base64") as mock_encode:
+    with patch("smolagents.formats.chat_completion.encode_image_base64") as mock_encode:
         mock_encode.side_effect = ["encoded_image", "second_encoded_image"]
         result = get_clean_message_list([message], convert_images_to_image_urls=convert_images_to_image_urls)
         mock_encode.assert_any_call(b"image_data")

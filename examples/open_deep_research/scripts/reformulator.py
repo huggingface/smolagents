@@ -2,7 +2,8 @@
 # https://github.com/microsoft/autogen/blob/gaia_multiagent_v01_march_1st/autogen/browser_utils.py
 import copy
 
-from smolagents.models import MessageRole, Model
+from smolagents.formats import MessageRole
+from smolagents.models import Model
 
 
 def prepare_response(original_task: str, inner_messages, reformulation_model: Model) -> str:

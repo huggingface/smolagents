@@ -49,6 +49,12 @@ from smolagents.agents import (
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.formats import (
+    ChatMessage,
+    ChatMessageToolCall,
+    ChatMessageToolCallFunction,
+    MessageRole,
+)
 from smolagents.memory import (
     ActionStep,
     CallbackRegistry,
@@ -58,15 +64,7 @@ from smolagents.memory import (
     SystemPromptStep,
     TaskStep,
 )
-from smolagents.models import (
-    ChatMessage,
-    ChatMessageToolCall,
-    ChatMessageToolCallFunction,
-    InferenceClientModel,
-    MessageRole,
-    Model,
-    TransformersModel,
-)
+from smolagents.models import InferenceClientModel, Model, TransformersModel
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.tools import Tool, tool
 from smolagents.utils import (

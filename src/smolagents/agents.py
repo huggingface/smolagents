@@ -46,6 +46,14 @@ if TYPE_CHECKING:
 
 from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
+from .formats import (
+    ChatMessage,
+    ChatMessageStreamDelta,
+    ChatMessageToolCall,
+    MessageRole,
+    agglomerate_stream_deltas,
+    parse_json_if_needed,
+)
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import (
     ActionStep,
@@ -60,16 +68,7 @@ from .memory import (
     TokenUsage,
     ToolCall,
 )
-from .models import (
-    CODEAGENT_RESPONSE_FORMAT,
-    ChatMessage,
-    ChatMessageStreamDelta,
-    ChatMessageToolCall,
-    MessageRole,
-    Model,
-    agglomerate_stream_deltas,
-    parse_json_if_needed,
-)
+from .models import CODEAGENT_RESPONSE_FORMAT, Model
 from .monitoring import (
     YELLOW_HEX,
     AgentLogger,
