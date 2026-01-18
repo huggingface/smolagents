@@ -30,9 +30,8 @@ from smolagents.models import (
     ChatMessageToolCallFunction,
     MessageRole,
     Model,
-    TokenUsage,
 )
-from smolagents.monitoring import AgentLogger
+from smolagents.monitoring import AgentLogger, TokenUsage
 
 
 class FakeLLMModel(Model):
