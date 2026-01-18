@@ -2212,13 +2212,15 @@ print("Ok, calculation done!")""")
 
     @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10", "v1.20"])
     def test_from_folder(self, agent_dict_version, get_agent_dict):
+        import json
+
+        import smolagents.models as models_module
+
         agent_dict = get_agent_dict(agent_dict_version)
         with (
             patch("smolagents.agents.Path") as mock_path,
-            patch("smolagents.models.InferenceClientModel") as mock_model,
+            patch.object(models_module, "InferenceClientModel") as mock_model,
         ):
-            import json
-
             mock_path.return_value.__truediv__.return_value.read_text.return_value = json.dumps(agent_dict)
             mock_model.from_dict.return_value.model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
             agent = CodeAgent.from_folder("ignored_dummy_folder")
@@ -2284,13 +2286,13 @@ print("Ok, calculation done!")""")
             "managed_agents": {},
         }
 
-        with patch("smolagents.models.InferenceClientModel"):
+        with patch("smolagents.models.InferenceClientModel") as mock_model_class:
             agent = CodeAgent.from_dict(minimal_agent_dict)
         # Verify defaults are used
         assert agent.max_steps == 20  # default from MultiStepAgent.__init__
 
         # Test overriding with kwargs
-        with patch("smolagents.models.InferenceClientModel"):
+        with patch("smolagents.models.InferenceClientModel") as mock_model_class:
             agent = CodeAgent.from_dict(
                 agent_dict,
                 additional_authorized_imports=["requests"],
