@@ -1786,3 +1786,13 @@ class CodeAgent(MultiStepAgent):
         code_agent_kwargs.update(kwargs)
         # Call the parent class's from_dict method
         return super().from_dict(agent_dict, **code_agent_kwargs)
+
+
+# Agent Registry for secure deserialization
+# This registry maps agent class names to their actual classes.
+# Only classes listed here can be instantiated during deserialization (from_dict/from_folder).
+# This prevents arbitrary code execution via importlib-based dynamic loading.
+AGENT_REGISTRY = {
+    "ToolCallingAgent": ToolCallingAgent,
+    "CodeAgent": CodeAgent,
+}
