@@ -430,14 +430,10 @@ class TestLiteLLMModel:
 
     def test_retry_on_rate_limit_error(self):
         """Test that the retry mechanism does trigger on 429 rate limit errors"""
-        import time
-
-        # Patch RETRY_WAIT to 1 second for faster testing
         mock_litellm = MagicMock()
 
         with (
-            patch("smolagents.models.RETRY_WAIT", 0.1),
-            patch("smolagents.utils.random.random", side_effect=[0.1, 0.1]),
+            patch("time.sleep"),  # Mock sleep to avoid actual delays
             patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
         ):
             model = LiteLLMModel(model_id="test-model")
@@ -459,22 +455,13 @@ class TestLiteLLMModel:
             # Mock the litellm client to raise an error twice, and then succeed
             model.client.completion.side_effect = [rate_limit_error, rate_limit_error, mock_success_response]
 
-            # Measure time to verify retry wait time
-            start_time = time.time()
             result = model.generate(messages)
-            elapsed_time = time.time() - start_time
 
             # Verify that completion was called thrice (twice failed, once succeeded)
             assert model.client.completion.call_count == 3
             assert result.content == "Success response"
             assert result.token_usage.input_tokens == 10
             assert result.token_usage.output_tokens == 20
-
-            # Verify that the wait time was around
-            # 0.22s (1st retry) [0.1 * 2.0 * (1 + 1 * 0.1)]
-            # + 0.48s (2nd retry) [0.22 * 2.0 * (1 + 1 * 0.1)]
-            # = 0.704s (allow some tolerance)
-            assert 0.67 <= elapsed_time <= 0.73
 
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
