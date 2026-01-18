@@ -2062,6 +2062,23 @@ class AmazonBedrockModel(ApiModel):
 
 AmazonBedrockServerModel = AmazonBedrockModel
 
+
+# Model Registry for secure deserialization
+# This registry maps model class names to their actual classes.
+# Only classes listed here can be instantiated during deserialization (from_dict).
+# This prevents arbitrary code execution via importlib-based dynamic loading.
+MODEL_REGISTRY = {
+    "VLLMModel": VLLMModel,
+    "MLXModel": MLXModel,
+    "TransformersModel": TransformersModel,
+    "LiteLLMModel": LiteLLMModel,
+    "LiteLLMRouterModel": LiteLLMRouterModel,
+    "InferenceClientModel": InferenceClientModel,
+    "OpenAIModel": OpenAIModel,
+    "AzureOpenAIModel": AzureOpenAIModel,
+    "AmazonBedrockModel": AmazonBedrockModel,
+}
+
 __all__ = [
     "REMOVE_PARAMETER",
     "MessageRole",
