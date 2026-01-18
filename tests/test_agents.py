@@ -1512,13 +1512,10 @@ class TestMultiStepAgent:
         }
 
         # Call from_dict
-        with patch("smolagents.models.TransformersModel") as mock_model_class:
-            mock_model_instance = mock_model_class.from_dict.return_value
-            agent = DummyMultiStepAgent.from_dict(agent_dict)
+        agent = DummyMultiStepAgent.from_dict(agent_dict)
 
         # Verify the agent was created correctly
-        assert agent.model == mock_model_instance
-        assert mock_model_class.from_dict.call_args.args[0] == {"model_id": "test/model"}
+        assert agent.model.model_id == "test/model"
         assert agent.max_steps == 15
         assert agent.logger.level == 2
         assert agent.planning_interval == 3
@@ -1534,8 +1531,7 @@ class TestMultiStepAgent:
         assert agent.tools["valid_tool_function"]("test") == "TEST"
 
         # Test overriding with kwargs
-        with patch("smolagents.models.TransformersModel") as mock_model_class:
-            agent = DummyMultiStepAgent.from_dict(agent_dict, max_steps=30)
+        agent = DummyMultiStepAgent.from_dict(agent_dict, max_steps=30)
         assert agent.max_steps == 30
 
     def test_multiagent_to_dict_from_dict_roundtrip(self):
@@ -2214,15 +2210,9 @@ print("Ok, calculation done!")""")
     def test_from_folder(self, agent_dict_version, get_agent_dict):
         import json
 
-        import smolagents.models as models_module
-
         agent_dict = get_agent_dict(agent_dict_version)
-        with (
-            patch("smolagents.agents.Path") as mock_path,
-            patch.object(models_module, "InferenceClientModel") as mock_model,
-        ):
+        with patch("smolagents.agents.Path") as mock_path:
             mock_path.return_value.__truediv__.return_value.read_text.return_value = json.dumps(agent_dict)
-            mock_model.from_dict.return_value.model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
             agent = CodeAgent.from_folder("ignored_dummy_folder")
         assert isinstance(agent, CodeAgent)
         assert agent.name == "test_agent"
@@ -2236,8 +2226,6 @@ print("Ok, calculation done!")""")
         assert agent.max_print_outputs_length is None
         assert agent.managed_agents == {}
         assert set(agent.tools.keys()) == {"final_answer"}
-        assert agent.model == mock_model.from_dict.return_value
-        assert mock_model.from_dict.call_args.args[0]["model_id"] == "Qwen/Qwen2.5-Coder-32B-Instruct"
         assert agent.model.model_id == "Qwen/Qwen2.5-Coder-32B-Instruct"
         assert agent.logger.level == 2
         assert agent.prompt_templates["system_prompt"] == "dummy system prompt"
@@ -2268,12 +2256,10 @@ print("Ok, calculation done!")""")
         }
 
         # Call from_dict
-        with patch("smolagents.models.InferenceClientModel") as mock_model_class:
-            mock_model_instance = mock_model_class.from_dict.return_value
-            agent = CodeAgent.from_dict(agent_dict)
+        agent = CodeAgent.from_dict(agent_dict)
 
         # Verify the agent was created correctly with CodeAgent-specific parameters
-        assert agent.model == mock_model_instance
+        assert agent.model.model_id == "Qwen/Qwen2.5-Coder-32B-Instruct"
         assert agent.additional_authorized_imports == ["pandas", "numpy"]
         assert agent.executor_type == "local"
         assert agent.executor_kwargs == {"max_print_outputs_length": 10_000}
@@ -2286,18 +2272,16 @@ print("Ok, calculation done!")""")
             "managed_agents": {},
         }
 
-        with patch("smolagents.models.InferenceClientModel") as mock_model_class:
-            agent = CodeAgent.from_dict(minimal_agent_dict)
+        agent = CodeAgent.from_dict(minimal_agent_dict)
         # Verify defaults are used
         assert agent.max_steps == 20  # default from MultiStepAgent.__init__
 
         # Test overriding with kwargs
-        with patch("smolagents.models.InferenceClientModel") as mock_model_class:
-            agent = CodeAgent.from_dict(
-                agent_dict,
-                additional_authorized_imports=["requests"],
-                executor_kwargs={"max_print_outputs_length": 5_000},
-            )
+        agent = CodeAgent.from_dict(
+            agent_dict,
+            additional_authorized_imports=["requests"],
+            executor_kwargs={"max_print_outputs_length": 5_000},
+        )
         assert agent.additional_authorized_imports == ["requests"]
         assert agent.executor_kwargs == {"max_print_outputs_length": 5_000}
 
