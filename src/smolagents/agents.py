@@ -1135,7 +1135,12 @@ You have been provided with these additional arguments, that you can access dire
         # Load managed agents from their respective folders, recursively
         managed_agents = []
         for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
-            agent_cls = getattr(importlib.import_module("smolagents.agents"), managed_agent_class_name)
+            agent_cls = AGENT_REGISTRY.get(managed_agent_class_name)
+            if agent_cls is None:
+                raise ValueError(
+                    f"Unknown agent class '{managed_agent_class_name}'. "
+                    f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
+                )
             managed_agents.append(agent_cls.from_folder(folder / "managed_agents" / managed_agent_name))
         agent_dict["managed_agents"] = {}
 
