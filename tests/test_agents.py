@@ -1576,12 +1576,11 @@ class TestMultiStepAgent:
 
         # Test round-trip: from_dict should recreate the agent
         # Mock the model class for the test
-        with patch("smolagents.models.MODEL_REGISTRY") as mock_model_registry:
-            mock_model_class = MagicMock()
-            mock_model_instance = MagicMock()
-            mock_model_class.from_dict.return_value = mock_model_instance
-            mock_model_registry.get.return_value = mock_model_class
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
 
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
             recreated_agent = ToolCallingAgent.from_dict(agent_dict)
 
         # Verify the recreated agent has the same structure
@@ -1628,13 +1627,12 @@ class TestMultiStepAgent:
             }
         ]
 
-        # Mock the model registry to allow the main agent's model
-        with patch("smolagents.models.MODEL_REGISTRY") as mock_model_registry:
-            mock_model_class = MagicMock()
-            mock_model_instance = MagicMock()
-            mock_model_class.from_dict.return_value = mock_model_instance
-            mock_model_registry.get.return_value = mock_model_class
+        # Mock the model registry to allow the main agent's model and managed agent's model
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
 
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
             with pytest.raises(ValueError) as exc_info:
                 CodeAgent.from_dict(agent_dict)
 
