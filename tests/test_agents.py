@@ -1512,7 +1512,7 @@ class TestMultiStepAgent:
         }
 
         # Call from_dict
-        with patch("smolagents.models.TransformersModel") as mock_model_class:
+        with patch("smolagents.models.models.TransformersModel") as mock_model_class:
             mock_model_instance = mock_model_class.from_dict.return_value
             agent = DummyMultiStepAgent.from_dict(agent_dict)
 
@@ -1534,7 +1534,7 @@ class TestMultiStepAgent:
         assert agent.tools["valid_tool_function"]("test") == "TEST"
 
         # Test overriding with kwargs
-        with patch("smolagents.models.TransformersModel") as mock_model_class:
+        with patch("smolagents.models.models.TransformersModel") as mock_model_class:
             agent = DummyMultiStepAgent.from_dict(agent_dict, max_steps=30)
         assert agent.max_steps == 30
 
@@ -2215,7 +2215,7 @@ print("Ok, calculation done!")""")
         agent_dict = get_agent_dict(agent_dict_version)
         with (
             patch("smolagents.agents.Path") as mock_path,
-            patch("smolagents.models.InferenceClientModel") as mock_model,
+            patch("smolagents.models.models.InferenceClientModel") as mock_model,
         ):
             import json
 
@@ -2266,7 +2266,7 @@ print("Ok, calculation done!")""")
         }
 
         # Call from_dict
-        with patch("smolagents.models.InferenceClientModel") as mock_model_class:
+        with patch("smolagents.models.models.InferenceClientModel") as mock_model_class:
             mock_model_instance = mock_model_class.from_dict.return_value
             agent = CodeAgent.from_dict(agent_dict)
 
@@ -2284,13 +2284,13 @@ print("Ok, calculation done!")""")
             "managed_agents": {},
         }
 
-        with patch("smolagents.models.InferenceClientModel"):
+        with patch("smolagents.models.models.InferenceClientModel"):
             agent = CodeAgent.from_dict(minimal_agent_dict)
         # Verify defaults are used
         assert agent.max_steps == 20  # default from MultiStepAgent.__init__
 
         # Test overriding with kwargs
-        with patch("smolagents.models.InferenceClientModel"):
+        with patch("smolagents.models.models.InferenceClientModel"):
             agent = CodeAgent.from_dict(
                 agent_dict,
                 additional_authorized_imports=["requests"],
