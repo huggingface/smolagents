@@ -1034,13 +1034,22 @@ class WasmExecutor(RemotePythonExecutor):
             additional_imports (`list[str]`): Package names to install.
 
         Returns:
-            list[str]: Installed packages.
+            list[str]: Installed packages (excluding stdlib modules).
         """
-        # In Pyodide, we don't actually install packages here, but we keep track of them
-        # to load them when executing code
-        # TODO: Install  here instead?
-        self.logger.log(f"Adding packages to load: {', '.join(additional_imports)}", level=LogLevel.INFO)
-        return additional_imports
+        import sys
+
+        # Filter out standard library modules from the installation list.
+        # Users may include stdlib modules (e.g., 'json', 'math') in additional_imports
+        # to allow them via the system prompt's list of authorized imports. However,
+        # these modules are already built into Python and don't need to be installed
+        # via micropip - attempting to do so would cause an error since they don't
+        # exist on PyPI.
+        packages_to_install = [pkg for pkg in additional_imports if pkg not in sys.stdlib_module_names]
+
+        if packages_to_install:
+            self.logger.log(f"Adding packages to load: {', '.join(packages_to_install)}", level=LogLevel.INFO)
+
+        return packages_to_install
 
     def cleanup(self):
         """Clean up resources used by the executor."""
