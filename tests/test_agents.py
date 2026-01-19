@@ -1608,6 +1608,89 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_from_dict_propagates_shared_kwargs_to_managed_agents(self):
+        """Test that shared runtime kwargs (model, logger, executor settings) are correctly propagated to managed agents."""
+        @tool
+        def fake_tool() -> str:
+            """A fake tool"""
+            return None
+
+        # Create managed agent with unique tool and authorized_imports
+        managed_agent = CodeAgent(
+            tools=[fake_tool],
+            model=MagicMock(),
+            name="managed_agent",
+            description="A managed agent for testing",
+            max_steps=5,
+            additional_authorized_imports=["sympy"],
+        )
+
+        # Create main agent without child's tool and imports
+        main_agent = CodeAgent(
+            tools=[],
+            managed_agents=[managed_agent],
+            model=MagicMock(),
+            name="main_agent",
+            description="Main agent with managed agents",
+            max_steps=10,
+        )
+
+        # Convert to dict
+        main_agent_dict = main_agent.to_dict()
+
+        # Prepare shared runtime parameters
+        shared_model = MagicMock()
+        shared_logger = AgentLogger(LogLevel.DEBUG)
+        executor_kwargs = {"max_print_outputs_length": 10_000}
+
+        # Mock model reconstruction
+        with patch("smolagents.agents.importlib.import_module") as mock_import:
+            mock_models_module = MagicMock()
+            mock_model_class = MagicMock()
+            mock_model_class.from_dict.return_value = shared_model
+            mock_models_module.MagicMock = mock_model_class
+
+            mock_agents_module = MagicMock()
+            mock_agents_module.CodeAgent = CodeAgent
+
+            def side_effect(module_name):
+                if module_name == "smolagents.models":
+                    return mock_models_module
+                elif module_name == "smolagents.agents":
+                    return mock_agents_module
+                return MagicMock()
+
+            mock_import.side_effect = side_effect
+
+            # Recreate agent with shared kwargs
+            recreated_agent = CodeAgent.from_dict(
+                main_agent_dict,
+                model=shared_model,
+                logger=shared_logger,
+                executor_kwargs=executor_kwargs,
+            )
+
+        # Verify parent agent uses shared resources
+        assert recreated_agent.model is shared_model
+        assert recreated_agent.logger is shared_logger
+        assert recreated_agent.executor_kwargs is executor_kwargs
+        assert "sympy" not in recreated_agent.authorized_imports
+        assert "fake_tool" not in recreated_agent.tools
+
+        # Verify child agent inherits shared resources
+        assert "managed_agent" in recreated_agent.managed_agents
+        child_agent = recreated_agent.managed_agents["managed_agent"]
+
+        assert child_agent.model is shared_model
+        assert child_agent.logger is shared_logger
+        assert child_agent.executor_kwargs is executor_kwargs
+
+        # Verify child preserves its own config
+        assert "sympy" in child_agent.authorized_imports
+
+        # Verify child preserves its own tools
+        assert "fake_tool" in child_agent.tools
+
 
 class TestToolCallingAgent:
     def test_toolcalling_agent_instructions(self):
