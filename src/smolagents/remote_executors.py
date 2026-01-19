@@ -986,7 +986,7 @@ class WasmExecutor(RemotePythonExecutor):
             response = requests.post(self.server_url, json=payload, timeout=self.timeout)
 
             if response.status_code != 200:
-                raise AgentError(f"Server error: {response.text}", self.logger)
+                raise AgentError(f"Pyodide execution server error: {response.text}", self.logger)
 
             result = None
             is_final_answer = False
