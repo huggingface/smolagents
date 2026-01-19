@@ -59,13 +59,12 @@ from .memory import (
     Timing,
     ToolCall,
 )
-from .models import (
-    CODEAGENT_RESPONSE_FORMAT,
+from .models import CODEAGENT_RESPONSE_FORMAT, Model
+from .models.formats import (
     ChatMessage,
     ChatMessageStreamDelta,
     ChatMessageToolCall,
     MessageRole,
-    Model,
     agglomerate_stream_deltas,
     parse_json_if_needed,
 )

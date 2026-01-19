@@ -24,7 +24,7 @@ import pytest
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.gradio_ui import GradioUI, pull_messages_from_step, stream_to_gradio
 from smolagents.memory import ActionStep, FinalAnswerStep, PlanningStep, ToolCall
-from smolagents.models import ChatMessageStreamDelta
+from smolagents.models.formats import ChatMessageStreamDelta
 from smolagents.monitoring import Timing, TokenUsage
 
 
