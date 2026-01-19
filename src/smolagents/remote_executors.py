@@ -1073,34 +1073,6 @@ class WasmExecutor(RemotePythonExecutor):
         // Initialize Pyodide instance
         const pyodidePromise = loadPyodide();
 
-        // Filter out modules that are already importable in Pyodide (stdlib or preloaded)
-        async function getMissingPackages(pyodide, packages) {
-          if (!packages || packages.length === 0) {
-            return [];
-          }
-
-          globalThis.__smol_packages_to_check = packages;
-          try {
-            const missingJson = pyodide.runPython(`
-import importlib.util
-import json
-
-from js import __smol_packages_to_check as _packages
-
-def _needs_install(name):
-    try:
-        return importlib.util.find_spec(name) is None
-    except ModuleNotFoundError:
-        return True
-
-json.dumps([name for name in _packages.to_py() if _needs_install(name)])
-`);
-            return JSON.parse(missingJson);
-          } finally {
-            delete globalThis.__smol_packages_to_check;
-          }
-        }
-
         // Function to execute Python code and return the result
         async function executePythonCode(code) {
           const pyodide = await pyodidePromise;
@@ -1163,23 +1135,19 @@ json.dumps([name for name in _packages.to_py() if _needs_install(name)])
               const body = await req.json();
               const { code, packages = [] } = body;
 
-              // Load any requested packages
+              // Load any requested packages via micropip
               if (packages && packages.length > 0) {
                 const pyodide = await pyodidePromise;
-                const packagesToInstall = await getMissingPackages(pyodide, packages);
-
-                if (packagesToInstall.length > 0) {
-                  await pyodide.loadPackage("micropip");
-                  const micropip = pyodide.pyimport("micropip");
-                  try {
-                    await micropip.install(packagesToInstall, { keep_going: true });
-                  } catch (e) {
-                    console.error(`Failed to load packages ${packagesToInstall.join(", ")}: ${e.message}`);
-                    return new Response(JSON.stringify({ error: e.message }), {
-                      status: 500,
-                      headers: { "Content-Type": "application/json" }
-                    });
-                  }
+                await pyodide.loadPackage("micropip");
+                const micropip = pyodide.pyimport("micropip");
+                try {
+                  await micropip.install(packages);
+                } catch (e) {
+                  console.error(`Failed to install packages: ${e.message}`);
+                  return new Response(JSON.stringify({ error: e.message }), {
+                    status: 500,
+                    headers: { "Content-Type": "application/json" }
+                  });
                 }
               }
 
