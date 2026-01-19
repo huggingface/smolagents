@@ -900,6 +900,7 @@ class WasmExecutor(RemotePythonExecutor):
                 ),
                 f"allow-read={deno_cache_dir}",
                 f"allow-write={deno_cache_dir}",
+                "allow-env=DENO_PORT",
             ]
         self.deno_permissions = [f"--{perm}" for perm in deno_permissions]
 
@@ -915,10 +916,8 @@ class WasmExecutor(RemotePythonExecutor):
         self.runner_dir = tempfile.mkdtemp(prefix="pyodide_deno_")
         self.runner_path = os.path.join(self.runner_dir, "pyodide_runner.js")
 
-        # Create the JavaScript runner file with dynamic port
-        js_code = self.JS_CODE.format(port=self.port)
         with open(self.runner_path, "w") as f:
-            f.write(js_code)
+            f.write(self.JS_CODE)
 
         # Start the Deno server
         self._start_deno_server()
@@ -927,12 +926,16 @@ class WasmExecutor(RemotePythonExecutor):
         """Start the Deno server that will run our JavaScript code."""
         cmd = [self.deno_path, "run"] + self.deno_permissions + [self.runner_path]
 
+        # Pass port via environment variable
+        env = {**os.environ, "DENO_PORT": str(self.port)}
+
         # Start the server process
         self.server_process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
 
         # Set the server URL with dynamic port
@@ -1061,20 +1064,23 @@ class WasmExecutor(RemotePythonExecutor):
 
     JS_CODE = dedent("""\
         // pyodide_runner.js - Runs Python code in Pyodide within Deno
-        import {{ serve }} from "https://deno.land/std/http/server.ts";
-        import {{ loadPyodide }} from "npm:pyodide";
+        import { serve } from "https://deno.land/std/http/server.ts";
+        import { loadPyodide } from "npm:pyodide";
+
+        // Get port from environment variable
+        const port = parseInt(Deno.env.get("DENO_PORT"));
 
         // Initialize Pyodide instance
         const pyodidePromise = loadPyodide();
 
         // Filter out modules that are already importable in Pyodide (stdlib or preloaded)
-        async function getMissingPackages(pyodide, packages) {{
-          if (!packages || packages.length === 0) {{
+        async function getMissingPackages(pyodide, packages) {
+          if (!packages || packages.length === 0) {
             return [];
-          }}
+          }
 
           globalThis.__smol_packages_to_check = packages;
-          try {{
+          try {
             const missingJson = pyodide.runPython(`
 import importlib.util
 import json
@@ -1090,13 +1096,13 @@ def _needs_install(name):
 json.dumps([name for name in _packages.to_py() if _needs_install(name)])
 `);
             return JSON.parse(missingJson);
-          }} finally {{
+          } finally {
             delete globalThis.__smol_packages_to_check;
-          }}
-        }}
+          }
+        }
 
         // Function to execute Python code and return the result
-        async function executePythonCode(code) {{
+        async function executePythonCode(code) {
           const pyodide = await pyodidePromise;
 
           // Create a capture for stdout
@@ -1111,86 +1117,86 @@ json.dumps([name for name in _packages.to_py() if _needs_install(name)])
           let error = null;
           let stdout = "";
 
-          try {{
+          try {
             // Execute the code
             result = await pyodide.runPythonAsync(code);
 
             // Get captured stdout
             stdout = pyodide.runPython("sys.stdout.getvalue()");
-          }} catch (e) {{
-            error = {{
+          } catch (e) {
+            error = {
               name: e.constructor.name,
               message: e.message,
               stack: e.stack
-            }};
+            };
 
             // Extract Python exception details
-            if (e.constructor.name === "PythonError") {{
+            if (e.constructor.name === "PythonError") {
               // Get the Python exception type from the error message: at the end of the traceback
               const errorMatch = e.message.match(/\\n([^:]+Exception): /);
-              if (errorMatch) {{
+              if (errorMatch) {
                 error.pythonExceptionType = errorMatch[1].split(".").pop();
-              }}
+              }
 
               // If the error is a FinalAnswerException, extract its the encoded value
-              if (error.pythonExceptionType === "FinalAnswerException") {{
+              if (error.pythonExceptionType === "FinalAnswerException") {
                 // Extract the base64 encoded value from the error message
                 const valueMatch = e.message.match(/FinalAnswerException: (.*?)(?:\\n|$)/);
-                if (valueMatch) {{
+                if (valueMatch) {
                   error.pythonExceptionValue = valueMatch[1];
-                }}
-              }}
-            }}
-          }}
+                }
+              }
+            }
+          }
 
-          return {{
+          return {
             result,
             stdout,
             error
-          }};
-        }}
+          };
+        }
 
         // Start a simple HTTP server to receive code execution requests
-        serve(async (req) => {{
-          if (req.method === "POST") {{
-            try {{
+        serve(async (req) => {
+          if (req.method === "POST") {
+            try {
               const body = await req.json();
-              const {{ code, packages = [] }} = body;
+              const { code, packages = [] } = body;
 
               // Load any requested packages
-              if (packages && packages.length > 0) {{
+              if (packages && packages.length > 0) {
                 const pyodide = await pyodidePromise;
                 const packagesToInstall = await getMissingPackages(pyodide, packages);
 
-                if (packagesToInstall.length > 0) {{
+                if (packagesToInstall.length > 0) {
                   await pyodide.loadPackage("micropip");
                   const micropip = pyodide.pyimport("micropip");
-                  try {{
-                    await micropip.install(packagesToInstall, {{ keep_going: true }}); // keep going after first error, report list of errors at the end
-                  }} catch (e) {{
-                    console.error(`Failed to load packages ${{packagesToInstall.join(", ")}}: ${{e.message}}`);
-                    return new Response(JSON.stringify({{ error: e.message }}), {{
+                  try {
+                    await micropip.install(packagesToInstall, { keep_going: true });
+                  } catch (e) {
+                    console.error(`Failed to load packages ${packagesToInstall.join(", ")}: ${e.message}`);
+                    return new Response(JSON.stringify({ error: e.message }), {
                       status: 500,
-                      headers: {{ "Content-Type": "application/json" }}
-                    }});
-                  }}
-                }}
-              }}
+                      headers: { "Content-Type": "application/json" }
+                    });
+                  }
+                }
+              }
 
               const result = await executePythonCode(code);
-              return new Response(JSON.stringify(result), {{
-                headers: {{ "Content-Type": "application/json" }}
-              }});
-            }} catch (e) {{
-              return new Response(JSON.stringify({{ error: e.message }}), {{
+              return new Response(JSON.stringify(result), {
+                headers: { "Content-Type": "application/json" }
+              });
+            } catch (e) {
+              return new Response(JSON.stringify({ error: e.message }), {
                 status: 500,
-                headers: {{ "Content-Type": "application/json" }}
-              }});
-            }}
-          }}
+                headers: { "Content-Type": "application/json" }
+              });
+            }
+          }
 
-          return new Response("Pyodide-Deno Executor is running. Send POST requests with code to execute.", {{
-            headers: {{ "Content-Type": "text/plain" }}
-          }});
-        }}, {{ port: {port} }});
+          return new Response("Pyodide-Deno Executor is running. Send POST requests with code to execute.", {
+            headers: { "Content-Type": "text/plain" }
+          });
+        }, { port });
         """)
