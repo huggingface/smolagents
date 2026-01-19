@@ -1198,5 +1198,5 @@ json.dumps([name for name in _packages.to_py() if _needs_install(name)])
           return new Response("Pyodide-Deno Executor is running. Send POST requests with code to execute.", {
             headers: { "Content-Type": "text/plain" }
           });
-        }, { port });
+        }, { port: port });  // Listen on the port from DENO_PORT environment variable
         """)
