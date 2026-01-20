@@ -1047,7 +1047,7 @@ class WasmExecutor(RemotePythonExecutor):
         packages_to_install = [pkg for pkg in additional_imports if pkg not in sys.stdlib_module_names]
 
         if packages_to_install:
-            self.logger.log(f"Adding packages to load: {', '.join(packages_to_install)}", level=LogLevel.INFO)
+            self.logger.log(f"Adding packages to install: {', '.join(packages_to_install)}", level=LogLevel.INFO)
 
         return packages_to_install
 
@@ -1144,13 +1144,13 @@ class WasmExecutor(RemotePythonExecutor):
               const body = await req.json();
               const { code, packages = [] } = body;
 
-              // Load any requested packages via micropip
+              // Install any requested packages via micropip
               if (packages && packages.length > 0) {
                 const pyodide = await pyodidePromise;
-                await pyodide.loadPackage("micropip");
+                await pyodide.loadPackage("micropip");  // Load micropip from Pyodide distribution
                 const micropip = pyodide.pyimport("micropip");
                 try {
-                  await micropip.install(packages);
+                  await micropip.install(packages);  // Install packages from PyPI
                 } catch (e) {
                   console.error(`Failed to install packages: ${e.message}`);
                   return new Response(JSON.stringify({ error: e.message }), {
