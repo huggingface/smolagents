@@ -21,6 +21,7 @@ import os
 import pickle
 import re
 import secrets
+import socket
 import subprocess
 import tempfile
 import time
@@ -823,6 +824,13 @@ class BlaxelExecutor(RemotePythonExecutor):
             pass  # Silently ignore errors during cleanup
 
 
+def find_free_port() -> int:
+    """Find an available port by binding to port 0 and letting the OS choose."""
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+
 class WasmExecutor(RemotePythonExecutor):
     """
     Remote Python code executor in a sandboxed WebAssembly environment powered by Pyodide and Deno.
@@ -860,21 +868,39 @@ class WasmExecutor(RemotePythonExecutor):
         self.deno_path = deno_path
         self.timeout = timeout
 
+        # Find an available port before setting up permissions
+        self.port = find_free_port()
+
         # Default minimal permissions needed
         if deno_permissions is None:
             # Use minimal permissions for Deno execution
-            home_dir = os.getenv("HOME")
+            # Get the actual Deno directory from Deno itself
+            try:
+                result = subprocess.run(
+                    [deno_path, "info", "--json"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                deno_info = json.loads(result.stdout)
+                deno_cache_dir = deno_info.get("denoDir")
+                if not deno_cache_dir:
+                    raise RuntimeError("Could not determine Deno cache directory from 'deno info --json'")
+            except (subprocess.SubprocessError, json.JSONDecodeError, KeyError) as e:
+                raise RuntimeError(f"Failed to get Deno cache directory: {e}")
+
             deno_permissions = [
                 "allow-net="
                 + ",".join(
                     [
-                        "0.0.0.0:8000",  # allow requests to the local server
+                        f"0.0.0.0:{self.port}",  # allow requests to the local server
                         "cdn.jsdelivr.net:443",  # allow loading pyodide packages
                         "pypi.org:443,files.pythonhosted.org:443",  # allow pyodide install packages from PyPI
                     ]
                 ),
-                f"allow-read={home_dir}/.cache/deno",
-                f"allow-write={home_dir}/.cache/deno",
+                f"allow-read={deno_cache_dir}",
+                f"allow-write={deno_cache_dir}",
+                "allow-env=DENO_PORT",
             ]
         self.deno_permissions = [f"--{perm}" for perm in deno_permissions]
 
@@ -890,7 +916,6 @@ class WasmExecutor(RemotePythonExecutor):
         self.runner_dir = tempfile.mkdtemp(prefix="pyodide_deno_")
         self.runner_path = os.path.join(self.runner_dir, "pyodide_runner.js")
 
-        # Create the JavaScript runner file
         with open(self.runner_path, "w") as f:
             f.write(self.JS_CODE)
 
@@ -901,31 +926,44 @@ class WasmExecutor(RemotePythonExecutor):
         """Start the Deno server that will run our JavaScript code."""
         cmd = [self.deno_path, "run"] + self.deno_permissions + [self.runner_path]
 
+        # Pass port via environment variable
+        env = {**os.environ, "DENO_PORT": str(self.port)}
+
         # Start the server process
         self.server_process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
 
-        # Wait for the server to start
-        time.sleep(2)  # Give the server time to start
+        # Set the server URL with dynamic port
+        self.server_url = f"http://localhost:{self.port}"
 
-        # Check if the server started successfully
-        if self.server_process.poll() is not None:
-            stderr = self.server_process.stderr.read()
-            raise RuntimeError(f"Failed to start Deno server: {stderr}")
+        # Poll until server is ready (more robust than fixed sleep)
+        max_retries = 20
+        retry_delay = 0.5
 
-        self.server_url = "http://localhost:8000"  # TODO: Another port?
+        for _ in range(max_retries):
+            # Check if process died
+            if self.server_process.poll() is not None:
+                stderr = self.server_process.stderr.read()
+                raise RuntimeError(f"Failed to start Deno server: {stderr}")
 
-        # Test the connection
-        try:
-            response = requests.get(self.server_url)
-            if response.status_code != 200:
-                raise RuntimeError(f"Server responded with status code {response.status_code}: {response.text}")
-        except requests.RequestException as e:
-            raise RuntimeError(f"Failed to connect to Deno server: {e}")
+            # Try to connect to the server
+            try:
+                response = requests.get(self.server_url, timeout=1)
+                if response.status_code == 200:
+                    self.logger.log(f"Deno server started on port {self.port}", level=LogLevel.INFO)
+                    return
+            except requests.RequestException:
+                # Server not ready yet, wait and retry
+                time.sleep(retry_delay)
+
+        # If we get here, server didn't start in time
+        self.server_process.terminate()
+        raise RuntimeError(f"Server did not start within {max_retries * retry_delay} seconds")
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
@@ -948,7 +986,7 @@ class WasmExecutor(RemotePythonExecutor):
             response = requests.post(self.server_url, json=payload, timeout=self.timeout)
 
             if response.status_code != 200:
-                raise AgentError(f"Server error: {response.text}", self.logger)
+                raise AgentError(f"Pyodide execution server error: {response.text}", self.logger)
 
             result = None
             is_final_answer = False
@@ -996,13 +1034,22 @@ class WasmExecutor(RemotePythonExecutor):
             additional_imports (`list[str]`): Package names to install.
 
         Returns:
-            list[str]: Installed packages.
+            list[str]: Installed packages (excluding stdlib modules).
         """
-        # In Pyodide, we don't actually install packages here, but we keep track of them
-        # to load them when executing code
-        # TODO: Install  here instead?
-        self.logger.log(f"Adding packages to load: {', '.join(additional_imports)}", level=LogLevel.INFO)
-        return additional_imports
+        import sys
+
+        # Filter out standard library modules from the installation list.
+        # Users may include stdlib modules (e.g., 'json', 'math') in additional_imports
+        # to allow them via the system prompt's list of authorized imports. However,
+        # these modules are already built into Python and don't need to be installed
+        # via micropip - attempting to do so would cause an error since they don't
+        # exist on PyPI.
+        packages_to_install = [pkg for pkg in additional_imports if pkg not in sys.stdlib_module_names]
+
+        if packages_to_install:
+            self.logger.log(f"Adding packages to install: {', '.join(packages_to_install)}", level=LogLevel.INFO)
+
+        return packages_to_install
 
     def cleanup(self):
         """Clean up resources used by the executor."""
@@ -1028,6 +1075,9 @@ class WasmExecutor(RemotePythonExecutor):
         // pyodide_runner.js - Runs Python code in Pyodide within Deno
         import { serve } from "https://deno.land/std/http/server.ts";
         import { loadPyodide } from "npm:pyodide";
+
+        // Get port from environment variable
+        const port = parseInt(Deno.env.get("DENO_PORT"));
 
         // Initialize Pyodide instance
         const pyodidePromise = loadPyodide();
@@ -1088,25 +1138,25 @@ class WasmExecutor(RemotePythonExecutor):
         }
 
         // Start a simple HTTP server to receive code execution requests
-        //const port = 8765;
-        //console.log(`Starting Pyodide server on port ${port}`);
-
         serve(async (req) => {
           if (req.method === "POST") {
             try {
               const body = await req.json();
               const { code, packages = [] } = body;
 
-              // Load any requested packages
+              // Install any requested packages via micropip
               if (packages && packages.length > 0) {
                 const pyodide = await pyodidePromise;
-                //await pyodide.loadPackagesFromImports(code);
-                await pyodide.loadPackage("micropip");
+                await pyodide.loadPackage("micropip");  // Load micropip from Pyodide distribution
                 const micropip = pyodide.pyimport("micropip");
                 try {
-                  await micropip.install(packages);
+                  await micropip.install(packages);  // Install packages from PyPI
                 } catch (e) {
-                  console.error(`Failed to load package ${pkg}: ${e.message}`);
+                  console.error(`Failed to install packages: ${e.message}`);
+                  return new Response(JSON.stringify({ error: e.message }), {
+                    status: 500,
+                    headers: { "Content-Type": "application/json" }
+                  });
                 }
               }
 
@@ -1125,5 +1175,5 @@ class WasmExecutor(RemotePythonExecutor):
           return new Response("Pyodide-Deno Executor is running. Send POST requests with code to execute.", {
             headers: { "Content-Type": "text/plain" }
           });
-        });
+        }, { port: port });  // Listen on the port from DENO_PORT environment variable
         """)
