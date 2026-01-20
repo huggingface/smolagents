@@ -156,7 +156,7 @@ def get_json_schema(func: Callable) -> dict:
     >>>    '''
     >>>
     >>> multiply_schema = get_json_schema(multiply)
-    >>> tokenizer = AutoTokenizer.from_pretrained("CohereForAI/c4ai-command-r-v01")
+    >>> tokenizer = AutoTokenizer.from_pretrained("CohereLabs/c4ai-command-r-v01")
     >>> messages = [{"role": "user", "content": "What is 179 x 4571?"}]
     >>> formatted_chat = tokenizer.apply_chat_template(
     >>>     messages,
