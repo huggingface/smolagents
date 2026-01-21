@@ -12,6 +12,7 @@
 import * as vm from 'vm';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import type { CodeExecutionOutput } from '../types.js';
 import { Tool as ToolClass } from '../tools/Tool.js';
 
@@ -21,8 +22,8 @@ const DEFAULT_TIMEOUT_MS = 30000;
 // Maximum length of captured output
 const MAX_OUTPUT_LENGTH = 50000;
 
-// CDN base URL for dynamic imports
-const ESM_CDN = 'https://esm.sh';
+// Package cache directory
+const PACKAGE_CACHE_DIR = path.join(os.homedir(), '.smol-js', 'packages');
 
 export interface ExecutorConfig {
   /**
@@ -110,9 +111,74 @@ export class LocalExecutor {
       }
 
       try {
-        // Try to import from CDN using dynamic import
-        const cdnUrl = `${ESM_CDN}/${packageName}`;
-        const module = await import(cdnUrl);
+        // Ensure cache directory exists
+        if (!fs.existsSync(PACKAGE_CACHE_DIR)) {
+          fs.mkdirSync(PACKAGE_CACHE_DIR, { recursive: true });
+        }
+
+        // Create a safe filename from package name
+        const safeFileName = packageName.replace(/[/@]/g, '_') + '.mjs';
+        const cachedPath = path.join(PACKAGE_CACHE_DIR, safeFileName);
+
+        // Check if already cached and valid (not a redirect stub)
+        let needsFetch = !fs.existsSync(cachedPath);
+        if (!needsFetch) {
+          const content = fs.readFileSync(cachedPath, 'utf-8');
+          // Check if it's a redirect stub that needs resolution
+          if (content.includes('export * from "/')  || content.includes("export * from '/")) {
+            needsFetch = true;
+            fs.unlinkSync(cachedPath); // Remove invalid cache
+          }
+        }
+
+        if (needsFetch) {
+          this.capturedLogs.push(`[import] Fetching ${packageName}...`);
+
+          // First, get the package info to find the actual bundle URL
+          // Use jsdelivr which provides proper ESM bundles
+          const jsdelivrUrl = `https://cdn.jsdelivr.net/npm/${packageName}/+esm`;
+
+          const response = await fetch(jsdelivrUrl);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          let code = await response.text();
+
+          // jsdelivr ESM bundles may have imports from jsdelivr - rewrite them to be fetched too
+          // For now, we'll inline simple packages. Complex packages with many deps may need more work.
+
+          // Check if there are external imports we need to resolve
+          const importMatches = code.matchAll(/from\s+["'](https:\/\/cdn\.jsdelivr\.net\/[^"']+)["']/g);
+          for (const match of importMatches) {
+            const depUrl = match[1];
+            const depName = depUrl.split('/npm/')[1]?.split('/')[0] || 'dep';
+            const depFileName = depName.replace(/[/@]/g, '_') + '_dep.mjs';
+            const depCachedPath = path.join(PACKAGE_CACHE_DIR, depFileName);
+
+            if (!fs.existsSync(depCachedPath)) {
+              this.capturedLogs.push(`[import] Fetching dependency from ${depUrl}...`);
+              const depResponse = await fetch(depUrl);
+              if (depResponse.ok) {
+                const depCode = await depResponse.text();
+                fs.writeFileSync(depCachedPath, depCode, 'utf-8');
+              }
+            }
+
+            // Rewrite import to use local file
+            code = code.replace(depUrl, `file://${depCachedPath}`);
+          }
+
+          // Write to cache
+          fs.writeFileSync(cachedPath, code, 'utf-8');
+          this.capturedLogs.push(`[import] Cached ${packageName} to ${cachedPath}`);
+        } else {
+          this.capturedLogs.push(`[import] Using cached ${packageName}`);
+        }
+
+        // Import from local cache using file:// URL
+        const fileUrl = `file://${cachedPath}`;
+        const module = await import(fileUrl);
         return module.default ?? module;
       } catch (error) {
         throw new Error(`Failed to import ${packageName}: ${(error as Error).message}`);
