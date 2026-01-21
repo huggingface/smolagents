@@ -8,6 +8,9 @@ data
 outputs
 data/
 
+# anthropic eval logs
+.claude
+
 # Apple
 .DS_Store
 

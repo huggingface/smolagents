@@ -41,6 +41,7 @@ export { OpenAIModel, type OpenAIModelConfig } from './models/OpenAIModel.js';
 // Tools
 export { Tool, createTool } from './tools/Tool.js';
 export { FinalAnswerTool, UserInputTool, finalAnswerTool } from './tools/defaultTools.js';
+export { AgentTool, agentAsTool, type AgentToolConfig } from './tools/AgentTool.js';
 
 // Executor
 export { LocalExecutor, type ExecutorConfig } from './executor/LocalExecutor.js';
