@@ -13,8 +13,7 @@
  */
 
 import 'dotenv/config';
-import { CodeAgent, OpenAIModel, Tool, LogLevel } from '../src/index.js';
-import type { ToolInputs } from '../src/types.js';
+import { CodeAgent, OpenAIModel, Tool, LogLevel, ToolInputs } from '@samrahimi/smol-js';
 
 /**
  * Web Search Tool - Uses DuckDuckGo Instant Answer API
@@ -269,8 +268,7 @@ async function main() {
 
   // Create the model
   const model = new OpenAIModel({
-    modelId: 'anthropic/claude-sonnet-4.5',
-    maxTokens: 4096,
+    modelId: 'writer/palmyra-x5',
   });
 
   // Create research tools
@@ -300,7 +298,9 @@ Be thorough but focused - quality over quantity.`,
 
   // Research question
   const question = `What are the latest developments in nuclear fusion energy research in 2024-2025?
-Include information about major projects, recent breakthroughs, and timeline predictions for commercial fusion power.`;
+Include information about major projects, recent breakthroughs, and timeline predictions for commercial fusion power.
+
+Your final answer should be a detailed, polished report in markdown format suitable for science enthusiasts (think Scientific American or New Scientist).`;
 
   console.log(`Research Question: ${question}\n`);
 

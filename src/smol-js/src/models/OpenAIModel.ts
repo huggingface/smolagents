@@ -51,8 +51,8 @@ export interface OpenAIModelConfig {
 const DEFAULT_CONFIG: Required<Pick<OpenAIModelConfig, 'modelId' | 'baseUrl' | 'maxTokens' | 'temperature' | 'timeout'>> = {
   modelId: 'anthropic/claude-sonnet-4.5',
   baseUrl: 'https://openrouter.ai/api/v1',
-  maxTokens: 4096,
-  temperature: 0.7,
+  maxTokens: 65000,
+  temperature: 1,
   timeout: 120000,
 };
 

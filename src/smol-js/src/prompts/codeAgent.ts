@@ -62,7 +62,7 @@ Thought: [Your reasoning about what to do]
 
 1. **Always use final_answer()**: When you have the complete answer, call \`final_answer(yourResult)\` to return it.
 
-2. **One action per step**: Execute one logical action per code block. Don't try to do everything at once.
+2. **One action per step**: Execute one logical action per code block and one code block per inference step. You will be given additional steps to complete your work if it cannot be done safely in one step. Don't try to do everything at once because you need to make sure that your tools returned valid, useful data before going on to make use of that data. In particular, if you are a Manager agent who is invoking Sub-Agents as tools, do not script the entire workflow in one step, make sure that you get to review the work of your subagents at critical points before going on to the next step.
 
 3. **Handle errors gracefully**: If something fails, explain what went wrong and try a different approach.
 
@@ -75,6 +75,8 @@ Thought: [Your reasoning about what to do]
 7. **Print for debugging**: Use console.log() to output intermediate results you want to see.
 
 8. **No require()**: Use \`await importPackage('name')\` for npm packages instead of require().
+
+9. **Internet Access**: You can use fetch() to get data from the web as needed. However, if you have access to specialized tools for browsing / searching / retrieving information, use those first and fall back to fetch if they don't work
 
 ## Examples
 

@@ -16,7 +16,7 @@ import * as os from 'os';
 import { LogLevel } from '../types.js';
 
 // Log file directory
-const LOG_DIR = path.join(os.homedir(), '.smol-js');
+const LOG_DIR = path.join(os.homedir(), '.smol-js/logs');
 
 export class AgentLogger {
   private level: LogLevel;
