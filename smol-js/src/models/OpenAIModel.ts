@@ -5,7 +5,7 @@
  * including OpenRouter, Azure OpenAI, local servers, etc.
  */
 
-import OpenAI from 'openai';
+import OpenAI from 'openai/index.mjs';
 import { Model } from './Model.js';
 import type { ChatMessage, GenerateOptions, TokenUsage, MessageRole } from '../types.js';
 

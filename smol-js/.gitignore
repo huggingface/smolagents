@@ -7,6 +7,9 @@ dist/
 # Test coverage
 coverage/
 
+# npm
+.npmrc
+
 # Environment
 .env
 .env.local
