@@ -203,6 +203,8 @@ function final_answer(answer: any): void { ... }
       let fullContent = '';
       const generator = this.model.generateStream(messages, {
         stopSequences: ['Observation:', 'Observation:\n'],
+        maxTokens: this.config.maxTokens,
+        temperature: this.config.temperature,
       });
 
       for await (const chunk of generator) {
@@ -222,6 +224,8 @@ function final_answer(answer: any): void { ... }
 
       return this.model.generate(messages, {
         stopSequences: ['Observation:', 'Observation:\n'],
+        maxTokens: this.config.maxTokens,
+        temperature: this.config.temperature,
       });
     }
   }

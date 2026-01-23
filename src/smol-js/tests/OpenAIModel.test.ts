@@ -52,6 +52,13 @@ describe('OpenAIModel', () => {
 
       expect(model.modelId).toBeDefined();
     });
+
+    it('should not set default maxTokens or temperature', () => {
+      const model = new OpenAIModel();
+      // The model should not force any defaults - these should be undefined
+      // and omitted from API requests unless explicitly set
+      expect(model.modelId).toBe('anthropic/claude-sonnet-4.5');
+    });
   });
 
   describe('supportsStreaming', () => {
@@ -66,7 +73,6 @@ describe('OpenAIModel', () => {
     it('should format standard messages', () => {
       const model = new OpenAIModel();
 
-      // Access protected method through type assertion
       const formatted = (model as unknown as { formatMessages: typeof model['formatMessages'] }).formatMessages([
         { role: 'system', content: 'You are helpful' },
         { role: 'user', content: 'Hello' },
@@ -80,7 +86,18 @@ describe('OpenAIModel', () => {
       ]);
     });
 
-    it('should convert tool role to user', () => {
+    it('should handle tool response with toolCallId', () => {
+      const model = new OpenAIModel();
+
+      const formatted = (model as unknown as { formatMessages: typeof model['formatMessages'] }).formatMessages([
+        { role: 'tool', content: 'Tool result', toolCallId: 'call_123' },
+      ]);
+
+      expect(formatted[0].role).toBe('tool');
+      expect((formatted[0] as Record<string, unknown>).tool_call_id).toBe('call_123');
+    });
+
+    it('should convert tool role without toolCallId to user', () => {
       const model = new OpenAIModel();
 
       const formatted = (model as unknown as { formatMessages: typeof model['formatMessages'] }).formatMessages([
@@ -88,6 +105,30 @@ describe('OpenAIModel', () => {
       ]);
 
       expect(formatted[0].role).toBe('user');
+    });
+
+    it('should handle assistant messages with tool calls', () => {
+      const model = new OpenAIModel();
+
+      const formatted = (model as unknown as { formatMessages: typeof model['formatMessages'] }).formatMessages([
+        {
+          role: 'assistant',
+          content: 'Let me search.',
+          toolCalls: [{
+            id: 'call_123',
+            type: 'function',
+            function: {
+              name: 'search',
+              arguments: '{"q":"test"}',
+            },
+          }],
+        },
+      ]);
+
+      expect(formatted[0].role).toBe('assistant');
+      expect((formatted[0] as Record<string, unknown>).tool_calls).toBeDefined();
+      const toolCalls = (formatted[0] as Record<string, unknown>).tool_calls as Array<Record<string, unknown>>;
+      expect(toolCalls[0].id).toBe('call_123');
     });
   });
 });

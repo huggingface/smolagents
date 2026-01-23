@@ -1,0 +1,94 @@
+# Research and Write Workflow
+# Demonstrates a complex nested hierarchy using both ToolUseAgent and CodeAgent
+# with all built-in tools including Exa.ai search, scraping, and research
+#
+# Usage:
+#   npx tsx src/cli.ts run examples/workflows/research-and-write.yaml --task "your topic"
+
+name: research-and-write
+description: >
+  A multi-agent workflow that researches a topic using web search and deep research,
+  analyzes the findings with code execution, and produces a comprehensive written report.
+
+model:
+  modelId: anthropic/claude-sonnet-4.5
+  baseUrl: https://openrouter.ai/api/v1
+
+tools:
+  search:
+    type: exa_search
+  scrape:
+    type: exa_get_contents
+  research:
+    type: exa_research
+  read:
+    type: read_file
+  write:
+    type: write_file
+  http:
+    type: curl
+
+agents:
+  # Researcher agent - uses Exa tools to gather information
+  researcher:
+    type: ToolUseAgent
+    description: Expert web researcher that gathers comprehensive information on any topic
+    tools:
+      - search
+      - scrape
+      - research
+      - http
+    maxSteps: 10
+    customInstructions: >
+      You are an expert researcher. When given a topic, use the exa_research tool for
+      deep research first, then supplement with exa_search for specific aspects. Use
+      exa_get_contents to read specific pages when you need more detail. Always gather
+      information from multiple sources before providing your findings. Structure your
+      output clearly with key findings, sources, and relevant details.
+
+  # Analyst agent - uses CodeAgent to process and analyze data
+  analyst:
+    type: CodeAgent
+    description: Data analyst that processes research findings and produces structured analysis
+    maxSteps: 8
+    customInstructions: >
+      You are a data analyst. You receive research findings and must process them
+      into structured analysis. Use code to organize, deduplicate, and structure
+      the information. Produce a well-organized analysis with clear sections.
+
+  # Writer agent - produces the final report
+  writer:
+    type: ToolUseAgent
+    description: Expert writer that produces comprehensive reports
+    tools:
+      - write
+      - read
+    maxSteps: 8
+    customInstructions: >
+      You are an expert technical writer. You receive research findings and analysis,
+      and produce a clear, well-structured report. Write in a professional but accessible
+      style. Include an executive summary, key findings, detailed analysis, and conclusion.
+      Save the report to a file using the write_file tool.
+
+  # Manager agent - orchestrates the research, analysis, and writing
+  manager:
+    type: ToolUseAgent
+    description: Project manager that orchestrates the research and writing workflow
+    agents:
+      - researcher
+      - analyst
+      - writer
+    maxSteps: 12
+    customInstructions: >
+      You are a project manager orchestrating a research and writing workflow.
+
+      Your process:
+      1. First, delegate the research task to the researcher agent with a clear research brief
+      2. Pass the research findings to the analyst agent for structured analysis
+      3. Finally, pass both research and analysis to the writer agent to produce the final report
+
+      Make sure each agent gets clear, specific instructions about what you need.
+      Review intermediate results before passing to the next agent.
+
+entrypoint: manager
+globalMaxContextLength: 100000

@@ -29,7 +29,7 @@ export interface ChatMessage {
   tokenUsage?: TokenUsage;
 }
 
-// Tool call structure
+// Tool call structure (OpenAI format)
 export interface ToolCall {
   id: string;
   type: 'function';
@@ -54,11 +54,26 @@ export interface ToolInput {
   description: string;
   required?: boolean;
   default?: unknown;
+  enum?: string[];
 }
 
 // Tool inputs schema
 export interface ToolInputs {
   [key: string]: ToolInput;
+}
+
+// OpenAI function tool definition
+export interface OpenAIToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+  };
 }
 
 // Code execution output
@@ -75,6 +90,9 @@ export interface ActionOutput {
   isFinalAnswer: boolean;
 }
 
+// Memory management strategy
+export type MemoryStrategy = 'truncate' | 'compact';
+
 // Agent configuration
 export interface AgentConfig {
   model: Model;
@@ -85,6 +103,12 @@ export interface AgentConfig {
   additionalAuthorizedImports?: string[];
   streamOutputs?: boolean;
   verboseLevel?: LogLevel;
+  persistent?: boolean;
+  maxContextLength?: number;
+  memoryStrategy?: MemoryStrategy;
+  customInstructions?: string;
+  maxTokens?: number;
+  temperature?: number;
 }
 
 // Model configuration
@@ -134,11 +158,21 @@ export interface ActionStep extends MemoryStep {
   modelInputMessages: ChatMessage[];
   modelOutputMessage?: ChatMessage;
   codeAction?: string;
+  toolCalls?: ToolCall[];
+  toolResults?: ToolCallResult[];
   observation?: string;
   actionOutput?: ActionOutput;
   tokenUsage?: TokenUsage;
   error?: Error;
   isFinalAnswer?: boolean;
+}
+
+// Tool call result
+export interface ToolCallResult {
+  toolCallId: string;
+  toolName: string;
+  result: unknown;
+  error?: string;
 }
 
 // Final answer step
@@ -169,6 +203,7 @@ export interface Tool {
   outputType: string;
   execute: (args: Record<string, unknown>) => Promise<unknown>;
   toCodePrompt: () => string;
+  toOpenAITool: () => OpenAIToolDefinition;
 }
 
 export interface Model {
@@ -189,4 +224,59 @@ export interface GenerateOptions {
   maxTokens?: number;
   temperature?: number;
   tools?: Tool[];
+  toolDefinitions?: OpenAIToolDefinition[];
+}
+
+// YAML agent definition
+export interface YAMLAgentDefinition {
+  name: string;
+  type: 'ToolUseAgent' | 'CodeAgent';
+  description?: string;
+  model?: YAMLModelDefinition;
+  tools?: string[];
+  agents?: string[];
+  maxSteps?: number;
+  maxTokens?: number;
+  temperature?: number;
+  persistent?: boolean;
+  maxContextLength?: number;
+  memoryStrategy?: MemoryStrategy;
+  customInstructions?: string;
+  systemPrompt?: string;
+}
+
+// YAML model definition
+export interface YAMLModelDefinition {
+  modelId?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  maxTokens?: number;
+  temperature?: number;
+  timeout?: number;
+}
+
+// YAML workflow definition
+export interface YAMLWorkflowDefinition {
+  name: string;
+  description?: string;
+  model?: YAMLModelDefinition;
+  tools?: Record<string, YAMLToolDefinition>;
+  agents?: Record<string, YAMLAgentDefinition>;
+  entrypoint: string;
+  globalMaxContextLength?: number;
+}
+
+// YAML tool definition
+export interface YAMLToolDefinition {
+  type: string;
+  config?: Record<string, unknown>;
+}
+
+// Orchestrator event
+export interface OrchestratorEvent {
+  type: 'agent_start' | 'agent_step' | 'agent_tool_call' | 'agent_observation' | 'agent_end' | 'agent_error';
+  agentName: string;
+  depth: number;
+  data: unknown;
+  timestamp: number;
 }

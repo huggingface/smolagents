@@ -21,6 +21,14 @@ describe('AgentMemory', () => {
     it('should start with empty steps', () => {
       expect(memory.steps).toHaveLength(0);
     });
+
+    it('should accept config options', () => {
+      const mem = new AgentMemory('test', {
+        maxContextLength: 50000,
+        memoryStrategy: 'compact',
+      });
+      expect(mem.systemPrompt.content).toBe('test');
+    });
   });
 
   describe('addTask', () => {
@@ -61,7 +69,7 @@ describe('AgentMemory', () => {
   });
 
   describe('toMessages', () => {
-    it('should convert memory to chat messages', () => {
+    it('should convert memory to chat messages (CodeAgent pattern)', () => {
       memory.addTask('Test task');
       const actionStep = memory.createActionStep(1);
       actionStep.modelOutputMessage = {
@@ -81,6 +89,38 @@ describe('AgentMemory', () => {
       expect(messages[3].content).toContain('Observation');
     });
 
+    it('should convert memory to chat messages (ToolUseAgent pattern)', () => {
+      memory.addTask('Test task');
+      const actionStep = memory.createActionStep(1);
+      actionStep.modelOutputMessage = {
+        role: 'assistant',
+        content: 'Let me search for that.',
+      };
+      actionStep.toolCalls = [{
+        id: 'call_123',
+        type: 'function',
+        function: {
+          name: 'web_search',
+          arguments: '{"query":"test"}',
+        },
+      }];
+      actionStep.toolResults = [{
+        toolCallId: 'call_123',
+        toolName: 'web_search',
+        result: 'Search results here',
+      }];
+
+      const messages = memory.toMessages();
+
+      expect(messages).toHaveLength(4); // system, task, assistant+toolCalls, tool result
+      expect(messages[2].role).toBe('assistant');
+      expect(messages[2].toolCalls).toHaveLength(1);
+      expect(messages[2].toolCalls![0].function.name).toBe('web_search');
+      expect(messages[3].role).toBe('tool');
+      expect(messages[3].toolCallId).toBe('call_123');
+      expect(messages[3].content).toBe('Search results here');
+    });
+
     it('should include error messages', () => {
       memory.addTask('Test');
       const actionStep = memory.createActionStep(1);
@@ -91,6 +131,42 @@ describe('AgentMemory', () => {
       const errorMessage = messages.find((m) => m.content?.includes('Error:'));
       expect(errorMessage).toBeDefined();
       expect(errorMessage?.content).toContain('Something went wrong');
+    });
+  });
+
+  describe('manageContext', () => {
+    it('should not truncate when within limit', async () => {
+      const mem = new AgentMemory('Short prompt', { maxContextLength: 100000 });
+      mem.addTask('Short task');
+      mem.createActionStep(1);
+
+      await mem.manageContext();
+
+      expect(mem.steps).toHaveLength(2);
+    });
+
+    it('should truncate older steps when exceeding context length', async () => {
+      const mem = new AgentMemory('System prompt', {
+        maxContextLength: 100, // Very low limit
+        memoryStrategy: 'truncate',
+      });
+      mem.addTask('Task');
+
+      // Add many action steps with long content
+      for (let i = 0; i < 10; i++) {
+        const step = mem.createActionStep(i + 1);
+        step.modelOutputMessage = {
+          role: 'assistant',
+          content: 'A'.repeat(200),
+        };
+        step.observation = 'B'.repeat(200);
+      }
+
+      await mem.manageContext();
+
+      // Some steps should have been removed
+      const actionSteps = mem.getActionSteps();
+      expect(actionSteps.length).toBeLessThan(10);
     });
   });
 
@@ -147,6 +223,14 @@ describe('AgentMemory', () => {
       expect(total.inputTokens).toBe(0);
       expect(total.outputTokens).toBe(0);
       expect(total.totalTokens).toBe(0);
+    });
+  });
+
+  describe('getEstimatedTokenCount', () => {
+    it('should return an estimated token count', () => {
+      memory.addTask('This is a test task');
+      const tokenCount = memory.getEstimatedTokenCount();
+      expect(tokenCount).toBeGreaterThan(0);
     });
   });
 

@@ -5,7 +5,7 @@
  * Extend this class and implement the execute() method to create custom tools.
  */
 
-import type { ToolInputs, ToolInputType } from '../types.js';
+import type { ToolInputs, ToolInputType, OpenAIToolDefinition } from '../types.js';
 
 export abstract class Tool {
   /**
@@ -86,11 +86,6 @@ export abstract class Tool {
 
       providedKeys.delete(key);
     }
-
-    // Warn about unknown arguments
-    if (providedKeys.size > 0) {
-      console.warn(`Unknown arguments provided to ${this.name}: ${[...providedKeys].join(', ')}`);
-    }
   }
 
   /**
@@ -140,6 +135,70 @@ ${argsDoc}
  */
 async function ${this.name}(${argsSignature}): Promise<${this.typeToJsType(this.outputType as ToolInputType)}> { ... }
 `.trim();
+  }
+
+  /**
+   * Generate an OpenAI-compatible tool definition for function calling.
+   */
+  toOpenAITool(): OpenAIToolDefinition {
+    const properties: Record<string, unknown> = {};
+    const required: string[] = [];
+
+    for (const [key, input] of Object.entries(this.inputs)) {
+      const prop: Record<string, unknown> = {
+        type: this.typeToJsonSchemaType(input.type),
+        description: input.description,
+      };
+
+      if (input.enum) {
+        prop.enum = input.enum;
+      }
+
+      if (input.default !== undefined) {
+        prop.default = input.default;
+      }
+
+      properties[key] = prop;
+
+      if (input.required !== false) {
+        required.push(key);
+      }
+    }
+
+    return {
+      type: 'function',
+      function: {
+        name: this.name,
+        description: this.description,
+        parameters: {
+          type: 'object',
+          properties,
+          ...(required.length > 0 && { required }),
+        },
+      },
+    };
+  }
+
+  /**
+   * Convert tool input type to JSON Schema type.
+   */
+  protected typeToJsonSchemaType(type: ToolInputType): string {
+    switch (type) {
+      case 'string':
+        return 'string';
+      case 'number':
+        return 'number';
+      case 'boolean':
+        return 'boolean';
+      case 'array':
+        return 'array';
+      case 'object':
+        return 'object';
+      case 'any':
+        return 'string';
+      default:
+        return 'string';
+    }
   }
 
   /**

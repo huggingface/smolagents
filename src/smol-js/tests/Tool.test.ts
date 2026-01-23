@@ -2,7 +2,7 @@
  * Unit tests for Tool class
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Tool, createTool } from '../src/tools/Tool.js';
 import type { ToolInputs } from '../src/types.js';
 
@@ -118,6 +118,72 @@ describe('Tool', () => {
     });
   });
 
+  describe('toOpenAITool', () => {
+    it('should generate valid OpenAI tool definition', () => {
+      const tool = new TestTool();
+
+      const def = tool.toOpenAITool();
+
+      expect(def.type).toBe('function');
+      expect(def.function.name).toBe('test_tool');
+      expect(def.function.description).toBe('A test tool for unit testing');
+      expect(def.function.parameters.type).toBe('object');
+      expect(def.function.parameters.properties).toHaveProperty('message');
+      expect(def.function.parameters.properties).toHaveProperty('count');
+      expect(def.function.parameters.required).toContain('message');
+      expect(def.function.parameters.required).not.toContain('count');
+    });
+
+    it('should include enum values', () => {
+      class EnumTool extends Tool {
+        readonly name = 'enum_tool';
+        readonly description = 'Tool with enum';
+        readonly inputs: ToolInputs = {
+          mode: {
+            type: 'string',
+            description: 'Mode',
+            enum: ['fast', 'slow'],
+          },
+        };
+        readonly outputType = 'string';
+        async execute(): Promise<string> { return ''; }
+      }
+
+      const tool = new EnumTool();
+      const def = tool.toOpenAITool();
+
+      expect((def.function.parameters.properties.mode as Record<string, unknown>).enum).toEqual(['fast', 'slow']);
+    });
+
+    it('should map types to JSON Schema types', () => {
+      class TypesTool extends Tool {
+        readonly name = 'types_tool';
+        readonly description = 'Test types';
+        readonly inputs: ToolInputs = {
+          str: { type: 'string', description: 's' },
+          num: { type: 'number', description: 'n' },
+          bool: { type: 'boolean', description: 'b' },
+          arr: { type: 'array', description: 'a' },
+          obj: { type: 'object', description: 'o' },
+          any: { type: 'any', description: 'x' },
+        };
+        readonly outputType = 'string';
+        async execute(): Promise<string> { return ''; }
+      }
+
+      const tool = new TypesTool();
+      const def = tool.toOpenAITool();
+      const props = def.function.parameters.properties;
+
+      expect((props.str as Record<string, unknown>).type).toBe('string');
+      expect((props.num as Record<string, unknown>).type).toBe('number');
+      expect((props.bool as Record<string, unknown>).type).toBe('boolean');
+      expect((props.arr as Record<string, unknown>).type).toBe('array');
+      expect((props.obj as Record<string, unknown>).type).toBe('object');
+      expect((props.any as Record<string, unknown>).type).toBe('string'); // 'any' maps to 'string' in JSON Schema
+    });
+  });
+
   describe('toJSON', () => {
     it('should serialize tool to JSON', () => {
       const tool = new TestTool();
@@ -151,5 +217,19 @@ describe('createTool', () => {
 
     const result = await tool.call({ a: 2, b: 3 });
     expect(result).toBe(5);
+  });
+
+  it('should generate OpenAI tool definition from createTool', () => {
+    const tool = createTool({
+      name: 'test',
+      description: 'Test tool',
+      inputs: { x: { type: 'string', description: 'Input' } },
+      outputType: 'string',
+      execute: async () => 'ok',
+    });
+
+    const def = tool.toOpenAITool();
+    expect(def.function.name).toBe('test');
+    expect(def.function.parameters.required).toEqual(['x']);
   });
 });
