@@ -4,8 +4,9 @@
  * smol-js CLI - Run YAML-defined agent workflows from the command line
  *
  * Usage:
+ *   smol-js <workflow.yaml> [--task "your task"]   (auto-detects yaml files)
  *   smol-js run <workflow.yaml> [--task "your task"]
- *   smol-js run <workflow.yaml> (reads task from stdin if not provided)
+ *   smol-js validate <workflow.yaml>
  */
 
 import * as fs from 'fs';
@@ -32,6 +33,9 @@ async function main(): Promise<void> {
     await runCommand(args.slice(1));
   } else if (command === 'validate') {
     await validateCommand(args.slice(1));
+  } else if (command.endsWith('.yaml') || command.endsWith('.yml')) {
+    // Auto-detect: if first arg is a YAML file, treat as "run"
+    await runCommand(args);
   } else {
     console.error(chalk.red(`Unknown command: ${command}`));
     printUsage();
@@ -42,7 +46,8 @@ async function main(): Promise<void> {
 function printUsage(): void {
   console.log(chalk.cyan.bold('\nsmol-js CLI - YAML Agent Orchestrator\n'));
   console.log('Usage:');
-  console.log('  smol-js run <workflow.yaml> [options]     Run a workflow');
+  console.log('  smol-js <workflow.yaml> [options]         Run a workflow (auto-detect)');
+  console.log('  smol-js run <workflow.yaml> [options]     Run a workflow (explicit)');
   console.log('  smol-js validate <workflow.yaml>          Validate a workflow file');
   console.log('');
   console.log('Options:');
@@ -51,8 +56,8 @@ function printUsage(): void {
   console.log('  --help, -h           Show this help message');
   console.log('');
   console.log('Examples:');
-  console.log('  smol-js run workflow.yaml --task "Research AI safety"');
-  console.log('  smol-js run research-agent.yaml -t "Write a summary of quantum computing"');
+  console.log('  npx @samrahimi/smol-js workflow.yaml --task "Research AI safety"');
+  console.log('  smol-js research-agent.yaml -t "Write a summary of quantum computing"');
   console.log('  smol-js validate my-workflow.yaml');
 }
 
