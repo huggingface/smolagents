@@ -1,0 +1,26 @@
+name: simple-tool-test
+description: A minimal single-agent workflow to test built-in tools
+
+model:
+  modelId: anthropic/claude-3.5-haiku
+  baseUrl: https://openrouter.ai/api/v1
+
+tools:
+  write:
+    type: write_file
+  read:
+    type: read_file
+
+agents:
+  assistant:
+    type: ToolUseAgent
+    description: A simple assistant that can read and write files
+    tools:
+      - write
+      - read
+    maxSteps: 3
+    customInstructions: >
+      You are a concise assistant. Write short, direct answers.
+      When asked to create content, save it to a file and confirm the filename.
+
+entrypoint: assistant

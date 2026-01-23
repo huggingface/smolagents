@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * smol-js CLI - Run YAML-defined agent workflows from the command line
  *
