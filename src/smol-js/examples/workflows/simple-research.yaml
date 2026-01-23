@@ -1,0 +1,74 @@
+# Simple Research Workflow (ToolUseAgent only)
+# Tests the file-based content passing pattern between agents.
+#
+# Usage:
+#   npx tsx src/cli.ts run examples/workflows/simple-research.yaml --task "your topic"
+
+name: simple-research
+description: >
+  A simple two-agent research workflow that tests file-based content delegation.
+  The researcher gathers information and saves to a file, then the writer reads
+  the research file and produces a final report.
+
+model:
+  modelId: anthropic/claude-sonnet-4.5
+  baseUrl: https://openrouter.ai/api/v1
+
+tools:
+  search:
+    type: exa_search
+  research:
+    type: exa_research
+  read:
+    type: read_file
+  write:
+    type: write_file
+
+agents:
+  # Researcher: searches the web, saves findings to a file
+  researcher:
+    type: ToolUseAgent
+    description: Web researcher that gathers information and saves findings to a file
+    tools:
+      - search
+      - research
+      - write
+    maxSteps: 6
+    customInstructions: >
+      You are a focused web researcher. Research the given topic using exa_research
+      and exa_search. Compile your findings into a clear markdown document and save
+      it using write_file. Keep your research concise but informative (aim for 500-1000 words).
+
+  # Writer: reads research file, produces final report
+  writer:
+    type: ToolUseAgent
+    description: Report writer that reads research and produces a polished final report
+    tools:
+      - read
+      - write
+    maxSteps: 4
+    customInstructions: >
+      You are a report writer. You will receive the filename of a research document.
+      Read it using read_file, then write a polished, concise report (300-500 words)
+      and save it using write_file. Focus on clarity and actionable insights.
+
+  # Manager: orchestrates researcher then writer, reads their output files
+  manager:
+    type: ToolUseAgent
+    description: Coordinator that delegates research and writing tasks
+    tools:
+      - read
+      - write
+    agents:
+      - researcher
+      - writer
+    maxSteps: 6
+    customInstructions: >
+      You coordinate a research-then-write workflow:
+      1. Delegate the research topic to the researcher agent
+      2. The researcher will return a summary and filename — use read_file to get the full research
+      3. Delegate writing to the writer agent, telling it the research filename to read
+      4. The writer will return a summary and filename — use read_file to get the final report
+      5. Return the final report content as your final_answer
+
+entrypoint: manager

@@ -38,6 +38,7 @@ agents:
       - scrape
       - research
       - http
+      - write
     maxSteps: 10
     customInstructions: >
       You are an expert researcher. When given a topic, use the exa_research tool for
@@ -74,6 +75,9 @@ agents:
   manager:
     type: ToolUseAgent
     description: Project manager that orchestrates the research and writing workflow
+    tools:
+      - read
+      - write
     agents:
       - researcher
       - analyst
@@ -84,11 +88,13 @@ agents:
 
       Your process:
       1. First, delegate the research task to the researcher agent with a clear research brief
-      2. Pass the research findings to the analyst agent for structured analysis
-      3. Finally, pass both research and analysis to the writer agent to produce the final report
+      2. Read the file(s) produced by the researcher using read_file
+      3. Pass the research findings to the analyst agent for structured analysis
+      4. Read the file(s) produced by the analyst using read_file
+      5. Finally, pass both research and analysis to the writer agent to produce the final report
 
-      Make sure each agent gets clear, specific instructions about what you need.
-      Review intermediate results before passing to the next agent.
+      Sub-agents save their output to files and return the filename. Use read_file to access their full output.
+      Never re-call a sub-agent just to retrieve content it already produced.
 
 entrypoint: manager
 globalMaxContextLength: 100000

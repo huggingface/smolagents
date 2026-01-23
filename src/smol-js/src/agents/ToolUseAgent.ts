@@ -44,9 +44,16 @@ export class ToolUseAgent extends Agent {
       }))
     );
 
+    // Detect capabilities for content delegation guidelines
+    const toolNames = new Set(Array.from(this.tools.keys()));
+    const hasSubAgents = toolList.some(t => t.constructor.name === 'AgentTool');
+    const hasFileTools = toolNames.has('read_file') || toolNames.has('write_file') || toolNames.has('read') || toolNames.has('write');
+
     return generateToolUseSystemPrompt({
       tools: toolDescriptions,
       customInstructions: this.config.customInstructions,
+      hasSubAgents,
+      hasFileTools,
     });
   }
 
