@@ -1,6 +1,6 @@
 {
   "name": "@samrahimi/smol-js",
-  "version": "0.6.0",
+  "version": "0.6.3",
   "description": "A TypeScript agentic framework - CodeAgent and ToolUseAgent with YAML orchestration, built-in tools, and Exa.ai integration",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -31,7 +31,7 @@
     "cli": "tsx src/cli.ts",
     "run-examples": "tsx examples/run-all.ts",
     "package": "npm run build && npm pack",
-    "publish": "npm run build && npm publish --access public",
+    "release": "npm run build && npm publish --access public --ignore-scripts",
     "prepare": "husky"
   },
   "keywords": [

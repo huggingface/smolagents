@@ -1,0 +1,91 @@
+# Custom Tools Demo Workflow
+#
+# This workflow uses BOTH built-in tools (read_file, write_file, exa_search)
+# AND custom tools (timestamp, text_stats, slugify).
+#
+# Custom tools are defined in custom-tools.ts and registered with the
+# YAMLLoader via registerToolType() before loading this YAML.
+#
+# The type field in each tool definition maps to:
+#   - Built-in: a key in YAMLLoader's internal TOOL_REGISTRY
+#   - Custom: a key registered via loader.registerToolType(typeName, ToolClass)
+
+name: custom-tools-demo
+description: >
+  Demonstrates custom tool registration with YAML workflows.
+  A researcher searches the web, then a writer creates a timestamped
+  blog post with stats, saving it with a slugified filename.
+
+model:
+  modelId: anthropic/claude-sonnet-4.5
+  baseUrl: https://openrouter.ai/api/v1
+
+tools:
+  # Built-in tools (type maps to YAMLLoader's TOOL_REGISTRY)
+  search:
+    type: exa_search          # Built-in: ExaSearchTool
+  read:
+    type: read_file           # Built-in: ReadFileTool
+  write:
+    type: write_file          # Built-in: WriteFileTool
+
+  # Custom tools (type maps to registerToolType() calls in main.ts)
+  timestamp:
+    type: timestamp           # Custom: TimestampTool class
+  stats:
+    type: text_stats          # Custom: TextStatsTool class
+  slug:
+    type: slugify             # Custom: SlugifyTool class
+
+agents:
+  # Researcher: uses built-in exa_search + custom timestamp tool
+  researcher:
+    type: ToolUseAgent
+    description: Researcher that finds current information on a topic
+    tools:
+      - search
+      - timestamp
+      - write
+    maxSteps: 5
+    customInstructions: >
+      Research the given topic using exa_search. Use the timestamp tool to
+      record when the research was performed. Save your findings to a file
+      and return the filename.
+
+  # Writer: reads research, writes blog post, gets stats + slug
+  writer:
+    type: ToolUseAgent
+    description: Blog writer that creates posts with metadata
+    tools:
+      - read
+      - write
+      - timestamp
+      - stats
+      - slug
+    maxSteps: 5
+    customInstructions: >
+      You write concise blog posts. Read the research file provided, then:
+      1. Use slugify to generate a filename from the post title
+      2. Use timestamp to get the current date for the post header
+      3. Write the blog post to "[slug].md"
+      4. Use text_stats on the post content to get word count etc.
+      5. Return the filename and the stats
+
+  # Manager: coordinates researcher then writer
+  manager:
+    type: ToolUseAgent
+    description: Coordinator for the research-to-blog pipeline
+    tools:
+      - read
+    agents:
+      - researcher
+      - writer
+    maxSteps: 6
+    customInstructions: >
+      Coordinate a research-to-blog workflow:
+      1. Delegate the research topic to the researcher
+      2. Read the research file the researcher created
+      3. Tell the writer the research filename so it can create the blog post
+      4. Read the final blog post file and return its content
+
+entrypoint: manager

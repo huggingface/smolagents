@@ -8,9 +8,9 @@
 
 import 'dotenv/config';
 
-// Import from the published npm package
-import { CodeAgent, OpenAIModel, Tool, LogLevel } from '@samrahimi/smol-js';
-import type { ToolInputs } from '@samrahimi/smol-js';
+// Import from the local source (for npm package usage, see /examples/js/)
+import { CodeAgent, OpenAIModel, Tool, LogLevel } from '../src/index.js';
+import type { ToolInputs } from '../src/types.js';
 
 /**
  * Calculator Tool - Performs basic math operations

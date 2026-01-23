@@ -1,0 +1,15 @@
+{
+  "name": "smol-js-custom-tools-demo",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Demo showing custom tool registration with YAML workflows using @samrahimi/smol-js",
+  "scripts": {
+    "start": "tsx main.ts"
+  },
+  "dependencies": {
+    "@samrahimi/smol-js": "^0.6.2",
+    "dotenv": "^16.3.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}

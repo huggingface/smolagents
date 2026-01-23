@@ -13,7 +13,8 @@
  */
 
 import 'dotenv/config';
-import { CodeAgent, OpenAIModel, Tool, LogLevel, ToolInputs } from '@samrahimi/smol-js';
+import { CodeAgent, OpenAIModel, Tool, LogLevel } from '../src/index.js';
+import type { ToolInputs } from '../src/types.js';
 
 /**
  * Web Search Tool - Uses DuckDuckGo Instant Answer API
