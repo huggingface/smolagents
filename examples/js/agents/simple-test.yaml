@@ -2,7 +2,7 @@ name: simple-tool-test
 description: A minimal single-agent workflow to test built-in tools
 
 model:
-  modelId: anthropic/claude-3.5-haiku
+  modelId: anthropic/claude-haiku-4.5
   baseUrl: https://openrouter.ai/api/v1
 
 tools:

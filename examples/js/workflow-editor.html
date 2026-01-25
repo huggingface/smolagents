@@ -1,0 +1,672 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>smol-js Workflow Builder</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- js-yaml for YAML generation -->
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+
+  <!-- Lucide icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <style>
+    .agent-card {
+      transition: all 0.2s ease;
+    }
+    .agent-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.2);
+    }
+    .agent-card.selected {
+      ring: 2px;
+      ring-color: #3b82f6;
+    }
+    .tool-chip {
+      transition: all 0.15s ease;
+    }
+    .tool-chip:hover {
+      transform: scale(1.05);
+    }
+    .yaml-output {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .drag-handle {
+      cursor: grab;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  <div id="app" class="flex h-screen">
+
+    <!-- Left Sidebar - Agent List -->
+    <div class="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
+      <div class="p-4 border-b border-gray-700">
+        <h1 class="text-xl font-bold text-blue-400 flex items-center gap-2">
+          <i data-lucide="workflow" class="w-6 h-6"></i>
+          smol-js Workflow Builder
+        </h1>
+      </div>
+
+      <!-- Workflow Settings -->
+      <div class="p-4 border-b border-gray-700">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Workflow Settings</h2>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Name</label>
+            <input type="text" id="workflowName" value="my-workflow"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Description</label>
+            <input type="text" id="workflowDescription" placeholder="Optional description"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Default Model</label>
+            <select id="workflowModel" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+              <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
+              <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5</option>
+              <option value="anthropic/claude-opus-4.5">Claude Opus 4.5</option>
+              <option value="openai/gpt-4o">GPT-4o</option>
+              <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Entrypoint Agent</label>
+            <select id="workflowEntrypoint" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+              <option value="">-- Select Agent --</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agents List -->
+      <div class="flex-1 overflow-y-auto p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wide">Agents</h2>
+          <button onclick="addAgent()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm flex items-center gap-1">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Add
+          </button>
+        </div>
+        <div id="agentsList" class="space-y-2">
+          <!-- Agent cards will be rendered here -->
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="p-4 border-t border-gray-700 space-y-2">
+        <button onclick="generateYAML()" class="w-full bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-medium flex items-center justify-center gap-2">
+          <i data-lucide="file-code" class="w-4 h-4"></i>
+          Generate YAML
+        </button>
+        <button onclick="downloadYAML()" class="w-full bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded font-medium flex items-center justify-center gap-2">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          Download YAML
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content - Agent Editor -->
+    <div class="flex-1 flex">
+      <!-- Agent Editor Panel -->
+      <div class="flex-1 p-6 overflow-y-auto">
+        <div id="editorPlaceholder" class="h-full flex items-center justify-center text-gray-500">
+          <div class="text-center">
+            <i data-lucide="mouse-pointer-click" class="w-16 h-16 mx-auto mb-4 opacity-50"></i>
+            <p class="text-lg">Select an agent to edit</p>
+            <p class="text-sm mt-2">Or click "Add" to create a new agent</p>
+          </div>
+        </div>
+
+        <div id="agentEditor" class="hidden">
+          <div class="max-w-3xl">
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-2xl font-bold flex items-center gap-2">
+                <i data-lucide="bot" class="w-6 h-6 text-blue-400"></i>
+                <span id="editorTitle">Agent Editor</span>
+              </h2>
+              <button onclick="deleteAgent()" class="text-red-400 hover:text-red-300 flex items-center gap-1">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                Delete
+              </button>
+            </div>
+
+            <!-- Basic Settings -->
+            <div class="bg-gray-800 rounded-lg p-5 mb-4">
+              <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">Basic Settings</h3>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">Agent Name</label>
+                  <input type="text" id="agentName" placeholder="my_agent"
+                    class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    onchange="updateAgentName()">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">Agent Type</label>
+                  <select id="agentType" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" onchange="updateAgent()">
+                    <option value="tool_use">Tool Use Agent</option>
+                    <option value="code">Code Agent</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">Model Override (optional)</label>
+                  <select id="agentModel" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" onchange="updateAgent()">
+                    <option value="">Use workflow default</option>
+                    <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
+                    <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5</option>
+                    <option value="anthropic/claude-opus-4.5">Claude Opus 4.5</option>
+                    <option value="openai/gpt-4o">GPT-4o</option>
+                    <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">Max Steps</label>
+                  <input type="number" id="agentMaxSteps" value="10" min="1" max="50"
+                    class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    onchange="updateAgent()">
+                </div>
+              </div>
+            </div>
+
+            <!-- Tools -->
+            <div class="bg-gray-800 rounded-lg p-5 mb-4">
+              <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">Tools</h3>
+
+              <div class="mb-4">
+                <label class="block text-xs text-gray-500 mb-2">Built-in Tools</label>
+                <div id="builtinTools" class="flex flex-wrap gap-2">
+                  <!-- Tool chips rendered here -->
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs text-gray-500 mb-2">Sub-Agents (as tools)</label>
+                <div id="agentTools" class="flex flex-wrap gap-2">
+                  <!-- Agent tool chips rendered here -->
+                </div>
+                <p class="text-xs text-gray-500 mt-2">Click to toggle. Selected tools appear highlighted.</p>
+              </div>
+            </div>
+
+            <!-- Custom Instructions -->
+            <div class="bg-gray-800 rounded-lg p-5 mb-4">
+              <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">Custom Instructions</h3>
+              <textarea id="agentInstructions" rows="8" placeholder="Enter custom instructions for this agent..."
+                class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 font-mono"
+                onchange="updateAgent()"></textarea>
+            </div>
+
+            <!-- Advanced Settings -->
+            <details class="bg-gray-800 rounded-lg p-5">
+              <summary class="text-sm font-semibold text-gray-400 uppercase tracking-wide cursor-pointer">Advanced Settings</summary>
+              <div class="mt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">Max Context Length</label>
+                  <input type="number" id="agentMaxContext" value="100000" min="1000" step="1000"
+                    class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    onchange="updateAgent()">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">Memory Management</label>
+                  <select id="agentMemoryMode" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" onchange="updateAgent()">
+                    <option value="truncate">Truncate</option>
+                    <option value="compact">Compact</option>
+                  </select>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+
+      <!-- YAML Preview Panel -->
+      <div class="w-96 bg-gray-850 border-l border-gray-700 flex flex-col">
+        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wide">YAML Preview</h2>
+          <button onclick="copyYAML()" class="text-gray-400 hover:text-white flex items-center gap-1 text-sm">
+            <i data-lucide="copy" class="w-4 h-4"></i>
+            Copy
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4">
+          <pre id="yamlPreview" class="yaml-output text-green-400 whitespace-pre-wrap"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===========================================
+    // State Management
+    // ===========================================
+
+    const BUILTIN_TOOLS = [
+      { id: 'web_search', name: 'Web Search', icon: 'search', description: 'Search the web using Exa.ai' },
+      { id: 'get_webpage_contents', name: 'Get Page Contents', icon: 'file-text', description: 'Extract content from web pages' },
+      { id: 'deep_research', name: 'Deep Research', icon: 'book-open', description: 'In-depth research using Exa.ai' },
+      { id: 'read_file', name: 'Read File', icon: 'file-input', description: 'Read files from disk' },
+      { id: 'write_file', name: 'Write File', icon: 'file-output', description: 'Write files to disk' },
+      { id: 'curl', name: 'HTTP Request', icon: 'globe', description: 'Make HTTP requests' },
+    ];
+
+    let state = {
+      workflow: {
+        name: 'my-workflow',
+        description: '',
+        model: 'anthropic/claude-sonnet-4.5',
+        entrypoint: ''
+      },
+      agents: [],
+      selectedAgentId: null
+    };
+
+    let agentIdCounter = 0;
+
+    // ===========================================
+    // Agent Management
+    // ===========================================
+
+    function createAgent(name = null) {
+      const id = ++agentIdCounter;
+      return {
+        id,
+        name: name || `agent_${id}`,
+        type: 'tool_use',
+        model: '',
+        maxSteps: 10,
+        tools: [],
+        agentTools: [],
+        customInstructions: '',
+        maxContextLength: 100000,
+        memoryManagement: 'truncate'
+      };
+    }
+
+    function addAgent() {
+      const agent = createAgent();
+      state.agents.push(agent);
+      selectAgent(agent.id);
+      renderAgentsList();
+      updateEntrypointOptions();
+      generateYAML();
+    }
+
+    function selectAgent(id) {
+      state.selectedAgentId = id;
+      renderAgentsList();
+      renderAgentEditor();
+    }
+
+    function deleteAgent() {
+      if (!state.selectedAgentId) return;
+
+      const index = state.agents.findIndex(a => a.id === state.selectedAgentId);
+      if (index > -1) {
+        state.agents.splice(index, 1);
+      }
+
+      // Remove from other agents' tools
+      state.agents.forEach(agent => {
+        const toolIndex = agent.agentTools.indexOf(state.selectedAgentId);
+        if (toolIndex > -1) {
+          agent.agentTools.splice(toolIndex, 1);
+        }
+      });
+
+      state.selectedAgentId = null;
+      renderAgentsList();
+      renderAgentEditor();
+      updateEntrypointOptions();
+      generateYAML();
+    }
+
+    function getSelectedAgent() {
+      return state.agents.find(a => a.id === state.selectedAgentId);
+    }
+
+    function updateAgentName() {
+      const agent = getSelectedAgent();
+      if (!agent) return;
+
+      const newName = document.getElementById('agentName').value.trim().replace(/\s+/g, '_').toLowerCase();
+      agent.name = newName || `agent_${agent.id}`;
+
+      renderAgentsList();
+      updateEntrypointOptions();
+      renderToolChips();
+      generateYAML();
+    }
+
+    function updateAgent() {
+      const agent = getSelectedAgent();
+      if (!agent) return;
+
+      agent.type = document.getElementById('agentType').value;
+      agent.model = document.getElementById('agentModel').value;
+      agent.maxSteps = parseInt(document.getElementById('agentMaxSteps').value) || 10;
+      agent.customInstructions = document.getElementById('agentInstructions').value;
+      agent.maxContextLength = parseInt(document.getElementById('agentMaxContext').value) || 100000;
+      agent.memoryManagement = document.getElementById('agentMemoryMode').value;
+
+      generateYAML();
+    }
+
+    function toggleTool(toolId) {
+      const agent = getSelectedAgent();
+      if (!agent) return;
+
+      const index = agent.tools.indexOf(toolId);
+      if (index > -1) {
+        agent.tools.splice(index, 1);
+      } else {
+        agent.tools.push(toolId);
+      }
+
+      renderToolChips();
+      generateYAML();
+    }
+
+    function toggleAgentTool(agentId) {
+      const agent = getSelectedAgent();
+      if (!agent) return;
+
+      const index = agent.agentTools.indexOf(agentId);
+      if (index > -1) {
+        agent.agentTools.splice(index, 1);
+      } else {
+        agent.agentTools.push(agentId);
+      }
+
+      renderToolChips();
+      generateYAML();
+    }
+
+    // ===========================================
+    // Rendering
+    // ===========================================
+
+    function renderAgentsList() {
+      const container = document.getElementById('agentsList');
+
+      if (state.agents.length === 0) {
+        container.innerHTML = `
+          <div class="text-center text-gray-500 py-8">
+            <p class="text-sm">No agents yet</p>
+            <p class="text-xs mt-1">Click "Add" to create one</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = state.agents.map(agent => `
+        <div class="agent-card bg-gray-700 rounded-lg p-3 cursor-pointer ${agent.id === state.selectedAgentId ? 'ring-2 ring-blue-500' : ''}"
+          onclick="selectAgent(${agent.id})">
+          <div class="flex items-center gap-2">
+            <i data-lucide="${agent.type === 'code' ? 'code' : 'wrench'}" class="w-4 h-4 ${agent.type === 'code' ? 'text-yellow-400' : 'text-blue-400'}"></i>
+            <span class="font-medium">${agent.name}</span>
+          </div>
+          <div class="flex items-center gap-2 mt-2 text-xs text-gray-400">
+            <span class="bg-gray-600 px-2 py-0.5 rounded">${agent.type === 'code' ? 'Code' : 'Tool Use'}</span>
+            <span>${agent.tools.length + agent.agentTools.length} tools</span>
+          </div>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function renderAgentEditor() {
+      const placeholder = document.getElementById('editorPlaceholder');
+      const editor = document.getElementById('agentEditor');
+      const agent = getSelectedAgent();
+
+      if (!agent) {
+        placeholder.classList.remove('hidden');
+        editor.classList.add('hidden');
+        return;
+      }
+
+      placeholder.classList.add('hidden');
+      editor.classList.remove('hidden');
+
+      document.getElementById('editorTitle').textContent = agent.name;
+      document.getElementById('agentName').value = agent.name;
+      document.getElementById('agentType').value = agent.type;
+      document.getElementById('agentModel').value = agent.model;
+      document.getElementById('agentMaxSteps').value = agent.maxSteps;
+      document.getElementById('agentInstructions').value = agent.customInstructions;
+      document.getElementById('agentMaxContext').value = agent.maxContextLength;
+      document.getElementById('agentMemoryMode').value = agent.memoryManagement;
+
+      renderToolChips();
+    }
+
+    function renderToolChips() {
+      const agent = getSelectedAgent();
+      if (!agent) return;
+
+      // Built-in tools
+      const builtinContainer = document.getElementById('builtinTools');
+      builtinContainer.innerHTML = BUILTIN_TOOLS.map(tool => `
+        <button onclick="toggleTool('${tool.id}')"
+          class="tool-chip px-3 py-1.5 rounded-full text-sm flex items-center gap-1.5 ${agent.tools.includes(tool.id) ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}"
+          title="${tool.description}">
+          <i data-lucide="${tool.icon}" class="w-3.5 h-3.5"></i>
+          ${tool.name}
+        </button>
+      `).join('');
+
+      // Agent tools (other agents)
+      const agentToolsContainer = document.getElementById('agentTools');
+      const otherAgents = state.agents.filter(a => a.id !== agent.id);
+
+      if (otherAgents.length === 0) {
+        agentToolsContainer.innerHTML = '<span class="text-gray-500 text-sm">No other agents to use as tools</span>';
+      } else {
+        agentToolsContainer.innerHTML = otherAgents.map(otherAgent => `
+          <button onclick="toggleAgentTool(${otherAgent.id})"
+            class="tool-chip px-3 py-1.5 rounded-full text-sm flex items-center gap-1.5 ${agent.agentTools.includes(otherAgent.id) ? 'bg-purple-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}">
+            <i data-lucide="bot" class="w-3.5 h-3.5"></i>
+            ${otherAgent.name}
+          </button>
+        `).join('');
+      }
+
+      lucide.createIcons();
+    }
+
+    function updateEntrypointOptions() {
+      const select = document.getElementById('workflowEntrypoint');
+      const currentValue = select.value;
+
+      select.innerHTML = '<option value="">-- Select Agent --</option>' +
+        state.agents.map(agent => `
+          <option value="${agent.name}" ${agent.name === currentValue ? 'selected' : ''}>${agent.name}</option>
+        `).join('');
+
+      state.workflow.entrypoint = select.value;
+    }
+
+    // ===========================================
+    // YAML Generation
+    // ===========================================
+
+    function generateYAML() {
+      // Update workflow settings from inputs
+      state.workflow.name = document.getElementById('workflowName').value;
+      state.workflow.description = document.getElementById('workflowDescription').value;
+      state.workflow.model = document.getElementById('workflowModel').value;
+      state.workflow.entrypoint = document.getElementById('workflowEntrypoint').value;
+
+      // Build YAML object
+      const yaml = {
+        name: state.workflow.name,
+      };
+
+      if (state.workflow.description) {
+        yaml.description = state.workflow.description;
+      }
+
+      yaml.model = {
+        modelId: state.workflow.model
+      };
+
+      // Agents
+      if (state.agents.length > 0) {
+        yaml.agents = state.agents.map(agent => {
+          const agentYaml = {
+            name: agent.name,
+            type: agent.type
+          };
+
+          // Model override
+          if (agent.model) {
+            agentYaml.model = { modelId: agent.model };
+          }
+
+          // Tools
+          const allTools = [
+            ...agent.tools,
+            ...agent.agentTools.map(id => {
+              const a = state.agents.find(x => x.id === id);
+              return a ? a.name : null;
+            }).filter(Boolean)
+          ];
+
+          if (allTools.length > 0) {
+            agentYaml.tools = allTools;
+          }
+
+          // Custom instructions
+          if (agent.customInstructions.trim()) {
+            agentYaml.customInstructions = agent.customInstructions;
+          }
+
+          // Max steps
+          if (agent.maxSteps !== 10) {
+            agentYaml.maxSteps = agent.maxSteps;
+          }
+
+          // Advanced settings (only if non-default)
+          if (agent.maxContextLength !== 100000) {
+            agentYaml.maxContextLength = agent.maxContextLength;
+          }
+          if (agent.memoryManagement !== 'truncate') {
+            agentYaml.memoryManagement = agent.memoryManagement;
+          }
+
+          return agentYaml;
+        });
+      }
+
+      // Entrypoint
+      if (state.workflow.entrypoint) {
+        yaml.entrypoint = state.workflow.entrypoint;
+      }
+
+      // Generate YAML string
+      const yamlStr = jsyaml.dump(yaml, {
+        indent: 2,
+        lineWidth: 100,
+        noRefs: true,
+        sortKeys: false
+      });
+
+      document.getElementById('yamlPreview').textContent = yamlStr;
+
+      return yamlStr;
+    }
+
+    function copyYAML() {
+      const yaml = generateYAML();
+      navigator.clipboard.writeText(yaml).then(() => {
+        // Brief visual feedback
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Copied!';
+        lucide.createIcons();
+        setTimeout(() => {
+          btn.innerHTML = originalHTML;
+          lucide.createIcons();
+        }, 1500);
+      });
+    }
+
+    function downloadYAML() {
+      const yaml = generateYAML();
+      const filename = `${state.workflow.name || 'workflow'}.yaml`;
+
+      const blob = new Blob([yaml], { type: 'text/yaml' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // ===========================================
+    // Event Listeners
+    // ===========================================
+
+    document.getElementById('workflowName').addEventListener('input', generateYAML);
+    document.getElementById('workflowDescription').addEventListener('input', generateYAML);
+    document.getElementById('workflowModel').addEventListener('change', generateYAML);
+    document.getElementById('workflowEntrypoint').addEventListener('change', () => {
+      state.workflow.entrypoint = document.getElementById('workflowEntrypoint').value;
+      generateYAML();
+    });
+
+    // ===========================================
+    // Initialization
+    // ===========================================
+
+    function init() {
+      // Initialize Lucide icons
+      lucide.createIcons();
+
+      // Create a sample workflow
+      const manager = createAgent('manager');
+      manager.type = 'tool_use';
+      manager.customInstructions = 'You are a manager agent coordinating sub-agents.';
+      state.agents.push(manager);
+
+      const researcher = createAgent('researcher');
+      researcher.type = 'tool_use';
+      researcher.model = 'anthropic/claude-haiku-4.5';
+      researcher.tools = ['web_search', 'get_webpage_contents'];
+      researcher.customInstructions = 'You are a web research specialist.';
+      state.agents.push(researcher);
+
+      // Manager uses researcher as tool
+      manager.agentTools = [researcher.id];
+
+      // Set entrypoint
+      state.workflow.entrypoint = 'manager';
+
+      // Render initial state
+      renderAgentsList();
+      updateEntrypointOptions();
+      document.getElementById('workflowEntrypoint').value = 'manager';
+      generateYAML();
+    }
+
+    init();
+  </script>
+</body>
+</html>

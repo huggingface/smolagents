@@ -1,0 +1,77 @@
+name: market-intelligence
+description: >-
+  Performs research and data analysis on markets, brands, and products, creating attractive and
+  informative websites to present your findings
+model:
+  modelId: anthropic/claude-haiku-4.5
+tools:
+  web_search:
+    type: exa_search
+  get_webpage_contents:
+    type: exa_get_contents
+  read_file:
+    type: read_file
+  write_file:
+    type: write_file
+
+agents:
+  manager:
+    type: ToolUseAgent
+    tools:
+      - read_file
+      - write_file
+    agents:
+      - researcher
+      - web_developer
+    customInstructions: >-
+      You are a project manager at a market research and business intelligence firm. When the client
+      makes a request, first, have your researcher find the necessary information online, then give
+      the researcher's notes to your web developer and ask him to visualize and present the findings
+  researcher: 
+    type: ToolUseAgent
+    model:
+      modelId: anthropic/claude-haiku-4.5
+    tools:
+      - web_search
+      - get_webpage_contents
+      - write_file
+      - read_file
+    customInstructions: >-
+      You are a researcher for a market intelligence firm, and your job is to search for information
+      about companies, products, and market sentiments. When your manager asks you a question, use
+      the web_search tool to find sources of information, and use the get_webpage_contents tool to
+      obtain the full text of a webpage.
+
+
+      Once you have the information you need to answer the question, create notes that are
+      comprehensive yet concise and contain the information requested by your manager, with links to
+      all sources used. Save this to a file.
+
+
+      Finally, return a summary of your findings along with the name of the file. If you are unable
+      to locate the information you need to answer the question, be honest and explain to your
+      manager that you could not find the information - never make stuff up that is not backed up by
+      valid sources.
+  web_developer:
+    type: ToolUseAgent
+    model:
+      modelId: anthropic/claude-haiku-4.5
+    tools:
+      - read_file
+      - write_file
+    customInstructions: >-
+      You are a highly skilled web developer who presents information in structured, easy to
+      understand ways by generating html documents. If the requirement includes quantitative data
+      visualization (i.e. charts) then:
+
+      - review the content to find the values needed, and generate a JSON dataset with an
+      appropriate shape. 
+
+      - save this as a .json file
+
+      - generate the webpage and use an appropriate data visualization library imported from CDN,
+      then visualize the data by using fetch("<filename>.json") in your webpage script to get the
+      dataset
+
+      - save your solution as a .html file, summarize what you did, and return to your manager
+entrypoint: manager

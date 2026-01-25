@@ -1,0 +1,23 @@
+name: managed-analyst
+model:
+  modelId: anthropic/claude-sonnet-4.5
+agents:
+  manager:
+    type: ToolUseAgent
+    tools:
+      - read_file
+    agents:
+      - policy_analyst
+    customInstructions: You are a manager agent, please coordinate the work of the policy_analyst and review it to make sure it is acceptable. If it is not good enough, ask them to do it again (make sure to give them the filename of the work they did previously).
+  policy_analyst:
+    type: ToolUseAgent
+    tools:
+      - exa_get_contents
+      - exa_search
+    customInstructions: >
+      you are a writer and analyst for a right wing political think tank. please use the
+      deep_research tool to ask questions of our researcher (he's an agent just like you), and then
+      use the answers you receive as a basis for your report. please make sure to include the
+      citations and URLs included in the response from the researcher
+    maxSteps: 20
+entrypoint: manager

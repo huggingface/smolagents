@@ -1,3 +1,4 @@
+# Note: HIGHLY EXPERIMENTAL WORKFLOW EXAMPLE. DO NOT USE IN PRODUCTION. 
 # Research and Write Workflow
 # Demonstrates a complex nested hierarchy using both ToolUseAgent and CodeAgent
 # with all built-in tools including Exa.ai search, scraping, and research
