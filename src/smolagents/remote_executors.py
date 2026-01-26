@@ -863,8 +863,8 @@ class WasmExecutor(RemotePythonExecutor):
         # Default minimal permissions needed
         if deno_permissions is None:
             # Use minimal permissions for Deno execution
-            home_dir = os.getenv("HOME")
             deno_permissions = [
+                "node-modules-dir=auto",
                 "allow-net="
                 + ",".join(
                     [
@@ -873,8 +873,8 @@ class WasmExecutor(RemotePythonExecutor):
                         "pypi.org:443,files.pythonhosted.org:443",  # allow pyodide install packages from PyPI
                     ]
                 ),
-                f"allow-read={home_dir}/.cache/deno",
-                f"allow-write={home_dir}/.cache/deno",
+                "allow-read=node_modules",
+                "allow-write=node_modules",
             ]
         self.deno_permissions = [f"--{perm}" for perm in deno_permissions]
 
