@@ -21,9 +21,81 @@ from typing import Generator
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
+from smolagents.default_tools import UserInputTool
 from smolagents.memory import ActionStep, FinalAnswerStep
 from smolagents.models import ChatMessageStreamDelta, MessageRole, agglomerate_stream_deltas
 from smolagents.utils import _is_package_available
+
+
+class UserInputRequiredException(Exception):
+    """Exception raised when UserInputTool needs input in Gradio UI.
+
+    This exception is raised to pause agent execution and prompt the user
+    for input through the Gradio chat interface.
+    """
+
+    def __init__(self, question: str):
+        self.question = question
+        super().__init__(f"User input required: {question}")
+
+
+class GradioUserInputHandler:
+    """Handler for user input requests in Gradio UI.
+
+    This class manages user input requests from the agent's UserInputTool
+    in the Gradio chat interface. When the agent needs user input, this handler
+    stores the question and raises an exception to pause execution. The user's
+    next message is then used as the answer.
+    """
+
+    def __init__(self):
+        self._pending_question: str | None = None
+        self._pending_answer: str | None = None
+
+    def get_user_input(self, question: str) -> str:
+        """Called by UserInputTool to request user input.
+
+        If an answer has been provided (from a previous interaction), return it.
+        Otherwise, raise UserInputRequiredException to pause execution.
+
+        Args:
+            question: The question to ask the user.
+
+        Returns:
+            The user's response if available.
+
+        Raises:
+            UserInputRequiredException: If no answer is available yet.
+        """
+        if self._pending_answer is not None:
+            answer = self._pending_answer
+            self._pending_answer = None
+            self._pending_question = None
+            return answer
+
+        self._pending_question = question
+        raise UserInputRequiredException(question)
+
+    def is_waiting_for_input(self) -> bool:
+        """Check if the agent is waiting for user input."""
+        return self._pending_question is not None
+
+    def get_pending_question(self) -> str | None:
+        """Get the current pending question, if any."""
+        return self._pending_question
+
+    def provide_answer(self, answer: str) -> None:
+        """Provide the user's answer for the next agent run.
+
+        Args:
+            answer: The user's response to the pending question.
+        """
+        self._pending_answer = answer
+
+    def reset(self) -> None:
+        """Reset the handler state."""
+        self._pending_question = None
+        self._pending_answer = None
 
 
 def get_step_footnote_content(step_log: ActionStep | PlanningStep, step_name: str) -> str:
@@ -321,6 +393,37 @@ class GradioUI:
             if not self.file_upload_folder.exists():
                 self.file_upload_folder.mkdir(parents=True, exist_ok=True)
 
+        # Set up user input handler for Gradio
+        self._user_input_handler = GradioUserInputHandler()
+        self._configure_user_input_tools()
+
+    def _configure_user_input_tools(self) -> None:
+        """Configure any UserInputTool instances in the agent to use the Gradio handler."""
+        tools_to_check = []
+
+        # Get tools from agent (handle both real agents and mocks)
+        try:
+            agent_tools = getattr(self.agent, "tools", None)
+            if agent_tools is not None and hasattr(agent_tools, "__iter__"):
+                tools_to_check.extend(list(agent_tools))
+        except (TypeError, AttributeError):
+            pass
+
+        # Also check managed agents' tools
+        try:
+            managed_agents = getattr(self.agent, "managed_agents", None)
+            if managed_agents is not None and hasattr(managed_agents, "values"):
+                for managed_agent in managed_agents.values():
+                    managed_tools = getattr(managed_agent, "tools", None)
+                    if managed_tools is not None and hasattr(managed_tools, "__iter__"):
+                        tools_to_check.extend(list(managed_tools))
+        except (TypeError, AttributeError):
+            pass
+
+        for tool in tools_to_check:
+            if isinstance(tool, UserInputTool):
+                tool._get_user_input = self._user_input_handler.get_user_input
+
     def _save_uploaded_file(self, file_path: str) -> str:
         """Save an uploaded file to the upload folder and return the new path."""
         if self.file_upload_folder is None:
@@ -381,43 +484,61 @@ class GradioUI:
 
         task, task_files = self._process_message(message)
 
+        # Check if this message is an answer to a pending user input request
+        if self._user_input_handler.is_waiting_for_input():
+            self._user_input_handler.provide_answer(task)
+            # Reset task to continue the previous conversation
+            # The agent will be re-run with the stored context
+            task = f"Continue with the user's answer: {task}"
+
         all_messages: list[gr.ChatMessage] = []
         accumulated_events: list[ChatMessageStreamDelta] = []
         streaming_msg_idx: int | None = None
 
-        for event in self.agent.run(
-            task, images=task_files, stream=True, reset=self.reset_agent_memory, additional_args=None
-        ):
-            if isinstance(event, ActionStep | PlanningStep | FinalAnswerStep):
-                # Remove streaming message if present
-                if streaming_msg_idx is not None:
-                    all_messages.pop(streaming_msg_idx)
-                    streaming_msg_idx = None
+        try:
+            for event in self.agent.run(
+                task, images=task_files, stream=True, reset=self.reset_agent_memory, additional_args=None
+            ):
+                if isinstance(event, ActionStep | PlanningStep | FinalAnswerStep):
+                    # Remove streaming message if present
+                    if streaming_msg_idx is not None:
+                        all_messages.pop(streaming_msg_idx)
+                        streaming_msg_idx = None
 
-                for msg in pull_messages_from_step(
-                    event,
-                    skip_model_outputs=getattr(self.agent, "stream_outputs", False),
-                ):
-                    all_messages.append(
-                        gr.ChatMessage(
-                            role=msg.role,
-                            content=msg.content,
-                            metadata=msg.metadata,
+                    for msg in pull_messages_from_step(
+                        event,
+                        skip_model_outputs=getattr(self.agent, "stream_outputs", False),
+                    ):
+                        all_messages.append(
+                            gr.ChatMessage(
+                                role=msg.role,
+                                content=msg.content,
+                                metadata=msg.metadata,
+                            )
                         )
-                    )
+                        yield all_messages
+                    accumulated_events = []
+                elif isinstance(event, ChatMessageStreamDelta):
+                    accumulated_events.append(event)
+                    text = agglomerate_stream_deltas(accumulated_events).render_as_markdown()
+                    text = text.replace("<", r"\<").replace(">", r"\>")
+                    msg = gr.ChatMessage(role="assistant", content=text)
+                    if streaming_msg_idx is None:
+                        streaming_msg_idx = len(all_messages)
+                        all_messages.append(msg)
+                    else:
+                        all_messages[streaming_msg_idx] = msg
                     yield all_messages
-                accumulated_events = []
-            elif isinstance(event, ChatMessageStreamDelta):
-                accumulated_events.append(event)
-                text = agglomerate_stream_deltas(accumulated_events).render_as_markdown()
-                text = text.replace("<", r"\<").replace(">", r"\>")
-                msg = gr.ChatMessage(role="assistant", content=text)
-                if streaming_msg_idx is None:
-                    streaming_msg_idx = len(all_messages)
-                    all_messages.append(msg)
-                else:
-                    all_messages[streaming_msg_idx] = msg
-                yield all_messages
+        except UserInputRequiredException as e:
+            # Display the question and prompt for user input
+            all_messages.append(
+                gr.ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=f"🙋 **Agent needs your input:**\n\n{e.question}\n\n*Please type your answer below.*",
+                    metadata={"title": "⏸️ Waiting for input", "status": "done"},
+                )
+            )
+            yield all_messages
 
     def launch(self, share: bool = True, **kwargs):
         """
@@ -461,4 +582,4 @@ class GradioUI:
         return demo
 
 
-__all__ = ["stream_to_gradio", "GradioUI"]
+__all__ = ["stream_to_gradio", "GradioUI", "UserInputRequiredException", "GradioUserInputHandler"]
