@@ -1215,6 +1215,188 @@ class TestMultiStepAgent:
         action_step_callback_2.assert_not_called()
         final_answer_step_callback.assert_called_once_with(final_answer_step, agent=agent)
 
+    def test_setup_lifecycle_callbacks(self):
+        """Test that _setup_lifecycle_callbacks correctly sets up the lifecycle callback registry."""
+        from smolagents.memory import LifecycleCallbackRegistry, LifecycleEvent
+
+        # Create mock callbacks
+        model_output_callback = MagicMock()
+        pre_execution_callback = MagicMock()
+
+        lifecycle_callbacks = {
+            LifecycleEvent.MODEL_OUTPUT: model_output_callback,
+            LifecycleEvent.PRE_EXECUTION: [pre_execution_callback],
+        }
+
+        agent = DummyMultiStepAgent(
+            tools=[], model=MagicMock(), lifecycle_callbacks=lifecycle_callbacks
+        )
+
+        # Check that lifecycle_callbacks is a LifecycleCallbackRegistry
+        assert isinstance(agent.lifecycle_callbacks, LifecycleCallbackRegistry)
+
+        # Verify callbacks are registered
+        assert len(agent.lifecycle_callbacks._callbacks.get(LifecycleEvent.MODEL_OUTPUT, [])) == 1
+        assert len(agent.lifecycle_callbacks._callbacks.get(LifecycleEvent.PRE_EXECUTION, [])) == 1
+
+    def test_lifecycle_callbacks_invalid_event_type(self):
+        """Test that invalid lifecycle event types raise an error."""
+        with pytest.raises(ValueError) as exc_info:
+            DummyMultiStepAgent(
+                tools=[],
+                model=MagicMock(),
+                lifecycle_callbacks={"invalid_event": MagicMock()},  # type: ignore
+            )
+        assert "Invalid lifecycle event" in str(exc_info.value)
+
+    def test_lifecycle_callbacks_code_agent_model_output(self):
+        """Test that MODEL_OUTPUT lifecycle callback is triggered in CodeAgent."""
+        from smolagents.memory import LifecycleEvent, ModelOutputEvent
+
+        # Track callback calls
+        callback_calls = []
+
+        def model_output_callback(event: ModelOutputEvent, agent):
+            callback_calls.append({
+                "event_type": "MODEL_OUTPUT",
+                "step_number": event.step_number,
+                "model_output": event.model_output,
+            })
+
+        class FakeCodeModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""<code>
+final_answer("test result")
+</code>""",
+                )
+
+        agent = CodeAgent(
+            model=FakeCodeModel(),
+            tools=[],
+            max_steps=1,
+            lifecycle_callbacks={LifecycleEvent.MODEL_OUTPUT: model_output_callback},
+        )
+        agent.run("Test task")
+
+        # Verify callback was called
+        assert len(callback_calls) == 1
+        assert callback_calls[0]["event_type"] == "MODEL_OUTPUT"
+        assert callback_calls[0]["step_number"] == 1  # Step numbers start at 1
+        assert "final_answer" in callback_calls[0]["model_output"]
+
+    def test_lifecycle_callbacks_code_agent_pre_execution(self):
+        """Test that PRE_EXECUTION lifecycle callback is triggered in CodeAgent before code runs."""
+        from smolagents.memory import LifecycleEvent, PreExecutionEvent
+
+        # Track callback calls and execution order
+        execution_order = []
+
+        def pre_execution_callback(event: PreExecutionEvent, agent):
+            execution_order.append("callback")
+            assert event.code_action is not None
+            assert "final_answer" in event.code_action
+
+        class FakeCodeModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                execution_order.append("model_generate")
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""<code>
+final_answer("test result")
+</code>""",
+                )
+
+        agent = CodeAgent(
+            model=FakeCodeModel(),
+            tools=[],
+            max_steps=1,
+            lifecycle_callbacks={LifecycleEvent.PRE_EXECUTION: pre_execution_callback},
+        )
+        result = agent.run("Test task")
+
+        # Verify callback was called and execution order
+        assert "callback" in execution_order
+        assert execution_order.index("model_generate") < execution_order.index("callback")
+        assert result == "test result"
+
+    def test_lifecycle_callbacks_toolcalling_agent(self):
+        """Test that lifecycle callbacks work with ToolCallingAgent."""
+        from smolagents.memory import LifecycleEvent, ModelOutputEvent, PreExecutionEvent
+
+        model_output_calls = []
+        pre_execution_calls = []
+
+        def model_output_callback(event: ModelOutputEvent, agent):
+            model_output_calls.append(event.model_output)
+
+        def pre_execution_callback(event: PreExecutionEvent, agent):
+            pre_execution_calls.append(event.tool_calls)
+
+        class FakeJsonModel(Model):
+            def generate(self, messages, stop_sequences=None, tools_to_call_from=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="I will return the answer",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id="call_1",
+                            type="function",
+                            function=ChatMessageToolCallFunction(
+                                name="final_answer", arguments={"answer": "test result"}
+                            ),
+                        )
+                    ],
+                )
+
+        agent = ToolCallingAgent(
+            model=FakeJsonModel(),
+            tools=[],
+            max_steps=1,
+            lifecycle_callbacks={
+                LifecycleEvent.MODEL_OUTPUT: model_output_callback,
+                LifecycleEvent.PRE_EXECUTION: pre_execution_callback,
+            },
+        )
+        result = agent.run("Test task")
+
+        # Verify callbacks were called
+        assert len(model_output_calls) == 1
+        assert len(pre_execution_calls) == 1
+        assert pre_execution_calls[0][0].name == "final_answer"
+        assert result == "test result"
+
+    def test_lifecycle_callback_single_argument_signature(self):
+        """Test that lifecycle callbacks with single argument signature work correctly."""
+        from smolagents.memory import LifecycleEvent, ModelOutputEvent
+
+        # Callback that only takes event (no agent)
+        callback_calls = []
+
+        def simple_callback(event: ModelOutputEvent):
+            callback_calls.append(event.model_output)
+
+        class FakeCodeModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""<code>
+final_answer("done")
+</code>""",
+                )
+
+        agent = CodeAgent(
+            model=FakeCodeModel(),
+            tools=[],
+            max_steps=1,
+            lifecycle_callbacks={LifecycleEvent.MODEL_OUTPUT: simple_callback},
+        )
+        agent.run("Test task")
+
+        assert len(callback_calls) == 1
+        assert "final_answer" in callback_calls[0]
+
     def test_logs_display_thoughts_even_if_error(self):
         class FakeJsonModelNoCall(Model):
             def generate(self, messages, stop_sequences=None, tools_to_call_from=None):

@@ -52,8 +52,12 @@ from .memory import (
     AgentMemory,
     CallbackRegistry,
     FinalAnswerStep,
+    LifecycleCallbackRegistry,
+    LifecycleEvent,
     MemoryStep,
+    ModelOutputEvent,
     PlanningStep,
+    PreExecutionEvent,
     SystemPromptStep,
     TaskStep,
     Timing,
@@ -280,6 +284,26 @@ class MultiStepAgent(ABC):
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable | list[Callable]]`, *optional*): Callbacks that will be called at each step.
+        lifecycle_callbacks (`dict[LifecycleEvent, Callable | list[Callable]]`, *optional*): Callbacks triggered at specific
+            lifecycle events during agent execution. Unlike step_callbacks (which fire after steps complete),
+            lifecycle callbacks fire at specific points within a step's execution:
+
+            - `LifecycleEvent.MODEL_OUTPUT`: Triggered after LLM generates output, before parsing.
+              Useful for TTS, logging, or early validation.
+            - `LifecycleEvent.PRE_EXECUTION`: Triggered before code/tool execution, after parsing.
+              Useful for human-in-the-loop approval or custom validation.
+
+            Example:
+                ```python
+                def on_model_output(event: ModelOutputEvent, agent):
+                    tts_service.queue(event.model_output)
+
+                agent = CodeAgent(
+                    lifecycle_callbacks={
+                        LifecycleEvent.MODEL_OUTPUT: on_model_output,
+                    }
+                )
+                ```
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
@@ -302,6 +326,7 @@ class MultiStepAgent(ABC):
         verbosity_level: LogLevel = LogLevel.INFO,
         managed_agents: list | None = None,
         step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable | list[Callable]] | None = None,
+        lifecycle_callbacks: dict[LifecycleEvent, Callable | list[Callable]] | None = None,
         planning_interval: int | None = None,
         name: str | None = None,
         description: str | None = None,
@@ -349,6 +374,7 @@ class MultiStepAgent(ABC):
 
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)
+        self._setup_lifecycle_callbacks(lifecycle_callbacks)
         self.stream_outputs = False
 
     @property
@@ -432,6 +458,40 @@ class MultiStepAgent(ABC):
                 raise ValueError("step_callbacks must be a list or a dict")
         # Register monitor update_metrics only for ActionStep for backward compatibility
         self.step_callbacks.register(ActionStep, self.monitor.update_metrics)
+
+    def _setup_lifecycle_callbacks(
+        self, lifecycle_callbacks: dict[LifecycleEvent, Callable | list[Callable]] | None
+    ):
+        """Set up lifecycle callbacks for the agent.
+
+        Args:
+            lifecycle_callbacks: Dictionary mapping lifecycle events to callbacks.
+                Each value can be a single callback or a list of callbacks.
+        """
+        self.lifecycle_callbacks = LifecycleCallbackRegistry()
+        if lifecycle_callbacks:
+            for event, callbacks in lifecycle_callbacks.items():
+                if not isinstance(event, LifecycleEvent):
+                    raise ValueError(
+                        f"Invalid lifecycle event: {event}. Must be a LifecycleEvent enum value."
+                    )
+                if not isinstance(callbacks, list):
+                    callbacks = [callbacks]
+                for callback in callbacks:
+                    self.lifecycle_callbacks.register(event, callback)
+
+    def _trigger_lifecycle_event(
+        self,
+        event: LifecycleEvent,
+        event_data: ModelOutputEvent | PreExecutionEvent,
+    ):
+        """Trigger a lifecycle event, calling all registered callbacks.
+
+        Args:
+            event: The lifecycle event to trigger.
+            event_data: The event data object to pass to callbacks.
+        """
+        self.lifecycle_callbacks.trigger(event, event_data, agent=self)
 
     def run(
         self,
@@ -1321,6 +1381,16 @@ class ToolCallingAgent(MultiStepAgent):
             memory_step.model_output_message = chat_message
             memory_step.model_output = chat_message.content
             memory_step.token_usage = chat_message.token_usage
+
+            # Trigger MODEL_OUTPUT lifecycle event
+            self._trigger_lifecycle_event(
+                LifecycleEvent.MODEL_OUTPUT,
+                ModelOutputEvent(
+                    step_number=self.step_number,
+                    model_output=chat_message.content,
+                    memory_step=memory_step,
+                ),
+            )
         except Exception as e:
             raise AgentGenerationError(f"Error while generating output:\n{e}", self.logger) from e
 
@@ -1332,6 +1402,24 @@ class ToolCallingAgent(MultiStepAgent):
         else:
             for tool_call in chat_message.tool_calls:
                 tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+
+        # Convert ChatMessageToolCalls to ToolCalls for the event
+        parsed_tool_calls = [
+            ToolCall(name=tc.function.name, arguments=tc.function.arguments, id=tc.id)
+            for tc in (chat_message.tool_calls or [])
+        ]
+
+        # Trigger PRE_EXECUTION lifecycle event
+        self._trigger_lifecycle_event(
+            LifecycleEvent.PRE_EXECUTION,
+            PreExecutionEvent(
+                step_number=self.step_number,
+                code_action=None,  # ToolCallingAgent doesn't use code_action
+                tool_calls=parsed_tool_calls,
+                memory_step=memory_step,
+            ),
+        )
+
         final_answer, got_final_answer = None, False
         for output in self.process_tool_calls(chat_message, memory_step):
             yield output
@@ -1697,6 +1785,16 @@ class CodeAgent(MultiStepAgent):
 
             memory_step.token_usage = chat_message.token_usage
             memory_step.model_output = output_text
+
+            # Trigger MODEL_OUTPUT lifecycle event
+            self._trigger_lifecycle_event(
+                LifecycleEvent.MODEL_OUTPUT,
+                ModelOutputEvent(
+                    step_number=self.step_number,
+                    model_output=output_text,
+                    memory_step=memory_step,
+                ),
+            )
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
 
@@ -1720,6 +1818,17 @@ class CodeAgent(MultiStepAgent):
         )
         yield tool_call
         memory_step.tool_calls = [tool_call]
+
+        # Trigger PRE_EXECUTION lifecycle event
+        self._trigger_lifecycle_event(
+            LifecycleEvent.PRE_EXECUTION,
+            PreExecutionEvent(
+                step_number=self.step_number,
+                code_action=code_action,
+                tool_calls=[tool_call],
+                memory_step=memory_step,
+            ),
+        )
 
         ### Execute action ###
         self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
