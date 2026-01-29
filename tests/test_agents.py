@@ -1650,8 +1650,8 @@ class TestToolCallingAgent:
         assert "Test instructions" in agent.system_prompt
 
     def test_toolcalling_agent_calls_code_execute(self):
+        """Test that the ToolCallingAgent can execute simple Python code using `code_execute`."""
         mock_model = MagicMock()
-
         agent = ToolCallingAgent(tools=[], model=mock_model, instructions="Test instructions")
 
         code_args = {"code": "result = 1 + 1; result"} 
@@ -1664,7 +1664,8 @@ class TestToolCallingAgent:
         assert hasattr(code_output, "logs")
 
 
-    def test_toolcalling_agent_calls_tool_from_tools_list(se):
+    def test_toolcalling_agent_calls_tool_from_tools_list(self):
+        """Test that Python code executed via `code_execute` can call tools from the agent's tool list."""
         class MockTool(Tool):
             def __init__(self, name):
                 self.name = name
