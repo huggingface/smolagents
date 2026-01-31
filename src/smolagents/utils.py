@@ -180,6 +180,35 @@ def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str |
     return None
 
 
+def complete_truncated_stop_sequence(text: str, stop_sequences: list[str] | tuple[str, ...]) -> str:
+    """Complete a truncated stop sequence at the end of text.
+
+    Some models (e.g., GLM, Qwen) partially output stop sequences before stopping generation.
+    For example, when "</code>" is a stop sequence, they may output "</code" (missing ">").
+    This function detects such truncated sequences and completes them.
+
+    Args:
+        text (`str`): The text that may end with a truncated stop sequence.
+        stop_sequences (`list[str]` | `tuple[str, ...]`): List of stop sequences to check.
+
+    Returns:
+        `str`: Text with completed stop sequences.
+    """
+    if not text:
+        return text
+
+    for stop_seq in stop_sequences:
+        if not stop_seq or text.endswith(stop_seq):
+            continue
+        # Check if text ends with any prefix of the stop sequence
+        # Iterate from longest to shortest for early exit
+        for i in range(len(stop_seq) - 1, 0, -1):
+            if text.endswith(stop_seq[:i]):
+                # Found truncated stop sequence - complete it
+                return text + stop_seq[i:]
+    return text
+
+
 def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     """Extract code blocs from the LLM's output.
 
