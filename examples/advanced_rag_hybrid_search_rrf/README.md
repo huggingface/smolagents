@@ -6,7 +6,7 @@ and then reorder the retrieved documents using Reciprocal Rank Fusion using Qdra
 ### Tech Stack: 
 
 - Smol Agents, HuggingFace, Qdrant, LangChain, LiteLLM
-- Document Loading: PyPDFium2Loader. As per this research:https://arxiv.org/pdf/2410.09871. pypdfium2 works decent on Finance documents
+- Document Loading: PyPDFium2Loader: pypdfium2 works decent on Finance documents. As per this research:https://arxiv.org/pdf/2410.09871. 
 - For Embedding: FastEmbed. Runs HF models in ONNX runtime. 
 
 ### Usage
@@ -21,8 +21,10 @@ pip install "smolagents[toolkit]"
 
 2. Set up environment variables:
 
-Check .env.example_custom for the required environment variables
-Create a .env file with the necessary configuration
+- Check .env.example_custom for the required environment variables
+- Create a .env file with the necessary configuration
+- Get your HF Token: [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+- Get your Qdrant URL and API KEY: [https://cloud.qdrant.io/](https://cloud.qdrant.io/)
 
 ```bash
 cp .env.example .env 
