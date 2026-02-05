@@ -33,3 +33,12 @@ cp .env.example .env
 
 5. Results Snapshots:
 
+Results- Snapshots:
+
+> Tool used
+
+<img width="1431" height="512" alt="Screenshot 2026-02-06 at 02 10 29" src="https://github.com/user-attachments/assets/002c15b1-8deb-4b98-a02e-8c2e053d248e" />
+
+> Agent final output execution
+
+<img width="1426" height="238" alt="Screenshot 2026-02-06 at 02 10 12" src="https://github.com/user-attachments/assets/a9d65ff1-dbfa-4697-a2aa-f3dad681ab4c" />
