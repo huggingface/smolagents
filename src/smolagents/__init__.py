@@ -19,6 +19,7 @@ __version__ = "1.25.0.dev0"
 from .agent_types import *  # noqa: I001
 from .agents import *  # Above noqa avoids a circular dependency due to cli.py
 from .default_tools import *
+from .nory_x402_tools import *
 from .gradio_ui import *
 from .local_python_executor import *
 from .mcp_client import *
