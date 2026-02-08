@@ -32,11 +32,13 @@
     title: 编排 multi-agent 系统
   - local: examples/web_browser
     title: 基于视觉模型构建能够浏览网页的agent
+  - local: examples/async_agent
+    title: 使用Agent的异步应用
 - title: Reference
   sections:
   - local: reference/agents
-    title: Agent-related objects
+    title: Agent 相关对象
   - local: reference/models
-    title: Model-related objects
+    title: 模型相关对象
   - local: reference/tools
-    title: Tool-related objects
+    title: 工具相关对象
