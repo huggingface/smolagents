@@ -481,6 +481,56 @@ class TestLiteLLMModel:
         model = LiteLLMModel(model_id="fal/llama-3.3-70b", flatten_messages_as_text=True)
         assert model.flatten_messages_as_text
 
+    def test_user_agent_header_in_generate(self):
+        """Test that LiteLLMModel passes a User-Agent header containing 'smolagents/' in extra_headers."""
+        from smolagents import __version__
+
+        mock_litellm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hello"
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage.prompt_tokens = 5
+        mock_response.usage.completion_tokens = 3
+
+        with patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm):
+            model = LiteLLMModel(model_id="test-model")
+            model.client.completion.return_value = mock_response
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hi"}])]
+            model.generate(messages)
+
+        call_kwargs = model.client.completion.call_args.kwargs
+        assert "extra_headers" in call_kwargs
+        assert "User-Agent" in call_kwargs["extra_headers"]
+        assert call_kwargs["extra_headers"]["User-Agent"] == f"smolagents/{__version__}"
+
+    def test_user_agent_header_in_generate_stream(self):
+        """Test that LiteLLMModel passes a User-Agent header in extra_headers during streaming."""
+        from smolagents import __version__
+
+        mock_litellm = MagicMock()
+        # Return a simple iterable with one chunk that has usage info
+        mock_chunk = MagicMock()
+        mock_chunk.usage = None
+        mock_chunk.choices = [MagicMock()]
+        mock_chunk.choices[0].delta.content = "Hi"
+        mock_chunk.choices[0].delta.role = "assistant"
+        mock_chunk.choices[0].delta.tool_calls = None
+        mock_chunk.choices[0].delta.tool_call_chunks = None
+
+        with patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm):
+            model = LiteLLMModel(model_id="test-model")
+            model.client.completion.return_value = [mock_chunk]
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hi"}])]
+            # Consume the generator
+            list(model.generate_stream(messages))
+
+        call_kwargs = model.client.completion.call_args.kwargs
+        assert "extra_headers" in call_kwargs
+        assert "User-Agent" in call_kwargs["extra_headers"]
+        assert call_kwargs["extra_headers"]["User-Agent"] == f"smolagents/{__version__}"
+
 
 class TestLiteLLMRouterModel:
     @pytest.mark.parametrize(
