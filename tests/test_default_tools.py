@@ -160,3 +160,153 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+class TestWebSearchTimeouts:
+    """Tests that web search tools pass timeout to requests.get (issue #1713)."""
+
+    def test_google_search_tool_default_timeout(self):
+        """GoogleSearchTool should default to 20s timeout."""
+        import os
+
+        os.environ["SERPAPI_API_KEY"] = "test-key"
+        try:
+            from smolagents.default_tools import GoogleSearchTool
+
+            tool = GoogleSearchTool(provider="serpapi")
+            assert tool.timeout == 20
+        finally:
+            del os.environ["SERPAPI_API_KEY"]
+
+    def test_google_search_tool_custom_timeout(self):
+        """GoogleSearchTool should accept a custom timeout."""
+        import os
+
+        os.environ["SERPAPI_API_KEY"] = "test-key"
+        try:
+            from smolagents.default_tools import GoogleSearchTool
+
+            tool = GoogleSearchTool(provider="serpapi", timeout=60)
+            assert tool.timeout == 60
+        finally:
+            del os.environ["SERPAPI_API_KEY"]
+
+    def test_google_search_tool_passes_timeout_to_requests(self):
+        """GoogleSearchTool.forward() should pass timeout to requests.get."""
+        import os
+        from unittest.mock import MagicMock, patch
+
+        os.environ["SERPAPI_API_KEY"] = "test-key"
+        try:
+            from smolagents.default_tools import GoogleSearchTool
+
+            tool = GoogleSearchTool(provider="serpapi", timeout=30)
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"organic_results": []}
+            with patch("requests.get", return_value=mock_response) as mock_get:
+                tool.forward("test query")
+                mock_get.assert_called_once()
+                assert mock_get.call_args.kwargs.get("timeout") == 30
+        finally:
+            del os.environ["SERPAPI_API_KEY"]
+
+    def test_api_web_search_tool_default_timeout(self):
+        """ApiWebSearchTool should default to 20s timeout."""
+        from smolagents.default_tools import ApiWebSearchTool
+
+        tool = ApiWebSearchTool(api_key="test-key")
+        assert tool.timeout == 20
+
+    def test_api_web_search_tool_custom_timeout(self):
+        """ApiWebSearchTool should accept a custom timeout."""
+        from smolagents.default_tools import ApiWebSearchTool
+
+        tool = ApiWebSearchTool(api_key="test-key", timeout=45)
+        assert tool.timeout == 45
+
+    def test_api_web_search_tool_passes_timeout_to_requests(self):
+        """ApiWebSearchTool.forward() should pass timeout to requests.get."""
+        from unittest.mock import MagicMock, patch
+
+        from smolagents.default_tools import ApiWebSearchTool
+
+        tool = ApiWebSearchTool(api_key="test-key", timeout=30, rate_limit=None)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"web": {"results": []}}
+        mock_response.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_response) as mock_get:
+            tool.forward("test query")
+            mock_get.assert_called_once()
+            assert mock_get.call_args.kwargs.get("timeout") == 30
+
+    def test_web_search_tool_default_timeout(self):
+        """WebSearchTool should default to 20s timeout."""
+        from smolagents.default_tools import WebSearchTool
+
+        tool = WebSearchTool()
+        assert tool.timeout == 20
+
+    def test_web_search_tool_custom_timeout(self):
+        """WebSearchTool should accept a custom timeout."""
+        from smolagents.default_tools import WebSearchTool
+
+        tool = WebSearchTool(timeout=10)
+        assert tool.timeout == 10
+
+    def test_web_search_tool_duckduckgo_passes_timeout(self):
+        """WebSearchTool.search_duckduckgo() should pass timeout to requests.get."""
+        from unittest.mock import MagicMock, patch
+
+        from smolagents.default_tools import WebSearchTool
+
+        tool = WebSearchTool(engine="duckduckgo", timeout=15)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "<html></html>"
+        mock_response.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_response) as mock_get:
+            tool.search_duckduckgo("test query")
+            mock_get.assert_called_once()
+            assert mock_get.call_args.kwargs.get("timeout") == 15
+
+    def test_web_search_tool_bing_passes_timeout(self):
+        """WebSearchTool.search_bing() should pass timeout to requests.get."""
+        from unittest.mock import MagicMock, patch
+
+        from smolagents.default_tools import WebSearchTool
+
+        tool = WebSearchTool(engine="bing", timeout=25)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "<rss><channel></channel></rss>"
+        mock_response.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_response) as mock_get:
+            tool.search_bing("test query")
+            mock_get.assert_called_once()
+            assert mock_get.call_args.kwargs.get("timeout") == 25
+
+    def test_visit_webpage_tool_default_timeout(self):
+        """VisitWebpageTool should default to 20s timeout."""
+        tool = VisitWebpageTool()
+        assert tool.timeout == 20
+
+    def test_visit_webpage_tool_custom_timeout(self):
+        """VisitWebpageTool should accept a custom timeout."""
+        tool = VisitWebpageTool(timeout=60)
+        assert tool.timeout == 60
+
+    def test_visit_webpage_tool_passes_timeout_to_requests(self):
+        """VisitWebpageTool.forward() should pass timeout to requests.get."""
+        from unittest.mock import MagicMock, patch
+
+        tool = VisitWebpageTool(timeout=35)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "<html><body>Hello</body></html>"
+        mock_response.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_response) as mock_get:
+            tool.forward("https://example.com")
+            mock_get.assert_called_once()
+            assert mock_get.call_args.kwargs.get("timeout") == 35

@@ -172,7 +172,7 @@ class GoogleSearchTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, provider: str = "serpapi"):
+    def __init__(self, provider: str = "serpapi", timeout: int = 20):
         super().__init__()
         import os
 
@@ -186,6 +186,7 @@ class GoogleSearchTool(Tool):
         self.api_key = os.getenv(api_key_env_name)
         if self.api_key is None:
             raise ValueError(f"Missing API key. Make sure you have '{api_key_env_name}' in your env variables.")
+        self.timeout = timeout
 
     def forward(self, query: str, filter_year: int | None = None) -> str:
         import requests
@@ -207,7 +208,7 @@ class GoogleSearchTool(Tool):
         if filter_year is not None:
             params["tbs"] = f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
 
-        response = requests.get(base_url, params=params)
+        response = requests.get(base_url, params=params, timeout=self.timeout)
 
         if response.status_code == 200:
             results = response.json()
@@ -283,6 +284,7 @@ class ApiWebSearchTool(Tool):
         headers: dict = None,
         params: dict = None,
         rate_limit: float | None = 1.0,
+        timeout: int = 20,
     ):
         import os
 
@@ -295,6 +297,7 @@ class ApiWebSearchTool(Tool):
         self.rate_limit = rate_limit
         self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
         self._last_request_time = 0.0
+        self.timeout = timeout
 
     def _enforce_rate_limit(self) -> None:
         import time
@@ -314,7 +317,7 @@ class ApiWebSearchTool(Tool):
 
         self._enforce_rate_limit()
         params = {**self.params, "q": query}
-        response = requests.get(self.endpoint, headers=self.headers, params=params)
+        response = requests.get(self.endpoint, headers=self.headers, params=params, timeout=self.timeout)
         response.raise_for_status()
         data = response.json()
         results = self.extract_results(data)
@@ -345,10 +348,11 @@ class WebSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results: int = 10, engine: str = "duckduckgo"):
+    def __init__(self, max_results: int = 10, engine: str = "duckduckgo", timeout: int = 20):
         super().__init__()
         self.max_results = max_results
         self.engine = engine
+        self.timeout = timeout
 
     def forward(self, query: str) -> str:
         results = self.search(query)
@@ -376,6 +380,7 @@ class WebSearchTool(Tool):
             "https://lite.duckduckgo.com/lite/",
             params={"q": query},
             headers={"User-Agent": "Mozilla/5.0"},
+            timeout=self.timeout,
         )
         response.raise_for_status()
         parser = self._create_duckduckgo_parser()
@@ -436,6 +441,7 @@ class WebSearchTool(Tool):
         response = requests.get(
             "https://www.bing.com/search",
             params={"q": query, "format": "rss"},
+            timeout=self.timeout,
         )
         response.raise_for_status()
         root = ET.fromstring(response.text)
@@ -464,9 +470,10 @@ class VisitWebpageTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, max_output_length: int = 40000):
+    def __init__(self, max_output_length: int = 40000, timeout: int = 20):
         super().__init__()
         self.max_output_length = max_output_length
+        self.timeout = timeout
 
     def _truncate_content(self, content: str, max_length: int) -> str:
         if len(content) <= max_length:
@@ -488,7 +495,7 @@ class VisitWebpageTool(Tool):
             ) from e
         try:
             # Send a GET request to the URL with a 20-second timeout
-            response = requests.get(url, timeout=20)
+            response = requests.get(url, timeout=self.timeout)
             response.raise_for_status()  # Raise an exception for bad status codes
 
             # Convert the HTML content to Markdown
