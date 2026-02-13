@@ -1812,3 +1812,13 @@ AGENT_REGISTRY = {
     "ToolCallingAgent": ToolCallingAgent,
     "CodeAgent": CodeAgent,
 }
+
+# Import StigmergyAgent to add to registry (deferred to avoid circular imports)
+def _register_stigmergy_agent():
+    try:
+        from .stigmergy import StigmergyAgent
+        AGENT_REGISTRY["StigmergyAgent"] = StigmergyAgent
+    except ImportError:
+        pass
+
+_register_stigmergy_agent()
