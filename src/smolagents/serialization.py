@@ -20,6 +20,10 @@ Safe serialization module for remote executor communication.
 
 Provides JSON-based serialization with optional pickle fallback for types
 that cannot be safely serialized.
+
+**Security Note:** Pickle deserialization can execute arbitrary code. This module
+defaults to safe JSON-only serialization. Only enable pickle fallback
+(allow_insecure_serializer=True) if you fully trust the execution environment.
 """
 
 import base64
@@ -255,7 +259,7 @@ class SafeSerializer(Tool):
         return obj
 
     @staticmethod
-    def dumps(obj: Any, safe_serialization: bool = False) -> str:
+    def dumps(obj: Any, safe_serialization: bool = True) -> str:
         """
         Serialize object to string.
 
@@ -280,6 +284,18 @@ class SafeSerializer(Tool):
                 json_safe = SafeSerializer.to_json_safe(obj)
                 return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
             except SerializationError:
+                # Warn about insecure pickle usage
+                import warnings
+
+                warnings.warn(
+                    "Falling back to insecure pickle serialization. "
+                    "This is a security risk and will be removed in a future version. "
+                    "Consider using only safe serializable types (primitives, lists, dicts, "
+                    "numpy arrays, PIL images, datetime objects, dataclasses). "
+                    "To silence this warning, explicitly set allow_insecure_serializer=True.",
+                    FutureWarning,
+                    stacklevel=2,
+                )
                 # Fallback to pickle (no prefix)
                 try:
                     return base64.b64encode(pickle.dumps(obj)).decode()
@@ -287,7 +303,7 @@ class SafeSerializer(Tool):
                     raise SerializationError(f"Cannot serialize object: {e}") from e
 
     @staticmethod
-    def loads(data: str, safe_serialization: bool = False) -> Any:
+    def loads(data: str, safe_serialization: bool = True) -> Any:
         """
         Deserialize string with format detection.
 
@@ -308,7 +324,19 @@ class SafeSerializer(Tool):
         else:
             # No safe prefix - assume pickle
             if safe_serialization:
-                raise SerializationError("Pickle data rejected: safe_serialization=True requires safe-only data")
+                raise SerializationError(
+                    "Pickle data rejected: safe_serialization=True requires safe-only data. "
+                    "This data appears to be pickle-serialized. To deserialize it, set "
+                    "allow_insecure_serializer=True (not recommended for untrusted data)."
+                )
+            # Warn about insecure pickle deserialization
+            import warnings
+
+            warnings.warn(
+                "Deserializing pickle data. This is a security risk if the data is untrusted.",
+                FutureWarning,
+                stacklevel=2,
+            )
             return pickle.loads(base64.b64decode(data))
 
     @staticmethod
