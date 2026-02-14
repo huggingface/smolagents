@@ -53,7 +53,6 @@ class SafeSerializer:
     The serializer uses a prefix system to distinguish between formats:
     - "safe:" prefix for JSON-serialized data
     - "pickle:" prefix for pickle-serialized data (when allowed)
-
     """
 
     SAFE_PREFIX = "safe:"
