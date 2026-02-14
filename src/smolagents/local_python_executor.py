@@ -23,6 +23,8 @@ import math
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
@@ -55,6 +57,7 @@ ERRORS = {
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
+MAX_EXECUTION_TIME_SECONDS = 30
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
@@ -271,6 +274,50 @@ class ContinueException(Exception):
 class ReturnException(Exception):
     def __init__(self, value):
         self.value = value
+
+
+class ExecutionTimeoutError(Exception):
+    """Exception raised when code execution exceeds the maximum allowed time."""
+
+    pass
+
+
+def timeout(timeout_seconds: int):
+    """
+    Decorator to limit the execution time of a function using threading.
+
+    This implementation is cross-platform (works on Windows) and thread-safe (works when
+    called from any thread, not just the main thread), unlike signal-based approaches.
+
+    Args:
+        timeout_seconds (`int`): Maximum time in seconds allowed for function execution.
+
+    Raises:
+        ExecutionTimeoutError: If the function execution exceeds the timeout period.
+
+    Note:
+        If a timeout occurs, the thread running the function cannot be forcefully killed
+        in Python, so it will continue running in the background until completion. However,
+        the caller will receive a TimeoutError and can continue execution.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Create a new ThreadPoolExecutor for each call to avoid threading issues
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(func, *args, **kwargs)
+                try:
+                    result = future.result(timeout=timeout_seconds)
+                    return result
+                except FuturesTimeoutError:
+                    raise ExecutionTimeoutError(
+                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                    )
+
+        return wrapper
+
+    return decorator
 
 
 def get_iterable(obj):
@@ -1516,7 +1563,13 @@ def evaluate_ast(
         raise InterpreterError(f"{expression.__class__.__name__} is not supported.")
 
 
-class FinalAnswerException(Exception):
+class FinalAnswerException(BaseException):
+    """Exception raised when final_answer is called.
+
+    Inherits from BaseException instead of Exception to prevent being caught
+    by generic `except Exception` clauses in agent-generated code.
+    """
+
     def __init__(self, value):
         self.value = value
 
@@ -1528,6 +1581,7 @@ def evaluate_python_code(
     state: dict[str, Any] | None = None,
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
     max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
+    timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
 ):
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
@@ -1548,6 +1602,8 @@ def evaluate_python_code(
             A dictionary mapping variable names to values. The `state` should contain the initial inputs but will be
             updated by this function to contain all variables as they are evaluated.
             The print outputs will be stored in the state under the key "_print_outputs".
+        timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
+            Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
     """
     try:
         expression = ast.parse(code)
@@ -1562,7 +1618,6 @@ def evaluate_python_code(
         state = {}
     static_tools = static_tools.copy() if static_tools is not None else {}
     custom_tools = custom_tools if custom_tools is not None else {}
-    result = None
     state["_print_outputs"] = PrintContainer()
     state["_operations_count"] = {"counter": 0}
 
@@ -1574,27 +1629,36 @@ def evaluate_python_code(
 
         static_tools["final_answer"] = final_answer
 
-    try:
-        for node in expression.body:
-            result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
-        state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=max_print_outputs_length
-        )
-        is_final_answer = False
-        return result, is_final_answer
-    except FinalAnswerException as e:
-        state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=max_print_outputs_length
-        )
-        is_final_answer = True
-        return e.value, is_final_answer
-    except Exception as e:
-        state["_print_outputs"].value = truncate_content(
-            str(state["_print_outputs"]), max_length=max_print_outputs_length
-        )
-        raise InterpreterError(
-            f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
-        )
+    # Define the actual execution logic
+    def _execute_code():
+        result = None
+        try:
+            for node in expression.body:
+                result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
+            state["_print_outputs"].value = truncate_content(
+                str(state["_print_outputs"]), max_length=max_print_outputs_length
+            )
+            is_final_answer = False
+            return result, is_final_answer
+        except FinalAnswerException as e:
+            state["_print_outputs"].value = truncate_content(
+                str(state["_print_outputs"]), max_length=max_print_outputs_length
+            )
+            is_final_answer = True
+            return e.value, is_final_answer
+        except Exception as e:
+            state["_print_outputs"].value = truncate_content(
+                str(state["_print_outputs"]), max_length=max_print_outputs_length
+            )
+            raise InterpreterError(
+                f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
+            )
+
+    # Apply timeout if specified
+    if timeout_seconds is not None:
+        _execute_code = timeout(timeout_seconds)(_execute_code)
+
+    return _execute_code()
 
 
 @dataclass
@@ -1631,6 +1695,8 @@ class LocalPythonExecutor(PythonExecutor):
             Maximum length of the print outputs.
         additional_functions (`dict[str, Callable]`, *optional*):
             Additional Python functions to be added to the executor.
+        timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
+            Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
     """
 
     def __init__(
@@ -1638,6 +1704,7 @@ class LocalPythonExecutor(PythonExecutor):
         additional_authorized_imports: list[str],
         max_print_outputs_length: int | None = None,
         additional_functions: dict[str, Callable] | None = None,
+        timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
     ):
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}
@@ -1649,6 +1716,7 @@ class LocalPythonExecutor(PythonExecutor):
         self._check_authorized_imports_are_installed()
         self.static_tools = None
         self.additional_functions = additional_functions or {}
+        self.timeout_seconds = timeout_seconds
 
     def _check_authorized_imports_are_installed(self):
         """
@@ -1678,6 +1746,7 @@ class LocalPythonExecutor(PythonExecutor):
             state=self.state,
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
+            timeout_seconds=self.timeout_seconds,
         )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)

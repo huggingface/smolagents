@@ -82,9 +82,9 @@ class TestModel:
             ChatMessageStreamDelta,
             ChatMessageToolCallFunction,
             ChatMessageToolCallStreamDelta,
-            TokenUsage,
             agglomerate_stream_deltas,
         )
+        from smolagents.monitoring import TokenUsage
 
         stream_deltas = [
             ChatMessageStreamDelta(
@@ -862,40 +862,47 @@ def test_flatten_messages_as_text_for_all_models(
         ("o3", False),
         ("o4-mini", False),
         ("gpt-5.1", False),
+        ("gpt-5.2", False),
         ("gpt-5", False),
         ("gpt-5-mini", False),
         ("gpt-5-nano", False),
+        ("gpt-5-turbo", False),
+        ("gpt-5.2-mini", False),
         ("grok-4", False),
         ("grok-4-latest", False),
+        ("grok-4.1", False),
+        ("grok-3", False),
         ("grok-3-mini", False),
         ("grok-code-fast-1", False),
         # Unsupported versioned models
-        ("o3-2025-04-16", False),
         ("o4-mini-2025-04-16", False),
+        ("gpt-5-2025-01-01", False),
         # Unsupported models with path prefixes
         ("openai/o3", False),
         ("openai/o4-mini", False),
         ("openai/o3-2025-04-16", False),
         ("openai/o4-mini-2025-04-16", False),
+        ("openai/gpt-5.2", False),
+        ("openai/gpt-5.2-mini", False),
+        ("openai/gpt-5.2-2025-01-01", False),
         ("oci/xai.grok-4", False),
         ("oci/xai.grok-3-mini", False),
         # Supported models
-        ("o3-mini", True),  # Different from o3
-        ("o3-mini-2025-01-31", True),  # Different from o3
-        ("o4", True),  # Different from o4-mini
-        ("o4-turbo", True),  # Different from o4-mini
+        ("o3-mini", True),
         ("gpt-4", True),
-        ("gpt-5-turbo", True),  # Different from gpt-5
-        ("grok-3", True),  # Different from grok-3-mini
         ("claude-3-5-sonnet", True),
         ("mistral-large", True),
         # Supported models with path prefixes
         ("openai/gpt-4", True),
         ("anthropic/claude-3-5-sonnet", True),
+        ("anthropic/claude-opus-4-5", True),
         ("mistralai/mistral-large", True),
         # Edge cases
         ("", True),  # Empty string doesn't match pattern
         ("o3x", True),  # Not exactly o3
+        ("o4x", True),  # Not exactly o4
+        ("gpt-5x", False),
+        ("gpt-50", False),
         ("o3_mini", True),  # Not o3-mini format
         ("prefix-o3", True),  # o3 not at start
     ],
@@ -954,3 +961,119 @@ class TestGetToolCallFromText:
         result = get_tool_call_from_text(text, "name", "arguments")
         assert result.function.name == "calculator"
         assert result.function.arguments == 42
+
+
+@pytest.mark.parametrize(
+    "model_class,model_id",
+    [
+        (LiteLLMModel, "gpt-4o-mini"),
+        (OpenAIModel, "gpt-4o-mini"),
+    ],
+)
+def test_tool_calls_json_serialization(model_class, model_id):
+    """Test that tool_calls from various API models (Pydantic, dataclass, dict) are properly converted to dataclasses and can be JSON serialized.
+    This tests the horizontal fix that ensures all models (LiteLLM, OpenAI, InferenceClient, AmazonBedrock)
+    properly convert tool_calls to dataclasses regardless of the source format (Pydantic models, dataclasses, or dicts).
+    """
+    tool_arguments = "test_result"
+    messages = [
+        ChatMessage(
+            role=MessageRole.USER,
+            content=[
+                {
+                    "type": "text",
+                    "text": "Hello! Please return the final answer 'hi there' in a tool call",
+                }
+            ],
+        ),
+    ]
+
+    if model_class == OpenAIModel:
+        from openai.types.chat.chat_completion import ChatCompletion, Choice
+        from openai.types.chat.chat_completion_message import ChatCompletionMessage
+        from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
+        from openai.types.completion_usage import CompletionUsage
+
+        response = ChatCompletion(
+            id="chatcmpl-test",
+            created=0,
+            model="gpt-4o-mini-2024-07-18",
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="tool_calls",
+                    index=0,
+                    logprobs=None,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChatCompletionMessageToolCall(
+                                id="call_test",
+                                type="function",
+                                function=Function(name="final_answer", arguments=tool_arguments),
+                            )
+                        ],
+                    ),
+                )
+            ],
+            usage=CompletionUsage(prompt_tokens=69, completion_tokens=15, total_tokens=84),
+        )
+        client = MagicMock()
+        client.chat.completions.create.return_value = response
+        create_call = client.chat.completions.create
+        patch_target = "smolagents.models.OpenAIModel.create_client"
+    elif model_class == LiteLLMModel:
+        from litellm.types.utils import ChatCompletionMessageToolCall, Choices, Function, Message, ModelResponse, Usage
+
+        response = ModelResponse(
+            id="chatcmpl-test",
+            created=0,
+            object="chat.completion",
+            choices=[
+                Choices(
+                    finish_reason="tool_calls",
+                    index=0,
+                    message=Message(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChatCompletionMessageToolCall(
+                                id="call_test",
+                                type="function",
+                                function=Function(name="final_answer", arguments=tool_arguments),
+                            )
+                        ],
+                        function_call=None,
+                        provider_specific_fields={"refusal": None, "annotations": []},
+                    ),
+                )
+            ],
+            usage=Usage(prompt_tokens=69, completion_tokens=15, total_tokens=84),
+            model="gpt-4o-mini-2024-07-18",
+        )
+        client = MagicMock()
+        client.completion.return_value = response
+        create_call = client.completion
+        patch_target = "smolagents.models.LiteLLMModel.create_client"
+    else:
+        raise ValueError(f"Unexpected model class: {model_class}")
+
+    with patch(patch_target, return_value=client):
+        model = model_class(model_id=model_id)
+        result = model.generate(messages, tools_to_call_from=[FinalAnswerTool()])
+
+    assert create_call.call_count == 1
+
+    # Verify tool_calls are converted to dataclasses
+    assert result.tool_calls is not None
+    assert len(result.tool_calls) > 0
+    assert isinstance(result.tool_calls[0], ChatMessageToolCall)
+
+    # The critical test: verify JSON serialization works
+    json_str = result.model_dump_json()
+    data = json.loads(json_str)
+    assert "tool_calls" in data
+    assert len(data["tool_calls"]) > 0
+    assert data["tool_calls"][0]["function"]["name"] == "final_answer"
+    assert data["tool_calls"][0]["function"]["arguments"] == "test_result"

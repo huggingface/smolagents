@@ -265,7 +265,7 @@ locals().update(vars_dict)
                             # Last resort: string representation
                             return "safe:" + json.dumps(str(obj))
 
-            class FinalAnswerException(Exception):
+            class FinalAnswerException(BaseException):
                 def __init__(self, value):
                     self.value = value
 

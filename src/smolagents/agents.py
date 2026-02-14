@@ -57,11 +57,11 @@ from .memory import (
     SystemPromptStep,
     TaskStep,
     Timing,
-    TokenUsage,
     ToolCall,
 )
 from .models import (
     CODEAGENT_RESPONSE_FORMAT,
+    MODEL_REGISTRY,
     ChatMessage,
     ChatMessageStreamDelta,
     ChatMessageToolCall,
@@ -75,6 +75,7 @@ from .monitoring import (
     AgentLogger,
     LogLevel,
     Monitor,
+    TokenUsage,
 )
 from .remote_executors import BlaxelExecutor, DockerExecutor, E2BExecutor, ModalExecutor, WasmExecutor
 from .tools import BaseTool, Tool, validate_tool_arguments
@@ -605,7 +606,9 @@ You have been provided with these additional arguments, that you can access dire
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
             yield action_step
-        yield FinalAnswerStep(handle_agent_output_types(final_answer))
+        final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
+        self._finalize_step(final_answer_step)
+        yield final_answer_step
 
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
@@ -614,8 +617,9 @@ You have been provided with these additional arguments, that you can access dire
             except Exception as e:
                 raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
 
-    def _finalize_step(self, memory_step: ActionStep | PlanningStep):
-        memory_step.timing.end_time = time.time()
+    def _finalize_step(self, memory_step: ActionStep | PlanningStep | FinalAnswerStep):
+        if not isinstance(memory_step, FinalAnswerStep):
+            memory_step.timing.end_time = time.time()
         self.step_callbacks.callback(memory_step, agent=self)
 
     def _handle_max_steps_reached(self, task: str) -> Any:
@@ -1016,7 +1020,12 @@ You have been provided with these additional arguments, that you can access dire
         """
         # Load model
         model_info = agent_dict["model"]
-        model_class = getattr(importlib.import_module("smolagents.models"), model_info["class"])
+        model_class = MODEL_REGISTRY.get(model_info["class"])
+        if model_class is None:
+            raise ValueError(
+                f"Unknown model class '{model_info['class']}'. "
+                f"Supported models: {', '.join(sorted(MODEL_REGISTRY.keys()))}"
+            )
         model = model_class.from_dict(model_info["data"])
         # Load tools
         tools = []
@@ -1025,7 +1034,12 @@ You have been provided with these additional arguments, that you can access dire
         # Load managed agents
         managed_agents = []
         for managed_agent_dict in agent_dict["managed_agents"]:
-            agent_class = getattr(importlib.import_module("smolagents.agents"), managed_agent_dict["class"])
+            agent_class = AGENT_REGISTRY.get(managed_agent_dict["class"])
+            if agent_class is None:
+                raise ValueError(
+                    f"Unknown agent class '{managed_agent_dict['class']}'. "
+                    f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
+                )
             managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
             managed_agents.append(managed_agent)
         # Extract base agent parameters
@@ -1121,7 +1135,12 @@ You have been provided with these additional arguments, that you can access dire
         # Load managed agents from their respective folders, recursively
         managed_agents = []
         for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
-            agent_cls = getattr(importlib.import_module("smolagents.agents"), managed_agent_class_name)
+            agent_cls = AGENT_REGISTRY.get(managed_agent_class_name)
+            if agent_cls is None:
+                raise ValueError(
+                    f"Unknown agent class '{managed_agent_class_name}'. "
+                    f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
+                )
             managed_agents.append(agent_cls.from_folder(folder / "managed_agents" / managed_agent_name))
         agent_dict["managed_agents"] = {}
 
@@ -1795,3 +1814,13 @@ class CodeAgent(MultiStepAgent):
         code_agent_kwargs.update(kwargs)
         # Call the parent class's from_dict method
         return super().from_dict(agent_dict, **code_agent_kwargs)
+
+
+# Agent Registry for secure deserialization
+# This registry maps agent class names to their actual classes.
+# Only classes listed here can be instantiated during deserialization (from_dict/from_folder).
+# This prevents arbitrary code execution via importlib-based dynamic loading.
+AGENT_REGISTRY = {
+    "ToolCallingAgent": ToolCallingAgent,
+    "CodeAgent": CodeAgent,
+}

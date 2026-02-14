@@ -128,6 +128,11 @@ class ChatMessage:
     raw: Any | None = None  # Stores the raw output from the API
     token_usage: TokenUsage | None = None
 
+    def __post_init__(self) -> None:
+        if self.tool_calls is None:
+            return
+        self.tool_calls = [_coerce_tool_call(tool_call) for tool_call in self.tool_calls]
+
     def model_dump_json(self):
         return json.dumps(get_dict_from_nested_dataclasses(self, ignore_key="raw"))
 
@@ -162,6 +167,27 @@ class ChatMessage:
                 ]
             )
         return rendered
+
+
+def _coerce_tool_call(tool_call: Any) -> ChatMessageToolCall:
+    if isinstance(tool_call, ChatMessageToolCall):
+        return tool_call
+
+    if isinstance(tool_call, dict):
+        tool_call_dict = tool_call
+    elif hasattr(tool_call, "model_dump"):
+        tool_call_dict = tool_call.model_dump()
+    elif hasattr(tool_call, "dict") and callable(tool_call.dict):
+        tool_call_dict = tool_call.dict()
+
+    return ChatMessageToolCall(
+        function=ChatMessageToolCallFunction(
+            arguments=tool_call_dict["function"]["arguments"],
+            name=tool_call_dict["function"]["name"],
+        ),
+        id=tool_call_dict["id"],
+        type=tool_call_dict["type"],
+    )
 
 
 def parse_json_if_needed(arguments: str | dict) -> str | dict:
@@ -402,9 +428,11 @@ def supports_stop_parameter(model_id: str) -> bool:
         bool: True if the model supports the stop parameter, False otherwise
     """
     model_name = model_id.split("/")[-1]
-    # o3, o4-mini, grok-3-mini, grok-4, grok-code-fast and the gpt-5 series (including versioned variants, o3-2025-04-16) don't support stop parameter
-    openai_model_pattern = r"(o3[-\d]*|o4-mini[-\d]*|gpt-5(-mini|-nano)?[-\d]*|gpt-5.1[-\d]*)"
-    grok_model_pattern = r"([a-zA-Z]+\.)?(grok-3-mini|grok-4|grok-code-fast)(-[A-Za-z0-9]*)?"
+    if model_name == "o3-mini":
+        return True
+    # o3* (except mini), o4*, all grok-* models, and the gpt-5* family (including versioned variants) don't support stop parameter
+    openai_model_pattern = r"(o3(?:$|[-.].*)|o4(?:$|[-.].*)|gpt-5.*)"
+    grok_model_pattern = r"([A-Za-z][A-Za-z0-9_-]*\.)?grok-[A-Za-z0-9][A-Za-z0-9_.-]*"
     pattern = rf"^({openai_model_pattern}|{grok_model_pattern})$"
 
     return not re.match(pattern, model_name)
@@ -611,6 +639,8 @@ class VLLMModel(Model):
             This can be a path or model identifier from the Hugging Face model hub.
         model_kwargs (`dict[str, Any]`, *optional*):
             Additional keyword arguments to forward to the vLLM LLM instantiation, such as `revision`, `max_model_len`, etc.
+        apply_chat_template_kwargs (dict, *optional*):
+            Additional keyword arguments to pass to the `apply_chat_template` method of the tokenizer.
         **kwargs:
             Additional keyword arguments to forward to the underlying vLLM model generate call.
     """
@@ -619,6 +649,7 @@ class VLLMModel(Model):
         self,
         model_id,
         model_kwargs: dict[str, Any] | None = None,
+        apply_chat_template_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
         if not _is_package_available("vllm"):
@@ -628,6 +659,7 @@ class VLLMModel(Model):
         from vllm.transformers_utils.tokenizer import get_tokenizer  # type: ignore
 
         self.model_kwargs = model_kwargs or {}
+        self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
         super().__init__(**kwargs)
         self.model_id = model_id
         self.model = LLM(model=model_id, **self.model_kwargs)
@@ -685,6 +717,7 @@ class VLLMModel(Model):
             tools=tools,
             add_generation_prompt=True,
             tokenize=False,
+            **self.apply_chat_template_kwargs,
         )
 
         sampling_params = SamplingParams(
@@ -848,6 +881,8 @@ class TransformersModel(Model):
             Maximum number of new tokens to generate, ignoring the number of tokens in the prompt.
         max_tokens (`int`, *optional*):
             Alias for `max_new_tokens`. If provided, this value takes precedence.
+        apply_chat_template_kwargs (dict, *optional*):
+            Additional keyword arguments to pass to the `apply_chat_template` method of the tokenizer.
         **kwargs:
             Additional keyword arguments to forward to the underlying Transformers model generate call, such as `device`.
     Raises:
@@ -877,6 +912,7 @@ class TransformersModel(Model):
         model_kwargs: dict[str, Any] | None = None,
         max_new_tokens: int = 4096,
         max_tokens: int | None = None,
+        apply_chat_template_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
         try:
@@ -909,6 +945,7 @@ class TransformersModel(Model):
         logger.info(f"Using device: {device_map}")
         self._is_vlm = False
         self.model_kwargs = model_kwargs or {}
+        self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
         try:
             self.model = AutoModelForImageTextToText.from_pretrained(
                 model_id,
@@ -994,6 +1031,7 @@ class TransformersModel(Model):
             add_generation_prompt=True,
             tokenize=True,
             return_dict=True,
+            **self.apply_chat_template_kwargs,
         )
         prompt_tensor = prompt_tensor.to(self.model.device)  # type: ignore
         if hasattr(prompt_tensor, "input_ids"):
@@ -2023,6 +2061,23 @@ class AmazonBedrockModel(ApiModel):
 
 
 AmazonBedrockServerModel = AmazonBedrockModel
+
+
+# Model Registry for secure deserialization
+# This registry maps model class names to their actual classes.
+# Only classes listed here can be instantiated during deserialization (from_dict).
+# This prevents arbitrary code execution via importlib-based dynamic loading.
+MODEL_REGISTRY = {
+    "VLLMModel": VLLMModel,
+    "MLXModel": MLXModel,
+    "TransformersModel": TransformersModel,
+    "LiteLLMModel": LiteLLMModel,
+    "LiteLLMRouterModel": LiteLLMRouterModel,
+    "InferenceClientModel": InferenceClientModel,
+    "OpenAIModel": OpenAIModel,
+    "AzureOpenAIModel": AzureOpenAIModel,
+    "AmazonBedrockModel": AmazonBedrockModel,
+}
 
 __all__ = [
     "REMOVE_PARAMETER",
