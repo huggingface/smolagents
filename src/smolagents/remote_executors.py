@@ -154,12 +154,12 @@ locals().update(vars_dict)
         safe_serialization_setting = self.safe_serialization
 
         def forward(self, *args, **kwargs) -> Any:
-            import json
             import base64
+            import json
             from io import BytesIO
 
             # Baked in from closure at patch time
-            ALLOW_PICKLE_FALLBACK = allow_pickle_setting
+            ALLOW_PICKLE_FALLBACK = allow_pickle_setting  # noqa: F841
             SAFE_SERIALIZATION = safe_serialization_setting
 
             class SerializationError(Exception):
@@ -175,7 +175,7 @@ locals().update(vars_dict)
                     else:
                         return {
                             "__type__": "dict_with_complex_keys",
-                            "data": [[_to_json_safe(k), _to_json_safe(v)] for k, v in obj.items()]
+                            "data": [[_to_json_safe(k), _to_json_safe(v)] for k, v in obj.items()],
                         }
                 elif isinstance(obj, list):
                     return [_to_json_safe(item) for item in obj]
@@ -193,6 +193,7 @@ locals().update(vars_dict)
                 # Try PIL Image
                 try:
                     import PIL.Image
+
                     if isinstance(obj, PIL.Image.Image):
                         buffer = BytesIO()
                         obj.save(buffer, format="PNG")
@@ -201,7 +202,7 @@ locals().update(vars_dict)
                     pass
 
                 # Lazy imports for less common types
-                from datetime import datetime, date, time, timedelta
+                from datetime import date, datetime, time, timedelta
                 from decimal import Decimal
                 from pathlib import Path
 
@@ -221,6 +222,7 @@ locals().update(vars_dict)
                 # Try numpy if available
                 try:
                     import numpy as np
+
                     if isinstance(obj, np.ndarray):
                         return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
                     elif isinstance(obj, (np.integer, np.floating)):
@@ -230,12 +232,13 @@ locals().update(vars_dict)
 
                 # Try dataclass
                 import dataclasses
+
                 if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
                     return {
                         "__type__": "dataclass",
                         "class_name": type(obj).__name__,
                         "module": type(obj).__module__,
-                        "data": {f.name: _to_json_safe(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
+                        "data": {f.name: _to_json_safe(getattr(obj, f.name)) for f in dataclasses.fields(obj)},
                     }
 
                 # Cannot safely serialize - raise error for safe mode
@@ -274,12 +277,10 @@ locals().update(vars_dict)
         # Set __source__ with the actual values baked in (closures don't survive source extraction)
         source = inspect.getsource(forward)
         source = source.replace(
-            "ALLOW_PICKLE_FALLBACK = allow_pickle_setting",
-            f"ALLOW_PICKLE_FALLBACK = {allow_pickle_setting}"
+            "ALLOW_PICKLE_FALLBACK = allow_pickle_setting", f"ALLOW_PICKLE_FALLBACK = {allow_pickle_setting}"
         )
         source = source.replace(
-            "SAFE_SERIALIZATION = safe_serialization_setting",
-            f"SAFE_SERIALIZATION = {safe_serialization_setting}"
+            "SAFE_SERIALIZATION = safe_serialization_setting", f"SAFE_SERIALIZATION = {safe_serialization_setting}"
         )
         forward.__source__ = source
 
@@ -370,9 +371,7 @@ class E2BExecutor(RemotePythonExecutor):
         if execution.error:
             # Check if the error is a FinalAnswerException
             if execution.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                final_answer = self._deserialize_final_answer(
-                    execution.error.value, self.allow_unsecure_serializer
-                )
+                final_answer = self._deserialize_final_answer(execution.error.value, self.allow_unsecure_serializer)
                 return CodeOutput(output=final_answer, logs=execution_logs, is_final_answer=True)
 
             # Construct error message
@@ -835,8 +834,10 @@ class BlaxelExecutor(RemotePythonExecutor):
         safe_serialization: bool = False,
     ):
         super().__init__(
-            additional_imports, logger, allow_unsecure_serializer=allow_unsecure_serializer,
-            safe_serialization=safe_serialization
+            additional_imports,
+            logger,
+            allow_unsecure_serializer=allow_unsecure_serializer,
+            safe_serialization=safe_serialization,
         )
 
         try:
@@ -1052,8 +1053,10 @@ class WasmExecutor(RemotePythonExecutor):
         safe_serialization: bool = False,
     ):
         super().__init__(
-            additional_imports, logger, allow_unsecure_serializer=allow_unsecure_serializer,
-            safe_serialization=safe_serialization
+            additional_imports,
+            logger,
+            allow_unsecure_serializer=allow_unsecure_serializer,
+            safe_serialization=safe_serialization,
         )
 
         # Check if Deno is installed

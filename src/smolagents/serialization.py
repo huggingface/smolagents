@@ -165,6 +165,7 @@ class SafeSerializer(Tool):
 
         # dataclass - check last as is_dataclass() has overhead
         import dataclasses
+
         if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
             return {
                 "__type__": "dataclass",
@@ -208,9 +209,7 @@ class SafeSerializer(Tool):
                 elif obj_type == "frozenset":
                     return frozenset(SafeSerializer.from_json_safe(item) for item in obj["data"])
                 elif obj_type == "dict_with_complex_keys":
-                    return {
-                        SafeSerializer.from_json_safe(k): SafeSerializer.from_json_safe(v) for k, v in obj["data"]
-                    }
+                    return {SafeSerializer.from_json_safe(k): SafeSerializer.from_json_safe(v) for k, v in obj["data"]}
                 elif obj_type == "datetime":
                     from datetime import datetime
 
@@ -538,15 +537,15 @@ class SafeSerializer:
             Python code string with _deserialize function
         """
         pickle_fallback = (
-            '''
+            """
         import pickle
-        return pickle.loads(base64.b64decode(data))'''
+        return pickle.loads(base64.b64decode(data))"""
             if not safe_serialization
-            else '''
-        raise SerializationError("Pickle data rejected: safe_serialization is enabled")'''
+            else """
+        raise SerializationError("Pickle data rejected: safe_serialization is enabled")"""
         )
 
-        return f'''
+        return f"""
 class SerializationError(Exception):
     pass
 
@@ -619,4 +618,4 @@ def _deserialize(data):
         return _from_json_safe(json_data)
     else:
         # No safe prefix - assume pickle{pickle_fallback}
-'''
+"""
