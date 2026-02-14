@@ -1568,10 +1568,10 @@ class CodeAgent(MultiStepAgent):
         self.executor_type = executor_type
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
         self.allow_unsecure_serializer = allow_unsecure_serializer
-        self.executor_kwargs["allow_unsecure_serializer"] = allow_unsecure_serializer
-        # Propagate safe_serialization to executor for remote executors
         self.safe_serialization = safe_serialization
+        # Propagate to executor for remote executors
         if self.executor_type != "local":
+            self.executor_kwargs["allow_unsecure_serializer"] = allow_unsecure_serializer
             self.executor_kwargs["safe_serialization"] = safe_serialization
         self.python_executor = executor or self.create_python_executor()
 
