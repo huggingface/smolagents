@@ -32,8 +32,6 @@ import pickle
 from io import BytesIO
 from typing import Any
 
-from .tools import Tool
-
 
 __all__ = ["SerializationError", "SafeSerializer"]
 
@@ -44,7 +42,7 @@ class SerializationError(Exception):
     pass
 
 
-class SafeSerializer(Tool):
+class SafeSerializer:
     """JSON-based serializer with type markers for safe serialization.
 
     Supports:
@@ -54,16 +52,9 @@ class SafeSerializer(Tool):
 
     The serializer uses a prefix system to distinguish between formats:
     - "safe:" prefix for JSON-serialized data
-    - No prefix for pickle-serialized data (legacy fallback)
-    """
+    - "pickle:" prefix for pickle-serialized data (when allowed)
 
-    # Tool interface
-    name = "json_serializer"
-    description = (
-        "Serialize and deserialize Python objects to/from JSON format. "
-        "Supports basic types, collections, datetime, PIL images, numpy arrays, and dataclasses."
-    )
-    output_type = "any"
+    """
 
     SAFE_PREFIX = "safe:"
 
