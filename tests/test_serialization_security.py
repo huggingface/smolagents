@@ -51,7 +51,7 @@ class TestSafeSerializationSecurity:
 
         # Should raise SerializationError in safe mode
         with pytest.raises(SerializationError, match="Cannot safely serialize"):
-            SafeSerializer.dumps(obj, safe_serialization=True)
+            SafeSerializer.dumps(obj, allow_pickle=False)
 
     def test_safe_mode_blocks_pickle_deserialization(self):
         """Verify pickle data is rejected in safe mode."""
@@ -61,7 +61,7 @@ class TestSafeSerializationSecurity:
 
         # Should raise error in safe mode
         with pytest.raises(SerializationError, match="Pickle data rejected"):
-            SafeSerializer.loads(pickle_data, safe_serialization=True)
+            SafeSerializer.loads(pickle_data, allow_pickle=False)
 
     def test_pickle_fallback_with_warning(self):
         """Verify pickle fallback works but warns in legacy mode."""
@@ -71,7 +71,7 @@ class TestSafeSerializationSecurity:
         # Should work but emit warning
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            serialized = SafeSerializer.dumps(obj, safe_serialization=False)
+            serialized = SafeSerializer.dumps(obj, allow_pickle=True)
 
             # Check warning was raised
             assert len(w) == 1
@@ -81,7 +81,7 @@ class TestSafeSerializationSecurity:
         # Should deserialize successfully (with warning)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            result = SafeSerializer.loads(serialized, safe_serialization=False)
+            result = SafeSerializer.loads(serialized, allow_pickle=True)
 
             assert result.value == 42
             assert len(w) == 1
@@ -105,9 +105,9 @@ class TestSafeSerializationRoundtrip:
         ]
 
         for obj in test_cases:
-            serialized = SafeSerializer.dumps(obj, safe_serialization=True)
+            serialized = SafeSerializer.dumps(obj, allow_pickle=False)
             assert serialized.startswith("safe:")
-            result = SafeSerializer.loads(serialized, safe_serialization=True)
+            result = SafeSerializer.loads(serialized, allow_pickle=False)
             assert result == obj
 
     def test_collections(self):
@@ -121,8 +121,8 @@ class TestSafeSerializationRoundtrip:
         ]
 
         for obj in test_cases:
-            serialized = SafeSerializer.dumps(obj, safe_serialization=True)
-            result = SafeSerializer.loads(serialized, safe_serialization=True)
+            serialized = SafeSerializer.dumps(obj, allow_pickle=False)
+            result = SafeSerializer.loads(serialized, allow_pickle=False)
             assert result == obj
 
     def test_datetime_types(self):
@@ -136,8 +136,8 @@ class TestSafeSerializationRoundtrip:
         ]
 
         for obj in test_cases:
-            serialized = SafeSerializer.dumps(obj, safe_serialization=True)
-            result = SafeSerializer.loads(serialized, safe_serialization=True)
+            serialized = SafeSerializer.dumps(obj, allow_pickle=False)
+            result = SafeSerializer.loads(serialized, allow_pickle=False)
             assert result == obj
 
     def test_special_types(self):
@@ -148,8 +148,8 @@ class TestSafeSerializationRoundtrip:
         ]
 
         for obj in test_cases:
-            serialized = SafeSerializer.dumps(obj, safe_serialization=True)
-            result = SafeSerializer.loads(serialized, safe_serialization=True)
+            serialized = SafeSerializer.dumps(obj, allow_pickle=False)
+            result = SafeSerializer.loads(serialized, allow_pickle=False)
             assert result == obj
 
     def test_complex_nested_structure(self):
@@ -166,9 +166,9 @@ class TestSafeSerializationRoundtrip:
             "bytes": b"binary data",
         }
 
-        serialized = SafeSerializer.dumps(obj, safe_serialization=True)
+        serialized = SafeSerializer.dumps(obj, allow_pickle=False)
         assert serialized.startswith("safe:")
-        result = SafeSerializer.loads(serialized, safe_serialization=True)
+        result = SafeSerializer.loads(serialized, allow_pickle=False)
 
         # Check structure is preserved
         assert result["primitives"] == obj["primitives"]
@@ -188,8 +188,8 @@ class TestNumpySupport:
 
         arr = np.array([[1, 2], [3, 4]], dtype=np.float32)
 
-        serialized = SafeSerializer.dumps(arr, safe_serialization=True)
-        result = SafeSerializer.loads(serialized, safe_serialization=True)
+        serialized = SafeSerializer.dumps(arr, allow_pickle=False)
+        result = SafeSerializer.loads(serialized, allow_pickle=False)
 
         np.testing.assert_array_equal(result, arr)
         assert result.dtype == arr.dtype
@@ -205,8 +205,8 @@ class TestNumpySupport:
         ]
 
         for obj in test_cases:
-            serialized = SafeSerializer.dumps(obj, safe_serialization=True)
-            result = SafeSerializer.loads(serialized, safe_serialization=True)
+            serialized = SafeSerializer.dumps(obj, allow_pickle=False)
+            result = SafeSerializer.loads(serialized, allow_pickle=False)
             assert result == obj.item()
 
 
@@ -221,8 +221,8 @@ class TestPILSupport:
         # Create a simple test image
         img = Image.new("RGB", (10, 10), color="red")
 
-        serialized = SafeSerializer.dumps(img, safe_serialization=True)
-        result = SafeSerializer.loads(serialized, safe_serialization=True)
+        serialized = SafeSerializer.dumps(img, allow_pickle=False)
+        result = SafeSerializer.loads(serialized, allow_pickle=False)
 
         assert isinstance(result, Image.Image)
         assert result.size == img.size
@@ -239,10 +239,10 @@ class TestBackwardCompatibility:
         legacy_data = {"key": "value", "number": 42}
         pickle_encoded = base64.b64encode(pickle.dumps(legacy_data)).decode()
 
-        # Should work with safe_serialization=False
+        # Should work with allow_pickle=True
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            result = SafeSerializer.loads(pickle_encoded, safe_serialization=False)
+            result = SafeSerializer.loads(pickle_encoded, allow_pickle=True)
 
             assert result == legacy_data
             assert len(w) == 1  # Warning emitted
@@ -256,7 +256,7 @@ class TestBackwardCompatibility:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            serialized = SafeSerializer.dumps(obj, safe_serialization=False)
+            serialized = SafeSerializer.dumps(obj, allow_pickle=True)
 
             # Should use safe format (no warning)
             assert serialized.startswith("safe:")
@@ -282,7 +282,7 @@ class TestDefaultBehavior:
         """Verify loads defaults to safe mode."""
         # Create safe data
         obj = {"key": "value"}
-        serialized = SafeSerializer.dumps(obj, safe_serialization=True)
+        serialized = SafeSerializer.dumps(obj, allow_pickle=False)
 
         # Call without safe_serialization parameter - should default to True
         result = SafeSerializer.loads(serialized)

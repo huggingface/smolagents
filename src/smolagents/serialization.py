@@ -259,22 +259,22 @@ class SafeSerializer(Tool):
         return obj
 
     @staticmethod
-    def dumps(obj: Any, safe_serialization: bool = True) -> str:
+    def dumps(obj: Any, allow_pickle: bool = False) -> str:
         """
         Serialize object to string.
 
         Args:
             obj: Object to serialize
-            safe_serialization: If True, use ONLY safe JSON serialization (error if fails).
-                               If False, try safe first, fallback to pickle.
+            allow_pickle: If False (default), use ONLY safe JSON serialization (error if fails).
+                         If True, try safe first, fallback to pickle with warning.
 
         Returns:
-            str: Serialized string ("safe:..." for JSON, no prefix for pickle)
+            str: Serialized string ("safe:..." for JSON, "pickle:..." for pickle)
 
         Raises:
-            SerializationError: If safe_serialization=True and object cannot be safely serialized
+            SerializationError: If allow_pickle=False and object cannot be safely serialized
         """
-        if safe_serialization:
+        if not allow_pickle:
             # Safe ONLY mode - no pickle fallback
             json_safe = SafeSerializer.to_json_safe(obj)  # Raises SerializationError if fails
             return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
@@ -291,8 +291,7 @@ class SafeSerializer(Tool):
                     "Falling back to insecure pickle serialization. "
                     "This is a security risk and will be removed in a future version. "
                     "Consider using only safe serializable types (primitives, lists, dicts, "
-                    "numpy arrays, PIL images, datetime objects, dataclasses). "
-                    "To silence this warning, explicitly set allow_insecure_serializer=True.",
+                    "numpy arrays, PIL images, datetime objects, dataclasses).",
                     FutureWarning,
                     stacklevel=2,
                 )
@@ -303,31 +302,48 @@ class SafeSerializer(Tool):
                     raise SerializationError(f"Cannot serialize object: {e}") from e
 
     @staticmethod
-    def loads(data: str, safe_serialization: bool = True) -> Any:
+    def loads(data: str, allow_pickle: bool = False) -> Any:
         """
         Deserialize string with format detection.
 
         Args:
-            data: Serialized string (with "safe:" prefix for JSON, no prefix for pickle)
-            safe_serialization: If True, reject pickle data (strict safe mode).
-                               If False, accept both safe and pickle formats.
+            data: Serialized string (with "safe:" or "pickle:" prefix)
+            allow_pickle: If False (default), reject pickle data (strict safe mode).
+                         If True, accept both safe and pickle formats.
 
         Returns:
             Deserialized object
 
         Raises:
-            SerializationError: If pickle data received but safe_serialization=True
+            SerializationError: If pickle data received but allow_pickle=False
         """
         if data.startswith(SafeSerializer.SAFE_PREFIX):
             json_data = json.loads(data[len(SafeSerializer.SAFE_PREFIX) :])
             return SafeSerializer.from_json_safe(json_data)
-        else:
-            # No safe prefix - assume pickle
-            if safe_serialization:
+        elif data.startswith("pickle:"):
+            # Explicit pickle prefix
+            if not allow_pickle:
                 raise SerializationError(
-                    "Pickle data rejected: safe_serialization=True requires safe-only data. "
-                    "This data appears to be pickle-serialized. To deserialize it, set "
-                    "allow_insecure_serializer=True (not recommended for untrusted data)."
+                    "Pickle data rejected: allow_pickle=False requires safe-only data. "
+                    "This data is pickle-serialized. To deserialize it, set "
+                    "allow_pickle=True (not recommended for untrusted data)."
+                )
+            # Warn about insecure pickle deserialization
+            import warnings
+
+            warnings.warn(
+                "Deserializing pickle data. This is a security risk if the data is untrusted.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            return pickle.loads(base64.b64decode(data[7:]))
+        else:
+            # No prefix - legacy format, assume pickle
+            if not allow_pickle:
+                raise SerializationError(
+                    "Pickle data rejected: allow_pickle=False requires safe-only data. "
+                    "This data appears to be pickle-serialized (legacy format). To deserialize it, set "
+                    "allow_pickle=True (not recommended for untrusted data)."
                 )
             # Warn about insecure pickle deserialization
             import warnings
@@ -517,28 +533,28 @@ class SafeSerializer:
         return obj
 
     @staticmethod
-    def dumps(obj, safe_serialization=False):
+    def dumps(obj, allow_pickle=False):
         import json
         import base64
         import pickle
 
-        if safe_serialization:
+        if not allow_pickle:
             # Safe ONLY - no pickle fallback
             json_safe = SafeSerializer.to_json_safe(obj)  # Raises SerializationError if fails
             return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
         else:
-            # Try safe first, fallback to pickle
+            # Try safe first, fallback to pickle if allowed
             try:
                 json_safe = SafeSerializer.to_json_safe(obj)
                 return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
             except SerializationError:
                 try:
-                    return base64.b64encode(pickle.dumps(obj)).decode()
+                    return "pickle:" + base64.b64encode(pickle.dumps(obj)).decode()
                 except (pickle.PicklingError, TypeError, AttributeError) as e:
                     raise SerializationError(f"Cannot serialize object: {e}") from e
 
     @staticmethod
-    def loads(data, safe_serialization=False):
+    def loads(data, allow_pickle=False):
         import json
         import base64
         import pickle
@@ -546,20 +562,24 @@ class SafeSerializer:
         if data.startswith(SafeSerializer.SAFE_PREFIX):
             json_data = json.loads(data[len(SafeSerializer.SAFE_PREFIX):])
             return SafeSerializer.from_json_safe(json_data)
+        elif data.startswith("pickle:"):
+            if not allow_pickle:
+                raise SerializationError("Pickle data rejected: allow_pickle=False")
+            return pickle.loads(base64.b64decode(data[7:]))
         else:
-            # No safe prefix - assume pickle
-            if safe_serialization:
-                raise SerializationError("Pickle data rejected: safe_serialization=True")
+            # Legacy format (no prefix) - assume pickle
+            if not allow_pickle:
+                raise SerializationError("Pickle data rejected: allow_pickle=False")
             return pickle.loads(base64.b64decode(data))
 '''
 
     @staticmethod
-    def get_deserializer_code(safe_serialization: bool) -> str:
+    def get_deserializer_code(allow_pickle: bool) -> str:
         """
         Generate deserializer function for remote execution with setting baked in.
 
         Args:
-            safe_serialization: The serialization mode to bake into the code
+            allow_pickle: Whether to allow pickle deserialization
 
         Returns:
             Python code string with _deserialize function
@@ -568,9 +588,9 @@ class SafeSerializer:
             """
         import pickle
         return pickle.loads(base64.b64decode(data))"""
-            if not safe_serialization
+            if allow_pickle
             else """
-        raise SerializationError("Pickle data rejected: safe_serialization is enabled")"""
+        raise SerializationError("Pickle data rejected: allow_pickle=False")"""
         )
 
         return f"""

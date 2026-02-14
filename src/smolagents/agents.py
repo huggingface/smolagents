@@ -1521,14 +1521,12 @@ class CodeAgent(MultiStepAgent):
 
             <Added version="1.17.0"/>
         code_block_tags (`tuple[str, str]` | `Literal["markdown"]`, *optional*): Opening and closing tags for code blocks (regex strings). Pass a custom tuple, or pass 'markdown' to use ("```(?:python|py)", "\\n```"), leave empty to use ("<code>", "</code>").
-        allow_insecure_serializer (`bool`, default `False`): Whether to allow pickle fallback for legacy serialization.
-            Set to True only if you trust the execution environment and need backward compatibility.
-            Pickle deserialization can execute arbitrary code.
-        safe_serialization (`bool`, default `True`): When True, uses ONLY safe JSON-based serialization (raises error if object can't be safely serialized).
-            When False, tries safe serialization first and falls back to insecure pickle if needed.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            When `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            When `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
 
-            **Security Warning:** Only set safe_serialization=False if you fully trust the execution environment,
-            as pickle can execute arbitrary code during deserialization.
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1546,8 +1544,7 @@ class CodeAgent(MultiStepAgent):
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
         code_block_tags: str | tuple[str, str] | None = None,
-        allow_insecure_serializer: bool = False,
-        safe_serialization: bool = True,
+        allow_pickle: bool = False,
         **kwargs,
     ):
         self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
@@ -1592,12 +1589,10 @@ class CodeAgent(MultiStepAgent):
             )
         self.executor_type = executor_type
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
-        self.allow_insecure_serializer = allow_insecure_serializer
-        self.safe_serialization = safe_serialization
+        self.allow_pickle = allow_pickle
         # Propagate to executor for remote executors
         if self.executor_type != "local":
-            self.executor_kwargs["allow_insecure_serializer"] = allow_insecure_serializer
-            self.executor_kwargs["safe_serialization"] = safe_serialization
+            self.executor_kwargs["allow_pickle"] = allow_pickle
         self.python_executor = executor or self.create_python_executor()
 
     def __enter__(self):
@@ -1791,7 +1786,7 @@ class CodeAgent(MultiStepAgent):
         agent_dict["executor_type"] = self.executor_type
         agent_dict["executor_kwargs"] = self.executor_kwargs
         agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
-        agent_dict["allow_insecure_serializer"] = self.allow_insecure_serializer
+        agent_dict["allow_pickle"] = self.allow_pickle
         return agent_dict
 
     @classmethod
@@ -1812,7 +1807,7 @@ class CodeAgent(MultiStepAgent):
             "executor_kwargs": agent_dict.get("executor_kwargs"),
             "max_print_outputs_length": agent_dict.get("max_print_outputs_length"),
             "code_block_tags": agent_dict.get("code_block_tags"),
-            "allow_insecure_serializer": agent_dict.get("allow_insecure_serializer", False),
+            "allow_pickle": agent_dict.get("allow_pickle", False),
         }
         # Filter out None values
         code_agent_kwargs = {k: v for k, v in code_agent_kwargs.items() if v is not None}
