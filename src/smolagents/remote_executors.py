@@ -674,6 +674,7 @@ class ModalExecutor(RemotePythonExecutor):
     Args:
         additional_imports: Additional imports to install.
         logger (`Logger`): Logger to use for output and errors.
+        allow_pickle: Whether to allow pickle fallback for unsupported types.
         app_name (`str`): App name.
         port (`int`): Port for jupyter to bind to.
         create_kwargs (`dict`, optional): Keyword arguments to pass to creating the sandbox. See
@@ -687,13 +688,12 @@ class ModalExecutor(RemotePythonExecutor):
         self,
         additional_imports: list[str],
         logger,
-        allow_insecure_serializer: bool = False,
-        safe_serialization: bool = True,
+        allow_pickle: bool = False,
         app_name: str = "smolagent-executor",
         port: int = 8888,
         create_kwargs: Optional[dict] = None,
     ):
-        super().__init__(additional_imports, logger, allow_insecure_serializer, safe_serialization)
+        super().__init__(additional_imports, logger, allow_pickle)
         self.port = port
         try:
             import modal
@@ -796,6 +796,7 @@ class BlaxelExecutor(RemotePythonExecutor):
     Args:
         additional_imports (`list[str]`): Additional Python packages to install.
         logger (`Logger`): Logger to use for output and errors.
+        allow_pickle: Whether to allow pickle fallback for unsupported types.
         sandbox_name (`str`, optional): Name for the sandbox. Defaults to "smolagent-executor".
         image (`str`, optional): Docker image to use. Defaults to "blaxel/jupyter-notebook".
         memory (`int`, optional): Memory allocation in MB. Defaults to 4096.
@@ -812,15 +813,9 @@ class BlaxelExecutor(RemotePythonExecutor):
         memory: int = 4096,
         ttl: str | None = None,
         region: Optional[str] = None,
-        allow_insecure_serializer: bool = False,
-        safe_serialization: bool = True,
+        allow_pickle: bool = False,
     ):
-        super().__init__(
-            additional_imports,
-            logger,
-            allow_insecure_serializer=allow_insecure_serializer,
-            safe_serialization=safe_serialization,
-        )
+        super().__init__(additional_imports, logger, allow_pickle=allow_pickle)
 
         try:
             import blaxel  # noqa: F401
