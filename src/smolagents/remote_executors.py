@@ -144,7 +144,7 @@ locals().update(vars_dict)
             pass
 
         # Add a new forward method that raises the FinalAnswerException
-        # NOTE: Serialization logic must be inlined here because this method's source code
+        # NOTE: Serialization logic is inlined here because this method's source code
         # is extracted and sent to remote environments where external references don't exist
         # Capture settings via closure
         allow_pickle_setting = self.allow_pickle
