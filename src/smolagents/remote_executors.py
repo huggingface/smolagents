@@ -60,12 +60,12 @@ class RemotePythonExecutor(PythonExecutor):
         self,
         additional_imports: list[str],
         logger,
-        allow_unsecure_serializer: bool = True,
-        safe_serialization: bool = False,
+        allow_insecure_serializer: bool = False,
+        safe_serialization: bool = True,
     ):
         self.additional_imports = additional_imports
         self.logger = logger
-        self.allow_unsecure_serializer = allow_unsecure_serializer
+        self.allow_insecure_serializer = allow_insecure_serializer
         self.safe_serialization = safe_serialization
         self.logger.log("Initializing executor, hold on...")
         self.installed_packages = []
@@ -150,7 +150,7 @@ locals().update(vars_dict)
         # NOTE: Serialization logic must be inlined here because this method's source code
         # is extracted and sent to remote environments where external references don't exist
         # Capture settings via closure
-        allow_pickle_setting = self.allow_unsecure_serializer
+        allow_pickle_setting = self.allow_insecure_serializer
         safe_serialization_setting = self.safe_serialization
 
         def forward(self, *args, **kwargs) -> Any:
@@ -319,7 +319,7 @@ locals().update(vars_dict)
             return SafeSerializer.from_json_safe(json_data)
         elif encoded_value.startswith("pickle:"):
             if not allow_pickle:
-                raise SerializationError("Pickle data rejected: allow_unsecure_serializer=False")
+                raise SerializationError("Pickle data rejected: allow_insecure_serializer=False")
             return pickle.loads(base64.b64decode(encoded_value[7:]))
         else:
             # Legacy format (no prefix) - parse as JSON
@@ -334,7 +334,7 @@ class E2BExecutor(RemotePythonExecutor):
     Args:
         additional_imports (`list[str]`): Additional imports to install.
         logger (`Logger`): Logger to use.
-        allow_unsecure_serializer (`bool`): Whether to allow pickle fallback.
+        allow_insecure_serializer (`bool`): Whether to allow pickle fallback.
         safe_serialization (`bool`): Whether to use safe serialization mode.
         **kwargs: Additional arguments to pass to the E2B Sandbox.
     """
@@ -343,11 +343,11 @@ class E2BExecutor(RemotePythonExecutor):
         self,
         additional_imports: list[str],
         logger,
-        allow_unsecure_serializer: bool = True,
-        safe_serialization: bool = False,
+        allow_insecure_serializer: bool = False,
+        safe_serialization: bool = True,
         **kwargs,
     ):
-        super().__init__(additional_imports, logger, allow_unsecure_serializer, safe_serialization)
+        super().__init__(additional_imports, logger, allow_insecure_serializer, safe_serialization)
         try:
             from e2b_code_interpreter import Sandbox
         except ModuleNotFoundError:
@@ -371,7 +371,7 @@ class E2BExecutor(RemotePythonExecutor):
         if execution.error:
             # Check if the error is a FinalAnswerException
             if execution.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                final_answer = self._deserialize_final_answer(execution.error.value, self.allow_unsecure_serializer)
+                final_answer = self._deserialize_final_answer(execution.error.value, self.allow_insecure_serializer)
                 return CodeOutput(output=final_answer, logs=execution_logs, is_final_answer=True)
 
             # Construct error message
@@ -532,8 +532,8 @@ class DockerExecutor(RemotePythonExecutor):
         self,
         additional_imports: list[str],
         logger,
-        allow_unsecure_serializer: bool = True,
-        safe_serialization: bool = False,
+        allow_insecure_serializer: bool = False,
+        safe_serialization: bool = True,
         host: str = "127.0.0.1",
         port: int = 8888,
         image_name: str = "jupyter-kernel",
@@ -547,7 +547,7 @@ class DockerExecutor(RemotePythonExecutor):
         Args:
             additional_imports: Additional imports to install.
             logger: Logger to use.
-            allow_unsecure_serializer: Whether to allow pickle fallback.
+            allow_insecure_serializer: Whether to allow pickle fallback.
             safe_serialization: Whether to use safe serialization mode.
             host: Host to bind to.
             port: Port to bind to.
@@ -556,7 +556,7 @@ class DockerExecutor(RemotePythonExecutor):
             container_run_kwargs: Additional keyword arguments to pass to the Docker container run command.
             dockerfile_content: Custom Dockerfile content. If None, uses default.
         """
-        super().__init__(additional_imports, logger, allow_unsecure_serializer, safe_serialization)
+        super().__init__(additional_imports, logger, allow_insecure_serializer, safe_serialization)
         try:
             import docker
         except ModuleNotFoundError:
@@ -648,7 +648,7 @@ class DockerExecutor(RemotePythonExecutor):
 
         with closing(create_connection(self.ws_url)) as ws:
             return _websocket_run_code_raise_errors(
-                code, ws, self.logger, self.allow_unsecure_serializer, self.safe_serialization
+                code, ws, self.logger, self.allow_insecure_serializer, self.safe_serialization
             )
 
     def cleanup(self):
@@ -703,13 +703,13 @@ class ModalExecutor(RemotePythonExecutor):
         self,
         additional_imports: list[str],
         logger,
-        allow_unsecure_serializer: bool = True,
-        safe_serialization: bool = False,
+        allow_insecure_serializer: bool = False,
+        safe_serialization: bool = True,
         app_name: str = "smolagent-executor",
         port: int = 8888,
         create_kwargs: Optional[dict] = None,
     ):
-        super().__init__(additional_imports, logger, allow_unsecure_serializer, safe_serialization)
+        super().__init__(additional_imports, logger, allow_insecure_serializer, safe_serialization)
         self.port = port
         try:
             import modal
@@ -771,7 +771,7 @@ class ModalExecutor(RemotePythonExecutor):
 
         with closing(create_connection(self.ws_url)) as ws:
             return _websocket_run_code_raise_errors(
-                code, ws, self.logger, self.allow_unsecure_serializer, self.safe_serialization
+                code, ws, self.logger, self.allow_insecure_serializer, self.safe_serialization
             )
 
     def cleanup(self):
@@ -830,13 +830,13 @@ class BlaxelExecutor(RemotePythonExecutor):
         memory: int = 4096,
         ttl: str | None = None,
         region: Optional[str] = None,
-        allow_unsecure_serializer: bool = True,
-        safe_serialization: bool = False,
+        allow_insecure_serializer: bool = False,
+        safe_serialization: bool = True,
     ):
         super().__init__(
             additional_imports,
             logger,
-            allow_unsecure_serializer=allow_unsecure_serializer,
+            allow_insecure_serializer=allow_insecure_serializer,
             safe_serialization=safe_serialization,
         )
 
@@ -926,7 +926,7 @@ class BlaxelExecutor(RemotePythonExecutor):
             headers.append(f"{key}: {value}")
         with closing(create_connection(self.ws_url, header=headers)) as ws:
             return _websocket_run_code_raise_errors(
-                code, ws, self.logger, self.allow_unsecure_serializer, self.safe_serialization
+                code, ws, self.logger, self.allow_insecure_serializer, self.safe_serialization
             )
 
     def install_packages(self, additional_imports: list[str]) -> list[str]:
@@ -1049,13 +1049,13 @@ class WasmExecutor(RemotePythonExecutor):
         deno_path: str = "deno",
         deno_permissions: list[str] | None = None,
         timeout: int = 60,
-        allow_unsecure_serializer: bool = True,
-        safe_serialization: bool = False,
+        allow_insecure_serializer: bool = False,
+        safe_serialization: bool = True,
     ):
         super().__init__(
             additional_imports,
             logger,
-            allow_unsecure_serializer=allow_unsecure_serializer,
+            allow_insecure_serializer=allow_insecure_serializer,
             safe_serialization=safe_serialization,
         )
 
@@ -1177,7 +1177,7 @@ class WasmExecutor(RemotePythonExecutor):
                     and "pythonExceptionValue" in error
                 ):
                     result = self._deserialize_final_answer(
-                        error["pythonExceptionValue"], self.allow_unsecure_serializer
+                        error["pythonExceptionValue"], self.allow_insecure_serializer
                     )
                     is_final_answer = True
                 else:
