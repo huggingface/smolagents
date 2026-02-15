@@ -816,6 +816,7 @@ class ModalExecutor(RemotePythonExecutor):
             return _websocket_run_code_raise_errors(code, ws, self.logger, self.allow_pickle)
 
     def cleanup(self):
+        """Clean up the Modal sandbox by terminating it."""
         if hasattr(self, "sandbox"):
             self.sandbox.terminate()
 
