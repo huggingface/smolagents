@@ -39,6 +39,25 @@ class TestRemotePythonExecutor:
         executor.send_variables({})
         assert executor.run_code_raise_errors.call_count == 0
 
+    def test_send_variables_non_empty_generates_executable_deserializer_code(self):
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock(), allow_pickle=False)
+        executor.run_code_raise_errors = MagicMock()
+
+        variables = {
+            "counter": 1,
+            "tags": ("a", "b"),
+            "blob": b"binary",
+        }
+        executor.send_variables(variables)
+
+        sent_code = executor.run_code_raise_errors.call_args.args[0]
+        remote_scope = {}
+        exec(sent_code, remote_scope, remote_scope)
+
+        assert remote_scope["counter"] == 1
+        assert remote_scope["tags"] == ("a", "b")
+        assert remote_scope["blob"] == b"binary"
+
     @require_run_all
     def test_send_tools_with_default_wikipedia_search_tool(self):
         tool = WikipediaSearchTool()
