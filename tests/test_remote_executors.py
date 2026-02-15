@@ -1,5 +1,7 @@
+import base64
 import importlib
 import io
+import pickle
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
@@ -57,6 +59,11 @@ class TestRemotePythonExecutor:
         assert remote_scope["counter"] == 1
         assert remote_scope["tags"] == ("a", "b")
         assert remote_scope["blob"] == b"binary"
+
+    def test_deserialize_final_answer_supports_legacy_no_prefix_pickle(self):
+        legacy_payload = base64.b64encode(pickle.dumps({"status": "ok", "count": 2})).decode()
+        result = RemotePythonExecutor._deserialize_final_answer(legacy_payload, allow_pickle=True)
+        assert result == {"status": "ok", "count": 2}
 
     @require_run_all
     def test_send_tools_with_default_wikipedia_search_tool(self):
