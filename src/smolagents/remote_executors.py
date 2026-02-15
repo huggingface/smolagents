@@ -533,7 +533,23 @@ def _create_kernel_http(crate_kernel_endpoint: str, logger, headers: Optional[di
 
 class DockerExecutor(RemotePythonExecutor):
     """
-    Executes Python code using Jupyter Kernel Gateway in a Docker container.
+    Remote Python code executor using Jupyter Kernel Gateway in a Docker container.
+
+    Args:
+        additional_imports (`list[str]`): Additional Python packages to install.
+        logger (`Logger`): Logger to use for output and errors.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
+        host (`str`, default `"127.0.0.1"`): Host to bind to.
+        port (`int`, default `8888`): Port to bind to.
+        image_name (`str`, default `"jupyter-kernel"`): Name of the Docker image to use. If the image doesn't exist, it will be built.
+        build_new_image (`bool`, default `True`): Whether to rebuild a new image even if it already exists.
+        container_run_kwargs (`dict`, *optional*): Additional keyword arguments to pass to the Docker container run command.
+        dockerfile_content (`str`, *optional*): Custom Dockerfile content. If `None`, uses default.
     """
 
     def __init__(
@@ -548,25 +564,6 @@ class DockerExecutor(RemotePythonExecutor):
         container_run_kwargs: dict[str, Any] | None = None,
         dockerfile_content: str | None = None,
     ):
-        """
-        Initialize the Docker-based Jupyter Kernel Gateway executor.
-
-        Args:
-            additional_imports: Additional imports to install.
-            logger: Logger to use.
-            allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
-                - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
-                - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
-
-                **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
-                if you fully trust the execution environment and need backward compatibility with custom types.
-            host: Host to bind to.
-            port: Port to bind to.
-            image_name: Name of the Docker image to use. If the image doesn't exist, it will be built.
-            build_new_image: If True, the image will be rebuilt even if it already exists.
-            container_run_kwargs: Additional keyword arguments to pass to the Docker container run command.
-            dockerfile_content: Custom Dockerfile content. If None, uses default.
-        """
         super().__init__(additional_imports, logger, allow_pickle)
         try:
             import docker
