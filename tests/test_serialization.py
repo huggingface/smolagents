@@ -865,6 +865,35 @@ class TestRealWorldScenarios:
             assert result == answer
 
 
+class TestGeneratedDeserializerCode:
+    """Regression tests for generated deserializer code used by remote executors."""
+
+    def test_generated_deserializer_executes_for_safe_payload(self):
+        code = SafeSerializer.get_deserializer_code(allow_pickle=False)
+        namespace = {}
+        exec(code, namespace, namespace)
+
+        payload = SafeSerializer.dumps(
+            {
+                "count": 3,
+                "items": (1, 2, 3),
+                "raw": b"bytes",
+            },
+            allow_pickle=False,
+        )
+        result = namespace["_deserialize"](payload)
+        assert result == {"count": 3, "items": (1, 2, 3), "raw": b"bytes"}
+
+    def test_generated_deserializer_handles_pickle_prefix_when_enabled(self):
+        code = SafeSerializer.get_deserializer_code(allow_pickle=True)
+        namespace = {}
+        exec(code, namespace, namespace)
+
+        payload = "pickle:" + base64.b64encode(pickle.dumps({"hello": "world"})).decode()
+        result = namespace["_deserialize"](payload)
+        assert result == {"hello": "world"}
+
+
 class TestConcurrency:
     """Test thread safety and concurrent access."""
 
