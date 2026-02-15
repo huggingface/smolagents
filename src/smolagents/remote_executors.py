@@ -324,7 +324,12 @@ class E2BExecutor(RemotePythonExecutor):
     Args:
         additional_imports (`list[str]`): Additional imports to install.
         logger (`Logger`): Logger to use.
-        allow_pickle (`bool`): Whether to allow pickle fallback for unsupported types.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
         **kwargs: Additional arguments to pass to the E2B Sandbox.
     """
 
@@ -534,7 +539,12 @@ class DockerExecutor(RemotePythonExecutor):
         Args:
             additional_imports: Additional imports to install.
             logger: Logger to use.
-            allow_pickle: Whether to allow pickle fallback for unsupported types.
+            allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+                - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+                - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+                **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+                if you fully trust the execution environment and need backward compatibility with custom types.
             host: Host to bind to.
             port: Port to bind to.
             image_name: Name of the Docker image to use. If the image doesn't exist, it will be built.
@@ -674,7 +684,12 @@ class ModalExecutor(RemotePythonExecutor):
     Args:
         additional_imports: Additional imports to install.
         logger (`Logger`): Logger to use for output and errors.
-        allow_pickle: Whether to allow pickle fallback for unsupported types.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
         app_name (`str`): App name.
         port (`int`): Port for jupyter to bind to.
         create_kwargs (`dict`, optional): Keyword arguments to pass to creating the sandbox. See
@@ -796,7 +811,12 @@ class BlaxelExecutor(RemotePythonExecutor):
     Args:
         additional_imports (`list[str]`): Additional Python packages to install.
         logger (`Logger`): Logger to use for output and errors.
-        allow_pickle: Whether to allow pickle fallback for unsupported types.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
         sandbox_name (`str`, optional): Name for the sandbox. Defaults to "smolagent-executor".
         image (`str`, optional): Docker image to use. Defaults to "blaxel/jupyter-notebook".
         memory (`int`, optional): Memory allocation in MB. Defaults to 4096.
@@ -808,12 +828,12 @@ class BlaxelExecutor(RemotePythonExecutor):
         self,
         additional_imports: list[str],
         logger,
+        allow_pickle: bool = False,
         sandbox_name: str | None = None,
         image: str = "blaxel/jupyter-notebook",
         memory: int = 4096,
         ttl: str | None = None,
         region: Optional[str] = None,
-        allow_pickle: bool = False,
     ):
         super().__init__(additional_imports, logger, allow_pickle=allow_pickle)
 
@@ -1011,6 +1031,12 @@ class WasmExecutor(RemotePythonExecutor):
     Args:
         additional_imports (`list[str]`): Additional Python packages to install in the Pyodide environment.
         logger (`Logger`): Logger to use for output and errors.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
         deno_path (`str`, optional): Path to the Deno executable. If not provided, will use "deno" from PATH.
         deno_permissions (`list[str]`, optional): List of permissions to grant to the Deno runtime.
             Default is minimal permissions needed for execution.
@@ -1021,10 +1047,10 @@ class WasmExecutor(RemotePythonExecutor):
         self,
         additional_imports: list[str],
         logger,
+        allow_pickle: bool = False,
         deno_path: str = "deno",
         deno_permissions: list[str] | None = None,
         timeout: int = 60,
-        allow_pickle: bool = False,
     ):
         super().__init__(additional_imports, logger, allow_pickle=allow_pickle)
 
