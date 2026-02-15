@@ -292,7 +292,7 @@ locals().update(vars_dict)
         """Deserialize final answer with format detection.
 
         Handle both new prefix-based format ("safe:" or "pickle:") and
-        legacy JSON format for backward compatibility.
+        legacy no-prefix base64-pickle format for backward compatibility.
 
         Args:
             encoded_value: Serialized string from FinalAnswerException.
@@ -312,9 +312,10 @@ locals().update(vars_dict)
                 raise SerializationError("Pickle data rejected: allow_pickle=False")
             return pickle.loads(base64.b64decode(encoded_value[7:]))
         else:
-            # Legacy format (no prefix) - parse as JSON
-            json_data = json.loads(encoded_value)
-            return SafeSerializer.from_json_safe(json_data)
+            # Legacy format (no prefix) - base64-encoded pickle
+            if not allow_pickle:
+                raise SerializationError("Pickle data rejected: allow_pickle=False")
+            return pickle.loads(base64.b64decode(encoded_value))
 
 
 class E2BExecutor(RemotePythonExecutor):
