@@ -60,6 +60,20 @@ class TestRemotePythonExecutor:
         assert remote_scope["tags"] == ("a", "b")
         assert remote_scope["blob"] == b"binary"
 
+    def test_send_variables_allow_pickle_handles_prefixed_payload(self):
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock(), allow_pickle=True)
+        executor.run_code_raise_errors = MagicMock()
+
+        variables = {"error": ValueError("boom")}
+        executor.send_variables(variables)
+
+        sent_code = executor.run_code_raise_errors.call_args.args[0]
+        remote_scope = {}
+        exec(sent_code, remote_scope, remote_scope)
+
+        assert isinstance(remote_scope["error"], ValueError)
+        assert str(remote_scope["error"]) == "boom"
+
     def test_deserialize_final_answer_supports_legacy_no_prefix_pickle(self):
         legacy_payload = base64.b64encode(pickle.dumps({"status": "ok", "count": 2})).decode()
         result = RemotePythonExecutor._deserialize_final_answer(legacy_payload, allow_pickle=True)
