@@ -334,18 +334,18 @@ locals().update(vars_dict)
 
 class E2BExecutor(RemotePythonExecutor):
     """
-    Executes Python code using E2B.
+    Remote Python code executor in an E2B sandbox.
 
     Args:
-        additional_imports (`list[str]`): Additional imports to install.
-        logger (`Logger`): Logger to use.
+        additional_imports (`list[str]`): Additional Python packages to install.
+        logger (`Logger`): Logger to use for output and errors.
         allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
             - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
             - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
 
             **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
             if you fully trust the execution environment and need backward compatibility with custom types.
-        **kwargs: Additional arguments to pass to the E2B Sandbox.
+        **kwargs: Additional keyword arguments to pass to the E2B Sandbox instantiation.
     """
 
     def __init__(
@@ -691,10 +691,10 @@ class DockerExecutor(RemotePythonExecutor):
 
 class ModalExecutor(RemotePythonExecutor):
     """
-    Executes Python code using Modal.
+    Remote Python code executor in a Modal sandbox.
 
     Args:
-        additional_imports: Additional imports to install.
+        additional_imports (`list[str]`): Additional Python packages to install.
         logger (`Logger`): Logger to use for output and errors.
         allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
             - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
@@ -702,9 +702,9 @@ class ModalExecutor(RemotePythonExecutor):
 
             **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
             if you fully trust the execution environment and need backward compatibility with custom types.
-        app_name (`str`): App name.
-        port (`int`): Port for jupyter to bind to.
-        create_kwargs (`dict`, optional): Keyword arguments to pass to creating the sandbox. See
+        app_name (`str`, default `"smolagent-executor"`): App name.
+        port (`int`, default `8888`): Port for jupyter to bind to.
+        create_kwargs (`dict`, *optional*): Additional keyword arguments to pass to the Modal Sandbox create command. See
             `modal.Sandbox.create` [docs](https://modal.com/docs/reference/modal.Sandbox#create) for all the
             keyword arguments.
     """
@@ -815,7 +815,7 @@ class ModalExecutor(RemotePythonExecutor):
 
 class BlaxelExecutor(RemotePythonExecutor):
     """
-    Executes Python code using Blaxel sandboxes.
+    Remote Python code executor in a Blaxel sandbox.
 
     Blaxel provides fast-launching virtual machines that start from hibernation in under 25ms
     and scale back to zero after inactivity while maintaining memory state.
@@ -829,11 +829,11 @@ class BlaxelExecutor(RemotePythonExecutor):
 
             **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
             if you fully trust the execution environment and need backward compatibility with custom types.
-        sandbox_name (`str`, optional): Name for the sandbox. Defaults to "smolagent-executor".
-        image (`str`, optional): Docker image to use. Defaults to "blaxel/jupyter-notebook".
-        memory (`int`, optional): Memory allocation in MB. Defaults to 4096.
-        region (`str`, optional): Deployment region. If not specified, Blaxel chooses default.
-        create_kwargs (`dict`, optional): Additional arguments for sandbox creation.
+        sandbox_name (`str`, *optional*): Name for the sandbox. Defaults to "smolagent-executor".
+        image (`str`, default `"blaxel/jupyter-notebook"`): Docker image to use.
+        memory (`int`, default `4096`): Memory allocation in MB.
+        ttl (`str`, *optional*): Time to live in seconds.
+        region (`str`, *optional*): Deployment region. If not specified, Blaxel chooses default.
     """
 
     def __init__(
@@ -1049,10 +1049,10 @@ class WasmExecutor(RemotePythonExecutor):
 
             **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
             if you fully trust the execution environment and need backward compatibility with custom types.
-        deno_path (`str`, optional): Path to the Deno executable. If not provided, will use "deno" from PATH.
-        deno_permissions (`list[str]`, optional): List of permissions to grant to the Deno runtime.
+        deno_path (`str`, default `"deno"`): Path to the Deno executable. If not provided, will use "deno" from PATH.
+        deno_permissions (`list[str]`, *optional*): List of permissions to grant to the Deno runtime.
             Default is minimal permissions needed for execution.
-        timeout (`int`, optional): Timeout in seconds for code execution. Default is 60 seconds.
+        timeout (`int`, default `60`): Timeout in seconds for code execution
     """
 
     def __init__(
