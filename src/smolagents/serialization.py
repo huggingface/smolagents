@@ -462,37 +462,53 @@ class SafeSerializer:
             Python code string with _deserialize function
         """
         import inspect
+        import textwrap
 
-        # Generate from_json_safe from actual implementation
+        # Build a standalone _from_json_safe function from the source of from_json_safe.
         from_json_safe_source = inspect.getsource(SafeSerializer.from_json_safe)
-        # Make it standalone (remove @staticmethod, change self references, rename)
-        from_json_safe_source = from_json_safe_source.replace("@staticmethod\n    ", "")
+        from_json_safe_source = textwrap.dedent(from_json_safe_source)
+        if from_json_safe_source.startswith("@staticmethod\n"):
+            from_json_safe_source = from_json_safe_source[len("@staticmethod\n") :]
         from_json_safe_source = from_json_safe_source.replace("def from_json_safe(", "def _from_json_safe(")
         from_json_safe_source = from_json_safe_source.replace("SafeSerializer.from_json_safe", "_from_json_safe")
 
-        pickle_fallback = (
-            """
-        import pickle
-        return pickle.loads(base64.b64decode(data))"""
-            if allow_pickle
-            else """
-        raise SerializationError("Pickle data rejected: allow_pickle=False")"""
-        )
+        if allow_pickle:
+            prefixed_pickle_branch = [
+                "        import pickle",
+                "        return pickle.loads(base64.b64decode(data[7:]))",
+            ]
+            legacy_pickle_branch = [
+                "        import pickle",
+                "        return pickle.loads(base64.b64decode(data))",
+            ]
+        else:
+            prefixed_pickle_branch = [
+                '        raise SerializationError("Pickle data rejected: allow_pickle=False")',
+            ]
+            legacy_pickle_branch = [
+                '        raise SerializationError("Pickle data rejected: allow_pickle=False")',
+            ]
 
-        return f"""
-class SerializationError(Exception):
-    pass
-
-{from_json_safe_source}
-
-def _deserialize(data):
-    import json
-    import base64
-    if isinstance(data, str) and data.startswith("safe:"):
-        json_data = json.loads(data[5:])
-        return _from_json_safe(json_data)
-    elif isinstance(data, str) and data.startswith("pickle:"):
-        # Explicit pickle prefix{pickle_fallback}
-    else:
-        # No safe prefix - legacy format, assume pickle{pickle_fallback}
-"""
+        lines = [
+            "import base64",
+            "from io import BytesIO",
+            "from typing import Any",
+            "",
+            "class SerializationError(Exception):",
+            "    pass",
+            "",
+            from_json_safe_source.rstrip(),
+            "",
+            "def _deserialize(data):",
+            "    import json",
+            '    if isinstance(data, str) and data.startswith("safe:"):',
+            "        json_data = json.loads(data[5:])",
+            "        return _from_json_safe(json_data)",
+            '    elif isinstance(data, str) and data.startswith("pickle:"):',
+            *prefixed_pickle_branch,
+            "    else:",
+            "        # No safe prefix - legacy format, assume pickle",
+            *legacy_pickle_branch,
+            "",
+        ]
+        return "\n".join(lines)
