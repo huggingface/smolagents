@@ -285,9 +285,9 @@ class SafeSerializer:
                     FutureWarning,
                     stacklevel=2,
                 )
-                # Fallback to pickle (no prefix)
+                # Fallback to pickle (with prefix)
                 try:
-                    return base64.b64encode(pickle.dumps(obj)).decode()
+                    return "pickle:" + base64.b64encode(pickle.dumps(obj)).decode()
                 except (pickle.PicklingError, TypeError, AttributeError) as e:
                     raise SerializationError(f"Cannot serialize object: {e}") from e
 
