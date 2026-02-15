@@ -27,6 +27,7 @@ from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
     InferenceClientModel,
+    LangChainModel,
     LiteLLMModel,
     LiteLLMRouterModel,
     MessageRole,
@@ -1077,3 +1078,223 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert len(data["tool_calls"]) > 0
     assert data["tool_calls"][0]["function"]["name"] == "final_answer"
     assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
+
+
+class TestLangChainModel:
+    def _make_model(self):
+        """Helper to create a LangChainModel with a mocked LangChain model."""
+        try:
+            from langchain_core.language_models import BaseChatModel
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        mock_lc_model = MagicMock(spec=BaseChatModel)
+        mock_lc_model.model_name = "gpt-4o"
+        model = LangChainModel(mock_lc_model)
+        return model
+
+    def test_init_with_valid_langchain_model(self):
+        model = self._make_model()
+        assert model.model_id == "gpt-4o"
+        assert model.langchain_model is not None
+
+    def test_init_rejects_non_langchain_model(self):
+        with pytest.raises((TypeError, ImportError)):
+            LangChainModel("not a langchain model")
+
+    def test_convert_to_langchain_messages(self):
+        """Test that SmolAgents ChatMessages are correctly converted to LangChain messages."""
+        try:
+            from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        model = self._make_model()
+
+        messages = [
+            ChatMessage(role=MessageRole.SYSTEM, content=[{"type": "text", "text": "You are helpful."}]),
+            ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}]),
+            ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": "Hi there!"}]),
+        ]
+
+        lc_messages = model._convert_to_langchain_messages(messages)
+
+        assert len(lc_messages) == 3
+        assert isinstance(lc_messages[0], SystemMessage)
+        assert lc_messages[0].content == "You are helpful."
+        assert isinstance(lc_messages[1], HumanMessage)
+        assert lc_messages[1].content == "Hello!"
+        assert isinstance(lc_messages[2], AIMessage)
+        assert lc_messages[2].content == "Hi there!"
+
+    def test_convert_handles_string_content(self):
+        """Test conversion when content is a plain string instead of list."""
+        try:
+            from langchain_core.messages import HumanMessage
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        from smolagents.models import LangChainModel
+
+        model = LangChainModel.__new__(LangChainModel)
+        model.langchain_model = MagicMock()
+
+        messages = [ChatMessage(role=MessageRole.USER, content="Hello plain text")]
+        lc_messages = model._convert_to_langchain_messages(messages)
+
+        assert len(lc_messages) == 1
+        assert isinstance(lc_messages[0], HumanMessage)
+        assert lc_messages[0].content == "Hello plain text"
+
+    def test_convert_handles_none_content(self):
+        """Test conversion when content is None."""
+        try:
+            from langchain_core.messages import AIMessage
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        from smolagents.models import LangChainModel
+
+        model = LangChainModel.__new__(LangChainModel)
+        model.langchain_model = MagicMock()
+
+        messages = [ChatMessage(role=MessageRole.ASSISTANT, content=None)]
+        lc_messages = model._convert_to_langchain_messages(messages)
+
+        assert len(lc_messages) == 1
+        assert isinstance(lc_messages[0], AIMessage)
+        assert lc_messages[0].content == ""
+
+    def test_generate_basic(self):
+        """Test basic generation without tools."""
+        try:
+            from langchain_core.messages import AIMessage
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        from smolagents.models import LangChainModel
+
+        mock_lc_model = MagicMock()
+        mock_response = AIMessage(content="Hello! How can I help you?")
+        mock_lc_model.invoke.return_value = mock_response
+
+        model = LangChainModel.__new__(LangChainModel)
+        model.langchain_model = mock_lc_model
+        model.flatten_messages_as_text = False
+        model.tool_name_key = "name"
+        model.tool_arguments_key = "arguments"
+        model.kwargs = {}
+        model.model_id = "test"
+
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
+        result = model.generate(messages)
+
+        assert result.role == MessageRole.ASSISTANT
+        assert result.content == "Hello! How can I help you?"
+        mock_lc_model.invoke.assert_called_once()
+
+    def test_generate_with_stop_sequences(self):
+        """Test that stop sequences are passed and applied."""
+        try:
+            from langchain_core.messages import AIMessage
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        from smolagents.models import LangChainModel
+
+        mock_lc_model = MagicMock()
+        mock_response = AIMessage(content="Some text<STOP>extra text")
+        mock_lc_model.invoke.return_value = mock_response
+
+        model = LangChainModel.__new__(LangChainModel)
+        model.langchain_model = mock_lc_model
+        model.flatten_messages_as_text = False
+        model.tool_name_key = "name"
+        model.tool_arguments_key = "arguments"
+        model.kwargs = {}
+        model.model_id = "test"
+
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
+        result = model.generate(messages, stop_sequences=["<STOP>"])
+
+        assert result.content == "Some text"
+        mock_lc_model.invoke.assert_called_once()
+        call_kwargs = mock_lc_model.invoke.call_args
+        assert call_kwargs[1]["stop"] == ["<STOP>"]
+
+    def test_generate_with_tool_calls(self):
+        """Test generation with tool calling."""
+        try:
+            from langchain_core.messages import AIMessage
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        from smolagents.models import LangChainModel
+
+        mock_lc_model = MagicMock()
+        mock_response = AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "test_tool", "args": {"input": "hello"}, "id": "call_123"},
+            ],
+        )
+        mock_bound = MagicMock()
+        mock_bound.invoke.return_value = mock_response
+        mock_lc_model.bind_tools.return_value = mock_bound
+
+        model = LangChainModel.__new__(LangChainModel)
+        model.langchain_model = mock_lc_model
+        model.flatten_messages_as_text = False
+        model.tool_name_key = "name"
+        model.tool_arguments_key = "arguments"
+        model.kwargs = {}
+        model.model_id = "test"
+
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Use the tool"}])]
+
+        @tool
+        def test_tool(input: str) -> str:
+            """A test tool.
+
+            Args:
+                input: Input string.
+            """
+            return input
+
+        result = model.generate(messages, tools_to_call_from=[test_tool])
+
+        assert result.tool_calls is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].function.name == "test_tool"
+        assert result.tool_calls[0].function.arguments == {"input": "hello"}
+        assert result.tool_calls[0].id == "call_123"
+        mock_lc_model.bind_tools.assert_called_once()
+
+    def test_generate_with_token_usage(self):
+        """Test that token usage is extracted when available."""
+        try:
+            from langchain_core.messages import AIMessage
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        from smolagents.models import LangChainModel
+
+        mock_lc_model = MagicMock()
+        mock_response = AIMessage(content="Response with usage")
+        mock_response.usage_metadata = {"input_tokens": 10, "output_tokens": 20}
+        mock_lc_model.invoke.return_value = mock_response
+
+        model = LangChainModel.__new__(LangChainModel)
+        model.langchain_model = mock_lc_model
+        model.flatten_messages_as_text = False
+        model.tool_name_key = "name"
+        model.tool_arguments_key = "arguments"
+        model.kwargs = {}
+        model.model_id = "test"
+
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
+        result = model.generate(messages)
+
+        assert result.token_usage is not None
+        assert result.token_usage.input_tokens == 10
+        assert result.token_usage.output_tokens == 20
