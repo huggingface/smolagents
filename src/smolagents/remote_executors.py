@@ -84,8 +84,13 @@ class RemotePythonExecutor(PythonExecutor):
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
-        Execute code, return the result and output, also determining if
-        the result is the final answer.
+        Execute Python code in the remote environment and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
         """
         raise NotImplementedError
 
@@ -372,6 +377,15 @@ class E2BExecutor(RemotePythonExecutor):
         self.logger.log("E2B is running", level=LogLevel.INFO)
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code in the E2B sandbox and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
         execution = self.sandbox.run_code(code)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
 
@@ -652,6 +666,15 @@ class DockerExecutor(RemotePythonExecutor):
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code in the Docker container and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
         from websocket import create_connection
 
         with closing(create_connection(self.ws_url)) as ws:
@@ -778,6 +801,15 @@ class ModalExecutor(RemotePythonExecutor):
         self.installed_packages = self.install_packages(additional_imports)
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code in the Modal sandbox and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
         from websocket import create_connection
 
         with closing(create_connection(self.ws_url)) as ws:
