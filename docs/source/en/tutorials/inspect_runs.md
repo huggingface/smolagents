@@ -212,7 +212,7 @@ _[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj
 
 ## Sending telemetry to Comet Opik
 
-The same OpenTelemetry instrumentation used above also works with [Comet Opik](https://www.comet.com/docs/opik/).
+The same OpenTelemetry instrumentation used above also works with [Comet Opik](https://www.comet.com/docs/opik/integrations/smolagents) for LLM interactions, evaluation and AI agent optimization.
 
 ### Step 1: Keep the same instrumentation setup
 
