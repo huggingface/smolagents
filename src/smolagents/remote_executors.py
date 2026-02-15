@@ -54,6 +54,20 @@ except ModuleNotFoundError:
 
 
 class RemotePythonExecutor(PythonExecutor):
+    """
+    Executor of Python code in a remote environment.
+
+    Args:
+        additional_imports (`list[str]`): Additional Python packages to install.
+        logger (`Logger`): Logger to use for output and errors.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
+    """
+
     FINAL_ANSWER_EXCEPTION = "FinalAnswerException"
 
     def __init__(
