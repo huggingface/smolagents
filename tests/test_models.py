@@ -138,6 +138,325 @@ class TestModel:
         )
         assert agglomerated_stream_delta.token_usage.total_tokens == 1372
 
+    def test_agglomerate_stream_deltas_same_index_parallel_tool_calls(self):
+        """Test that parallel tool calls with the same index are correctly separated.
+
+        This tests the fix for issue #1569 where some providers (e.g., Ollama via LiteLLM)
+        return multiple parallel tool calls with the same index, causing arguments to be
+        incorrectly concatenated.
+        """
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            agglomerate_stream_deltas,
+        )
+        from smolagents.monitoring import TokenUsage
+
+        # This is the exact scenario from issue #1569:
+        # Two tool calls with the same index=0, each with complete JSON arguments
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                content="<think>",
+                tool_calls=None,
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content="</think>",
+                tool_calls=None,
+                token_usage=None,
+            ),
+            # First tool call - complete JSON
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id=None,
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='{"query": "Emma Bull"}',
+                            name="wikipedia_search",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+            # Second tool call with same index - this should be a NEW tool call
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id=None,
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='{"query": "Virginia Woolf"}',
+                            name="wikipedia_search",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=None,
+                token_usage=TokenUsage(input_tokens=1394, output_tokens=49),
+            ),
+        ]
+
+        result = agglomerate_stream_deltas(stream_deltas)
+
+        # Should have 2 separate tool calls, not 1 with concatenated arguments
+        assert len(result.tool_calls) == 2, f"Expected 2 tool calls, got {len(result.tool_calls)}"
+
+        # First tool call should have Emma Bull query
+        assert result.tool_calls[0].function.name == "wikipedia_search"
+        assert result.tool_calls[0].function.arguments == '{"query": "Emma Bull"}'
+
+        # Second tool call should have Virginia Woolf query
+        assert result.tool_calls[1].function.name == "wikipedia_search"
+        assert result.tool_calls[1].function.arguments == '{"query": "Virginia Woolf"}'
+
+        # Both should have UUIDs assigned since original IDs were None
+        assert result.tool_calls[0].id != ""
+        assert result.tool_calls[1].id != ""
+        assert result.tool_calls[0].id != result.tool_calls[1].id
+
+        # Token usage should be accumulated
+        assert result.token_usage.input_tokens == 1394
+        assert result.token_usage.output_tokens == 49
+
+    def test_agglomerate_stream_deltas_incremental_json_arguments(self):
+        """Test that incrementally streamed JSON arguments are correctly accumulated.
+
+        This ensures the fix doesn't break the normal case where JSON arguments
+        are streamed in multiple chunks.
+        """
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            agglomerate_stream_deltas,
+        )
+
+        # Simulate arguments being streamed in multiple chunks
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id="call_123",
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='{"query":',  # Incomplete JSON
+                            name="search",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id="call_123",
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments=' "test',  # Still incomplete
+                            name="",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id="call_123",
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments=' query"}',  # Now complete
+                            name="",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+        ]
+
+        result = agglomerate_stream_deltas(stream_deltas)
+
+        # Should have 1 tool call with complete arguments
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].function.name == "search"
+        assert result.tool_calls[0].function.arguments == '{"query": "test query"}'
+        assert result.tool_calls[0].id == "call_123"
+
+    def test_agglomerate_stream_deltas_different_ids_same_index(self):
+        """Test that tool calls with different IDs but same index are separated."""
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            agglomerate_stream_deltas,
+        )
+
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='{"x": 1}',
+                            name="tool_a",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id="call_2",  # Different ID
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='{"x": 2}',
+                            name="tool_a",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+        ]
+
+        result = agglomerate_stream_deltas(stream_deltas)
+
+        assert len(result.tool_calls) == 2
+        assert result.tool_calls[0].id == "call_1"
+        assert result.tool_calls[0].function.arguments == '{"x": 1}'
+        assert result.tool_calls[1].id == "call_2"
+        assert result.tool_calls[1].function.arguments == '{"x": 2}'
+
+    def test_agglomerate_stream_deltas_different_function_names_same_index(self):
+        """Test that tool calls with different function names but same index are separated."""
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            agglomerate_stream_deltas,
+        )
+
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id=None,
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='{"a": 1}',
+                            name="tool_a",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id=None,
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='{"b": 2}',
+                            name="tool_b",  # Different function name
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+        ]
+
+        result = agglomerate_stream_deltas(stream_deltas)
+
+        assert len(result.tool_calls) == 2
+        assert result.tool_calls[0].function.name == "tool_a"
+        assert result.tool_calls[0].function.arguments == '{"a": 1}'
+        assert result.tool_calls[1].function.name == "tool_b"
+        assert result.tool_calls[1].function.arguments == '{"b": 2}'
+
+    def test_agglomerate_stream_deltas_multiple_indices(self):
+        """Test that tool calls with different indices are handled correctly."""
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            agglomerate_stream_deltas,
+        )
+
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id="call_0",
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='{"idx": 0}',
+                            name="tool",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=1,
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallFunction(
+                            arguments='{"idx": 1}',
+                            name="tool",
+                            description=None,
+                        ),
+                    )
+                ],
+                token_usage=None,
+            ),
+        ]
+
+        result = agglomerate_stream_deltas(stream_deltas)
+
+        assert len(result.tool_calls) == 2
+        # Order should be preserved by index
+        assert result.tool_calls[0].function.arguments == '{"idx": 0}'
+        assert result.tool_calls[1].function.arguments == '{"idx": 1}'
+
     @pytest.mark.parametrize(
         "model_id, stop_sequences, should_contain_stop",
         [
