@@ -173,6 +173,8 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
 
 def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
     """Extract code from the LLM's output."""
+    if text is None:
+        return None
     pattern = rf"{code_block_tags[0]}(.*?){code_block_tags[1]}"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
@@ -194,6 +196,8 @@ def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     Raises:
         ValueError: If no valid code block is found in the text.
     """
+    if text is None:
+        raise ValueError("The model returned an empty response (content=None). Cannot parse code from empty output.")
     matches = extract_code_from_text(text, code_block_tags)
     if not matches:  # Fallback to markdown pattern
         matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
