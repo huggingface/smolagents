@@ -154,7 +154,7 @@ class MethodChecker(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def validate_tool_attributes(cls, check_imports: bool = True) -> None:
+def validate_tool_attributes(cls, check_imports: bool = True, check_init_defaults: bool = True) -> None:
     """
     Validates that a Tool class follows the proper patterns:
     0. Any argument of __init__ should have a default.
@@ -240,23 +240,24 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
             f"Complex attributes should be defined in __init__, not as class attributes: "
             f"{', '.join(class_level_checker.complex_attributes)}"
         )
-    if class_level_checker.non_defaults:
+    if check_init_defaults and class_level_checker.non_defaults:
         errors.append(
             f"Parameters in __init__ must have default values, found required parameters: "
             f"{', '.join(class_level_checker.non_defaults)}"
         )
-    if class_level_checker.non_literal_defaults:
+    if check_init_defaults and class_level_checker.non_literal_defaults:
         errors.append(
             f"Parameters in __init__ must have literal default values, found non-literal defaults: "
             f"{', '.join(class_level_checker.non_literal_defaults)}"
         )
 
     # Run checks on all methods
-    for node in class_node.body:
-        if isinstance(node, ast.FunctionDef):
-            method_checker = MethodChecker(class_level_checker.class_attributes, check_imports=check_imports)
-            method_checker.visit(node)
-            errors += [f"- {node.name}: {error}" for error in method_checker.errors]
+    if check_imports:
+        for node in class_node.body:
+            if isinstance(node, ast.FunctionDef):
+                method_checker = MethodChecker(class_level_checker.class_attributes, check_imports=check_imports)
+                method_checker.visit(node)
+                errors += [f"- {node.name}: {error}" for error in method_checker.errors]
 
     if errors:
         raise ValueError(f"Tool validation failed for {cls.__name__}:\n" + "\n".join(errors))

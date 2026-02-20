@@ -21,6 +21,7 @@ from smolagents.remote_executors import (
     RemotePythonExecutor,
     WasmExecutor,
 )
+from smolagents.tools import Tool, get_tools_definition_code
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
@@ -88,6 +89,29 @@ class TestRemotePythonExecutor:
         assert executor.run_code_raise_errors.call_count == 2
         assert "!pip install wikipedia-api" == executor.run_code_raise_errors.call_args_list[0].args[0]
         assert "class WikipediaSearchTool(Tool)" in executor.run_code_raise_errors.call_args_list[1].args[0]
+
+    def test_get_tools_definition_code_with_mcp_like_tool(self):
+        """Test that get_tools_definition_code works with MCP-like tools. (MCP tools have required __init__ parameters without defaults)"""
+
+        class MCPLikeTool(Tool):
+            name = "mcp_tool"
+            description = "A tool that mimics MCP tool behavior"
+            inputs = {"query": {"type": "string", "description": "The query"}}
+            output_type = "string"
+
+            def __init__(self, client, session):
+                self.client = client
+                self.session = session
+                super().__init__()
+
+            def forward(self, query: str) -> str:
+                return f"Processed: {query}"
+
+        tool = MCPLikeTool(client=MagicMock(), session=MagicMock())
+        # get_tools_definition_code should not raise validation errors for MCP-like tools
+        code = get_tools_definition_code({"mcp_tool": tool})
+        assert "class MCPLikeTool(Tool)" in code
+        assert "mcp_tool = MCPLikeTool()" in code
 
 
 class TestE2BExecutorUnit:
