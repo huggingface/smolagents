@@ -1077,3 +1077,63 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert len(data["tool_calls"]) > 0
     assert data["tool_calls"][0]["function"]["name"] == "final_answer"
     assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
+
+
+def test_tool_calls_assignment_after_init_serialization():
+    """Test that tool_calls assigned after initialization are properly coerced and can be JSON serialized.
+    This tests ensures ChatMessage instances correctly handle tool_calls assigned post-initialization
+    (bypassing __post_init__), and that such tool_calls do not raise serialization errors
+    (e.g., ChatCompletionMessageToolCall not JSON serializable).
+    """
+    pytest.importorskip("openai")
+    from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
+
+    message = ChatMessage(role=MessageRole.ASSISTANT, content=None)
+    openai_tool_call = ChatCompletionMessageToolCall(
+        id="call_test_regression", type="function", function=Function(name="test_func", arguments='{"arg": "value"}')
+    )
+    message.tool_calls = [openai_tool_call]
+    assert isinstance(message.tool_calls[0], ChatMessageToolCall)
+
+    # Verify JSON serialization works. Without support, this would raise TypeError
+    json_str = message.model_dump_json()
+    data = json.loads(json_str)
+
+    # Verify the serialized data is correct
+    assert "tool_calls" in data
+    assert len(data["tool_calls"]) == 1
+    assert data["tool_calls"][0]["id"] == "call_test_regression"
+    assert data["tool_calls"][0]["function"]["name"] == "test_func"
+    assert data["tool_calls"][0]["function"]["arguments"] == '{"arg": "value"}'
+
+
+def test_tool_calls_created_with_new_serialization():
+    """Test that ChatMessage instances created via __new__ are properly handled and can be JSON serialized.
+    This tests the horizontal fix that ensures ChatMessage objects created by bypassing __init__
+    correctly serialize tool_calls via the defensive logic in model_dump_json(), and do not raise
+    TypeError for non-JSON-serializable ChatCompletionMessageToolCall objects.
+    """
+    pytest.importorskip("openai")
+    from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
+
+    message = ChatMessage.__new__(ChatMessage)
+    openai_tool_call = ChatCompletionMessageToolCall(
+        id="call_test_new", type="function", function=Function(name="another_func", arguments='{"x": 1}')
+    )
+
+    # This demonstrates the case where even __setattr__ is bypassed
+    object.__setattr__(message, "role", MessageRole.ASSISTANT)
+    object.__setattr__(message, "content", None)
+    object.__setattr__(message, "tool_calls", [openai_tool_call])
+    object.__setattr__(message, "raw", None)
+    object.__setattr__(message, "token_usage", None)
+
+    # The check in model_dump_json() should handle this
+    json_str = message.model_dump_json()
+    data = json.loads(json_str)
+
+    # Verify the serialized data is correct
+    assert "tool_calls" in data
+    assert len(data["tool_calls"]) == 1
+    assert data["tool_calls"][0]["id"] == "call_test_new"
+    assert data["tool_calls"][0]["function"]["name"] == "another_func"
