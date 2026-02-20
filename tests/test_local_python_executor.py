@@ -2822,3 +2822,30 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+    @pytest.mark.parametrize(
+        "static_tools, authorized_imports, expectation, expected_result",
+        [
+            ({}, ["*"], does_not_raise(), 3),
+            ({}, [], pytest.raises(InterpreterError, match="Forbidden function evaluation: 'eval'"), None),
+            ({"eval": eval}, [], does_not_raise(), 3),
+            (
+                {},
+                ["math", "numpy"],
+                pytest.raises(InterpreterError, match="Forbidden function evaluation: 'eval'"),
+                None,
+            ),
+        ],
+    )
+    def test_builtin_with_wildcard_authorized_imports(
+        self, static_tools, authorized_imports, expectation, expected_result
+    ):
+        code = "result = eval('1 + 2')"
+        state = {}
+
+        with expectation:
+            result, _ = evaluate_python_code(
+                code, static_tools=static_tools, state=state, authorized_imports=authorized_imports
+            )
+            if expected_result is not None:
+                assert result == expected_result
