@@ -442,6 +442,8 @@ class MultiStepAgent(ABC):
         additional_args: dict | None = None,
         max_steps: int | None = None,
         return_full_result: bool | None = None,
+        output_schema: type | None = None,
+        **kwargs,
     ) -> Any | RunResult:
         """
         Run the agent for the given task.
@@ -465,6 +467,13 @@ class MultiStepAgent(ABC):
         agent.run("What is the result of 2 power 3.7384?")
         ```
         """
+        import json
+        try:
+            from pydantic import BaseModel, ValidationError
+        except ImportError:
+            BaseModel = None
+            ValidationError = Exception
+
         max_steps = max_steps or self.max_steps
         self.task = task
         self.interrupt_switch = False
@@ -473,6 +482,12 @@ class MultiStepAgent(ABC):
             self.task += f"""
 You have been provided with these additional arguments, that you can access directly using the keys as variables:
 {str(additional_args)}."""
+
+        # Inject structured output schema into the prompt when provided
+        if output_schema is not None and BaseModel is not None and issubclass(output_schema, BaseModel):
+            schema_json = json.dumps(output_schema.model_json_schema(), indent=2)
+            self.task += f"\n\nCRITICAL: The final answer must be a valid JSON object matching this schema:\n{schema_json}"
+            self.task += "\nIf you are writing code, ensure 'final_answer()' receives a dictionary matching this structure."
 
         self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
         if reset:
@@ -501,6 +516,25 @@ You have been provided with these additional arguments, that you can access dire
         # Outputs are returned only at the end. We only look at the last step.
         assert isinstance(steps[-1], FinalAnswerStep)
         output = steps[-1].output
+
+        # Structured output validation
+        if output_schema is not None and BaseModel is not None and issubclass(output_schema, BaseModel):
+            try:
+                if isinstance(output, dict):
+                    return output_schema.model_validate(output)
+                if isinstance(output, output_schema):
+                    return output
+                if isinstance(output, str):
+                    cleaned = output.strip()
+                    if cleaned.startswith("```"):
+                        parts = cleaned.split("```")
+                        if len(parts) >= 2:
+                            cleaned = parts[1]
+                            if cleaned.startswith("json"):
+                                cleaned = cleaned[4:].strip()
+                    return output_schema.model_validate_json(cleaned)
+            except (ValidationError, json.JSONDecodeError) as e:
+                raise ValueError(f"Agent output did not match the required schema.\nError: {e}\nRaw Output: {output}")
 
         return_full_result = return_full_result if return_full_result is not None else self.return_full_result
         if return_full_result:
