@@ -42,8 +42,12 @@
     title: Async Applications with Agents
 - title: Reference
   sections:
-  - local: reference/agents
-    title: Agent-related objects
+  - title: Agent-related objects
+    sections:
+    - title: Agents
+      local: reference/agents
+    - title: Python executors
+      local: reference/python_executors
   - local: reference/models
     title: Model-related objects
   - title: Tools
