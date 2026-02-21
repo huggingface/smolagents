@@ -291,8 +291,9 @@ locals().update(vars_dict)
     def _deserialize_final_answer(encoded_value: str, allow_pickle: bool = True) -> Any:
         """Deserialize final answer with format detection.
 
-        Handle both new prefix-based format ("safe:" or "pickle:") and
-        legacy no-prefix base64-pickle format for backward compatibility.
+        Accepts explicit prefix-based formats only:
+        - "safe:" for JSON-safe payloads
+        - "pickle:" for pickle payloads (only when allow_pickle=True)
 
         Args:
             encoded_value: Serialized string from FinalAnswerException.
@@ -312,10 +313,7 @@ locals().update(vars_dict)
                 raise SerializationError("Pickle data rejected: allow_pickle=False")
             return pickle.loads(base64.b64decode(encoded_value[7:]))
         else:
-            # Legacy format (no prefix) - base64-encoded pickle
-            if not allow_pickle:
-                raise SerializationError("Pickle data rejected: allow_pickle=False")
-            return pickle.loads(base64.b64decode(encoded_value))
+            raise SerializationError("Unknown final answer format: expected 'safe:' or 'pickle:' prefix")
 
 
 class E2BExecutor(RemotePythonExecutor):

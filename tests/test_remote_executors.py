@@ -1,7 +1,5 @@
-import base64
 import importlib
 import io
-import pickle
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
@@ -21,6 +19,7 @@ from smolagents.remote_executors import (
     RemotePythonExecutor,
     WasmExecutor,
 )
+from smolagents.serialization import SerializationError
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
@@ -74,10 +73,9 @@ class TestRemotePythonExecutor:
         assert isinstance(remote_scope["error"], ValueError)
         assert str(remote_scope["error"]) == "boom"
 
-    def test_deserialize_final_answer_supports_legacy_no_prefix_pickle(self):
-        legacy_payload = base64.b64encode(pickle.dumps({"status": "ok", "count": 2})).decode()
-        result = RemotePythonExecutor._deserialize_final_answer(legacy_payload, allow_pickle=True)
-        assert result == {"status": "ok", "count": 2}
+    def test_deserialize_final_answer_rejects_unprefixed_payload(self):
+        with pytest.raises(SerializationError, match="Unknown final answer format"):
+            RemotePythonExecutor._deserialize_final_answer("legacy-unprefixed-payload", allow_pickle=True)
 
     @require_run_all
     def test_send_tools_with_default_wikipedia_search_tool(self):
