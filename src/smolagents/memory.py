@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Callable, Type
 
-from smolagents.models import ChatMessage, MessageRole, get_dict_from_nested_dataclasses
+from smolagents.models import ChatMessage, MessageRole, ChatMessageToolCall, ChatMessageToolCallFunction, get_dict_from_nested_dataclasses
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.utils import AgentError, make_json_serializable
 
@@ -106,6 +106,7 @@ class ActionStep(MemoryStep):
                             "text": "Calling tools:\n" + str([tc.dict() for tc in self.tool_calls]),
                         }
                     ],
+                    tool_calls=self.tool_call2chat_message_tool_call()
                 )
             )
 
@@ -148,6 +149,25 @@ class ActionStep(MemoryStep):
             )
 
         return messages
+
+    def tool_call2chat_message_tool_call(self) -> list[ChatMessageToolCall]:
+
+        chat_message_tool_call_list = []
+        for tool_call in self.tool_calls:
+            tool_call_dict = tool_call.dict()
+
+            chat_message_tool_call_list.append(
+                ChatMessageToolCall(
+                    id=tool_call_dict.get("id"),
+                    type=tool_call_dict.get("type"),
+                    function=ChatMessageToolCallFunction(
+                        name=tool_call_dict.get("function").get("name"),
+                        arguments=tool_call_dict.get("function").get("arguments")
+                    )
+                )
+            )
+
+        return chat_message_tool_call_list
 
 
 @dataclass
