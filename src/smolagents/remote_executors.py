@@ -54,6 +54,20 @@ except ModuleNotFoundError:
 
 
 class RemotePythonExecutor(PythonExecutor):
+    """
+    Executor of Python code in a remote environment.
+
+    Args:
+        additional_imports (`list[str]`): Additional Python packages to install.
+        logger (`Logger`): Logger to use for output and errors.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
+    """
+
     FINAL_ANSWER_EXCEPTION = "FinalAnswerException"
 
     def __init__(
@@ -70,8 +84,13 @@ class RemotePythonExecutor(PythonExecutor):
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
-        Execute code, return the result and output, also determining if
-        the result is the final answer.
+        Execute Python code in the remote environment and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
         """
         raise NotImplementedError
 
@@ -318,18 +337,18 @@ locals().update(vars_dict)
 
 class E2BExecutor(RemotePythonExecutor):
     """
-    Executes Python code using E2B.
+    Remote Python code executor in an E2B sandbox.
 
     Args:
-        additional_imports (`list[str]`): Additional imports to install.
-        logger (`Logger`): Logger to use.
+        additional_imports (`list[str]`): Additional Python packages to install.
+        logger (`Logger`): Logger to use for output and errors.
         allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
             - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
             - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
 
             **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
             if you fully trust the execution environment and need backward compatibility with custom types.
-        **kwargs: Additional arguments to pass to the E2B Sandbox.
+        **kwargs: Additional keyword arguments to pass to the E2B Sandbox instantiation.
     """
 
     def __init__(
@@ -356,6 +375,15 @@ class E2BExecutor(RemotePythonExecutor):
         self.logger.log("E2B is running", level=LogLevel.INFO)
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code in the E2B sandbox and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
         execution = self.sandbox.run_code(code)
         execution_logs = "\n".join([str(log) for log in execution.logs.stdout])
 
@@ -517,7 +545,23 @@ def _create_kernel_http(crate_kernel_endpoint: str, logger, headers: Optional[di
 
 class DockerExecutor(RemotePythonExecutor):
     """
-    Executes Python code using Jupyter Kernel Gateway in a Docker container.
+    Remote Python code executor using Jupyter Kernel Gateway in a Docker container.
+
+    Args:
+        additional_imports (`list[str]`): Additional Python packages to install.
+        logger (`Logger`): Logger to use for output and errors.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
+        host (`str`, default `"127.0.0.1"`): Host to bind to.
+        port (`int`, default `8888`): Port to bind to.
+        image_name (`str`, default `"jupyter-kernel"`): Name of the Docker image to use. If the image doesn't exist, it will be built.
+        build_new_image (`bool`, default `True`): Whether to rebuild a new image even if it already exists.
+        container_run_kwargs (`dict`, *optional*): Additional keyword arguments to pass to the Docker container run command.
+        dockerfile_content (`str`, *optional*): Custom Dockerfile content. If `None`, uses default.
     """
 
     def __init__(
@@ -532,25 +576,6 @@ class DockerExecutor(RemotePythonExecutor):
         container_run_kwargs: dict[str, Any] | None = None,
         dockerfile_content: str | None = None,
     ):
-        """
-        Initialize the Docker-based Jupyter Kernel Gateway executor.
-
-        Args:
-            additional_imports: Additional imports to install.
-            logger: Logger to use.
-            allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
-                - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
-                - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
-
-                **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
-                if you fully trust the execution environment and need backward compatibility with custom types.
-            host: Host to bind to.
-            port: Port to bind to.
-            image_name: Name of the Docker image to use. If the image doesn't exist, it will be built.
-            build_new_image: If True, the image will be rebuilt even if it already exists.
-            container_run_kwargs: Additional keyword arguments to pass to the Docker container run command.
-            dockerfile_content: Custom Dockerfile content. If None, uses default.
-        """
         super().__init__(additional_imports, logger, allow_pickle)
         try:
             import docker
@@ -639,6 +664,15 @@ class DockerExecutor(RemotePythonExecutor):
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code in the Docker container and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
         from websocket import create_connection
 
         with closing(create_connection(self.ws_url)) as ws:
@@ -678,10 +712,10 @@ class DockerExecutor(RemotePythonExecutor):
 
 class ModalExecutor(RemotePythonExecutor):
     """
-    Executes Python code using Modal.
+    Remote Python code executor in a Modal sandbox.
 
     Args:
-        additional_imports: Additional imports to install.
+        additional_imports (`list[str]`): Additional Python packages to install.
         logger (`Logger`): Logger to use for output and errors.
         allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
             - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
@@ -689,9 +723,9 @@ class ModalExecutor(RemotePythonExecutor):
 
             **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
             if you fully trust the execution environment and need backward compatibility with custom types.
-        app_name (`str`): App name.
-        port (`int`): Port for jupyter to bind to.
-        create_kwargs (`dict`, optional): Keyword arguments to pass to creating the sandbox. See
+        app_name (`str`, default `"smolagent-executor"`): App name.
+        port (`int`, default `8888`): Port for jupyter to bind to.
+        create_kwargs (`dict`, *optional*): Additional keyword arguments to pass to the Modal Sandbox create command. See
             `modal.Sandbox.create` [docs](https://modal.com/docs/reference/modal.Sandbox#create) for all the
             keyword arguments.
     """
@@ -765,12 +799,22 @@ class ModalExecutor(RemotePythonExecutor):
         self.installed_packages = self.install_packages(additional_imports)
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code in the Modal sandbox and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
         from websocket import create_connection
 
         with closing(create_connection(self.ws_url)) as ws:
             return _websocket_run_code_raise_errors(code, ws, self.logger, self.allow_pickle)
 
     def cleanup(self):
+        """Clean up the Modal sandbox by terminating it."""
         if hasattr(self, "sandbox"):
             self.sandbox.terminate()
 
@@ -802,7 +846,7 @@ class ModalExecutor(RemotePythonExecutor):
 
 class BlaxelExecutor(RemotePythonExecutor):
     """
-    Executes Python code using Blaxel sandboxes.
+    Remote Python code executor in a Blaxel sandbox.
 
     Blaxel provides fast-launching virtual machines that start from hibernation in under 25ms
     and scale back to zero after inactivity while maintaining memory state.
@@ -816,11 +860,11 @@ class BlaxelExecutor(RemotePythonExecutor):
 
             **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
             if you fully trust the execution environment and need backward compatibility with custom types.
-        sandbox_name (`str`, optional): Name for the sandbox. Defaults to "smolagent-executor".
-        image (`str`, optional): Docker image to use. Defaults to "blaxel/jupyter-notebook".
-        memory (`int`, optional): Memory allocation in MB. Defaults to 4096.
-        region (`str`, optional): Deployment region. If not specified, Blaxel chooses default.
-        create_kwargs (`dict`, optional): Additional arguments for sandbox creation.
+        sandbox_name (`str`, *optional*): Name for the sandbox. Defaults to "smolagent-executor".
+        image (`str`, default `"blaxel/jupyter-notebook"`): Docker image to use.
+        memory (`int`, default `4096`): Memory allocation in MB.
+        ttl (`str`, *optional*): Time to live in seconds.
+        region (`str`, *optional*): Deployment region. If not specified, Blaxel chooses default.
     """
 
     def __init__(
@@ -1036,10 +1080,10 @@ class WasmExecutor(RemotePythonExecutor):
 
             **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
             if you fully trust the execution environment and need backward compatibility with custom types.
-        deno_path (`str`, optional): Path to the Deno executable. If not provided, will use "deno" from PATH.
-        deno_permissions (`list[str]`, optional): List of permissions to grant to the Deno runtime.
+        deno_path (`str`, default `"deno"`): Path to the Deno executable. If not provided, will use "deno" from PATH.
+        deno_permissions (`list[str]`, *optional*): List of permissions to grant to the Deno runtime.
             Default is minimal permissions needed for execution.
-        timeout (`int`, optional): Timeout in seconds for code execution. Default is 60 seconds.
+        timeout (`int`, default `60`): Timeout in seconds for code execution
     """
 
     def __init__(

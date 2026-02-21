@@ -54,35 +54,3 @@ Both require arguments `model` and list of tools `tools` at initialization.
 Smolagents use memory to store information across multiple steps.
 
 [[autodoc]] smolagents.memory.AgentMemory
-
-## Python code executors
-
-[[autodoc]] smolagents.local_python_executor.PythonExecutor
-
-### Local Python executor
-
-[[autodoc]] smolagents.local_python_executor.LocalPythonExecutor
-
-### Remote Python executors
-
-[[autodoc]] smolagents.remote_executors.RemotePythonExecutor
-
-#### BlaxelExecutor
-
-[[autodoc]] smolagents.remote_executors.BlaxelExecutor
-
-#### E2BExecutor
-
-[[autodoc]] smolagents.remote_executors.E2BExecutor
-
-#### ModalExecutor
-
-[[autodoc]] smolagents.remote_executors.ModalExecutor
-
-#### DockerExecutor
-
-[[autodoc]] smolagents.remote_executors.DockerExecutor
-
-#### WasmExecutor
-
-[[autodoc]] smolagents.remote_executors.WasmExecutor
