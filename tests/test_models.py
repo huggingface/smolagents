@@ -804,6 +804,47 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_consecutive_string_content():
+    """Test that consecutive same-role messages with string content are merged correctly."""
+    messages = [
+        {"role": "system", "content": "When you say anything Start with 'FOO'"},
+        {"role": "system", "content": "When you say anything End with 'BAR'"},
+        {"role": "user", "content": "Just say '.'"},
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 2
+    assert result[0]["role"] == "system"
+    assert result[0]["content"] == [
+        {"type": "text", "text": "When you say anything Start with 'FOO'\nWhen you say anything End with 'BAR'"}
+    ]
+    assert result[1]["role"] == "user"
+    assert result[1]["content"] == "Just say '.'"
+
+
+def test_get_clean_message_list_mixed_string_and_list_content():
+    """Test merging when first message has string content and second has list content."""
+    messages = [
+        {"role": "user", "content": "Hello"},
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "World"}]),
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 1
+    assert result[0]["role"] == "user"
+    assert result[0]["content"] == [{"type": "text", "text": "Hello\nWorld"}]
+
+
+def test_get_clean_message_list_consecutive_string_content_flatten():
+    """Test that consecutive same-role string messages merge correctly with flatten_messages_as_text."""
+    messages = [
+        {"role": "system", "content": "Instruction A"},
+        {"role": "system", "content": "Instruction B"},
+    ]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 1
+    assert result[0]["role"] == "system"
+    assert result[0]["content"] == "Instruction A\nInstruction B"
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
