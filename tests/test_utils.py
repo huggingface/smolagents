@@ -137,6 +137,11 @@ import numpy as np
         )
         assert output == "import numpy as np"
 
+    def test_parse_code_blobs_none_content(self):
+        """parse_code_blobs should raise ValueError with a clear message when content is None."""
+        with pytest.raises(ValueError, match="empty response"):
+            parse_code_blobs(None, ("<code>", "</code>"))
+
     def test_multiple_code_blobs(self):
         test_input = "<code>\nFoo\n</code>\n\n<code>\ncode_a\n</code>\n\n<code>\ncode_b\n</code>"
         result = parse_code_blobs(test_input, ("<code>", "</code>"))
