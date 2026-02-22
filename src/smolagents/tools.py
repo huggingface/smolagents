@@ -134,7 +134,13 @@ class Tool(BaseTool):
     output_type: str
     output_schema: dict[str, Any] | None = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, requires_confirmation: bool = False, **kwargs):
+        """
+        Base class for tools.
+        Args:
+            requires_confirmation: If True, the agent pauses and asks the user before executing this tool.
+        """
+        self.requires_confirmation = requires_confirmation
         self.is_initialized = False
 
     def __init_subclass__(cls, **kwargs):
@@ -229,13 +235,27 @@ class Tool(BaseTool):
         raise NotImplementedError("Write this method in your subclass of `Tool`.")
 
     def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
+        """
+        Executes the tool, checking for security confirmation first.
+        """
+        if self.requires_confirmation:
+            # 1. Notify User
+            print(f"\n⚠️  SECURITY ALERT: Agent wants to execute tool '{self.name}'.")
+            print(f"   Arguments: {args} {kwargs}")
+            # 2. Get Permission (Simple CLI blocker)
+            response = input("   Allow execution? (Type 'y' to confirm): ").strip().lower()
+            # 3. Handle Rejection
+            if response != 'y':
+                # We raise an error so the Agent knows why it failed
+                raise ValueError(f"User denied execution of tool '{self.name}'.")
+
+        # 4. Proceed as normal
         if not self.is_initialized:
             self.setup()
 
         # Handle the arguments might be passed as a single dictionary
         if len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], dict):
             potential_kwargs = args[0]
-
             # If the dictionary keys match our input parameters, convert it to kwargs
             if all(key in self.inputs for key in potential_kwargs):
                 args = ()
