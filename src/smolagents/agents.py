@@ -605,7 +605,6 @@ You have been provided with these additional arguments, that you can access dire
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
-            yield action_step
         final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
         self._finalize_step(final_answer_step)
         yield final_answer_step
