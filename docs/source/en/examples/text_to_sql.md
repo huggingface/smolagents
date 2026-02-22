@@ -2,7 +2,7 @@
 
 [[open-in-colab]]
 
-In this tutorial, we’ll see how to implement an agent that leverages SQL using `smolagents`.
+In this tutorial, we'll see how to implement an agent that leverages SQL using `smolagents`.
 
 > Let's start with the golden question: why not keep it simple and use a standard text-to-SQL pipeline?
 
@@ -10,7 +10,7 @@ A standard text-to-sql pipeline is brittle, since the generated SQL query can be
 
 👉 Instead, an agent system is able to critically inspect outputs and decide if the query needs to be changed or not, thus giving it a huge performance boost.
 
-Let’s build this agent! 💪
+Let's build this agent! 💪
 
 Run the line below to install required dependencies:
 ```bash
@@ -69,9 +69,9 @@ insert_rows_into_table(rows, receipts)
 
 ### Build our agent
 
-Now let’s make our SQL table retrievable by a tool.
+Now let's make our SQL table retrievable by a tool.
 
-The tool’s description attribute will be embedded in the LLM’s prompt by the agent system: it gives the LLM information about how to use the tool. This is where we want to describe the SQL table.
+The tool's description attribute will be embedded in the LLM's prompt by the agent system: it gives the LLM information about how to use the tool. This is where we want to describe the SQL table.
 
 ```py
 inspector = inspect(engine)
@@ -89,7 +89,7 @@ Columns:
   - tip: FLOAT
 ```
 
-Now let’s build our tool. It needs the following: (read [the tool doc](../tutorials/tools) for more detail)
+Now let's build our tool. It needs the following: (read [the tool doc](../tutorials/tools) for more detail)
 - A docstring with an `Args:` part listing arguments.
 - Type hints on both inputs and output.
 
@@ -120,9 +120,9 @@ def sql_engine(query: str) -> str:
 
 Now let us create an agent that leverages this tool.
 
-We use the `CodeAgent`, which is smolagents’ main agent class: an agent that writes actions in code and can iterate on previous output according to the ReAct framework.
+We use the `CodeAgent`, which is smolagents' main agent class: an agent that writes actions in code and can iterate on previous output according to the ReAct framework.
 
-The model is the LLM that powers the agent system. `InferenceClientModel` allows you to call LLMs using HF’s Inference API, either via Serverless or Dedicated endpoint, but you could also use any proprietary API.
+The model is the LLM that powers the agent system. `InferenceClientModel` allows you to call LLMs using HF's Inference API, either via Serverless or Dedicated endpoint, but you could also use any proprietary API.
 
 ```py
 from smolagents import CodeAgent, InferenceClientModel
@@ -136,9 +136,9 @@ agent.run("Can you give me the name of the client who got the most expensive rec
 
 ### Level 2: Table joins
 
-Now let’s make it more challenging! We want our agent to handle joins across multiple tables.
+Now let's make it more challenging! We want our agent to handle joins across multiple tables.
 
-So let’s make a second table recording the names of waiters for each receipt_id!
+So let's make a second table recording the names of waiters for each receipt_id!
 
 ```py
 table_name = "waiters"
@@ -158,7 +158,7 @@ rows = [
 ]
 insert_rows_into_table(rows, waiters)
 ```
-Since we changed the table, we update the `SQLExecutorTool` with this table’s description to let the LLM properly leverage information from this table.
+Since we changed the table, we update the `SQLExecutorTool` with this table's description to let the LLM properly leverage information from this table.
 
 ```py
 updated_description = """Allows you to perform SQL queries on the table. Beware that this tool's output is a string representation of the execution output.
@@ -175,7 +175,7 @@ for table in ["receipts", "waiters"]:
 
 print(updated_description)
 ```
-Since this request is a bit harder than the previous one, we’ll switch the LLM engine to use the more powerful [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking)!
+Since this request is a bit harder than the previous one, we'll switch the LLM engine to use the more powerful [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking)!
 
 ```py
 sql_engine.description = updated_description
@@ -187,11 +187,11 @@ agent = CodeAgent(
 
 agent.run("Which waiter got more total money from tips?")
 ```
-It directly works! The setup was surprisingly simple, wasn’t it?
+It directly works! The setup was surprisingly simple, wasn't it?
 
 This example is done! We've touched upon these concepts:
 - Building new tools.
 - Updating a tool's description.
 - Switching to a stronger LLM helps agent reasoning.
 
-✅ Now you can go build this text-to-SQL system you’ve always dreamt of! ✨
+✅ Now you can go build this text-to-SQL system you've always dreamt of! ✨
