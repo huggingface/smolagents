@@ -101,6 +101,106 @@ class UserInputTool(Tool):
         return user_input
 
 
+class ExaSearchTool(Tool):
+    """Web search tool powered by the Exa API.
+
+    Exa uses neural search to find semantically relevant results, going beyond
+    simple keyword matching. It supports auto, neural, and keyword search types,
+    and can return full page text and relevant highlights alongside each result.
+
+    Args:
+        api_key (`str`, *optional*): Exa API key. If not provided, reads from the `EXA_API_KEY` environment variable.
+        num_results (`int`, default `10`): Number of search results to return.
+        search_type (`str`, default `"auto"`): Search type to use. One of `"auto"`, `"neural"`, or `"keyword"`.
+            `"auto"` intelligently routes your query to the best search method.
+        highlights (`bool`, default `True`): Whether to include relevant text highlights for each result.
+        summary (`bool`, default `False`): Whether to include an AI-generated summary for each result.
+
+    Examples:
+        ```python
+        >>> from smolagents import ExaSearchTool
+        >>> web_search_tool = ExaSearchTool(num_results=5)
+        >>> results = web_search_tool("Hugging Face transformers library")
+        >>> print(results)
+        ```
+    """
+
+    name = "web_search"
+    description = "Performs a web search using the Exa API, which uses neural search to find semantically relevant results. Returns the top search results with titles, URLs, and relevant text highlights."
+    inputs = {
+        "query": {"type": "string", "description": "The search query to perform."},
+        "filter_year": {
+            "type": "integer",
+            "description": "Optionally restrict results to a certain year",
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        num_results: int = 10,
+        search_type: str = "auto",
+        highlights: bool = True,
+        summary: bool = False,
+    ):
+        super().__init__()
+        import os
+
+        self.api_key = api_key or os.getenv("EXA_API_KEY")
+        if not self.api_key:
+            raise ValueError("Missing API key. Set the 'EXA_API_KEY' environment variable or pass it directly.")
+        self.num_results = num_results
+        self.search_type = search_type
+        self.highlights = highlights
+        self.summary = summary
+
+    def setup(self):
+        try:
+            from exa_py import Exa
+        except ImportError as e:
+            raise ImportError(
+                "You must install package `exa_py` to run this tool: for instance run `pip install exa_py`."
+            ) from e
+        self.exa = Exa(api_key=self.api_key)
+
+    def forward(self, query: str, filter_year: int | None = None) -> str:
+        kwargs = {
+            "query": query,
+            "type": self.search_type,
+            "num_results": self.num_results,
+        }
+
+        contents = {}
+        if self.highlights:
+            contents["highlights"] = True
+        if self.summary:
+            contents["summary"] = True
+        if contents:
+            kwargs["contents"] = contents
+
+        if filter_year is not None:
+            kwargs["start_published_date"] = f"{filter_year}-01-01T00:00:00.000Z"
+            kwargs["end_published_date"] = f"{filter_year}-12-31T23:59:59.999Z"
+
+        results = self.exa.search(**kwargs)
+
+        if not results.results:
+            raise Exception("No results found! Try a less restrictive/shorter query.")
+
+        formatted = []
+        for result in results.results:
+            entry = f"[{result.title}]({result.url})"
+            if self.highlights and hasattr(result, "highlights") and result.highlights:
+                entry += "\n" + "\n".join(result.highlights)
+            if self.summary and hasattr(result, "summary") and result.summary:
+                entry += "\n" + result.summary
+            formatted.append(entry)
+
+        return "## Search Results\n\n" + "\n\n".join(formatted)
+
+
 class DuckDuckGoSearchTool(Tool):
     """Web search tool that performs searches using the DuckDuckGo search engine.
 
@@ -642,13 +742,14 @@ TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
         PythonInterpreterTool,
-        DuckDuckGoSearchTool,
+        ExaSearchTool,
         VisitWebpageTool,
     ]
 }
 
 __all__ = [
     "ApiWebSearchTool",
+    "ExaSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
