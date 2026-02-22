@@ -21,6 +21,7 @@ from smolagents.default_tools import (
     DuckDuckGoSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
+    UserInputTool,
     VisitWebpageTool,
     WikipediaSearchTool,
 )
@@ -160,3 +161,46 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+class TestUserInputTool:
+    """Tests for UserInputTool with custom input handlers."""
+
+    def test_custom_input_handler(self):
+        """Test that UserInputTool uses custom get_user_input callable."""
+        # Create a mock input handler that returns a predefined answer
+        def mock_input(question: str) -> str:
+            return f"Mock answer to: {question}"
+
+        tool = UserInputTool(get_user_input=mock_input)
+        result = tool.forward("What is your name?")
+
+        assert result == "Mock answer to: What is your name?"
+
+    def test_custom_input_handler_with_state(self):
+        """Test that custom handler can maintain state."""
+        answers = iter(["first answer", "second answer", "third answer"])
+
+        def stateful_input(question: str) -> str:
+            return next(answers)
+
+        tool = UserInputTool(get_user_input=stateful_input)
+
+        assert tool.forward("Question 1") == "first answer"
+        assert tool.forward("Question 2") == "second answer"
+        assert tool.forward("Question 3") == "third answer"
+
+    def test_default_input_handler_is_none(self):
+        """Test that default get_user_input is None (uses _default_input)."""
+        tool = UserInputTool()
+        assert tool._get_user_input is None
+
+    def test_tool_attributes(self):
+        """Test that UserInputTool has correct attributes."""
+        tool = UserInputTool()
+
+        assert tool.name == "user_input"
+        assert tool.description == "Asks for user's input on a specific question"
+        assert "question" in tool.inputs
+        assert tool.inputs["question"]["type"] == "string"
+        assert tool.output_type == "string"
