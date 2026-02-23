@@ -27,7 +27,6 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
-from smolagents.utils import escape_code_brackets
 
 
 __all__ = ["AgentLogger", "LogLevel", "Monitor", "TokenUsage", "Timing"]
@@ -147,7 +146,7 @@ class AgentLogger:
             self.console.print(*args, **kwargs)
 
     def log_error(self, error_message: str) -> None:
-        self.log(escape_code_brackets(error_message), style="bold red", level=LogLevel.ERROR)
+        self.log(Text(error_message, style="bold red"), level=LogLevel.ERROR)
 
     def log_markdown(self, content: str, title: str | None = None, level=LogLevel.INFO, style=YELLOW_HEX) -> None:
         markdown_content = Syntax(
