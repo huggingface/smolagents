@@ -61,7 +61,6 @@ BASE_BUILTIN_MODULES = [
 ]
 
 
-
 class AgentError(Exception):
     """Base class for other agent-related exceptions"""
 
