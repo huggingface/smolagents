@@ -200,7 +200,7 @@ class AgentLogger:
     def log_task(self, content: str, subtitle: str, title: str | None = None, level: LogLevel = LogLevel.INFO) -> None:
         self.log(
             Panel(
-                f"\n[bold]{escape_code_brackets(content)}\n",
+                Text(f"\n{content}\n", style="bold"),
                 title="[bold]New run" + (f" - {title}" if title else ""),
                 subtitle=subtitle,
                 border_style=YELLOW_HEX,
