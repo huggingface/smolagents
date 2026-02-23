@@ -2143,7 +2143,7 @@ class TestCodeAgent:
 
         with agent.logger.console.capture() as capture:
             agent.run("Test request")
-        assert "secret\\\\" in repr(capture.get())
+        assert "[secret]" in capture.get()
 
     def test_missing_import_triggers_advice_in_error_log(self):
         # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
