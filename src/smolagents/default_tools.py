@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -144,6 +145,10 @@ class DuckDuckGoSearchTool(Tool):
             raise Exception("No results found! Try a less restrictive/shorter query.")
         postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
         return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+    
+    def _sync_search(self, query: str):
+        """Helper method to run sync search in thread."""
+        return self.ddgs.text(query, max_results=self.max_results)
 
     def _enforce_rate_limit(self) -> None:
         import time
@@ -187,8 +192,9 @@ class GoogleSearchTool(Tool):
         if self.api_key is None:
             raise ValueError(f"Missing API key. Make sure you have '{api_key_env_name}' in your env variables.")
 
-    def forward(self, query: str, filter_year: int | None = None) -> str:
-        import requests
+    async def forward(self, query: str, filter_year: int | None = None) -> str:
+        import aiohttp
+        import asyncio
 
         if self.provider == "serpapi":
             params = {
@@ -207,12 +213,18 @@ class GoogleSearchTool(Tool):
         if filter_year is not None:
             params["tbs"] = f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
 
-        response = requests.get(base_url, params=params)
-
-        if response.status_code == 200:
-            results = response.json()
-        else:
-            raise ValueError(response.json())
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(base_url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        results = await response.json()
+                    else:
+                        error_data = await response.json()
+                        raise ValueError(json.dumps(error_data))
+        except asyncio.TimeoutError:
+            raise Exception("Request timed out. Please try again later.")
+        except aiohttp.ClientError as e:
+            raise Exception(f"Network error: {str(e)}")
 
         if self.organic_key not in results.keys():
             if filter_year is not None:
@@ -309,16 +321,27 @@ class ApiWebSearchTool(Tool):
             time.sleep(self._min_interval - elapsed)
         self._last_request_time = time.time()
 
-    def forward(self, query: str) -> str:
-        import requests
+    async def forward(self, query: str) -> str:
+        import aiohttp
+        import asyncio
 
         self._enforce_rate_limit()
         params = {**self.params, "q": query}
-        response = requests.get(self.endpoint, headers=self.headers, params=params)
-        response.raise_for_status()
-        data = response.json()
-        results = self.extract_results(data)
-        return self.format_markdown(results)
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.endpoint, headers=self.headers, params=params, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+                    
+            results = self.extract_results(data)
+            return self.format_markdown(results)
+        except asyncio.TimeoutError:
+            return "The request timed out. Please try again later."
+        except aiohttp.ClientError as e:
+            return f"Error fetching search results: {str(e)}"
+        except Exception as e:
+            return f"An unexpected error occurred: {str(e)}"
 
     def extract_results(self, data: dict) -> list:
         results = []
@@ -350,17 +373,17 @@ class WebSearchTool(Tool):
         self.max_results = max_results
         self.engine = engine
 
-    def forward(self, query: str) -> str:
-        results = self.search(query)
+    async def forward(self, query: str) -> str:
+        results = await self.search(query)
         if len(results) == 0:
             raise Exception("No results found! Try a less restrictive/shorter query.")
         return self.parse_results(results)
 
-    def search(self, query: str) -> list:
+    async def search(self, query: str) -> list:
         if self.engine == "duckduckgo":
-            return self.search_duckduckgo(query)
+            return await self.search_duckduckgo(query)
         elif self.engine == "bing":
-            return self.search_bing(query)
+            return await self.search_bing(query)
         else:
             raise ValueError(f"Unsupported engine: {self.engine}")
 
@@ -369,18 +392,28 @@ class WebSearchTool(Tool):
             [f"[{result['title']}]({result['link']})\n{result['description']}" for result in results]
         )
 
-    def search_duckduckgo(self, query: str) -> list:
-        import requests
+    async def search_duckduckgo(self, query: str) -> list:
+        import aiohttp
+        import asyncio
 
-        response = requests.get(
-            "https://lite.duckduckgo.com/lite/",
-            params={"q": query},
-            headers={"User-Agent": "Mozilla/5.0"},
-        )
-        response.raise_for_status()
-        parser = self._create_duckduckgo_parser()
-        parser.feed(response.text)
-        return parser.results
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://lite.duckduckgo.com/lite/",
+                    params={"q": query},
+                    headers={"User-Agent": "Mozilla/5.0"},
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
+                    response.raise_for_status()
+                    html_content = await response.text()
+                    
+            parser = self._create_duckduckgo_parser()
+            parser.feed(html_content)
+            return parser.results
+        except asyncio.TimeoutError:
+            raise Exception("DuckDuckGo search timed out. Please try again later.")
+        except aiohttp.ClientError as e:
+            raise Exception(f"Error fetching DuckDuckGo results: {str(e)}")
 
     def _create_duckduckgo_parser(self):
         from html.parser import HTMLParser
@@ -428,27 +461,38 @@ class WebSearchTool(Tool):
 
         return SimpleResultParser()
 
-    def search_bing(self, query: str) -> list:
+    async def search_bing(self, query: str) -> list:
         import xml.etree.ElementTree as ET
+        import aiohttp
+        import asyncio
 
-        import requests
-
-        response = requests.get(
-            "https://www.bing.com/search",
-            params={"q": query, "format": "rss"},
-        )
-        response.raise_for_status()
-        root = ET.fromstring(response.text)
-        items = root.findall(".//item")
-        results = [
-            {
-                "title": item.findtext("title"),
-                "link": item.findtext("link"),
-                "description": item.findtext("description"),
-            }
-            for item in items[: self.max_results]
-        ]
-        return results
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://www.bing.com/search",
+                    params={"q": query, "format": "rss"},
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
+                    response.raise_for_status()
+                    xml_content = await response.text()
+                    
+            root = ET.fromstring(xml_content)
+            items = root.findall(".//item")
+            results = [
+                {
+                    "title": item.findtext("title"),
+                    "link": item.findtext("link"),
+                    "description": item.findtext("description"),
+                }
+                for item in items[: self.max_results]
+            ]
+            return results
+        except asyncio.TimeoutError:
+            raise Exception("Bing search timed out. Please try again later.")
+        except aiohttp.ClientError as e:
+            raise Exception(f"Error fetching Bing results: {str(e)}")
+        except ET.ParseError as e:
+            raise Exception(f"Error parsing Bing RSS response: {str(e)}")
 
 
 class VisitWebpageTool(Tool):
@@ -475,33 +519,34 @@ class VisitWebpageTool(Tool):
             content[:max_length] + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
         )
 
-    def forward(self, url: str) -> str:
+    async def forward(self, url: str) -> str:
         try:
             import re
-
-            import requests
+            import aiohttp
             from markdownify import markdownify
-            from requests.exceptions import RequestException
         except ImportError as e:
             raise ImportError(
-                "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
+                "You must install packages `markdownify` and `aiohttp` to run this tool: for instance run `pip install markdownify aiohttp`."
             ) from e
+        
         try:
-            # Send a GET request to the URL with a 20-second timeout
-            response = requests.get(url, timeout=20)
-            response.raise_for_status()  # Raise an exception for bad status codes
+            # Use aiohttp for async HTTP requests
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=20)) as response:
+                    response.raise_for_status()  # Raise an exception for bad status codes
+                    html_content = await response.text()
 
             # Convert the HTML content to Markdown
-            markdown_content = markdownify(response.text).strip()
+            markdown_content = markdownify(html_content).strip()
 
             # Remove multiple line breaks
             markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
 
             return self._truncate_content(markdown_content, self.max_output_length)
 
-        except requests.exceptions.Timeout:
+        except asyncio.TimeoutError:
             return "The request timed out. Please try again later or check the URL."
-        except RequestException as e:
+        except aiohttp.ClientError as e:
             return f"Error fetching the webpage: {str(e)}"
         except Exception as e:
             return f"An unexpected error occurred: {str(e)}"
@@ -583,27 +628,39 @@ class WikipediaSearchTool(Tool):
             user_agent=self.user_agent, language=self.language, extract_format=self.extract_format
         )
 
-    def forward(self, query: str) -> str:
+    async def forward(self, query: str) -> str:
         try:
-            page = self.wiki.page(query)
-
-            if not page.exists():
-                return f"No Wikipedia page found for '{query}'. Try a different query."
-
-            title = page.title
-            url = page.fullurl
-
-            if self.content_type == "summary":
-                text = page.summary
-            elif self.content_type == "text":
-                text = page.text
-            else:
-                return "⚠️ Invalid `content_type`. Use either 'summary' or 'text'."
-
-            return f"✅ **Wikipedia Page:** {title}\n\n**Content:** {text}\n\n🔗 **Read more:** {url}"
+            # Run the Wikipedia search in a thread pool since wikipedia-api is sync
+            loop = asyncio.get_running_loop()
+            import concurrent.futures
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(self._sync_search, query)
+                result = await loop.run_in_executor(None, lambda: future.result())
+            
+            return result
 
         except Exception as e:
             return f"Error fetching Wikipedia summary: {str(e)}"
+    
+    def _sync_search(self, query: str) -> str:
+        """Helper method to run sync Wikipedia search in thread."""
+        page = self.wiki.page(query)
+
+        if not page.exists():
+            return f"No Wikipedia page found for '{query}'. Try a different query."
+
+        title = page.title
+        url = page.fullurl
+
+        if self.content_type == "summary":
+            text = page.summary
+        elif self.content_type == "text":
+            text = page.text
+        else:
+            return "⚠️ Invalid `content_type`. Use either 'summary' or 'text'."
+
+        return f"✅ **Wikipedia Page:** {title}\n\n**Content:** {text}\n\n🔗 **Read more:** {url}"
 
 
 class SpeechToTextTool(PipelineTool):
@@ -643,7 +700,11 @@ TOOL_MAPPING = {
     for tool_class in [
         PythonInterpreterTool,
         DuckDuckGoSearchTool,
+        GoogleSearchTool,
+        ApiWebSearchTool, 
+        WebSearchTool,
         VisitWebpageTool,
+        WikipediaSearchTool,
     ]
 }
 
