@@ -177,6 +177,27 @@ def test_action_step_to_messages_no_tool_calls_with_observations():
     assert "Observation:\nThis is an observation." in observation_message.content[0]["text"]
 
 
+def test_action_step_to_messages_ignores_blank_model_output():
+    action_step = ActionStep(
+        model_input_messages=None,
+        tool_calls=None,
+        timing=Timing(start_time=0.0, end_time=1.0),
+        step_number=1,
+        error=None,
+        model_output_message=None,
+        model_output=" \n\t  ",
+        observations="This is an observation.",
+        observations_images=None,
+        action_output=None,
+        token_usage=TokenUsage(input_tokens=10, output_tokens=20),
+    )
+    messages = action_step.to_messages()
+    assert len(messages) == 1
+    observation_message = messages[0]
+    assert observation_message.role == MessageRole.TOOL_RESPONSE
+    assert "Observation:\nThis is an observation." in observation_message.content[0]["text"]
+
+
 def test_planning_step_to_messages():
     planning_step = PlanningStep(
         model_input_messages=[ChatMessage(role=MessageRole.USER, content="Hello")],
