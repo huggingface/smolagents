@@ -1732,6 +1732,11 @@ class CodeAgent(MultiStepAgent):
                     Text(code_output.logs),
                 ]
             observation = "Execution logs:\n" + code_output.logs
+            output = code_output.output
+            if isinstance(output, AgentImage):
+                memory_step.observations_images = [output]
+                output = output.to_string()
+
         except Exception as e:
             if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
                 execution_logs = str(self.python_executor.state["_print_outputs"])
@@ -1750,7 +1755,7 @@ class CodeAgent(MultiStepAgent):
                 )
             raise AgentExecutionError(error_msg, self.logger)
 
-        truncated_output = truncate_content(str(code_output.output))
+        truncated_output = truncate_content(str(output))
         observation += "Last output from code snippet:\n" + truncated_output
         memory_step.observations = observation
 
@@ -1761,7 +1766,7 @@ class CodeAgent(MultiStepAgent):
                 ),
             ]
         self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
-        memory_step.action_output = code_output.output
+        memory_step.action_output = output
         yield ActionOutput(output=code_output.output, is_final_answer=code_output.is_final_answer)
 
     def to_dict(self) -> dict[str, Any]:
