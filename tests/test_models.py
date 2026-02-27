@@ -804,6 +804,53 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_consecutive_string_content():
+    """Regression test for #1972: consecutive same-role messages with plain string content
+    must be merged without raising an AssertionError."""
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "system", "content": "Always respond in English."},
+        {"role": "user", "content": "Hello!"},
+    ]
+    result = get_clean_message_list(messages)
+    # Two system messages should be merged into one
+    assert len(result) == 2
+    assert result[0]["role"] == "system"
+    merged_text = result[0]["content"][-1]["text"]
+    assert "You are a helpful assistant." in merged_text
+    assert "Always respond in English." in merged_text
+    assert result[1]["role"] == "user"
+
+
+def test_get_clean_message_list_consecutive_string_content_flatten():
+    """Regression test for #1972: consecutive same-role messages with string content
+    must merge correctly when flatten_messages_as_text=True."""
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "system", "content": "Always respond in English."},
+    ]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 1
+    assert result[0]["role"] == "system"
+    assert result[0]["content"] == "You are a helpful assistant.\nAlways respond in English."
+
+
+def test_get_clean_message_list_mixed_string_and_list_content():
+    """Consecutive same-role messages where the first has string content and the
+    second has list content must be merged correctly."""
+    messages = [
+        {"role": "system", "content": "First instruction."},
+        ChatMessage(role=MessageRole.SYSTEM, content=[{"type": "text", "text": "Second instruction."}]),
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 1
+    assert result[0]["role"] == "system"
+    content = result[0]["content"]
+    assert isinstance(content, list)
+    assert "First instruction." in content[0]["text"]
+    assert "Second instruction." in content[-1]["text"] or "Second instruction." in content[0]["text"]
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
