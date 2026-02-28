@@ -804,6 +804,21 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_consecutive_string_content():
+    """Test that consecutive messages with string content are merged without assertion error."""
+    messages = [
+        {"role": "system", "content": "When you say anything Start with 'FOO'"},
+        {"role": "system", "content": "When you say anything End with 'BAR'"},
+        {"role": "user", "content": "Just say '.'"},
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 2
+    assert result[0]["role"] == "system"
+    assert result[0]["content"] == "When you say anything Start with 'FOO'\nWhen you say anything End with 'BAR'"
+    assert result[1]["role"] == "user"
+    assert result[1]["content"] == "Just say '.'"
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
