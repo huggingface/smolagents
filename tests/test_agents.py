@@ -414,6 +414,26 @@ print(result)
         )
 
 
+class FakeCodeModelPartialCloseTag(Model):
+    """Simulates LLM output with incomplete closing tag, as seen when stream stop sequences truncate the response."""
+
+    def __init__(self):
+        self._call_count = 0
+
+    def generate(self, messages, stop_sequences=None):
+        self._call_count += 1
+        if self._call_count == 1:
+            # Incomplete closing tag: </code without the >
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="Thought: compute\n<code>\nresult = 42\nfinal_answer(result)\n</code",
+            )
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="<code>\nfinal_answer(42)\n</code>",
+        )
+
+
 class TestAgent:
     def test_fake_toolcalling_agent(self):
         agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeToolCallModel())
@@ -2203,6 +2223,26 @@ print("Ok, calculation done!")""")
         messages = [s.model_output_message for s in actions_steps if s.model_output_message]
         assert messages
         assert all(m.content.endswith("</code>") for m in messages)
+
+    def test_partial_close_tag_stripped_before_appending(self):
+        """Streaming stop sequences can truncate '</code>' to '</code' (missing '>').
+
+        Verify the agent strips the incomplete prefix before appending the full
+        closing tag so the code parser receives clean code without partial tags.
+        Regression test for GH-1872.
+        """
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModelPartialCloseTag(),
+            max_steps=1,
+        )
+        output = agent.run("compute")
+        assert output == 42
+
+        action_steps = [s for s in agent.memory.steps if isinstance(s, ActionStep)]
+        assert action_steps
+        # The parsed code should NOT contain the partial '</code' tag
+        assert "</code" not in action_steps[0].code_action
 
     @pytest.mark.skip(
         reason="Test is not properly implemented (GH-1255) because fake_tools should have the same name. "

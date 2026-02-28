@@ -1692,7 +1692,15 @@ class CodeAgent(MultiStepAgent):
                 # This adds the end code sequence (i.e. the closing code block tag) to the history.
                 # This will nudge subsequent LLM calls to finish with this end code sequence, thus efficiently stopping generation.
                 if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
-                    output_text += self.code_block_tags[1]
+                    # Strip any partial/incomplete closing tag left by streaming stop sequences
+                    # (e.g. "</code" without the ">") before appending the full closing tag.
+                    closing_tag = self.code_block_tags[1]
+                    for i in range(len(closing_tag) - 1, 0, -1):
+                        partial = closing_tag[:i]
+                        if output_text.rstrip().endswith(partial):
+                            output_text = output_text.rstrip()[: -len(partial)]
+                            break
+                    output_text += closing_tag
                     memory_step.model_output_message.content = output_text
 
             memory_step.token_usage = chat_message.token_usage
