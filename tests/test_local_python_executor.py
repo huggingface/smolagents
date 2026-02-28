@@ -1213,6 +1213,22 @@ shift_intervals
         assert "SyntaxError" in str(e)
         assert "     ^" in str(e)
 
+    def test_syntax_error_clears_print_outputs(self):
+        """SyntaxError in step 2 must not leak print outputs from step 1.
+
+        Regression test for https://github.com/huggingface/smolagents/issues/1998
+        """
+        state = {}
+        # Step 1: prints something
+        evaluate_python_code("print('step1 output')", {"print": print}, state=state)
+        assert "step1 output" in state["_print_outputs"].value
+
+        # Step 2: SyntaxError — PrintContainer must still be reset
+        with pytest.raises(InterpreterError):
+            evaluate_python_code("def bad_syntax(\n    pass", {"print": print}, state=state)
+
+        assert state["_print_outputs"].value == ""
+
     def test_close_matches_subscript(self):
         code = 'capitals = {"Czech Republic": "Prague", "Monaco": "Monaco", "Bhutan": "Thimphu"};capitals["Butan"]'
         with pytest.raises(Exception) as e:
