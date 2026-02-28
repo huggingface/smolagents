@@ -142,6 +142,17 @@ import numpy as np
         result = parse_code_blobs(test_input, ("<code>", "</code>"))
         assert result == "Foo\n\ncode_a\n\ncode_b"
 
+    def test_parse_code_blobs_none_content(self):
+        """parse_code_blobs should raise a clear error when text is None (empty model output)."""
+        with pytest.raises(ValueError, match="model output is empty"):
+            parse_code_blobs(None, ("<code>", "</code>"))
+
+    def test_extract_code_from_text_none_content(self):
+        """extract_code_from_text should return None when text is None."""
+        from smolagents.utils import extract_code_from_text
+
+        assert extract_code_from_text(None, ("<code>", "</code>")) is None
+
 
 @pytest.fixture(scope="function")
 def ipython_shell():
