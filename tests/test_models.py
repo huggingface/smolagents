@@ -601,6 +601,56 @@ class TestAmazonBedrockModel:
 
         assert model.client == MockBoto3.return_value
 
+    def test_generate_text_only_response(self):
+        """When Bedrock returns only text (no toolUse blocks), tool_calls should be None."""
+        with patch("boto3.client") as MockBoto3:
+            model = AmazonBedrockModel(model_id="us.amazon.nova-pro-v1:0")
+        mock_response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Hello, world!"}],
+                }
+            },
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+        }
+        model.client.converse.return_value = mock_response
+
+        result = model.generate([ChatMessage(role="user", content="Hi")])
+        assert result.content == "Hello, world!"
+        assert result.tool_calls is None
+
+    def test_generate_with_tool_use_blocks(self):
+        """When Bedrock returns toolUse content blocks, they should be converted to ChatMessageToolCall."""
+        with patch("boto3.client") as MockBoto3:
+            model = AmazonBedrockModel(model_id="us.amazon.nova-pro-v1:0")
+        mock_response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"text": "Let me search for that."},
+                        {
+                            "toolUse": {
+                                "toolUseId": "call_123",
+                                "name": "web_search",
+                                "input": {"query": "weather today"},
+                            }
+                        },
+                    ],
+                }
+            },
+            "usage": {"inputTokens": 10, "outputTokens": 20},
+        }
+        model.client.converse.return_value = mock_response
+
+        result = model.generate([ChatMessage(role="user", content="Search weather")])
+        assert result.content == "Let me search for that."
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "call_123"
+        assert result.tool_calls[0].function.name == "web_search"
+        assert result.tool_calls[0].function.arguments == {"query": "weather today"}
+
 
 class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):

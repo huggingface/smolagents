@@ -2042,16 +2042,36 @@ class AmazonBedrockModel(ApiModel):
         message_content_blocks_with_text = [
             block for block in response["output"]["message"]["content"] if "text" in block
         ]
+        # Extract toolUse blocks from content (Bedrock Converse API format)
+        tool_use_blocks = [
+            block["toolUse"] for block in response["output"]["message"]["content"] if "toolUse" in block
+        ]
+        tool_calls = [
+            ChatMessageToolCall(
+                id=block["toolUseId"],
+                type="function",
+                function=ChatMessageToolCallFunction(
+                    name=block["name"],
+                    arguments=block["input"],
+                ),
+            )
+            for block in tool_use_blocks
+        ] or None
+
         if not message_content_blocks_with_text:
-            raise KeyError("No message content blocks with 'text' key found in response")
-        # Keep the last one
-        content = message_content_blocks_with_text[-1]["text"]
+            if tool_calls:
+                content = ""
+            else:
+                raise KeyError("No message content blocks with 'text' key found in response")
+        else:
+            # Keep the last one
+            content = message_content_blocks_with_text[-1]["text"]
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response["output"]["message"]["role"],
             content=content,
-            tool_calls=response["output"]["message"]["tool_calls"],
+            tool_calls=tool_calls,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response["usage"]["inputTokens"],
