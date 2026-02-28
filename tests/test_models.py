@@ -804,6 +804,29 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_consecutive_system_string_content():
+    """Regression test: consecutive system messages with plain string content
+    must be merged without crashing.
+    See https://github.com/huggingface/smolagents/issues/1972"""
+    messages = [
+        {"role": "system", "content": "Start with FOO"},
+        {"role": "system", "content": "End with BAR"},
+        {"role": "user", "content": "Just say ."},
+    ]
+    # flatten_messages_as_text=True path
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 2
+    assert "FOO" in result[0]["content"] and "BAR" in result[0]["content"]
+    assert result[1]["content"] == "Just say ."
+
+    # flatten_messages_as_text=False path
+    result2 = get_clean_message_list(messages, flatten_messages_as_text=False)
+    assert len(result2) == 2
+    merged = result2[0]["content"]
+    assert isinstance(merged, list)
+    assert "FOO" in merged[0]["text"] and "BAR" in merged[0]["text"]
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
