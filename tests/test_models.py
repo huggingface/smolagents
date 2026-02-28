@@ -804,6 +804,43 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_consecutive_string_content():
+    """Consecutive same-role messages with string content should be merged (not crash)."""
+    messages = [
+        ChatMessage(role=MessageRole.SYSTEM, content="Start with FOO"),
+        ChatMessage(role=MessageRole.SYSTEM, content="End with BAR"),
+        ChatMessage(role=MessageRole.USER, content="Just say '.'"),
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 2
+    assert result[0]["role"] == "system"
+    assert result[0]["content"] == "Start with FOO\nEnd with BAR"
+    assert result[1]["role"] == "user"
+    assert result[1]["content"] == "Just say '.'"
+
+
+def test_get_clean_message_list_string_content_flatten():
+    """String content should work in flatten mode too."""
+    messages = [
+        ChatMessage(role=MessageRole.SYSTEM, content="First system"),
+        ChatMessage(role=MessageRole.SYSTEM, content="Second system"),
+    ]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 1
+    assert result[0]["content"] == "First system\nSecond system"
+
+
+def test_get_clean_message_list_string_into_list_content():
+    """String content merged into a previous list-content message."""
+    messages = [
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}]),
+        ChatMessage(role=MessageRole.USER, content="How are you?"),
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 1
+    assert result[0]["content"][-1]["text"] == "Hello!\nHow are you?"
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
