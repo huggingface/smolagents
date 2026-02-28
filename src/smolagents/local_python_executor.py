@@ -1605,6 +1605,15 @@ def evaluate_python_code(
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
     """
+    if state is None:
+        state = {}
+    static_tools = static_tools.copy() if static_tools is not None else {}
+    custom_tools = custom_tools if custom_tools is not None else {}
+    # Reset print outputs and operations counter BEFORE parsing so that
+    # a SyntaxError doesn't leak print outputs from the previous step.
+    state["_print_outputs"] = PrintContainer()
+    state["_operations_count"] = {"counter": 0}
+
     try:
         expression = ast.parse(code)
     except SyntaxError as e:
@@ -1613,13 +1622,6 @@ def evaluate_python_code(
             f"{e.text}"
             f"{' ' * (e.offset or 0)}^"
         )
-
-    if state is None:
-        state = {}
-    static_tools = static_tools.copy() if static_tools is not None else {}
-    custom_tools = custom_tools if custom_tools is not None else {}
-    state["_print_outputs"] = PrintContainer()
-    state["_operations_count"] = {"counter": 0}
 
     if "final_answer" in static_tools:
         previous_final_answer = static_tools["final_answer"]

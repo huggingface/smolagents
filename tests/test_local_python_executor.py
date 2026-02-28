@@ -1213,6 +1213,22 @@ shift_intervals
         assert "SyntaxError" in str(e)
         assert "     ^" in str(e)
 
+    def test_syntax_error_does_not_leak_previous_print_output(self):
+        """Regression test: SyntaxError should not leak print outputs from previous step."""
+        from smolagents.local_python_executor import BASE_PYTHON_TOOLS
+
+        state = {}
+        # Step 1: successful code that prints
+        evaluate_python_code("print('step1 output')", state=state, static_tools=BASE_PYTHON_TOOLS)
+        assert "step1 output" in str(state["_print_outputs"])
+
+        # Step 2: code with SyntaxError — print outputs should be reset
+        with pytest.raises(InterpreterError):
+            evaluate_python_code("def bad_syntax(\n    pass", state=state, static_tools=BASE_PYTHON_TOOLS)
+
+        # _print_outputs should be empty, NOT contain "step1 output"
+        assert str(state["_print_outputs"]) == ""
+
     def test_close_matches_subscript(self):
         code = 'capitals = {"Czech Republic": "Prague", "Monaco": "Monaco", "Bhutan": "Thimphu"};capitals["Butan"]'
         with pytest.raises(Exception) as e:
