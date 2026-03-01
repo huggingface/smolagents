@@ -590,6 +590,50 @@ class TestOpenAIModel:
             assert "and this should be removed" not in result.content
 
 
+class TestEmptyChoicesGuard:
+    """Tests for the guard against empty choices in LLM responses (issue #1127)."""
+
+    def test_litellm_model_empty_choices_raises_on_empty(self):
+        mock_litellm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = []
+        mock_response.model_dump.return_value = {"choices": [], "id": "test"}
+        mock_litellm.completion.return_value = mock_response
+
+        with patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm):
+            model = LiteLLMModel(model_id="test-model")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+
+            with pytest.raises(ValueError, match="empty choices"):
+                model.generate(messages)
+
+    def test_inference_client_model_empty_choices_raises_on_empty(self):
+        model = InferenceClientModel(model_id="test-model")
+        model.client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = []
+        model.client.chat_completion.return_value = mock_response
+
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+
+        with pytest.raises(ValueError, match="empty choices"):
+            model.generate(messages)
+
+    def test_openai_model_empty_choices_raises_on_empty(self):
+        with patch("openai.OpenAI") as MockOpenAI:
+            mock_client = MagicMock()
+            MockOpenAI.return_value = mock_client
+            mock_response = MagicMock()
+            mock_response.choices = []
+            mock_client.chat.completions.create.return_value = mock_response
+
+            model = OpenAIModel(model_id="test-model")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+
+            with pytest.raises(ValueError, match="empty choices"):
+                model.generate(messages)
+
+
 class TestAmazonBedrockModel:
     def test_client_for_bedrock(self):
         model_id = "us.amazon.nova-pro-v1:0"
