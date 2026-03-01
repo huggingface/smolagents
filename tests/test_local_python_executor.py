@@ -1213,6 +1213,20 @@ shift_intervals
         assert "SyntaxError" in str(e)
         assert "     ^" in str(e)
 
+    def test_syntax_error_does_not_leak_previous_print_outputs(self):
+        """SyntaxError should reset _print_outputs so previous step output doesn't leak."""
+        state = {}
+        # Step 1: produce print output
+        evaluate_python_code("print('step1 output')", BASE_PYTHON_TOOLS, state=state)
+        assert "step1 output" in str(state["_print_outputs"])
+
+        # Step 2: SyntaxError — _print_outputs must be reset before the error is raised
+        with pytest.raises(InterpreterError, match="SyntaxError"):
+            evaluate_python_code("def bad_syntax(\n    pass", BASE_PYTHON_TOOLS, state=state)
+
+        # The print outputs should be empty, not carrying over from step 1
+        assert str(state["_print_outputs"]).strip() == ""
+
     def test_close_matches_subscript(self):
         code = 'capitals = {"Czech Republic": "Prague", "Monaco": "Monaco", "Bhutan": "Thimphu"};capitals["Butan"]'
         with pytest.raises(Exception) as e:
