@@ -356,6 +356,10 @@ def get_clean_message_list(
 
         if role in role_conversions:
             message.role = role_conversions[role]  # type: ignore
+        # Normalize plain string content to structured list format so that
+        # all downstream code can assume content is always a list of dicts.
+        if isinstance(message.content, str):
+            message.content = [{"type": "text", "text": message.content}]
         # encode images if needed
         if isinstance(message.content, list):
             for element in message.content:
@@ -375,8 +379,18 @@ def get_clean_message_list(
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
             assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
+                # In flatten mode, output content is stored as a plain string.
+                # Normalize it if needed before concatenating.
+                if isinstance(output_message_list[-1]["content"], list):
+                    output_message_list[-1]["content"] = output_message_list[-1]["content"][0]["text"]
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
             else:
+                # In structured mode, output content is stored as a list of dicts.
+                # Normalize it if needed before merging.
+                if isinstance(output_message_list[-1]["content"], str):
+                    output_message_list[-1]["content"] = [
+                        {"type": "text", "text": output_message_list[-1]["content"]}
+                    ]
                 for el in message.content:
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
