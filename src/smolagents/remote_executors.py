@@ -1118,6 +1118,8 @@ class WasmExecutor(RemotePythonExecutor):
         self.deno_path = deno_path
         self.timeout = timeout
         self.token = secrets.token_urlsafe(16)
+        self.session = requests.Session()
+        self.session.headers["Authorization"] = f"Bearer {self.token}"
         self.server_host = self.DEFAULT_SERVER_HOST
         self.server_port = self.DEFAULT_SERVER_PORT
 
@@ -1202,7 +1204,7 @@ class WasmExecutor(RemotePythonExecutor):
 
         # Test the connection
         try:
-            response = requests.get(self.server_url, headers={"Authorization": f"Bearer {self.token}"})
+            response = self.session.get(self.server_url)
             if response.status_code != 200:
                 raise RuntimeError(f"Server responded with status code {response.status_code}: {response.text}")
         except requests.RequestException as e:
@@ -1226,12 +1228,7 @@ class WasmExecutor(RemotePythonExecutor):
             }
 
             # Send the request to the Deno server
-            response = requests.post(
-                self.server_url,
-                json=payload,
-                timeout=self.timeout,
-                headers={"Authorization": f"Bearer {self.token}"},
-            )
+            response = self.session.post(self.server_url, json=payload, timeout=self.timeout)
 
             if response.status_code != 200:
                 raise AgentError(f"Server error: {response.text}", self.logger)
@@ -1292,6 +1289,9 @@ class WasmExecutor(RemotePythonExecutor):
 
     def cleanup(self):
         """Clean up resources used by the executor."""
+        if hasattr(self, "session"):
+            self.session.close()
+
         if hasattr(self, "server_process") and self.server_process:
             self.logger.log("Stopping Deno server...", level=LogLevel.INFO)
             self.server_process.terminate()
