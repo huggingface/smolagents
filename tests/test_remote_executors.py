@@ -235,6 +235,7 @@ class TestDockerExecutorUnit:
         logger = MagicMock()
         with (
             patch("docker.from_env") as mock_docker_client,
+            patch("requests.get") as mock_get,
             patch("requests.post") as mock_post,
             patch("websocket.create_connection"),
         ):
@@ -246,6 +247,7 @@ class TestDockerExecutorUnit:
             mock_docker_client.return_value.containers.run.return_value = mock_container
             mock_docker_client.return_value.images.get.return_value = MagicMock()
 
+            mock_get.return_value.status_code = 200
             mock_post.return_value.status_code = 201
             mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
 
