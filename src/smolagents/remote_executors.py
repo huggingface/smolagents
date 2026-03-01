@@ -594,7 +594,7 @@ class DockerExecutor(RemotePythonExecutor):
             RUN pip install jupyter_kernel_gateway jupyter_client ipykernel
 
             EXPOSE 8888
-            CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip='0.0.0.0'", "--KernelGatewayApp.port=8888", "--KernelGatewayApp.allow_origin='*'"]
+            CMD ["jupyter", "kernelgateway", "--KernelGatewayApp.ip=0.0.0.0", "--KernelGatewayApp.port=8888"]
             """
         )
 
@@ -636,6 +636,14 @@ class DockerExecutor(RemotePythonExecutor):
             container_kwargs["ports"]["8888/tcp"] = (host, port)
             container_kwargs["detach"] = True
 
+            # Generate auth token and pass it to the kernel gateway via the standard KG_AUTH_TOKEN env var
+            token = secrets.token_urlsafe(16)
+            env = container_kwargs.get("environment") or {}
+            if isinstance(env, list):
+                env = dict(kv.split("=", 1) for kv in env if "=" in kv)
+            env["KG_AUTH_TOKEN"] = token
+            container_kwargs["environment"] = env
+
             self.container = self.client.containers.run(self.image_name, **container_kwargs)
 
             retries = 0
@@ -648,11 +656,11 @@ class DockerExecutor(RemotePythonExecutor):
             self.base_url = f"http://{host}:{port}"
 
             # Wait for Jupyter to start
-            self._wait_for_server()
+            self._wait_for_server(token)
 
             # Create new kernel via HTTP
-            self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels", self.logger)
-            self.ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
+            self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels?token={token}", self.logger)
+            self.ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels?token={token}"
 
             self.installed_packages = self.install_packages(additional_imports)
             self.logger.log(
@@ -694,12 +702,12 @@ class DockerExecutor(RemotePythonExecutor):
         """Ensure cleanup on deletion."""
         self.cleanup()
 
-    def _wait_for_server(self):
+    def _wait_for_server(self, token: str):
         retries = 0
         jupyter_ready = False
         while not jupyter_ready and retries < 10:
             try:
-                if requests.get(f"{self.base_url}/api/kernelspecs", timeout=2).status_code == 200:
+                if requests.get(f"{self.base_url}/api/kernelspecs?token={token}", timeout=2).status_code == 200:
                     jupyter_ready = True
                 else:
                     self.logger.log("Jupyter not ready, waiting...", level=LogLevel.INFO)
@@ -778,9 +786,8 @@ class ModalExecutor(RemotePythonExecutor):
         entrypoint = [
             "jupyter",
             "kernelgateway",
-            "--KernelGatewayApp.ip='0.0.0.0'",
+            "--KernelGatewayApp.ip=0.0.0.0",
             f"--KernelGatewayApp.port={port}",
-            "--KernelGatewayApp.allow_origin='*'",
         ]
 
         self.logger.log("Starting Modal sandbox", level=LogLevel.INFO)
@@ -1086,6 +1093,9 @@ class WasmExecutor(RemotePythonExecutor):
         timeout (`int`, default `60`): Timeout in seconds for code execution
     """
 
+    DEFAULT_SERVER_HOST = "127.0.0.1"
+    DEFAULT_SERVER_PORT = 8000
+
     def __init__(
         self,
         additional_imports: list[str],
@@ -1108,27 +1118,38 @@ class WasmExecutor(RemotePythonExecutor):
         self.deno_path = deno_path
         self.timeout = timeout
         self.token = secrets.token_urlsafe(16)
+        self.server_host = self.DEFAULT_SERVER_HOST
+        self.server_port = self.DEFAULT_SERVER_PORT
+
+        # Create the Deno JavaScript runner file
+        self._create_deno_runner()
 
         # Default minimal permissions needed
         if deno_permissions is None:
-            # Use minimal permissions for Deno execution
-            home_dir = os.getenv("HOME")
             deno_permissions = [
                 "allow-net="
                 + ",".join(
                     [
-                        "0.0.0.0:8000",  # allow requests to the local server
+                        f"{self.server_host}:{self.server_port}",  # allow requests to the local server
                         "cdn.jsdelivr.net:443",  # allow loading pyodide packages
                         "pypi.org:443,files.pythonhosted.org:443",  # allow pyodide install packages from PyPI
                     ]
                 ),
-                f"allow-read={home_dir}/.cache/deno",
-                f"allow-write={home_dir}/.cache/deno",
+                # FS permissions are always scoped to deno_cache_dir (the per-instance temp dir
+                # that cleanup() removes). This replaces the original global ~/.cache/deno
+                # permissions, bounding any write from attacker code to a short-lived
+                # directory that never affects other Deno processes or persists past teardown.
+                # --allow-read: required for Deno to load npm package assets at runtime
+                #               (e.g. pyodide.asm.wasm is read via Deno file APIs).
+                # --allow-write: required for pyodide's loadPackage() to cache downloaded
+                #                Python packages (e.g. micropip) to the Deno-backed FS.
+                f"allow-read={self.deno_cache_dir}",
+                f"allow-write={self.deno_cache_dir}",
             ]
         self.deno_permissions = [f"--{perm}" for perm in deno_permissions]
 
-        # Create the Deno JavaScript runner file
-        self._create_deno_runner()
+        # Start the Deno server
+        self._start_deno_server()
 
         # Install additional packages
         self.installed_packages = self.install_packages(additional_imports)
@@ -1136,15 +1157,25 @@ class WasmExecutor(RemotePythonExecutor):
 
     def _create_deno_runner(self):
         """Create the Deno JavaScript file that will run Pyodide and execute Python code."""
+        # Create an isolated per-executor runtime directory to avoid sharing mutable Deno state
         self.runner_dir = tempfile.mkdtemp(prefix="pyodide_deno_")
         self.runner_path = os.path.join(self.runner_dir, "pyodide_runner.js")
 
-        # Create the JavaScript runner file, injecting the auth token
+        # Create the JavaScript runner file
         with open(self.runner_path, "w") as f:
-            f.write(self.JS_CODE.replace("__AUTH_TOKEN__", self.token))
+            f.write(self._build_js_code())
 
-        # Start the Deno server
-        self._start_deno_server()
+        # Isolate Deno's module cache inside the per-instance temp directory so it
+        # cannot affect other Deno processes and is removed when cleanup() runs.
+        self.deno_cache_dir = os.path.join(self.runner_dir, "deno_cache")
+
+    def _build_js_code(self) -> str:
+        """Render JavaScript runner with injected auth token and with configured server host and port."""
+        return (
+            self.JS_CODE_TEMPLATE.replace("__AUTH_TOKEN__", self.token)
+            .replace("__SERVER_HOST__", self.server_host)
+            .replace("__SERVER_PORT__", str(self.server_port))
+        )
 
     def _start_deno_server(self):
         """Start the Deno server that will run our JavaScript code."""
@@ -1156,6 +1187,7 @@ class WasmExecutor(RemotePythonExecutor):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env={**os.environ, "DENO_DIR": self.deno_cache_dir},
         )
 
         # Wait for the server to start
@@ -1166,7 +1198,7 @@ class WasmExecutor(RemotePythonExecutor):
             stderr = self.server_process.stderr.read()
             raise RuntimeError(f"Failed to start Deno server: {stderr}")
 
-        self.server_url = "http://localhost:8000"  # TODO: Another port?
+        self.server_url = f"http://{self.server_host}:{self.server_port}"
 
         # Test the connection
         try:
@@ -1278,7 +1310,7 @@ class WasmExecutor(RemotePythonExecutor):
         """Ensure cleanup on deletion."""
         self.cleanup()
 
-    JS_CODE = dedent("""\
+    JS_CODE_TEMPLATE = dedent("""\
         // pyodide_runner.js - Runs Python code in Pyodide within Deno
         import { serve } from "https://deno.land/std/http/server.ts";
         import { loadPyodide } from "npm:pyodide";
@@ -1344,8 +1376,6 @@ class WasmExecutor(RemotePythonExecutor):
         }
 
         // Start a simple HTTP server to receive code execution requests
-        //const port = 8765;
-        //console.log(`Starting Pyodide server on port ${port}`);
 
         serve(async (req) => {
           const authHeader = req.headers.get("Authorization");
@@ -1386,5 +1416,5 @@ class WasmExecutor(RemotePythonExecutor):
           return new Response("Pyodide-Deno Executor is running. Send POST requests with code to execute.", {
             headers: { "Content-Type": "text/plain" }
           });
-        });
+        }, { hostname: "__SERVER_HOST__", port: __SERVER_PORT__ });
         """)

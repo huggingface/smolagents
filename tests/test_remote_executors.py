@@ -235,6 +235,7 @@ class TestDockerExecutorUnit:
         logger = MagicMock()
         with (
             patch("docker.from_env") as mock_docker_client,
+            patch("requests.get") as mock_get,
             patch("requests.post") as mock_post,
             patch("websocket.create_connection"),
         ):
@@ -246,6 +247,7 @@ class TestDockerExecutorUnit:
             mock_docker_client.return_value.containers.run.return_value = mock_container
             mock_docker_client.return_value.images.get.return_value = MagicMock()
 
+            mock_get.return_value.status_code = 200
             mock_post.return_value.status_code = 201
             mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
 
@@ -460,9 +462,8 @@ class TestModalExecutorUnit:
         assert create_call.args == (
             "jupyter",
             "kernelgateway",
-            "--KernelGatewayApp.ip='0.0.0.0'",
+            "--KernelGatewayApp.ip=0.0.0.0",
             f"--KernelGatewayApp.port={port}",
-            "--KernelGatewayApp.allow_origin='*'",
         )
         assert create_call.kwargs["timeout"] == 100
         assert create_call.kwargs["cpu"] == 2
@@ -511,6 +512,10 @@ class TestWasmExecutorUnit:
             assert mock_popen.call_count == 1
             assert mock_popen.call_args.args[0][0] == "deno"
             assert mock_popen.call_args.args[0][1] == "run"
+            assert (
+                "--allow-net=127.0.0.1:8000,cdn.jsdelivr.net:443,pypi.org:443,files.pythonhosted.org:443"
+                in (mock_popen.call_args.args[0])
+            )
 
             # Clean up
             with patch("shutil.rmtree"):
