@@ -3,10 +3,22 @@ import os
 import re
 import glob
 import subprocess
+from pathlib import Path
 
 client = anthropic.Anthropic()
 
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT_REAL = Path(os.path.realpath(REPO_ROOT))
+
+
+def _within_repo(path: str) -> bool:
+    """Return True if path resolves to a location inside REPO_ROOT."""
+    try:
+        Path(os.path.realpath(path)).relative_to(_REPO_ROOT_REAL)
+        return True
+    except (ValueError, OSError):
+        return False
+
 
 TOOLS = [
     {
@@ -51,7 +63,7 @@ def execute_tool(tool_name, tool_input):
     """Execute a tool and return result"""
     if tool_name == "read_file":
         path = tool_input["path"]
-        if not os.path.realpath(path).startswith(os.path.realpath(REPO_ROOT)):
+        if not _within_repo(path):
             return "Error: access denied — path is outside the repository"
         try:
             with open(path, 'r', encoding='utf-8', errors='replace') as f:
@@ -65,16 +77,15 @@ def execute_tool(tool_name, tool_input):
 
     elif tool_name == "glob_files":
         pattern = tool_input["pattern"]
-        base = tool_input.get("base_dir", REPO_ROOT)
         if not pattern.startswith("/"):
-            pattern = os.path.join(base, pattern)
-        matches = glob.glob(pattern, recursive=True)
+            pattern = os.path.join(REPO_ROOT, pattern)
+        matches = [m for m in glob.glob(pattern, recursive=True) if _within_repo(m)]
         return "\n".join(matches[:20]) if matches else "No files found"
 
     elif tool_name == "grep_content":
         pattern = tool_input["pattern"]
         path = tool_input["path"]
-        if not os.path.realpath(path).startswith(os.path.realpath(REPO_ROOT)):
+        if not _within_repo(path):
             return "Error: access denied — path is outside the repository"
         try:
             result = subprocess.run(
