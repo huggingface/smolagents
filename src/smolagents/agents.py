@@ -877,6 +877,7 @@ You have been provided with these additional arguments, that you can access dire
             self.prompt_templates["managed_agent"]["task"],
             variables=dict(name=self.name, task=task),
         )
+        kwargs.pop("reset", None)
         result = self.run(full_task, reset=self.reset_on_managed_call, **kwargs)
         if isinstance(result, RunResult):
             report = result.output
