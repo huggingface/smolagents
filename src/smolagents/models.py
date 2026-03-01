@@ -1356,8 +1356,9 @@ class LiteLLMModel(ApiModel):
                         else None,
                     )
                 else:
-                    if not getattr(choice, "finish_reason", None):
-                        raise ValueError(f"No content or tool calls in event: {event}")
+                    # Some providers can emit no-op chunks (no delta, no finish_reason).
+                    # These chunks are harmless and should not abort the whole stream.
+                    continue
 
 
 class LiteLLMRouterModel(LiteLLMModel):
@@ -1639,8 +1640,9 @@ class InferenceClientModel(ApiModel):
                         else None,
                     )
                 else:
-                    if not getattr(choice, "finish_reason", None):
-                        raise ValueError(f"No content or tool calls in event: {event}")
+                    # Some providers can emit no-op chunks (no delta, no finish_reason).
+                    # These chunks are harmless and should not abort the whole stream.
+                    continue
 
 
 class OpenAIModel(ApiModel):
@@ -1755,8 +1757,9 @@ class OpenAIModel(ApiModel):
                         else None,
                     )
                 else:
-                    if not getattr(choice, "finish_reason", None):
-                        raise ValueError(f"No content or tool calls in event: {event}")
+                    # Some providers can emit no-op chunks (no delta, no finish_reason).
+                    # These chunks are harmless and should not abort the whole stream.
+                    continue
 
     def generate(
         self,
