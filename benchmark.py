@@ -6,6 +6,8 @@ import subprocess
 
 client = anthropic.Anthropic()
 
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 TOOLS = [
     {
         "name": "read_file",
@@ -61,7 +63,7 @@ def execute_tool(tool_name, tool_input):
 
     elif tool_name == "glob_files":
         pattern = tool_input["pattern"]
-        base = tool_input.get("base_dir", "/src/totto/smolagents")
+        base = tool_input.get("base_dir", REPO_ROOT)
         if not pattern.startswith("/"):
             pattern = os.path.join(base, pattern)
         matches = glob.glob(pattern, recursive=True)
@@ -121,15 +123,15 @@ def run_agent(system_prompt, query, max_turns=20):
 
 
 # Baseline system prompt - explore freely
-BASELINE_PROMPT = """You are a helpful assistant answering questions about the smolagents library.
-The repository is at /src/totto/smolagents.
+BASELINE_PROMPT = f"""You are a helpful assistant answering questions about the smolagents library.
+The repository is at {REPO_ROOT}.
 Use the available tools to read files and find the answer.
 Start by exploring the repository structure to understand where to find information."""
 
 # KCP system prompt - use knowledge.yaml first
-KCP_PROMPT = """You are a helpful assistant answering questions about the smolagents library.
-The repository is at /src/totto/smolagents.
-IMPORTANT: First read /src/totto/smolagents/knowledge.yaml to understand the repository structure.
+KCP_PROMPT = f"""You are a helpful assistant answering questions about the smolagents library.
+The repository is at {REPO_ROOT}.
+IMPORTANT: First read {REPO_ROOT}/knowledge.yaml to understand the repository structure.
 Match the question to the triggers in knowledge.yaml and read only the files pointed to by matching units.
 If the unit has summary_available: true, read the summary_unit file first (it's much smaller)."""
 
