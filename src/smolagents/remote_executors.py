@@ -1113,10 +1113,11 @@ class WasmExecutor(RemotePythonExecutor):
         self.server_host = self.DEFAULT_SERVER_HOST
         self.server_port = self.DEFAULT_SERVER_PORT
 
+        # Create the Deno JavaScript runner file
+        self._create_deno_runner()
+
         # Default minimal permissions needed
         if deno_permissions is None:
-            # Use minimal permissions for Deno execution
-            home_dir = os.getenv("HOME")
             deno_permissions = [
                 "allow-net="
                 + ",".join(
@@ -1126,13 +1127,21 @@ class WasmExecutor(RemotePythonExecutor):
                         "pypi.org:443,files.pythonhosted.org:443",  # allow pyodide install packages from PyPI
                     ]
                 ),
-                f"allow-read={home_dir}/.cache/deno",
-                f"allow-write={home_dir}/.cache/deno",
+                # FS permissions are always scoped to deno_cache_dir (the per-instance temp dir
+                # that cleanup() removes). This replaces the original global ~/.cache/deno
+                # permissions, bounding any write from attacker code to a short-lived
+                # directory that never affects other Deno processes or persists past teardown.
+                # --allow-read: required for Deno to load npm package assets at runtime
+                #               (e.g. pyodide.asm.wasm is read via Deno file APIs).
+                # --allow-write: required for pyodide's loadPackage() to cache downloaded
+                #                Python packages (e.g. micropip) to the Deno-backed FS.
+                f"allow-read={self.deno_cache_dir}",
+                f"allow-write={self.deno_cache_dir}",
             ]
         self.deno_permissions = [f"--{perm}" for perm in deno_permissions]
 
-        # Create the Deno JavaScript runner file
-        self._create_deno_runner()
+        # Start the Deno server
+        self._start_deno_server()
 
         # Install additional packages
         self.installed_packages = self.install_packages(additional_imports)
@@ -1140,15 +1149,16 @@ class WasmExecutor(RemotePythonExecutor):
 
     def _create_deno_runner(self):
         """Create the Deno JavaScript file that will run Pyodide and execute Python code."""
+        # Create an isolated per-executor runtime directory to avoid sharing mutable Deno state
         self.runner_dir = tempfile.mkdtemp(prefix="pyodide_deno_")
         self.runner_path = os.path.join(self.runner_dir, "pyodide_runner.js")
-
         # Create the JavaScript runner file
         with open(self.runner_path, "w") as f:
             f.write(self._build_js_code())
 
-        # Start the Deno server
-        self._start_deno_server()
+        # Isolate Deno's module cache inside the per-instance temp directory so it
+        # cannot affect other Deno processes and is removed when cleanup() runs.
+        self.deno_cache_dir = os.path.join(self.runner_dir, "deno_cache")
 
     def _build_js_code(self) -> str:
         """Render JavaScript runner with configured server host and port."""
@@ -1166,6 +1176,7 @@ class WasmExecutor(RemotePythonExecutor):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env={**os.environ, "DENO_DIR": self.deno_cache_dir},
         )
 
         # Wait for the server to start
