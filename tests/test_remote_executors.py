@@ -511,6 +511,10 @@ class TestWasmExecutorUnit:
             assert mock_popen.call_count == 1
             assert mock_popen.call_args.args[0][0] == "deno"
             assert mock_popen.call_args.args[0][1] == "run"
+            assert (
+                "--allow-net=127.0.0.1:8000,cdn.jsdelivr.net:443,pypi.org:443,files.pythonhosted.org:443"
+                in (mock_popen.call_args.args[0])
+            )
 
             # Clean up
             with patch("shutil.rmtree"):
