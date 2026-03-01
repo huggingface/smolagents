@@ -1086,6 +1086,9 @@ class WasmExecutor(RemotePythonExecutor):
         timeout (`int`, default `60`): Timeout in seconds for code execution
     """
 
+    DEFAULT_SERVER_HOST = "127.0.0.1"
+    DEFAULT_SERVER_PORT = 8000
+
     def __init__(
         self,
         additional_imports: list[str],
@@ -1107,6 +1110,8 @@ class WasmExecutor(RemotePythonExecutor):
 
         self.deno_path = deno_path
         self.timeout = timeout
+        self.server_host = self.DEFAULT_SERVER_HOST
+        self.server_port = self.DEFAULT_SERVER_PORT
 
         # Create the Deno JavaScript runner file
         self._create_deno_runner()
@@ -1117,7 +1122,7 @@ class WasmExecutor(RemotePythonExecutor):
                 "allow-net="
                 + ",".join(
                     [
-                        "0.0.0.0:8000",  # allow requests to the local server
+                        f"{self.server_host}:{self.server_port}",  # allow requests to the local server
                         "cdn.jsdelivr.net:443",  # allow loading pyodide packages
                         "pypi.org:443,files.pythonhosted.org:443",  # allow pyodide install packages from PyPI
                     ]
@@ -1149,10 +1154,17 @@ class WasmExecutor(RemotePythonExecutor):
         self.runner_path = os.path.join(self.runner_dir, "pyodide_runner.js")
         # Create the JavaScript runner file
         with open(self.runner_path, "w") as f:
-            f.write(self.JS_CODE)
+            f.write(self._build_js_code())
+
         # Isolate Deno's module cache inside the per-instance temp directory so it
         # cannot affect other Deno processes and is removed when cleanup() runs.
         self.deno_cache_dir = os.path.join(self.runner_dir, "deno_cache")
+
+    def _build_js_code(self) -> str:
+        """Render JavaScript runner with configured server host and port."""
+        return self.JS_CODE_TEMPLATE.replace("__SERVER_HOST__", self.server_host).replace(
+            "__SERVER_PORT__", str(self.server_port)
+        )
 
     def _start_deno_server(self):
         """Start the Deno server that will run our JavaScript code."""
@@ -1175,7 +1187,7 @@ class WasmExecutor(RemotePythonExecutor):
             stderr = self.server_process.stderr.read()
             raise RuntimeError(f"Failed to start Deno server: {stderr}")
 
-        self.server_url = "http://localhost:8000"  # TODO: Another port?
+        self.server_url = f"http://{self.server_host}:{self.server_port}"
 
         # Test the connection
         try:
@@ -1282,7 +1294,7 @@ class WasmExecutor(RemotePythonExecutor):
         """Ensure cleanup on deletion."""
         self.cleanup()
 
-    JS_CODE = dedent("""\
+    JS_CODE_TEMPLATE = dedent("""\
         // pyodide_runner.js - Runs Python code in Pyodide within Deno
         import { serve } from "https://deno.land/std/http/server.ts";
         import { loadPyodide } from "npm:pyodide";
@@ -1346,8 +1358,6 @@ class WasmExecutor(RemotePythonExecutor):
         }
 
         // Start a simple HTTP server to receive code execution requests
-        //const port = 8765;
-        //console.log(`Starting Pyodide server on port ${port}`);
 
         serve(async (req) => {
           if (req.method === "POST") {
@@ -1383,5 +1393,5 @@ class WasmExecutor(RemotePythonExecutor):
           return new Response("Pyodide-Deno Executor is running. Send POST requests with code to execute.", {
             headers: { "Content-Type": "text/plain" }
           });
-        });
+        }, { hostname: "__SERVER_HOST__", port: __SERVER_PORT__ });
         """)
