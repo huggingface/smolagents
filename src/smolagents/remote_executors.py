@@ -1107,6 +1107,7 @@ class WasmExecutor(RemotePythonExecutor):
 
         self.deno_path = deno_path
         self.timeout = timeout
+        self.token = secrets.token_urlsafe(16)
 
         # Default minimal permissions needed
         if deno_permissions is None:
@@ -1138,9 +1139,9 @@ class WasmExecutor(RemotePythonExecutor):
         self.runner_dir = tempfile.mkdtemp(prefix="pyodide_deno_")
         self.runner_path = os.path.join(self.runner_dir, "pyodide_runner.js")
 
-        # Create the JavaScript runner file
+        # Create the JavaScript runner file, injecting the auth token
         with open(self.runner_path, "w") as f:
-            f.write(self.JS_CODE)
+            f.write(self.JS_CODE.replace("__AUTH_TOKEN__", self.token))
 
         # Start the Deno server
         self._start_deno_server()
@@ -1169,7 +1170,7 @@ class WasmExecutor(RemotePythonExecutor):
 
         # Test the connection
         try:
-            response = requests.get(self.server_url)
+            response = requests.get(self.server_url, headers={"Authorization": f"Bearer {self.token}"})
             if response.status_code != 200:
                 raise RuntimeError(f"Server responded with status code {response.status_code}: {response.text}")
         except requests.RequestException as e:
@@ -1193,7 +1194,12 @@ class WasmExecutor(RemotePythonExecutor):
             }
 
             # Send the request to the Deno server
-            response = requests.post(self.server_url, json=payload, timeout=self.timeout)
+            response = requests.post(
+                self.server_url,
+                json=payload,
+                timeout=self.timeout,
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
 
             if response.status_code != 200:
                 raise AgentError(f"Server error: {response.text}", self.logger)
@@ -1277,6 +1283,8 @@ class WasmExecutor(RemotePythonExecutor):
         import { serve } from "https://deno.land/std/http/server.ts";
         import { loadPyodide } from "npm:pyodide";
 
+        const AUTH_TOKEN = "__AUTH_TOKEN__";
+
         // Initialize Pyodide instance
         const pyodidePromise = loadPyodide();
 
@@ -1340,6 +1348,11 @@ class WasmExecutor(RemotePythonExecutor):
         //console.log(`Starting Pyodide server on port ${port}`);
 
         serve(async (req) => {
+          const authHeader = req.headers.get("Authorization");
+          if (!authHeader || authHeader !== `Bearer ${AUTH_TOKEN}`) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+
           if (req.method === "POST") {
             try {
               const body = await req.json();
