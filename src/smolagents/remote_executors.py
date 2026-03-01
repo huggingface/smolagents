@@ -1117,6 +1117,7 @@ class WasmExecutor(RemotePythonExecutor):
 
         self.deno_path = deno_path
         self.timeout = timeout
+        self.token = secrets.token_urlsafe(16)
         self.server_host = self.DEFAULT_SERVER_HOST
         self.server_port = self.DEFAULT_SERVER_PORT
 
@@ -1159,6 +1160,7 @@ class WasmExecutor(RemotePythonExecutor):
         # Create an isolated per-executor runtime directory to avoid sharing mutable Deno state
         self.runner_dir = tempfile.mkdtemp(prefix="pyodide_deno_")
         self.runner_path = os.path.join(self.runner_dir, "pyodide_runner.js")
+
         # Create the JavaScript runner file
         with open(self.runner_path, "w") as f:
             f.write(self._build_js_code())
@@ -1168,9 +1170,11 @@ class WasmExecutor(RemotePythonExecutor):
         self.deno_cache_dir = os.path.join(self.runner_dir, "deno_cache")
 
     def _build_js_code(self) -> str:
-        """Render JavaScript runner with configured server host and port."""
-        return self.JS_CODE_TEMPLATE.replace("__SERVER_HOST__", self.server_host).replace(
-            "__SERVER_PORT__", str(self.server_port)
+        """Render JavaScript runner with injected auth token and with configured server host and port."""
+        return (
+            self.JS_CODE_TEMPLATE.replace("__AUTH_TOKEN__", self.token)
+            .replace("__SERVER_HOST__", self.server_host)
+            .replace("__SERVER_PORT__", str(self.server_port))
         )
 
     def _start_deno_server(self):
@@ -1198,7 +1202,7 @@ class WasmExecutor(RemotePythonExecutor):
 
         # Test the connection
         try:
-            response = requests.get(self.server_url)
+            response = requests.get(self.server_url, headers={"Authorization": f"Bearer {self.token}"})
             if response.status_code != 200:
                 raise RuntimeError(f"Server responded with status code {response.status_code}: {response.text}")
         except requests.RequestException as e:
@@ -1222,7 +1226,12 @@ class WasmExecutor(RemotePythonExecutor):
             }
 
             # Send the request to the Deno server
-            response = requests.post(self.server_url, json=payload, timeout=self.timeout)
+            response = requests.post(
+                self.server_url,
+                json=payload,
+                timeout=self.timeout,
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
 
             if response.status_code != 200:
                 raise AgentError(f"Server error: {response.text}", self.logger)
@@ -1306,6 +1315,8 @@ class WasmExecutor(RemotePythonExecutor):
         import { serve } from "https://deno.land/std/http/server.ts";
         import { loadPyodide } from "npm:pyodide";
 
+        const AUTH_TOKEN = "__AUTH_TOKEN__";
+
         // Initialize Pyodide instance
         const pyodidePromise = loadPyodide();
 
@@ -1367,6 +1378,11 @@ class WasmExecutor(RemotePythonExecutor):
         // Start a simple HTTP server to receive code execution requests
 
         serve(async (req) => {
+          const authHeader = req.headers.get("Authorization");
+          if (!authHeader || authHeader !== `Bearer ${AUTH_TOKEN}`) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+
           if (req.method === "POST") {
             try {
               const body = await req.json();
