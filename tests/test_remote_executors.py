@@ -483,7 +483,7 @@ class TestWasmExecutorUnit:
         with (
             patch("subprocess.run") as mock_run,
             patch("subprocess.Popen") as mock_popen,
-            patch("requests.get") as mock_get,
+            patch("smolagents.remote_executors.requests.Session") as mock_session_cls,
             patch("time.sleep"),
         ):
             # Configure mocks
@@ -491,7 +491,9 @@ class TestWasmExecutorUnit:
             mock_process = MagicMock()
             mock_process.poll.return_value = None
             mock_popen.return_value = mock_process
-            mock_get.return_value.status_code = 200
+            mock_session = MagicMock()
+            mock_session.get.return_value.status_code = 200
+            mock_session_cls.return_value = mock_session
 
             # Create the executor
             executor = WasmExecutor(additional_imports=["numpy", "pandas"], logger=logger, timeout=30)
