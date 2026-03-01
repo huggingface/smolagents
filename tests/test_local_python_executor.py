@@ -1098,6 +1098,124 @@ assert cm.exited == True
     """
         evaluate_python_code(code, {}, state={})
 
+    def test_with_exception_suppressed_by_exit(self):
+        """Test that __exit__ returning True suppresses the exception."""
+        code = """
+class Suppressor:
+    def __init__(self):
+        self.exit_called = False
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.exit_called = True
+        return True  # suppress
+
+cm = Suppressor()
+with cm:
+    raise ValueError("should be suppressed")
+
+assert cm.exit_called == True
+        """
+        evaluate_python_code(code, {}, state={})
+
+    def test_with_exception_not_suppressed_by_exit(self):
+        """Test that __exit__ returning False re-raises the original exception."""
+        code = """
+class NonSuppressor:
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+with NonSuppressor():
+    raise ValueError("should propagate")
+        """
+        with pytest.raises(ValueError, match="should propagate"):
+            evaluate_python_code(code, {}, state={})
+
+    def test_with_multiple_cms_inner_suppresses_outer_sees_no_exception(self):
+        """Test that when the inner CM suppresses, the outer CM's __exit__ gets (None, None, None)."""
+        code = """
+calls = []
+
+class Outer:
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        calls.append(("outer", exc_type))
+        return False
+
+class Inner:
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        calls.append(("inner", exc_type))
+        return True  # suppress
+
+with Outer(), Inner():
+    raise ValueError("suppressed by inner")
+
+assert calls[0] == ("inner", ValueError), calls
+assert calls[1] == ("outer", None), calls
+        """
+        evaluate_python_code(code, {}, state={})
+
+    def test_with_multiple_cms_neither_suppresses(self):
+        """Test that when no CM suppresses, the original exception propagates."""
+        code = """
+calls = []
+
+class Recorder:
+    def __init__(self, name):
+        self.name = name
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        calls.append((self.name, exc_type))
+        return False
+
+with Recorder("outer"), Recorder("inner"):
+    raise RuntimeError("should propagate")
+        """
+        with pytest.raises(InterpreterError, match="should propagate"):
+            evaluate_python_code(code, {}, state={})
+
+    def test_with_multiple_cms_outer_suppresses(self):
+        """Test that the outer CM can suppress after the inner CM does not."""
+        code = """
+calls = []
+
+class Outer:
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        calls.append(("outer", exc_type))
+        return True  # suppress
+
+class Inner:
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        calls.append(("inner", exc_type))
+        return False  # don't suppress
+
+with Outer(), Inner():
+    raise ValueError("suppressed by outer")
+
+assert calls[0] == ("inner", ValueError), calls
+assert calls[1] == ("outer", ValueError), calls
+        """
+        evaluate_python_code(code, {}, state={})
+
+    def test_with_exit_raising_replaces_original_exception(self):
+        """Test that an exception raised inside __exit__ replaces the original."""
+        code = """
+class RaisingExit:
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        raise RuntimeError("from __exit__")
+
+with RaisingExit():
+    raise ValueError("original")
+        """
+        with pytest.raises(InterpreterError, match="from __exit__"):
+            evaluate_python_code(code, {}, state={})
+
     def test_default_arg_in_function(self):
         code = """
 def f(a, b=333, n=1000):
