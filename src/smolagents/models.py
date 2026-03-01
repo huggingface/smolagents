@@ -1287,9 +1287,9 @@ class LiteLLMModel(ApiModel):
         response = self.retryer(self.client.completion, **completion_kwargs)
 
         if not response.choices:
-            raise RuntimeError(
-                f"Unexpected API response: model '{self.model_id}' returned no choices. "
-                " This may indicate a possible API or upstream issue. "
+            raise ValueError(
+                f"Model '{self.model_id}' returned an empty choices list. "
+                "This may indicate an API or upstream issue (e.g. content filtering, rate limiting). "
                 f"Response details: {response.model_dump()}"
             )
         content = response.choices[0].message.content
@@ -1574,6 +1574,12 @@ class InferenceClientModel(ApiModel):
         )
         self._apply_rate_limit()
         response = self.retryer(self.client.chat_completion, **completion_kwargs)
+        if not response.choices:
+            raise ValueError(
+                f"Model '{self.model_id}' returned an empty choices list. "
+                "This may indicate an API or upstream issue (e.g. content filtering, rate limiting). "
+                f"Response details: {response}"
+            )
         content = response.choices[0].message.content
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
@@ -1778,6 +1784,12 @@ class OpenAIModel(ApiModel):
         )
         self._apply_rate_limit()
         response = self.retryer(self.client.chat.completions.create, **completion_kwargs)
+        if not response.choices:
+            raise ValueError(
+                f"Model '{self.model_id}' returned an empty choices list. "
+                "This may indicate an API or upstream issue (e.g. content filtering, rate limiting). "
+                f"Response details: {response}"
+            )
         content = response.choices[0].message.content
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
