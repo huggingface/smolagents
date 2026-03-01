@@ -636,6 +636,14 @@ class DockerExecutor(RemotePythonExecutor):
             container_kwargs["ports"]["8888/tcp"] = (host, port)
             container_kwargs["detach"] = True
 
+            # Generate auth token and pass it to the kernel gateway via the standard KG_AUTH_TOKEN env var
+            token = secrets.token_urlsafe(16)
+            env = container_kwargs.get("environment") or {}
+            if isinstance(env, list):
+                env = dict(kv.split("=", 1) for kv in env if "=" in kv)
+            env["KG_AUTH_TOKEN"] = token
+            container_kwargs["environment"] = env
+
             self.container = self.client.containers.run(self.image_name, **container_kwargs)
 
             retries = 0
@@ -648,11 +656,11 @@ class DockerExecutor(RemotePythonExecutor):
             self.base_url = f"http://{host}:{port}"
 
             # Wait for Jupyter to start
-            self._wait_for_server()
+            self._wait_for_server(token)
 
             # Create new kernel via HTTP
-            self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels", self.logger)
-            self.ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels"
+            self.kernel_id = _create_kernel_http(f"{self.base_url}/api/kernels?token={token}", self.logger)
+            self.ws_url = f"ws://{host}:{port}/api/kernels/{self.kernel_id}/channels?token={token}"
 
             self.installed_packages = self.install_packages(additional_imports)
             self.logger.log(
@@ -694,12 +702,12 @@ class DockerExecutor(RemotePythonExecutor):
         """Ensure cleanup on deletion."""
         self.cleanup()
 
-    def _wait_for_server(self):
+    def _wait_for_server(self, token: str):
         retries = 0
         jupyter_ready = False
         while not jupyter_ready and retries < 10:
             try:
-                if requests.get(f"{self.base_url}/api/kernelspecs", timeout=2).status_code == 200:
+                if requests.get(f"{self.base_url}/api/kernelspecs?token={token}", timeout=2).status_code == 200:
                     jupyter_ready = True
                 else:
                     self.logger.log("Jupyter not ready, waiting...", level=LogLevel.INFO)
