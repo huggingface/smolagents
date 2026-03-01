@@ -284,6 +284,8 @@ class MultiStepAgent(ABC):
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
         provide_run_summary (`bool`, *optional*): Whether to provide a run summary when called as a managed agent.
+        reset_on_managed_call (`bool`, default `True`): Whether to reset memory when this agent is called
+            as a managed agent. Set to `False` to retain conversation history across multiple calls from the parent.
         final_answer_checks (`list[Callable]`, *optional*): List of validation functions to run before accepting a final answer.
             Each function should:
             - Take the final answer, the agent's memory, and the agent itself as arguments.
@@ -306,6 +308,7 @@ class MultiStepAgent(ABC):
         name: str | None = None,
         description: str | None = None,
         provide_run_summary: bool = False,
+        reset_on_managed_call: bool = True,
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
@@ -332,6 +335,7 @@ class MultiStepAgent(ABC):
         self.name = self._validate_name(name)
         self.description = description
         self.provide_run_summary = provide_run_summary
+        self.reset_on_managed_call = reset_on_managed_call
         self.final_answer_checks = final_answer_checks if final_answer_checks is not None else []
         self.return_full_result = return_full_result
         self.instructions = instructions
@@ -873,7 +877,7 @@ You have been provided with these additional arguments, that you can access dire
             self.prompt_templates["managed_agent"]["task"],
             variables=dict(name=self.name, task=task),
         )
-        result = self.run(full_task, **kwargs)
+        result = self.run(full_task, reset=self.reset_on_managed_call, **kwargs)
         if isinstance(result, RunResult):
             report = result.output
         else:
@@ -1003,6 +1007,7 @@ You have been provided with these additional arguments, that you can access dire
             "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
+            "reset_on_managed_call": self.reset_on_managed_call,
             "requirements": sorted(requirements),
         }
         return agent_dict
@@ -1053,6 +1058,7 @@ You have been provided with these additional arguments, that you can access dire
             "planning_interval": agent_dict.get("planning_interval"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
+            "reset_on_managed_call": agent_dict.get("reset_on_managed_call", True),
         }
         # Filter out None values to use defaults from __init__
         agent_args = {k: v for k, v in agent_args.items() if v is not None}
