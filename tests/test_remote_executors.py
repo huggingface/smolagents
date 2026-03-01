@@ -462,9 +462,8 @@ class TestModalExecutorUnit:
         assert create_call.args == (
             "jupyter",
             "kernelgateway",
-            "--KernelGatewayApp.ip='0.0.0.0'",
+            "--KernelGatewayApp.ip=0.0.0.0",
             f"--KernelGatewayApp.port={port}",
-            "--KernelGatewayApp.allow_origin='*'",
         )
         assert create_call.kwargs["timeout"] == 100
         assert create_call.kwargs["cpu"] == 2
