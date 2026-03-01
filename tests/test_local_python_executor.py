@@ -1051,6 +1051,53 @@ assert lock.locked == False
         tools = {}
         evaluate_python_code(code, tools, state=state)
 
+    def test_with_context_manager_enter_returns_different_object(self):
+        """Test that __exit__ is called on the context manager, not the __enter__ return value."""
+        code = """
+class MyContextManager:
+    def __init__(self):
+        self.entered = False
+        self.exited = False
+
+    def __enter__(self):
+        self.entered = True
+        return "I am NOT the context manager"
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.exited = True
+        return False
+
+cm = MyContextManager()
+with cm as val:
+    assert val == "I am NOT the context manager"
+    assert cm.entered == True
+
+assert cm.exited == True
+    """
+        evaluate_python_code(code, {}, state={})
+
+    def test_with_context_manager_no_as_clause_exit_called(self):
+        """Test that __exit__ is called on context managers used without 'as' clause."""
+        code = """
+class MyContextManager:
+    def __init__(self):
+        self.exited = False
+
+    def __enter__(self):
+        return "not self"
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.exited = True
+        return False
+
+cm = MyContextManager()
+with cm:
+    pass
+
+assert cm.exited == True
+    """
+        evaluate_python_code(code, {}, state={})
+
     def test_default_arg_in_function(self):
         code = """
 def f(a, b=333, n=1000):

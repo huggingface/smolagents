@@ -1243,12 +1243,10 @@ def evaluate_with(
     contexts = []
     for item in with_node.items:
         context_expr = evaluate_ast(item.context_expr, state, static_tools, custom_tools, authorized_imports)
+        enter_result = context_expr.__enter__()
+        contexts.append(context_expr)
         if item.optional_vars:
-            state[item.optional_vars.id] = context_expr.__enter__()
-            contexts.append(state[item.optional_vars.id])
-        else:
-            context_var = context_expr.__enter__()
-            contexts.append(context_var)
+            state[item.optional_vars.id] = enter_result
 
     try:
         for stmt in with_node.body:
