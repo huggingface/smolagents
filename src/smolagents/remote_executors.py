@@ -1167,23 +1167,27 @@ class WasmExecutor(RemotePythonExecutor):
             env={**os.environ, "DENO_DIR": self.deno_cache_dir},
         )
 
-        # Wait for the server to start
-        time.sleep(2)  # Give the server time to start
-
-        # Check if the server started successfully
-        if self.server_process.poll() is not None:
-            stderr = self.server_process.stderr.read()
-            raise RuntimeError(f"Failed to start Deno server: {stderr}")
-
         self.server_url = "http://localhost:8000"  # TODO: Another port?
-
-        # Test the connection
-        try:
-            response = requests.get(self.server_url)
-            if response.status_code != 200:
-                raise RuntimeError(f"Server responded with status code {response.status_code}: {response.text}")
-        except requests.RequestException as e:
-            raise RuntimeError(f"Failed to connect to Deno server: {e}")
+        # Readiness loop: up to 30s
+        startup_deadline = time.time() + 30
+        last_connection_error = None
+        while time.time() < startup_deadline:
+            # Early fail if process exits
+            if self.server_process.poll() is not None:
+                stderr = self.server_process.stderr.read()
+                raise RuntimeError(f"Failed to start Deno server: {stderr}")
+            # Repeated health checks to self.server_url
+            try:
+                response = requests.get(self.server_url, timeout=1)
+                if response.status_code == 200:
+                    return
+                last_connection_error = f"Server responded with status code {response.status_code}: {response.text}"
+            except requests.RequestException as e:
+                last_connection_error = str(e)
+            time.sleep(0.2)
+        # Explicit timeout error with last connection failure
+        self.server_process.terminate()
+        raise RuntimeError(f"Timed out waiting for Deno server to start: {last_connection_error}")
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
