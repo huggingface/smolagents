@@ -17,6 +17,7 @@ import unittest
 
 import PIL.Image
 import pytest
+from rich.console import Console
 
 from smolagents import (
     CodeAgent,
@@ -198,3 +199,37 @@ class ReplayTester(unittest.TestCase):
             memory.replay(logger, detailed=True)
         except TypeError as e:
             self.fail(f"Replay raised an error: {e}")
+
+
+class AgentLoggerLogTaskTester(unittest.TestCase):
+    def test_logger_log_task_does_not_crash_on_stray_markup_or_control_chars(self):
+        """
+        Rich Panels parse `title`/`subtitle` as markup when passed as strings.
+        `AgentLogger.log_task()` must be resilient to arbitrary content/subtitle strings
+        (e.g. tool logs, binary-ish payloads, or stray bracket sequences).
+        """
+        console = Console(record=True, width=120, highlight=False)
+        logger = AgentLogger(console=console)
+
+        # These inputs would crash Rich markup parsing if passed through as markup strings.
+        content = b"hello [/bad]\x00\x1b world [bold]bold[/bold]"
+        subtitle = "sub[/bad]title"
+
+        logger.log_task(content=content, subtitle=subtitle, title=None)
+
+        rendered = console.export_text()
+        self.assertIn("hello [/bad]", rendered)
+        # Control chars are made visible as escape sequences.
+        self.assertIn("\\x00", rendered)
+        self.assertIn("\\x1b", rendered)
+        self.assertIn("sub[/bad]title", rendered)
+        self.assertIn("bold", rendered)
+
+    def test_logger_log_task_accepts_non_string_payloads(self):
+        console = Console(record=True, width=120, highlight=False)
+        logger = AgentLogger(console=console)
+
+        logger.log_task(content={"k": ["v", 1]}, subtitle={"also": "dict"}, title="Run")
+        rendered = console.export_text()
+        self.assertIn("k", rendered)
+        self.assertIn("also", rendered)

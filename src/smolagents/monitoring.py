@@ -27,7 +27,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
-from smolagents.utils import escape_code_brackets
+from smolagents.utils import sanitize_for_rich
 
 
 __all__ = ["AgentLogger", "LogLevel", "Monitor", "TokenUsage", "Timing"]
@@ -147,7 +147,7 @@ class AgentLogger:
             self.console.print(*args, **kwargs)
 
     def log_error(self, error_message: str) -> None:
-        self.log(escape_code_brackets(error_message), style="bold red", level=LogLevel.ERROR)
+        self.log(sanitize_for_rich(error_message), style="bold red", level=LogLevel.ERROR)
 
     def log_markdown(self, content: str, title: str | None = None, level=LogLevel.INFO, style=YELLOW_HEX) -> None:
         markdown_content = Syntax(
@@ -198,11 +198,19 @@ class AgentLogger:
         )
 
     def log_task(self, content: str, subtitle: str, title: str | None = None, level: LogLevel = LogLevel.INFO) -> None:
+        # Important: `content` can contain arbitrary tool logs / payloads. If we embed it
+        # inside Rich markup (e.g. f"[bold]{content}"), any stray "[/...]" sequences or
+        # binary-ish characters can crash Rich's markup parser. Render the content as
+        # `Text` instead, and apply styling via Text/style, not markup.
+        safe_content = sanitize_for_rich(content)
+        safe_subtitle = sanitize_for_rich(subtitle)
+        content_text = Text("\n") + Text(safe_content, style="bold") + Text("\n")
+        subtitle_text = Text(safe_subtitle)
         self.log(
             Panel(
-                f"\n[bold]{escape_code_brackets(content)}\n",
+                content_text,
                 title="[bold]New run" + (f" - {title}" if title else ""),
-                subtitle=subtitle,
+                subtitle=subtitle_text,
                 border_style=YELLOW_HEX,
                 subtitle_align="left",
             ),

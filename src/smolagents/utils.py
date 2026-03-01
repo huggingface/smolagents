@@ -61,17 +61,32 @@ BASE_BUILTIN_MODULES = [
 ]
 
 
-def escape_code_brackets(text: str) -> str:
-    """Escapes square brackets in code segments while preserving Rich styling tags."""
-
-    def replace_bracketed_content(match):
-        content = match.group(1)
-        cleaned = re.sub(
-            r"bold|red|green|blue|yellow|magenta|cyan|white|black|italic|dim|\s|#[0-9a-fA-F]{6}", "", content
-        )
-        return f"\\[{content}\\]" if cleaned.strip() else f"[{content}]"
-
-    return re.sub(r"\[([^\]]*)\]", replace_bracketed_content, text)
+def sanitize_for_rich(value) -> str:
+    """
+    Convert arbitrary values (including bytes / control characters) into a safe string for Rich.
+    - Decodes bytes-like inputs using UTF-8 with replacement.
+    - Escapes bracket sequences that could be interpreted as markup while preserving valid Rich tags.
+    - Replaces ASCII control characters (except common whitespace) with visible escape sequences.
+    """
+    if value is None:
+        s = ""
+    elif isinstance(value, str):
+        s = value
+    elif isinstance(value, (bytes, bytearray, memoryview)):
+        s = bytes(value).decode("utf-8", errors="replace")
+    else:
+        s = str(value)
+    
+    out: list[str] = []
+    for ch in s:
+        code = ord(ch)
+        if ch in ("\n", "\t", "\r"):
+            out.append(ch)
+        elif code < 32 or code == 127:
+            out.append(f"\\x{code:02x}")
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
 class AgentError(Exception):
