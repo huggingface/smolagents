@@ -1252,9 +1252,17 @@ def evaluate_with(
         for stmt in with_node.body:
             evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
     except Exception as e:
+        # exc_info tracks the active exception as we unwind (from innermost context manager)
+        # Resetting it to (None, None, None) signals suppression to the remaining outer managers
+        exc_info = (type(e), e, e.__traceback__)
         for context in reversed(contexts):
-            context.__exit__(type(e), e, e.__traceback__)
-        raise
+            try:
+                if context.__exit__(*exc_info):
+                    exc_info = (None, None, None)  # suppressed; outer CMs see no exception
+            except Exception as exit_exc:
+                exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)  # new exc replaces active
+        if exc_info[1] is not None:
+            raise exc_info[1].with_traceback(exc_info[2])
     else:
         for context in reversed(contexts):
             context.__exit__(None, None, None)
