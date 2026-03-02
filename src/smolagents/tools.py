@@ -122,6 +122,9 @@ class Tool(BaseTool):
     - **output_schema** (`Dict[str, Any]`, *optional*) -- The JSON schema defining the expected structure of the tool output.
       This can be included in system prompts to help agents understand the expected output format. Note: This is currently
       used for informational purposes only and does not perform actual output validation.
+    - **return_direct** (`bool`, default `False`) -- If `True`, the agent will return the tool's output directly
+      as the final answer without passing it back through the LLM for further processing. This can significantly
+      reduce latency for tools whose output is already the final answer.
 
     You can also override the method [`~Tool.setup`] if your tool has an expensive operation to perform before being
     usable (such as loading a model). [`~Tool.setup`] will be called the first time you use your tool, but not at
@@ -133,6 +136,7 @@ class Tool(BaseTool):
     inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
     output_schema: dict[str, Any] | None = None
+    return_direct: bool = False
 
     def __init__(self, *args, **kwargs):
         self.is_initialized = False

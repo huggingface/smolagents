@@ -1404,6 +1404,11 @@ class ToolCallingAgent(MultiStepAgent):
                 level=LogLevel.INFO,
             )
             is_final_answer = tool_name == "final_answer"
+            if not is_final_answer:
+                available_tools = {**self.tools, **self.managed_agents}
+                tool = available_tools.get(tool_name)
+                if tool is not None and getattr(tool, "return_direct", False):
+                    is_final_answer = True
 
             return ToolOutput(
                 id=tool_call.id,

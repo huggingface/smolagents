@@ -1635,6 +1635,19 @@ def evaluate_python_code(
 
         static_tools["final_answer"] = final_answer
 
+    # Wrap tools with return_direct=True to raise FinalAnswerException
+    for tool_name, tool_func in list(static_tools.items()):
+        if tool_name != "final_answer" and getattr(tool_func, "return_direct", False):
+
+            def _make_return_direct_wrapper(original_tool):
+                def wrapper(*args, **kwargs):
+                    result = original_tool(*args, **kwargs)
+                    raise FinalAnswerException(result)
+
+                return wrapper
+
+            static_tools[tool_name] = _make_return_direct_wrapper(tool_func)
+
     # Define the actual execution logic
     def _execute_code():
         result = None
