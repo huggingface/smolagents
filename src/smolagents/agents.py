@@ -1339,7 +1339,7 @@ class ToolCallingAgent(MultiStepAgent):
                 if output.is_final_answer:
                     if len(chat_message.tool_calls) > 1:
                         raise AgentExecutionError(
-                            "If you want to return an answer, please do not perform any other tool calls than the final answer tool call!",
+                            "If you want to return an answer, please do not perform any other tool calls than a final answer or return_direct tool call!",
                             self.logger,
                         )
                     if got_final_answer:
@@ -1404,6 +1404,11 @@ class ToolCallingAgent(MultiStepAgent):
                 level=LogLevel.INFO,
             )
             is_final_answer = tool_name == "final_answer"
+            if not is_final_answer:
+                available_tools = {**self.tools, **self.managed_agents}
+                tool = available_tools.get(tool_name)
+                if tool is not None and getattr(tool, "return_direct", False):
+                    is_final_answer = True
 
             return ToolOutput(
                 id=tool_call.id,

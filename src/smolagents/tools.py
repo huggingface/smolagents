@@ -122,6 +122,9 @@ class Tool(BaseTool):
     - **output_schema** (`Dict[str, Any]`, *optional*) -- The JSON schema defining the expected structure of the tool output.
       This can be included in system prompts to help agents understand the expected output format. Note: This is currently
       used for informational purposes only and does not perform actual output validation.
+    - **return_direct** (`bool`, default `False`) -- If `True`, the agent will return the tool's output directly
+      as the final answer without passing it back through the LLM for further processing. This can significantly
+      reduce latency for tools whose output is already the final answer.
 
     You can also override the method [`~Tool.setup`] if your tool has an expensive operation to perform before being
     usable (such as loading a model). [`~Tool.setup`] will be called the first time you use your tool, but not at
@@ -133,6 +136,7 @@ class Tool(BaseTool):
     inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
     output_schema: dict[str, Any] | None = None
+    return_direct: bool = False
 
     def __init__(self, *args, **kwargs):
         self.is_initialized = False
@@ -194,6 +198,12 @@ class Tool(BaseTool):
                 raise ValueError(f"Input '{input_name}': types {invalid_types} must be one of {AUTHORIZED_TYPES}")
         # Validate output type
         assert getattr(self, "output_type", None) in AUTHORIZED_TYPES
+
+        # Validate return_direct attribute
+        if not isinstance(self.return_direct, bool):
+            raise TypeError(
+                f"Attribute return_direct should have type bool, got {type(self.return_direct).__name__} instead."
+            )
 
         # Validate forward function signature, except for Tools that use a "generic" signature (PipelineTool, SpaceToolWrapper, LangChainToolWrapper)
         if not (
@@ -362,6 +372,9 @@ class Tool(BaseTool):
         if hasattr(self, "output_schema") and self.output_schema is not None:
             tool_dict["output_schema"] = self.output_schema
 
+        if self.return_direct:
+            tool_dict["return_direct"] = True
+
         return tool_dict
 
     @classmethod
@@ -384,6 +397,9 @@ class Tool(BaseTool):
         # Set output_schema if it exists in the dictionary
         if "output_schema" in tool_dict:
             tool.output_schema = tool_dict["output_schema"]
+
+        if tool_dict.get("return_direct", False):
+            tool.return_direct = True
 
         return tool
 
