@@ -283,9 +283,16 @@ class TestReturnDirectEdgeCases:
     """Test edge cases for the return_direct feature."""
 
     def test_return_direct_with_getattr(self):
-        """getattr fallback works for tools without return_direct attribute."""
+        """getattr fallback works for objects without return_direct attribute."""
+
+        class BareObject:
+            pass
+
+        obj = BareObject()
+        assert getattr(obj, "return_direct", False) is False
+        # Tool subclass always has the attribute set explicitly
         tool = NormalTool()
-        assert getattr(tool, "return_direct", False) is False
+        assert tool.return_direct is False
 
     def test_multiple_tools_one_return_direct(self):
         """When multiple tools are called and one has return_direct, the agent
@@ -299,4 +306,6 @@ class TestReturnDirectEdgeCases:
         )
         # The agent should not crash; it handles the error internally
         # and continues (or hits max_steps).
-        agent.run("test query")
+        result = agent.run("test query")
+        # Agent either returns a result or hits max_steps — either is acceptable.
+        # The key assertion is that execution completed without raising.

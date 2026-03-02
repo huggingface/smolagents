@@ -199,6 +199,12 @@ class Tool(BaseTool):
         # Validate output type
         assert getattr(self, "output_type", None) in AUTHORIZED_TYPES
 
+        # Validate return_direct attribute
+        if not isinstance(self.return_direct, bool):
+            raise TypeError(
+                f"Attribute return_direct should have type bool, got {type(self.return_direct).__name__} instead."
+            )
+
         # Validate forward function signature, except for Tools that use a "generic" signature (PipelineTool, SpaceToolWrapper, LangChainToolWrapper)
         if not (
             hasattr(self, "skip_forward_signature_validation")
@@ -366,6 +372,9 @@ class Tool(BaseTool):
         if hasattr(self, "output_schema") and self.output_schema is not None:
             tool_dict["output_schema"] = self.output_schema
 
+        if self.return_direct:
+            tool_dict["return_direct"] = True
+
         return tool_dict
 
     @classmethod
@@ -388,6 +397,9 @@ class Tool(BaseTool):
         # Set output_schema if it exists in the dictionary
         if "output_schema" in tool_dict:
             tool.output_schema = tool_dict["output_schema"]
+
+        if tool_dict.get("return_direct", False):
+            tool.return_direct = True
 
         return tool
 
