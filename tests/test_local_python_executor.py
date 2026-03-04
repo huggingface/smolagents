@@ -2313,6 +2313,29 @@ result = "completed"
         output = executor(code)
         assert output.output == "completed"
 
+    def test_timeout_decorator_propagates_contextvars(self):
+        """Test that the timeout decorator propagates contextvars to the worker thread.
+
+        This is important for OpenTelemetry span context propagation: when
+        CodeAgent executes tool code inside the timeout-wrapped
+        evaluate_python_code, the OTel parent span must be visible in the
+        worker thread so that tool spans are correctly parented.
+        """
+        import contextvars
+
+        test_var = contextvars.ContextVar("test_var", default=None)
+
+        @timeout(5)
+        def read_contextvar():
+            return test_var.get()
+
+        # Set a value in the current context
+        test_var.set("propagated_value")
+
+        # The timeout decorator should propagate it to the worker thread
+        result = read_contextvar()
+        assert result == "propagated_value"
+
 
 @pytest.mark.parametrize(
     "module,authorized_imports,expected",
