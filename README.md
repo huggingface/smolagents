@@ -48,7 +48,7 @@ limitations under the License.
 Full documentation can be found [here](https://huggingface.co/docs/smolagents/index).
 
 > [!NOTE]
-> Check the our [launch blog post](https://huggingface.co/blog/smolagents) to learn more about `smolagents`!
+> Check our [launch blog post](https://huggingface.co/blog/smolagents) to learn more about `smolagents`!
 
 ## Quick demo
 
