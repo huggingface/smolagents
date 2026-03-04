@@ -601,6 +601,31 @@ class TestAmazonBedrockModel:
 
         assert model.client == MockBoto3.return_value
 
+    def test_generate_handles_missing_tool_calls(self):
+        """Test that generate() handles responses without tool_calls key (issue #1941)."""
+        model_id = "us.amazon.nova-pro-v1:0"
+
+        with patch("boto3.client") as MockBoto3:
+            model = AmazonBedrockModel(model_id=model_id)
+
+        # Mock a text-only response (no tool_calls key in message)
+        mock_response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Here is my response."}],
+                }
+            },
+            "usage": {"inputTokens": 10, "outputTokens": 20},
+        }
+        model.client.converse.return_value = mock_response
+
+        messages = [ChatMessage(role="user", content="Hello")]
+        result = model.generate(messages)
+
+        assert result.content == "Here is my response."
+        assert result.tool_calls is None
+
 
 class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
