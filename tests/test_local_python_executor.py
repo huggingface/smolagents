@@ -830,6 +830,20 @@ def function():
         evaluate_python_code(code, {"print": print, "range": range}, state=state)
         assert state["_print_outputs"].value == "1\n2\n2\n2\n2\n2\n2\n2\n2\n2\n2\n"
 
+    def test_print_outputs_reset_on_syntax_error(self):
+        """Test that print outputs from previous step don't leak when SyntaxError occurs (issue #1998)."""
+        state = {}
+        # Step 1: print something
+        evaluate_python_code("print('step 1 output')", BASE_PYTHON_TOOLS, state=state)
+        assert state["_print_outputs"].value == "step 1 output\n"
+
+        # Step 2: code with SyntaxError — should reset print outputs before raising
+        with pytest.raises(InterpreterError, match="SyntaxError"):
+            evaluate_python_code("def bad_syntax(\n    pass", BASE_PYTHON_TOOLS, state=state)
+
+        # Print outputs should be empty (reset), NOT "step 1 output\n"
+        assert state["_print_outputs"].value == ""
+
     def test_tuple_target_in_iterator(self):
         code = "for a, b in [('Ralf Weikert', 'Austria'), ('Samuel Seungwon Lee', 'South Korea')]:res = a.split()[0]"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
