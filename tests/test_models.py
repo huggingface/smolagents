@@ -601,6 +601,88 @@ class TestAmazonBedrockModel:
 
         assert model.client == MockBoto3.return_value
 
+    def test_generate_without_tool_calls(self):
+        """Test that generate handles responses without tool_calls gracefully (issue #1941)."""
+        model_id = "us.amazon.nova-pro-v1:0"
+
+        with patch("boto3.client") as MockBoto3:
+            model = AmazonBedrockModel(model_id=model_id)
+
+        mock_response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Hello, how can I help you?"}],
+                }
+            },
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+        }
+        model.client.converse = MagicMock(return_value=mock_response)
+
+        messages = [ChatMessage(role=MessageRole.USER, content="Hi")]
+        result = model.generate(messages)
+
+        assert result.content == "Hello, how can I help you?"
+        assert result.tool_calls is None
+
+    def test_generate_with_tool_calls(self):
+        """Test that generate correctly passes through tool_calls when present."""
+        model_id = "us.amazon.nova-pro-v1:0"
+
+        with patch("boto3.client") as MockBoto3:
+            model = AmazonBedrockModel(model_id=model_id)
+
+        mock_tool_calls = [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+            }
+        ]
+        mock_response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Let me check the weather."}],
+                    "tool_calls": mock_tool_calls,
+                }
+            },
+            "usage": {"inputTokens": 15, "outputTokens": 10},
+        }
+        model.client.converse = MagicMock(return_value=mock_response)
+
+        messages = [ChatMessage(role=MessageRole.USER, content="What's the weather in Paris?")]
+        result = model.generate(messages)
+
+        assert result.content == "Let me check the weather."
+        assert result.tool_calls is not None
+        assert len(result.tool_calls) == 1
+
+    def test_generate_with_empty_tool_calls(self):
+        """Test that generate handles an explicit empty tool_calls list."""
+        model_id = "us.amazon.nova-pro-v1:0"
+
+        with patch("boto3.client") as MockBoto3:
+            model = AmazonBedrockModel(model_id=model_id)
+
+        mock_response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Just a text reply."}],
+                    "tool_calls": [],
+                }
+            },
+            "usage": {"inputTokens": 8, "outputTokens": 4},
+        }
+        model.client.converse = MagicMock(return_value=mock_response)
+
+        messages = [ChatMessage(role=MessageRole.USER, content="Hello")]
+        result = model.generate(messages)
+
+        assert result.content == "Just a text reply."
+        assert result.tool_calls == []
+
 
 class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
