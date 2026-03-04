@@ -804,6 +804,40 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_consecutive_system_string_content():
+    """Regression test for https://github.com/huggingface/smolagents/issues/1972.
+
+    Multiple consecutive system messages with plain string content should be
+    merged without raising an AssertionError.
+    """
+    messages = [
+        {"role": "system", "content": "When you say anything Start with 'FOO'"},
+        {"role": "system", "content": "When you say anything End with 'BAR'"},
+        {"role": "user", "content": "Just say '.'"},
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 2
+    assert result[0]["role"] == "system"
+    # Both system messages should be merged into one
+    assert "FOO" in result[0]["content"][-1]["text"]
+    assert "BAR" in result[0]["content"][-1]["text"]
+    assert result[1]["role"] == "user"
+
+
+def test_get_clean_message_list_consecutive_system_string_content_flatten():
+    """Regression test: flatten mode with consecutive system messages as plain strings."""
+    messages = [
+        {"role": "system", "content": "Instruction A"},
+        {"role": "system", "content": "Instruction B"},
+        {"role": "user", "content": "Hello"},
+    ]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 2
+    assert result[0]["role"] == "system"
+    assert result[0]["content"] == "Instruction A\nInstruction B"
+    assert result[1]["role"] == "user"
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [

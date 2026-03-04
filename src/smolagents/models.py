@@ -356,10 +356,14 @@ def get_clean_message_list(
 
         if role in role_conversions:
             message.role = role_conversions[role]  # type: ignore
+        # Normalize plain string content to structured list format so that
+        # all downstream code can assume content is always a list of dicts.
+        if isinstance(message.content, str):
+            message.content = [{"type": "text", "text": message.content}]
         # encode images if needed
         if isinstance(message.content, list):
             for element in message.content:
-                assert isinstance(element, dict), "Error: this element should be a dict:" + str(element)
+                assert isinstance(element, dict), "Error: this element should be a dict:" + str(element)[:500]
                 if element["type"] == "image":
                     assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
                     if convert_images_to_image_urls:
@@ -373,10 +377,18 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
+            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)[:500]
             if flatten_messages_as_text:
+                # In flatten mode, output content is stored as a plain string.
+                assert isinstance(
+                    output_message_list[-1]["content"], str
+                ), "Error: expected string content in flatten mode"
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
             else:
+                # In structured mode, output content is stored as a list of dicts.
+                assert isinstance(
+                    output_message_list[-1]["content"], list
+                ), "Error: expected list content in structured mode"
                 for el in message.content:
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
