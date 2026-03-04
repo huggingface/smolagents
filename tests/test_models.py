@@ -387,6 +387,16 @@ class TestInferenceClientModel:
         for el in model.generate_stream(messages, stop_sequences=["great"]):
             assert el.content is not None
 
+    def test_empty_choices_raises_runtime_error(self):
+        model = InferenceClientModel(model_id="test-model")
+        model.client = MagicMock()
+        mock_response = model.client.chat_completion.return_value
+        mock_response.choices = []
+        mock_response.model_dump.return_value = {"choices": []}
+        messages = [ChatMessage(role=MessageRole.USER, content="Hello!")]
+        with pytest.raises(RuntimeError, match="returned no choices"):
+            model.generate(messages)
+
 
 class TestLiteLLMModel:
     @pytest.mark.parametrize(
@@ -480,6 +490,19 @@ class TestLiteLLMModel:
 
         model = LiteLLMModel(model_id="fal/llama-3.3-70b", flatten_messages_as_text=True)
         assert model.flatten_messages_as_text
+
+    def test_empty_choices_raises_runtime_error(self):
+        mock_litellm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = []
+        mock_response.model_dump.return_value = {"choices": []}
+        mock_litellm.completion.return_value = mock_response
+
+        with patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm):
+            model = LiteLLMModel(model_id="gemini/gemini-2.0-flash")
+            messages = [ChatMessage(role=MessageRole.USER, content="Hello!")]
+            with pytest.raises(RuntimeError, match="returned no choices"):
+                model.generate(messages)
 
 
 class TestLiteLLMRouterModel:
@@ -588,6 +611,20 @@ class TestOpenAIModel:
             assert result.content == "This is some text"
             assert "<STOP>" not in result.content
             assert "and this should be removed" not in result.content
+
+    def test_empty_choices_raises_runtime_error(self):
+        mock_response = MagicMock()
+        mock_response.choices = []
+        mock_response.model_dump.return_value = {"choices": []}
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            mock_client = MagicMock()
+            MockOpenAI.return_value = mock_client
+            mock_client.chat.completions.create.return_value = mock_response
+            model = OpenAIModel(model_id="gpt-4o")
+            messages = [ChatMessage(role=MessageRole.USER, content="Hello!")]
+            with pytest.raises(RuntimeError, match="returned no choices"):
+                model.generate(messages)
 
 
 class TestAmazonBedrockModel:
