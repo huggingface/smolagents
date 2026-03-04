@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import inspect
 import json
 import logging
@@ -93,6 +94,61 @@ AUTHORIZED_TYPES = [
 ]
 
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
+
+
+def _run_async(coro):
+    """Run an awaitable synchronously, handling both cases: when called from within
+    an already-running event loop and when no loop is running.
+
+    ``asyncio.run()`` only accepts coroutine objects, not arbitrary awaitables.
+    We therefore wrap non-coroutine awaitables (e.g. objects with ``__await__``)
+    in a thin coroutine before handing them off.
+
+    When called from within a running event loop (e.g. an async agent), we
+    create a *new* event loop on a background thread via
+    ``asyncio.run_coroutine_threadsafe`` + a dedicated loop thread.  We cannot
+    use the caller's loop directly (``asyncio.run_coroutine_threadsafe(coro,
+    loop).result()`` would deadlock because ``.result()`` blocks the very
+    thread that runs the loop).  The blocking ``.result()`` call on the
+    *calling* thread is acceptable because ``Tool.__call__`` is synchronous.
+    """
+    # Ensure we have a proper coroutine (asyncio.run rejects other awaitables)
+    if not inspect.iscoroutine(coro):
+        async def _wrap():
+            return await coro
+        coro = _wrap()
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None and loop.is_running():
+        # We're on the event-loop thread — schedule the coroutine on a
+        # *fresh* loop running in a background thread to avoid deadlock.
+        import threading
+
+        result_holder: list = []
+        exception_holder: list = []
+        new_loop = asyncio.new_event_loop()
+
+        def _run_in_thread():
+            try:
+                result_holder.append(new_loop.run_until_complete(coro))
+            except BaseException as exc:
+                exception_holder.append(exc)
+            finally:
+                new_loop.close()
+
+        thread = threading.Thread(target=_run_in_thread, daemon=True)
+        thread.start()
+        thread.join()
+
+        if exception_holder:
+            raise exception_holder[0]
+        return result_holder[0]
+    else:
+        return asyncio.run(coro)
 
 
 class BaseTool(ABC):
@@ -244,6 +300,9 @@ class Tool(BaseTool):
         if sanitize_inputs_outputs:
             args, kwargs = handle_agent_input_types(*args, **kwargs)
         outputs = self.forward(*args, **kwargs)
+        # Transparently handle async forward() methods
+        if inspect.isawaitable(outputs):
+            outputs = _run_async(outputs)
         if sanitize_inputs_outputs:
             outputs = handle_agent_output_types(outputs, self.output_type)
         return outputs
@@ -1115,8 +1174,10 @@ def tool(tool_function: Callable) -> Tool:
     # - Remove the tool decorator and function definition line
     lines = tool_source.splitlines()
     tree = ast.parse(tool_source)
-    #   - Find function definition
-    func_node = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
+    #   - Find function definition (sync or async)
+    func_node = next(
+        (node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))), None
+    )
     if not func_node:
         raise ValueError(
             f"No function definition found in the provided source of {tool_function.__name__}. "
@@ -1142,7 +1203,10 @@ def tool(tool_function: Callable) -> Tool:
     body_start = func_node.body[0].lineno - 1  # AST lineno starts at 1
     tool_source_body = "\n".join(lines[body_start:])
     # - Create the forward method source, including def line and indentation
-    forward_method_source = f"def forward{new_sig}:\n{tool_source_body}"
+    if inspect.iscoroutinefunction(tool_function):
+        forward_method_source = f"async def forward{new_sig}:\n{tool_source_body}"
+    else:
+        forward_method_source = f"def forward{new_sig}:\n{tool_source_body}"
     # - Create the class source
     indent = " " * 4  # for class method
     class_source = (
