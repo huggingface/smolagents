@@ -289,6 +289,12 @@ class MultiStepAgent(ABC):
             - Take the final answer, the agent's memory, and the agent itself as arguments.
             - Return a boolean indicating whether the final answer is valid.
         return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
+        max_memory_steps (`int` or `None`, default `None`):
+            Maximum number of interaction steps to keep in full detail in the
+            agent's memory.  When the number of ``ActionStep`` and
+            ``PlanningStep`` entries exceeds this value, older steps are
+            automatically consolidated into a summary using the agent's model.
+            ``None`` (the default) disables automatic memory consolidation.
     """
 
     def __init__(
@@ -309,6 +315,7 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
+        max_memory_steps: int | None = None,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -340,7 +347,7 @@ class MultiStepAgent(ABC):
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
         self.task: str | None = None
-        self.memory = AgentMemory(self.system_prompt)
+        self.memory = AgentMemory(self.system_prompt, max_memory_steps=max_memory_steps)
 
         if logger is None:
             self.logger = AgentLogger(level=verbosity_level)
@@ -545,6 +552,13 @@ You have been provided with these additional arguments, that you can access dire
         while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
+
+            # Consolidate memory if it exceeds the configured threshold
+            if self.memory.consolidate(self.model):
+                self.logger.log(
+                    Text("Memory consolidated: older steps summarised.", style="dim"),
+                    level=LogLevel.DEBUG,
+                )
 
             # Run a planning step if scheduled
             if self.planning_interval is not None and (

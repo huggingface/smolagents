@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from smolagents.monitoring import AgentLogger
 
 
-__all__ = ["AgentMemory"]
+__all__ = ["AgentMemory", "MemorySummaryStep"]
 
 
 logger = getLogger(__name__)
@@ -207,6 +207,34 @@ class SystemPromptStep(MemoryStep):
 
 
 @dataclass
+class MemorySummaryStep(MemoryStep):
+    """A step that holds a consolidated summary of earlier memory steps.
+
+    When ``AgentMemory.consolidate`` is called the oldest interaction steps
+    are replaced by a single ``MemorySummaryStep`` so that the context sent
+    to the model stays bounded.
+
+    Args:
+        summary: The LLM-generated summary text.
+    """
+
+    summary: str
+
+    def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
+        return [
+            ChatMessage(
+                role=MessageRole.USER,
+                content=[
+                    {
+                        "type": "text",
+                        "text": f"[Consolidated summary of earlier steps]\n{self.summary}",
+                    }
+                ],
+            )
+        ]
+
+
+@dataclass
 class FinalAnswerStep(MemoryStep):
     output: Any
 
@@ -219,19 +247,152 @@ class AgentMemory:
 
     Args:
         system_prompt (`str`): System prompt for the agent, which sets the context and instructions for the agent's behavior.
+        max_memory_steps (`int` or `None`, default `None`):
+            Maximum number of interaction steps (``ActionStep`` and ``PlanningStep``) to
+            keep in full detail.  When the number of such steps exceeds this
+            value, older steps are summarised into a single
+            ``MemorySummaryStep`` via :meth:`consolidate`.
+            ``None`` disables automatic consolidation.
 
     **Attributes**:
         - **system_prompt** (`SystemPromptStep`) -- System prompt step for the agent.
-        - **steps** (`list[TaskStep | ActionStep | PlanningStep]`) -- List of steps taken by the agent, which can include tasks, actions, and planning steps.
+        - **steps** (`list[TaskStep | ActionStep | PlanningStep | MemorySummaryStep]`) -- List of steps taken by the agent, which can include tasks, actions, planning steps, and memory summary steps.
     """
 
-    def __init__(self, system_prompt: str):
+    def __init__(self, system_prompt: str, max_memory_steps: int | None = None):
         self.system_prompt: SystemPromptStep = SystemPromptStep(system_prompt=system_prompt)
-        self.steps: list[TaskStep | ActionStep | PlanningStep] = []
+        self.steps: list[TaskStep | ActionStep | PlanningStep | MemorySummaryStep] = []
+        self.max_memory_steps = max_memory_steps
 
     def reset(self):
         """Reset the agent's memory, clearing all steps and keeping the system prompt."""
         self.steps = []
+
+    def consolidate(self, model) -> bool:
+        """Summarise the oldest interaction steps to keep memory bounded.
+
+        When the number of ``ActionStep`` / ``PlanningStep`` entries exceeds
+        ``max_memory_steps``, older steps are summarised by *model* into a
+        single ``MemorySummaryStep``.  The ``TaskStep`` at the beginning of
+        the conversation is preserved.  Any existing ``MemorySummaryStep``
+        entries are folded into the new summary to prevent unbounded growth.
+
+        Args:
+            model: A model instance with a ``generate`` method (the same model
+                used by the agent).
+
+        Returns:
+            ``True`` if consolidation was performed, ``False`` otherwise.
+        """
+        if self.max_memory_steps is None:
+            return False
+
+        interaction_indices = [
+            i for i, s in enumerate(self.steps) if isinstance(s, (ActionStep, PlanningStep))
+        ]
+        if len(interaction_indices) <= self.max_memory_steps:
+            return False
+
+        # Keep the most recent `max_memory_steps` interaction steps untouched.
+        n_to_summarise = len(interaction_indices) - self.max_memory_steps
+        indices_to_summarise = interaction_indices[:n_to_summarise]
+
+        # Also fold any existing MemorySummaryStep entries into the new summary
+        # to prevent unbounded growth of summary steps.
+        existing_summary_indices = [
+            i for i, s in enumerate(self.steps) if isinstance(s, MemorySummaryStep)
+        ]
+
+        # Build text from the steps that will be consolidated.
+        summary_parts: list[str] = []
+
+        # Include existing summaries first for context continuity.
+        for idx in existing_summary_indices:
+            step = self.steps[idx]
+            summary_parts.append(f"[Previous summary] {step.summary}")
+
+        for idx in indices_to_summarise:
+            step = self.steps[idx]
+            if isinstance(step, ActionStep):
+                part = f"[Step {step.step_number}]"
+                if step.model_output:
+                    part += f" Thought: {step.model_output}"
+                if step.tool_calls:
+                    part += f" | Tool calls: {[tc.name for tc in step.tool_calls]}"
+                if step.observations:
+                    obs_trunc = step.observations[:500]
+                    part += f" | Observation: {obs_trunc}"
+                if step.error:
+                    part += f" | Error: {step.error}"
+                summary_parts.append(part)
+            elif isinstance(step, PlanningStep):
+                summary_parts.append(f"[Planning] {step.plan[:500]}")
+
+        text_to_summarise = "\n".join(summary_parts)
+
+        prompt_messages = [
+            ChatMessage(
+                role=MessageRole.SYSTEM,
+                content=[
+                    {
+                        "type": "text",
+                        "text": (
+                            "You are a memory consolidation assistant. "
+                            "Summarise the following agent interaction history into a concise but "
+                            "information-preserving summary. Keep key facts, tool results, errors, "
+                            "and decisions. Be concise."
+                        ),
+                    }
+                ],
+            ),
+            ChatMessage(
+                role=MessageRole.USER,
+                content=[
+                    {
+                        "type": "text",
+                        "text": f"Summarise these agent steps:\n\n{text_to_summarise}",
+                    }
+                ],
+            ),
+        ]
+
+        try:
+            response = model.generate(prompt_messages)
+            # Prefer a normalized text representation of the response (e.g. markdown),
+            # and fall back to truncation when no usable text is available.
+            if hasattr(response, "render_as_markdown"):
+                rendered = response.render_as_markdown()
+            elif isinstance(response.content, str):
+                rendered = response.content
+            elif isinstance(response.content, list):
+                # Extract text from structured content blocks (e.g. [{"type": "text", "text": "..."}])
+                rendered = " ".join(
+                    block.get("text", "") for block in response.content if isinstance(block, dict) and block.get("type") == "text"
+                )
+            else:
+                rendered = ""
+            rendered = (rendered or "").strip()
+            summary_text = rendered or text_to_summarise[:2000]
+        except Exception as e:
+            logger.warning("Memory consolidation LLM call failed (%s); falling back to truncation.", e)
+            summary_text = text_to_summarise[:2000]
+
+        summary_step = MemorySummaryStep(summary=summary_text)
+
+        # Remove summarised steps and old summary steps; insert new summary in their place.
+        indices_set = set(indices_to_summarise) | set(existing_summary_indices)
+        new_steps: list = []
+        inserted = False
+        for i, step in enumerate(self.steps):
+            if i in indices_set:
+                if not inserted:
+                    new_steps.append(summary_step)
+                    inserted = True
+                # skip this old step
+            else:
+                new_steps.append(step)
+        self.steps = new_steps
+        return True
 
     def get_succinct_steps(self) -> list[dict]:
         """Return a succinct representation of the agent's steps, excluding model input messages."""
@@ -269,6 +430,9 @@ class AgentMemory:
                 if detailed and step.model_input_messages is not None:
                     logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
                 logger.log_markdown(title="Agent output:", content=step.plan, level=LogLevel.ERROR)
+            elif isinstance(step, MemorySummaryStep):
+                logger.log_rule("Memory summary", level=LogLevel.ERROR)
+                logger.log_markdown(title="Consolidated memory:", content=step.summary, level=LogLevel.ERROR)
 
     def return_full_code(self) -> str:
         """Returns all code actions from the agent's steps, concatenated as a single script."""

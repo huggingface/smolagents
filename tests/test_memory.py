@@ -9,6 +9,7 @@ from smolagents.memory import (
     AgentMemory,
     ChatMessage,
     MemoryStep,
+    MemorySummaryStep,
     MessageRole,
     PlanningStep,
     SystemPromptStep,
@@ -271,3 +272,189 @@ def test_memory_step_json_serialization():
     # Raw field should be present but serializable
     assert "raw" in json_str
     assert "MockChatCompletion" in json_str
+
+
+# ---------------------------------------------------------------------------
+# Tests for MemorySummaryStep and AgentMemory.consolidate
+# ---------------------------------------------------------------------------
+
+
+def _make_action_step(step_number: int, output: str = "thought", observation: str = "obs") -> ActionStep:
+    """Helper to build a minimal ActionStep."""
+    return ActionStep(
+        step_number=step_number,
+        timing=Timing(start_time=0.0, end_time=1.0),
+        model_output=output,
+        observations=observation,
+    )
+
+
+class _FakeModel:
+    """Minimal model stub whose ``generate`` returns a canned summary."""
+
+    def __init__(self, summary_text: str = "consolidated summary"):
+        self.summary_text = summary_text
+        self.call_count = 0
+
+    def generate(self, messages, **kwargs):
+        self.call_count += 1
+        return ChatMessage(role=MessageRole.ASSISTANT, content=self.summary_text)
+
+
+class TestMemorySummaryStep:
+    def test_to_messages(self):
+        step = MemorySummaryStep(summary="A summary of earlier steps.")
+        messages = step.to_messages()
+        assert len(messages) == 1
+        assert messages[0].role == MessageRole.USER
+        assert "Consolidated summary" in messages[0].content[0]["text"]
+        assert "A summary of earlier steps." in messages[0].content[0]["text"]
+
+    def test_to_messages_summary_mode(self):
+        step = MemorySummaryStep(summary="summary")
+        # summary_mode should not suppress this step
+        messages = step.to_messages(summary_mode=True)
+        assert len(messages) == 1
+
+
+class TestAgentMemoryConsolidate:
+    def test_no_consolidation_when_disabled(self):
+        memory = AgentMemory(system_prompt="sys", max_memory_steps=None)
+        for i in range(10):
+            memory.steps.append(_make_action_step(i))
+        assert memory.consolidate(_FakeModel()) is False
+        assert len(memory.steps) == 10
+
+    def test_no_consolidation_when_under_threshold(self):
+        memory = AgentMemory(system_prompt="sys", max_memory_steps=5)
+        for i in range(5):
+            memory.steps.append(_make_action_step(i))
+        assert memory.consolidate(_FakeModel()) is False
+        assert len(memory.steps) == 5
+
+    def test_consolidation_replaces_old_steps(self):
+        model = _FakeModel("short summary")
+        memory = AgentMemory(system_prompt="sys", max_memory_steps=3)
+        # Add a task step + 5 action steps
+        memory.steps.append(TaskStep(task="do something"))
+        for i in range(5):
+            memory.steps.append(_make_action_step(i, output=f"thought_{i}", observation=f"obs_{i}"))
+
+        assert memory.consolidate(model) is True
+        assert model.call_count == 1
+
+        # We should now have: TaskStep, MemorySummaryStep, and 3 remaining ActionSteps
+        assert isinstance(memory.steps[0], TaskStep)
+        assert isinstance(memory.steps[1], MemorySummaryStep)
+        assert memory.steps[1].summary == "short summary"
+        action_steps = [s for s in memory.steps if isinstance(s, ActionStep)]
+        assert len(action_steps) == 3
+
+    def test_consolidation_preserves_planning_steps_in_recent(self):
+        model = _FakeModel("summary")
+        memory = AgentMemory(system_prompt="sys", max_memory_steps=2)
+        memory.steps.append(TaskStep(task="task"))
+        for i in range(3):
+            memory.steps.append(_make_action_step(i))
+        memory.steps.append(
+            PlanningStep(
+                model_input_messages=[],
+                model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content="plan"),
+                plan="plan text",
+                timing=Timing(start_time=0.0, end_time=1.0),
+            )
+        )
+        # 3 ActionSteps + 1 PlanningStep = 4 interaction steps; keep 2 → summarise 2
+        result = memory.consolidate(model)
+        assert result is True
+        interaction_remaining = [s for s in memory.steps if isinstance(s, (ActionStep, PlanningStep))]
+        assert len(interaction_remaining) == 2
+
+    def test_consolidation_fallback_on_model_error(self):
+        class _FailingModel:
+            def generate(self, messages, **kwargs):
+                raise RuntimeError("model unavailable")
+
+        memory = AgentMemory(system_prompt="sys", max_memory_steps=2)
+        for i in range(4):
+            memory.steps.append(_make_action_step(i, output=f"t{i}"))
+
+        # Should not raise, should fall back to truncation
+        assert memory.consolidate(_FailingModel()) is True
+        summary_steps = [s for s in memory.steps if isinstance(s, MemorySummaryStep)]
+        assert len(summary_steps) == 1
+        # Fallback produces raw text, not empty
+        assert len(summary_steps[0].summary) > 0
+
+    def test_repeated_consolidation(self):
+        """After consolidation, adding more steps and consolidating again merges the summary."""
+        model = _FakeModel("summary_v1")
+        memory = AgentMemory(system_prompt="sys", max_memory_steps=2)
+        for i in range(4):
+            memory.steps.append(_make_action_step(i))
+        memory.consolidate(model)
+
+        # Add more steps
+        model.summary_text = "summary_v2"
+        for i in range(4, 7):
+            memory.steps.append(_make_action_step(i))
+        memory.consolidate(model)
+
+        summary_steps = [s for s in memory.steps if isinstance(s, MemorySummaryStep)]
+        # Only one summary step should remain (old one gets consolidated into new)
+        assert len(summary_steps) == 1
+        action_steps = [s for s in memory.steps if isinstance(s, ActionStep)]
+        assert len(action_steps) == 2
+
+
+class TestMaxMemoryStepsPropagation:
+    """Integration test: max_memory_steps is accepted by agent constructors and triggers consolidation."""
+
+    def test_code_agent_accepts_max_memory_steps(self):
+        """CodeAgent constructor propagates max_memory_steps to AgentMemory."""
+        from unittest.mock import MagicMock
+
+        from smolagents.agents import CodeAgent
+        from smolagents.models import Model
+
+        model = MagicMock(spec=Model)
+        model.model_id = "fake"
+        agent = CodeAgent(tools=[], model=model, max_memory_steps=5)
+        assert agent.memory.max_memory_steps == 5
+
+    def test_tool_calling_agent_accepts_max_memory_steps(self):
+        """ToolCallingAgent constructor propagates max_memory_steps to AgentMemory."""
+        from unittest.mock import MagicMock
+
+        from smolagents.agents import ToolCallingAgent
+        from smolagents.models import Model
+
+        model = MagicMock(spec=Model)
+        model.model_id = "fake"
+        agent = ToolCallingAgent(tools=[], model=model, max_memory_steps=3)
+        assert agent.memory.max_memory_steps == 3
+
+    def test_consolidation_triggered_when_threshold_exceeded(self):
+        """Memory consolidation is triggered during agent run when steps exceed threshold."""
+        from unittest.mock import MagicMock
+
+        from smolagents.agents import CodeAgent
+        from smolagents.models import Model
+
+        model = MagicMock(spec=Model)
+        model.model_id = "fake"
+        agent = CodeAgent(tools=[], model=model, max_memory_steps=2)
+
+        # Manually populate memory to simulate steps added during a run
+        for i in range(5):
+            agent.memory.steps.append(_make_action_step(i))
+
+        # Consolidation should trigger and reduce steps
+        fake_model = _FakeModel("integration summary")
+        result = agent.memory.consolidate(fake_model)
+        assert result is True
+
+        summary_steps = [s for s in agent.memory.steps if isinstance(s, MemorySummaryStep)]
+        assert len(summary_steps) == 1
+        action_steps = [s for s in agent.memory.steps if isinstance(s, ActionStep)]
+        assert len(action_steps) == 2
