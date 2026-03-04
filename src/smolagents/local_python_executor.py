@@ -25,6 +25,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
+from contextvars import copy_context
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
@@ -304,9 +305,16 @@ def timeout(timeout_seconds: int):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            # Capture the current context so that contextvars (e.g. OpenTelemetry
+            # span context) are propagated into the worker thread.  Without this,
+            # ThreadPoolExecutor spawns a thread that starts with an empty context,
+            # causing tool spans created inside CodeAgent to become root spans
+            # instead of being nested under the agent span.  This mirrors the
+            # pattern already used in ToolCallingAgent (see agents.py).
+            ctx = copy_context()
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
             with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
+                future = executor.submit(ctx.run, func, *args, **kwargs)
                 try:
                     result = future.result(timeout=timeout_seconds)
                     return result
