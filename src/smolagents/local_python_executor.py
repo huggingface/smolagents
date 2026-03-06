@@ -309,7 +309,7 @@ def timeout(timeout_seconds: int):
             # so that tool spans created inside the executor thread have the
             # correct parent span.  Without this, CodeAgent tool invocations
             # lose their parent because ThreadPoolExecutor starts a new thread
-            # that does not inherit contextvars automatically on Python < 3.12.
+            # that does not propagate contextvars automatically by default.
             ctx = copy_context()
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
             with ThreadPoolExecutor(max_workers=1) as executor:
