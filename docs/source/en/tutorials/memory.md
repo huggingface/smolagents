@@ -112,28 +112,55 @@ This example uses [mem0](https://github.com/mem0ai/mem0) to recall relevant cont
 and persist new observations for future runs:
 
 ```python
+import atexit
 from mem0 import Memory
 from smolagents import CodeAgent, InferenceClientModel
-from smolagents.memory import AgentMemory
+from smolagents.memory import ActionStep, AgentMemory
 
-mem = Memory()
+# Configure mem0 with disk persistence. Key settings:
+#   - on_disk: True — ensures Qdrant writes vectors to disk
+#   - history_db_path — persists mem0's memory history across restarts
+# Without these, memories are lost when the process exits.
+mem = Memory.from_config({
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {"path": "./mem0_storage", "on_disk": True},
+    },
+    "history_db_path": "./mem0_storage/history.db",
+})
+
+# Close Qdrant explicitly on exit to flush data to disk.
+atexit.register(lambda: mem.vector_store.client.close() if hasattr(mem, "vector_store") else None)
+
 
 def recall_context(task, memory):
     """Load relevant memories from previous runs into the current task context."""
-    results = mem.search(task, user_id="agent")
+    # mem0 v1.0+ returns {"results": [{"memory": "...", "score": ...}, ...]}
+    response = mem.search(query=task, user_id="agent", limit=5)
+    results = response.get("results", []) if isinstance(response, dict) else response
     if results:
-        context = "\n".join(m["memory"] for m in results)
-        # Augment the task step with recalled context
+        context = "\n".join(f"- {m['memory']}" for m in results)
         memory.steps[0].task += f"\n\nContext from previous runs:\n{context}"
+
 
 def persist_observations(step, memory):
     """Save interesting observations to long-term memory after each step."""
-    if hasattr(step, "observations") and step.observations:
-        mem.add(step.observations[:500], user_id="agent")
+    # mem0's LLM decides what's "memory-worthy" — raw code output is often
+    # filtered out. Framing as preferences improves retention.
+    if isinstance(step, ActionStep) and step.observations and len(step.observations) > 50:
+        mem.add(
+            f"The user prefers this analysis approach and found: {step.observations[:500]}",
+            user_id="agent",
+        )
+
 
 def persist_result(task, result, memory):
     """Save a run summary to long-term memory after the run completes."""
-    mem.add(f"Task: {task}\nResult: {result}", user_id="agent")
+    mem.add(
+        f"The user prefers this methodology: for '{task[:200]}', the result was: {str(result)[:300]}",
+        user_id="agent",
+    )
+
 
 agent = CodeAgent(
     tools=[],
