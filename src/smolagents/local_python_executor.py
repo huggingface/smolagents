@@ -1588,6 +1588,7 @@ def evaluate_python_code(
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
     max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
     timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
+    return_direct_tool_names: set[str] | None = None,
 ):
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
@@ -1634,6 +1635,19 @@ def evaluate_python_code(
             raise FinalAnswerException(previous_final_answer(*args, **kwargs))
 
         static_tools["final_answer"] = final_answer
+
+    # Wrap return_direct tools to short-circuit execution
+    if return_direct_tool_names:
+        for tool_name in return_direct_tool_names:
+            if tool_name in static_tools and tool_name != "final_answer":
+                _original = static_tools[tool_name]
+
+                def _make_wrapper(fn):
+                    def wrapper(*args, **kwargs):
+                        raise FinalAnswerException(fn(*args, **kwargs))
+                    return wrapper
+
+                static_tools[tool_name] = _make_wrapper(_original)
 
     # Define the actual execution logic
     def _execute_code():
@@ -1753,6 +1767,7 @@ class LocalPythonExecutor(PythonExecutor):
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
             timeout_seconds=self.timeout_seconds,
+            return_direct_tool_names=getattr(self, "return_direct_tool_names", None),
         )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
@@ -1763,6 +1778,7 @@ class LocalPythonExecutor(PythonExecutor):
     def send_tools(self, tools: dict[str, Tool]):
         # Combine agent tools, base Python tools, and additional Python functions
         self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy(), **self.additional_functions}
+        self.return_direct_tool_names = {name for name, tool in tools.items() if getattr(tool, "return_direct", False)}
 
 
 __all__ = ["evaluate_python_code", "LocalPythonExecutor"]

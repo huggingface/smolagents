@@ -133,6 +133,7 @@ class Tool(BaseTool):
     inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
     output_schema: dict[str, Any] | None = None
+    return_direct: bool = False
 
     def __init__(self, *args, **kwargs):
         self.is_initialized = False
@@ -162,6 +163,11 @@ class Tool(BaseTool):
         output_schema = getattr(self, "output_schema", None)
         if output_schema is not None and not isinstance(output_schema, dict):
             raise TypeError(f"Attribute output_schema should have type dict, got {type(output_schema)} instead.")
+
+        # Validate optional return_direct attribute
+        return_direct = getattr(self, "return_direct", False)
+        if not isinstance(return_direct, bool):
+            raise TypeError(f"Attribute return_direct should have type bool, got {type(return_direct)} instead.")
 
         # - Validate name
         if not is_valid_name(self.name):
