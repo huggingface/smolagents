@@ -217,21 +217,91 @@ class AgentMemory:
     This class is used to store the agent's steps, including tasks, actions, and planning steps.
     It allows for resetting the memory, retrieving succinct or full step information, and replaying the agent's steps.
 
+    Lifecycle hooks enable external memory providers (e.g., mem0, Redis, or file-based persistence) to plug into
+    the agent's memory without modifying core agent logic. All hooks are optional — when not provided, the memory
+    behaves exactly as before.
+
     Args:
         system_prompt (`str`): System prompt for the agent, which sets the context and instructions for the agent's behavior.
+        on_step_added (`Callable[[MemoryStep, "AgentMemory"], None]`, *optional*):
+            Hook called after a step is appended to memory. Useful for persisting steps to external storage
+            or triggering side effects (e.g., logging to a database).
+            Receives the newly added step and a reference to this memory instance.
+        on_run_start (`Callable[[str, "AgentMemory"], None]`, *optional*):
+            Hook called at the beginning of an agent run, after memory has been reset.
+            Receives the task string and a reference to this memory instance.
+            Useful for loading relevant context from an external memory store (e.g., mem0 recall).
+        on_run_end (`Callable[[str, Any, "AgentMemory"], None]`, *optional*):
+            Hook called after an agent run completes (whether successful or not).
+            Receives the task string, the final result, and a reference to this memory instance.
+            Useful for persisting run summaries, learned facts, or methodology outcomes.
 
     **Attributes**:
         - **system_prompt** (`SystemPromptStep`) -- System prompt step for the agent.
         - **steps** (`list[TaskStep | ActionStep | PlanningStep]`) -- List of steps taken by the agent, which can include tasks, actions, and planning steps.
+
+    Example:
+        Using lifecycle hooks to integrate with an external memory provider::
+
+            from mem0 import Memory
+
+            mem = Memory()
+
+            def recall_context(task, memory):
+                past = mem.search(task, user_id="agent")
+                if past:
+                    # Prepend recalled context to the task step
+                    context = "\\n".join(m["memory"] for m in past)
+                    memory.steps[0].task += f"\\n\\nContext from previous runs:\\n{context}"
+
+            def persist_step(step, memory):
+                if hasattr(step, "observations") and step.observations:
+                    mem.add(step.observations[:500], user_id="agent")
+
+            def persist_result(task, result, memory):
+                mem.add(f"Task: {task}\\nResult: {result}", user_id="agent")
+
+            agent = CodeAgent(
+                tools=[...],
+                model=model,
+                memory=AgentMemory(
+                    system_prompt="...",
+                    on_run_start=recall_context,
+                    on_step_added=persist_step,
+                    on_run_end=persist_result,
+                ),
+            )
     """
 
-    def __init__(self, system_prompt: str):
+    def __init__(
+        self,
+        system_prompt: str,
+        on_step_added: Callable[[MemoryStep, "AgentMemory"], None] | None = None,
+        on_run_start: Callable[[str, "AgentMemory"], None] | None = None,
+        on_run_end: Callable[[str, Any, "AgentMemory"], None] | None = None,
+    ):
         self.system_prompt: SystemPromptStep = SystemPromptStep(system_prompt=system_prompt)
         self.steps: list[TaskStep | ActionStep | PlanningStep] = []
+        self.on_step_added = on_step_added
+        self.on_run_start = on_run_start
+        self.on_run_end = on_run_end
 
     def reset(self):
         """Reset the agent's memory, clearing all steps and keeping the system prompt."""
         self.steps = []
+
+    def append_step(self, step: MemoryStep) -> None:
+        """Append a step to memory and fire the `on_step_added` hook if registered.
+
+        This method should be used instead of directly appending to `self.steps` to ensure
+        that lifecycle hooks are properly triggered.
+
+        Args:
+            step (`MemoryStep`): The step to append (e.g., `TaskStep`, `ActionStep`, `PlanningStep`).
+        """
+        self.steps.append(step)
+        if self.on_step_added is not None:
+            self.on_step_added(step, self)
 
     def get_succinct_steps(self) -> list[dict]:
         """Return a succinct representation of the agent's steps, excluding model input messages."""
