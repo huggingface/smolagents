@@ -25,6 +25,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+import weakref
 from contextlib import closing
 from io import BytesIO
 from textwrap import dedent
@@ -577,6 +578,7 @@ class DockerExecutor(RemotePythonExecutor):
         dockerfile_content: str | None = None,
     ):
         super().__init__(additional_imports, logger, allow_pickle)
+        self._cleaned_up = False
         try:
             import docker
         except ModuleNotFoundError:
@@ -666,6 +668,7 @@ class DockerExecutor(RemotePythonExecutor):
             self.logger.log(
                 f"Container {self.container.short_id} is running with kernel {self.kernel_id}", level=LogLevel.INFO
             )
+            self._finalizer = weakref.finalize(self, DockerExecutor._stop_and_remove, self.container, self.logger)
 
         except Exception as e:
             self.cleanup()
@@ -686,14 +689,31 @@ class DockerExecutor(RemotePythonExecutor):
         with closing(create_connection(self.ws_url)) as ws:
             return _websocket_run_code_raise_errors(code, ws, self.logger, self.allow_pickle)
 
+    @staticmethod
+    def _stop_and_remove(container, logger):
+        """Stop and remove a Docker container. Safe to call from weakref.finalize context."""
+        logger.log(f"Stopping and removing container {container.short_id}...", level=LogLevel.INFO)
+        try:
+            container.stop()
+        except Exception as e:
+            logger.log_error(f"Error stopping container: {e}")
+        try:
+            container.remove(force=True)
+        except Exception as e:
+            logger.log_error(f"Error removing container: {e}")
+            raise
+        logger.log("Container cleanup completed", level=LogLevel.INFO)
+
     def cleanup(self):
         """Clean up the Docker container and resources."""
+        if self._cleaned_up:
+            return
         try:
             if hasattr(self, "container"):
-                self.logger.log(f"Stopping and removing container {self.container.short_id}...", level=LogLevel.INFO)
-                self.container.stop()
-                self.container.remove()
-                self.logger.log("Container cleanup completed", level=LogLevel.INFO)
+                DockerExecutor._stop_and_remove(self.container, self.logger)
+                self._cleaned_up = True
+                if hasattr(self, "_finalizer"):
+                    self._finalizer.detach()
                 del self.container
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
