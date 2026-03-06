@@ -243,23 +243,33 @@ class AgentMemory:
     Example:
         Using lifecycle hooks to integrate with an external memory provider::
 
+            import atexit
             from mem0 import Memory
 
-            mem = Memory()
+            # Configure mem0 with disk persistence so memories survive restarts.
+            mem = Memory.from_config({
+                "vector_store": {
+                    "provider": "qdrant",
+                    "config": {"path": "./mem0_storage", "on_disk": True},
+                },
+                "history_db_path": "./mem0_storage/history.db",
+            })
+            atexit.register(lambda: mem.vector_store.client.close() if hasattr(mem, "vector_store") else None)
 
             def recall_context(task, memory):
-                past = mem.search(task, user_id="agent")
-                if past:
-                    # Prepend recalled context to the task step
-                    context = "\\n".join(m["memory"] for m in past)
+                # mem0 v1.0+ returns {"results": [{"memory": "...", ...}, ...]}
+                response = mem.search(query=task, user_id="agent", limit=5)
+                results = response.get("results", []) if isinstance(response, dict) else response
+                if results:
+                    context = "\\n".join(f"- {m['memory']}" for m in results)
                     memory.steps[0].task += f"\\n\\nContext from previous runs:\\n{context}"
 
             def persist_step(step, memory):
-                if hasattr(step, "observations") and step.observations:
-                    mem.add(step.observations[:500], user_id="agent")
+                if isinstance(step, ActionStep) and step.observations and len(step.observations) > 50:
+                    mem.add(f"The user found: {step.observations[:500]}", user_id="agent")
 
             def persist_result(task, result, memory):
-                mem.add(f"Task: {task}\\nResult: {result}", user_id="agent")
+                mem.add(f"For '{task[:200]}', the result was: {str(result)[:300]}", user_id="agent")
 
             agent = CodeAgent(
                 tools=[...],
