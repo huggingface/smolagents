@@ -17,6 +17,7 @@
 import argparse
 import io
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from rich.console import Console
@@ -307,6 +308,25 @@ def _load_tools(tools: list[str]) -> list[Tool]:
     return available_tools
 
 
+def _discover_default_skill_paths(start_dir: str | Path | None = None) -> list[str]:
+    """
+    Discover local skills under `.agents/skills` in the working directory only.
+
+    Returns a list of skill directories containing a `SKILL.md` file.
+    """
+
+    start_path = Path(start_dir or os.getcwd()).resolve()
+    discovered_paths: list[str] = []
+    skills_root = start_path / ".agents" / "skills"
+    if not skills_root.is_dir():
+        return discovered_paths
+
+    for skill_file in sorted(skills_root.glob("**/SKILL.md")):
+        discovered_paths.append(str(skill_file.parent.resolve()))
+
+    return discovered_paths
+
+
 def build_agent(
     tools: list[str],
     model_type: str,
@@ -317,6 +337,7 @@ def build_agent(
     provider: str | None = None,
     action_type: str = "code",
     logger: AgentLogger | None = None,
+    skills: list[str] | None = None,
 ):
     load_dotenv()
 
@@ -324,12 +345,14 @@ def build_agent(
         model_type, model_id, api_base=api_base, api_key=api_key, provider=provider
     )
     available_tools = _load_tools(tools)
+    loaded_skills = skills if skills is not None else _discover_default_skill_paths()
 
     if action_type == "code":
         return CodeAgent(
             tools=available_tools,
             model=model,
             additional_authorized_imports=imports,
+            skills=loaded_skills,
             stream_outputs=True,
             logger=logger,
         )
@@ -337,6 +360,7 @@ def build_agent(
         return ToolCallingAgent(
             tools=available_tools,
             model=model,
+            skills=loaded_skills,
             stream_outputs=True,
             logger=logger,
         )

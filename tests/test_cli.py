@@ -3,7 +3,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from smolagents.cli import _load_tools, build_agent, load_model, main, run_smolagent
+from smolagents.cli import (
+    _discover_default_skill_paths,
+    _load_tools,
+    build_agent,
+    load_model,
+    main,
+    run_smolagent,
+)
 from smolagents.local_python_executor import CodeOutput, LocalPythonExecutor
 from smolagents.models import InferenceClientModel, LiteLLMModel, OpenAIModel, TransformersModel
 
@@ -81,7 +88,9 @@ def test_run_smolagent_calls_agent_run():
 
 
 def test_build_agent_tool_calling_mode():
-    with patch("smolagents.cli.load_model") as mock_load_model:
+    with patch("smolagents.cli._discover_default_skill_paths", return_value=["/tmp/release-skill"]), patch(
+        "smolagents.cli.load_model"
+    ) as mock_load_model:
         mock_load_model.return_value = "mock_model"
         with patch("smolagents.cli.ToolCallingAgent") as mock_tool_calling_agent:
             build_agent([], "InferenceClientModel", "test_model_id", action_type="tool_calling")
@@ -90,9 +99,60 @@ def test_build_agent_tool_calling_mode():
     assert mock_tool_calling_agent.call_args.kwargs == {
         "tools": [],
         "model": "mock_model",
+        "skills": ["/tmp/release-skill"],
         "stream_outputs": True,
         "logger": None,
     }
+
+
+def test_build_agent_code_mode_passes_default_skills():
+    with patch("smolagents.cli._discover_default_skill_paths", return_value=["/tmp/security-skill"]), patch(
+        "smolagents.cli.load_model"
+    ) as mock_load_model:
+        mock_load_model.return_value = "mock_model"
+        with patch("smolagents.cli.CodeAgent") as mock_code_agent:
+            build_agent(
+                [],
+                "InferenceClientModel",
+                "test_model_id",
+                action_type="code",
+                imports=["numpy"],
+            )
+
+    assert len(mock_code_agent.call_args_list) == 1
+    assert mock_code_agent.call_args.kwargs == {
+        "tools": [],
+        "model": "mock_model",
+        "additional_authorized_imports": ["numpy"],
+        "skills": ["/tmp/security-skill"],
+        "stream_outputs": True,
+        "logger": None,
+    }
+
+
+def test_discover_default_skill_paths_uses_only_working_directory(tmp_path):
+    project_root = tmp_path / "project"
+    nested_workdir = project_root / "src" / "pkg"
+    nested_workdir.mkdir(parents=True)
+
+    first_skill_file = project_root / ".agents" / "skills" / "release-manager" / "SKILL.md"
+    second_skill_file = project_root / ".agents" / "skills" / "qa-review" / "SKILL.md"
+    first_skill_file.parent.mkdir(parents=True)
+    second_skill_file.parent.mkdir(parents=True)
+    first_skill_file.write_text("---\nname: release-manager\ndescription: Release workflow\n---\n", encoding="utf-8")
+    second_skill_file.write_text("---\nname: qa-review\ndescription: QA workflow\n---\n", encoding="utf-8")
+
+    discovered = _discover_default_skill_paths(nested_workdir)
+
+    assert discovered == []
+
+    direct_skill_file = nested_workdir / ".agents" / "skills" / "local-skill" / "SKILL.md"
+    direct_skill_file.parent.mkdir(parents=True)
+    direct_skill_file.write_text("---\nname: local-skill\ndescription: Local workflow\n---\n", encoding="utf-8")
+
+    discovered = _discover_default_skill_paths(nested_workdir)
+
+    assert discovered == [str((nested_workdir / ".agents" / "skills" / "local-skill").resolve())]
 
 
 def test_load_tools_missing_extra_shows_clear_hint():
