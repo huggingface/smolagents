@@ -42,6 +42,15 @@ def test_handle_details_command_toggles_visibility():
     assert second.command == TerminalCommand.DETAILS
 
 
+def test_handle_detail_alias():
+    ui = TerminalUI(make_mock_agent())
+
+    result = ui.handle_command("/detail")
+
+    assert result is not None
+    assert result.command == TerminalCommand.DETAILS
+
+
 def test_handle_clear_command():
     ui = TerminalUI(make_mock_agent())
 
@@ -144,7 +153,6 @@ def test_format_action_step_hides_details_by_default():
     rendered = ui.format_event(step)
 
     assert "Step 1" in rendered
-    assert "Details hidden" in rendered
     assert "web_search" not in rendered
     assert "Some observation" not in rendered
 
@@ -155,3 +163,13 @@ def test_launch_raises_when_textual_missing():
     with patch("smolagents.tui._is_package_available", return_value=False):
         with pytest.raises(ModuleNotFoundError, match="smolagents\\[tui\\]"):
             ui.launch()
+
+
+def test_status_label_throbber_frames():
+    ui = TerminalUI(make_mock_agent())
+
+    assert ui.status_label(running=False) == "Ready"
+    assert ui.status_label(running=True, tick=0) == "Agent running |"
+    assert ui.status_label(running=True, tick=1) == "Agent running /"
+    assert ui.status_label(running=True, tick=2) == "Agent running -"
+    assert ui.status_label(running=True, tick=3) == "Agent running \\"

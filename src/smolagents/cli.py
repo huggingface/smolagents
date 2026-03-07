@@ -100,7 +100,7 @@ def parse_arguments():
     parser.add_argument(
         "--tools",
         nargs="*",
-        default=[],
+        default=["web_search", "visit_webpage"],
         help="Space-separated list of tools that the agent can use (e.g., 'tool1 tool2 tool3')",
     )
     parser.add_argument(
@@ -183,7 +183,7 @@ def interactive_mode():
         "[dim]Enter tool names separated by spaces (e.g., 'web_search python_interpreter')[/]"
     )
     tools_input = Prompt.ask(
-        "[bold white]Select tools for your agent[/]", default="web_search"
+        "[bold white]Select tools for your agent[/]", default="web_search visit_webpage"
     )
     tools = tools_input.split()
 

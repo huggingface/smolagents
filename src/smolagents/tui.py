@@ -67,6 +67,8 @@ class TerminalUI:
         "- `/clear`: Clear visible transcript\n"
         "- `/exit`: Quit the TUI"
     )
+    HIDDEN_DETAILS_NOTE = "_Details are hidden by default. Use `/details` to show reasoning and tool calls._"
+    THROBBER_FRAMES = ("|", "/", "-", "\\")
 
     def __init__(self, agent: MultiStepAgent, reset_agent_memory: bool = False):
         self.agent = agent
@@ -85,6 +87,8 @@ class TerminalUI:
 
     def parse_command(self, user_input: str) -> TerminalCommand | None:
         normalized = user_input.strip().lower()
+        if normalized == "/detail":
+            return TerminalCommand.DETAILS
         for command in TerminalCommand:
             if normalized == command.value:
                 return command
@@ -169,11 +173,15 @@ class TerminalUI:
             return text
         return text[: max_chars - 3] + "..."
 
+    def status_label(self, running: bool, tick: int = 0) -> str:
+        if not running:
+            return "Ready"
+        frame = self.THROBBER_FRAMES[tick % len(self.THROBBER_FRAMES)]
+        return f"Agent running {frame}"
+
     def format_event(self, event: ActionStep | PlanningStep | FinalAnswerStep) -> str:
         if isinstance(event, ActionStep):
             chunks = [f"**Step {event.step_number}**"]
-            if not self.show_details:
-                chunks.append("_Details hidden. Use `/details` to expand reasoning and tool calls._")
             meta = self._format_token_timing(event.token_usage, event.timing)
             if meta:
                 chunks.append(f"`{meta}`")
@@ -191,8 +199,6 @@ class TerminalUI:
 
         if isinstance(event, PlanningStep):
             output = ["**Planning**"]
-            if not self.show_details:
-                output.append("_Details hidden. Use `/details` to expand reasoning and tool calls._")
             meta = self._format_token_timing(event.token_usage, event.timing)
             if meta:
                 output.append(f"`{meta}`")
@@ -254,20 +260,46 @@ class TerminalUI:
                 self._is_running = False
                 self._streaming_visible = False
                 self._thread: threading.Thread | None = None
+                self._spinner_tick = 0
+                self._spinner_timer = None
 
             def compose(self) -> ComposeResult:
                 yield Header(show_clock=True)
-                yield Static("Ready", id="status")
                 with VerticalScroll(id="transcript-container"):
                     yield Static("", id="transcript")
+                yield Static("", id="status")
                 yield Input(placeholder="Ask smolagent, or /help", id="prompt")
 
             def on_mount(self) -> None:
-                self._add_entry("**smolagent TUI**\n\nType `/help` for commands.")
+                self._entries = [self._top_banner()]
+                self._render()
                 self.query_one("#prompt", Input).focus()
 
             def _set_status(self, value: str) -> None:
                 self.query_one("#status", Static).update(value)
+
+            def _start_spinner(self) -> None:
+                self._spinner_tick = 0
+                if self._spinner_timer is None:
+                    self._spinner_timer = self.set_interval(0.1, self._tick_spinner, pause=True)
+                self._spinner_timer.resume()
+                self._tick_spinner()
+
+            def _stop_spinner(self) -> None:
+                if self._spinner_timer is not None:
+                    self._spinner_timer.pause()
+
+            def _tick_spinner(self) -> None:
+                if not self._is_running:
+                    return
+                self._set_status(ui.status_label(running=True, tick=self._spinner_tick))
+                self._spinner_tick += 1
+
+            def _top_banner(self) -> str:
+                banner = "**smolagent TUI**\n\nType `/help` for commands."
+                if not ui.show_details:
+                    banner += f"\n\n{ui.HIDDEN_DETAILS_NOTE}"
+                return banner
 
             def _render(self) -> None:
                 transcript = self.query_one("#transcript", Static)
@@ -280,18 +312,14 @@ class TerminalUI:
                 self._render()
 
             def _clear_entries(self) -> None:
-                self._entries = []
+                self._entries = [self._top_banner()]
                 self._streaming_visible = False
                 self._render()
 
             def _update_stream_entry(self, content: str) -> None:
-                if ui.show_details:
-                    stream_entry = f"**Assistant (streaming)**\n\n{content}"
-                else:
-                    stream_entry = (
-                        "**Assistant reasoning**\n\n"
-                        "_Details hidden. Use `/details` to expand reasoning and tool calls._"
-                    )
+                if not ui.show_details:
+                    return
+                stream_entry = f"**Assistant (streaming)**\n\n{content}"
                 if self._streaming_visible and self._entries:
                     self._entries[-1] = stream_entry
                 else:
@@ -304,13 +332,10 @@ class TerminalUI:
                 if not stream_output:
                     self._streaming_visible = False
                     return
-                if ui.show_details:
-                    final_entry = f"**Assistant**\n\n{stream_output}"
-                else:
-                    final_entry = (
-                        "**Assistant reasoning**\n\n"
-                        "_Details hidden. Use `/details` to expand reasoning and tool calls._"
-                    )
+                if not ui.show_details:
+                    self._streaming_visible = False
+                    return
+                final_entry = f"**Assistant**\n\n{stream_output}"
                 if self._streaming_visible and self._entries:
                     self._entries[-1] = final_entry
                 else:
@@ -322,7 +347,11 @@ class TerminalUI:
                 self._is_running = running
                 prompt_input = self.query_one("#prompt", Input)
                 prompt_input.disabled = running
-                self._set_status("Running agent..." if running else "Ready")
+                if running:
+                    self._start_spinner()
+                else:
+                    self._stop_spinner()
+                    self._set_status("")
                 if not running:
                     prompt_input.focus()
 

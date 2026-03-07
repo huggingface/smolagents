@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from smolagents.cli import _load_tools, build_agent, load_model, main, run_smolagent
+from smolagents.cli import _load_tools, build_agent, load_model, main, parse_arguments, run_smolagent
 from smolagents.local_python_executor import CodeOutput, LocalPythonExecutor
 from smolagents.models import InferenceClientModel, LiteLLMModel, OpenAIModel, TransformersModel
 
@@ -103,6 +103,12 @@ def test_load_tools_missing_extra_shows_clear_hint():
     with patch.dict("smolagents.cli.TOOL_MAPPING", {"web_search": BrokenWebSearchTool}):
         with pytest.raises(ModuleNotFoundError, match=r"smolagents\[toolkit\]"):
             _load_tools(["web_search"])
+
+
+def test_parse_arguments_default_tools():
+    with patch("sys.argv", ["smolagent"]):
+        args = parse_arguments()
+    assert args.tools == ["web_search", "visit_webpage"]
 
 
 def test_main_without_prompt_launches_tui():

@@ -179,8 +179,8 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`.
 `smolagent` is a generalist command to run a multi-step `CodeAgent` that can be equipped with various tools.
 
 ```bash
-# Install TUI dependencies
-pip install "smolagents[tui]"
+# Install TUI + default CLI tool dependencies
+pip install "smolagents[tui,toolkit]"
 
 # Run with direct prompt and options
 smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen3-Next-80B-A3B-Thinking" --imports pandas numpy --tools web_search
