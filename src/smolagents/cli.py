@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import io
 import os
 
 from dotenv import load_dotenv
@@ -35,21 +36,42 @@ from smolagents import (
     TransformersModel,
 )
 from smolagents.default_tools import TOOL_MAPPING
+from smolagents.monitoring import AgentLogger, LogLevel
+from smolagents.utils import _is_package_available
 
 
 console = Console()
 
 leopard_prompt = "How many seconds would it take for a leopard at full speed to run through Pont des Arts?"
 
+TOOL_EXTRA_MAPPING = {
+    "web_search": "toolkit",
+    "visit_webpage": "toolkit",
+}
+
+
+class _NullWriter(io.TextIOBase):
+    def write(self, s: str) -> int:
+        return len(s)
+
+
+def build_quiet_logger() -> AgentLogger:
+    quiet_console = Console(
+        file=_NullWriter(), force_terminal=False, color_system=None, highlight=False
+    )
+    return AgentLogger(level=LogLevel.OFF, console=quiet_console)
+
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Run a CodeAgent with all specified parameters")
+    parser = argparse.ArgumentParser(
+        description="Run a CodeAgent with all specified parameters"
+    )
     parser.add_argument(
         "prompt",
         type=str,
         nargs="?",
         default=None,
-        help="The prompt to run with the agent. If no prompt is provided, interactive mode will be launched to guide user through agent setup",
+        help="The prompt to run with the agent. If no prompt is provided, terminal TUI mode is launched",
     )
     parser.add_argument(
         "--model-type",
@@ -66,7 +88,7 @@ def parse_arguments():
     parser.add_argument(
         "--model-id",
         type=str,
-        default="Qwen/Qwen3-Next-80B-A3B-Thinking",
+        default="Qwen/Qwen3.5-122B-A10B",
         help="The model ID to use for the specified model type",
     )
     parser.add_argument(
@@ -78,7 +100,7 @@ def parse_arguments():
     parser.add_argument(
         "--tools",
         nargs="*",
-        default=["web_search"],
+        default=[],
         help="Space-separated list of tools that the agent can use (e.g., 'tool1 tool2 tool3')",
     )
     parser.add_argument(
@@ -87,7 +109,9 @@ def parse_arguments():
         default=1,
         help="The verbosity level, as an int in [0, 1, 2].",
     )
-    group = parser.add_argument_group("api options", "Options for API-based model types")
+    group = parser.add_argument_group(
+        "api options", "Options for API-based model types"
+    )
     group.add_argument(
         "--provider",
         type=str,
@@ -111,11 +135,14 @@ def interactive_mode():
     """Run the CLI in interactive mode"""
     console.print(
         Panel.fit(
-            "[bold magenta]🤖 SmolaGents CLI[/]\n[dim]Intelligent agents at your service[/]", border_style="magenta"
+            "[bold magenta]🤖 SmolaGents CLI[/]\n[dim]Intelligent agents at your service[/]",
+            border_style="magenta",
         )
     )
 
-    console.print("\n[bold yellow]Welcome to smolagents![/] Let's set up your agent step by step.\n")
+    console.print(
+        "\n[bold yellow]Welcome to smolagents![/] Let's set up your agent step by step.\n"
+    )
 
     # Get user input step by step
     console.print(Rule("[bold yellow]⚙️  Configuration", style="bold yellow"))
@@ -128,7 +155,11 @@ def interactive_mode():
     )
 
     # Show available tools
-    tools_table = Table(title="[bold yellow]🛠️  Available Tools", show_header=True, header_style="bold yellow")
+    tools_table = Table(
+        title="[bold yellow]🛠️  Available Tools",
+        show_header=True,
+        header_style="bold yellow",
+    )
     tools_table.add_column("Tool Name", style="bold yellow")
     tools_table.add_column("Description", style="white")
 
@@ -136,7 +167,9 @@ def interactive_mode():
         # Get description from the tool class if available
         try:
             tool_instance = tool_class()
-            description = getattr(tool_instance, "description", "No description available")
+            description = getattr(
+                tool_instance, "description", "No description available"
+            )
         except Exception:
             description = "Built-in tool"
         tools_table.add_row(tool_name, description)
@@ -146,8 +179,12 @@ def interactive_mode():
         "\n[dim]You can also use HuggingFace Spaces by providing the full path (e.g., 'username/spacename')[/]"
     )
 
-    console.print("[dim]Enter tool names separated by spaces (e.g., 'web_search python_interpreter')[/]")
-    tools_input = Prompt.ask("[bold white]Select tools for your agent[/]", default="web_search")
+    console.print(
+        "[dim]Enter tool names separated by spaces (e.g., 'web_search python_interpreter')[/]"
+    )
+    tools_input = Prompt.ask(
+        "[bold white]Select tools for your agent[/]", default="web_search"
+    )
     tools = tools_input.split()
 
     # Get model configuration
@@ -155,10 +192,17 @@ def interactive_mode():
     model_type = Prompt.ask(
         "[bold]Model type[/]",
         default="InferenceClientModel",
-        choices=["InferenceClientModel", "OpenAIServerModel", "LiteLLMModel", "TransformersModel"],
+        choices=[
+            "InferenceClientModel",
+            "OpenAIServerModel",
+            "LiteLLMModel",
+            "TransformersModel",
+        ],
     )
 
-    model_id = Prompt.ask("[bold white]Model ID[/]", default="Qwen/Qwen2.5-Coder-32B-Instruct")
+    model_id = Prompt.ask(
+        "[bold white]Model ID[/]", default="Qwen/Qwen2.5-Coder-32B-Instruct"
+    )
 
     # Optional configurations
     provider = None
@@ -173,16 +217,29 @@ def interactive_mode():
             api_base = Prompt.ask("[bold white]API Base URL[/]", default="")
             api_key = Prompt.ask("[bold white]API Key[/]", default="", password=True)
 
-        imports_input = Prompt.ask("[bold white]Additional imports (space-separated)[/]", default="")
+        imports_input = Prompt.ask(
+            "[bold white]Additional imports (space-separated)[/]", default=""
+        )
         if imports_input:
             imports = imports_input.split()
 
     # Get prompt
     prompt = Prompt.ask(
-        "[bold white]Now the final step; what task would you like the agent to perform?[/]", default=leopard_prompt
+        "[bold white]Now the final step; what task would you like the agent to perform?[/]",
+        default=leopard_prompt,
     )
 
-    return prompt, tools, model_type, model_id, provider, api_base, api_key, imports, action_type
+    return (
+        prompt,
+        tools,
+        model_type,
+        model_id,
+        provider,
+        api_base,
+        api_key,
+        imports,
+        action_type,
+    )
 
 
 def load_model(
@@ -216,6 +273,76 @@ def load_model(
         raise ValueError(f"Unsupported model type: {model_type}")
 
 
+def _load_tools(tools: list[str]) -> list[Tool]:
+    available_tools = []
+
+    for tool_name in tools:
+        if "/" in tool_name:
+            space_name = (
+                tool_name.split("/")[-1].lower().replace("-", "_").replace(".", "_")
+            )
+            description = f"Tool loaded from Hugging Face Space: {tool_name}"
+            available_tools.append(
+                Tool.from_space(
+                    space_id=tool_name, name=space_name, description=description
+                )
+            )
+        else:
+            if tool_name in TOOL_MAPPING:
+                try:
+                    available_tools.append(TOOL_MAPPING[tool_name]())
+                except (ImportError, ModuleNotFoundError) as e:
+                    extra = TOOL_EXTRA_MAPPING.get(tool_name)
+                    if extra is not None:
+                        raise ModuleNotFoundError(
+                            f"Tool '{tool_name}' requires optional dependencies. Install them with: "
+                            f"`pip install 'smolagents[{extra}]'`."
+                        ) from e
+                    raise
+            else:
+                raise ValueError(
+                    f"Tool {tool_name} is not recognized either as a default tool or a Space."
+                )
+
+    return available_tools
+
+
+def build_agent(
+    tools: list[str],
+    model_type: str,
+    model_id: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
+    imports: list[str] | None = None,
+    provider: str | None = None,
+    action_type: str = "code",
+    logger: AgentLogger | None = None,
+):
+    load_dotenv()
+
+    model = load_model(
+        model_type, model_id, api_base=api_base, api_key=api_key, provider=provider
+    )
+    available_tools = _load_tools(tools)
+
+    if action_type == "code":
+        return CodeAgent(
+            tools=available_tools,
+            model=model,
+            additional_authorized_imports=imports,
+            stream_outputs=True,
+            logger=logger,
+        )
+    if action_type == "tool_calling":
+        return ToolCallingAgent(
+            tools=available_tools,
+            model=model,
+            stream_outputs=True,
+            logger=logger,
+        )
+    raise ValueError(f"Unsupported action type: {action_type}")
+
+
 def run_smolagent(
     prompt: str,
     tools: list[str],
@@ -227,66 +354,76 @@ def run_smolagent(
     provider: str | None = None,
     action_type: str = "code",
 ) -> None:
-    load_dotenv()
-
-    model = load_model(model_type, model_id, api_base=api_base, api_key=api_key, provider=provider)
-
-    available_tools = []
-
-    for tool_name in tools:
-        if "/" in tool_name:
-            space_name = tool_name.split("/")[-1].lower().replace("-", "_").replace(".", "_")
-            description = f"Tool loaded from Hugging Face Space: {tool_name}"
-            available_tools.append(Tool.from_space(space_id=tool_name, name=space_name, description=description))
-        else:
-            if tool_name in TOOL_MAPPING:
-                available_tools.append(TOOL_MAPPING[tool_name]())
-            else:
-                raise ValueError(f"Tool {tool_name} is not recognized either as a default tool or a Space.")
-
-    if action_type == "code":
-        agent = CodeAgent(
-            tools=available_tools,
-            model=model,
-            additional_authorized_imports=imports,
-            stream_outputs=True,
-        )
-    elif action_type == "tool_calling":
-        agent = ToolCallingAgent(tools=available_tools, model=model, stream_outputs=True)
-    else:
-        raise ValueError(f"Unsupported action type: {action_type}")
-
+    agent = build_agent(
+        tools,
+        model_type,
+        model_id,
+        api_base=api_base,
+        api_key=api_key,
+        imports=imports,
+        provider=provider,
+        action_type=action_type,
+    )
     agent.run(prompt)
+
+
+def launch_terminal_ui(
+    tools: list[str],
+    model_type: str,
+    model_id: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
+    imports: list[str] | None = None,
+    provider: str | None = None,
+    action_type: str = "code",
+) -> None:
+    from smolagents.tui import TerminalUI
+
+    if not _is_package_available("textual"):
+        raise ModuleNotFoundError(
+            "Please install 'tui' extra to use the TerminalUI: `pip install 'smolagents[tui]'`"
+        )
+
+    agent = build_agent(
+        tools,
+        model_type,
+        model_id,
+        api_base=api_base,
+        api_key=api_key,
+        imports=imports,
+        provider=provider,
+        action_type=action_type,
+        logger=build_quiet_logger(),
+    )
+    TerminalUI(agent=agent).launch()
 
 
 def main() -> None:
     args = parse_arguments()
 
-    # Check if we should run in interactive mode
-    # Interactive mode is triggered when no prompt is provided
     if args.prompt is None:
-        prompt, tools, model_type, model_id, provider, api_base, api_key, imports, action_type = interactive_mode()
-    else:
-        prompt = args.prompt
-        tools = args.tools
-        model_type = args.model_type
-        model_id = args.model_id
-        provider = args.provider
-        api_base = args.api_base
-        api_key = args.api_key
-        imports = args.imports
-        action_type = args.action_type
+        launch_terminal_ui(
+            args.tools,
+            args.model_type,
+            args.model_id,
+            provider=args.provider,
+            api_base=args.api_base,
+            api_key=args.api_key,
+            imports=args.imports,
+            action_type=args.action_type,
+        )
+        return
 
     run_smolagent(
-        prompt,
-        tools,
-        model_type,
-        model_id,
-        provider=provider,
-        api_base=api_base,
-        api_key=api_key,
-        imports=imports,
-        action_type=action_type,
+        args.prompt,
+        args.tools,
+        args.model_type,
+        args.model_id,
+        provider=args.provider,
+        api_base=args.api_base,
+        api_key=args.api_key,
+        imports=args.imports,
+        action_type=args.action_type,
     )
 
 
