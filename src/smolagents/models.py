@@ -32,6 +32,8 @@ from .utils import RateLimiter, Retrying, _is_package_available, encode_image_ba
 if TYPE_CHECKING:
     from transformers import StoppingCriteriaList
 
+# Token estimation heuristic: ~3 characters per token (conservative estimate for English text)
+CHARS_PER_TOKEN = 3
 
 logger = logging.getLogger(__name__)
 
@@ -2062,7 +2064,159 @@ class AmazonBedrockModel(ApiModel):
 
 AmazonBedrockServerModel = AmazonBedrockModel
 
+class GoogleColabModel(Model):
+    """Model to use Google Colab's built-in AI API (`google.colab.ai`).
+
+    This model provides a simple interface to Google Colab's AI capabilities,
+    which are available directly within Google Colab notebooks. The API only
+    supports text-to-text generation.
+
+    > [!TIP]
+    > This model only works within Google Colab notebooks where the `google.colab`
+    > package is available.
+
+    Parameters:
+        model_id (`str`, *optional*, default `"google-colab-ai"`):
+            Identifier for the model. This is mainly for logging/tracking purposes
+            as Google Colab AI does not expose model selection.
+        **kwargs:
+            Additional keyword arguments to forward to the underlying model call.
+
+    Raises:
+        ModuleNotFoundError:
+            If the `google.colab` package is not available (i.e., not running in Colab).
+
+    Example:
+    ```python
+    >>> # This only works in Google Colab notebooks
+    >>> from smolagents import GoogleColabModel, CodeAgent
+    >>> model = GoogleColabModel()
+    >>> agent = CodeAgent(tools=[], model=model)
+    >>> agent.run("What is the capital of France?")
+    ```
+
+    Note:
+        - Only text-to-text input/output is supported
+        - Streaming is not supported
+        - Token usage is estimated using character-based heuristic (CHARS_PER_TOKEN)
+    """
+
+    def __init__(
+        self,
+        model_id: str = "google/gemini-2.5-flash",
+        **kwargs,
+    ):
+        super().__init__(
+            model_id=model_id,
+            flatten_messages_as_text=True,  # Colab AI only supports text input
+            **kwargs,
+        )
+        self._ai_module = None
+
+        # Early validation of environment
+        try:
+            from IPython import get_ipython
+            ipython = get_ipython()
+            if ipython is None or not hasattr(ipython, 'kernel'):
+                raise RuntimeError(
+                    "GoogleColabModel requires an active IPython/Jupyter kernel. "
+                    "This model only works within Google Colab notebooks. "
+                    "Please run your code in a Google Colab notebook environment, "
+                    "not as a standalone Python script."
+                )
+        except ImportError:
+            raise RuntimeError(
+                "IPython is not available. GoogleColabModel only works within "
+                "Google Colab notebooks with an active kernel."
+            )
+
+    def _get_ai_module(self):
+        """Lazily import and cache the google.colab.ai module."""
+        if self._ai_module is None:
+            try:
+                from google.colab import ai
+                self._ai_module = ai
+            except ModuleNotFoundError as e:
+                raise ModuleNotFoundError(
+                    "The 'google.colab' package is not available. "
+                    "GoogleColabModel only works within Google Colab notebooks. "
+                    "Please run your code in a Google Colab environment."
+                ) from e
+        return self._ai_module
+
+    def generate(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """Generate a response using Google Colab AI.
+
+        Parameters:
+            messages: List of chat messages to process.
+            stop_sequences: Not supported by Google Colab AI (ignored with warning).
+            response_format: Not supported by Google Colab AI (raises ValueError).
+            tools_to_call_from: Not supported by Google Colab AI (raises ValueError).
+            **kwargs: Additional arguments (currently unused).
+
+        Returns:
+            ChatMessage: The model's response.
+        """
+        # if response_format is not None:
+        #     raise ValueError("Google Colab AI does not support structured outputs (response_format).")
+
+        # if tools_to_call_from:
+        #    raise ValueError(
+        #        "Google Colab AI does not support tool calling. "
+        #        "Use a different model or remove tools from your agent configuration."
+        #    )
+
+        # Prepare the messages as flattened text
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            **kwargs,
+        )
+
+        # Extract the flattened messages and build a single prompt
+        messages_as_dicts = completion_kwargs.pop("messages")
+        prompt_parts = []
+        for msg in messages_as_dicts:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "system":
+                prompt_parts.append(f"System: {content}")
+            elif role == "assistant":
+                prompt_parts.append(f"Assistant: {content}")
+            else:
+                prompt_parts.append(f"User: {content}")
+
+        prompt = "\n\n".join(prompt_parts)
+
+        # Call Google Colab AI
+        ai = self._get_ai_module()
+        response_text = ai.generate_text(prompt, model_name=self.model_id)
+
+        # Estimate token usage since Google Colab AI doesn't provide it
+        input_tokens = len(prompt) // CHARS_PER_TOKEN
+        output_tokens = len(response_text) // CHARS_PER_TOKEN
+
+        # Apply stop sequences manually if provided
+        if stop_sequences:
+            response_text = remove_content_after_stop_sequences(response_text, stop_sequences)
+
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=response_text,
+            raw={"prompt": prompt, "response": response_text},
+            token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens),
+        )
+
+
 __all__ = [
+    "CHARS_PER_TOKEN",
     "REMOVE_PARAMETER",
     "MessageRole",
     "tool_role_conversions",
@@ -2081,5 +2235,6 @@ __all__ = [
     "AzureOpenAIModel",
     "AmazonBedrockServerModel",
     "AmazonBedrockModel",
+    "GoogleColabModel",
     "ChatMessage",
 ]
