@@ -2214,6 +2214,22 @@ class GoogleColabModel(Model):
             token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens),
         )
 
+# Model Registry for secure deserialization
+# This registry maps model class names to their actual classes.
+# Only classes listed here can be instantiated during deserialization (from_dict).
+# This prevents arbitrary code execution via importlib-based dynamic loading.
+MODEL_REGISTRY = {
+    "VLLMModel": VLLMModel,
+    "MLXModel": MLXModel,
+    "TransformersModel": TransformersModel,
+    "LiteLLMModel": LiteLLMModel,
+    "LiteLLMRouterModel": LiteLLMRouterModel,
+    "InferenceClientModel": InferenceClientModel,
+    "OpenAIModel": OpenAIModel,
+    "AzureOpenAIModel": AzureOpenAIModel,
+    "AmazonBedrockModel": AmazonBedrockModel,
+    "GoogleColabModel": GoogleColabModel,
+}
 
 __all__ = [
     "CHARS_PER_TOKEN",

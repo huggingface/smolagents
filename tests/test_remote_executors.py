@@ -19,6 +19,7 @@ from smolagents.remote_executors import (
     RemotePythonExecutor,
     WasmExecutor,
 )
+from smolagents.serialization import SerializationError
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
@@ -38,6 +39,43 @@ class TestRemotePythonExecutor:
         executor.run_code_raise_errors = MagicMock()
         executor.send_variables({})
         assert executor.run_code_raise_errors.call_count == 0
+
+    def test_send_variables_non_empty_generates_executable_deserializer_code(self):
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock(), allow_pickle=False)
+        executor.run_code_raise_errors = MagicMock()
+
+        variables = {
+            "counter": 1,
+            "tags": ("a", "b"),
+            "blob": b"binary",
+        }
+        executor.send_variables(variables)
+
+        sent_code = executor.run_code_raise_errors.call_args.args[0]
+        remote_scope = {}
+        exec(sent_code, remote_scope, remote_scope)
+
+        assert remote_scope["counter"] == 1
+        assert remote_scope["tags"] == ("a", "b")
+        assert remote_scope["blob"] == b"binary"
+
+    def test_send_variables_allow_pickle_handles_prefixed_payload(self):
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock(), allow_pickle=True)
+        executor.run_code_raise_errors = MagicMock()
+
+        variables = {"error": ValueError("boom")}
+        executor.send_variables(variables)
+
+        sent_code = executor.run_code_raise_errors.call_args.args[0]
+        remote_scope = {}
+        exec(sent_code, remote_scope, remote_scope)
+
+        assert isinstance(remote_scope["error"], ValueError)
+        assert str(remote_scope["error"]) == "boom"
+
+    def test_deserialize_final_answer_rejects_unprefixed_payload(self):
+        with pytest.raises(SerializationError, match="Unknown final answer format"):
+            RemotePythonExecutor._deserialize_final_answer("legacy-unprefixed-payload", allow_pickle=True)
 
     @require_run_all
     def test_send_tools_with_default_wikipedia_search_tool(self):
@@ -197,6 +235,7 @@ class TestDockerExecutorUnit:
         logger = MagicMock()
         with (
             patch("docker.from_env") as mock_docker_client,
+            patch("requests.get") as mock_get,
             patch("requests.post") as mock_post,
             patch("websocket.create_connection"),
         ):
@@ -208,6 +247,7 @@ class TestDockerExecutorUnit:
             mock_docker_client.return_value.containers.run.return_value = mock_container
             mock_docker_client.return_value.images.get.return_value = MagicMock()
 
+            mock_get.return_value.status_code = 200
             mock_post.return_value.status_code = 201
             mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
 
@@ -422,9 +462,8 @@ class TestModalExecutorUnit:
         assert create_call.args == (
             "jupyter",
             "kernelgateway",
-            "--KernelGatewayApp.ip='0.0.0.0'",
+            "--KernelGatewayApp.ip=0.0.0.0",
             f"--KernelGatewayApp.port={port}",
-            "--KernelGatewayApp.allow_origin='*'",
         )
         assert create_call.kwargs["timeout"] == 100
         assert create_call.kwargs["cpu"] == 2
@@ -444,7 +483,7 @@ class TestWasmExecutorUnit:
         with (
             patch("subprocess.run") as mock_run,
             patch("subprocess.Popen") as mock_popen,
-            patch("requests.get") as mock_get,
+            patch("smolagents.remote_executors.requests.Session") as mock_session_cls,
             patch("time.sleep"),
         ):
             # Configure mocks
@@ -452,7 +491,9 @@ class TestWasmExecutorUnit:
             mock_process = MagicMock()
             mock_process.poll.return_value = None
             mock_popen.return_value = mock_process
-            mock_get.return_value.status_code = 200
+            mock_session = MagicMock()
+            mock_session.get.return_value.status_code = 200
+            mock_session_cls.return_value = mock_session
 
             # Create the executor
             executor = WasmExecutor(additional_imports=["numpy", "pandas"], logger=logger, timeout=30)
@@ -473,6 +514,10 @@ class TestWasmExecutorUnit:
             assert mock_popen.call_count == 1
             assert mock_popen.call_args.args[0][0] == "deno"
             assert mock_popen.call_args.args[0][1] == "run"
+            assert (
+                "--allow-net=127.0.0.1:8000,cdn.jsdelivr.net:443,pypi.org:443,files.pythonhosted.org:443"
+                in (mock_popen.call_args.args[0])
+            )
 
             # Clean up
             with patch("shutil.rmtree"):

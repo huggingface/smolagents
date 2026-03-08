@@ -82,9 +82,9 @@ class TestModel:
             ChatMessageStreamDelta,
             ChatMessageToolCallFunction,
             ChatMessageToolCallStreamDelta,
-            TokenUsage,
             agglomerate_stream_deltas,
         )
+        from smolagents.monitoring import TokenUsage
 
         stream_deltas = [
             ChatMessageStreamDelta(
