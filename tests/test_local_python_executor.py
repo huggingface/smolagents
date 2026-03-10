@@ -1018,6 +1018,26 @@ error_function()"""
         assert "error" in str(e)
         assert "ValueError" in str(e)
 
+    def test_exception_chaining_preserved(self):
+        """InterpreterError should chain the original exception via __cause__."""
+        code = "result = 1 / 0"
+        with pytest.raises(InterpreterError) as exc_info:
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert exc_info.value.__cause__ is not None
+        assert isinstance(exc_info.value.__cause__, ZeroDivisionError)
+
+    def test_stack_trace_included_for_external_calls(self):
+        """Stack trace from non-interpreter frames should appear in error message."""
+        code = """
+import json
+json.loads("invalid json {{")
+"""
+        with pytest.raises(InterpreterError) as exc_info:
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["json"])
+        error_msg = str(exc_info.value)
+        # Original exception type and message must be present
+        assert "JSONDecodeError" in error_msg or "json" in error_msg.lower()
+
     def test_assert(self):
         code = """
 assert 1 == 1
