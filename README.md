@@ -238,9 +238,12 @@ for request in requests_to_search:
 
 Writing actions as code snippets is demonstrated to work better than the current industry practice of letting the LLM output a dictionary of the tools it wants to call: [uses 30% fewer steps](https://huggingface.co/papers/2402.01030) (thus 30% fewer LLM calls) and [reaches higher performance on difficult benchmarks](https://huggingface.co/papers/2411.01747). Head to [our high-level intro to agents](https://huggingface.co/docs/smolagents/conceptual_guides/intro_agents) to learn more on that.
 
-Especially, since code execution can be a security concern (arbitrary code execution!), we provide options at runtime:
-  - a secure python interpreter to run code more safely in your environment (more secure than raw code execution but still risky)
-  - a sandboxed environment using [Blaxel](https://blaxel.ai), [E2B](https://e2b.dev/), or Docker (removes the risk to your own system).
+Since code execution can be a serious security concern (arbitrary code execution!), **you should run agent code in a sandbox**. We support several options:
+  - [E2B](https://e2b.dev/), [Blaxel](https://blaxel.ai), [Modal](https://modal.com/) — managed cloud sandboxes, simplest to set up
+  - [Docker](https://www.docker.com/) — self-hosted container isolation
+  - Pyodide+Deno WebAssembly — lightweight sandbox for browser or edge environments
+
+The built-in `LocalPythonExecutor` is **not a security sandbox**. It applies some restrictions but can be bypassed and must not be used as a security boundary.
 
 Alongside [`CodeAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.CodeAgent), we also provide the standard [`ToolCallingAgent`](https://huggingface.co/docs/smolagents/reference/agents#smolagents.ToolCallingAgent) which writes actions as JSON/text blobs. You can pick whichever style best suits your use case.
 
@@ -265,9 +268,9 @@ This comparison shows that open-source models can now take on the best closed mo
 
 ## Security
 
-Security is a critical consideration when working with code-executing agents. Our library provides:
-- Sandboxed execution options using [Blaxel](https://blaxel.ai), [E2B](https://e2b.dev/), [Modal](https://modal.com/), Docker, or Pyodide+Deno WebAssembly sandbox
-- Best practices for running agent code securely
+Security is a critical consideration when working with code-executing agents. Ensure you are using one of the sandboxed execution options that provide isolation from untrusted code.
+
+**Warning:** `LocalPythonExecutor` provides best-effort mitigations only and is **not a security boundary**. Do not use it to run untrusted code.
 
 For security policies, vulnerability reporting, and more information on secure agent execution, please see our [Security Policy](SECURITY.md).
 
