@@ -1032,6 +1032,8 @@ You have been provided with these additional arguments, that you can access dire
         for tool_info in agent_dict["tools"]:
             tools.append(Tool.from_code(tool_info["code"]))
         # Load managed agents
+        # Note: We don't pass **kwargs to managed agents because they should use their
+        # own serialized configuration, not inherit the parent's kwargs (fixes #1849)
         managed_agents = []
         for managed_agent_dict in agent_dict["managed_agents"]:
             agent_class = AGENT_REGISTRY.get(managed_agent_dict["class"])
@@ -1040,7 +1042,7 @@ You have been provided with these additional arguments, that you can access dire
                     f"Unknown agent class '{managed_agent_dict['class']}'. "
                     f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
                 )
-            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            managed_agent = agent_class.from_dict(managed_agent_dict)
             managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {
