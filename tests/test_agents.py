@@ -2145,6 +2145,31 @@ class TestCodeAgent:
             agent.run("Test request")
         assert "secret\\\\" in repr(capture.get())
 
+    def test_code_agent_agent_intermediate_image_output(self):
+        @tool
+        def fake_image_tool() -> AgentImage:
+            """Tool that outputs an image."""
+            return AgentImage("")
+
+        class FakeCodeModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT, content="Thought: no\n\n<code>\nfake_image_tool()\n</code>"
+                )
+
+        agent = CodeAgent(
+            tools=[fake_image_tool],
+            model=FakeCodeModel(),
+            max_steps=2,
+        )
+        agent.run("Test request")
+        memory_steps = agent.memory.steps
+        actions_steps = [s for s in memory_steps if isinstance(s, ActionStep)][:-1]
+        assert actions_steps
+        for step in actions_steps:
+            assert step.observations_images
+            assert isinstance(step.observations_images[0], AgentImage)
+
     def test_missing_import_triggers_advice_in_error_log(self):
         # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
         agent = CodeAgent(tools=[], model=FakeCodeModelImport(), verbosity_level=1)
