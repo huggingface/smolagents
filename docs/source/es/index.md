@@ -84,7 +84,7 @@ Puedes usar diferentes modelos con los agentes:
 
 ```python
 # Usar un modelo específico de Hugging Face
-model = InferenceClientModel(model_id="meta-llama/Llama-2-70b-chat-hf")
+model = InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
 
 # Usar la API de OpenAI/Anthropic (requiere smolagents[litellm])
 from smolagents import LiteLLMModel
@@ -92,7 +92,7 @@ model = LiteLLMModel(model_id="gpt-4")
 
 # Utilizar modelos locales (requiere smolagents[transformers])
 from smolagents import TransformersModel
-model = TransformersModel(model_id="meta-llama/Llama-2-7b-chat-hf")
+model = TransformersModel(model_id="meta-llama/Llama-3.2-3B-Instruct")
 ```
 
 ## Próximos Pasos
