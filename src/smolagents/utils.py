@@ -76,7 +76,7 @@ def sanitize_for_rich(value) -> str:
         s = bytes(value).decode("utf-8", errors="replace")
     else:
         s = str(value)
-    
+
     out: list[str] = []
     for ch in s:
         code = ord(ch)
