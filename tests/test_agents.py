@@ -2143,7 +2143,9 @@ class TestCodeAgent:
 
         with agent.logger.console.capture() as capture:
             agent.run("Test request")
-        assert "secret\\\\" in repr(capture.get())
+        # Verify [secret] is rendered literally, not interpreted as Rich markup (which would
+        # inject ANSI reset/re-apply codes like \x1b[0m\x1b[1;31m in place of the brackets).
+        assert "[secret]" in capture.get()
 
     def test_missing_import_triggers_advice_in_error_log(self):
         # Set explicit verbosity level to 1 to override the default verbosity level of -1 set in CI fixture
