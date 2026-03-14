@@ -230,16 +230,18 @@ class TestE2BExecutorIntegration:
 
 
 class TestDockerExecutorUnit:
-    def test_cleanup(self):
-        """Test that cleanup properly stops and removes the container"""
-        logger = MagicMock()
+    """Unit tests for DockerExecutor lifecycle (cleanup, finalizer, idempotency)."""
+
+    @staticmethod
+    def _make_executor(logger=None):
+        """Create a DockerExecutor with mocked dependencies, returning (executor, mock_container)."""
+        logger = logger or MagicMock()
         with (
             patch("docker.from_env") as mock_docker_client,
             patch("requests.get") as mock_get,
             patch("requests.post") as mock_post,
             patch("websocket.create_connection"),
         ):
-            # Setup mocks
             mock_container = MagicMock()
             mock_container.status = "running"
             mock_container.short_id = "test123"
@@ -251,15 +253,117 @@ class TestDockerExecutorUnit:
             mock_post.return_value.status_code = 201
             mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
 
-            # Create executor
             executor = DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+        return executor, mock_container
 
-            # Call cleanup
-            executor.cleanup()
+    def test_cleanup(self):
+        """Test that cleanup properly stops and removes the container."""
+        executor, mock_container = self._make_executor()
 
-            # Verify container was stopped and removed
+        executor.cleanup()
+
+        mock_container.stop.assert_called_once()
+        mock_container.remove.assert_called_once_with(force=True)
+        assert executor._cleaned_up is True
+
+    def test_cleanup_is_idempotent(self):
+        """Test that calling cleanup twice only stops/removes the container once."""
+        executor, mock_container = self._make_executor()
+
+        executor.cleanup()
+        executor.cleanup()
+
+        mock_container.stop.assert_called_once()
+        mock_container.remove.assert_called_once_with(force=True)
+
+    def test_finalizer_registered_on_init(self):
+        """Test that a weakref.finalize finalizer is registered during init."""
+        executor, _ = self._make_executor()
+
+        assert hasattr(executor, "_finalizer")
+        assert executor._finalizer.alive
+
+    def test_cleanup_detaches_finalizer(self):
+        """Test that cleanup detaches the finalizer so it won't fire again."""
+        executor, _ = self._make_executor()
+
+        executor.cleanup()
+
+        assert not executor._finalizer.alive
+
+    def test_finalizer_cleans_up_on_gc(self):
+        """Test that dropping the executor triggers container cleanup via the finalizer."""
+        import weakref
+
+        executor, mock_container = self._make_executor()
+        # Detach the finalizer to call it manually (simulating GC)
+        finalizer = executor._finalizer
+        # Prevent explicit cleanup from running first
+        executor._cleaned_up = True
+        # Simulate what GC would do
+        finalizer()
+
+        mock_container.stop.assert_called_once()
+        mock_container.remove.assert_called_once_with(force=True)
+
+    def test_cleanup_removes_even_if_stop_fails(self):
+        """Test that container.remove(force=True) is called even if stop() raises."""
+        executor, mock_container = self._make_executor()
+        mock_container.stop.side_effect = Exception("stop failed")
+
+        executor.cleanup()
+
+        mock_container.stop.assert_called_once()
+        mock_container.remove.assert_called_once_with(force=True)
+
+    def test_cleanup_not_marked_done_if_remove_fails(self):
+        """Test that _cleaned_up stays False if remove(force=True) raises, allowing retry."""
+        executor, mock_container = self._make_executor()
+        mock_container.remove.side_effect = Exception("remove failed")
+
+        executor.cleanup()
+
+        assert executor._cleaned_up is False
+        assert hasattr(executor, "container")
+        # Detach finalizer to avoid noisy stderr during test process exit
+        executor._finalizer.detach()
+
+    def test_finalizer_alive_after_failed_cleanup(self):
+        """Test that finalizer remains alive if remove() fails, so GC/exit can retry."""
+        executor, mock_container = self._make_executor()
+        mock_container.remove.side_effect = Exception("remove failed")
+
+        executor.cleanup()
+
+        assert executor._finalizer.alive
+        executor._finalizer.detach()
+
+    def test_init_failure_cleans_up_container(self):
+        """Test that if init fails after container creation, the container is cleaned up."""
+        logger = MagicMock()
+        with (
+            patch("docker.from_env") as mock_docker_client,
+            patch("requests.get") as mock_get,
+            patch("requests.post") as mock_post,
+            patch("websocket.create_connection"),
+        ):
+            mock_container = MagicMock()
+            mock_container.status = "running"
+            mock_container.short_id = "test123"
+
+            mock_docker_client.return_value.containers.run.return_value = mock_container
+            mock_docker_client.return_value.images.get.return_value = MagicMock()
+
+            mock_get.return_value.status_code = 200
+            # Simulate kernel creation failure
+            mock_post.return_value.status_code = 500
+            mock_post.return_value.json.return_value = {}
+
+            with pytest.raises(RuntimeError, match="Failed to initialize Jupyter kernel"):
+                DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+
             mock_container.stop.assert_called_once()
-            mock_container.remove.assert_called_once()
+            mock_container.remove.assert_called_once_with(force=True)
 
 
 class CommonDockerExecutorIntegration:
