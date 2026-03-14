@@ -21,6 +21,7 @@ import inspect
 import logging
 import math
 import re
+import traceback
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -1656,9 +1657,16 @@ def evaluate_python_code(
             state["_print_outputs"].value = truncate_content(
                 str(state["_print_outputs"]), max_length=max_print_outputs_length
             )
-            raise InterpreterError(
-                f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
-            )
+            # Build a filtered traceback excluding interpreter internals, so agents
+            # receive actionable diagnostic information about what went wrong.
+            tb_frames = traceback.extract_tb(e.__traceback__)
+            user_frames = [f for f in tb_frames if "local_python_executor.py" not in f.filename]
+            failed_line = ast.get_source_segment(code, node)
+            error_msg = f"Code execution failed at line '{failed_line}' due to: {type(e).__name__}: {e}"
+            if user_frames:
+                formatted_tb = "".join(traceback.format_list(user_frames))
+                error_msg += f"\n\nTraceback (most recent call last):\n{formatted_tb}{type(e).__name__}: {e}"
+            raise InterpreterError(error_msg) from e
 
     # Apply timeout if specified
     if timeout_seconds is not None:
