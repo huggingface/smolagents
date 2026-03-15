@@ -24,6 +24,7 @@ from .local_python_executor import (
     evaluate_python_code,
 )
 from .tools import PipelineTool, Tool
+from .agent_types import validate_url
 
 
 @dataclass
@@ -487,6 +488,10 @@ class VisitWebpageTool(Tool):
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
             ) from e
         try:
+            # Validate URL to prevent SSRF attacks
+            if not validate_url(url):
+                return f"URL validation failed for: {url}. Blocked internal/private network access."
+            
             # Send a GET request to the URL with a 20-second timeout
             response = requests.get(url, timeout=20)
             response.raise_for_status()  # Raise an exception for bad status codes
