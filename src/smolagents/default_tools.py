@@ -638,6 +638,68 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+class PerplexitySearchTool(Tool):
+    """Web search tool that performs searches using the Perplexity Search API.
+
+    Args:
+        api_key (`str`, *optional*): API key for Perplexity. If not provided, falls back to `PERPLEXITY_API_KEY` env var.
+
+    Examples:
+        ```python
+        >>> from smolagents import PerplexitySearchTool
+        >>> search_tool = PerplexitySearchTool()
+        >>> results = search_tool("latest AI developments")
+        >>> print(results)
+        ```
+    """
+
+    name = "web_search_perplexity"
+    description = """Performs a web search using the Perplexity Search API based on your query then returns the top search results."""
+    inputs = {
+        "query": {"type": "string", "description": "The search query to perform."},
+        "max_results": {
+            "type": "integer",
+            "description": "Maximum number of search results to return",
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def __init__(self, api_key: str | None = None):
+        super().__init__()
+        import os
+
+        self.api_key = api_key or os.environ.get("PERPLEXITY_API_KEY")
+        if self.api_key is None:
+            raise ValueError(
+                "Missing API key. Provide 'api_key' or set the 'PERPLEXITY_API_KEY' environment variable."
+            )
+
+    def forward(self, query: str, max_results: int | None = None) -> str:
+        import httpx
+
+        if max_results is None:
+            max_results = 5
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "X-Source": "smolagents",
+        }
+        payload = {"query": query, "max_results": max_results}
+        response = httpx.post("https://api.perplexity.ai/search", json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        results = data.get("results", [])
+        if not results:
+            return "No results found."
+        postprocessed_results = []
+        for idx, result in enumerate(results, start=1):
+            postprocessed_results.append(
+                f"[{idx}] {result.get('title', 'No title')}\n    URL: {result.get('url', 'N/A')}\n    {result.get('snippet', 'No snippet')}"
+            )
+        return "\n\n".join(postprocessed_results)
+
+
 TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
@@ -646,6 +708,7 @@ TOOL_MAPPING = {
         VisitWebpageTool,
     ]
 }
+TOOL_MAPPING["perplexity_search"] = PerplexitySearchTool
 
 __all__ = [
     "ApiWebSearchTool",
@@ -655,6 +718,7 @@ __all__ = [
     "WebSearchTool",
     "DuckDuckGoSearchTool",
     "GoogleSearchTool",
+    "PerplexitySearchTool",
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
