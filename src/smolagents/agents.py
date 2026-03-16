@@ -605,7 +605,11 @@ You have been provided with these additional arguments, that you can access dire
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
-            yield action_step
+            # Do NOT yield action_step here: it was already yielded inside the
+            # finally block of the while loop. A second yield would send a
+            # duplicate event to stream consumers.
+            # (When max_steps=0 the loop never ran at all, so action_step is
+            # undefined — yielding it would raise NameError.)
         final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
         self._finalize_step(final_answer_step)
         yield final_answer_step
