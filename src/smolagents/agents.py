@@ -605,7 +605,11 @@ You have been provided with these additional arguments, that you can access dire
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
-            yield action_step
+            # Do NOT yield action_step here: it was already yielded inside the
+            # finally block of the while loop. A second yield would send a
+            # duplicate event to stream consumers.
+            # (When max_steps=0 the loop never ran at all, so action_step is
+            # undefined — yielding it would raise NameError.)
         final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
         self._finalize_step(final_answer_step)
         yield final_answer_step
@@ -1040,7 +1044,13 @@ You have been provided with these additional arguments, that you can access dire
                     f"Unknown agent class '{managed_agent_dict['class']}'. "
                     f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
                 )
-            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            # Do NOT forward **kwargs here. kwargs contain the *parent* agent's
+            # parameters (e.g. additional_authorized_imports). Passing them down
+            # would override the child's own serialized configuration, causing
+            # settings such as authorized_imports to be silently discarded after
+            # deserialization. Each managed agent is fully self-contained in its
+            # own serialized dict and reconstructs itself from that alone.
+            managed_agent = agent_class.from_dict(managed_agent_dict)
             managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {
