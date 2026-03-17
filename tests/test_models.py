@@ -793,6 +793,40 @@ def test_get_clean_message_list_image_encoding(convert_images_to_image_urls, exp
         assert result[0] == expected_clean_message
 
 
+def test_get_clean_message_list_preserves_cache_control():
+    """Test that cache_control on content blocks is preserved through get_clean_message_list."""
+    messages = [
+        ChatMessage(
+            role=MessageRole.SYSTEM,
+            content=[{"type": "text", "text": "System prompt", "cache_control": {"type": "ephemeral"}}],
+        ),
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}]),
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 2
+    assert result[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in result[1]["content"][0]
+
+
+def test_get_clean_message_list_preserves_cache_control_on_merge():
+    """Test that cache_control survives when consecutive same-role messages are merged."""
+    messages = [
+        ChatMessage(
+            role=MessageRole.SYSTEM,
+            content=[{"type": "text", "text": "Part 1", "cache_control": {"type": "ephemeral"}}],
+        ),
+        ChatMessage(
+            role=MessageRole.SYSTEM,
+            content=[{"type": "text", "text": "Part 2"}],
+        ),
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 1
+    # The merged block should retain cache_control from the first block
+    assert result[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+    assert "Part 1\nPart 2" in result[0]["content"][0]["text"]
+
+
 def test_get_clean_message_list_flatten_messages_as_text():
     messages = [
         ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}]),

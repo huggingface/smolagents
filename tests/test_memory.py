@@ -232,6 +232,23 @@ def test_system_prompt_step_to_messages():
             assert "text" in content
 
 
+def test_system_prompt_step_has_cache_control():
+    """Test that system prompt content blocks include cache_control for Anthropic prompt caching."""
+    system_prompt_step = SystemPromptStep(system_prompt="This is a system prompt.")
+    messages = system_prompt_step.to_messages(summary_mode=False)
+    assert len(messages) == 1
+    content_block = messages[0].content[0]
+    assert "cache_control" in content_block
+    assert content_block["cache_control"] == {"type": "ephemeral"}
+
+
+def test_system_prompt_step_summary_mode_returns_empty():
+    """Test that summary mode still returns empty list (cache_control shouldn't affect this)."""
+    system_prompt_step = SystemPromptStep(system_prompt="This is a system prompt.")
+    messages = system_prompt_step.to_messages(summary_mode=True)
+    assert messages == []
+
+
 def test_memory_step_json_serialization():
     """Test that memory steps can be JSON serialized without raw fields."""
 
