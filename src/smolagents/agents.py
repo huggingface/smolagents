@@ -767,6 +767,14 @@ You have been provided with these additional arguments, that you can access dire
         messages = self.memory.system_prompt.to_messages(summary_mode=summary_mode)
         for memory_step in self.memory.steps:
             messages.extend(memory_step.to_messages(summary_mode=summary_mode))
+
+        # Add cache_control to the last message's last content block.
+        # This enables Anthropic prompt caching on the growing conversation prefix,
+        # so only new tokens after the last cache breakpoint are billed at full price.
+        # For non-Anthropic providers, litellm strips unknown keys automatically.
+        if messages and isinstance(messages[-1].content, list) and messages[-1].content:
+            messages[-1].content[-1]["cache_control"] = {"type": "ephemeral"}
+
         return messages
 
     def _step_stream(
