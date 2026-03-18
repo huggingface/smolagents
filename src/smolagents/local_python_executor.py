@@ -1246,7 +1246,14 @@ def evaluate_with(
         enter_result = context_expr.__enter__()
         contexts.append(context_expr)
         if item.optional_vars:
-            state[item.optional_vars.id] = enter_result
+            if isinstance(item.optional_vars, ast.Name):
+                state[item.optional_vars.id] = enter_result
+            elif isinstance(item.optional_vars, ast.Tuple):
+                for idx, elt in enumerate(item.optional_vars.elts):
+                    if isinstance(elt, ast.Name):
+                        state[elt.id] = enter_result[idx]
+            else:
+                state[item.optional_vars.id] = enter_result  # type: ignore[attr-defined]
 
     try:
         for stmt in with_node.body:
