@@ -1236,8 +1236,17 @@ class ToolCallingAgent(MultiStepAgent):
         planning_interval: int | None = None,
         stream_outputs: bool = False,
         max_tool_threads: int | None = None,
+        additional_authorized_imports: list[str] | None = None,
+        executor: PythonExecutor = None,
+        executor_type: Literal["local", "blaxel", "e2b", "modal", "docker", "wasm"] = "local",
+        executor_kwargs: dict[str, Any] | None = None,
+        max_print_outputs_length: int | None = None,
         **kwargs,
     ):
+        self.additional_authorized_imports = additional_authorized_imports if additional_authorized_imports else []
+        self.authorized_imports = sorted(set(BASE_BUILTIN_MODULES) | set(self.additional_authorized_imports))
+        self.max_print_outputs_length = max_print_outputs_length
+
         prompt_templates = prompt_templates or yaml.safe_load(
             importlib.resources.files("smolagents.prompts").joinpath("toolcalling_agent.yaml").read_text()
         )
@@ -1256,6 +1265,10 @@ class ToolCallingAgent(MultiStepAgent):
             )
         # Tool calling setup
         self.max_tool_threads = max_tool_threads
+
+        self.executor_type = executor_type
+        self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
+        self.python_executor = executor or self._create_python_executor()
 
     @property
     def tools_and_managed_agents(self):
@@ -1449,6 +1462,32 @@ class ToolCallingAgent(MultiStepAgent):
                 for key, value in arguments.items()
             }
         return arguments
+    
+    def _execute_code(self, code: str, available_tools: dict) -> Any:
+        executor = self.python_executor
+        executor.send_tools(available_tools)
+        return executor(code)
+    
+    def _create_python_executor(self) -> PythonExecutor:
+        if self.executor_type not in {"local", "blaxel", "e2b", "modal", "docker", "wasm"}:
+            raise ValueError(f"Unsupported executor type: {self.executor_type}")
+
+        if self.executor_type == "local":
+            return LocalPythonExecutor(
+                self.additional_authorized_imports,
+                **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
+            )
+        else:
+            remote_executors = {
+                "blaxel": BlaxelExecutor,
+                "e2b": E2BExecutor,
+                "docker": DockerExecutor,
+                "wasm": WasmExecutor,
+                "modal": ModalExecutor,
+            }
+            return remote_executors[self.executor_type](
+                self.additional_authorized_imports, self.logger, **self.executor_kwargs
+            )
 
     def execute_tool_call(self, tool_name: str, arguments: dict[str, str] | str) -> Any:
         """
@@ -1460,8 +1499,17 @@ class ToolCallingAgent(MultiStepAgent):
             tool_name (`str`): Name of the tool or managed agent to execute.
             arguments (dict[str, str] | str): Arguments passed to the tool call.
         """
-        # Check if the tool exists
         available_tools = {**self.tools, **self.managed_agents}
+
+        if tool_name == "code_execute":
+            code_to_execute = arguments.get("code", None)
+
+            if code_to_execute is None:
+                raise AgentToolCallError("The 'code_execute' tool requires a 'code' argument.", self.logger)
+
+            return self._execute_code(code_to_execute, available_tools)
+
+        # Check if the tool exists
         if tool_name not in available_tools:
             raise AgentToolExecutionError(
                 f"Unknown tool {tool_name}, should be one of: {', '.join(available_tools)}.", self.logger
