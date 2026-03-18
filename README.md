@@ -139,7 +139,7 @@ import os
 from smolagents import OpenAIModel
 
 model = OpenAIModel(
-    model_id="MiniMax-M1",
+    model_id="MiniMax-M2.7",
     api_base="https://api.minimax.io/v1",
     api_key=os.environ["MINIMAX_API_KEY"],
 )
