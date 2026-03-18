@@ -359,8 +359,14 @@ class GradioUI:
         file_path = self._save_uploaded_file(file.name)
         return gr.Textbox(value=f"File uploaded: {file_path}", visible=True), file_uploads_log + [file_path]
 
-    def _process_message(self, message: str | dict) -> tuple[str, list[str] | None]:
-        """Process incoming message and extract text and files."""
+    def _process_message(self, message: str | dict) -> tuple[str, list | None]:
+        """Process incoming message and extract text and files.
+
+        Image files are converted to AgentImage objects so the agent can
+        process them without crashing with ``'str' object has no attribute 'save'``.
+        """
+        import mimetypes
+
         if isinstance(message, str):
             return message, None
 
@@ -371,7 +377,14 @@ class GradioUI:
             saved_files = [self._save_uploaded_file(f) for f in files]
             if saved_files:
                 text += f"\nYou have been provided with these files: {saved_files}"
-            return text, saved_files
+            processed: list = []
+            for fp in saved_files:
+                mime_type, _ = mimetypes.guess_type(fp)
+                if mime_type and mime_type.startswith("image/"):
+                    processed.append(AgentImage(fp))
+                else:
+                    processed.append(fp)
+            return text, processed
 
         return text, files if files else None
 
