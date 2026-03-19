@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import atexit
 import base64
 import inspect
 import json
@@ -21,6 +22,7 @@ import os
 import pickle
 import re
 import secrets
+import signal as _signal
 import subprocess
 import tempfile
 import time
@@ -667,6 +669,10 @@ class DockerExecutor(RemotePythonExecutor):
                 f"Container {self.container.short_id} is running with kernel {self.kernel_id}", level=LogLevel.INFO
             )
 
+            # Регистрируем обработчики для гарантированной очистки контейнера при завершении процесса
+            atexit.register(self._cleanup_container)
+            _signal.signal(_signal.SIGTERM, lambda s, f: self._cleanup_container())
+
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
@@ -686,15 +692,31 @@ class DockerExecutor(RemotePythonExecutor):
         with closing(create_connection(self.ws_url)) as ws:
             return _websocket_run_code_raise_errors(code, ws, self.logger, self.allow_pickle)
 
+    def _cleanup_container(self):
+        """Безопасно останавливает и удаляет контейнер Docker.
+
+        Вызывается через atexit, обработчик SIGTERM и __del__ для предотвращения
+        появления осиротевших контейнеров при аварийном завершении процесса.
+        """
+        if getattr(self, "container", None) is not None:
+            try:
+                self.container.stop(timeout=5)
+                self.container.remove(force=True)
+            except Exception:
+                pass
+            self.container = None
+
+    def __del__(self):
+        """Запасной вариант очистки при уничтожении объекта сборщиком мусора."""
+        self._cleanup_container()
+
     def cleanup(self):
         """Clean up the Docker container and resources."""
         try:
-            if hasattr(self, "container"):
+            if hasattr(self, "container") and self.container is not None:
                 self.logger.log(f"Stopping and removing container {self.container.short_id}...", level=LogLevel.INFO)
-                self.container.stop()
-                self.container.remove()
+                self._cleanup_container()
                 self.logger.log("Container cleanup completed", level=LogLevel.INFO)
-                del self.container
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
 
