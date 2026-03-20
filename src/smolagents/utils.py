@@ -525,6 +525,39 @@ class RateLimiter:
         self._last_call = time.time()
 
 
+def get_retry_after_seconds(exception: BaseException) -> float | None:
+    """Extract the Retry-After wait time (in seconds) from a rate-limit exception.
+
+    Many API providers include a ``Retry-After`` header (or a ``retry_after``
+    attribute) in their 429 responses.  Honouring it avoids unnecessary long
+    waits from exponential backoff while also not retrying too soon.
+
+    Returns the number of seconds to wait, or ``None`` if the information is
+    not available.
+    """
+    # Some SDK exceptions expose the header value directly
+    for attr in ("retry_after", "retry_after_seconds"):
+        value = getattr(exception, attr, None)
+        if value is not None:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                pass
+
+    # httpx / requests: look inside the response object
+    response = getattr(exception, "response", None)
+    if response is not None:
+        headers = getattr(response, "headers", {}) or {}
+        raw = headers.get("Retry-After") or headers.get("retry-after")
+        if raw is not None:
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                pass
+
+    return None
+
+
 class Retrying:
     """Simple retrying controller. Inspired from library [tenacity](https://github.com/jd/tenacity/)."""
 
@@ -538,6 +571,7 @@ class Retrying:
         reraise: bool = False,
         before_sleep_logger: tuple[Logger, int] | None = None,
         after_logger: tuple[Logger, int] | None = None,
+        respect_retry_after_header: bool = True,
     ):
         self.max_attempts = max_attempts
         self.wait_seconds = wait_seconds
@@ -547,6 +581,7 @@ class Retrying:
         self.reraise = reraise
         self.before_sleep_logger = before_sleep_logger
         self.after_logger = after_logger
+        self.respect_retry_after_header = respect_retry_after_header
 
     def __call__(self, fn, *args: Any, **kwargs: Any) -> Any:
         start_time = time.time()
@@ -592,13 +627,21 @@ class Retrying:
                 # https://cookbook.openai.com/examples/how_to_handle_rate_limits#example-3-manual-backoff-implementation
                 delay *= self.exponential_base * (1 + self.jitter * random.random())
 
+                # If the API tells us exactly how long to wait, honour that instead
+                # of the computed backoff value.  This avoids both retrying too soon
+                # (which would just get another 429) and waiting unnecessarily long.
+                if self.respect_retry_after_header:
+                    retry_after = get_retry_after_seconds(e)
+                    if retry_after is not None:
+                        delay = retry_after
+
                 # Log before sleeping
                 if self.before_sleep_logger:
                     logger, log_level = self.before_sleep_logger
                     fn_name = getattr(fn, "__name__", repr(fn))
                     logger.log(
                         log_level,
-                        f"Retrying {fn_name} in {delay} seconds as it raised {e.__class__.__name__}: {e}.",
+                        f"Retrying {fn_name} in {delay:.1f} seconds as it raised {e.__class__.__name__}: {e}.",
                     )
 
                 # Sleep before next attempt
