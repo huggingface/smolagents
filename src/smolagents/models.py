@@ -372,8 +372,17 @@ def get_clean_message_list(
                     else:
                         element["image"] = encode_image_base64(element["image"])
 
+        # Normalize string content to list format so that consecutive-message merging
+        # works correctly regardless of whether the caller passed a str or a list.
+        if isinstance(message.content, str):
+            message.content = [{"type": "text", "text": message.content}]
+
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
+            if not isinstance(message.content, list):
+                raise ValueError(
+                    f"Expected message content to be a list for role '{message.role}', "
+                    f"got {type(message.content)}: {message.content}"
+                )
             if flatten_messages_as_text:
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
             else:
