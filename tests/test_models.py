@@ -144,6 +144,8 @@ class TestModel:
             ("regular-model", ["stop1", "stop2"], True),  # Regular model should include stop
             ("openai/o3", ["stop1", "stop2"], False),  # o3 model should not include stop
             ("openai/o4-mini", ["stop1", "stop2"], False),  # o4-mini model should not include stop
+            ("gpt5.1", ["stop1", "stop2"], False),  # Azure-style GPT-5 deployment names should not include stop
+            ("azure/gpt5.1", ["stop1", "stop2"], False),  # Prefixed Azure-style deployment names should not include stop
             ("something/else/o3", ["stop1", "stop2"], False),  # Path ending with o3 should not include stop
             ("something/else/o4-mini", ["stop1", "stop2"], False),  # Path ending with o4-mini should not include stop
             ("o3", ["stop1", "stop2"], False),  # Exact o3 model should not include stop
@@ -862,9 +864,13 @@ def test_flatten_messages_as_text_for_all_models(
         ("o3", False),
         ("o4-mini", False),
         ("gpt-5.1", False),
+        ("gpt5.1", False),
         ("gpt-5.2", False),
+        ("gpt5.2", False),
         ("gpt-5", False),
+        ("gpt5", False),
         ("gpt-5-mini", False),
+        ("gpt5-mini", False),
         ("gpt-5-nano", False),
         ("gpt-5-turbo", False),
         ("gpt-5.2-mini", False),
@@ -883,6 +889,7 @@ def test_flatten_messages_as_text_for_all_models(
         ("openai/o3-2025-04-16", False),
         ("openai/o4-mini-2025-04-16", False),
         ("openai/gpt-5.2", False),
+        ("azure/gpt5.1", False),
         ("openai/gpt-5.2-mini", False),
         ("openai/gpt-5.2-2025-01-01", False),
         ("oci/xai.grok-4", False),
