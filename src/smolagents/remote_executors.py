@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import atexit
 import base64
 import inspect
 import json
@@ -666,6 +667,11 @@ class DockerExecutor(RemotePythonExecutor):
             self.logger.log(
                 f"Container {self.container.short_id} is running with kernel {self.kernel_id}", level=LogLevel.INFO
             )
+            # Ensure the container is stopped/removed even when the host process is
+            # interrupted (Ctrl-C, IDE stop button, unhandled exception at the top
+            # level, etc.).  Without this the container keeps running, holds port
+            # 8888, and blocks subsequent runs.
+            atexit.register(self.cleanup)
 
         except Exception as e:
             self.cleanup()
@@ -698,8 +704,8 @@ class DockerExecutor(RemotePythonExecutor):
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
 
-    def delete(self):
-        """Ensure cleanup on deletion."""
+    def __del__(self):
+        """Ensure cleanup on garbage collection."""
         self.cleanup()
 
     def _wait_for_server(self, token: str):
