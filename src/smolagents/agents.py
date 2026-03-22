@@ -94,7 +94,7 @@ from .utils import (
     parse_code_blobs,
     truncate_content,
 )
-
+from .security import ShieldBase
 
 logger = getLogger(__name__)
 
@@ -309,6 +309,7 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
+        shields: list[ShieldBase] | None = None,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -339,6 +340,7 @@ class MultiStepAgent(ABC):
         self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
+        self.shields: list[ShieldBase] = shields if shields is not None else []
         self.task: str | None = None
         self.memory = AgentMemory(self.system_prompt)
 
@@ -1399,6 +1401,11 @@ class ToolCallingAgent(MultiStepAgent):
                 observation = f"Stored '{observation_name}' in memory."
             else:
                 observation = str(tool_call_result).strip()
+
+            # Shield: scan tool output for prompt injection before entering agent context
+            for shield in self.shields:
+                observation = shield(observation, tool_name=tool_name)
+
             self.logger.log(
                 f"Observations: {observation.replace('[', '|')}",  # escape potential rich-tag-like components
                 level=LogLevel.INFO,
@@ -1752,6 +1759,11 @@ class CodeAgent(MultiStepAgent):
 
         truncated_output = truncate_content(str(code_output.output))
         observation += "Last output from code snippet:\n" + truncated_output
+
+        # Shield: scan code execution output for prompt injection before entering agent context
+        for shield in self.shields:
+            observation = shield(observation, tool_name="python_interpreter")
+
         memory_step.observations = observation
 
         if not code_output.is_final_answer:
