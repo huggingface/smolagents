@@ -227,10 +227,14 @@ def agglomerate_stream_deltas(
     accumulated_content = ""
     total_input_tokens = 0
     total_output_tokens = 0
+    total_cache_creation_input_tokens = 0
+    total_cache_read_input_tokens = 0
     for stream_delta in stream_deltas:
         if stream_delta.token_usage:
             total_input_tokens += stream_delta.token_usage.input_tokens
             total_output_tokens += stream_delta.token_usage.output_tokens
+            total_cache_creation_input_tokens += stream_delta.token_usage.cache_creation_input_tokens
+            total_cache_read_input_tokens += stream_delta.token_usage.cache_read_input_tokens
         if stream_delta.content:
             accumulated_content += stream_delta.content
         if stream_delta.tool_calls:
@@ -275,6 +279,8 @@ def agglomerate_stream_deltas(
         token_usage=TokenUsage(
             input_tokens=total_input_tokens,
             output_tokens=total_output_tokens,
+            cache_creation_input_tokens=total_cache_creation_input_tokens,
+            cache_read_input_tokens=total_cache_read_input_tokens,
         ),
     )
 
@@ -1303,6 +1309,8 @@ class LiteLLMModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
+                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
             ),
         )
 
@@ -1336,6 +1344,8 @@ class LiteLLMModel(ApiModel):
                     token_usage=TokenUsage(
                         input_tokens=event.usage.prompt_tokens,
                         output_tokens=event.usage.completion_tokens,
+                        cache_creation_input_tokens=getattr(event.usage, "cache_creation_input_tokens", 0) or 0,
+                        cache_read_input_tokens=getattr(event.usage, "cache_read_input_tokens", 0) or 0,
                     ),
                 )
             if event.choices:
@@ -1585,6 +1595,8 @@ class InferenceClientModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
+                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
             ),
         )
 
@@ -1619,6 +1631,8 @@ class InferenceClientModel(ApiModel):
                     token_usage=TokenUsage(
                         input_tokens=event.usage.prompt_tokens,
                         output_tokens=event.usage.completion_tokens,
+                        cache_creation_input_tokens=getattr(event.usage, "cache_creation_input_tokens", 0) or 0,
+                        cache_read_input_tokens=getattr(event.usage, "cache_read_input_tokens", 0) or 0,
                     ),
                 )
             if event.choices:
@@ -1735,6 +1749,8 @@ class OpenAIModel(ApiModel):
                     token_usage=TokenUsage(
                         input_tokens=event.usage.prompt_tokens,
                         output_tokens=event.usage.completion_tokens,
+                        cache_creation_input_tokens=getattr(event.usage, "cache_creation_input_tokens", 0) or 0,
+                        cache_read_input_tokens=getattr(event.usage, "cache_read_input_tokens", 0) or 0,
                     ),
                 )
             if event.choices:
@@ -1789,6 +1805,8 @@ class OpenAIModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
+                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
             ),
         )
 
