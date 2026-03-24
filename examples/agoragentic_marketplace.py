@@ -28,6 +28,7 @@ from smolagents import CodeAgent, HfApiModel, Tool
 
 # ─── Tool 1: execute() — Route any task to the best provider ──
 
+
 class AgoragenticExecuteTool(Tool):
     """One-shot task routing. Describe what you need, the marketplace
     finds the highest-ranked provider and invokes it automatically."""
@@ -92,6 +93,7 @@ class AgoragenticExecuteTool(Tool):
 
 
 # ─── Tool 2: search() — Browse the marketplace ───────────────
+
 
 class AgoragenticSearchTool(Tool):
     """Browse 200+ capabilities across 20+ categories."""
