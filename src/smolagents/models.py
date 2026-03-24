@@ -67,6 +67,26 @@ CODEAGENT_RESPONSE_FORMAT = {
 }
 
 
+def _extract_cache_tokens(usage) -> tuple[int, int]:
+    """Extract cache token counts from an API usage object.
+
+    Handles both Anthropic/LiteLLM style (``cache_creation_input_tokens`` /
+    ``cache_read_input_tokens``) and OpenAI style where cached tokens are
+    nested under ``prompt_tokens_details.cached_tokens``.
+
+    Returns:
+        Tuple of (cache_creation_input_tokens, cache_read_input_tokens).
+    """
+    cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    # OpenAI surfaces cached tokens under prompt_tokens_details.cached_tokens
+    if cache_read == 0:
+        details = getattr(usage, "prompt_tokens_details", None)
+        if details is not None:
+            cache_read = getattr(details, "cached_tokens", 0) or 0
+    return cache_creation, cache_read
+
+
 def get_dict_from_nested_dataclasses(obj, ignore_key=None):
     def convert(obj):
         if hasattr(obj, "__dataclass_fields__"):
@@ -1309,8 +1329,8 @@ class LiteLLMModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
-                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+                cache_creation_input_tokens=_extract_cache_tokens(response.usage)[0],
+                cache_read_input_tokens=_extract_cache_tokens(response.usage)[1],
             ),
         )
 
@@ -1344,8 +1364,8 @@ class LiteLLMModel(ApiModel):
                     token_usage=TokenUsage(
                         input_tokens=event.usage.prompt_tokens,
                         output_tokens=event.usage.completion_tokens,
-                        cache_creation_input_tokens=getattr(event.usage, "cache_creation_input_tokens", 0) or 0,
-                        cache_read_input_tokens=getattr(event.usage, "cache_read_input_tokens", 0) or 0,
+                        cache_creation_input_tokens=_extract_cache_tokens(event.usage)[0],
+                        cache_read_input_tokens=_extract_cache_tokens(event.usage)[1],
                     ),
                 )
             if event.choices:
@@ -1595,8 +1615,8 @@ class InferenceClientModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
-                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+                cache_creation_input_tokens=_extract_cache_tokens(response.usage)[0],
+                cache_read_input_tokens=_extract_cache_tokens(response.usage)[1],
             ),
         )
 
@@ -1631,8 +1651,8 @@ class InferenceClientModel(ApiModel):
                     token_usage=TokenUsage(
                         input_tokens=event.usage.prompt_tokens,
                         output_tokens=event.usage.completion_tokens,
-                        cache_creation_input_tokens=getattr(event.usage, "cache_creation_input_tokens", 0) or 0,
-                        cache_read_input_tokens=getattr(event.usage, "cache_read_input_tokens", 0) or 0,
+                        cache_creation_input_tokens=_extract_cache_tokens(event.usage)[0],
+                        cache_read_input_tokens=_extract_cache_tokens(event.usage)[1],
                     ),
                 )
             if event.choices:
@@ -1749,8 +1769,8 @@ class OpenAIModel(ApiModel):
                     token_usage=TokenUsage(
                         input_tokens=event.usage.prompt_tokens,
                         output_tokens=event.usage.completion_tokens,
-                        cache_creation_input_tokens=getattr(event.usage, "cache_creation_input_tokens", 0) or 0,
-                        cache_read_input_tokens=getattr(event.usage, "cache_read_input_tokens", 0) or 0,
+                        cache_creation_input_tokens=_extract_cache_tokens(event.usage)[0],
+                        cache_read_input_tokens=_extract_cache_tokens(event.usage)[1],
                     ),
                 )
             if event.choices:
@@ -1805,8 +1825,8 @@ class OpenAIModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
-                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+                cache_creation_input_tokens=_extract_cache_tokens(response.usage)[0],
+                cache_read_input_tokens=_extract_cache_tokens(response.usage)[1],
             ),
         )
 
