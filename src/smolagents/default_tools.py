@@ -707,20 +707,33 @@ class CrwScrapeTool(Tool):
             or ""
         )
 
-        # If only links were requested and no text content was found, format links
-        if not content and "links" in self.formats:
-            links = result_data.get("links", [])
+        # If no text content was found, try to format links
+        if not content:
+            links = result_data.get("links")
             if links:
-                content = "\n".join(links)
+                if isinstance(links, list):
+                    lines = []
+                    for link in links:
+                        if isinstance(link, dict):
+                            url_value = link.get("url") or ""
+                            text_value = link.get("text") or link.get("title") or url_value
+                            if url_value:
+                                lines.append(f"- [{text_value}]({url_value})")
+                        else:
+                            lines.append(str(link))
+                    content = "\n".join(lines)
+                else:
+                    content = str(links)
 
         metadata = result_data.get("metadata", {})
         title = metadata.get("title", "")
         header = f"## {title}\nSource: {url}\n\n" if title else f"Source: {url}\n\n"
 
         full_content = header + content
-        if len(full_content) > self.max_output_length:
-            notice = f"\n..._Content truncated to {self.max_output_length} characters_...\n"
-            full_content = full_content[: self.max_output_length - len(notice)] + notice
+        if self.max_output_length and len(full_content) > self.max_output_length:
+            truncation_notice = f"\n..._Content truncated to {self.max_output_length} characters_...\n"
+            available_length = max(self.max_output_length - len(truncation_notice), 0)
+            full_content = full_content[:available_length] + truncation_notice
         return full_content
 
 
@@ -861,9 +874,10 @@ class CrwCrawlTool(Tool):
             parts.append(f"### {title}\nURL: {source}\n\n{markdown}\n")
 
         full_content = "\n---\n".join(parts)
-        if len(full_content) > self.max_output_length:
-            notice = f"\n..._Content truncated to {self.max_output_length} characters_...\n"
-            full_content = full_content[: self.max_output_length - len(notice)] + notice
+        if self.max_output_length and len(full_content) > self.max_output_length:
+            truncation_notice = f"\n..._Content truncated to {self.max_output_length} characters_...\n"
+            available_length = max(self.max_output_length - len(truncation_notice), 0)
+            full_content = full_content[:available_length] + truncation_notice
         return full_content
 
 
