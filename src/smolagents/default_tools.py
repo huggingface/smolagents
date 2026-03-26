@@ -700,7 +700,18 @@ class CrwScrapeTool(Tool):
             return f"CRW scrape failed: {data.get('error', 'Unknown error')}"
 
         result_data = data.get("data", {})
-        content = result_data.get("markdown") or result_data.get("html") or result_data.get("plainText") or ""
+        content = (
+            result_data.get("markdown")
+            or result_data.get("html")
+            or result_data.get("plainText")
+            or ""
+        )
+
+        # If only links were requested and no text content was found, format links
+        if not content and "links" in self.formats:
+            links = result_data.get("links", [])
+            if links:
+                content = "\n".join(links)
 
         metadata = result_data.get("metadata", {})
         title = metadata.get("title", "")
@@ -708,10 +719,8 @@ class CrwScrapeTool(Tool):
 
         full_content = header + content
         if len(full_content) > self.max_output_length:
-            full_content = (
-                full_content[: self.max_output_length]
-                + f"\n..._Content truncated to {self.max_output_length} characters_...\n"
-            )
+            notice = f"\n..._Content truncated to {self.max_output_length} characters_...\n"
+            full_content = full_content[: self.max_output_length - len(notice)] + notice
         return full_content
 
 
@@ -792,7 +801,7 @@ class CrwCrawlTool(Tool):
         payload = {
             "url": url,
             "maxDepth": self.max_depth,
-            "maxPages": max_pages or self.max_pages,
+            "maxPages": max_pages if max_pages is not None else self.max_pages,
             "formats": ["markdown"],
             "onlyMainContent": True,
         }
@@ -853,10 +862,8 @@ class CrwCrawlTool(Tool):
 
         full_content = "\n---\n".join(parts)
         if len(full_content) > self.max_output_length:
-            full_content = (
-                full_content[: self.max_output_length]
-                + f"\n..._Content truncated to {self.max_output_length} characters_...\n"
-            )
+            notice = f"\n..._Content truncated to {self.max_output_length} characters_...\n"
+            full_content = full_content[: self.max_output_length - len(notice)] + notice
         return full_content
 
 

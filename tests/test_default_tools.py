@@ -252,6 +252,25 @@ class TestCrwScrapeTool:
         tool = CrwScrapeTool(max_output_length=1000)
         result = tool("https://example.com")
         assert "truncated" in result.lower()
+        assert len(result) <= 1000
+
+    @patch("requests.post")
+    def test_scrape_links_format(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "success": True,
+            "data": {
+                "links": ["https://example.com/a", "https://example.com/b"],
+                "metadata": {"title": "Links Page"},
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        tool = CrwScrapeTool(formats=["links"])
+        result = tool("https://example.com")
+        assert "https://example.com/a" in result
+        assert "https://example.com/b" in result
 
 
 class TestCrwCrawlTool:
@@ -306,3 +325,62 @@ class TestCrwCrawlTool:
         tool = CrwCrawlTool()
         result = tool("bad-url")
         assert "failed" in result.lower()
+
+    @patch("requests.post")
+    def test_scrape_timeout(self, mock_post):
+        import requests
+
+        mock_post.side_effect = requests.exceptions.Timeout("Connection timed out")
+
+        tool = CrwScrapeTool()
+        result = tool("https://example.com")
+        assert "timed out" in result.lower()
+
+    @patch("requests.get")
+    @patch("requests.post")
+    def test_crawl_failed_status(self, mock_post, mock_get):
+        mock_start = MagicMock()
+        mock_start.json.return_value = {"success": True, "id": "crawl-fail-id"}
+        mock_start.raise_for_status = MagicMock()
+        mock_post.return_value = mock_start
+
+        mock_status = MagicMock()
+        mock_status.json.return_value = {"status": "failed"}
+        mock_status.raise_for_status = MagicMock()
+        mock_get.return_value = mock_status
+
+        tool = CrwCrawlTool(poll_interval=0.01)
+        result = tool("https://example.com")
+        assert "failed" in result.lower()
+
+    @patch("requests.get")
+    @patch("requests.post")
+    def test_crawl_intermediate_then_completed(self, mock_post, mock_get):
+        mock_start = MagicMock()
+        mock_start.json.return_value = {"success": True, "id": "crawl-poll-id"}
+        mock_start.raise_for_status = MagicMock()
+        mock_post.return_value = mock_start
+
+        # First poll returns "scraping", second returns "completed"
+        mock_scraping = MagicMock()
+        mock_scraping.json.return_value = {"status": "scraping"}
+        mock_scraping.raise_for_status = MagicMock()
+
+        mock_completed = MagicMock()
+        mock_completed.json.return_value = {
+            "status": "completed",
+            "total": 1,
+            "data": [
+                {
+                    "markdown": "# Done",
+                    "metadata": {"title": "Done", "sourceURL": "https://example.com"},
+                }
+            ],
+        }
+        mock_completed.raise_for_status = MagicMock()
+
+        mock_get.side_effect = [mock_scraping, mock_completed]
+
+        tool = CrwCrawlTool(poll_interval=0.01)
+        result = tool("https://example.com")
+        assert "Done" in result
