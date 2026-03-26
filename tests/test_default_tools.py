@@ -13,11 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
+    CrwCrawlTool,
+    CrwScrapeTool,
     DuckDuckGoSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
@@ -160,3 +163,146 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+class TestCrwScrapeTool:
+    def test_initialization_defaults(self):
+        tool = CrwScrapeTool()
+        assert tool.api_url == "http://localhost:3000"
+        assert tool.formats == ["markdown"]
+        assert tool.only_main_content is True
+
+    def test_initialization_custom(self):
+        tool = CrwScrapeTool(
+            api_url="http://myserver:4000/",
+            api_key="test-key",
+            only_main_content=False,
+            formats=["markdown", "html"],
+        )
+        assert tool.api_url == "http://myserver:4000"
+        assert tool.api_key == "test-key"
+        assert tool.only_main_content is False
+        assert tool.formats == ["markdown", "html"]
+
+    @patch("requests.post")
+    def test_scrape_success(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "data": {
+                "markdown": "# Hello World\n\nThis is content.",
+                "metadata": {
+                    "title": "Hello World",
+                    "sourceURL": "https://example.com",
+                },
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        tool = CrwScrapeTool()
+        result = tool("https://example.com")
+        assert "Hello World" in result
+        assert "https://example.com" in result
+
+    @patch("requests.post")
+    def test_scrape_with_css_selector(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "success": True,
+            "data": {"markdown": "Selected content", "metadata": {}},
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        tool = CrwScrapeTool()
+        tool("https://example.com", css_selector="article.main")
+
+        call_payload = mock_post.call_args[1]["json"]
+        assert call_payload["cssSelector"] == "article.main"
+
+    @patch("requests.post")
+    def test_scrape_api_error(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "success": False,
+            "error": "invalid_url",
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        tool = CrwScrapeTool()
+        result = tool("not-a-url")
+        assert "failed" in result.lower()
+
+    @patch("requests.post")
+    def test_scrape_content_truncation(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "success": True,
+            "data": {
+                "markdown": "x" * 50000,
+                "metadata": {"title": "Big Page"},
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        tool = CrwScrapeTool(max_output_length=1000)
+        result = tool("https://example.com")
+        assert "truncated" in result.lower()
+
+
+class TestCrwCrawlTool:
+    def test_initialization_defaults(self):
+        tool = CrwCrawlTool()
+        assert tool.api_url == "http://localhost:3000"
+        assert tool.max_depth == 2
+        assert tool.max_pages == 10
+
+    @patch("requests.get")
+    @patch("requests.post")
+    def test_crawl_success(self, mock_post, mock_get):
+        # Mock crawl start
+        mock_start = MagicMock()
+        mock_start.json.return_value = {"success": True, "id": "test-crawl-id"}
+        mock_start.raise_for_status = MagicMock()
+        mock_post.return_value = mock_start
+
+        # Mock status check — completed immediately
+        mock_status = MagicMock()
+        mock_status.json.return_value = {
+            "status": "completed",
+            "total": 1,
+            "data": [
+                {
+                    "markdown": "# Page 1 content",
+                    "metadata": {
+                        "title": "Page 1",
+                        "sourceURL": "https://example.com",
+                    },
+                }
+            ],
+        }
+        mock_status.raise_for_status = MagicMock()
+        mock_get.return_value = mock_status
+
+        tool = CrwCrawlTool(poll_interval=0.01)
+        result = tool("https://example.com")
+        assert "Page 1" in result
+        assert "https://example.com" in result
+
+    @patch("requests.post")
+    def test_crawl_start_failure(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "success": False,
+            "error": "invalid_url",
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        tool = CrwCrawlTool()
+        result = tool("bad-url")
+        assert "failed" in result.lower()
