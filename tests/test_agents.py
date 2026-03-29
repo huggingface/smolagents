@@ -1678,25 +1678,10 @@ class TestMultiStepAgent:
         shared_logger = AgentLogger(LogLevel.DEBUG)
         # A distinct model instance that from_dict would reconstruct if shared_model were not injected.
         reconstructed_model = MagicMock()
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = reconstructed_model
 
-        # Mock model reconstruction
-        with patch("smolagents.agents.importlib.import_module") as mock_import:
-            mock_models_module = MagicMock()
-            mock_model_class = MagicMock()
-            mock_model_class.from_dict.return_value = reconstructed_model
-            mock_models_module.MagicMock = mock_model_class
-            mock_agents_module = MagicMock()
-            mock_agents_module.CodeAgent = CodeAgent
-
-            def side_effect(module_name):
-                if module_name == "smolagents.models":
-                    return mock_models_module
-                elif module_name == "smolagents.agents":
-                    return mock_agents_module
-                return MagicMock()
-
-            mock_import.side_effect = side_effect
-
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
             # Pass a non-shared kwarg (additional_authorized_imports) alongside shared ones;
             # it must not bleed into the child agent's config.
             recreated_agent = CodeAgent.from_dict(
