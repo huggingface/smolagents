@@ -307,7 +307,7 @@ locals().update(vars_dict)
         final_answer_tool.__class__ = _FinalAnswerTool
 
     @staticmethod
-    def _deserialize_final_answer(encoded_value: str, allow_pickle: bool = True) -> Any:
+    def _deserialize_final_answer(encoded_value: str, allow_pickle: bool = False) -> Any:
         """Deserialize final answer with format detection.
 
         Accepts explicit prefix-based formats only:
@@ -315,11 +315,11 @@ locals().update(vars_dict)
         - "pickle:" for pickle payloads (only when allow_pickle=True)
 
         Args:
-            encoded_value: Serialized string from FinalAnswerException.
-            allow_pickle: Whether to allow pickle deserialization.
+            encoded_value (`str`): Serialized string from FinalAnswerException.
+            allow_pickle (`bool`, default `False`): Whether to allow pickle deserialization.
 
         Returns:
-            Deserialized Python object.
+            `Any`: Deserialized Python object.
 
         Raises:
             SerializationError: If pickle data is rejected.
@@ -481,8 +481,18 @@ def _websocket_send_execute_request(code: str, ws) -> str:
     return msg_id
 
 
-def _websocket_run_code_raise_errors(code: str, ws, logger, allow_pickle: bool = True) -> CodeOutput:
-    """Run code over a websocket."""
+def _websocket_run_code_raise_errors(code: str, ws, logger, allow_pickle: bool = False) -> CodeOutput:
+    """Run code over a websocket.
+
+    Args:
+        code (`str`): Python code to execute.
+        ws (`websocket.WebSocket`): Websocket instance.
+        logger (`Logger`): Logger instance.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle deserialization.
+
+    Returns:
+        `CodeOutput`
+    """
     try:
         # Send execute request
         msg_id = _websocket_send_execute_request(code, ws)
