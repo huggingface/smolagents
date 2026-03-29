@@ -481,9 +481,7 @@ def _websocket_send_execute_request(code: str, ws) -> str:
     return msg_id
 
 
-def _websocket_run_code_raise_errors(
-    code: str, ws, logger, allow_pickle: bool = True, safe_serialization: bool = False
-) -> CodeOutput:
+def _websocket_run_code_raise_errors(code: str, ws, logger, allow_pickle: bool = True) -> CodeOutput:
     """Run code over a websocket."""
     try:
         # Send execute request
