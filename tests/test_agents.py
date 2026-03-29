@@ -1642,7 +1642,11 @@ class TestMultiStepAgent:
             assert "Supported agents:" in error_message
 
     def test_from_dict_propagates_shared_kwargs_to_managed_agents(self):
-        """Test that shared runtime kwargs (model, logger, executor settings) are correctly propagated to managed agents."""
+        """Test that shared runtime kwargs (model, logger) propagate to managed agents,
+        while non-shared kwargs (e.g. additional_authorized_imports) do not override
+        child agent's own config (regression test for #1849).
+        """
+
         @tool
         def fake_tool() -> str:
             """A fake tool"""
@@ -1667,22 +1671,20 @@ class TestMultiStepAgent:
             description="Main agent with managed agents",
             max_steps=10,
         )
-
-        # Convert to dict
         main_agent_dict = main_agent.to_dict()
 
         # Prepare shared runtime parameters
         shared_model = MagicMock()
         shared_logger = AgentLogger(LogLevel.DEBUG)
-        executor_kwargs = {"max_print_outputs_length": 10_000}
+        # A distinct model instance that from_dict would reconstruct if shared_model were not injected.
+        reconstructed_model = MagicMock()
 
         # Mock model reconstruction
         with patch("smolagents.agents.importlib.import_module") as mock_import:
             mock_models_module = MagicMock()
             mock_model_class = MagicMock()
-            mock_model_class.from_dict.return_value = shared_model
+            mock_model_class.from_dict.return_value = reconstructed_model
             mock_models_module.MagicMock = mock_model_class
-
             mock_agents_module = MagicMock()
             mock_agents_module.CodeAgent = CodeAgent
 
@@ -1695,32 +1697,29 @@ class TestMultiStepAgent:
 
             mock_import.side_effect = side_effect
 
-            # Recreate agent with shared kwargs
+            # Pass a non-shared kwarg (additional_authorized_imports) alongside shared ones;
+            # it must not bleed into the child agent's config.
             recreated_agent = CodeAgent.from_dict(
                 main_agent_dict,
                 model=shared_model,
                 logger=shared_logger,
-                executor_kwargs=executor_kwargs,
+                additional_authorized_imports=["numpy"],
             )
 
-        # Verify parent agent uses shared resources
+        # Verify parent receives injected shared resources
         assert recreated_agent.model is shared_model
         assert recreated_agent.logger is shared_logger
-        assert recreated_agent.executor_kwargs is executor_kwargs
+        # Verify parent does not inherit child-specific config
         assert "sympy" not in recreated_agent.authorized_imports
         assert "fake_tool" not in recreated_agent.tools
 
-        # Verify child agent inherits shared resources
-        assert "managed_agent" in recreated_agent.managed_agents
         child_agent = recreated_agent.managed_agents["managed_agent"]
-
+        # Verify child receives shared resources (not its own reconstructed model)
         assert child_agent.model is shared_model
         assert child_agent.logger is shared_logger
-        assert child_agent.executor_kwargs is executor_kwargs
-
-        # Verify child preserves its own config
+        # Verify child preserves its own authorized_imports and is not affected by parent's kwarg
         assert "sympy" in child_agent.authorized_imports
-
+        assert "numpy" not in child_agent.authorized_imports
         # Verify child preserves its own tools
         assert "fake_tool" in child_agent.tools
 
