@@ -40,6 +40,8 @@
     title: "Human-in-the-Loop: Customize agent plan interactively"
   - local: examples/async_agent
     title: Async Applications with Agents
+  - local: examples/aegis_governance
+    title: Governance with Aegis
 - title: Reference
   sections:
   - title: Agent-related objects
