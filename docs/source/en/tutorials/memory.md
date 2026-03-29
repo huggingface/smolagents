@@ -109,7 +109,9 @@ from smolagents import ActionStep, CodeAgent
 
 def log_behavioral_fingerprint(memory_step: ActionStep, agent: CodeAgent) -> None:
     previous_steps = [
-        step for step in agent.memory.steps if isinstance(step, ActionStep)
+        step
+        for step in agent.memory.steps
+        if isinstance(step, ActionStep) and step is not memory_step
     ]
     previous_step = previous_steps[-1] if previous_steps else None
 
