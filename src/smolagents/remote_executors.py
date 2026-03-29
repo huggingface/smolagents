@@ -307,7 +307,7 @@ locals().update(vars_dict)
         final_answer_tool.__class__ = _FinalAnswerTool
 
     @staticmethod
-    def _deserialize_final_answer(encoded_value: str, allow_pickle: bool = True) -> Any:
+    def _deserialize_final_answer(encoded_value: str, allow_pickle: bool = False) -> Any:
         """Deserialize final answer with format detection.
 
         Accepts explicit prefix-based formats only:
@@ -481,7 +481,7 @@ def _websocket_send_execute_request(code: str, ws) -> str:
     return msg_id
 
 
-def _websocket_run_code_raise_errors(code: str, ws, logger, allow_pickle: bool = True) -> CodeOutput:
+def _websocket_run_code_raise_errors(code: str, ws, logger, allow_pickle: bool = False) -> CodeOutput:
     """Run code over a websocket."""
     try:
         # Send execute request
