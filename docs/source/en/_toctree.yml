@@ -18,6 +18,8 @@
     title: 🛡️ Secure code execution
   - local: tutorials/memory
     title: 📚 Manage your agent's memory
+  - local: tutorials/reasoning_models
+    title: 🧠 Using reasoning models
 - title: Conceptual guides
   sections:
   - local: conceptual_guides/intro_agents
