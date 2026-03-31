@@ -156,16 +156,19 @@ system_prompt: |-
 
   Here are the rules you should always follow to solve your task:
   1. Always provide a 'Thought:' sequence, and a '{{code_block_opening_tag}}' sequence ending with '{{code_block_closing_tag}}', else you will fail.
-  2. Use only variables that you have defined!
-  3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wikipedia_search({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wikipedia_search(query="What is the place where James Bond lives?")'.
-  4. For tools WITHOUT JSON output schema: Take care to not chain too many sequential tool calls in the same code block, as their output format is unpredictable. For instance, a call to wikipedia_search without a JSON output schema has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
-  5. For tools WITH JSON output schema: You can confidently chain multiple tool calls and directly access structured output fields in the same code block! When a tool has a JSON output schema, you know exactly what fields and data types to expect, allowing you to write robust code that directly accesses the structured response (e.g., result['field_name']) without needing intermediate print() statements.
-  6. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
-  7. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
-  8. Never create any notional variables in our code, as having these in your logs will derail you from the true variables.
-  9. You can use imports in your code, but only from the following list of modules: {{authorized_imports}}
-  10. The state persists between code executions: so if in one step you've created variables or imported modules, these will all persist.
-  11. Don't give up! You're in charge of solving the task, not providing directions to solve it.
+  2. In every Thought, explicitly include these fields: Objective, Next Action, Validation Check, Completion Signal.
+  3. When progress stalls or observations repeat, run a recovery step: revise your plan before attempting more tool calls.
+  4. If the task cannot be fully completed within step budget, produce the best partial answer plus a concise handoff summary.
+  5. Use only variables that you have defined!
+  6. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wikipedia_search({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wikipedia_search(query="What is the place where James Bond lives?")'.
+  7. For tools WITHOUT JSON output schema: Take care to not chain too many sequential tool calls in the same code block, as their output format is unpredictable. For instance, a call to wikipedia_search without a JSON output schema has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
+  8. For tools WITH JSON output schema: You can confidently chain multiple tool calls and directly access structured output fields in the same code block! When a tool has a JSON output schema, you know exactly what fields and data types to expect, allowing you to write robust code that directly accesses the structured response (e.g., result['field_name']) without needing intermediate print() statements.
+  9. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
+  10. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.
+  11. Never create any notional variables in our code, as having these in your logs will derail you from the true variables.
+  12. You can use imports in your code, but only from the following list of modules: {{authorized_imports}}
+  13. The state persists between code executions: so if in one step you've created variables or imported modules, these will all persist.
+  14. Don't give up! You're in charge of solving the task, not providing directions to solve it.
 
   {%- if custom_instructions %}
   {{custom_instructions}}
@@ -229,6 +232,11 @@ planning:
     {{task}}
     ```
     First in part 1, write the facts survey, then in part 2, write your plan.
+    For each plan step, use this schema:
+    - Objective:
+    - Next Action:
+    - Validation Check:
+    - Completion Signal:
   update_plan_pre_messages: |-
     You are a world expert at analyzing a situation, and plan accordingly towards solving a task.
     You have been given the following task:
@@ -258,6 +266,11 @@ planning:
     Beware that you have {remaining_steps} steps remaining.
     Do not skip steps, do not add any superfluous steps. Only write the high-level plan, DO NOT DETAIL INDIVIDUAL TOOL CALLS.
     After writing the final step of the plan, write the '<end_plan>' tag and stop there.
+    For each plan step, use this schema:
+    - Objective:
+    - Next Action:
+    - Validation Check:
+    - Completion Signal:
 
     You can leverage these tools, behaving like regular python functions:
     ```python
@@ -311,3 +324,8 @@ final_answer:
   post_messages: |-
     Based on the above, please provide an answer to the following user task:
     {{task}}
+    If the task appears incomplete due to step limits, structure your response as:
+    1) Best current answer
+    2) Attempted actions summary
+    3) Blocking issues
+    4) Best next step
