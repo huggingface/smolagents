@@ -606,6 +606,281 @@ class WikipediaSearchTool(Tool):
             return f"Error fetching Wikipedia summary: {str(e)}"
 
 
+class CrwScrapeTool(Tool):
+    """Web scraping tool that uses a CRW server (Firecrawl-compatible API) to scrape
+    a single webpage and return its content as clean markdown.
+
+    CRW is an open-source web scraper for AI agents that provides high-quality
+    content extraction with optional JavaScript rendering.
+
+    Args:
+        api_url (`str`): Base URL of the CRW server. Defaults to ``http://localhost:3000``.
+        api_key (`str`, *optional*): Bearer token for authentication. Falls back to the
+            ``CRW_API_KEY`` environment variable.
+        only_main_content (`bool`, default `True`): Strip navigation, footer, and sidebar.
+        formats (`list[str]`, *optional*): Output formats (``markdown``, ``html``,
+            ``plainText``, ``links``). Defaults to ``["markdown"]``.
+
+    Examples:
+        ```python
+        >>> from smolagents import CrwScrapeTool
+        >>> scrape_tool = CrwScrapeTool(api_url="http://localhost:3000")
+        >>> result = scrape_tool("https://example.com")
+        >>> print(result)
+        ```
+    """
+
+    name = "crw_scrape"
+    description = (
+        "Scrapes a single webpage using a CRW server and returns its content as clean markdown. "
+        "CRW handles JavaScript-rendered pages, strips boilerplate (nav, footer, ads), and "
+        "converts the result to clean markdown. Use this instead of visit_webpage when you need "
+        "higher-quality content extraction."
+    )
+    inputs = {
+        "url": {
+            "type": "string",
+            "description": "The URL of the webpage to scrape.",
+        },
+        "css_selector": {
+            "type": "string",
+            "description": "Optional CSS selector to extract only matching elements.",
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def __init__(
+        self,
+        api_url: str = "http://localhost:3000",
+        api_key: str | None = None,
+        only_main_content: bool = True,
+        formats: list[str] | None = None,
+        max_output_length: int = 40000,
+    ):
+        super().__init__()
+        import os
+
+        self.api_url = api_url.rstrip("/")
+        self.api_key = api_key or os.getenv("CRW_API_KEY")
+        self.only_main_content = only_main_content
+        self.formats = formats or ["markdown"]
+        self.max_output_length = max_output_length
+
+    def forward(self, url: str, css_selector: str | None = None) -> str:
+        import requests
+
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        payload: dict = {
+            "url": url,
+            "formats": self.formats,
+            "onlyMainContent": self.only_main_content,
+        }
+        if css_selector:
+            payload["cssSelector"] = css_selector
+
+        try:
+            response = requests.post(
+                f"{self.api_url}/v1/scrape",
+                json=payload,
+                headers=headers,
+                timeout=60,
+            )
+            response.raise_for_status()
+        except requests.exceptions.Timeout:
+            return "The CRW scrape request timed out. Try again or check the CRW server."
+        except requests.exceptions.RequestException as e:
+            return f"Error calling CRW scrape API: {e}"
+
+        data = response.json()
+        if not data.get("success"):
+            return f"CRW scrape failed: {data.get('error', 'Unknown error')}"
+
+        result_data = data.get("data", {})
+        content = (
+            result_data.get("markdown")
+            or result_data.get("html")
+            or result_data.get("plainText")
+            or ""
+        )
+
+        # If no text content was found, try to format links
+        if not content:
+            links = result_data.get("links")
+            if links:
+                if isinstance(links, list):
+                    lines = []
+                    for link in links:
+                        if isinstance(link, dict):
+                            url_value = link.get("url") or ""
+                            text_value = link.get("text") or link.get("title") or url_value
+                            if url_value:
+                                lines.append(f"- [{text_value}]({url_value})")
+                        else:
+                            lines.append(str(link))
+                    content = "\n".join(lines)
+                else:
+                    content = str(links)
+
+        metadata = result_data.get("metadata", {})
+        title = metadata.get("title", "")
+        header = f"## {title}\nSource: {url}\n\n" if title else f"Source: {url}\n\n"
+
+        full_content = header + content
+        if self.max_output_length and len(full_content) > self.max_output_length:
+            truncation_notice = f"\n..._Content truncated to {self.max_output_length} characters_...\n"
+            available_length = max(self.max_output_length - len(truncation_notice), 0)
+            full_content = full_content[:available_length] + truncation_notice
+        return full_content
+
+
+class CrwCrawlTool(Tool):
+    """Web crawling tool that uses a CRW server (Firecrawl-compatible API) to crawl
+    a website starting from a URL and return content from multiple pages.
+
+    This tool starts an asynchronous crawl job, polls for completion, and returns
+    the aggregated markdown content from all crawled pages.
+
+    Args:
+        api_url (`str`): Base URL of the CRW server. Defaults to ``http://localhost:3000``.
+        api_key (`str`, *optional*): Bearer token for authentication. Falls back to the
+            ``CRW_API_KEY`` environment variable.
+        max_depth (`int`, default `2`): Maximum link-follow depth.
+        max_pages (`int`, default `10`): Maximum number of pages to crawl.
+        poll_interval (`float`, default `2.0`): Seconds between status checks.
+        poll_timeout (`float`, default `120.0`): Maximum seconds to wait for crawl completion.
+
+    Examples:
+        ```python
+        >>> from smolagents import CrwCrawlTool
+        >>> crawl_tool = CrwCrawlTool(api_url="http://localhost:3000", max_pages=5)
+        >>> result = crawl_tool("https://example.com")
+        >>> print(result)
+        ```
+    """
+
+    name = "crw_crawl"
+    description = (
+        "Crawls a website starting from the given URL using a CRW server and returns markdown "
+        "content from multiple pages. Use this when you need to gather information from several "
+        "pages of a website, not just a single page."
+    )
+    inputs = {
+        "url": {
+            "type": "string",
+            "description": "The starting URL to crawl from.",
+        },
+        "max_pages": {
+            "type": "integer",
+            "description": "Maximum number of pages to crawl. Defaults to 10.",
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def __init__(
+        self,
+        api_url: str = "http://localhost:3000",
+        api_key: str | None = None,
+        max_depth: int = 2,
+        max_pages: int = 10,
+        poll_interval: float = 2.0,
+        poll_timeout: float = 120.0,
+        max_output_length: int = 40000,
+    ):
+        super().__init__()
+        import os
+
+        self.api_url = api_url.rstrip("/")
+        self.api_key = api_key or os.getenv("CRW_API_KEY")
+        self.max_depth = max_depth
+        self.max_pages = max_pages
+        self.poll_interval = poll_interval
+        self.poll_timeout = poll_timeout
+        self.max_output_length = max_output_length
+
+    def forward(self, url: str, max_pages: int | None = None) -> str:
+        import time
+
+        import requests
+
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        payload = {
+            "url": url,
+            "maxDepth": self.max_depth,
+            "maxPages": max_pages if max_pages is not None else self.max_pages,
+            "formats": ["markdown"],
+            "onlyMainContent": True,
+        }
+
+        # Start the crawl job
+        try:
+            response = requests.post(
+                f"{self.api_url}/v1/crawl",
+                json=payload,
+                headers=headers,
+                timeout=30,
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            return f"Error starting CRW crawl: {e}"
+
+        data = response.json()
+        if not data.get("success"):
+            return f"CRW crawl failed to start: {data.get('error', 'Unknown error')}"
+
+        crawl_id = data["id"]
+
+        # Poll for completion
+        start_time = time.time()
+        while time.time() - start_time < self.poll_timeout:
+            time.sleep(self.poll_interval)
+            try:
+                status_response = requests.get(
+                    f"{self.api_url}/v1/crawl/{crawl_id}",
+                    headers=headers,
+                    timeout=15,
+                )
+                status_response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                return f"Error checking crawl status: {e}"
+
+            status_data = status_response.json()
+            status = status_data.get("status")
+
+            if status == "completed":
+                return self._format_crawl_results(status_data, url)
+            elif status == "failed":
+                return f"CRW crawl failed for {url}."
+
+        return f"CRW crawl timed out after {self.poll_timeout}s. Crawl ID: {crawl_id}"
+
+    def _format_crawl_results(self, status_data: dict, start_url: str) -> str:
+        pages = status_data.get("data", [])
+        total = status_data.get("total", len(pages))
+
+        parts = [f"## Crawl Results for {start_url}\nPages crawled: {total}\n"]
+        for page in pages:
+            metadata = page.get("metadata", {})
+            title = metadata.get("title", "Untitled")
+            source = metadata.get("sourceURL", "")
+            markdown = page.get("markdown", "")
+            parts.append(f"### {title}\nURL: {source}\n\n{markdown}\n")
+
+        full_content = "\n---\n".join(parts)
+        if self.max_output_length and len(full_content) > self.max_output_length:
+            truncation_notice = f"\n..._Content truncated to {self.max_output_length} characters_...\n"
+            available_length = max(self.max_output_length - len(truncation_notice), 0)
+            full_content = full_content[:available_length] + truncation_notice
+        return full_content
+
+
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
@@ -649,6 +924,8 @@ TOOL_MAPPING = {
 
 __all__ = [
     "ApiWebSearchTool",
+    "CrwCrawlTool",
+    "CrwScrapeTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
