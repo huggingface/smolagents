@@ -118,7 +118,7 @@ When working with AI agents that execute code, security is paramount. There are 
 
 ![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png)
 
-1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="blaxel"`, `executor_type="e2b"`, `executor_type="modal"`, or
+1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="blaxel"`, `executor_type="daytona"`, `executor_type="e2b"`, `executor_type="modal"`, or
 `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
 
 2. **Running the entire agentic system in a sandbox**: This approach (right side of diagram) runs the entire agentic system, including the agent, model, and tools, within a sandbox environment. This provides better isolation but requires more manual setup and may require passing sensitive credentials (like API keys) to the sandbox environment.
@@ -157,6 +157,79 @@ Blaxel provides fast-launching virtual machines that start from hibernation in u
 
 > [!TIP]
 > For even stronger security isolation, you can host your entire agent remotely on Blaxel. This provides complete sandboxing of the agent, model, and tools. See the [Blaxel agent hosting documentation](https://docs.blaxel.ai/Agents/Develop-an-agent-py) for details.
+
+### Daytona setup
+
+#### Installation
+
+1. Create a Daytona account at [daytona.io](https://daytona.io) and generate an API key from the [Daytona Dashboard](https://app.daytona.io/dashboard/keys).
+2. Install the required packages:
+```bash
+pip install 'smolagents[daytona]'
+```
+
+#### Running your agent with Daytona: quick start
+
+Set the `DAYTONA_API_KEY` environment variable, then add `executor_type="daytona"` to the agent initialization:
+
+```py
+from smolagents import InferenceClientModel, CodeAgent
+
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="daytona") as agent:
+    agent.run("Can you give me the 100th Fibonacci number?")
+```
+
+> [!TIP]
+> Using the agent as a context manager (with the `with` statement) ensures that the Daytona sandbox is cleaned up immediately after the agent completes its task.
+> Alternatively, you can manually call the agent's `cleanup()` method.
+
+This solution sends the agent state to the sandbox at the start of each `agent.run()`.
+Then the models are called from the local environment, but the generated code will be sent to the Daytona sandbox for execution, and only the output will be returned.
+
+Daytona provides secure and elastic sandbox infrastructure with lightning-fast startup times. Each sandbox runs in an isolated environment with a built-in code interpreter that preserves Python state across execution steps, making it well suited for agentic workflows that require secure and responsive code execution.
+
+#### Customizing the Daytona sandbox
+
+You can pass custom sandbox creation parameters via `executor_kwargs`:
+
+```py
+from daytona import CreateSandboxFromSnapshotParams
+from smolagents import InferenceClientModel, CodeAgent
+
+params = CreateSandboxFromSnapshotParams(
+    name="my-agent-sandbox",
+    env_vars={"DEBUG": "true"},
+    auto_stop_interval=0,  # Disable auto-stop
+)
+
+with CodeAgent(
+    model=InferenceClientModel(),
+    tools=[],
+    executor_type="daytona",
+    executor_kwargs={"params": params, "timeout": 120},
+) as agent:
+    agent.run("Can you give me the 100th Fibonacci number?")
+```
+
+You can also use a custom Docker image with `CreateSandboxFromImageParams`:
+
+```py
+from daytona import CreateSandboxFromImageParams
+from smolagents import InferenceClientModel, CodeAgent
+
+params = CreateSandboxFromImageParams(
+    image="python:3.12-slim",
+    env_vars={"MY_VAR": "value"},
+)
+
+with CodeAgent(
+    model=InferenceClientModel(),
+    tools=[],
+    executor_type="daytona",
+    executor_kwargs={"params": params},
+) as agent:
+    agent.run("Can you give me the 100th Fibonacci number?")
+```
 
 ### E2B setup
 
@@ -456,7 +529,7 @@ agent.run("Can you give me the 100th Fibonacci number?")
 
 ### Best practices for sandboxes
 
-These key practices apply to Blaxel, E2B, and Docker sandboxes:
+These key practices apply to Blaxel, Daytona, E2B, and Docker sandboxes:
 
 - Resource management
   - Set memory and CPU limits
@@ -482,7 +555,7 @@ As illustrated in the diagram earlier, both sandboxing approaches have different
 
 ### Approach 1: Running just the code snippets in a sandbox
 - **Pros**: 
-  - Easier to set up with a simple parameter (`executor_type="blaxel"`, `executor_type="e2b"`, or `executor_type="docker"`)
+  - Easier to set up with a simple parameter (`executor_type="blaxel"`, `executor_type="daytona"`, `executor_type="e2b"`, or `executor_type="docker"`)
   - No need to transfer API keys to the sandbox
   - Better protection for your local environment
   - Fast execution with Blaxel's hibernation technology (<25ms startup)
