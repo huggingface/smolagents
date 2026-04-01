@@ -94,6 +94,174 @@ CodeAgent(
 
 Head to our [vision web browser code](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py) to see the full working example.
 
+### Plug in external memory with lifecycle hooks
+
+`AgentMemory` supports three optional lifecycle hooks that let you integrate external memory providers
+(e.g., [mem0](https://github.com/mem0ai/mem0), Redis, SQLite, or file-based persistence)
+without modifying core agent logic:
+
+- **`on_run_start(task, memory)`** — Called at the start of each run, after the `TaskStep` is appended. Use this to load relevant context from a long-term memory store.
+- **`on_step_added(step, memory)`** — Called after each step is appended. Use this to persist observations, tool outputs, or other step data.
+- **`on_run_end(task, result, memory)`** — Called after the run completes. Use this to save run summaries, learned facts, or methodology outcomes.
+
+All hooks are optional — when not provided, the agent behaves exactly as before.
+
+#### Example: Cross-session memory with mem0
+
+This example uses [mem0](https://github.com/mem0ai/mem0) to recall relevant context from previous runs
+and persist new observations for future runs:
+
+```python
+import atexit
+from mem0 import Memory
+from smolagents import CodeAgent, InferenceClientModel
+from smolagents.memory import ActionStep, AgentMemory
+
+# Configure mem0 with disk persistence. Key settings:
+#   - on_disk: True — ensures Qdrant writes vectors to disk
+#   - history_db_path — persists mem0's memory history across restarts
+# Without these, memories are lost when the process exits.
+mem = Memory.from_config({
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {"path": "./mem0_storage", "on_disk": True},
+    },
+    "history_db_path": "./mem0_storage/history.db",
+})
+
+# Close Qdrant explicitly on exit to flush data to disk.
+atexit.register(lambda: mem.vector_store.client.close() if hasattr(mem, "vector_store") else None)
+
+
+def recall_context(task, memory):
+    """Load relevant memories from previous runs into the current task context."""
+    # mem0 v1.0+ returns {"results": [{"memory": "...", "score": ...}, ...]}
+    response = mem.search(query=task, user_id="agent", limit=5)
+    results = response.get("results", []) if isinstance(response, dict) else response
+    if results:
+        context = "\n".join(f"- {m['memory']}" for m in results)
+        memory.steps[0].task += f"\n\nContext from previous runs:\n{context}"
+
+
+def persist_observations(step, memory):
+    """Save interesting observations to long-term memory after each step."""
+    # mem0's LLM decides what's "memory-worthy" — raw code output is often
+    # filtered out. Framing as preferences improves retention.
+    if isinstance(step, ActionStep) and step.observations and len(step.observations) > 50:
+        mem.add(
+            f"The user prefers this analysis approach and found: {step.observations[:500]}",
+            user_id="agent",
+        )
+
+
+def persist_result(task, result, memory):
+    """Save a run summary to long-term memory after the run completes."""
+    mem.add(
+        f"The user prefers this methodology: for '{task[:200]}', the result was: {str(result)[:300]}",
+        user_id="agent",
+    )
+
+
+agent = CodeAgent(
+    tools=[],
+    model=InferenceClientModel(),
+    memory=AgentMemory(
+        system_prompt="placeholder",  # Overwritten by the agent's own system prompt
+        on_run_start=recall_context,
+        on_step_added=persist_observations,
+        on_run_end=persist_result,
+    ),
+)
+
+# First run — no prior context
+agent.run("Analyze sales data for Q1 trends")
+
+# Second run — mem0 recalls Q1 insights automatically
+agent.run("Now compare Q1 with Q2 trends")
+```
+
+#### Example: Filtered memory with LLM-as-a-judge
+
+This example uses `on_step_added` to keep only the most relevant steps, scored by an LLM:
+
+```python
+from smolagents import CodeAgent, InferenceClientModel
+from smolagents.memory import ActionStep, AgentMemory
+
+model = InferenceClientModel()
+
+def filter_irrelevant_steps(step, memory):
+    """Remove steps with low relevance scores to keep memory lean."""
+    if not isinstance(step, ActionStep) or not step.observations:
+        return
+
+    # Ask an LLM to score the relevance of this step's observations
+    response = model.generate([{
+        "role": "user",
+        "content": (
+            f"Rate the usefulness of this observation for solving the task on a scale of 1-10. "
+            f"Reply with just the number.\n\n"
+            f"Task: {memory.steps[0].task}\n"
+            f"Observation: {step.observations[:500]}"
+        ),
+    }])
+
+    try:
+        score = int(response.content.strip())
+    except (ValueError, AttributeError):
+        return  # Keep the step if we can't parse the score
+
+    if score < 4:
+        # Replace low-value observations with a brief summary to save tokens
+        step.observations = f"[Low relevance observation removed — score: {score}]"
+
+agent = CodeAgent(
+    tools=[...],
+    model=model,
+    memory=AgentMemory(
+        system_prompt="placeholder",
+        on_step_added=filter_irrelevant_steps,
+    ),
+)
+```
+
+#### Example: Simple JSON file persistence
+
+For lightweight persistence without external dependencies:
+
+```python
+import json
+from pathlib import Path
+from smolagents import CodeAgent, InferenceClientModel
+from smolagents.memory import ActionStep, AgentMemory
+
+MEMORY_FILE = Path("agent_memory.json")
+
+def save_result(task, result, memory):
+    """Append each run's result to a JSON file for later review."""
+    history = json.loads(MEMORY_FILE.read_text()) if MEMORY_FILE.exists() else []
+    history.append({"task": task, "result": str(result)})
+    MEMORY_FILE.write_text(json.dumps(history, indent=2))
+
+def load_history(task, memory):
+    """Prepend past run results to the task context."""
+    if MEMORY_FILE.exists():
+        history = json.loads(MEMORY_FILE.read_text())
+        if history:
+            summary = "\n".join(f"- {h['task']}: {h['result']}" for h in history[-5:])
+            memory.steps[0].task += f"\n\nPrevious run history:\n{summary}"
+
+agent = CodeAgent(
+    tools=[],
+    model=InferenceClientModel(),
+    memory=AgentMemory(
+        system_prompt="placeholder",
+        on_run_start=load_history,
+        on_run_end=save_result,
+    ),
+)
+```
+
 ### Run agents one step at a time
 
 This can be useful in case you have tool calls that take days: you can just run your agents step by step.
@@ -112,7 +280,7 @@ task = "What is the 20th Fibonacci number?"
 # agent.memory.steps = previous_agent.memory.steps
 
 # Let's start a new task!
-agent.memory.steps.append(TaskStep(task=task, task_images=[]))
+agent.memory.append_step(TaskStep(task=task, task_images=[]))
 
 final_answer = None
 step_number = 1
@@ -123,7 +291,7 @@ while final_answer is None and step_number <= 10:
     )
     # Run one step.
     final_answer = agent.step(memory_step)
-    agent.memory.steps.append(memory_step)
+    agent.memory.append_step(memory_step)
     step_number += 1
 
     # Change the memory as you please!
