@@ -1,0 +1,139 @@
+version: 2.1
+
+# ---------------------------------------------------------------------------
+# Exact replica of efficientengineering/smolagents GitHub Actions workflows:
+#   - .github/workflows/tests.yml        → test job (Python 3.10, 3.12 matrix)
+#   - .github/workflows/quality.yml      → quality-check job (Python 3.12)
+#   - .github/workflows/trufflehog.yml   → trufflehog job (secret scanning)
+#
+# NOTE: The 3 documentation workflows (build_documentation.yml,
+# build_pr_documentation.yml, upload_pr_documentation.yml) delegate to
+# huggingface/doc-builder reusable GitHub Actions workflows and cannot be
+# replicated in CircleCI. They should remain in GitHub Actions or be
+# reimplemented as standalone scripts.
+# ---------------------------------------------------------------------------
+
+executors:
+  python-executor:
+    parameters:
+      python-version:
+        type: string
+    docker:
+      - image: cimg/python:<< parameters.python-version >>
+    resource_class: medium+
+    environment:
+      UV_SYSTEM_PYTHON: "1"
+      UV_HTTP_TIMEOUT: "600"
+
+commands:
+  install-uv:
+    description: Install uv package manager
+    steps:
+      - run:
+          name: Install uv
+          command: pip install --upgrade uv
+
+  restore-uv-cache:
+    description: Restore uv dependency cache
+    steps:
+      - restore_cache:
+          keys:
+            - uv-smolagents-{{ .Branch }}-{{ checksum "pyproject.toml" }}
+            - uv-smolagents-{{ .Branch }}-
+            - uv-smolagents-
+
+  save-uv-cache:
+    description: Save uv dependency cache
+    steps:
+      - save_cache:
+          key: uv-smolagents-{{ .Branch }}-{{ checksum "pyproject.toml" }}
+          paths:
+            - ~/.cache/uv
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Mirrors: .github/workflows/quality.yml → check_code_quality
+  # Trigger: pull_request
+  # -----------------------------------------------------------------------
+  quality-check:
+    executor:
+      name: python-executor
+      python-version: "3.12"
+    steps:
+      - checkout
+      - install-uv
+      - restore-uv-cache
+      - run:
+          name: Install dependencies
+          command: uv pip install "smolagents[quality] @ ."
+      - save-uv-cache
+      - run:
+          name: Ruff check (linter)
+          command: ruff check examples src tests
+      - run:
+          name: Ruff format check (formatter)
+          command: ruff format --check examples src tests
+
+  # -----------------------------------------------------------------------
+  # Mirrors: .github/workflows/tests.yml → build-ubuntu
+  # Trigger: pull_request + push to ci-* branches
+  # Matrix: python 3.10, 3.12 (fail-fast: false)
+  # -----------------------------------------------------------------------
+  test:
+    parameters:
+      python-version:
+        type: string
+    executor:
+      name: python-executor
+      python-version: << parameters.python-version >>
+    steps:
+      - checkout
+      - install-uv
+      - restore-uv-cache
+      - run:
+          name: Install dependencies
+          command: uv pip install "smolagents[test] @ ."
+      - save-uv-cache
+      - run:
+          name: Run tests with pytest
+          command: pytest ./tests/
+          no_output_timeout: 30m
+
+  # -----------------------------------------------------------------------
+  # Mirrors: .github/workflows/trufflehog.yml → trufflehog
+  # Trigger: push (all branches)
+  # Requires full git history (fetch-depth: 0)
+  # -----------------------------------------------------------------------
+  trufflehog:
+    docker:
+      - image: cimg/base:current
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Fetch full git history
+          command: |
+            if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+              git fetch --unshallow
+            fi
+      - run:
+          name: Install TruffleHog
+          command: |
+            curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sudo sh -s -- -b /usr/local/bin
+      - run:
+          name: Secret Scanning
+          command: trufflehog filesystem --directory=. --fail
+
+workflows:
+  # -----------------------------------------------------------------------
+  # Main workflow — runs on all pushes and pull requests
+  # Mirrors the combined triggers from tests.yml, quality.yml, trufflehog.yml
+  # -----------------------------------------------------------------------
+  lint-test-scan:
+    jobs:
+      - quality-check
+      - test:
+          matrix:
+            parameters:
+              python-version: ["3.10", "3.12"]
+      - trufflehog
