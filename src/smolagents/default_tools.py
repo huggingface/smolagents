@@ -638,6 +638,250 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+class OlostepSearchTool(Tool):
+    """Web search tool powered by Olostep's Google Search API.
+
+    Returns structured, real-time Google search results including titles,
+    URLs, and rich snippets. Handles bot detection and geo-targeted routing
+    out of the box via the Olostep Python SDK.
+
+    Requires the ``OLOSTEP_API_KEY`` environment variable to be set,
+    or pass the key explicitly via ``api_key``.
+    Get a free API key at https://www.olostep.com/dashboard/api-keys.
+
+    Args:
+        max_results (`int`, default `10`): Maximum number of search results to return.
+        country (`str`, default `"US"`): Country code for geo-targeted results
+            (e.g. ``"US"``, ``"GB"``, ``"FR"``).
+
+    Examples:
+        ```python
+        >>> import os
+        >>> os.environ["OLOSTEP_API_KEY"] = "your-api-key"
+        >>> from smolagents import OlostepSearchTool
+        >>> search_tool = OlostepSearchTool(max_results=5)
+        >>> results = search_tool("latest AI agent frameworks 2025")
+        >>> print(results)
+        ```
+    """
+
+    name = "olostep_search"
+    description = (
+        "Performs a real-time Google web search using Olostep and returns structured "
+        "results with titles, URLs, and snippets. More reliable than DuckDuckGo for "
+        "JS-heavy or geo-restricted content. Requires OLOSTEP_API_KEY env variable."
+    )
+    inputs = {
+        "query": {
+            "type": "string",
+            "description": "The search query to perform.",
+        }
+    }
+    output_type = "string"
+
+    max_results: int = 10
+    country: str = "US"
+
+    def __init__(self, max_results: int = 10, country: str = "US", **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
+        self.country = country
+
+    def forward(self, query: str) -> str:
+        import os
+        from olostep import Olostep, Olostep_BaseError
+        import json
+
+        api_key = os.environ.get("OLOSTEP_API_KEY")
+        if not api_key:
+            raise EnvironmentError(
+                "OLOSTEP_API_KEY environment variable is not set. "
+                "Get a free key at https://www.olostep.com/dashboard/api-keys"
+            )
+
+        try:
+            client = Olostep(api_key=api_key)
+            # Use scrape parser flow supported by the SDK docs
+            # (parser + JSON format on scrapes.create)
+            result = client.scrapes.create(
+                url_to_scrape=f"https://www.google.com/search?q={query}",
+                formats=["json"],
+                country=self.country,
+                parser="@olostep/google-search",
+            )
+            search_results = getattr(result, "json_content", None)
+                
+        except Olostep_BaseError as e:
+            return f"Olostep search error: {e}"
+
+        if not search_results:
+            return f"No results found for query: '{query}'"
+        
+        # Parse and format the search results
+        try:
+            data = json.loads(search_results) if isinstance(search_results, str) else search_results
+            
+            # Handle Google Search parser response format
+            # The response has 'organic' key with search results
+            if isinstance(data, dict) and "organic" in data:
+                results = data.get("organic", [])
+                if not results:
+                    return f"No results found for query: '{query}'"
+                
+                formatted_results = []
+                for i, item in enumerate(results[:self.max_results], 1):
+                    title = item.get("title", "No title")
+                    link = item.get("link", "No URL")
+                    snippet = item.get("snippet", "")
+                    formatted_results.append(f"{i}. {title}\nURL: {link}\nSnippet: {snippet}\n")
+                return "\n".join(formatted_results)
+            else:
+                # Return raw data if format is unexpected
+                return str(data)
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            return f"Could not parse search results for query: '{query}'"
+
+
+class OlostepScrapeWebpageTool(Tool):
+    """Scrape a URL and return its full content as clean Markdown using Olostep.
+
+    Unlike a plain ``requests`` fetch, Olostep renders JavaScript, bypasses
+    bot-detection, and optionally waits for dynamic content to load. Ideal
+    for SPAs, news sites, and documentation pages where ``VisitWebpageTool``
+    fails or returns incomplete content.
+
+    Requires the ``OLOSTEP_API_KEY`` environment variable to be set.
+    Get a free API key at https://www.olostep.com/dashboard/api-keys.
+
+    Args:
+        wait_before_scraping (`int`, default `0`): Milliseconds to wait after
+            page load before extracting content. Useful for JS-heavy pages (0-10000).
+        country (`str`, default `"US"`): Residential country for IP routing.
+
+    Examples:
+        ```python
+        >>> import os
+        >>> os.environ["OLOSTEP_API_KEY"] = "your-api-key"
+        >>> from smolagents import OlostepScrapeWebpageTool
+        >>> scrape_tool = OlostepScrapeWebpageTool()
+        >>> content = scrape_tool("https://huggingface.co/docs/smolagents")
+        >>> print(content[:500])
+        ```
+    """
+
+    name = "olostep_scrape_webpage"
+    description = (
+        "Fetches the full content of a URL and returns it as clean Markdown. "
+        "Handles JavaScript rendering, bot-detection bypass, and geo-routing. "
+        "Use this when VisitWebpageTool fails or returns incomplete content. "
+        "Requires OLOSTEP_API_KEY env variable."
+    )
+    inputs = {
+        "url": {
+            "type": "string",
+            "description": "The full URL of the webpage to scrape (must include https://).",
+        }
+    }
+    output_type = "string"
+
+    wait_before_scraping: int = 0
+    country: str = "US"
+
+    def __init__(self, wait_before_scraping: int = 0, country: str = "US", **kwargs):
+        super().__init__(**kwargs)
+        self.wait_before_scraping = wait_before_scraping
+        self.country = country
+
+    def forward(self, url: str) -> str:
+        import os
+        from olostep import Olostep, Olostep_BaseError
+
+        api_key = os.environ.get("OLOSTEP_API_KEY")
+        if not api_key:
+            raise EnvironmentError(
+                "OLOSTEP_API_KEY environment variable is not set. "
+                "Get a free key at https://www.olostep.com/dashboard/api-keys"
+            )
+
+        try:
+            client = Olostep(api_key=api_key)
+            # wait_before_scraping is in milliseconds (see Olostep docs)
+            result = client.scrapes.create(
+                url_to_scrape=url,
+                formats=["markdown"],
+                country=self.country,
+                wait_before_scraping=self.wait_before_scraping,  # milliseconds
+            )
+        except Olostep_BaseError as e:
+            return f"Olostep scrape error for {url}: {e}"
+
+        content = (result.markdown_content or "").strip()
+        if not content:
+            return f"No content could be extracted from: {url}"
+        return content
+
+
+class OlostepAnswerTool(Tool):
+    """Ask a natural-language question and get a grounded answer from the live web.
+
+    Olostep searches the web, reads the most relevant pages, and synthesises
+    an answer with inline source citations — effectively RAG over the live web
+    as a single tool call, with no pipeline setup required.
+
+    Requires the ``OLOSTEP_API_KEY`` environment variable to be set.
+    Get a free API key at https://www.olostep.com/dashboard/api-keys.
+
+    Examples:
+        ```python
+        >>> import os
+        >>> os.environ["OLOSTEP_API_KEY"] = "your-api-key"
+        >>> from smolagents import OlostepAnswerTool
+        >>> answer_tool = OlostepAnswerTool()
+        >>> answer = answer_tool("What are the latest updates to the smolagents library?")
+        >>> print(answer)
+        ```
+    """
+
+    name = "olostep_answer"
+    description = (
+        "Searches the live web and returns a synthesised, grounded answer with source "
+        "citations for a natural-language question or task. Useful when you need a "
+        "concise factual answer without manually visiting multiple pages. "
+        "Requires OLOSTEP_API_KEY env variable."
+    )
+    inputs = {
+        "question": {
+            "type": "string",
+            "description": "The natural-language question or task to answer using live web data.",
+        }
+    }
+    output_type = "string"
+
+    def forward(self, question: str) -> str:
+        import os
+        from olostep import Olostep, Olostep_BaseError
+
+        api_key = os.environ.get("OLOSTEP_API_KEY")
+        if not api_key:
+            raise EnvironmentError(
+                "OLOSTEP_API_KEY environment variable is not set. "
+                "Get a free key at https://www.olostep.com/dashboard/api-keys"
+            )
+
+        try:
+            client = Olostep(api_key=api_key)
+            # Call answers.create with the task parameter (question to answer from web)
+            result = client.answers.create(task=question)
+        except Olostep_BaseError as e:
+            return f"Olostep answer error: {e}"
+
+        # Extract the answer from the result
+        answer = (result.answer or "").strip()
+        if not answer:
+            return f"No answer could be generated for: '{question}'"
+        return answer
+
+
 TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
@@ -658,4 +902,7 @@ __all__ = [
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
+    "OlostepSearchTool",
+    "OlostepScrapeWebpageTool",
+    "OlostepAnswerTool",
 ]
