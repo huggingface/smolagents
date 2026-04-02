@@ -25,6 +25,9 @@ dependencies = [
 bedrock = [
   "boto3>=1.36.18"
 ]
+oci = [
+  "oci>=2.0.0",
+]
 blaxel = [
   "blaxel>=0.2.19",
   "websocket-client",
