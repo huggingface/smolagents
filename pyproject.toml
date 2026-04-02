@@ -38,6 +38,9 @@ audio = [
   "soundfile",
   "smolagents[torch]",
 ]
+daytona = [
+  "daytona>=0.159.0",
+]
 docker = [
   "docker>=7.1.0",
   "websocket-client",
@@ -90,7 +93,7 @@ vllm = [
   "torch"
 ]
 all = [
-  "smolagents[audio,blaxel,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
+  "smolagents[audio,blaxel,daytona,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
 ]
 quality = [
   "ruff>=0.9.0",
