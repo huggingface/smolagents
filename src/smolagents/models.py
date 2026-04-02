@@ -1856,6 +1856,197 @@ class AzureOpenAIModel(OpenAIModel):
 AzureOpenAIServerModel = AzureOpenAIModel
 
 
+class OCIGenAIModel(OpenAIModel):
+    """This model connects to Oracle Cloud Infrastructure (OCI) Generative AI Service.
+
+    OCI Generative AI exposes an OpenAI-compatible endpoint, so this class extends
+    :class:`OpenAIModel` and only differs in how authentication is handled — using
+    OCI request signing rather than a plain API key.
+
+    Authentication:
+        OCI Generative AI supports three authentication methods:
+
+        - **API Key** (default): Uses ``~/.oci/config``. Set ``auth_type="API_KEY"``.
+        - **Instance Principal**: For code running on OCI Compute instances.
+          Set ``auth_type="INSTANCE_PRINCIPAL"``.
+        - **Resource Principal**: For OCI Functions / container workloads.
+          Set ``auth_type="RESOURCE_PRINCIPAL"``.
+
+    Parameters:
+        model_id (`str`):
+            The OCI model OCID or model name (e.g. ``"meta.llama-3.1-70b-instruct"``).
+        region (`str`, *optional*, defaults to ``"us-chicago-1"``):
+            OCI region identifier. Used to build the service endpoint when
+            ``service_endpoint`` is not provided.
+        compartment_id (`str`, *optional*):
+            OCI compartment OCID. If not provided, the tenancy OCID from
+            ``~/.oci/config`` is used.
+        service_endpoint (`str`, *optional*):
+            Full service endpoint URL. Defaults to
+            ``https://inference.generativeai.{region}.oci.customer-oci.com/20231130``.
+        auth_type (`str`, *optional*, defaults to ``"API_KEY"``):
+            Authentication method. One of ``"API_KEY"``, ``"INSTANCE_PRINCIPAL"``,
+            ``"RESOURCE_PRINCIPAL"``.
+        config_file (`str`, *optional*):
+            Path to the OCI config file. Defaults to ``~/.oci/config``.
+        profile (`str`, *optional*):
+            OCI config profile name. Defaults to ``"DEFAULT"``.
+        client_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments forwarded to the underlying ``openai.OpenAI``
+            client.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping.
+        flatten_messages_as_text (`bool`, default ``False``):
+            Whether to flatten messages as plain text.
+        **kwargs:
+            Additional keyword arguments forwarded to the OCI Generative AI API call
+            (e.g. ``temperature``, ``max_tokens``).
+
+    Examples:
+        API key authentication (default):
+
+        ```python
+        from smolagents import OCIGenAIModel, CodeAgent
+
+        model = OCIGenAIModel(
+            model_id="meta.llama-3.1-70b-instruct",
+            region="us-chicago-1",
+        )
+        agent = CodeAgent(model=model, tools=[])
+        agent.run("What is 2 + 2?")
+        ```
+
+        Instance principal (on OCI Compute):
+
+        ```python
+        model = OCIGenAIModel(
+            model_id="meta.llama-3.1-70b-instruct",
+            auth_type="INSTANCE_PRINCIPAL",
+        )
+        ```
+
+        Custom compartment:
+
+        ```python
+        model = OCIGenAIModel(
+            model_id="meta.llama-3.1-70b-instruct",
+            compartment_id="ocid1.compartment.oc1..xxx",
+            region="eu-frankfurt-1",
+        )
+        ```
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        region: str = "us-chicago-1",
+        compartment_id: str | None = None,
+        service_endpoint: str | None = None,
+        auth_type: str = "API_KEY",
+        config_file: str | None = None,
+        profile: str | None = None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        flatten_messages_as_text: bool = False,
+        **kwargs,
+    ):
+        self.region = region
+        self.auth_type = auth_type.upper()
+        self.config_file = config_file
+        self.profile = profile
+        self.compartment_id = compartment_id
+        self._service_endpoint = service_endpoint or (
+            f"https://inference.generativeai.{region}.oci.oraclecloud.com"
+        )
+        super().__init__(
+            model_id=model_id,
+            api_base=self._service_endpoint,
+            api_key="oci",  # placeholder — actual auth is via request signing
+            client_kwargs=client_kwargs,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
+
+    def _build_signer(self):
+        try:
+            import oci
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install 'oci' to use OCIGenAIModel: `pip install 'smolagents[oci]'`"
+            ) from e
+
+        if self.auth_type == "INSTANCE_PRINCIPAL":
+            return oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
+        if self.auth_type == "RESOURCE_PRINCIPAL":
+            return oci.auth.signers.get_resource_principals_signer()
+
+        # Default: API_KEY
+        import oci.config
+
+        config = oci.config.from_file(
+            file_location=self.config_file or oci.config.DEFAULT_LOCATION,
+            profile_name=self.profile or oci.config.DEFAULT_PROFILE,
+        )
+        config["region"] = self.region
+        if self.compartment_id is None:
+            self.compartment_id = config["tenancy"]
+        return oci.Signer(
+            tenancy=config["tenancy"],
+            user=config["user"],
+            fingerprint=config["fingerprint"],
+            private_key_file_location=config.get("key_file"),
+            private_key_content=config.get("key_content"),
+        )
+
+    def create_client(self):
+        try:
+            import httpx
+            import openai
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                "Please install required extras to use OCIGenAIModel: "
+                "`pip install 'smolagents[oci]'`"
+            ) from e
+
+        signer = self._build_signer()
+
+        class _OCIAuth(httpx.Auth):
+            """httpx Auth that signs each request with OCI request signing."""
+
+            def __init__(self, signer):
+                self._signer = signer
+
+            def auth_flow(self, request: httpx.Request):
+                try:
+                    import requests as _requests
+                except ModuleNotFoundError as exc:
+                    raise ModuleNotFoundError(
+                        "Please install 'requests' to use OCIGenAIModel OCI signing."
+                    ) from exc
+
+                # Build a requests.PreparedRequest so OCI signer can sign it
+                prep = _requests.Request(
+                    method=request.method,
+                    url=str(request.url),
+                    headers=dict(request.headers),
+                    data=request.content,
+                ).prepare()
+                self._signer(prep)
+                # Copy signed headers back onto the httpx request
+                for key, value in prep.headers.items():
+                    request.headers[key] = value
+                yield request
+
+        http_client = httpx.Client(auth=_OCIAuth(signer))
+
+        client_kwargs = {k: v for k, v in self.client_kwargs.items() if v is not None}
+        client_kwargs["http_client"] = http_client
+        client_kwargs["default_headers"] = {"opc-compartment-id": self.compartment_id}
+
+        return openai.OpenAI(**client_kwargs)
+
+
 class AmazonBedrockModel(ApiModel):
     """
     A model class for interacting with Amazon Bedrock Server models through the Bedrock API.
@@ -2096,6 +2287,7 @@ __all__ = [
     "VLLMModel",
     "AzureOpenAIServerModel",
     "AzureOpenAIModel",
+    "OCIGenAIModel",
     "AmazonBedrockServerModel",
     "AmazonBedrockModel",
     "ChatMessage",
