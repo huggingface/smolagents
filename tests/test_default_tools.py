@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
+from unittest.mock import patch
 
 import pytest
 
@@ -22,6 +23,7 @@ from smolagents.default_tools import (
     PythonInterpreterTool,
     SpeechToTextTool,
     VisitWebpageTool,
+    WebSearchTool,
     WikipediaSearchTool,
 )
 from smolagents.local_python_executor import ExecutionTimeoutError
@@ -131,6 +133,77 @@ class TestSpeechToTextTool:
         assert tool is not None
         assert tool.pre_processor_class == WhisperProcessor
         assert tool.model_class == WhisperForConditionalGeneration
+
+
+class TestWebSearchToolExa:
+    """Tests for the Exa engine in WebSearchTool."""
+
+    def test_exa_missing_api_key(self):
+        tool = WebSearchTool(engine="exa")
+        with patch.dict("os.environ", {}, clear=True):
+            with pytest.raises(ValueError, match="EXA_API_KEY"):
+                tool("test query")
+
+    def test_exa_search_results(self):
+        mock_response_data = {
+            "results": [
+                {
+                    "title": "Exa AI",
+                    "url": "https://exa.ai",
+                    "highlights": ["Exa is a search engine for AI."],
+                },
+                {
+                    "title": "Hugging Face",
+                    "url": "https://huggingface.co",
+                    "highlights": ["The AI community", "building the future."],
+                },
+            ]
+        }
+        tool = WebSearchTool(engine="exa", max_results=2)
+        with patch.dict("os.environ", {"EXA_API_KEY": "test-key"}):
+            with patch("requests.post") as mock_post:
+                mock_post.return_value.json.return_value = mock_response_data
+                mock_post.return_value.raise_for_status = lambda: None
+                result = tool("test query")
+
+        assert "## Search Results" in result
+        assert "[Exa AI](https://exa.ai)" in result
+        assert "[Hugging Face](https://huggingface.co)" in result
+        assert "Exa is a search engine for AI." in result
+        assert "The AI community building the future." in result
+
+        # Verify the API was called with correct headers and payload
+        call_kwargs = mock_post.call_args
+        assert call_kwargs.kwargs["headers"]["x-exa-integration"] == "smolagents"
+        assert call_kwargs.kwargs["json"]["numResults"] == 2
+        assert call_kwargs.kwargs["json"]["contents"] == {"highlights": True}
+
+    def test_exa_no_results(self):
+        tool = WebSearchTool(engine="exa")
+        with patch.dict("os.environ", {"EXA_API_KEY": "test-key"}):
+            with patch("requests.post") as mock_post:
+                mock_post.return_value.json.return_value = {"results": []}
+                mock_post.return_value.raise_for_status = lambda: None
+                with pytest.raises(Exception, match="No results found"):
+                    tool("obscure query")
+
+    def test_exa_empty_highlights(self):
+        mock_response_data = {
+            "results": [
+                {
+                    "title": "No Highlights Page",
+                    "url": "https://example.com",
+                }
+            ]
+        }
+        tool = WebSearchTool(engine="exa")
+        with patch.dict("os.environ", {"EXA_API_KEY": "test-key"}):
+            with patch("requests.post") as mock_post:
+                mock_post.return_value.json.return_value = mock_response_data
+                mock_post.return_value.raise_for_status = lambda: None
+                result = tool("test")
+
+        assert "[No Highlights Page](https://example.com)" in result
 
 
 @pytest.mark.parametrize(
