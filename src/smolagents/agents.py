@@ -99,6 +99,24 @@ from .utils import (
 logger = getLogger(__name__)
 
 
+MEMORY_STEP_MAP = {
+    "ActionStep": ActionStep,
+    "PlanningStep": PlanningStep,
+    "TaskStep": TaskStep,
+    "SystemPromptStep": SystemPromptStep,
+    "FinalAnswerStep": FinalAnswerStep,
+}
+
+# Callback Registry for secure deserialization.
+# Maps callback path strings to their actual callable objects.
+# Checked first during deserialization before importlib resolution.
+CALLBACK_REGISTRY: dict[str, Callable] = {}
+
+# Namespaces allowed for dynamic callback import during deserialization.
+# Extend this set to allow callbacks from additional packages.
+ALLOWED_CALLBACK_NAMESPACES: set[str] = {"smolagents", "__main__"}
+
+
 def populate_template(template: str, variables: dict[str, Any]) -> str:
     compiled_template = Template(template, undefined=StrictUndefined)
     try:
@@ -967,16 +985,90 @@ You have been provided with these additional arguments, that you can access dire
         with open(os.path.join(output_dir, "app.py"), "w", encoding="utf-8") as f:
             f.write(app_text + "\n")  # Append newline at the end
 
+    def _serialize_callable(self, c: Callable) -> str | None:
+        """Helper to serialize a callable to a string path."""
+        # Reverse check in registry
+        for path, registered_c in CALLBACK_REGISTRY.items():
+            if c == registered_c:
+                return path
+
+        if not hasattr(c, "__module__") or not hasattr(c, "__qualname__"):
+            # Check if it has a __name__ at least
+            if hasattr(c, "__name__"):
+                # If it's a simple function/method, __module__ is usually available.
+                # If not, it might be a built-in or something weird.
+                self.logger.log(
+                    f"Callable {c} missing __module__ or __qualname__ and not in CALLBACK_REGISTRY. Using __name__ '{c.__name__}'.",
+                    LogLevel.INFO,
+                )
+                return c.__name__
+            self.logger.log(f"Callable {c} cannot be serialized. Skipping.", LogLevel.INFO)
+            return None
+
+        if "<lambda>" in c.__qualname__ or "<locals>" in c.__qualname__:
+            self.logger.log(
+                f"Callable {c} is a lambda or local function and cannot be serialized. Skipping.", LogLevel.INFO
+            )
+            return None
+
+        return f"{c.__module__}.{c.__qualname__}"
+
+    @classmethod
+    def _deserialize_callable(cls, path: str) -> Callable | None:
+        """Helper to deserialize a string path back to a callable."""
+        if path in CALLBACK_REGISTRY:
+            return CALLBACK_REGISTRY[path]
+
+        try:
+            if "." in path:
+                module_name, qualname = path.rsplit(".", 1)
+
+                # Security verification: check if it's a safe namespace
+                if not any(
+                    module_name == ns or module_name.startswith(ns + ".") for ns in ALLOWED_CALLBACK_NAMESPACES
+                ):
+                    logger.warning(
+                        f"Skipping potentially unsafe callback path: '{path}'. "
+                        f"If this is intentional, add the namespace to ALLOWED_CALLBACK_NAMESPACES or CALLBACK_REGISTRY."
+                    )
+                    return None
+
+                module = importlib.import_module(module_name)
+                obj = module
+                for part in qualname.split("."):
+                    obj = getattr(obj, part)
+                return obj
+        except (ImportError, AttributeError, ValueError) as e:
+            logger.warning(f"Failed to deserialize callable from path '{path}': {e}")
+        return None
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the agent to a dictionary representation.
 
         Returns:
             `dict`: Dictionary representation of the agent.
         """
-        # TODO: handle serializing step_callbacks and final_answer_checks
-        for attr in ["final_answer_checks", "step_callbacks"]:
-            if getattr(self, attr, None):
-                self.logger.log(f"This agent has {attr}: they will be ignored by this method.", LogLevel.INFO)
+        # Pre-process final_answer_checks and step_callbacks for serialization
+        final_answer_checks_paths = []
+        for check in self.final_answer_checks:
+            res = self._serialize_callable(check)
+            if res:
+                final_answer_checks_paths.append(res)
+
+        step_callbacks_paths = {}
+        # Avoid serializing the automatic monitor callback
+        for step_cls, callbacks in self.step_callbacks._callbacks.items():
+            cls_name = step_cls.__name__
+            serialized_cbs = []
+            for cb in callbacks:
+                # Filter out the monitor's update_metrics as it will be re-registered during initialization
+                if hasattr(self, "monitor") and cb == self.monitor.update_metrics:
+                    continue
+                res = self._serialize_callable(cb)
+                if res:
+                    serialized_cbs.append(res)
+            if serialized_cbs:
+                step_callbacks_paths[cls_name] = serialized_cbs
 
         tool_dicts = [tool.to_dict() for tool in self.tools.values()]
         tool_requirements = {req for tool in self.tools.values() for req in tool.to_dict()["requirements"]}
@@ -998,6 +1090,8 @@ You have been provided with these additional arguments, that you can access dire
             },
             "managed_agents": [managed_agent.to_dict() for managed_agent in self.managed_agents.values()],
             "prompt_templates": self.prompt_templates,
+            "final_answer_checks": final_answer_checks_paths,
+            "step_callbacks": step_callbacks_paths,
             "max_steps": self.max_steps,
             "verbosity_level": int(self.logger.level),
             "planning_interval": self.planning_interval,
@@ -1031,6 +1125,28 @@ You have been provided with these additional arguments, that you can access dire
         tools = []
         for tool_info in agent_dict["tools"]:
             tools.append(Tool.from_code(tool_info["code"]))
+
+        # Load final answer checks and step callbacks
+        final_answer_checks = []
+        if "final_answer_checks" in agent_dict:
+            for path in agent_dict["final_answer_checks"]:
+                cb = cls._deserialize_callable(path)
+                if cb:
+                    final_answer_checks.append(cb)
+
+        step_callbacks = {}
+        if "step_callbacks" in agent_dict:
+            for cls_name, paths in agent_dict["step_callbacks"].items():
+                step_cls = MEMORY_STEP_MAP.get(cls_name)
+                if step_cls:
+                    loaded_cbs = []
+                    for path in paths:
+                        cb = cls._deserialize_callable(path)
+                        if cb:
+                            loaded_cbs.append(cb)
+                    if loaded_cbs:
+                        step_callbacks[step_cls] = loaded_cbs
+
         # Load managed agents
         managed_agents = []
         for managed_agent_dict in agent_dict["managed_agents"]:
@@ -1053,6 +1169,8 @@ You have been provided with these additional arguments, that you can access dire
             "planning_interval": agent_dict.get("planning_interval"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
+            "final_answer_checks": final_answer_checks or None,
+            "step_callbacks": step_callbacks or None,
         }
         # Filter out None values to use defaults from __init__
         agent_args = {k: v for k, v in agent_args.items() if v is not None}
