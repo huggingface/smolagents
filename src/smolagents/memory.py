@@ -91,7 +91,7 @@ class ActionStep(MemoryStep):
 
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         messages = []
-        if self.model_output is not None and not summary_mode:
+        if self.model_output is not None and self.model_output.strip() and not summary_mode:
             messages.append(
                 ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.model_output.strip()}])
             )
