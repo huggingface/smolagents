@@ -275,7 +275,32 @@ class AgentMemory:
         return "\n\n".join(
             [step.code_action for step in self.steps if isinstance(step, ActionStep) and step.code_action is not None]
         )
-
+    
+    def truncate_steps(self, max_chars: int) -> int:
+        """Remove oldest non-task steps until estimated character count is below max_chars.
+        Uses character count as a token proxy (4 chars ≈ 1 token).
+        Returns number of steps removed.
+        """
+        removed = 0
+        while len(self.steps) > 1:  # always keep at least the TaskStep
+            # estimate total chars across all current steps
+            total_chars = sum(
+                len(str(part.get("text", "")))
+                for step in self.steps
+                for msg in step.to_messages()
+                for part in (msg.content if isinstance(msg.content, list) else [{"text": str(msg.content)}])
+            )
+            if total_chars <= max_chars:
+                break
+            # drop oldest step that is not a TaskStep
+            for i, step in enumerate(self.steps):
+                if not isinstance(step, TaskStep):
+                    self.steps.pop(i)
+                    removed += 1
+                    break
+            else:
+                break  # only TaskSteps remain, cannot truncate further
+        return removed
 
 class CallbackRegistry:
     """Registry for callbacks that are called at each step of the agent's execution.
