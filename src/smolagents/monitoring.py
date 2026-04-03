@@ -271,3 +271,4 @@ class AgentLogger:
             )
         build_agent_tree(main_tree, agent)
         self.console.print(main_tree)
+
