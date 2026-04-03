@@ -87,6 +87,7 @@ from .utils import (
     AgentParsingError,
     AgentToolCallError,
     AgentToolExecutionError,
+    complete_truncated_stop_sequence,
     create_agent_gradio_app_template,
     extract_code_from_text,
     is_valid_name,
@@ -1691,8 +1692,12 @@ class CodeAgent(MultiStepAgent):
             if not self._use_structured_outputs_internally:
                 # This adds the end code sequence (i.e. the closing code block tag) to the history.
                 # This will nudge subsequent LLM calls to finish with this end code sequence, thus efficiently stopping generation.
+                # Some models (e.g., GLM, Qwen) may partially output the stop sequence before stopping, so we need to complete it
                 if output_text and not output_text.strip().endswith(self.code_block_tags[1]):
-                    output_text += self.code_block_tags[1]
+                    output_text = complete_truncated_stop_sequence(output_text, [self.code_block_tags[1]])
+                    # If still not ending with closing tag, append it (fallback for models that don't output it at all)
+                    if not output_text.strip().endswith(self.code_block_tags[1]):
+                        output_text += self.code_block_tags[1]
                     memory_step.model_output_message.content = output_text
 
             memory_step.token_usage = chat_message.token_usage
