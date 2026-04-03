@@ -193,7 +193,10 @@ class Tool(BaseTool):
             if invalid_types:
                 raise ValueError(f"Input '{input_name}': types {invalid_types} must be one of {AUTHORIZED_TYPES}")
         # Validate output type
-        assert getattr(self, "output_type", None) in AUTHORIZED_TYPES
+        output_type = getattr(self, "output_type", None)
+        assert output_type in AUTHORIZED_TYPES, (
+            f"Output type '{output_type}': type must be one of {AUTHORIZED_TYPES}."
+        )
 
         # Validate forward function signature, except for Tools that use a "generic" signature (PipelineTool, SpaceToolWrapper, LangChainToolWrapper)
         if not (
