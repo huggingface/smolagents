@@ -234,7 +234,7 @@ def agglomerate_stream_deltas(
         if stream_delta.content:
             accumulated_content += stream_delta.content
         if stream_delta.tool_calls:
-            for tool_call_delta in stream_delta.tool_calls:  # ?ormally there should be only one call at a time
+            for tool_call_delta in stream_delta.tool_calls:  # Normally there should be only one call at a time
                 # Extend accumulated_tool_calls list to accommodate the new tool call if needed
                 if tool_call_delta.index is not None:
                     if tool_call_delta.index not in accumulated_tool_calls:
@@ -1146,14 +1146,14 @@ class ApiModel(Model):
     Parameters:
         model_id (`str`):
             The identifier for the model to be used with the API.
-        custom_role_conversions (`dict[str, str`], **optional**):
-            Mapping to convert  between internal role names and API-specific role names. Defaults to None.
+        custom_role_conversions (`dict[str, str]`, **optional**):
+            Mapping to convert between internal role names and API-specific role names. Defaults to None.
         client (`Any`, **optional**):
             Pre-configured API client instance. If not provided, a default client will be created. Defaults to None.
         requests_per_minute (`float`, **optional**):
             Rate limit in requests per minute.
         retry (`bool`, **optional**):
-            Wether to retry on rate limit errors, up to RETRY_MAX_ATTEMPTS times. Defaults to True.
+            Whether to retry on rate limit errors, up to RETRY_MAX_ATTEMPTS times. Defaults to True.
         **kwargs:
             Additional keyword arguments to forward to the underlying model completion call.
     """
