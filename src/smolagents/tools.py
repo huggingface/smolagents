@@ -32,6 +32,7 @@ from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+import importlib.metadata
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -354,7 +355,15 @@ class Tool(BaseTool):
 
             tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
 
-        requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
+        # Dynamically fetch the current smolagents version to ensure environment reproducibility.
+        try:
+            smolagents_version = importlib.metadata.version("smolagents")
+            smolagents_dependency = f"smolagents=={smolagents_version}"
+        except importlib.metadata.PackageNotFoundError:
+            # Fallback if smolagents is used locally without being installed.
+            smolagents_dependency = "smolagents"
+
+        requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {smolagents_dependency}
 
         tool_dict = {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
 
