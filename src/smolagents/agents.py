@@ -873,11 +873,38 @@ You have been provided with these additional arguments, that you can access dire
             self.prompt_templates["managed_agent"]["task"],
             variables=dict(name=self.name, task=task),
         )
-        result = self.run(full_task, **kwargs)
+        try:
+            result = self.run(full_task, **kwargs)
+        except AgentError as e:
+            return (
+                f"Agent '{self.name}' failed with error: {e}\n"
+                "The sub-agent encountered an unrecoverable error and could not produce a result."
+            )
+        except Exception as e:
+            return (
+                f"Agent '{self.name}' raised an unexpected error: {type(e).__name__}: {e}\n"
+                "The sub-agent encountered an unrecoverable error and could not produce a result."
+            )
+
         if isinstance(result, RunResult):
             report = result.output
+            max_steps_hit = result.state == "max_steps_error"
         else:
             report = result
+            max_steps_hit = False
+
+        if not report:
+            report = (
+                f"Agent '{self.name}' did not produce a result. "
+                f"{'It reached the maximum number of steps without calling final_answer.' if max_steps_hit else 'No output was returned.'}"
+            )
+        elif max_steps_hit:
+            report = (
+                f"{report}\n\n"
+                f"Note: agent '{self.name}' reached its maximum step limit. "
+                "The above answer may be incomplete."
+            )
+
         answer = populate_template(
             self.prompt_templates["managed_agent"]["report"], variables=dict(name=self.name, final_answer=report)
         )
