@@ -308,6 +308,7 @@ class MultiStepAgent(ABC):
         provide_run_summary: bool = False,
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
+        max_context_chars: int | None = None,
         logger: AgentLogger | None = None,
     ):
         self.agent_name = self.__class__.__name__
@@ -341,6 +342,7 @@ class MultiStepAgent(ABC):
 
         self.task: str | None = None
         self.memory = AgentMemory(self.system_prompt)
+        self.max_context_chars = max_context_chars
 
         if logger is None:
             self.logger = AgentLogger(level=verbosity_level)
@@ -758,16 +760,24 @@ You have been provided with these additional arguments, that you can access dire
     def write_memory_to_messages(
         self,
         summary_mode: bool = False,
-    ) -> list[ChatMessage]:
-        """
-        Reads past llm_outputs, actions, and observations or errors from the memory into a series of messages
-        that can be used as input to the LLM. Adds a number of keywords (such as PLAN, error, etc) to help
-        the LLM.
-        """
-        messages = self.memory.system_prompt.to_messages(summary_mode=summary_mode)
-        for memory_step in self.memory.steps:
-            messages.extend(memory_step.to_messages(summary_mode=summary_mode))
-        return messages
+        ) -> list[ChatMessage]:
+            """
+            Reads past llm_outputs, actions, and observations or errors from the memory into a series of messages
+            that can be used as input to the LLM. Adds a number of keywords (such as PLAN, error, etc) to help
+            the LLM.
+            """
+            # summary_mode already produces condensed messages, skip truncation
+            if self.max_context_chars is not None and not summary_mode:
+                removed = self.memory.truncate_steps(self.max_context_chars)
+                if removed > 0:
+                    self.logger.log(
+                        f"Context limit approaching: removed {removed} oldest step(s) from memory. "
+                        f"Increase `max_context_chars` to retain more history."
+                    )
+            messages = self.memory.system_prompt.to_messages(summary_mode=summary_mode)
+            for memory_step in self.memory.steps:
+                messages.extend(memory_step.to_messages(summary_mode=summary_mode))
+            return messages
 
     def _step_stream(
         self, memory_step: ActionStep
