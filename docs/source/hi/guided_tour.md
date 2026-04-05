@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Agents - गाइडेड टूर
 
 [[open-in-colab]]
@@ -25,7 +10,7 @@ rendered properly in your Markdown viewer.
 
 - `model`, आपके एजेंट को पावर देने के लिए एक टेक्स्ट-जनरेशन मॉडल - क्योंकि एजेंट एक सिंपल LLM से अलग है, यह एक सिस्टम है जो LLM को अपने इंजन के रूप में उपयोग करता है। आप इनमें से कोई भी विकल्प उपयोग कर सकते हैं:
     - [`TransformersModel`] `transformers` पाइपलाइन को पहले से इनिशियलाइज़ करता है जो `transformers` का उपयोग करके आपकी लोकल मशीन पर इन्फरेंस चलाने के लिए होता है।
-    - [`HfApiModel`] अंदर से `huggingface_hub.InferenceClient` का लाभ उठाता है।
+    - [`InferenceClientModel`] अंदर से `huggingface_hub.InferenceClient` का लाभ उठाता है।
     - [`LiteLLMModel`] आपको [LiteLLM](https://docs.litellm.ai/) के माध्यम से 100+ अलग-अलग मॉडल्स को कॉल करने देता है!
 
 - `tools`, `Tools` की एक लिस्ट जिसे एजेंट टास्क को हल करने के लिए उपयोग कर सकता है। यह एक खाली लिस्ट हो सकती है। आप ऑप्शनल आर्ग्यूमेंट `add_base_tools=True` को परिभाषित करके अपनी `tools` लिस्ट के ऊपर डिफ़ॉल्ट टूलबॉक्स भी जोड़ सकते हैं।
@@ -37,14 +22,14 @@ rendered properly in your Markdown viewer.
 
 Hugging Face API टोकन के बिना उपयोग करने के लिए मुफ्त है, लेकिन फिर इसमें रेट लिमिटेशन होगी।
 
-गेटेड मॉडल्स तक पहुंचने या PRO अकाउंट के साथ अपनी रेट लिमिट्स बढ़ाने के लिए, आपको एनवायरनमेंट वेरिएबल `HF_TOKEN` सेट करना होगा या `HfApiModel` के इनिशियलाइजेशन पर `token` वेरिएबल पास करना होगा।
+गेटेड मॉडल्स तक पहुंचने या PRO अकाउंट के साथ अपनी रेट लिमिट्स बढ़ाने के लिए, आपको एनवायरनमेंट वेरिएबल `HF_TOKEN` सेट करना होगा या `InferenceClientModel` के इनिशियलाइजेशन पर `token` वेरिएबल पास करना होगा।
 
 ```python
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 model_id = "meta-llama/Llama-3.3-70B-Instruct"
 
-model = HfApiModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
+model = InferenceClientModel(model_id=model_id, token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run(
@@ -114,7 +99,7 @@ agent.run(
 आप अपने [`CodeAgent`] के इनिशियलाइजेशन पर आर्ग्यूमेंट `additional_authorized_imports` में स्ट्रिंग्स की लिस्ट के रूप में अतिरिक्त मॉड्यूल्स को अधिकृत कर सकते हैं।
 
 ```py
-model = HfApiModel()
+model = InferenceClientModel()
 agent = CodeAgent(tools=[], model=model, additional_authorized_imports=['requests', 'bs4'])
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
@@ -124,7 +109,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 एक्जीक्यूशन किसी भी कोड पर रुक जाएगा जो एक अवैध ऑपरेशन करने का प्रयास करता है या यदि एजेंट द्वारा जनरेट किए गए कोड में एक रेगुलर पायथन एरर है।
 
-आप [E2B कोड एक्जीक्यूटर](https://e2b.dev/docs#what-is-e2-b) का उपयोग लोकल पायथन इंटरप्रेटर के बजाय कर सकते हैं, पहले [`E2B_API_KEY` एनवायरनमेंट वेरिएबल सेट करके](https://e2b.dev/dashboard?tab=keys) और फिर एजेंट इनिशियलाइजेशन पर `use_e2b_executor=True` पास करके।
+आप [E2B कोड एक्जीक्यूटर](https://e2b.dev/docs#what-is-e2-b) या Docker का उपयोग लोकल पायथन इंटरप्रेटर के बजाय कर सकते हैं। E2B के लिए, पहले [`E2B_API_KEY` एनवायरनमेंट वेरिएबल सेट करें](https://e2b.dev/dashboard?tab=keys) और फिर एजेंट इनिशियलाइजेशन पर `executor_type="e2b"` पास करें। Docker के लिए, इनिशियलाइजेशन के दौरान `executor_type="docker"` पास करें।
 
 > [!TIP]
 > कोड एक्जीक्यूशन के बारे में और जानें [इस ट्यूटोरियल में](tutorials/secure_code_execution)।
@@ -132,9 +117,9 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 हम JSON-जैसे ब्लॉब्स के रूप में एक्शन लिखने के व्यापक रूप से उपयोग किए जाने वाले तरीके का भी समर्थन करते हैं: यह [`ToolCallingAgent`] है, यह बहुत कुछ [`CodeAgent`] की तरह ही काम करता है, बेशक `additional_authorized_imports` के बिना क्योंकि यह कोड एक्जीक्यूट नहीं करता।
 
 ```py
-from smolagents import ToolCallingAgent
+from smolagents import ToolCallingAgent, WebSearchTool
 
-agent = ToolCallingAgent(tools=[], model=model)
+agent = ToolCallingAgent(tools=[WebSearchTool()], model=model)
 agent.run("Could you get me the title of the page at url 'https://huggingface.co/blog'?")
 ```
 
@@ -158,7 +143,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 
 ### डिफ़ॉल्ट टूलबॉक्स
 
-Transformers एजेंट्स को सशक्त बनाने के लिए एक डिफ़ॉल्ट टूलबॉक्स के साथ आता है, जिसे आप आर्ग्यूमेंट `add_base_tools = True` के साथ अपने एजेंट में इनिशियलाइजेशन पर जोड़ सकते हैं:
+`smolagents` एजेंट्स को सशक्त बनाने के लिए एक डिफ़ॉल्ट टूलबॉक्स के साथ आता है, जिसे आप आर्ग्यूमेंट `add_base_tools=True` के साथ अपने एजेंट में इनिशियलाइजेशन पर जोड़ सकते हैं:
 
 - **DuckDuckGo वेब सर्च**: DuckDuckGo ब्राउज़र का उपयोग करके वेब सर्च करता है।
 - **पायथन कोड इंटरप्रेटर**: आपका LLM जनरेटेड पायथन कोड एक सुरक्षित एनवायरनमेंट में चलाता है। यह टूल [`ToolCallingAgent`] में केवल तभी जोड़ा जाएगा जब आप इसे `add_base_tools=True` के साथ इनिशियलाइज़ करते हैं, क्योंकि कोड-बेस्ड एजेंट पहले से ही नेटिव रूप से पायथन कोड एक्जीक्यूट कर सकता है
@@ -167,9 +152,9 @@ Transformers एजेंट्स को सशक्त बनाने के
 आप मैन्युअल रूप से एक टूल का उपयोग उसके आर्ग्यूमेंट्स के साथ कॉल करके कर सकते हैं।
 
 ```python
-from smolagents import DuckDuckGoSearchTool
+from smolagents import WebSearchTool
 
-search_tool = DuckDuckGoSearchTool()
+search_tool = WebSearchTool()
 print(search_tool("Who's the current president of Russia?"))
 ```
 
@@ -221,6 +206,16 @@ def model_download_tool(task: str) -> str:
 
 > [!TIP]  
 > यह परिभाषा प्रारूप `apply_chat_template` में उपयोग की गई टूल स्कीमा जैसा ही है, केवल अतिरिक्त `tool` डेकोरेटर जोड़ा गया है: हमारे टूल उपयोग API के बारे में अधिक पढ़ें [यहाँ](https://huggingface.co/blog/unified-tool-use#passing-tools-to-a-chat-template)।  
+
+
+आप सीधे अपने एजेंट को इनिशियलाइज़ कर सकते हैं:  
+```py
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[model_download_tool], model=InferenceClientModel())
+agent.run(
+    "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
+)
+```
 </hfoption>
 <hfoption id="सबक्लास टूल">
 
@@ -244,18 +239,18 @@ class ModelDownloadTool(Tool):
 - इनपुट प्रकार और उनके विवरण।  
 - आउटपुट प्रकार।  
 इन सभी एट्रिब्यूट्स को एजेंट की सिस्टम प्रॉम्प्ट में स्वचालित रूप से शामिल किया जाएगा, इन्हें स्पष्ट और विस्तृत बनाएं।  
-</hfoption>
-</hfoptions>
 
 
 आप सीधे अपने एजेंट को इनिशियलाइज़ कर सकते हैं:  
 ```py
-from smolagents import CodeAgent, HfApiModel
-agent = CodeAgent(tools=[model_download_tool], model=HfApiModel())
+from smolagents import CodeAgent, InferenceClientModel
+agent = CodeAgent(tools=[ModelDownloadTool()], model=InferenceClientModel())
 agent.run(
     "Can you give me the name of the model that has the most downloads in the 'text-to-video' task on the Hugging Face Hub?"
 )
 ```
+</hfoption>
+</hfoptions>
 
 लॉग्स इस प्रकार होंगे:  
 ```text
@@ -264,7 +259,7 @@ agent.run(
 │ Can you give me the name of the model that has the most downloads in the 'text-to-video' │
 │ task on the Hugging Face Hub?                                                            │
 │                                                                                          │
-╰─ HfApiModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
+╰─ InferenceClientModel - Qwen/Qwen2.5-Coder-32B-Instruct ───────────────────────────────────────────╯
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Step 0 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ╭─ Executing this code: ───────────────────────────────────────────────────────────────────╮
 │   1 model_name = model_download_tool(task="text-to-video")                               │
@@ -298,14 +293,14 @@ Microsoft के फ्रेमवर्क [Autogen](https://huggingface.co/pa
 
 ऐसा करने के लिए, एजेंट को [`ManagedAgent`] ऑब्जेक्ट में समाहित करें। यह ऑब्जेक्ट `agent`, `name`, और एक `description` जैसे तर्कों की आवश्यकता होती है, जो फिर मैनेजर एजेंट की सिस्टम प्रॉम्प्ट में एम्बेड किया जाता है  
 
-यहां एक एजेंट बनाने का उदाहरण दिया गया है जो हमारे [`DuckDuckGoSearchTool`] का उपयोग करके एक विशिष्ट वेब खोज एजेंट को प्रबंधित करता है।
+यहां एक एजेंट बनाने का उदाहरण दिया गया है जो हमारे [`WebSearchTool`] का उपयोग करके एक विशिष्ट वेब खोज एजेंट को प्रबंधित करता है।
 
 ```py
-from smolagents import CodeAgent, HfApiModel, DuckDuckGoSearchTool, ManagedAgent
+from smolagents import CodeAgent, InferenceClientModel, WebSearchTool, ManagedAgent
 
-model = HfApiModel()
+model = InferenceClientModel()
 
-web_agent = CodeAgent(tools=[DuckDuckGoSearchTool()], model=model)
+web_agent = CodeAgent(tools=[WebSearchTool()], model=model)
 
 managed_web_agent = ManagedAgent(
     agent=web_agent,
@@ -332,14 +327,14 @@ manager_agent.run("Who is the CEO of Hugging Face?")
 from smolagents import (
     load_tool,
     CodeAgent,
-    HfApiModel,
+    InferenceClientModel,
     GradioUI
 )
 
 # Import tool from Hub
 image_generation_tool = load_tool("m-ric/text-to-image", trust_remote_code=True)
 
-model = HfApiModel(model_id)
+model = InferenceClientModel(model_id=model_id)
 
 # Initialize the agent with the image generation tool
 agent = CodeAgent(tools=[image_generation_tool], model=model)

@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # मल्टी-एजेंट सिस्टम का आयोजन करें 🤖🤝🤖
 
 [[open-in-colab]]
@@ -43,7 +28,7 @@ rendered properly in your Markdown viewer.
 आवश्यक डिपेंडेंसी इंस्टॉल करने के लिए नीचे दी गई लाइन चलाएं:
 
 ```
-!pip install markdownify duckduckgo-search smolagents --upgrade -q
+!pip install 'smolagents[toolkit]' --upgrade -q
 ```
 
 HF Inference API को कॉल करने के लिए लॉगिन करें:
@@ -54,19 +39,19 @@ from huggingface_hub import login
 login()
 ```
 
-⚡️ हमारा एजेंट [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) द्वारा संचालित होगा जो `HfApiModel` क्लास का उपयोग करता है जो HF के Inference API का उपयोग करता है: Inference API किसी भी OS मॉडल को जल्दी और आसानी से चलाने की अनुमति देता है।
+⚡️ हमारा एजेंट [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking) द्वारा संचालित होगा जो `InferenceClientModel` क्लास का उपयोग करता है जो HF के Inference API का उपयोग करता है: Inference API किसी भी OS मॉडल को जल्दी और आसानी से चलाने की अनुमति देता है।
 
 _नोट:_ The Inference API विभिन्न मानदंडों के आधार पर मॉडल होस्ट करता है, और डिप्लॉय किए गए मॉडल बिना पूर्व सूचना के अपडेट या बदले जा सकते हैं। इसके बारे में अधिक जानें [यहां](https://huggingface.co/docs/api-inference/supported-models)।
 
 ```py
-model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
+model_id = "Qwen/Qwen3-Next-80B-A3B-Thinking"
 ```
 
 ## 🔍 एक वेब सर्च टूल बनाएं
 
-वेब ब्राउज़िंग के लिए, हम पहले से मौजूद [`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools.py#L151-L176) टूल का उपयोग कर सकते हैं जो Google search के समान सुविधा प्रदान करता है।
+वेब ब्राउज़िंग के लिए, हम पहले से मौजूद [`WebSearchTool`] टूल का उपयोग कर सकते हैं जो Google search के समान सुविधा प्रदान करता है।
 
-लेकिन फिर हमें `DuckDuckGoSearchTool` द्वारा खोजे गए पेज को देखने में भी सक्षम होने की आवश्यकता होगी।
+लेकिन फिर हमें `WebSearchTool` द्वारा खोजे गए पेज को देखने में भी सक्षम होने की आवश्यकता होगी।
 ऐसा करने के लिए, हम लाइब्रेरी के बिल्ट-इन `VisitWebpageTool` को इम्पोर्ट कर सकते हैं, लेकिन हम इसे फिर से बनाएंगे यह देखने के लिए कि यह कैसे किया जाता है।
 
 तो आइए `markdownify` का उपयोग करके शुरू से अपना `VisitWebpageTool` टूल बनाएं।
@@ -126,16 +111,15 @@ print(visit_webpage("https://en.wikipedia.org/wiki/Hugging_Face")[:500])
 from smolagents import (
     CodeAgent,
     ToolCallingAgent,
-    HfApiModel,
+    InferenceClientModel,
     ManagedAgent,
-    DuckDuckGoSearchTool,
-    LiteLLMModel,
+    WebSearchTool,
 )
 
-model = HfApiModel(model_id)
+model = InferenceClientModel(model_id=model_id)
 
 web_agent = ToolCallingAgent(
-    tools=[DuckDuckGoSearchTool(), visit_webpage],
+    tools=[WebSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
 )

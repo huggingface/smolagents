@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Orchestrate a multi-agent system 🤖🤝🤖
 
 [[open-in-colab]]
@@ -39,31 +24,32 @@ Let's set up this system.
 
 Run the line below to install the required dependencies:
 
-```
-!pip install markdownify duckduckgo-search smolagents --upgrade -q
+```py
+!pip install 'smolagents[toolkit]' --upgrade -q
 ```
 
-Let's login in order to call the HF Inference API:
+Let's login to HF in order to call Inference Providers:
 
-```
+```py
 from huggingface_hub import login
 
 login()
 ```
 
-⚡️ Our agent will be powered by [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct) using `HfApiModel` class that uses HF's Inference API: the Inference API allows to quickly and easily run any OS model.
+⚡️ Our agent will be powered by [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking) using `InferenceClientModel` class that uses HF's Inference API: the Inference API allows to quickly and easily run any OS model.
 
-_Note:_ The Inference API hosts models based on various criteria, and deployed models may be updated or replaced without prior notice. Learn more about it [here](https://huggingface.co/docs/api-inference/supported-models).
+> [!TIP]
+> Inference Providers give access to hundreds of models, powered by serverless inference partners. A list of supported providers can be found [here](https://huggingface.co/docs/inference-providers/index).
 
 ```py
-model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
+model_id = "Qwen/Qwen3-Next-80B-A3B-Thinking"
 ```
 
 ## 🔍 Create a web search tool
 
-For web browsing, we can already use our pre-existing [`DuckDuckGoSearchTool`](https://github.com/huggingface/smolagents/blob/main/src/smolagents/default_tools.py#L151-L176) tool to provide a Google search equivalent.
+For web browsing, we can already use our native [`WebSearchTool`] tool to provide a Google search equivalent.
 
-But then we will also need to be able to peak into the page found by the `DuckDuckGoSearchTool`.
+But then we will also need to be able to peak into the page found by the `WebSearchTool`.
 To do so, we could import the library's built-in `VisitWebpageTool`, but we will build it again to see how it's done.
 
 So let's create our `VisitWebpageTool` tool from scratch using `markdownify`.
@@ -123,19 +109,18 @@ Which configuration to choose for this agent?
 from smolagents import (
     CodeAgent,
     ToolCallingAgent,
-    HfApiModel,
-    DuckDuckGoSearchTool,
-    LiteLLMModel,
+    InferenceClientModel,
+    WebSearchTool,
 )
 
-model = HfApiModel(model_id)
+model = InferenceClientModel(model_id=model_id)
 
 web_agent = ToolCallingAgent(
-    tools=[DuckDuckGoSearchTool(), visit_webpage],
+    tools=[WebSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
-    name="search",
-    description="Runs web searches for you. Give it your query as an argument.",
+    name="web_search_agent",
+    description="Runs web searches for you.",
 )
 ```
 
@@ -143,7 +128,7 @@ Note that we gave this agent attributes `name` and `description`, mandatory attr
 
 Then we create a manager agent, and upon initialization we pass our managed agent to it in its `managed_agents` argument.
 
-Since this agent is the one tasked with the planning and thinking, advanced reasoning will be beneficial, so a `CodeAgent` will be the best choice.
+Since this agent is the one tasked with the planning and thinking, advanced reasoning will be beneficial, so a `CodeAgent` will work well.
 
 Also, we want to ask a question that involves the current year and does additional data calculations: so let us add `additional_authorized_imports=["time", "numpy", "pandas"]`, just in case the agent needs these packages.
 

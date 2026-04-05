@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Tools
 
 [[open-in-colab]]
@@ -71,7 +56,7 @@ model_downloads_tool = HFModelDownloadsTool()
 - एक `name` एट्रिब्यूट, जो टूल के नाम से संबंधित है। नाम आमतौर पर बताता है कि टूल क्या करता है। चूंकि कोड एक टास्क के लिए सबसे अधिक डाउनलोड वाले मॉडल को रिटर्न करता है, इसलिए इसे `model_download_counter` नाम दें।
 - एक `description` एट्रिब्यूट एजेंट के सिस्टम प्रॉम्प्ट को पॉपुलेट करने के लिए उपयोग किया जाता है।
 - एक `inputs` एट्रिब्यूट, जो `"type"` और `"description"` keys वाला डिक्शनरी है। इसमें जानकारी होती है जो पायथन इंटरप्रेटर को इनपुट के बारे में शिक्षित विकल्प चुनने में मदद करती है।
-- एक `output_type` एट्रिब्यूट, जो आउटपुट टाइप को निर्दिष्ट करता है। `inputs` और `output_type` दोनों के लिए टाइप [Pydantic formats](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema) होने चाहिए, वे इनमें से कोई भी हो सकते हैं: [`~AUTHORIZED_TYPES`]।
+- एक `output_type` एट्रिब्यूट, जो आउटपुट टाइप को निर्दिष्ट करता है। `inputs` और `output_type` दोनों के लिए टाइप [Pydantic formats](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema) होने चाहिए, वे इनमें से कोई भी हो सकते हैं: `["string", "boolean","integer", "number", "image", "audio", "array", "object", "any", "null"]`।
 - एक `forward` मेथड जिसमें एक्जीक्यूट किया जाने वाला इन्फरेंस कोड होता है।
 
 एजेंट में उपयोग किए जाने के लिए इतना ही चाहिए!
@@ -134,9 +119,9 @@ image_generation_tool("A sunny beach")
 फिर आप इस टूल का उपयोग किसी अन्य टूल की तरह कर सकते हैं। उदाहरण के लिए, चलिए प्रॉम्प्ट `a rabbit wearing a space suit` को सुधारें और इसकी एक इमेज जनरेट करें। यह उदाहरण यह भी दिखाता है कि आप एजेंट को अतिरिक्त आर्ग्यूमेंट्स कैसे पास कर सकते हैं।
 
 ```python
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
-model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
@@ -182,9 +167,9 @@ agent.run("How many more blocks (also denoted as layers) are in BERT base encode
 चलिए केवल डिफ़ॉल्ट टूलबॉक्स के साथ इनिशियलाइज़ किए गए मौजूदा एजेंट में `model_download_tool` जोड़ें।
 
 ```python
-from smolagents import HfApiModel
+from smolagents import InferenceClientModel
 
-model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.tools[model_download_tool.name] = model_download_tool
@@ -241,7 +226,7 @@ server_parameters = StdioServerParameters(
     env={"UV_PYTHON": "3.12", **os.environ},
 )
 
-with ToolCollection.from_mcp(server_parameters) as tool_collection:
+with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
     agent.run("Please find a remedy for hangover.")
 ```

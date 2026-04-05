@@ -6,7 +6,7 @@ import pathlib
 import re
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 from urllib.parse import unquote, urljoin, urlparse
 
 import pathvalidate
@@ -24,19 +24,19 @@ class SimpleTextBrowser:
 
     def __init__(
         self,
-        start_page: Optional[str] = None,
-        viewport_size: Optional[int] = 1024 * 8,
-        downloads_folder: Optional[Union[str, None]] = None,
-        serpapi_key: Optional[Union[str, None]] = None,
-        request_kwargs: Optional[Union[Dict[str, Any], None]] = None,
+        start_page: str | None = None,
+        viewport_size: int | None = 1024 * 8,
+        downloads_folder: str | None | None = None,
+        serpapi_key: str | None | None = None,
+        request_kwargs: dict[str, Any] | None | None = None,
     ):
         self.start_page: str = start_page if start_page else "about:blank"
         self.viewport_size = viewport_size  # Applies only to the standard uri types
         self.downloads_folder = downloads_folder
-        self.history: List[Tuple[str, float]] = list()
-        self.page_title: Optional[str] = None
+        self.history: list[tuple[str, float]] = list()
+        self.page_title: str | None = None
         self.viewport_current_page = 0
-        self.viewport_pages: List[Tuple[int, int]] = list()
+        self.viewport_pages: list[tuple[int, int]] = list()
         self.set_address(self.start_page)
         self.serpapi_key = serpapi_key
         self.request_kwargs = request_kwargs
@@ -44,15 +44,15 @@ class SimpleTextBrowser:
         self._mdconvert = MarkdownConverter()
         self._page_content: str = ""
 
-        self._find_on_page_query: Union[str, None] = None
-        self._find_on_page_last_result: Union[int, None] = None  # Location of the last result
+        self._find_on_page_query: str | None = None
+        self._find_on_page_last_result: int | None = None  # Location of the last result
 
     @property
     def address(self) -> str:
         """Return the address of the current page."""
         return self.history[-1][0]
 
-    def set_address(self, uri_or_path: str, filter_year: Optional[int] = None) -> None:
+    def set_address(self, uri_or_path: str, filter_year: int | None = None) -> None:
         # TODO: Handle anchors
         self.history.append((uri_or_path, time.time()))
 
@@ -102,7 +102,7 @@ class SimpleTextBrowser:
     def page_up(self) -> None:
         self.viewport_current_page = max(self.viewport_current_page - 1, 0)
 
-    def find_on_page(self, query: str) -> Union[str, None]:
+    def find_on_page(self, query: str) -> str | None:
         """Searches for the query from the current viewport forward, looping back to the start if necessary."""
 
         # Did we get here via a previous find_on_page search with the same query?
@@ -121,7 +121,7 @@ class SimpleTextBrowser:
             self._find_on_page_last_result = viewport_match
             return self.viewport
 
-    def find_next(self) -> Union[str, None]:
+    def find_next(self) -> str | None:
         """Scroll to the next viewport that matches the query"""
 
         if self._find_on_page_query is None:
@@ -144,7 +144,7 @@ class SimpleTextBrowser:
             self._find_on_page_last_result = viewport_match
             return self.viewport
 
-    def _find_next_viewport(self, query: str, starting_viewport: int) -> Union[int, None]:
+    def _find_next_viewport(self, query: str, starting_viewport: int) -> int | None:
         """Search for matches between the starting viewport looping when reaching the end."""
 
         if query is None:
@@ -174,7 +174,7 @@ class SimpleTextBrowser:
 
         return None
 
-    def visit_page(self, path_or_uri: str, filter_year: Optional[int] = None) -> str:
+    def visit_page(self, path_or_uri: str, filter_year: int | None = None) -> str:
         """Update the address, visit the page, and return the content of the viewport."""
         self.set_address(path_or_uri, filter_year=filter_year)
         return self.viewport
@@ -201,7 +201,7 @@ class SimpleTextBrowser:
             self.viewport_pages.append((start_idx, end_idx))
             start_idx = end_idx
 
-    def _serpapi_search(self, query: str, filter_year: Optional[int] = None) -> None:
+    def _serpapi_search(self, query: str, filter_year: int | None = None) -> None:
         if self.serpapi_key is None:
             raise ValueError("Missing SerpAPI key.")
 
@@ -231,7 +231,7 @@ class SimpleTextBrowser:
                     return f"You previously visited this page {round(time.time() - self.history[i][1])} seconds ago.\n"
             return ""
 
-        web_snippets: List[str] = list()
+        web_snippets: list[str] = list()
         idx = 0
         if "organic_results" in results:
             for page in results["organic_results"]:
@@ -352,7 +352,7 @@ class SimpleTextBrowser:
                 self.page_title = "Error"
                 self._set_page_content(f"## Error\n\n{str(request_exception)}")
 
-    def _state(self) -> Tuple[str, str]:
+    def _state(self) -> tuple[str, str]:
         header = f"Address: {self.address}\n"
         if self.page_title is not None:
             header += f"Title: {self.page_title}\n"
@@ -385,7 +385,7 @@ class SearchInformationTool(Tool):
         super().__init__()
         self.browser = browser
 
-    def forward(self, query: str, filter_year: Optional[int] = None) -> str:
+    def forward(self, query: str, filter_year: int | None = None) -> str:
         self.browser.visit_page(f"google: {query}", filter_year=filter_year)
         header, content = self.browser._state()
         return header.strip() + "\n=======================\n" + content
@@ -397,7 +397,7 @@ class VisitTool(Tool):
     inputs = {"url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}}
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
@@ -410,7 +410,7 @@ class VisitTool(Tool):
 class DownloadTool(Tool):
     name = "download_file"
     description = """
-Download a file at a given URL. The file should be of this format: [".xlsx", ".pptx", ".wav", ".mp3", ".png", ".docx"]
+Download a file at a given URL. The file should be of this format: [".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".png", ".docx"]
 After using this tool, for further inspection of this page you should return the download path to your manager via final_answer, and they will be able to inspect it.
 DO NOT use this tool for .pdf or .txt or .htm files: for these types of files use visit_page with the file url instead."""
     inputs = {"url": {"type": "string", "description": "The relative or absolute url of the file to be downloaded."}}
@@ -421,6 +421,8 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
         self.browser = browser
 
     def forward(self, url: str) -> str:
+        import requests
+
         if "arxiv" in url:
             url = url.replace("abs", "pdf")
         response = requests.get(url)
@@ -452,11 +454,13 @@ class ArchiveSearchTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
     def forward(self, url, date) -> str:
+        import requests
+
         no_timestamp_url = f"https://archive.org/wayback/available?url={url}"
         archive_url = no_timestamp_url + f"&timestamp={date}"
         response = requests.get(archive_url).json()
@@ -487,7 +491,7 @@ class PageUpTool(Tool):
     inputs = {}
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
@@ -505,7 +509,7 @@ class PageDownTool(Tool):
     inputs = {}
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
@@ -526,7 +530,7 @@ class FinderTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 
@@ -549,7 +553,7 @@ class FindNextTool(Tool):
     inputs = {}
     output_type = "string"
 
-    def __init__(self, browser):
+    def __init__(self, browser=None):
         super().__init__()
         self.browser = browser
 

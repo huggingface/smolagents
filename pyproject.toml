@@ -4,74 +4,108 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents"
-version = "1.9.0.dev0"
+version = "1.25.0.dev0"
 description = "🤗 smolagents: a barebones library for agents. Agents write python code to call tools or orchestrate other agents."
 authors = [
-  { name="Aymeric Roucher", email="aymeric@hf.co" }, { name="Thomas Wolf"},
+  { name="Aymeric Roucher", email="aymeric@hf.co" },
 ]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "huggingface-hub>=0.28.0",
+  "huggingface-hub>=0.31.2",
   "requests>=2.32.3",
   "rich>=13.9.4",
-  "pandas>=2.2.3",
   "jinja2>=3.1.4",
-  "pillow>=11.0.0",
-  "markdownify>=0.14.1",
-  "duckduckgo-search>=6.3.7",
-  "python-dotenv"
+  "pillow>=10.0.1",
+  # Security fix for CVE-2023-4863: https://pillow.readthedocs.io/en/stable/releasenotes/10.0.1.html
+  "python-dotenv",
 ]
 
 [project.optional-dependencies]
+bedrock = [
+  "boto3>=1.36.18"
+]
+blaxel = [
+  "blaxel>=0.2.19",
+  "websocket-client",
+]
 torch = [
   "torch",
   "torchvision",
+  "numpy>=1.21.2",
 ]
 audio = [
   "soundfile",
   "smolagents[torch]",
+]
+docker = [
+  "docker>=7.1.0",
+  "websocket-client",
 ]
 e2b = [
   "e2b-code-interpreter>=1.0.3",
   "python-dotenv>=1.0.1",
 ]
 gradio = [
-  "gradio>=5.13.2",
+  "gradio>=5.14.0",  # Sidebar component GH-797
 ]
 litellm = [
   "litellm>=1.60.2",
 ]
 mcp = [
-  "mcpadapt>=0.0.6",
+  "mcpadapt>=0.1.13",  # Support structured output
   "mcp",
+]
+mlx-lm = [
+  "mlx-lm",
+]
+modal = [
+  "modal>=1.1.3",
+  "websocket-client",
 ]
 openai = [
   "openai>=1.58.1"
 ]
 telemetry = [
   "arize-phoenix",
-  "opentelemetry-sdk", 
+  "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
-  "openinference-instrumentation-smolagents>=0.1.4"
+  "openinference-instrumentation-smolagents>=0.1.15"  # Use new TokenUsage structure
+]
+toolkit = [
+  "ddgs>=9.0.0",  # DuckDuckGoSearchTool
+  "markdownify>=0.14.1",  # VisitWebpageTool
 ]
 transformers = [
   "accelerate",
   "transformers>=4.0.0",
   "smolagents[torch]",
 ]
+vision = [
+  "helium",
+  "selenium",
+]
+vllm = [
+  "vllm>=0.10.2",
+  "torch"
+]
 all = [
-  "smolagents[audio,e2b,gradio,litellm,mcp,openai,telemetry,transformers]",
+  "smolagents[audio,blaxel,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
 ]
 quality = [
   "ruff>=0.9.0",
 ]
 test = [
   "ipython>=8.31.0", # for interactive environment tests
+  "pandas>=2.2.3",
   "pytest>=8.1.0",
+  "pytest-datadir",
+  "pytest-timeout",  # For test_all_docs: @pytest.mark.timeout
   "python-dotenv>=1.0.1", # For test_all_docs
   "smolagents[all]",
   "rank-bm25", # For test_all_docs
+  "Wikipedia-API>=0.8.1",
+  "mlx[cpu]",  # GH-1588
 ]
 dev = [
   "smolagents[quality,test]",

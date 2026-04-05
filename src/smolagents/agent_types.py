@@ -18,12 +18,10 @@ import pathlib
 import tempfile
 import uuid
 from io import BytesIO
+from typing import Any
 
-import numpy as np
+import PIL.Image
 import requests
-from huggingface_hub.utils import is_torch_available
-from PIL import Image
-from PIL.Image import Image as ImageType
 
 from .utils import _is_package_available
 
@@ -37,7 +35,7 @@ class AgentType:
 
     These objects serve three purposes:
 
-    - They behave as they were the type they're meant to be, e.g., a string for text, a PIL.Image for images
+    - They behave as they were the type they're meant to be, e.g., a string for text, a PIL.Image.Image for images
     - They can be stringified: str(object) in order to return a string defining the object
     - They should be displayed correctly in ipython notebooks/colab/jupyter
     """
@@ -73,14 +71,14 @@ class AgentText(AgentType, str):
         return str(self._value)
 
 
-class AgentImage(AgentType, ImageType):
+class AgentImage(AgentType, PIL.Image.Image):
     """
-    Image type returned by the agent. Behaves as a PIL.Image.
+    Image type returned by the agent. Behaves as a PIL.Image.Image.
     """
 
     def __init__(self, value):
         AgentType.__init__(self, value)
-        ImageType.__init__(self)
+        PIL.Image.Image.__init__(self)
 
         self._path = None
         self._raw = None
@@ -88,19 +86,24 @@ class AgentImage(AgentType, ImageType):
 
         if isinstance(value, AgentImage):
             self._raw, self._path, self._tensor = value._raw, value._path, value._tensor
-        elif isinstance(value, ImageType):
+        elif isinstance(value, PIL.Image.Image):
             self._raw = value
         elif isinstance(value, bytes):
-            self._raw = Image.open(BytesIO(value))
+            self._raw = PIL.Image.open(BytesIO(value))
         elif isinstance(value, (str, pathlib.Path)):
             self._path = value
-        elif is_torch_available():
-            import torch
+        else:
+            try:
+                import torch
 
-            if isinstance(value, torch.Tensor):
-                self._tensor = value
-            if isinstance(value, np.ndarray):
-                self._tensor = torch.from_numpy(value)
+                if isinstance(value, torch.Tensor):
+                    self._tensor = value
+                import numpy as np
+
+                if isinstance(value, np.ndarray):
+                    self._tensor = torch.from_numpy(value)
+            except ModuleNotFoundError:
+                pass
 
         if self._path is None and self._raw is None and self._tensor is None:
             raise TypeError(f"Unsupported type for {self.__class__.__name__}: {type(value)}")
@@ -115,18 +118,20 @@ class AgentImage(AgentType, ImageType):
 
     def to_raw(self):
         """
-        Returns the "raw" version of that object. In the case of an AgentImage, it is a PIL.Image.
+        Returns the "raw" version of that object. In the case of an AgentImage, it is a PIL.Image.Image.
         """
         if self._raw is not None:
             return self._raw
 
         if self._path is not None:
-            self._raw = Image.open(self._path)
+            self._raw = PIL.Image.open(self._path)
             return self._raw
 
         if self._tensor is not None:
+            import numpy as np
+
             array = self._tensor.cpu().detach().numpy()
-            return Image.fromarray((255 - array * 255).astype(np.uint8))
+            return PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
 
     def to_string(self):
         """
@@ -143,10 +148,12 @@ class AgentImage(AgentType, ImageType):
             return self._path
 
         if self._tensor is not None:
+            import numpy as np
+
             array = self._tensor.cpu().detach().numpy()
 
             # There is likely simpler than load into image into save
-            img = Image.fromarray((255 - array * 255).astype(np.uint8))
+            img = PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
 
             directory = tempfile.mkdtemp()
             self._path = os.path.join(directory, str(uuid.uuid4()) + ".png")
@@ -172,10 +179,11 @@ class AgentAudio(AgentType, str):
     """
 
     def __init__(self, value, samplerate=16_000):
-        if not _is_package_available("soundfile") or not is_torch_available():
+        if not _is_package_available("soundfile") or not _is_package_available("torch"):
             raise ModuleNotFoundError(
                 "Please install 'audio' extra to use AgentAudio: `pip install 'smolagents[audio]'`"
             )
+        import numpy as np
         import torch
 
         super().__init__(value)
@@ -186,7 +194,7 @@ class AgentAudio(AgentType, str):
         self.samplerate = samplerate
         if isinstance(value, (str, pathlib.Path)):
             self._path = value
-        elif is_torch_available() and isinstance(value, torch.Tensor):
+        elif isinstance(value, torch.Tensor):
             self._tensor = value
         elif isinstance(value, tuple):
             self.samplerate = value[0]
@@ -252,7 +260,7 @@ def handle_agent_input_types(*args, **kwargs):
     return args, kwargs
 
 
-def handle_agent_output_types(output, output_type=None):
+def handle_agent_output_types(output: Any, output_type: str | None = None) -> Any:
     if output_type in _AGENT_TYPE_MAPPING:
         # If the class has defined outputs, we can map directly according to the class definition
         decoded_outputs = _AGENT_TYPE_MAPPING[output_type](output)
@@ -261,13 +269,15 @@ def handle_agent_output_types(output, output_type=None):
     # If the class does not have defined output, then we map according to the type
     if isinstance(output, str):
         return AgentText(output)
-    if isinstance(output, ImageType):
+    if isinstance(output, PIL.Image.Image):
         return AgentImage(output)
-    if is_torch_available():
+    try:
         import torch
 
         if isinstance(output, torch.Tensor):
             return AgentAudio(output)
+    except ModuleNotFoundError:
+        pass
     return output
 
 

@@ -28,11 +28,11 @@ from smolagents import Tool
 
 class RetrieverTool(Tool):
     name = "retriever"
-    description = "Uses semantic search to retrieve the parts of transformers documentation that could be most relevant to answer your query."
+    description = "Uses lexical search to retrieve the parts of transformers documentation that could be most relevant to answer your query."
     inputs = {
         "query": {
             "type": "string",
-            "description": "The query to perform. This should be semantically close to your target documents. Use the affirmative form rather than a question.",
+            "description": "The query to perform. This should be lexically close to your target documents. Use the affirmative form rather than a question.",
         }
     }
     output_type = "string"
@@ -52,15 +52,16 @@ class RetrieverTool(Tool):
         )
 
 
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 
 retriever_tool = RetrieverTool(docs_processed)
 agent = CodeAgent(
     tools=[retriever_tool],
-    model=HfApiModel("meta-llama/Llama-3.3-70B-Instruct"),
+    model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking"),
     max_steps=4,
     verbosity_level=2,
+    stream_outputs=True,
 )
 
 agent_output = agent.run("For a transformers model training, which is slower, the forward or the backward pass?")

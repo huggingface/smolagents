@@ -1,16 +1,12 @@
-from typing import Optional
-
 from smolagents import Tool
-from smolagents.models import MessageRole, Model
-
-from .mdconvert import MarkdownConverter
+from smolagents.models import Model
 
 
 class TextInspectorTool(Tool):
     name = "inspect_file_as_text"
     description = """
 You cannot load files yourself: instead call this tool to read a file as markdown text and ask questions about it.
-This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pptx", ".wav", ".mp3", ".flac", ".pdf", ".docx"], and all other types of text files. IT DOES NOT HANDLE IMAGES."""
+This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".flac", ".pdf", ".docx"], and all other types of text files. IT DOES NOT HANDLE IMAGES."""
 
     inputs = {
         "file_path": {
@@ -24,14 +20,18 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         },
     }
     output_type = "string"
-    md_converter = MarkdownConverter()
 
-    def __init__(self, model: Model, text_limit: int):
+    def __init__(self, model: Model = None, text_limit: int = 100000):
         super().__init__()
         self.model = model
         self.text_limit = text_limit
+        from .mdconvert import MarkdownConverter
+
+        self.md_converter = MarkdownConverter()
 
     def forward_initial_exam_mode(self, file_path, question):
+        from smolagents.models import MessageRole
+
         result = self.md_converter.convert(file_path)
 
         if file_path[-4:] in [".png", ".jpg"]:
@@ -73,7 +73,9 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         ]
         return self.model(messages).content
 
-    def forward(self, file_path, question: Optional[str] = None) -> str:
+    def forward(self, file_path, question: str | None = None) -> str:
+        from smolagents.models import MessageRole
+
         result = self.md_converter.convert(file_path)
 
         if file_path[-4:] in [".png", ".jpg"]:

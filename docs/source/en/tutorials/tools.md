@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Tools
 
 [[open-in-colab]]
@@ -22,13 +7,6 @@ Here, we're going to see advanced tool usage.
 > [!TIP]
 > If you're new to building agents, make sure to first read the [intro to agents](../conceptual_guides/intro_agents) and the [guided tour of smolagents](../guided_tour).
 
-- [Tools](#tools)
-    - [What is a tool, and how to build one?](#what-is-a-tool-and-how-to-build-one)
-    - [Share your tool to the Hub](#share-your-tool-to-the-hub)
-    - [Import a Space as a tool](#import-a-space-as-a-tool)
-    - [Use LangChain tools](#use-langchain-tools)
-    - [Manage your agent's toolbox](#manage-your-agents-toolbox)
-    - [Use a collection of tools](#use-a-collection-of-tools)
 
 ### What is a tool, and how to build one?
 
@@ -71,7 +49,7 @@ The custom tool subclasses [`Tool`] to inherit useful methods. The child class a
 - An attribute `name`, which corresponds to the name of the tool itself. The name usually describes what the tool does. Since the code returns the model with the most downloads for a task, let's name it `model_download_counter`.
 - An attribute `description` is used to populate the agent's system prompt.
 - An `inputs` attribute, which is a dictionary with keys `"type"` and `"description"`. It contains information that helps the Python interpreter make educated choices about the input.
-- An `output_type` attribute, which specifies the output type. The types for both `inputs` and `output_type` should be [Pydantic formats](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema), they can be either of these: [`~AUTHORIZED_TYPES`].
+- An `output_type` attribute, which specifies the output type. The types for both `inputs` and `output_type` should be [Pydantic formats](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema), they can be either of these: `["string", "boolean","integer", "number", "image", "audio", "array", "object", "any", "null"]`.
 - A `forward` method which contains the inference code to be executed.
 
 And that's all it needs to be used in an agent!
@@ -82,7 +60,7 @@ In this case, you can build your tool by subclassing [`Tool`] as described above
 
 ### Share your tool to the Hub
 
-You can share your custom tool to the Hub by calling [`~Tool.push_to_hub`] on the tool. Make sure you've created a repository for it on the Hub and are using a token with read access.
+You can share your custom tool to the Hub as a Space repository by calling [`~Tool.push_to_hub`] on the tool. Make sure you've created a repository for it on the Hub and are using a token with read access.
 
 ```python
 model_downloads_tool.push_to_hub("{your_username}/hf-model-downloads", token="<YOUR_HUGGINGFACEHUB_API_TOKEN>")
@@ -110,11 +88,172 @@ model_download_tool = load_tool(
 )
 ```
 
+### Use tools from an MCP server
+
+Our `MCPClient` allows you to load tools from an MCP server, and gives you full control over the connection and tool management:
+
+For stdio-based MCP servers:
+```python
+from smolagents import MCPClient, CodeAgent
+from mcp import StdioServerParameters
+import os
+
+server_parameters = StdioServerParameters(
+    command="uvx",  # Using uvx ensures dependencies are available
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+with MCPClient(server_parameters) as tools:
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    agent.run("Please find the latest research on COVID-19 treatment.")
+```
+
+For Streamable HTTP-based MCP servers:
+```python
+from smolagents import MCPClient, CodeAgent
+
+with MCPClient({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}) as tools:
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
+
+You can also manually manage the connection lifecycle with the try...finally pattern:
+
+```python
+from smolagents import MCPClient, CodeAgent
+from mcp import StdioServerParameters
+import os
+
+# Initialize server parameters
+server_parameters = StdioServerParameters(
+    command="uvx",
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+# Manually manage the connection
+try:
+    mcp_client = MCPClient(server_parameters)
+    tools = mcp_client.get_tools()
+
+    # Use the tools with your agent
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    result = agent.run("What are the recent therapeutic approaches for Alzheimer's disease?")
+
+    # Process the result as needed
+    print(f"Agent response: {result}")
+finally:
+    # Always ensure the connection is properly closed
+    mcp_client.disconnect()
+```
+
+You can also connect to multiple MCP servers at once by passing a list of server parameters:
+```python
+from smolagents import MCPClient, CodeAgent
+from mcp import StdioServerParameters
+import os
+
+server_params1 = StdioServerParameters(
+    command="uvx",
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+server_params2 = {"url": "http://127.0.0.1:8000/sse"}
+
+with MCPClient([server_params1, server_params2]) as tools:
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    agent.run("Please analyze the latest research and suggest remedies for headaches.")
+```
+
+> [!WARNING]
+> **Security Warning:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
+> Using MCP servers comes with security risks:
+> - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
+> - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
+> - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
+
+#### Structured Output and Output Schema Support
+
+The latest [MCP specifications (2025-06-18+)](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#structured-content) include support for `outputSchema`, which enables tools to return structured data with defined schemas. `smolagents` takes advantage of these structured output capabilities, allowing agents to work with tools that return complex data structures, JSON objects, and other structured formats. With this feature, the agent's LLMs can "see" the structure of the tool output before calling a tool, enabling more intelligent and context-aware interactions.
+
+To enable structured output support, pass `structured_output=True` when initializing the `MCPClient`:
+
+```python
+from smolagents import MCPClient, CodeAgent
+
+# Enable structured output support
+with MCPClient(server_parameters, structured_output=True) as tools:
+    agent = CodeAgent(tools=tools, model=model, add_base_tools=True)
+    agent.run("Get weather information for Paris")
+```
+
+When `structured_output=True`, the following features are enabled:
+- **Output Schema Support**: Tools can define JSON schemas for their outputs
+- **Structured Content Handling**: Support for `structuredContent` in MCP responses
+- **JSON Parsing**: Automatic parsing of structured data from tool responses
+
+Here's an example using a weather MCP server with structured output:
+
+```python
+# demo/weather.py - Example MCP server with structured output
+from pydantic import BaseModel, Field
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("Weather Service")
+
+class WeatherInfo(BaseModel):
+    location: str = Field(description="The location name")
+    temperature: float = Field(description="Temperature in Celsius")
+    conditions: str = Field(description="Weather conditions")
+    humidity: int = Field(description="Humidity percentage", ge=0, le=100)
+
+@mcp.tool(
+    name="get_weather_info",
+    description="Get weather information for a location as structured data.",
+    # structured_output=True is enabled by default in FastMCP
+)
+def get_weather_info(city: str) -> WeatherInfo:
+    """Get weather information for a city."""
+    return WeatherInfo(
+        location=city,
+        temperature=22.5,
+        conditions="partly cloudy",
+        humidity=65
+    )
+```
+
+Agent using output schema and structured output:
+
+```python
+from smolagents import MCPClient, CodeAgent
+
+# Using the weather server with structured output
+from mcp import StdioServerParameters
+
+server_parameters = StdioServerParameters(
+    command="python",
+    args=["demo/weather.py"]
+)
+
+with MCPClient(server_parameters, structured_output=True) as tools:
+    agent = CodeAgent(tools=tools, model=model)
+    result = agent.run("What is the temperature in Tokyo in Fahrenheit?")
+    print(result)
+```
+
+When structured output is enabled, the `CodeAgent` system prompt is enhanced to include JSON schema information for tools, helping the agent understand the expected structure of tool outputs and access the data appropriately.
+
+**Backwards Compatibility**: The `structured_output` parameter currently defaults to `False` to maintain backwards compatibility. Existing code will continue to work without changes, receiving simple text outputs as before.
+
+**Future Change**: In a future release, the default value of `structured_output` will change from `False` to `True`. It is recommended to explicitly set `structured_output=True` to opt into the enhanced functionality, which provides better tool output handling and improved agent performance. Use `structured_output=False` only if you specifically need to maintain the current text-only behavior.
+
 ### Import a Space as a tool
 
-You can directly import a Space from the Hub as a tool using the [`Tool.from_space`] method!
+You can directly import a Gradio Space from the Hub as a tool using the [`Tool.from_space`] method!
 
-You only need to provide the id of the Space on the Hub, its name, and a description that will help you agent understand what the tool does. Under the hood, this will use [`gradio-client`](https://pypi.org/project/gradio-client/) library to call the Space.
+You only need to provide the id of the Space on the Hub, its name, and a description that will help your agent understand what the tool does. Under the hood, this will use [`gradio-client`](https://pypi.org/project/gradio-client/) library to call the Space.
 
 For instance, let's import the [FLUX.1-dev](https://huggingface.co/black-forest-labs/FLUX.1-dev) Space from the Hub and use it to generate an image.
 
@@ -131,12 +270,12 @@ And voilà, here's your image! 🏖️
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/sunny_beach.webp">
 
-Then you can use this tool just like any other tool.  For example, let's improve the prompt  `a rabbit wearing a space suit` and generate an image of it. This example also shows how you can pass additional arguments to the agent.
+Then you can use this tool just like any other tool.  For example, let's improve the prompt `a rabbit wearing a space suit` and generate an image of it. This example also shows how you can pass additional arguments to the agent.
 
 ```python
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
-model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
@@ -182,9 +321,9 @@ You can manage an agent's toolbox by adding or replacing a tool in attribute `ag
 Let's add the `model_download_tool` to an existing agent initialized with only the default toolbox.
 
 ```python
-from smolagents import HfApiModel
+from smolagents import InferenceClientModel
 
-model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.tools[model_download_tool.name] = model_download_tool
@@ -204,7 +343,53 @@ agent.run(
 
 ### Use a collection of tools
 
-You can leverage tool collections by using the `ToolCollection` object. It supports loading either a collection from the Hub or an MCP server tools.
+You can leverage tool collections by using [`ToolCollection`]. It supports loading either a collection from the Hub or an MCP server tools.
+
+
+#### Tool Collection from any MCP server
+
+Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
+
+The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
+
+> [!WARNING]
+> **Security Warning:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
+> Using MCP servers comes with security risks:
+> - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
+> - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
+> - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
+
+For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
+```py
+from smolagents import ToolCollection, CodeAgent
+from mcp import StdioServerParameters
+
+server_parameters = StdioServerParameters(
+    command="uvx",
+    args=["--quiet", "pubmedmcp@0.1.3"],
+    env={"UV_PYTHON": "3.12", **os.environ},
+)
+
+with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], model=model, add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
+
+To enable structured output support with ToolCollection, add the `structured_output=True` parameter:
+```py
+with ToolCollection.from_mcp(server_parameters, trust_remote_code=True, structured_output=True) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], model=model, add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
+
+For Streamable HTTP-based MCP servers, simply pass a dict with parameters to `mcp.client.streamable_http.streamablehttp_client` and add the key `transport` with the value `"streamable-http"`:
+```py
+from smolagents import ToolCollection, CodeAgent
+
+with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+    agent.run("Please find a remedy for hangover.")
+```
 
 #### Tool Collection from a collection in the Hub
 
@@ -225,23 +410,3 @@ agent.run("Please draw me a picture of rivers and lakes.")
 
 To speed up the start, tools are loaded only if called by the agent.
 
-#### Tool Collection from any MCP server
-
-Leverage tools from the hundreds of MCP servers available on [glama.ai](https://glama.ai/mcp/servers) or [smithery.ai](https://smithery.ai/).
-
-The MCP servers tools can be loaded in a `ToolCollection` object as follow:
-
-```py
-from smolagents import ToolCollection, CodeAgent
-from mcp import StdioServerParameters
-
-server_parameters = StdioServerParameters(
-    command="uv",
-    args=["--quiet", "pubmedmcp@0.1.3"],
-    env={"UV_PYTHON": "3.12", **os.environ},
-)
-
-with ToolCollection.from_mcp(server_parameters) as tool_collection:
-    agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
-    agent.run("Please find a remedy for hangover.")
-```

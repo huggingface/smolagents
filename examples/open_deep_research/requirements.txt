@@ -1,4 +1,5 @@
 anthropic>=0.37.1
+audioop-lts<1.0; python_version >= "3.13" # required to use pydub in Python >=3.13; LTS port of the removed Python builtin module audioop
 beautifulsoup4>=4.12.3
 datasets>=2.21.0
 google_search_results>=2.4.2
@@ -19,7 +20,6 @@ pypdf>=5.1.0
 python-dotenv>=1.0.1
 python_pptx>=1.0.2
 Requests>=2.32.3
-serpapi>=0.1.5
 tqdm>=4.66.4
 torch>=2.2.2
 torchvision>=0.17.2

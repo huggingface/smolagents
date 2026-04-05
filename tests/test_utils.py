@@ -14,8 +14,6 @@
 # limitations under the License.
 import inspect
 import os
-import pathlib
-import tempfile
 import textwrap
 import unittest
 
@@ -24,48 +22,125 @@ from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
 from smolagents.tools import tool
-from smolagents.utils import get_source, parse_code_blobs
+from smolagents.utils import (
+    create_agent_gradio_app_template,
+    get_source,
+    instance_to_source,
+    is_valid_name,
+    parse_code_blobs,
+    parse_json_blob,
+)
+
+
+class ValidTool(Tool):
+    name = "valid_tool"
+    description = "A valid tool"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+    simple_attr = "string"
+    dict_attr = {"key": "value"}
+
+    def __init__(self, optional_param="default"):
+        super().__init__()
+        self.param = optional_param
+
+    def forward(self, input: str) -> str:
+        return input.upper()
+
+
+@tool
+def valid_tool_function(input: str) -> str:
+    """A valid tool function.
+
+    Args:
+        input (str): Input string.
+    """
+    return input.upper()
+
+
+VALID_TOOL_SOURCE = """\
+from smolagents.tools import Tool
+
+class ValidTool(Tool):
+    name = "valid_tool"
+    description = "A valid tool"
+    inputs = {'input': {'type': 'string', 'description': 'input'}}
+    output_type = "string"
+    simple_attr = "string"
+    dict_attr = {'key': 'value'}
+
+    def __init__(self, optional_param="default"):
+        super().__init__()
+        self.param = optional_param
+
+    def forward(self, input: str) -> str:
+        return input.upper()
+"""
+
+VALID_TOOL_FUNCTION_SOURCE = '''\
+from smolagents.tools import Tool
+
+class SimpleTool(Tool):
+    name = "valid_tool_function"
+    description = "A valid tool function."
+    inputs = {'input': {'type': 'string', 'description': 'Input string.'}}
+    output_type = "string"
+
+    def __init__(self):
+        self.is_initialized = True
+
+    def forward(self, input: str) -> str:
+        """A valid tool function.
+
+        Args:
+            input (str): Input string.
+        """
+        return input.upper()
+'''
 
 
 class AgentTextTests(unittest.TestCase):
     def test_parse_code_blobs(self):
         with pytest.raises(ValueError):
-            parse_code_blobs("Wrong blob!")
+            parse_code_blobs("Wrong blob!", ("<code>", "</code>"))
 
         # Parsing mardkwon with code blobs should work
-        output = parse_code_blobs("""
+        output = parse_code_blobs(
+            """
 Here is how to solve the problem:
-Code:
-```py
+<code>
 import numpy as np
-```<end_code>
-""")
+</code>
+""",
+            ("<code>", "</code>"),
+        )
         assert output == "import numpy as np"
 
-        # Parsing code blobs should work
+        # Parsing pure python code blobs should work
         code_blob = "import numpy as np"
-        output = parse_code_blobs(code_blob)
+        output = parse_code_blobs(code_blob, ("```python", "```"))
         assert output == code_blob
 
-    def test_multiple_code_blobs(self):
-        test_input = """Here's a function that adds numbers:
+        # Allow whitespaces after header
+        output = parse_code_blobs("<code>    \ncode_a\n</code>", ("<code>", "</code>"))
+        assert output == "code_a"
+
+        # Parsing markdown with code blobs should work
+        output = parse_code_blobs(
+            """
+Here is how to solve the problem:
 ```python
-def add(a, b):
-    return a + b
+import numpy as np
 ```
-And here's a function that multiplies them:
-```py
-def multiply(a, b):
-    return a * b
-```"""
+""",
+            ("<code>", "</code>"),
+        )
+        assert output == "import numpy as np"
 
-        expected_output = """def add(a, b):
-    return a + b
-
-def multiply(a, b):
-    return a * b"""
-        result = parse_code_blobs(test_input)
-        assert result == expected_output
+    def test_multiple_code_blobs(self):
+        test_input = "<code>\nFoo\n</code>\n\n<code>\ncode_a\n</code>\n\n<code>\ncode_b\n</code>"
+        result = parse_code_blobs(test_input, ("<code>", "</code>"))
+        assert result == "Foo\n\ncode_a\n\ncode_b"
 
 
 @pytest.fixture(scope="function")
@@ -109,17 +184,17 @@ def test_get_source_standard_function():
 def test_get_source_ipython_errors_empty_cells(ipython_shell):
     test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
     ipython_shell.user_ns["In"] = [""]
-    exec(test_code)
+    ipython_shell.run_cell(test_code, store_history=True)
     with pytest.raises(ValueError, match="No code cells found in IPython session"):
-        get_source(locals()["TestClass"])
+        get_source(ipython_shell.user_ns["TestClass"])
 
 
 def test_get_source_ipython_errors_definition_not_found(ipython_shell):
     test_code = textwrap.dedent("""class TestClass:\n    ...""").strip()
     ipython_shell.user_ns["In"] = ["", "print('No class definition here')"]
-    exec(test_code)
+    ipython_shell.run_cell(test_code, store_history=True)
     with pytest.raises(ValueError, match="Could not find source code for TestClass in IPython history"):
-        get_source(locals()["TestClass"])
+        get_source(ipython_shell.user_ns["TestClass"])
 
 
 def test_get_source_ipython_errors_type_error():
@@ -127,7 +202,15 @@ def test_get_source_ipython_errors_type_error():
         get_source(None)
 
 
-def test_e2e_class_tool_save():
+@pytest.mark.parametrize(
+    "tool, expected_tool_source", [(ValidTool(), VALID_TOOL_SOURCE), (valid_tool_function, VALID_TOOL_FUNCTION_SOURCE)]
+)
+def test_instance_to_source(tool, expected_tool_source):
+    tool_source = instance_to_source(tool, base_cls=Tool)
+    assert tool_source == expected_tool_source
+
+
+def test_e2e_class_tool_save(tmp_path):
     class TestTool(Tool):
         name = "test_tool"
         description = "Test tool description"
@@ -145,48 +228,46 @@ def test_e2e_class_tool_save():
             return task
 
     test_tool = TestTool()
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        test_tool.save(tmp_dir)
-        assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
-        assert (
-            pathlib.Path(tmp_dir, "tool.py").read_text()
-            == """from smolagents.tools import Tool
-import IPython
+    test_tool.save(tmp_path, make_gradio_app=True)
+    assert set(os.listdir(tmp_path)) == {"requirements.txt", "app.py", "tool.py"}
+    assert (tmp_path / "tool.py").read_text() == textwrap.dedent(
+        """\
+        from typing import Any, Optional
+        from smolagents.tools import Tool
+        import IPython
 
-class TestTool(Tool):
-    name = "test_tool"
-    description = "Test tool description"
-    inputs = {'task': {'type': 'string', 'description': 'tool input'}}
-    output_type = "string"
+        class TestTool(Tool):
+            name = "test_tool"
+            description = "Test tool description"
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
+            output_type = "string"
 
-    def forward(self, task: str):
-        import IPython  # noqa: F401
+            def forward(self, task: str):
+                import IPython  # noqa: F401
 
-        return task
+                return task
 
-    def __init__(self, *args, **kwargs):
-        self.is_initialized = False
-"""
-        )
-        requirements = set(pathlib.Path(tmp_dir, "requirements.txt").read_text().split())
-        assert requirements == {"IPython", "smolagents"}
-        assert (
-            pathlib.Path(tmp_dir, "app.py").read_text()
-            == """from smolagents import launch_gradio_demo
-from typing import Optional
-from tool import TestTool
+            def __init__(self, *args, **kwargs):
+                self.is_initialized = False
+        """
+    )
+    requirements = set((tmp_path / "requirements.txt").read_text().split())
+    assert requirements == {"IPython", "smolagents"}
+    assert (tmp_path / "app.py").read_text() == textwrap.dedent(
+        """\
+        from smolagents import launch_gradio_demo
+        from tool import TestTool
 
-tool = TestTool()
-
-launch_gradio_demo(tool)
-"""
-        )
+        tool = TestTool()
+        launch_gradio_demo(tool)
+        """
+    )
 
 
-def test_e2e_ipython_class_tool_save():
+def test_e2e_ipython_class_tool_save(tmp_path):
     shell = InteractiveShell.instance()
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        code_blob = textwrap.dedent(f"""
+    code_blob = textwrap.dedent(
+        f"""\
         from smolagents.tools import Tool
         class TestTool(Tool):
             name = "test_tool"
@@ -201,46 +282,46 @@ def test_e2e_ipython_class_tool_save():
                 import IPython  # noqa: F401
 
                 return task
-        TestTool().save("{tmp_dir}")
-    """)
-        assert shell.run_cell(code_blob, store_history=True).success
-        assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
-        assert (
-            pathlib.Path(tmp_dir, "tool.py").read_text()
-            == """from smolagents.tools import Tool
-import IPython
+        TestTool().save("{tmp_path}", make_gradio_app=True)
+        """
+    )
+    assert shell.run_cell(code_blob, store_history=True).success
+    assert set(os.listdir(tmp_path)) == {"requirements.txt", "app.py", "tool.py"}
+    assert (tmp_path / "tool.py").read_text() == textwrap.dedent(
+        """\
+        from typing import Any, Optional
+        from smolagents.tools import Tool
+        import IPython
 
-class TestTool(Tool):
-    name = "test_tool"
-    description = "Test tool description"
-    inputs = {'task': {'type': 'string', 'description': 'tool input'}}
-    output_type = "string"
+        class TestTool(Tool):
+            name = "test_tool"
+            description = "Test tool description"
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
+            output_type = "string"
 
-    def forward(self, task: str):
-        import IPython  # noqa: F401
+            def forward(self, task: str):
+                import IPython  # noqa: F401
 
-        return task
+                return task
 
-    def __init__(self, *args, **kwargs):
-        self.is_initialized = False
-"""
-        )
-        requirements = set(pathlib.Path(tmp_dir, "requirements.txt").read_text().split())
-        assert requirements == {"IPython", "smolagents"}
-        assert (
-            pathlib.Path(tmp_dir, "app.py").read_text()
-            == """from smolagents import launch_gradio_demo
-from typing import Optional
-from tool import TestTool
+            def __init__(self, *args, **kwargs):
+                self.is_initialized = False
+        """
+    )
+    requirements = set((tmp_path / "requirements.txt").read_text().split())
+    assert requirements == {"IPython", "smolagents"}
+    assert (tmp_path / "app.py").read_text() == textwrap.dedent(
+        """\
+        from smolagents import launch_gradio_demo
+        from tool import TestTool
 
-tool = TestTool()
-
-launch_gradio_demo(tool)
-"""
-        )
+        tool = TestTool()
+        launch_gradio_demo(tool)
+        """
+    )
 
 
-def test_e2e_function_tool_save():
+def test_e2e_function_tool_save(tmp_path):
     @tool
     def test_tool(task: str) -> str:
         """
@@ -253,50 +334,47 @@ def test_e2e_function_tool_save():
 
         return task
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        test_tool.save(tmp_dir)
-        assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
-        assert (
-            pathlib.Path(tmp_dir, "tool.py").read_text()
-            == """from smolagents import Tool
-from typing import Optional
+    test_tool.save(tmp_path, make_gradio_app=True)
+    assert set(os.listdir(tmp_path)) == {"requirements.txt", "app.py", "tool.py"}
+    assert (tmp_path / "tool.py").read_text() == textwrap.dedent(
+        """\
+        from smolagents import Tool
+        from typing import Any, Optional
 
-class SimpleTool(Tool):
-    name = "test_tool"
-    description = "Test tool description"
-    inputs = {"task":{"type":"string","description":"tool input"}}
-    output_type = "string"
+        class SimpleTool(Tool):
+            name = "test_tool"
+            description = "Test tool description"
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
+            output_type = "string"
 
-    def forward(self, task: str) -> str:
-        \"""
-        Test tool description
+            def forward(self, task: str) -> str:
+                \"""
+                Test tool description
 
-        Args:
-            task: tool input
-        \"""
-        import IPython  # noqa: F401
+                Args:
+                    task: tool input
+                \"""
+                import IPython  # noqa: F401
 
-        return task"""
-        )
-        requirements = set(pathlib.Path(tmp_dir, "requirements.txt").read_text().split())
-        assert requirements == {"smolagents"}  # FIXME: IPython should be in the requirements
-        assert (
-            pathlib.Path(tmp_dir, "app.py").read_text()
-            == """from smolagents import launch_gradio_demo
-from typing import Optional
-from tool import SimpleTool
+                return task"""
+    )
+    requirements = set((tmp_path / "requirements.txt").read_text().split())
+    assert requirements == {"smolagents"}  # FIXME: IPython should be in the requirements
+    assert (tmp_path / "app.py").read_text() == textwrap.dedent(
+        """\
+        from smolagents import launch_gradio_demo
+        from tool import SimpleTool
 
-tool = SimpleTool()
-
-launch_gradio_demo(tool)
-"""
-        )
+        tool = SimpleTool()
+        launch_gradio_demo(tool)
+        """
+    )
 
 
-def test_e2e_ipython_function_tool_save():
+def test_e2e_ipython_function_tool_save(tmp_path):
     shell = InteractiveShell.instance()
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        code_blob = textwrap.dedent(f"""
+    code_blob = textwrap.dedent(
+        f"""
         from smolagents import tool
 
         @tool
@@ -311,42 +389,166 @@ def test_e2e_ipython_function_tool_save():
 
             return task
 
-        test_tool.save("{tmp_dir}")
-        """)
-        assert shell.run_cell(code_blob, store_history=True).success
-        assert set(os.listdir(tmp_dir)) == {"requirements.txt", "app.py", "tool.py"}
-        assert (
-            pathlib.Path(tmp_dir, "tool.py").read_text()
-            == """from smolagents import Tool
-from typing import Optional
+        test_tool.save("{tmp_path}", make_gradio_app=True)
+        """
+    )
+    assert shell.run_cell(code_blob, store_history=True).success
+    assert set(os.listdir(tmp_path)) == {"requirements.txt", "app.py", "tool.py"}
+    assert (tmp_path / "tool.py").read_text() == textwrap.dedent(
+        """\
+        from smolagents import Tool
+        from typing import Any, Optional
 
-class SimpleTool(Tool):
-    name = "test_tool"
-    description = "Test tool description"
-    inputs = {"task":{"type":"string","description":"tool input"}}
-    output_type = "string"
+        class SimpleTool(Tool):
+            name = "test_tool"
+            description = "Test tool description"
+            inputs = {'task': {'type': 'string', 'description': 'tool input'}}
+            output_type = "string"
 
-    def forward(self, task: str) -> str:
-        \"""
-        Test tool description
+            def forward(self, task: str) -> str:
+                \"""
+                Test tool description
 
-        Args:
-            task: tool input
-        \"""
-        import IPython  # noqa: F401
+                Args:
+                    task: tool input
+                \"""
+                import IPython  # noqa: F401
 
-        return task"""
-        )
-        requirements = set(pathlib.Path(tmp_dir, "requirements.txt").read_text().split())
-        assert requirements == {"smolagents"}  # FIXME: IPython should be in the requirements
-        assert (
-            pathlib.Path(tmp_dir, "app.py").read_text()
-            == """from smolagents import launch_gradio_demo
-from typing import Optional
-from tool import SimpleTool
+                return task"""
+    )
+    requirements = set((tmp_path / "requirements.txt").read_text().split())
+    assert requirements == {"smolagents"}  # FIXME: IPython should be in the requirements
+    assert (tmp_path / "app.py").read_text() == textwrap.dedent(
+        """\
+        from smolagents import launch_gradio_demo
+        from tool import SimpleTool
 
-tool = SimpleTool()
+        tool = SimpleTool()
+        launch_gradio_demo(tool)
+        """
+    )
 
-launch_gradio_demo(tool)
-"""
-        )
+
+@pytest.mark.parametrize(
+    "raw_json, expected_data, expected_blob",
+    [
+        (
+            """{}""",
+            {},
+            "",
+        ),
+        (
+            """Text{}""",
+            {},
+            "Text",
+        ),
+        (
+            """{"simple": "json"}""",
+            {"simple": "json"},
+            "",
+        ),
+        (
+            """With text here{"simple": "json"}""",
+            {"simple": "json"},
+            "With text here",
+        ),
+        (
+            """{"simple": "json"}With text after""",
+            {"simple": "json"},
+            "",
+        ),
+        (
+            """With text before{"simple": "json"}And text after""",
+            {"simple": "json"},
+            "With text before",
+        ),
+    ],
+)
+def test_parse_json_blob_with_valid_json(raw_json, expected_data, expected_blob):
+    data, blob = parse_json_blob(raw_json)
+
+    assert data == expected_data
+    assert blob == expected_blob
+
+
+@pytest.mark.parametrize(
+    "raw_json",
+    [
+        """simple": "json"}""",
+        """With text here"simple": "json"}""",
+        """{"simple": ""json"}With text after""",
+        """{"simple": "json"With text after""",
+        "}}",
+    ],
+)
+def test_parse_json_blob_with_invalid_json(raw_json):
+    with pytest.raises(Exception):
+        parse_json_blob(raw_json)
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Valid identifiers
+        ("valid_name", True),
+        ("ValidName", True),
+        ("valid123", True),
+        ("_private", True),
+        # Invalid identifiers
+        ("", False),
+        ("123invalid", False),
+        ("invalid-name", False),
+        ("invalid name", False),
+        ("invalid.name", False),
+        # Python keywords
+        ("if", False),
+        ("for", False),
+        ("class", False),
+        ("return", False),
+        # Non-string inputs
+        (123, False),
+        (None, False),
+        ([], False),
+        ({}, False),
+    ],
+)
+def test_is_valid_name(name, expected):
+    """Test the is_valid_name function with various inputs."""
+    assert is_valid_name(name) is expected
+
+
+def test_agent_gradio_app_template_excludes_class_keyword():
+    """Test that the AGENT_GRADIO_APP_TEMPLATE excludes 'class' from agent kwargs."""
+
+    # Mock agent_dict with 'class' key that should be excluded
+    agent_dict = {
+        "model": {"class": "CodeAgent", "data": {}},
+        "class": "CodeAgent",  # This should be excluded to prevent SyntaxError
+        "some_valid_attr": "value",
+        "tools": [],
+        "managed_agents": {},
+        "requirements": [],
+        "prompt_templates": {},
+    }
+
+    template = create_agent_gradio_app_template()
+    result = template.render(
+        agent_name="test_agent",
+        class_name="CodeAgent",
+        agent_dict=agent_dict,
+        tools={},
+        managed_agents={},
+        managed_agent_relative_path="",
+    )
+
+    # Should contain valid attribute but not 'class='  as a keyword argument
+    assert "some_valid_attr='value'," in result
+    assert "class=" not in result
+
+    # Verify the generated code is syntactically valid Python
+    import ast
+
+    try:
+        ast.parse(result)
+    except SyntaxError as e:
+        pytest.fail(f"Generated app.py contains syntax error: {e}")

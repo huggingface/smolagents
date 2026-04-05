@@ -2,6 +2,9 @@ name: Quality Check
 
 on: [pull_request]
 
+env:
+  UV_SYSTEM_PYTHON: 1
+
 jobs:
   check_code_quality:
     runs-on: ubuntu-latest
@@ -9,22 +12,20 @@ jobs:
       UV_HTTP_TIMEOUT: 600 # max 10min to install deps
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.12"
 
       # Setup venv
-      - name: Setup venv + uv
+      - name: Setup uv
         run: |
           pip install --upgrade uv
-          uv venv
 
       - name: Install dependencies
         run: uv pip install "smolagents[quality] @ ."
 
       # Equivalent of "make quality" but step by step
-      - run: uv run ruff check examples src tests utils # linter
-      - run: uv run ruff format --check examples src tests utils # formatter
-      - run: uv run python utils/check_tests_in_ci.py
+      - run: ruff check examples src tests  # linter
+      - run: ruff format --check examples src tests  # formatter

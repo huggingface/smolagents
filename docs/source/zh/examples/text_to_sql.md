@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Text-to-SQL
 
 [[open-in-colab]]
@@ -121,14 +106,14 @@ def sql_engine(query: str) -> str:
 
 我们现在使用这个工具来创建一个 agent。我们使用 `CodeAgent`，这是 smolagent 的主要 agent 类：一个在代码中编写操作并根据 ReAct 框架迭代先前输出的 agent。
 
-这个模型是驱动 agent 系统的 LLM。`HfApiModel` 允许你使用 HF  Inference API 调用 LLM，无论是通过 Serverless 还是 Dedicated endpoint，但你也可以使用任何专有 API。
+这个模型是驱动 agent 系统的 LLM。`InferenceClientModel` 允许你使用 HF  Inference API 调用 LLM，无论是通过 Serverless 还是 Dedicated endpoint，但你也可以使用任何专有 API。
 
 ```py
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 agent = CodeAgent(
     tools=[sql_engine],
-    model=HfApiModel("meta-llama/Meta-Llama-3.1-8B-Instruct"),
+    model=InferenceClientModel(model_id="meta-llama/Meta-Llama-3.1-8B-Instruct"),
 )
 agent.run("Can you give me the name of the client who got the most expensive receipt?")
 ```
@@ -177,14 +162,14 @@ for table in ["receipts", "waiters"]:
 print(updated_description)
 ```
 
-因为这个request 比之前的要难一些，我们将 LLM 引擎切换到更强大的 [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct)！
+因为这个request 比之前的要难一些，我们将 LLM 引擎切换到更强大的 [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking)！
 
 ```py
 sql_engine.description = updated_description
 
 agent = CodeAgent(
     tools=[sql_engine],
-    model=HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct"),
+    model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking"),
 )
 
 agent.run("Which waiter got more total money from tips?")

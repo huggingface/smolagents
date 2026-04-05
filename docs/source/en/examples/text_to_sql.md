@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Text-to-SQL
 
 [[open-in-colab]]
@@ -31,7 +16,7 @@ Run the line below to install required dependencies:
 ```bash
 !pip install smolagents python-dotenv sqlalchemy --upgrade -q
 ```
-To call the HF Inference API, you will need a valid token as your environment variable `HF_TOKEN`.
+To call Inference Providers, you will need a valid token as your environment variable `HF_TOKEN`.
 We use python-dotenv to load it.
 ```py
 from dotenv import load_dotenv
@@ -137,14 +122,14 @@ Now let us create an agent that leverages this tool.
 
 We use the `CodeAgent`, which is smolagents’ main agent class: an agent that writes actions in code and can iterate on previous output according to the ReAct framework.
 
-The model is the LLM that powers the agent system. `HfApiModel` allows you to call LLMs using HF’s Inference API, either via Serverless or Dedicated endpoint, but you could also use any proprietary API.
+The model is the LLM that powers the agent system. `InferenceClientModel` allows you to call LLMs using HF’s Inference API, either via Serverless or Dedicated endpoint, but you could also use any proprietary API.
 
 ```py
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
 agent = CodeAgent(
     tools=[sql_engine],
-    model=HfApiModel("meta-llama/Meta-Llama-3.1-8B-Instruct"),
+    model=InferenceClientModel(model_id="meta-llama/Llama-3.1-8B-Instruct"),
 )
 agent.run("Can you give me the name of the client who got the most expensive receipt?")
 ```
@@ -190,14 +175,14 @@ for table in ["receipts", "waiters"]:
 
 print(updated_description)
 ```
-Since this request is a bit harder than the previous one, we’ll switch the LLM engine to use the more powerful [Qwen/Qwen2.5-Coder-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct)!
+Since this request is a bit harder than the previous one, we’ll switch the LLM engine to use the more powerful [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking)!
 
 ```py
 sql_engine.description = updated_description
 
 agent = CodeAgent(
     tools=[sql_engine],
-    model=HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct"),
+    model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking"),
 )
 
 agent.run("Which waiter got more total money from tips?")

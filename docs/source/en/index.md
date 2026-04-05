@@ -1,35 +1,107 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
--->
-
 # `smolagents`
 
 <div class="flex justify-center">
-    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/license_to_call.png" width=100%/>
+    <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/license_to_call.png" style="max-width:700px"/>
 </div>
 
-This library is the simplest framework out there to build powerful agents! By the way, wtf are "agents"? We provide our definition [in this page](conceptual_guides/intro_agents), where you'll also find tips for when to use them or not (spoilers: you'll often be better off without agents).
+## What is smolagents?
 
-This library offers:
+`smolagents` is an open-source Python library designed to make it extremely easy to build and run agents using just a few lines of code.
 
-✨ **Simplicity**: the logic for agents fits in ~thousand lines of code. We kept abstractions to their minimal shape above raw code!
+Key features of `smolagents` include:
 
-🌐 **Support for any LLM**: it supports models hosted on the Hub loaded in their `transformers` version or through our inference API and Inference providers, but also models from OpenAI, Anthropic... it's really easy to power an agent with any LLM.
+✨ **Simplicity**: The logic for agents fits in ~thousand lines of code. We kept abstractions to their minimal shape above raw code!
 
-🧑‍💻 **First-class support for Code Agents**, i.e. agents that write their actions in code (as opposed to "agents being used to write code"), [read more here](tutorials/secure_code_execution).
+🧑‍💻 **First-class support for Code Agents**: [`CodeAgent`](reference/agents#smolagents.CodeAgent) writes its actions in code (as opposed to "agents being used to write code") to invoke tools or perform computations, enabling natural composability (function nesting, loops, conditionals). To make it secure, we support [executing in sandboxed environment](tutorials/secure_code_execution) via [Modal](https://modal.com/), [Blaxel](https://blaxel.ai), [E2B](https://e2b.dev/), or Docker.
 
-🤗 **Hub integrations**: you can share and load Gradio Spaces as tools to/from the Hub, and more is to come!
+📡 **Common Tool-Calling Agent Support**: In addition to CodeAgents, [`ToolCallingAgent`](reference/agents#smolagents.ToolCallingAgent) supports usual JSON/text-based tool-calling for scenarios where that paradigm is preferred.
+
+🤗 **Hub integrations**: Seamlessly share and load agents and tools to/from the Hub as Gradio Spaces.
+
+🌐 **Model-agnostic**: Easily integrate any large language model (LLM), whether it's hosted on the Hub via [Inference providers](https://huggingface.co/docs/inference-providers/index), accessed via APIs such as OpenAI, Anthropic, or many others via LiteLLM integration, or run locally using Transformers or Ollama. Powering an agent with your preferred LLM is straightforward and flexible.
+
+👁️ **Modality-agnostic**: Beyond text, agents can handle vision, video, and audio inputs, broadening the range of possible applications. Check out [this tutorial](examples/web_browser) for vision.
+
+🛠️ **Tool-agnostic**: You can use tools from any [MCP server](reference/tools#smolagents.ToolCollection.from_mcp), from [LangChain](reference/tools#smolagents.Tool.from_langchain), you can even use a [Hub Space](reference/tools#smolagents.Tool.from_space) as a tool.
+
+💻 **CLI Tools**: Comes with command-line utilities (smolagent, webagent) for quickly running agents without writing boilerplate code.
+
+## Quickstart
+
+[[open-in-colab]]
+
+Get started with smolagents in just a few minutes! This guide will show you how to create and run your first agent.
+
+### Installation
+
+Install smolagents with pip:
+
+```bash
+pip install 'smolagents[toolkit]'  # Includes default tools like web search
+```
+
+### Create Your First Agent
+
+Here's a minimal example to create and run an agent:
+
+```python
+from smolagents import CodeAgent, InferenceClientModel
+
+# Initialize a model (using Hugging Face Inference API)
+model = InferenceClientModel()  # Uses a default model
+
+# Create an agent with no tools
+agent = CodeAgent(tools=[], model=model)
+
+# Run the agent with a task
+result = agent.run("Calculate the sum of numbers from 1 to 10")
+print(result)
+```
+
+That's it! Your agent will use Python code to solve the task and return the result.
+
+### Adding Tools
+
+Let's make our agent more capable by adding some tools:
+
+```python
+from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
+
+model = InferenceClientModel()
+agent = CodeAgent(
+    tools=[DuckDuckGoSearchTool()],
+    model=model,
+)
+
+# Now the agent can search the web!
+result = agent.run("What is the current weather in Paris?")
+print(result)
+```
+
+### Using Different Models
+
+You can use various models with your agent:
+
+```python
+# Using a specific model from Hugging Face
+model = InferenceClientModel(model_id="meta-llama/Llama-2-70b-chat-hf")
+
+# Using OpenAI/Anthropic (requires 'smolagents[litellm]')
+from smolagents import LiteLLMModel
+model = LiteLLMModel(model_id="gpt-4")
+
+# Using local models (requires 'smolagents[transformers]')
+from smolagents import TransformersModel
+model = TransformersModel(model_id="meta-llama/Llama-2-7b-chat-hf")
+```
+
+## Next Steps
+
+- Learn how to set up smolagents with various models and tools in the [Installation Guide](installation)
+- Check out the [Guided Tour](guided_tour) for more advanced features
+- Learn about [building custom tools](tutorials/tools)
+- Explore [secure code execution](tutorials/secure_code_execution)
+- See how to create [multi-agent systems](tutorials/building_good_agents)
 
 <div class="mt-10">
   <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-y-4 md:gap-x-5">

@@ -1,21 +1,6 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
+# What are agents? 🤔
 
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
-# Introduction to Agents
-
-## 🤔 What are agents?
+## An introduction to agentic systems.
 
 Any efficient system using AI will need to provide LLMs some kind of access to the real world: for instance the possibility to call a search tool to get external information, or to act on certain programs in order to solve a task. In other words, LLMs should have ***agency***. Agentic programs are the gateway to the outside world for LLMs.
 
@@ -28,13 +13,14 @@ Note that with this definition, "agent" is not a discrete, 0 or 1 definition: in
 
 See in the table below how agency can vary across systems:
 
-| Agency Level | Description                                             | How that's called | Example Pattern                                    |
-| ------------ | ------------------------------------------------------- | ----------------- | -------------------------------------------------- |
-| ☆☆☆          | LLM output has no impact on program flow                | Simple Processor  | `process_llm_output(llm_response)`                 |
-| ★☆☆          | LLM output determines an if/else switch                 | Router            | `if llm_decision(): path_a() else: path_b()`       |
-| ★★☆          | LLM output determines function execution                | Tool Caller       | `run_function(llm_chosen_tool, llm_chosen_args)`   |
-| ★★★          | LLM output controls iteration and program continuation  | Multi-step Agent  | `while llm_should_continue(): execute_next_step()` |
-| ★★★          | One agentic workflow can start another agentic workflow | Multi-Agent       | `if llm_trigger(): execute_agent()`                |
+| Agency Level | Description                                                     | Short name       | Example Code                                       |
+| ------------ | --------------------------------------------------------------- | ---------------- | -------------------------------------------------- |
+| ☆☆☆          | LLM output has no impact on program flow                        | Simple processor | `process_llm_output(llm_response)`                 |
+| ★☆☆          | LLM output controls an if/else switch                           | Router           | `if llm_decision(): path_a() else: path_b()`       |
+| ★★☆          | LLM output controls function execution                          | Tool call        | `run_function(llm_chosen_tool, llm_chosen_args)`   |
+| ★★☆          | LLM output controls iteration and program continuation          | Multi-step Agent | `while llm_should_continue(): execute_next_step()` |
+| ★★★          | One agentic workflow can start another agentic workflow         | Multi-Agent      | `if llm_trigger(): execute_agent()`                |
+| ★★★          | LLM acts in code, can define its own tools / start other agents | Code Agents      | `def custom_tool(args): ...`                       |
 
 The multi-step agent has this code structure:
 
@@ -90,8 +76,8 @@ See? With these two examples, we already found the need for a few items to help 
 
 - Of course, an LLM that acts as the engine powering the system
 - A list of tools that the agent can access
-- A parser that extracts tool calls from the LLM output
-- A system prompt synced with the parser
+- A system prompt guiding the LLM on the agent logic: ReAct loop of Reflection -> Action -> Observation, available tools, tool calling format to use...
+- A parser that extracts tool calls from the LLM output, in the format indicated by system prompt above.
 - A memory
 
 But wait, since we give room to LLMs in decisions, surely they will make mistakes: so we need error logging and retry mechanisms.
@@ -102,9 +88,10 @@ All these elements need tight coupling to make a well-functioning system. That's
 
 In a multi-step agent, at each step, the LLM can write an action, in the form of some calls to external tools. A common format (used by Anthropic, OpenAI, and many others) for writing these actions is generally different shades of "writing actions as a JSON of tools names and arguments to use, which you then parse to know which tool to execute and with which arguments".
 
-[Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the tool calling LLMs in code is much better.
+[Multiple](https://huggingface.co/papers/2402.01030) [research](https://huggingface.co/papers/2411.01747) [papers](https://huggingface.co/papers/2401.00812) have shown that having the LLMs actions written as code snippets is a more natural and flexible way of writing them.
 
-The reason for this simply that *we crafted our code languages specifically to be the best possible way to express actions performed by a computer*. If JSON snippets were a better expression, JSON would be the top programming language and programming would be hell on earth.
+The reason for this simply that *we crafted our code languages specifically to express the actions performed by a computer*.
+In other words, our agent is going to write programs in order to solve the user's issues : do you think their programming will be easier in blocks of Python or JSON?
 
 The figure below, taken from [Executable Code Actions Elicit Better LLM Agents](https://huggingface.co/papers/2402.01030), illustrates some advantages of writing actions in code:
 

@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # Tools
 
 <Tip warning={true}>
@@ -25,7 +10,7 @@ can vary as the APIs or underlying models are prone to change.
 To learn more about agents and tools make sure to read the [introductory guide](../index). This page
 contains the API docs for the underlying classes.
 
-## Tools
+## Tool Base Classes
 
 ### load_tool
 
@@ -43,44 +28,18 @@ contains the API docs for the underlying classes.
 
 [[autodoc]] launch_gradio_demo
 
-## Default tools
-
-### PythonInterpreterTool
-
-[[autodoc]] PythonInterpreterTool
-
-### FinalAnswerTool
-
-[[autodoc]] FinalAnswerTool
-
-### UserInputTool
-
-[[autodoc]] UserInputTool
-
-### DuckDuckGoSearchTool
-
-[[autodoc]] DuckDuckGoSearchTool
-
-### GoogleSearchTool
-
-[[autodoc]] GoogleSearchTool
-
-### VisitWebpageTool
-
-[[autodoc]] VisitWebpageTool
-
-### SpeechToTextTool
-
-[[autodoc]] SpeechToTextTool
-
 ## ToolCollection
 
 [[autodoc]] ToolCollection
 
+## MCP Client
+
+[[autodoc]] smolagents.mcp_client.MCPClient
+
 ## Agent Types
 
 Agents can handle any type of object in-between tools; tools, being completely multimodal, can accept and return
-text, image, audio, video, among other types. In order to increase compatibility between tools, as well as to 
+text, image, audio, video, among other types. In order to increase compatibility between tools, as well as to
 correctly render these returns in ipython (jupyter, colab, ipython notebooks, ...), we implement wrapper classes
 around these types.
 

@@ -29,8 +29,6 @@ You also need to install 2 extra packages:
 ```bash
 # `hf-doc-builder` to build the docs
 pip install git+https://github.com/huggingface/doc-builder@main
-# `watchdog` for live reloads
-pip install watchdog
 ```
 
 ---
@@ -120,10 +118,6 @@ Adding a new tutorial or section is done in two steps:
 - Link that file in `./source/_toctree.yml` on the correct toc-tree.
 
 Make sure to put your new file under the proper section. If you have a doubt, feel free to ask in a Github Issue or PR.
-
-### Translating
-
-When translating, refer to the guide at [./TRANSLATING.md](https://github.com/huggingface/smolagents/blob/main/docs/TRANSLATING.md).
 
 ### Writing source documentation
 
@@ -272,3 +266,4 @@ output.
 Often, readers will try out the example before even going through the function
 or class definitions. Therefore, it is of utmost importance that the example
 works as expected.
+

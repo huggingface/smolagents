@@ -14,8 +14,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
+
 import ast
-import importlib
 import inspect
 import json
 import logging
@@ -23,29 +24,44 @@ import os
 import sys
 import tempfile
 import textwrap
+import types
+import warnings
+from abc import ABC, abstractmethod
+from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from huggingface_hub import (
+    CommitOperationAdd,
+    create_commit,
     create_repo,
     get_collection,
     hf_hub_download,
     metadata_update,
-    upload_folder,
 )
-from huggingface_hub.utils import is_torch_available
 
 from ._function_type_hints_utils import (
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
+    _get_json_schema_type,
     get_imports,
     get_json_schema,
 )
-from .agent_types import handle_agent_input_types, handle_agent_output_types
+from .agent_types import AgentAudio, AgentImage, handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
-from .utils import _is_package_available, _is_pillow_available, get_source, instance_to_source
+from .utils import (
+    BASE_BUILTIN_MODULES,
+    _is_package_available,
+    get_source,
+    instance_to_source,
+    is_valid_name,
+)
+
+
+if TYPE_CHECKING:
+    import mcp
 
 
 logger = logging.getLogger(__name__)
@@ -79,7 +95,15 @@ AUTHORIZED_TYPES = [
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
 
 
-class Tool:
+class BaseTool(ABC):
+    name: str
+
+    @abstractmethod
+    def __call__(self, *args, **kwargs) -> Any:
+        pass
+
+
+class Tool(BaseTool):
     """
     A base class for the functions used by the agent. Subclass this and implement the `forward` method as well as the
     following class attributes:
@@ -89,12 +113,15 @@ class Tool:
       returns the text contained in the file'.
     - **name** (`str`) -- A performative name that will be used for your tool in the prompt to the agent. For instance
       `"text-classifier"` or `"image_generator"`.
-    - **inputs** (`Dict[str, Dict[str, Union[str, type]]]`) -- The dict of modalities expected for the inputs.
+    - **inputs** (`Dict[str, Dict[str, Union[str, type, bool]]]`) -- The dict of modalities expected for the inputs.
       It has one `type`key and a `description`key.
       This is used by `launch_gradio_demo` or to make a nice space from your tool, and also can be used in the generated
       description for your tool.
     - **output_type** (`type`) -- The type of the tool output. This is used by `launch_gradio_demo`
       or to make a nice space from your tool, and also can be used in the generated description for your tool.
+    - **output_schema** (`Dict[str, Any]`, *optional*) -- The JSON schema defining the expected structure of the tool output.
+      This can be included in system prompts to help agents understand the expected output format. Note: This is currently
+      used for informational purposes only and does not perform actual output validation.
 
     You can also override the method [`~Tool.setup`] if your tool has an expensive operation to perform before being
     usable (such as loading a model). [`~Tool.setup`] will be called the first time you use your tool, but not at
@@ -103,8 +130,9 @@ class Tool:
 
     name: str
     description: str
-    inputs: Dict[str, Dict[str, Union[str, type, bool]]]
+    inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
+    output_schema: dict[str, Any] | None = None
 
     def __init__(self, *args, **kwargs):
         self.is_initialized = False
@@ -120,7 +148,7 @@ class Tool:
             "inputs": dict,
             "output_type": str,
         }
-
+        # Validate class attributes
         for attr, expected_type in required_attributes.items():
             attr_value = getattr(self, attr, None)
             if attr_value is None:
@@ -129,16 +157,42 @@ class Tool:
                 raise TypeError(
                     f"Attribute {attr} should have type {expected_type.__name__}, got {type(attr_value)} instead."
                 )
+
+        # Validate optional output_schema attribute
+        output_schema = getattr(self, "output_schema", None)
+        if output_schema is not None and not isinstance(output_schema, dict):
+            raise TypeError(f"Attribute output_schema should have type dict, got {type(output_schema)} instead.")
+
+        # - Validate name
+        if not is_valid_name(self.name):
+            raise Exception(
+                f"Invalid Tool name '{self.name}': must be a valid Python identifier and not a reserved keyword"
+            )
+        # Validate inputs
         for input_name, input_content in self.inputs.items():
             assert isinstance(input_content, dict), f"Input '{input_name}' should be a dictionary."
             assert "type" in input_content and "description" in input_content, (
                 f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
             )
-            if input_content["type"] not in AUTHORIZED_TYPES:
-                raise Exception(
-                    f"Input '{input_name}': type '{input_content['type']}' is not an authorized value, should be one of {AUTHORIZED_TYPES}."
+            # Get input_types as a list, whether from a string or list
+            if isinstance(input_content["type"], str):
+                input_types = [input_content["type"]]
+            elif isinstance(input_content["type"], list):
+                input_types = input_content["type"]
+                # Check if all elements are strings
+                if not all(isinstance(t, str) for t in input_types):
+                    raise TypeError(
+                        f"Input '{input_name}': when type is a list, all elements must be strings, got {input_content['type']}"
+                    )
+            else:
+                raise TypeError(
+                    f"Input '{input_name}': type must be a string or list of strings, got {type(input_content['type']).__name__}"
                 )
-
+            # Check all types are authorized
+            invalid_types = [t for t in input_types if t not in AUTHORIZED_TYPES]
+            if invalid_types:
+                raise ValueError(f"Input '{input_name}': types {invalid_types} must be one of {AUTHORIZED_TYPES}")
+        # Validate output type
         assert getattr(self, "output_type", None) in AUTHORIZED_TYPES
 
         # Validate forward function signature, except for Tools that use a "generic" signature (PipelineTool, SpaceToolWrapper, LangChainToolWrapper)
@@ -147,10 +201,12 @@ class Tool:
             and getattr(self, "skip_forward_signature_validation") is True
         ):
             signature = inspect.signature(self.forward)
-
-            if not set(signature.parameters.keys()) == set(self.inputs.keys()):
+            actual_keys = set(key for key in signature.parameters.keys() if key != "self")
+            expected_keys = set(self.inputs.keys())
+            if actual_keys != expected_keys:
                 raise Exception(
-                    "Tool's 'forward' method should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
+                    f"In tool '{self.name}', 'forward' method parameters were {actual_keys}, but expected {expected_keys}. "
+                    f"It should take 'self' as its first argument, then its next arguments should match the keys of tool attribute 'inputs'."
                 )
 
             json_schema = _convert_type_hints_to_json_schema(self.forward, error_on_missing_type_hints=False)[
@@ -170,7 +226,7 @@ class Tool:
                     )
 
     def forward(self, *args, **kwargs):
-        return NotImplementedError("Write this method in your subclass of `Tool`.")
+        raise NotImplementedError("Write this method in your subclass of `Tool`.")
 
     def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
         if not self.is_initialized:
@@ -199,24 +255,43 @@ class Tool:
         """
         self.is_initialized = True
 
-    def save(self, output_dir):
-        """
-        Saves the relevant code files for your tool so it can be pushed to the Hub. This will copy the code of your
-        tool in `output_dir` as well as autogenerate:
+    def to_code_prompt(self) -> str:
+        args_signature = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
 
-        - a `tool.py` file containing the logic for your tool.
-        - an `app.py` file providing an UI for your tool when it is exported to a Space with `tool.push_to_hub()`
-        - a `requirements.txt` containing the names of the module used by your tool (as detected when inspecting its
-          code)
+        # Use dict type for tools with output schema to indicate structured return
+        has_schema = hasattr(self, "output_schema") and self.output_schema is not None
+        output_type = "dict" if has_schema else self.output_type
+        tool_signature = f"({args_signature}) -> {output_type}"
+        tool_doc = self.description
 
-        Args:
-            output_dir (`str`): The folder in which you want to save your tool.
-        """
-        os.makedirs(output_dir, exist_ok=True)
+        # Add an important note for smaller models (e.g. Mistral Small, Gemma 3, etc.) to properly handle structured output.
+        if has_schema:
+            tool_doc += "\n\nImportant: This tool returns structured output! Use the JSON schema below to directly access fields like result['field_name']. NO print() statements needed to inspect the output!"
+
+        # Add arguments documentation
+        if self.inputs:
+            args_descriptions = "\n".join(
+                f"{arg_name}: {arg_schema['description']}" for arg_name, arg_schema in self.inputs.items()
+            )
+            args_doc = f"Args:\n{textwrap.indent(args_descriptions, '    ')}"
+            tool_doc += f"\n\n{args_doc}"
+
+        # Add returns documentation with output schema if it exists
+        if has_schema:
+            formatted_schema = json.dumps(self.output_schema, indent=4)
+            indented_schema = textwrap.indent(formatted_schema, "        ")
+            returns_doc = f"\nReturns:\n    dict (structured output): This tool ALWAYS returns a dictionary that strictly adheres to the following JSON schema:\n{indented_schema}"
+            tool_doc += f"\n{returns_doc}"
+
+        tool_doc = f'"""{tool_doc}\n"""'
+        return f"def {self.name}{tool_signature}:\n{textwrap.indent(tool_doc, '    ')}"
+
+    def to_tool_calling_prompt(self) -> str:
+        return f"{self.name}: {self.description}\n    Takes inputs: {self.inputs}\n    Returns an output of type: {self.output_type}"
+
+    def to_dict(self) -> dict:
+        """Returns a dictionary representing the tool"""
         class_name = self.__class__.__name__
-        tool_file = os.path.join(output_dir, "tool.py")
-
-        # Save tool file
         if type(self).__name__ == "SimpleTool":
             # Check that imports are self-contained
             source_code = get_source(self.forward).replace("@tool", "")
@@ -226,21 +301,26 @@ class Tool:
             method_checker.visit(forward_node)
 
             if len(method_checker.errors) > 0:
-                raise (ValueError("\n".join(method_checker.errors)))
+                errors = [f"- {error}" for error in method_checker.errors]
+                raise (ValueError(f"SimpleTool validation failed for {self.name}:\n" + "\n".join(errors)))
 
             forward_source_code = get_source(self.forward)
             tool_code = textwrap.dedent(
                 f"""
             from smolagents import Tool
-            from typing import Optional
+            from typing import Any, Optional
 
             class {class_name}(Tool):
                 name = "{self.name}"
-                description = "{self.description}"
-                inputs = {json.dumps(self.inputs, separators=(",", ":"))}
+                description = {json.dumps(textwrap.dedent(self.description).strip())}
+                inputs = {repr(self.inputs)}
                 output_type = "{self.output_type}"
             """
             ).strip()
+
+            # Add output_schema if it exists
+            if hasattr(self, "output_schema") and self.output_schema is not None:
+                tool_code += f"\n                output_schema = {repr(self.output_schema)}"
             import re
 
             def add_self_argument(source_code: str) -> str:
@@ -272,52 +352,82 @@ class Tool:
 
             validate_tool_attributes(self.__class__)
 
-            tool_code = instance_to_source(self, base_cls=Tool)
+            tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
 
-        with open(tool_file, "w", encoding="utf-8") as f:
-            f.write(tool_code.replace(":true,", ":True,").replace(":true}", ":True}"))
+        requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
-        # Save app file
-        app_file = os.path.join(output_dir, "app.py")
-        with open(app_file, "w", encoding="utf-8") as f:
-            f.write(
-                textwrap.dedent(
-                    f"""
-            from smolagents import launch_gradio_demo
-            from typing import Optional
-            from tool import {class_name}
+        tool_dict = {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
 
-            tool = {class_name}()
+        # Add output_schema if it exists
+        if hasattr(self, "output_schema") and self.output_schema is not None:
+            tool_dict["output_schema"] = self.output_schema
 
-            launch_gradio_demo(tool)
-            """
-                ).lstrip()
-            )
+        return tool_dict
 
-        # Save requirements file
-        imports = {el for el in get_imports(tool_file) if el not in sys.stdlib_module_names} | {"smolagents"}
-        requirements_file = os.path.join(output_dir, "requirements.txt")
-        with open(requirements_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(imports) + "\n")
+    @classmethod
+    def from_dict(cls, tool_dict: dict[str, Any], **kwargs) -> "Tool":
+        """
+        Create tool from a dictionary representation.
+
+        Args:
+            tool_dict (`dict[str, Any]`): Dictionary representation of the tool.
+            **kwargs: Additional keyword arguments to pass to the tool's constructor.
+
+        Returns:
+            `Tool`: Tool object.
+        """
+        if "code" not in tool_dict:
+            raise ValueError("Tool dictionary must contain 'code' key with the tool source code")
+
+        tool = cls.from_code(tool_dict["code"], **kwargs)
+
+        # Set output_schema if it exists in the dictionary
+        if "output_schema" in tool_dict:
+            tool.output_schema = tool_dict["output_schema"]
+
+        return tool
+
+    def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True):
+        """
+        Saves the relevant code files for your tool so it can be pushed to the Hub. This will copy the code of your
+        tool in `output_dir` as well as autogenerate:
+
+        - a `{tool_file_name}.py` file containing the logic for your tool.
+        If you pass `make_gradio_app=True`, this will also write:
+        - an `app.py` file providing a UI for your tool when it is exported to a Space with `tool.push_to_hub()`
+        - a `requirements.txt` containing the names of the modules used by your tool (as detected when inspecting its
+          code)
+
+        Args:
+            output_dir (`str` or `Path`): The folder in which you want to save your tool.
+            tool_file_name (`str`, *optional*): The file name in which you want to save your tool.
+            make_gradio_app (`bool`, *optional*, defaults to True): Whether to also export a `requirements.txt` file and Gradio UI.
+        """
+        # Ensure output directory exists
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        # Save tool file
+        self._write_file(output_path / f"{tool_file_name}.py", self._get_tool_code())
+        if make_gradio_app:
+            #  Save app file
+            self._write_file(output_path / "app.py", self._get_gradio_app_code(tool_module_name=tool_file_name))
+            # Save requirements file
+            self._write_file(output_path / "requirements.txt", self._get_requirements())
+
+    def _write_file(self, file_path: Path, content: str) -> None:
+        """Writes content to a file with UTF-8 encoding."""
+        file_path.write_text(content, encoding="utf-8")
 
     def push_to_hub(
         self,
         repo_id: str,
         commit_message: str = "Upload tool",
-        private: Optional[bool] = None,
-        token: Optional[Union[bool, str]] = None,
+        private: bool | None = None,
+        token: bool | str | None = None,
         create_pr: bool = False,
     ) -> str:
         """
         Upload the tool to the Hub.
-
-        For this method to work properly, your tool must have been defined in a separate module (not `__main__`).
-        For instance:
-        ```
-        from my_tool_module import MyTool
-        my_tool = MyTool()
-        my_tool.push_to_hub("my-username/my-space")
-        ```
 
         Parameters:
             repo_id (`str`):
@@ -331,8 +441,25 @@ class Tool:
                 The token to use as HTTP bearer authorization for remote files. If unset, will use the token generated
                 when running `huggingface-cli login` (stored in `~/.huggingface`).
             create_pr (`bool`, *optional*, defaults to `False`):
-                Whether or not to create a PR with the uploaded files or directly commit.
+                Whether to create a PR with the uploaded files or directly commit.
         """
+        # Initialize repository
+        repo_id = self._initialize_hub_repo(repo_id, token, private)
+        # Prepare files for commit
+        additions = self._prepare_hub_files()
+        # Create commit
+        return create_commit(
+            repo_id=repo_id,
+            operations=additions,
+            commit_message=commit_message,
+            token=token,
+            create_pr=create_pr,
+            repo_type="space",
+        )
+
+    @staticmethod
+    def _initialize_hub_repo(repo_id: str, token: bool | str | None, private: bool | None) -> str:
+        """Initialize repository on Hugging Face Hub."""
         repo_url = create_repo(
             repo_id=repo_id,
             token=token,
@@ -341,29 +468,56 @@ class Tool:
             repo_type="space",
             space_sdk="gradio",
         )
-        repo_id = repo_url.repo_id
-        metadata_update(repo_id, {"tags": ["tool"]}, repo_type="space", token=token)
+        metadata_update(repo_url.repo_id, {"tags": ["smolagents", "tool"]}, repo_type="space", token=token)
+        return repo_url.repo_id
 
-        with tempfile.TemporaryDirectory() as work_dir:
-            # Save all files.
-            self.save(work_dir)
-            with open(work_dir + "/tool.py", "r") as f:
-                print("\n".join(f.readlines()))
-            logger.info(f"Uploading the following files to {repo_id}: {','.join(os.listdir(work_dir))}")
-            return upload_folder(
-                repo_id=repo_id,
-                commit_message=commit_message,
-                folder_path=work_dir,
-                token=token,
-                create_pr=create_pr,
-                repo_type="space",
-            )
+    def _prepare_hub_files(self) -> list:
+        """Prepare files for Hub commit."""
+        additions = [
+            # Add tool code
+            CommitOperationAdd(
+                path_in_repo="tool.py",
+                path_or_fileobj=self._get_tool_code().encode(),
+            ),
+            # Add Gradio app
+            CommitOperationAdd(
+                path_in_repo="app.py",
+                path_or_fileobj=self._get_gradio_app_code().encode(),
+            ),
+            # Add requirements
+            CommitOperationAdd(
+                path_in_repo="requirements.txt",
+                path_or_fileobj=self._get_requirements().encode(),
+            ),
+        ]
+        return additions
+
+    def _get_tool_code(self) -> str:
+        """Get the tool's code."""
+        return self.to_dict()["code"]
+
+    def _get_gradio_app_code(self, tool_module_name: str = "tool") -> str:
+        """Get the Gradio app code."""
+        class_name = self.__class__.__name__
+        return textwrap.dedent(
+            f"""\
+            from smolagents import launch_gradio_demo
+            from {tool_module_name} import {class_name}
+
+            tool = {class_name}()
+            launch_gradio_demo(tool)
+            """
+        )
+
+    def _get_requirements(self) -> str:
+        """Get the requirements."""
+        return "\n".join(self.to_dict()["requirements"])
 
     @classmethod
     def from_hub(
         cls,
         repo_id: str,
-        token: Optional[str] = None,
+        token: str | None = None,
         trust_remote_code: bool = False,
         **kwargs,
     ):
@@ -380,7 +534,7 @@ class Tool:
 
         Args:
             repo_id (`str`):
-                The name of the repo on the Hub where your tool is defined.
+                The name of the Space repo on the Hub where your tool is defined.
             token (`str`, *optional*):
                 The token to identify you on hf.co. If unset, will use the token generated when running
                 `huggingface-cli login` (stored in `~/.huggingface`).
@@ -394,7 +548,7 @@ class Tool:
         """
         if not trust_remote_code:
             raise ValueError(
-                "Loading a tool from Hub requires to trust remote code. Make sure you've inspected the repo and pass `trust_remote_code=True` to load the tool."
+                "Loading a tool from Hub requires to acknowledge you trust its code: to do so, pass `trust_remote_code=True`."
             )
 
         # Get the tool's tool.py file.
@@ -405,7 +559,6 @@ class Tool:
             repo_type="space",
             cache_dir=kwargs.get("cache_dir"),
             force_download=kwargs.get("force_download"),
-            resume_download=kwargs.get("resume_download"),
             proxies=kwargs.get("proxies"),
             revision=kwargs.get("revision"),
             subfolder=kwargs.get("subfolder"),
@@ -413,33 +566,33 @@ class Tool:
         )
 
         tool_code = Path(tool_file).read_text()
+        return Tool.from_code(tool_code, **kwargs)
 
-        # Find the Tool subclass in the namespace
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Save the code to a file
-            module_path = os.path.join(temp_dir, "tool.py")
-            with open(module_path, "w") as f:
-                f.write(tool_code)
+    @classmethod
+    def from_code(cls, tool_code: str, **kwargs):
+        module = types.ModuleType("dynamic_tool")
 
-            print("TOOL CODE:\n", tool_code)
+        exec(tool_code, module.__dict__)
 
-            # Load module from file path
-            spec = importlib.util.spec_from_file_location("tool", module_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+        # Find the Tool subclass
+        tool_class = next(
+            (
+                obj
+                for _, obj in inspect.getmembers(module, inspect.isclass)
+                if issubclass(obj, Tool) and obj is not Tool
+            ),
+            None,
+        )
 
-            # Find and instantiate the Tool class
-            for item_name in dir(module):
-                item = getattr(module, item_name)
-                if isinstance(item, type) and issubclass(item, Tool) and item != Tool:
-                    tool_class = item
-                    break
-
-            if tool_class is None:
-                raise ValueError("No Tool subclass found in the code.")
+        if tool_class is None:
+            raise ValueError("No Tool subclass found in the code.")
 
         if not isinstance(tool_class.inputs, dict):
             tool_class.inputs = ast.literal_eval(tool_class.inputs)
+
+        # Handle output_schema if it exists and is a string representation
+        if hasattr(tool_class, "output_schema") and isinstance(tool_class.output_schema, str):
+            tool_class.output_schema = ast.literal_eval(tool_class.output_schema)
 
         return tool_class(**kwargs)
 
@@ -447,9 +600,9 @@ class Tool:
     def from_space(
         space_id: str,
         name: str,
-        description: str,
-        api_name: Optional[str] = None,
-        token: Optional[str] = None,
+        description: str = "",
+        api_name: str | None = None,
+        token: str | None = None,
     ):
         """
         Creates a [`Tool`] from a Space given its id on the Hub.
@@ -496,19 +649,21 @@ class Tool:
                 self,
                 space_id: str,
                 name: str,
-                description: str,
-                api_name: Optional[str] = None,
-                token: Optional[str] = None,
+                description: str = "",
+                api_name: str | None = None,
+                token: str | None = None,
             ):
                 self.name = name
                 self.description = description
                 self.client = Client(space_id, hf_token=token)
-                space_description = self.client.view_api(return_format="dict", print_info=False)["named_endpoints"]
+                space_api = self.client.view_api(return_format="dict", print_info=False)
+                assert isinstance(space_api, dict)
+                space_description = space_api["named_endpoints"]
 
                 # If api_name is not defined, take the first of the available APIs for this space
                 if api_name is None:
                     api_name = list(space_description.keys())[0]
-                    logger.warning(
+                    warnings.warn(
                         f"Since `api_name` was not defined, it was automatically set to the first available API: `{api_name}`."
                     )
                 self.api_name = api_name
@@ -517,17 +672,16 @@ class Tool:
                     space_description_api = space_description[api_name]
                 except KeyError:
                     raise KeyError(f"Could not find specified {api_name=} among available api names.")
-
                 self.inputs = {}
                 for parameter in space_description_api["parameters"]:
-                    if not parameter["parameter_has_default"]:
-                        parameter_type = parameter["type"]["type"]
-                        if parameter_type == "object":
-                            parameter_type = "any"
-                        self.inputs[parameter["parameter_name"]] = {
-                            "type": parameter_type,
-                            "description": parameter["python_type"]["description"],
-                        }
+                    parameter_type = parameter["type"]["type"]
+                    if parameter_type == "object":
+                        parameter_type = "any"
+                    self.inputs[parameter["parameter_name"]] = {
+                        "type": parameter_type,
+                        "description": parameter["python_type"]["description"],
+                        "nullable": parameter["parameter_has_default"],
+                    }
                 output_component = space_description_api["returns"][0]["component"]
                 if output_component == "Image":
                     self.output_type = "image"
@@ -539,11 +693,9 @@ class Tool:
 
             def sanitize_argument_for_prediction(self, arg):
                 from gradio_client.utils import is_http_url_like
+                from PIL.Image import Image
 
-                if _is_pillow_available():
-                    from PIL.Image import Image
-
-                if _is_pillow_available() and isinstance(arg, Image):
+                if isinstance(arg, Image):
                     temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
                     arg.save(temp_file.name)
                     arg = temp_file.name
@@ -565,9 +717,17 @@ class Tool:
 
                 output = self.client.predict(*args, api_name=self.api_name, **kwargs)
                 if isinstance(output, tuple) or isinstance(output, list):
-                    return output[
+                    if isinstance(output[1], str):
+                        raise ValueError("The space returned this message: " + output[1])
+                    output = output[
                         0
                     ]  # Sometime the space also returns the generation seed, in which case the result is at index 0
+                IMAGE_EXTENTIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
+                AUDIO_EXTENTIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
+                if isinstance(output, str) and any([output.endswith(ext) for ext in IMAGE_EXTENTIONS]):
+                    output = AgentImage(output)
+                elif isinstance(output, str) and any([output.endswith(ext) for ext in AUDIO_EXTENTIONS]):
+                    output = AgentAudio(output)
                 return output
 
         return SpaceToolWrapper(
@@ -637,7 +797,7 @@ def launch_gradio_demo(tool: Tool):
     `inputs` and `output_type`.
 
     Args:
-        tool (`type`): The tool for which to launch the demo.
+        tool (`Tool`): The tool for which to launch the demo.
     """
     try:
         import gradio as gr
@@ -645,11 +805,12 @@ def launch_gradio_demo(tool: Tool):
         raise ImportError("Gradio should be installed in order to launch a gradio demo.")
 
     TYPE_TO_COMPONENT_CLASS_MAPPING = {
+        "boolean": gr.Checkbox,
         "image": gr.Image,
         "audio": gr.Audio,
         "string": gr.Textbox,
-        "integer": gr.Textbox,
-        "number": gr.Textbox,
+        "integer": gr.Number,
+        "number": gr.Number,
     }
 
     def tool_forward(*args, **kwargs):
@@ -663,24 +824,23 @@ def launch_gradio_demo(tool: Tool):
         new_component = input_gradio_component_class(label=input_name)
         gradio_inputs.append(new_component)
 
-    output_gradio_componentclass = TYPE_TO_COMPONENT_CLASS_MAPPING[tool.output_type]
-    gradio_output = output_gradio_componentclass(label="Output")
+    output_gradio_component_class = TYPE_TO_COMPONENT_CLASS_MAPPING[tool.output_type]
+    gradio_output = output_gradio_component_class(label="Output")
 
     gr.Interface(
         fn=tool_forward,
         inputs=gradio_inputs,
         outputs=gradio_output,
         title=tool.name,
-        article=tool.description,
         description=tool.description,
         api_name=tool.name,
     ).launch()
 
 
 def load_tool(
-    task_or_repo_id,
-    model_repo_id: Optional[str] = None,
-    token: Optional[str] = None,
+    repo_id,
+    model_repo_id: str | None = None,
+    token: str | None = None,
     trust_remote_code: bool = False,
     **kwargs,
 ):
@@ -696,16 +856,8 @@ def load_tool(
     </Tip>
 
     Args:
-        task_or_repo_id (`str`):
-            The task for which to load the tool or a repo ID of a tool on the Hub. Tasks implemented in Transformers
-            are:
-
-            - `"document_question_answering"`
-            - `"image_question_answering"`
-            - `"speech_to_text"`
-            - `"text_to_speech"`
-            - `"translation"`
-
+        repo_id (`str`):
+            Space repo ID of a tool on the Hub.
         model_repo_id (`str`, *optional*):
             Use this argument to use a different model than the default one for the tool you selected.
         token (`str`, *optional*):
@@ -719,7 +871,7 @@ def load_tool(
             will be passed along to its init.
     """
     return Tool.from_hub(
-        task_or_repo_id,
+        repo_id,
         model_repo_id=model_repo_id,
         token=token,
         trust_remote_code=trust_remote_code,
@@ -751,14 +903,14 @@ class ToolCollection:
     For example and usage, see: [`ToolCollection.from_hub`] and [`ToolCollection.from_mcp`]
     """
 
-    def __init__(self, tools: List[Tool]):
+    def __init__(self, tools: list[Tool]):
         self.tools = tools
 
     @classmethod
     def from_hub(
         cls,
         collection_slug: str,
-        token: Optional[str] = None,
+        token: str | None = None,
         trust_remote_code: bool = False,
     ) -> "ToolCollection":
         """Loads a tool collection from the Hub.
@@ -790,94 +942,229 @@ class ToolCollection:
         _collection = get_collection(collection_slug, token=token)
         _hub_repo_ids = {item.item_id for item in _collection.items if item.item_type == "space"}
 
-        tools = {Tool.from_hub(repo_id, token, trust_remote_code) for repo_id in _hub_repo_ids}
+        tools = [Tool.from_hub(repo_id, token, trust_remote_code) for repo_id in _hub_repo_ids]
 
         return cls(tools)
 
     @classmethod
     @contextmanager
-    def from_mcp(cls, server_parameters) -> "ToolCollection":
+    def from_mcp(
+        cls,
+        server_parameters: "mcp.StdioServerParameters" | dict,
+        trust_remote_code: bool = False,
+        structured_output: bool | None = None,
+    ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
+
+        This method supports Stdio, Streamable HTTP, and legacy HTTP+SSE MCP servers. Look at the `server_parameters`
+        argument for more details on how to connect to each MCP server.
 
         Note: a separate thread will be spawned to run an asyncio event loop handling
         the MCP server.
 
         Args:
-            server_parameters (mcp.StdioServerParameters): The server parameters to use to
-            connect to the MCP server.
+            server_parameters (`mcp.StdioServerParameters` or `dict`):
+                Configuration parameters to connect to the MCP server. This can be:
+
+                - An instance of `mcp.StdioServerParameters` for connecting a Stdio MCP server via standard input/output using a subprocess.
+
+                - A `dict` with at least:
+                  - "url": URL of the server.
+                  - "transport": Transport protocol to use, one of:
+                    - "streamable-http": Streamable HTTP transport (default).
+                    - "sse": Legacy HTTP+SSE transport (deprecated).
+            trust_remote_code (`bool`, *optional*, defaults to `False`):
+                Whether to trust the execution of code from tools defined on the MCP server.
+                This option should only be set to `True` if you trust the MCP server,
+                and undertand the risks associated with running remote code on your local machine.
+                If set to `False`, loading tools from MCP will fail.
+            structured_output (`bool`, *optional*, defaults to `False`):
+                Whether to enable structured output features for MCP tools. If True, enables:
+                - Support for outputSchema in MCP tools
+                - Structured content handling (structuredContent from MCP responses)
+                - JSON parsing fallback for structured data
+                If False, uses the original simple text-only behavior for backwards compatibility.
 
         Returns:
             ToolCollection: A tool collection instance.
 
-        Example:
+        Example with a Stdio MCP server:
         ```py
-        >>> from smolagents import ToolCollection, CodeAgent
+        >>> import os
+        >>> from smolagents import ToolCollection, CodeAgent, InferenceClientModel
         >>> from mcp import StdioServerParameters
 
+        >>> model = InferenceClientModel()
+
         >>> server_parameters = StdioServerParameters(
-        >>>     command="uv",
+        >>>     command="uvx",
         >>>     args=["--quiet", "pubmedmcp@0.1.3"],
         >>>     env={"UV_PYTHON": "3.12", **os.environ},
         >>> )
 
-        >>> with ToolCollection.from_mcp(server_parameters) as tool_collection:
-        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+        >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
+        >>>     agent.run("Please find a remedy for hangover.")
+        ```
+
+        Example with structured output enabled:
+        ```py
+        >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True, structured_output=True) as tool_collection:
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
+        >>>     agent.run("Please find a remedy for hangover.")
+        ```
+
+        Example with a Streamable HTTP MCP server:
+        ```py
+        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
+        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
+        # Handle future warning for structured_output default value change
+        if structured_output is None:
+            warnings.warn(
+                "Parameter 'structured_output' was not specified. "
+                "Currently it defaults to False, but in version 1.25, the default will change to True. "
+                "To suppress this warning, explicitly set structured_output=True (new behavior) or structured_output=False (legacy behavior). "
+                "See documentation at https://huggingface.co/docs/smolagents/tutorials/tools#structured-output-and-output-schema-support for more details.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            structured_output = False
+
         try:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
         except ImportError:
             raise ImportError(
-                """Please install 'mcp' extra to use ToolCollection.from_mcp: `pip install "smolagents[mcp]"`."""
+                """Please install 'mcp' extra to use ToolCollection.from_mcp: `pip install 'smolagents[mcp]'`."""
             )
-
-        with MCPAdapt(server_parameters, SmolAgentsAdapter()) as tools:
+        if isinstance(server_parameters, dict):
+            transport = server_parameters.get("transport")
+            if transport is None:
+                transport = "streamable-http"
+                server_parameters["transport"] = transport
+            if transport not in {"sse", "streamable-http"}:
+                raise ValueError(
+                    f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
+                )
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
+                "as it will execute code on your local machine: pass `trust_remote_code=True`."
+            )
+        with MCPAdapt(server_parameters, SmolAgentsAdapter(structured_output=structured_output)) as tools:
             yield cls(tools)
 
 
 def tool(tool_function: Callable) -> Tool:
     """
-    Converts a function into an instance of a Tool subclass.
+    Convert a function into an instance of a dynamically created Tool subclass.
 
     Args:
-        tool_function: Your function. Should have type hints for each input and a type hint for the output.
-        Should also have a docstring description including an 'Args:' part where each argument is described.
+        tool_function (`Callable`): Function to convert into a Tool subclass.
+            Should have type hints for each input and a type hint for the output.
+            Should also have a docstring including the description of the function
+            and an 'Args:' part where each argument is described.
     """
     tool_json_schema = get_json_schema(tool_function)["function"]
     if "return" not in tool_json_schema:
-        raise TypeHintParsingException("Tool return type not found: make sure your function has a return type hint!")
+        if len(tool_json_schema["parameters"]["properties"]) == 0:
+            tool_json_schema["return"] = {"type": "null"}
+        else:
+            raise TypeHintParsingException(
+                "Tool return type not found: make sure your function has a return type hint!"
+            )
 
     class SimpleTool(Tool):
-        def __init__(
-            self,
-            name: str,
-            description: str,
-            inputs: Dict[str, Dict[str, str]],
-            output_type: str,
-            function: Callable,
-        ):
-            self.name = name
-            self.description = description
-            self.inputs = inputs
-            self.output_type = output_type
-            self.forward = function
+        def __init__(self):
             self.is_initialized = True
 
-    simple_tool = SimpleTool(
-        name=tool_json_schema["name"],
-        description=tool_json_schema["description"],
-        inputs=tool_json_schema["parameters"]["properties"],
-        output_type=tool_json_schema["return"]["type"],
-        function=tool_function,
+    # Set the class attributes
+    SimpleTool.name = tool_json_schema["name"]
+    SimpleTool.description = tool_json_schema["description"]
+    SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
+    SimpleTool.output_type = tool_json_schema["return"]["type"]
+
+    # Set output_schema if it exists in the JSON schema
+    if "output_schema" in tool_json_schema:
+        SimpleTool.output_schema = tool_json_schema["output_schema"]
+    elif "return" in tool_json_schema and "schema" in tool_json_schema["return"]:
+        SimpleTool.output_schema = tool_json_schema["return"]["schema"]
+
+    @wraps(tool_function)
+    def wrapped_function(*args, **kwargs):
+        return tool_function(*args, **kwargs)
+
+    # Bind the copied function to the forward method
+    SimpleTool.forward = staticmethod(wrapped_function)
+
+    # Get the signature parameters of the tool function
+    sig = inspect.signature(tool_function)
+    # - Add "self" as first parameter to tool_function signature
+    new_sig = sig.replace(
+        parameters=[inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)] + list(sig.parameters.values())
     )
-    original_signature = inspect.signature(tool_function)
-    new_parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)] + list(
-        original_signature.parameters.values()
+    # - Set the signature of the forward method
+    SimpleTool.forward.__signature__ = new_sig
+
+    # Create and attach the source code of the dynamically created tool class and forward method
+    # - Get the source code of tool_function
+    tool_source = textwrap.dedent(inspect.getsource(tool_function))
+    # - Remove the tool decorator and function definition line
+    lines = tool_source.splitlines()
+    tree = ast.parse(tool_source)
+    #   - Find function definition
+    func_node = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
+    if not func_node:
+        raise ValueError(
+            f"No function definition found in the provided source of {tool_function.__name__}. "
+            "Ensure the input is a standard function."
+        )
+    #   - Extract decorator lines
+    decorator_lines = ""
+    if func_node.decorator_list:
+        tool_decorators = [d for d in func_node.decorator_list if isinstance(d, ast.Name) and d.id == "tool"]
+        if len(tool_decorators) > 1:
+            raise ValueError(
+                f"Multiple @tool decorators found on function '{func_node.name}'. Only one @tool decorator is allowed."
+            )
+        if len(tool_decorators) < len(func_node.decorator_list):
+            warnings.warn(
+                f"Function '{func_node.name}' has decorators other than @tool. "
+                "This may cause issues with serialization in the remote executor. See issue #1626."
+            )
+        decorator_start = tool_decorators[0].end_lineno if tool_decorators else 0
+        decorator_end = func_node.decorator_list[-1].end_lineno
+        decorator_lines = "\n".join(lines[decorator_start:decorator_end])
+    #   - Extract tool source body
+    body_start = func_node.body[0].lineno - 1  # AST lineno starts at 1
+    tool_source_body = "\n".join(lines[body_start:])
+    # - Create the forward method source, including def line and indentation
+    forward_method_source = f"def forward{new_sig}:\n{tool_source_body}"
+    # - Create the class source
+    indent = " " * 4  # for class method
+    class_source = (
+        textwrap.dedent(f"""
+        class SimpleTool(Tool):
+            name: str = "{tool_json_schema["name"]}"
+            description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
+            inputs: dict[str, dict[str, str]] = {tool_json_schema["parameters"]["properties"]}
+            output_type: str = "{tool_json_schema["return"]["type"]}"
+
+            def __init__(self):
+                self.is_initialized = True
+
+        """)
+        + textwrap.indent(decorator_lines, indent)
+        + textwrap.indent(forward_method_source, indent)
     )
-    new_signature = original_signature.replace(parameters=new_parameters)
-    simple_tool.forward.__signature__ = new_signature
+    # - Store the source code on both class and method for inspection
+    SimpleTool.__source__ = class_source
+    SimpleTool.forward.__source__ = forward_method_source
+
+    simple_tool = SimpleTool()
     return simple_tool
 
 
@@ -940,7 +1227,7 @@ class PipelineTool(Tool):
         token=None,
         **hub_kwargs,
     ):
-        if not is_torch_available() or not _is_package_available("accelerate"):
+        if not _is_package_available("accelerate") or not _is_package_available("torch"):
             raise ModuleNotFoundError(
                 "Please install 'transformers' extra to use a PipelineTool: `pip install 'smolagents[transformers]'`"
             )
@@ -1022,15 +1309,15 @@ class PipelineTool(Tool):
         """
         return self.post_processor(outputs)
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
         import torch
         from accelerate.utils import send_to_device
-
-        args, kwargs = handle_agent_input_types(*args, **kwargs)
 
         if not self.is_initialized:
             self.setup()
 
+        if sanitize_inputs_outputs:
+            args, kwargs = handle_agent_input_types(*args, **kwargs)
         encoded_inputs = self.encode(*args, **kwargs)
 
         tensor_inputs = {k: v for k, v in encoded_inputs.items() if isinstance(v, torch.Tensor)}
@@ -1040,8 +1327,89 @@ class PipelineTool(Tool):
         outputs = self.forward({**encoded_inputs, **non_tensor_inputs})
         outputs = send_to_device(outputs, "cpu")
         decoded_outputs = self.decode(outputs)
+        if sanitize_inputs_outputs:
+            decoded_outputs = handle_agent_output_types(decoded_outputs, self.output_type)
+        return decoded_outputs
 
-        return handle_agent_output_types(decoded_outputs, self.output_type)
+
+def get_tools_definition_code(tools: dict[str, Tool]) -> str:
+    tool_codes = []
+    for tool in tools.values():
+        validate_tool_attributes(tool.__class__, check_imports=False)
+        tool_code = instance_to_source(tool, base_cls=Tool)
+        tool_code = tool_code.replace("from smolagents.tools import Tool", "")
+        tool_code += f"\n\n{tool.name} = {tool.__class__.__name__}()\n"
+        tool_codes.append(tool_code)
+
+    tool_definition_code = "\n".join([f"import {module}" for module in BASE_BUILTIN_MODULES])
+    tool_definition_code += textwrap.dedent(
+        """
+    from typing import Any
+
+    class Tool:
+        def __call__(self, *args, **kwargs):
+            return self.forward(*args, **kwargs)
+
+        def forward(self, *args, **kwargs):
+            pass # to be implemented in child class
+    """
+    )
+    tool_definition_code += "\n\n".join(tool_codes)
+    return tool_definition_code
+
+
+def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
+    """Validate tool arguments against tool's input schema.
+
+    Checks that all provided arguments match the tool's expected input types and that
+    all required arguments are present. Supports both dictionary arguments and single
+    value arguments for tools with one input parameter.
+
+    Args:
+        tool (`Tool`): Tool whose input schema will be used for validation.
+        arguments (`Any`): Arguments to validate. Can be a dictionary mapping
+            argument names to values, or a single value for tools with one input.
+
+
+    Raises:
+        ValueError: If an argument is not in the tool's input schema, if a required
+            argument is missing, or if the argument value doesn't match the expected type.
+        TypeError: If an argument has an incorrect type that cannot be converted
+            (e.g., string instead of number, excluding integer to number conversion).
+
+    Note:
+        - Supports type coercion from integer to number
+        - Handles nullable parameters when explicitly marked in the schema
+        - Accepts "any" type as a wildcard that matches all types
+    """
+    if isinstance(arguments, dict):
+        for key, value in arguments.items():
+            if key not in tool.inputs:
+                raise ValueError(f"Argument {key} is not in the tool's input schema")
+
+            actual_type = _get_json_schema_type(type(value))["type"]
+            expected_type = tool.inputs[key]["type"]
+            expected_type_is_nullable = tool.inputs[key].get("nullable", False)
+
+            # Type is valid if it matches, is "any", or is null for nullable parameters
+            if (
+                (actual_type != expected_type if isinstance(expected_type, str) else actual_type not in expected_type)
+                and expected_type != "any"
+                and not (actual_type == "null" and expected_type_is_nullable)
+            ):
+                if actual_type == "integer" and expected_type == "number":
+                    continue
+                raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'")
+
+        for key, schema in tool.inputs.items():
+            key_is_nullable = schema.get("nullable", False)
+            if key not in arguments and not key_is_nullable:
+                raise ValueError(f"Argument {key} is required")
+        return None
+    else:
+        expected_type = list(tool.inputs.values())[0]["type"]
+        if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
+            raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
 
 
 __all__ = [

@@ -1,21 +1,19 @@
-from typing import Optional
-
 import requests
 
 # from smolagents.agents import ToolCallingAgent
-from smolagents import CodeAgent, HfApiModel, tool
+from smolagents import CodeAgent, InferenceClientModel, tool
 
 
 # Choose which LLM engine to use!
-model = HfApiModel()
+model = InferenceClientModel()
 # model = TransformersModel(model_id="meta-llama/Llama-3.2-2B-Instruct")
 
 # For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-20240620'
-# model = LiteLLMModel(model_id="gpt-4o")
+# model = LiteLLMModel(model_id="gpt-5")
 
 
 @tool
-def get_weather(location: str, celsius: Optional[bool] = False) -> str:
+def get_weather(location: str, celsius: bool | None = False) -> str:
     """
     Get the current weather at the given location using the WeatherStack API.
 
@@ -245,11 +243,12 @@ agent = CodeAgent(
         search_wikipedia,
     ],
     model=model,
+    stream_outputs=True,
 )
 
 # Uncomment the line below to run the agent with a specific query
 
-agent.run("5000 dollars to Euros")
+agent.run("Convert 5000 dollars to Euros")
 # agent.run("What is the weather in New York?")
 # agent.run("Give me the top news headlines")
 # agent.run("Tell me a joke")

@@ -4,23 +4,21 @@ import mimetypes
 import os
 import uuid
 from io import BytesIO
-from typing import Optional
 
+import PIL.Image
 import requests
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
-from PIL import Image
-from transformers import AutoProcessor
 
 from smolagents import Tool, tool
 
 
 load_dotenv(override=True)
 
-idefics_processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b-chatty")
-
 
 def process_images_and_text(image_path, query, client):
+    from transformers import AutoProcessor
+
     messages = [
         {
             "role": "user",
@@ -30,7 +28,7 @@ def process_images_and_text(image_path, query, client):
             ],
         },
     ]
-
+    idefics_processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b-chatty")
     prompt_with_template = idefics_processor.apply_chat_template(messages, add_generation_prompt=True)
 
     # load images from local directory
@@ -38,7 +36,7 @@ def process_images_and_text(image_path, query, client):
     # encode images to strings which can be sent to the endpoint
     def encode_local_image(image_path):
         # load image
-        image = Image.open(image_path).convert("RGB")
+        image = PIL.Image.open(image_path).convert("RGB")
 
         # Convert the image to a base64 string
         buffer = BytesIO()
@@ -95,11 +93,8 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 
-headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
-
-
 def resize_image(image_path):
-    img = Image.open(image_path)
+    img = PIL.Image.open(image_path)
     width, height = img.size
     img = img.resize((int(width / 2), int(height / 2)))
     new_image_path = f"resized_{image_path}"
@@ -121,7 +116,7 @@ class VisualQATool(Tool):
 
     client = InferenceClient("HuggingFaceM4/idefics2-8b-chatty")
 
-    def forward(self, image_path: str, question: Optional[str] = None) -> str:
+    def forward(self, image_path: str, question: str | None = None) -> str:
         output = ""
         add_note = False
         if not question:
@@ -144,13 +139,19 @@ class VisualQATool(Tool):
 
 
 @tool
-def visualizer(image_path: str, question: Optional[str] = None) -> str:
+def visualizer(image_path: str, question: str | None = None) -> str:
     """A tool that can answer questions about attached images.
 
     Args:
         image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
         question: The question to answer.
     """
+    import mimetypes
+    import os
+
+    import requests
+
+    from .visual_qa import encode_image
 
     add_note = False
     if not question:
@@ -175,6 +176,7 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
         ],
         "max_tokens": 1000,
     }
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
     try:
         output = response.json()["choices"][0]["message"]["content"]

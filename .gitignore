@@ -91,9 +91,6 @@ ipython_config.py
 # pipenv
 #Pipfile.lock
 
-# UV
-#uv.lock
-
 # poetry
 #poetry.lock
 
@@ -150,3 +147,6 @@ archive/
 savedir/
 output/
 tool_output/
+
+# Gradio runtime
+.gradio/

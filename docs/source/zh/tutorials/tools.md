@@ -1,18 +1,3 @@
-<!--Copyright 2024 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
-the License. You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-
-⚠️ Note that this file is in Markdown but contain specific syntax for our doc-builder (similar to MDX) that may not be
-rendered properly in your Markdown viewer.
-
--->
 # 工具
 
 [[open-in-colab]]
@@ -71,7 +56,7 @@ model_downloads_tool = HFModelDownloadsTool()
 - 一个属性 `name`，对应于工具本身的名称。名称通常描述工具的功能。由于代码返回任务中下载量最多的模型，我们将其命名为 `model_download_counter`。
 - 一个属性 `description`，用于填充 agent 的系统提示。
 - 一个 `inputs` 属性，它是一个带有键 `"type"` 和 `"description"` 的字典。它包含帮助 Python 解释器对输入做出明智选择的信息。
-- 一个 `output_type` 属性，指定输出类型。`inputs` 和 `output_type` 的类型应为 [Pydantic 格式](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema)，它们可以是以下之一：[`~AUTHORIZED_TYPES`]。
+- 一个 `output_type` 属性，指定输出类型。`inputs` 和 `output_type` 的类型应为 [Pydantic 格式](https://docs.pydantic.dev/latest/concepts/json_schema/#generating-json-schema)，它们可以是以下之一：`["string", "boolean","integer", "number", "image", "audio", "array", "object", "any", "null"]`。
 - 一个 `forward` 方法，包含要执行的推理代码。
 
 这就是它在 agent 中使用所需的全部内容！
@@ -133,9 +118,9 @@ image_generation_tool("A sunny beach")
 然后你可以像使用任何其他工具一样使用这个工具。例如，让我们改进提示 `A rabbit wearing a space suit` 并生成它的图片。
 
 ```python
-from smolagents import CodeAgent, HfApiModel
+from smolagents import CodeAgent, InferenceClientModel
 
-model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 agent = CodeAgent(tools=[image_generation_tool], model=model)
 
 agent.run(
@@ -181,9 +166,9 @@ agent.run("How many more blocks (also denoted as layers) are in BERT base encode
 让我们将 `model_download_tool` 添加到一个仅使用默认工具箱初始化的现有 agent 中。
 
 ```python
-from smolagents import HfApiModel
+from smolagents import InferenceClientModel
 
-model = HfApiModel("Qwen/Qwen2.5-Coder-32B-Instruct")
+model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 
 agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 agent.tools[model_download_tool.name] = model_download_tool

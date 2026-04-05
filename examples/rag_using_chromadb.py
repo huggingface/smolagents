@@ -97,15 +97,15 @@ retriever_tool = RetrieverTool(vector_store)
 
 # Choose which LLM engine to use!
 
-# from smolagents import HfApiModel
-# model = HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
+# from smolagents import InferenceClientModel
+# model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
 
 # from smolagents import TransformersModel
-# model = TransformersModel(model_id="meta-llama/Llama-3.2-2B-Instruct")
+# model = TransformersModel(model_id="Qwen/Qwen3-4B-Instruct-2507")
 
-# For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-20240620' and also change 'os.environ.get("ANTHROPIC_API_KEY")'
+# For anthropic: change model_id below to 'anthropic/claude-4-sonnet-latest' and also change 'os.environ.get("ANTHROPIC_API_KEY")'
 model = LiteLLMModel(
-    model_id="groq/llama-3.3-70b-versatile",
+    model_id="groq/openai/gpt-oss-120b",
     api_key=os.environ.get("GROQ_API_KEY"),
 )
 
@@ -121,6 +121,7 @@ agent = CodeAgent(
     model=model,
     max_steps=4,
     verbosity_level=2,
+    stream_outputs=True,
 )
 
 agent_output = agent.run("How can I push a model to the Hub?")
