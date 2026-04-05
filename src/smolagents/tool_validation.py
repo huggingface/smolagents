@@ -83,6 +83,37 @@ class MethodChecker(ast.NodeVisitor):
                     self.assigned_names.add(elt.id)
         self.generic_visit(node)
 
+    def _add_target_names(self, target):
+        """Track names introduced by assignment-like targets, including destructuring."""
+        if isinstance(target, ast.Name):
+            self.assigned_names.add(target.id)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for elt in target.elts:
+                self._add_target_names(elt)
+        elif isinstance(target, ast.Starred):
+            self._add_target_names(target.value)
+
+    def _visit_comprehension_generators(self, generators):
+        """
+        Visit comprehension generators with Python's scope rules:
+        - each iterable is evaluated before that generator's target is bound
+        - each target is visible to that generator's filters and later generators
+        """
+        for generator in generators:
+            self.visit(generator.iter)
+            self._add_target_names(generator.target)
+            for condition in generator.ifs:
+                self.visit(condition)
+
+    def _visit_comprehension(self, node, *value_nodes):
+        previous_assigned_names = self.assigned_names.copy()
+        try:
+            self._visit_comprehension_generators(node.generators)
+            for value_node in value_nodes:
+                self.visit(value_node)
+        finally:
+            self.assigned_names = previous_assigned_names
+
     def visit_Attribute(self, node):
         if not (isinstance(node.value, ast.Name) and node.value.id == "self"):
             self.generic_visit(node)
@@ -118,30 +149,20 @@ class MethodChecker(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_ListComp(self, node):
-        """Handle list comprehension variables"""
-        # Save current assigned names
-        old_assigned = self.assigned_names.copy()
+        """Track variables in list comprehensions."""
+        self._visit_comprehension(node, node.elt)
 
-        # Add comprehension variables
-        for generator in node.generators:
-            if isinstance(generator.target, ast.Name):
-                self.assigned_names.add(generator.target.id)
-            # Handle tuple unpacking in comprehension
-            elif isinstance(generator.target, ast.Tuple):
-                for elt in generator.target.elts:
-                    if isinstance(elt, ast.Name):
-                        self.assigned_names.add(elt.id)
+    def visit_DictComp(self, node):
+        """Track variables in dictionary comprehensions."""
+        self._visit_comprehension(node, node.key, node.value)
 
-        # Visit the comprehension
-        self.generic_visit(node)
+    def visit_SetComp(self, node):
+        """Track variables in set comprehensions."""
+        self._visit_comprehension(node, node.elt)
 
-        # Restore original assigned names (scope handling)
-        self.assigned_names = old_assigned
-
-    # Add similar handlers for other comprehension types
-    visit_SetComp = visit_ListComp
-    visit_GeneratorExp = visit_ListComp
-    visit_DictComp = visit_ListComp
+    def visit_GeneratorExp(self, node):
+        """Track variables in generator expressions."""
+        self._visit_comprehension(node, node.elt)
 
 def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     """

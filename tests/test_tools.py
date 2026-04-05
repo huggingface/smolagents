@@ -27,6 +27,7 @@ from transformers import is_torch_available, is_vision_available
 from transformers.testing_utils import get_tests_dir
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage, AgentText
+from smolagents.tool_validation import validate_tool_attributes
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, tool
 
 
@@ -419,6 +420,49 @@ class ToolTests(unittest.TestCase):
 
         assert get_weather.inputs["locations"]["type"] == "array"
         assert get_weather.inputs["months"]["type"] == "array"
+
+    def test_validate_tool_attributes_with_comprehensions(self):
+        class ValidComprehensionTool(Tool):
+            name = "valid_comprehension_tool"
+            description = "Tool using comprehensions"
+            inputs = {"items": {"type": "string", "description": "items"}}
+            output_type = "string"
+
+            def forward(self, items):
+                values = [item for item in items if item]
+                mapping = {item: index for index, item in enumerate(items) if item}
+                unique = {item for item in items if item}
+                total_length = sum(len(item) for item in unique)
+                nested = [item for group in [[entry] for entry in items] for item in group]
+                return ",".join(values + nested) + str(len(mapping) + total_length)
+
+        assert validate_tool_attributes(ValidComprehensionTool) is None
+
+    def test_validate_tool_attributes_undefined_comprehension_iterable(self):
+        class InvalidComprehensionIterableTool(Tool):
+            name = "invalid_comprehension_iterable_tool"
+            description = "Tool using an undefined comprehension iterable"
+            inputs = {"items": {"type": "string", "description": "items"}}
+            output_type = "string"
+
+            def forward(self, items):
+                return [item for item in undefined_list]  # noqa: F821
+
+        with pytest.raises(ValueError, match="Name 'undefined_list' is undefined"):
+            validate_tool_attributes(InvalidComprehensionIterableTool)
+
+    def test_validate_tool_attributes_shadowed_comprehension_iterable(self):
+        class InvalidShadowedComprehensionIterableTool(Tool):
+            name = "invalid_shadowed_comprehension_iterable_tool"
+            description = "Tool using an undefined iterable that matches the target name"
+            inputs = {"items": {"type": "string", "description": "items"}}
+            output_type = "string"
+
+            def forward(self, items):
+                return [item for item in item]  # noqa: F821
+
+        with pytest.raises(ValueError, match="Name 'item' is undefined"):
+            validate_tool_attributes(InvalidShadowedComprehensionIterableTool)
 
 
 @pytest.fixture
