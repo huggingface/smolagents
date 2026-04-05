@@ -758,18 +758,19 @@ You have been provided with these additional arguments, that you can access dire
         self.interrupt_switch = True
 
     def write_memory_to_messages(
-            self,
-            summary_mode: bool = False,
+        self,
+        summary_mode: bool = False,
         ) -> list[ChatMessage]:
             """
             Reads past llm_outputs, actions, and observations or errors from the memory into a series of messages
             that can be used as input to the LLM. Adds a number of keywords (such as PLAN, error, etc) to help
             the LLM.
             """
+            # summary_mode already produces condensed messages, skip truncation
             if self.max_context_chars is not None and not summary_mode:
                 removed = self.memory.truncate_steps(self.max_context_chars)
                 if removed > 0:
-                    logger.warning(
+                    self.logger.log(
                         f"Context limit approaching: removed {removed} oldest step(s) from memory. "
                         f"Increase `max_context_chars` to retain more history."
                     )
