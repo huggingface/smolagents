@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 
 from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
+from .guardrails import GUARDRAIL_DENIED_MESSAGE, GuardrailProvider
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import (
     ActionStep,
@@ -97,6 +98,40 @@ from .utils import (
 
 
 logger = getLogger(__name__)
+
+
+class _GuardedTool:
+    """Proxy that checks a guardrail before delegating to the original tool.
+
+    This avoids mutating the original tool instance, so tools shared across
+    agents with different guardrails remain independent.
+    """
+
+    def __init__(self, tool, tool_name, guardrail, agent_logger):
+        self._tool = tool
+        self._tool_name = tool_name
+        self._guardrail = guardrail
+        self._agent_logger = agent_logger
+
+    def __call__(self, *args, **kwargs):
+        # Always normalize arguments to a dict so guardrail authors get a
+        # consistent contract regardless of how the executor invokes tools.
+        if kwargs:
+            arguments = dict(kwargs)
+        elif len(args) == 1 and isinstance(args[0], dict):
+            arguments = args[0]
+        else:
+            arguments = {}
+        decision = self._guardrail.before_tool_call(self._tool_name, arguments)
+        if not decision.allowed:
+            raise AgentToolExecutionError(
+                GUARDRAIL_DENIED_MESSAGE.format(tool_name=self._tool_name, reason=decision.reason),
+                self._agent_logger,
+            )
+        return self._tool(*args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._tool, name)
 
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
@@ -289,6 +324,12 @@ class MultiStepAgent(ABC):
             - Take the final answer, the agent's memory, and the agent itself as arguments.
             - Return a boolean indicating whether the final answer is valid.
         return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
+        guardrail ([`~guardrails.GuardrailProvider`], *optional*): A guardrail provider evaluated before every tool call.
+            When a call is denied, the agent receives a structured error observation instead of raising, so it can adapt.
+
+            .. note::
+                Guardrails are **not** preserved across serialization (e.g. ``pickle``). If you
+                serialize and deserialize an agent, you must re-attach the guardrail manually.
     """
 
     def __init__(
@@ -309,6 +350,7 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
+        guardrail: GuardrailProvider | None = None,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -335,6 +377,7 @@ class MultiStepAgent(ABC):
         self.final_answer_checks = final_answer_checks if final_answer_checks is not None else []
         self.return_full_result = return_full_result
         self.instructions = instructions
+        self.guardrail = guardrail
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
@@ -489,7 +532,12 @@ You have been provided with these additional arguments, that you can access dire
 
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
-            self.python_executor.send_tools({**self.tools, **self.managed_agents})
+            tools_to_send = {**self.tools, **self.managed_agents}
+            if self.guardrail is not None:
+                tools_to_send = {
+                    name: _GuardedTool(tool, name, self.guardrail, self.logger) for name, tool in tools_to_send.items()
+                }
+            self.python_executor.send_tools(tools_to_send)
 
         if stream:
             # The steps are returned as they are executed through a generator to iterate on.
@@ -1479,6 +1527,15 @@ class ToolCallingAgent(MultiStepAgent):
         except Exception as e:
             error_msg = f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}"
             raise AgentToolExecutionError(error_msg, self.logger) from e
+
+        # Check guardrail before executing
+        if self.guardrail is not None:
+            decision = self.guardrail.before_tool_call(tool_name, arguments)
+            if not decision.allowed:
+                raise AgentToolExecutionError(
+                    GUARDRAIL_DENIED_MESSAGE.format(tool_name=tool_name, reason=decision.reason),
+                    self.logger,
+                )
 
         try:
             # Call tool with appropriate arguments
