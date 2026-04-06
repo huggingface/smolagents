@@ -21,6 +21,7 @@ import os
 import pickle
 import re
 import secrets
+import signal
 import subprocess
 import tempfile
 import time
@@ -675,9 +676,26 @@ class DockerExecutor(RemotePythonExecutor):
                 f"Container {self.container.short_id} is running with kernel {self.kernel_id}", level=LogLevel.INFO
             )
 
+            # Register signal handlers to cleanup on unexpected exit
+            self._original_sigint_handler = signal.signal(signal.SIGINT, self._signal_handler)
+            self._original_sigterm_handler = signal.signal(signal.SIGTERM, self._signal_handler)
+
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
+
+    def _signal_handler(self, signum, frame):
+        """Handle SIGINT and SIGTERM signals by cleaning up the container."""
+        self.logger.log(f"Received signal {signum}, cleaning up container...", level=LogLevel.INFO)
+        self.cleanup()
+        # Restore original signal handlers
+        if hasattr(self, '_original_sigint_handler'):
+            signal.signal(signal.SIGINT, self._original_sigint_handler)
+        if hasattr(self, '_original_sigterm_handler'):
+            signal.signal(signal.SIGTERM, self._original_sigterm_handler)
+        # Exit cleanly
+        import sys
+        sys.exit(0)
 
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
@@ -705,6 +723,16 @@ class DockerExecutor(RemotePythonExecutor):
                 del self.container
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
+        finally:
+            # Restore original signal handlers
+            try:
+                if hasattr(self, "_original_sigint_handler"):
+                    signal.signal(signal.SIGINT, self._original_sigint_handler)
+                if hasattr(self, "_original_sigterm_handler"):
+                    signal.signal(signal.SIGTERM, self._original_sigterm_handler)
+            except Exception:
+                # Ignore errors when restoring signal handlers (e.g., if not in main thread)
+                pass
 
     def delete(self):
         """Ensure cleanup on deletion."""
