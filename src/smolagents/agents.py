@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 
 from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
-from .guardrails import GuardrailProvider
+from .guardrails import GUARDRAIL_DENIED_MESSAGE, GuardrailProvider
 from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import (
     ActionStep,
@@ -114,12 +114,18 @@ class _GuardedTool:
         self._agent_logger = agent_logger
 
     def __call__(self, *args, **kwargs):
-        arguments = kwargs if kwargs else (args[0] if len(args) == 1 and isinstance(args[0], dict) else str(args))
+        # Always normalize arguments to a dict so guardrail authors get a
+        # consistent contract regardless of how the executor invokes tools.
+        if kwargs:
+            arguments = dict(kwargs)
+        elif len(args) == 1 and isinstance(args[0], dict):
+            arguments = args[0]
+        else:
+            arguments = {}
         decision = self._guardrail.before_tool_call(self._tool_name, arguments)
         if not decision.allowed:
             raise AgentToolExecutionError(
-                f"Tool call to '{self._tool_name}' was denied by guardrail: {decision.reason}\n"
-                "Please try a different approach or use an authorized tool.",
+                GUARDRAIL_DENIED_MESSAGE.format(tool_name=self._tool_name, reason=decision.reason),
                 self._agent_logger,
             )
         return self._tool(*args, **kwargs)
@@ -320,6 +326,10 @@ class MultiStepAgent(ABC):
         return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
         guardrail ([`~guardrails.GuardrailProvider`], *optional*): A guardrail provider evaluated before every tool call.
             When a call is denied, the agent receives a structured error observation instead of raising, so it can adapt.
+
+            .. note::
+                Guardrails are **not** preserved across serialization (e.g. ``pickle``). If you
+                serialize and deserialize an agent, you must re-attach the guardrail manually.
     """
 
     def __init__(
@@ -1523,8 +1533,7 @@ class ToolCallingAgent(MultiStepAgent):
             decision = self.guardrail.before_tool_call(tool_name, arguments)
             if not decision.allowed:
                 raise AgentToolExecutionError(
-                    f"Tool call to '{tool_name}' was denied by guardrail: {decision.reason}\n"
-                    "Please try a different approach or use an authorized tool.",
+                    GUARDRAIL_DENIED_MESSAGE.format(tool_name=tool_name, reason=decision.reason),
                     self.logger,
                 )
 

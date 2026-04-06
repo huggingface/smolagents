@@ -19,10 +19,22 @@
 
 Provides a ``GuardrailProvider`` protocol that is checked before every tool
 call, allowing users to control which tools an agent is authorized to invoke.
+
+.. note::
+    Guardrails are **not preserved across serialization**. If you serialize and
+    deserialize an agent (e.g. via ``pickle``), you must re-attach the guardrail
+    provider manually after loading.
 """
 
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
+
+# Shared error template used by both _GuardedTool and ToolCallingAgent to keep
+# denied-call messages consistent.
+GUARDRAIL_DENIED_MESSAGE = (
+    "Tool call to '{tool_name}' was denied by guardrail: {reason}\n"
+    "Please try a different approach or use an authorized tool."
+)
 
 
 @dataclass

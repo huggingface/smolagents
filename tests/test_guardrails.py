@@ -15,14 +15,16 @@
 
 import pytest
 
-from smolagents.agents import CodeAgent, ToolCallingAgent
+from smolagents.agents import CodeAgent, ToolCallingAgent, _GuardedTool
 from smolagents.guardrails import (
+    GUARDRAIL_DENIED_MESSAGE,
     AllowlistGuardrail,
     BlocklistGuardrail,
     CompositeGuardrail,
     GuardrailDecision,
     GuardrailProvider,
 )
+from smolagents.memory import AgentLogger
 from smolagents.models import ChatMessage, ChatMessageToolCall, ChatMessageToolCallFunction, MessageRole, Model
 from smolagents.tools import tool
 from smolagents.utils import AgentToolExecutionError
@@ -375,3 +377,67 @@ class TestGuardrailWithManagedAgents:
         )
         with pytest.raises(AgentToolExecutionError, match="denied by guardrail"):
             agent.execute_tool_call("sub_agent", {"task": "do something"})
+
+
+# --- _GuardedTool unit tests ---
+
+
+class TestGuardedTool:
+    def test_denied_call_returns_error(self):
+        """A denied call should raise AgentToolExecutionError with the guardrail reason."""
+        guardrail = AllowlistGuardrail(["other_tool"])
+        logger = AgentLogger()
+        guarded = _GuardedTool(sample_tool, "sample_tool", guardrail, logger)
+        with pytest.raises(AgentToolExecutionError, match="denied by guardrail"):
+            guarded(query="hi")
+
+    def test_allowed_call_passes_through(self):
+        """An allowed call should delegate to the underlying tool and return its result."""
+        guardrail = AllowlistGuardrail(["sample_tool"])
+        logger = AgentLogger()
+        guarded = _GuardedTool(sample_tool, "sample_tool", guardrail, logger)
+        result = guarded(query="hello")
+        assert result == "echo: hello"
+
+    def test_getattr_forwards_tool_attributes(self):
+        """Attribute access on _GuardedTool should transparently forward to the wrapped tool."""
+        guardrail = AllowlistGuardrail(["sample_tool"])
+        logger = AgentLogger()
+        guarded = _GuardedTool(sample_tool, "sample_tool", guardrail, logger)
+        # Tool objects have a 'name' attribute
+        assert guarded.name == "sample_tool"
+        # Tool objects have a 'description' attribute
+        assert "echoes back" in guarded.description
+
+    def test_arguments_always_normalized_to_dict(self):
+        """The guardrail should always receive a dict, never a raw string."""
+        received_args = []
+
+        class SpyGuardrail:
+            def before_tool_call(self, tool_name, arguments):
+                received_args.append(arguments)
+                return GuardrailDecision(allowed=True)
+
+        logger = AgentLogger()
+        guarded = _GuardedTool(sample_tool, "sample_tool", SpyGuardrail(), logger)
+
+        # Call with kwargs
+        guarded(query="test1")
+        assert isinstance(received_args[-1], dict)
+
+        # Call with no args -- should get empty dict, not a string
+        guarded_no_args = _GuardedTool(lambda: "ok", "noop", SpyGuardrail(), logger)
+        guarded_no_args()
+        assert received_args[-1] == {}
+
+
+# --- Shared constant tests ---
+
+
+class TestGuardrailDeniedMessage:
+    def test_constant_is_used_consistently(self):
+        """The GUARDRAIL_DENIED_MESSAGE constant should format correctly."""
+        msg = GUARDRAIL_DENIED_MESSAGE.format(tool_name="my_tool", reason="blocked")
+        assert "my_tool" in msg
+        assert "blocked" in msg
+        assert "denied by guardrail" in msg
