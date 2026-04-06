@@ -76,6 +76,39 @@ def get_dict_from_nested_dataclasses(obj, ignore_key=None):
     return convert(obj)
 
 
+def _extract_reasoning_content(message) -> str | None:
+    """Extract reasoning/thinking content from an API response message.
+
+    Different providers use different field names:
+
+    - DeepSeek, Kimi/Moonshot: ``reasoning_content``
+    - Minimax: ``reasoning_details``
+    - Ollama: ``reasoning``
+
+    Note: Anthropic handles thinking natively within ``content`` as structured
+    blocks, so this function is not needed for Anthropic models.
+
+    Args:
+        message: The raw message object from the API response.
+
+    Returns:
+        The reasoning content string, or None if not present.
+    """
+    for field_name in ("reasoning_content", "reasoning", "reasoning_details"):
+        value = getattr(message, field_name, None)
+        if value:
+            return value
+
+    # Fallback for SDKs that put extra fields in model_extra
+    model_extra = getattr(message, "model_extra", None) or {}
+    for field_name in ("reasoning_content", "reasoning", "reasoning_details"):
+        value = model_extra.get(field_name)
+        if value:
+            return value
+
+    return None
+
+
 def remove_content_after_stop_sequences(content: str | None, stop_sequences: list[str] | None) -> str | None:
     """Remove content after any stop sequence is encountered.
 
@@ -125,6 +158,7 @@ class ChatMessage:
     role: MessageRole
     content: str | list[dict[str, Any]] | None = None
     tool_calls: list[ChatMessageToolCall] | None = None
+    reasoning_content: str | None = None  # Chain-of-thought from thinking models (DeepSeek-R1, Kimi, Minimax, Ollama)
     raw: Any | None = None  # Stores the raw output from the API
     token_usage: TokenUsage | None = None
 
@@ -150,6 +184,7 @@ class ChatMessage:
             role=MessageRole(data["role"]),
             content=data.get("content"),
             tool_calls=data.get("tool_calls"),
+            reasoning_content=data.get("reasoning_content"),
             raw=raw,
             token_usage=token_usage,
         )
@@ -158,7 +193,18 @@ class ChatMessage:
         return get_dict_from_nested_dataclasses(self)
 
     def render_as_markdown(self) -> str:
-        rendered = str(self.content) or ""
+        """Render the chat message as a markdown string.
+
+        If reasoning_content is present (from thinking models), it is included
+        in an indented section before the main content.
+
+        Returns:
+            The chat message rendered as a markdown string.
+        """
+        rendered = ""
+        if self.reasoning_content:
+            rendered += "<think>\n" + self.reasoning_content + "\n</think>\n\n"
+        rendered += str(self.content) or ""
         if self.tool_calls:
             rendered += "\n".join(
                 [
@@ -388,12 +434,13 @@ def get_clean_message_list(
                 content = message.content[0]["text"]
             else:
                 content = message.content
-            output_message_list.append(
-                {
-                    "role": message.role,
-                    "content": content,
-                }
-            )
+            clean_msg: dict[str, Any] = {
+                "role": message.role,
+                "content": content,
+            }
+            if message.reasoning_content:
+                clean_msg["reasoning_content"] = message.reasoning_content
+            output_message_list.append(clean_msg)
     return output_message_list
 
 
@@ -1080,6 +1127,7 @@ class TransformersModel(Model):
         return ChatMessage(
             role=MessageRole.ASSISTANT,
             content=output_text,
+            reasoning_content=None,  # TransformersModel generates from decoded tokens; reasoning not separately available
             raw={
                 "out": output_text,
                 "completion_kwargs": {key: value for key, value in generation_kwargs.items() if key != "inputs"},
@@ -1299,6 +1347,7 @@ class LiteLLMModel(ApiModel):
             role=response.choices[0].message.role,
             content=content,
             tool_calls=response.choices[0].message.tool_calls,
+            reasoning_content=_extract_reasoning_content(response.choices[0].message),
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1314,6 +1363,7 @@ class LiteLLMModel(ApiModel):
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
     ) -> Generator[ChatMessageStreamDelta]:
+        # TODO: accumulate reasoning_content deltas in streaming mode
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -1581,6 +1631,7 @@ class InferenceClientModel(ApiModel):
             role=response.choices[0].message.role,
             content=content,
             tool_calls=response.choices[0].message.tool_calls,
+            reasoning_content=_extract_reasoning_content(response.choices[0].message),
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -1596,6 +1647,7 @@ class InferenceClientModel(ApiModel):
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
     ) -> Generator[ChatMessageStreamDelta]:
+        # TODO: accumulate reasoning_content deltas in streaming mode
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -1712,6 +1764,7 @@ class OpenAIModel(ApiModel):
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
     ) -> Generator[ChatMessageStreamDelta]:
+        # TODO: accumulate reasoning_content deltas in streaming mode
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
@@ -1785,6 +1838,7 @@ class OpenAIModel(ApiModel):
             role=response.choices[0].message.role,
             content=content,
             tool_calls=response.choices[0].message.tool_calls,
+            reasoning_content=_extract_reasoning_content(response.choices[0].message),
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
@@ -2052,6 +2106,7 @@ class AmazonBedrockModel(ApiModel):
             role=response["output"]["message"]["role"],
             content=content,
             tool_calls=response["output"]["message"]["tool_calls"],
+            reasoning_content=None,  # Amazon Bedrock handles thinking via content blocks (already extracted above)
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response["usage"]["inputTokens"],
