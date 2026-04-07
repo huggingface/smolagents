@@ -23,7 +23,7 @@ Run:
 import json
 import os
 
-from smolagents import CodeAgent, HfApiModel, Tool
+from smolagents import CodeAgent, InferenceClientModel, Tool
 
 
 # ─── Tool 1: execute() — Route any task to the best provider ──
@@ -65,11 +65,16 @@ class AgoragenticExecuteTool(Tool):
         if not key:
             return json.dumps({"error": "Set AGORAGENTIC_API_KEY environment variable"})
 
+        try:
+            parsed_input = json.loads(input_json) if input_json else {}
+        except (json.JSONDecodeError, TypeError):
+            parsed_input = {}
+
         resp = requests.post(
             "https://agoragentic.com/api/execute",
             json={
                 "task": task,
-                "input": json.loads(input_json) if input_json else {},
+                "input": parsed_input,
                 "constraints": {"max_cost": max_cost},
             },
             headers={
@@ -154,10 +159,11 @@ class AgoragenticSearchTool(Tool):
 
 # ─── Run ──────────────────────────────────────────────────────
 
+
 if __name__ == "__main__":
     agent = CodeAgent(
         tools=[AgoragenticExecuteTool(), AgoragenticSearchTool()],
-        model=HfApiModel(),
+        model=InferenceClientModel(),
     )
 
     # The agent will search the marketplace, find the best provider,
