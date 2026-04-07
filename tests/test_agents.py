@@ -414,6 +414,70 @@ print(result)
         )
 
 
+class FakeCodeModelRetry(Model):
+    def __init__(self):
+        self.calls = 0
+
+    def generate(self, messages, stop_sequences=None):
+        self.calls += 1
+        if self.calls == 1:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="""
+Thought: First try fails.
+<code>
+raise RuntimeError("temporary failure")
+</code>
+""",
+            )
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="""
+Thought: Retry succeeded.
+<code>
+final_answer("recovered")
+</code>
+""",
+        )
+
+
+class FakeCodeModelStagnation(Model):
+    def __init__(self):
+        self.plan_calls = 0
+
+    def generate(self, messages, stop_sequences=None):
+        if stop_sequences and "<end_plan>" in stop_sequences:
+            self.plan_calls += 1
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="""
+## 1. Facts survey
+### 1.1. Facts given in the task
+- The task is still unresolved.
+### 1.2. Facts to look up
+- None.
+### 1.3. Facts to derive
+- None.
+
+## 2. Plan
+1. Objective: recover from stagnation
+   Next Action: attempt a new strategy
+   Validation Check: observation changes
+   Completion Signal: useful new evidence appears
+<end_plan>
+""",
+            )
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="""
+Thought: Objective: gather signal. Next Action: print the same marker. Validation Check: compare observation. Completion Signal: observation changes.
+<code>
+print("same_observation")
+</code>
+""",
+        )
+
+
 class TestAgent:
     def test_fake_toolcalling_agent(self):
         agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeToolCallModel())
@@ -738,13 +802,19 @@ nested_answer()
 
     def test_generation_errors_are_raised(self):
         class FakeCodeModel(Model):
+            def __init__(self):
+                self.calls = 0
+
             def generate(self, messages, stop_sequences=None):
+                self.calls += 1
                 assert False, "Generation failed"
 
-        agent = CodeAgent(model=FakeCodeModel(), tools=[])
+        model = FakeCodeModel()
+        agent = CodeAgent(model=model, tools=[], tool_retry_limit=3)
         with pytest.raises(AgentGenerationError) as e:
             agent.run("Dummy task.")
         assert len(agent.memory.steps) == 2
+        assert model.calls == 1, "Generation failures should not trigger step retries."
         assert "Generation failed" in str(e)
 
     def test_planning_step_with_injected_memory(self):
@@ -819,6 +889,51 @@ nested_answer()
         assert previous_task in conversation_text, "Previous task should be included in the conversation history"
         assert task in conversation_text, "Current task should be included in the conversation history"
         assert "tools" in conversation_text, "Tool interactions should be included in the conversation history"
+
+    def test_stagnation_forces_replanning(self):
+        agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModelStagnation(),
+            max_steps=3,
+            planning_interval=None,
+            stagnation_window=1,
+        )
+        agent.run("keep trying")
+
+        planning_steps = [step for step in agent.memory.steps if isinstance(step, PlanningStep)]
+        assert len(planning_steps) >= 1, "Expected stagnation to trigger at least one planning step."
+
+    def test_retries_recoverable_step_failures(self):
+        agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModelRetry(),
+            max_steps=2,
+            tool_retry_limit=1,
+        )
+        output = agent.run("recover from temporary failure")
+        action_steps = [step for step in agent.memory.steps if isinstance(step, ActionStep)]
+
+        assert output == "recovered"
+        assert len(action_steps) == 2
+        assert action_steps[0].error is not None
+        assert action_steps[1].is_final_answer is True
+        assert action_steps[0].step_number == action_steps[1].step_number == 1
+
+    def test_run_state_snapshot_contains_resume_fields(self):
+        agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModel(),
+            max_steps=2,
+            planning_interval=1,
+        )
+        agent.run("snapshot task")
+        snapshot = agent.get_run_state_snapshot()
+
+        assert snapshot["pending_task"] == "snapshot task"
+        assert snapshot["step_number"] >= 1
+        assert snapshot["completed_action_steps"] >= 1
+        assert isinstance(snapshot["memory_summary"], list)
+        assert "stagnation_state" in snapshot
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
@@ -1509,6 +1624,8 @@ class TestMultiStepAgent:
             "max_steps": 15,
             "verbosity_level": 2,
             "planning_interval": 3,
+            "tool_retry_limit": 2,
+            "stagnation_window": 4,
             "name": "test_agent",
             "description": "Test agent description",
         }
@@ -1527,6 +1644,8 @@ class TestMultiStepAgent:
         assert agent.max_steps == 15
         assert agent.logger.level == 2
         assert agent.planning_interval == 3
+        assert agent.tool_retry_limit == 2
+        assert agent.stagnation_window == 4
         assert agent.name == "test_agent"
         assert agent.description == "Test agent description"
         # Verify the tool was created correctly
@@ -2091,15 +2210,38 @@ class TestToolCallingAgent:
 
 class TestCodeAgent:
     def test_code_agent_instructions(self):
-        agent = CodeAgent(tools=[], model=MagicMock(), instructions="Test instructions")
-        assert agent.instructions == "Test instructions"
-        assert "Test instructions" in agent.system_prompt
+        layered_instructions = (
+            "Runtime autonomy contract:\\n- Max steps budget: 64\\n- Planning interval: 4\\n\\nLayered note: keep plans concise."
+        )
+        agent = CodeAgent(tools=[], model=MagicMock(), instructions=layered_instructions)
+        assert agent.instructions == layered_instructions
+        assert "Runtime autonomy contract" in agent.system_prompt
+        assert "Layered note: keep plans concise." in agent.system_prompt
 
         agent = CodeAgent(
-            tools=[], model=MagicMock(), instructions="Test instructions", use_structured_outputs_internally=True
+            tools=[], model=MagicMock(), instructions=layered_instructions, use_structured_outputs_internally=True
         )
-        assert agent.instructions == "Test instructions"
-        assert "Test instructions" in agent.system_prompt
+        assert agent.instructions == layered_instructions
+        assert "Runtime autonomy contract" in agent.system_prompt
+        assert "Layered note: keep plans concise." in agent.system_prompt
+
+    def test_handoff_schema_is_present_in_final_answer_prompts(self):
+        expected_sections = [
+            "1) Best current answer",
+            "2) Attempted actions summary",
+            "3) Blocking issues",
+            "4) Best next step",
+        ]
+
+        agents = [
+            CodeAgent(tools=[], model=MagicMock()),
+            CodeAgent(tools=[], model=MagicMock(), use_structured_outputs_internally=True),
+            ToolCallingAgent(tools=[], model=MagicMock()),
+        ]
+        for agent in agents:
+            final_answer_prompt = agent.prompt_templates["final_answer"]["post_messages"]
+            for section in expected_sections:
+                assert section in final_answer_prompt
 
     @pytest.mark.parametrize("provide_run_summary", [False, True])
     def test_call_with_provide_run_summary(self, provide_run_summary):
@@ -2298,6 +2440,8 @@ print("Ok, calculation done!")""")
             "verbosity_level": 2,
             "use_structured_output": False,
             "planning_interval": 3,
+            "tool_retry_limit": 2,
+            "stagnation_window": 3,
             "name": "test_code_agent",
             "description": "Test code agent description",
             "authorized_imports": ["pandas", "numpy"],
@@ -2320,6 +2464,8 @@ print("Ok, calculation done!")""")
         assert agent.executor_type == "local"
         assert agent.executor_kwargs == {"max_print_outputs_length": 10_000}
         assert agent.max_print_outputs_length == 1000
+        assert agent.tool_retry_limit == 2
+        assert agent.stagnation_window == 3
 
         # Test with missing optional parameters
         minimal_agent_dict = {
