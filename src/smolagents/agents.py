@@ -289,6 +289,10 @@ class MultiStepAgent(ABC):
             - Take the final answer, the agent's memory, and the agent itself as arguments.
             - Return a boolean indicating whether the final answer is valid.
         return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
+        memory (`AgentMemory`, *optional*): Pre-configured memory instance. When provided, this memory is used
+            instead of creating a default one. This allows passing an `AgentMemory` with lifecycle hooks
+            (e.g., `on_step_added`, `on_run_start`, `on_run_end`) for integrating external memory providers.
+            The memory's system prompt will be overwritten to match the agent's system prompt.
     """
 
     def __init__(
@@ -309,6 +313,7 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
+        memory: AgentMemory | None = None,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
@@ -340,7 +345,13 @@ class MultiStepAgent(ABC):
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
         self.task: str | None = None
-        self.memory = AgentMemory(self.system_prompt)
+        # Use a pre-configured memory if provided (e.g., one with lifecycle hooks),
+        # otherwise create a default one. The system prompt is always kept in sync.
+        if memory is not None:
+            memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
+            self.memory = memory
+        else:
+            self.memory = AgentMemory(self.system_prompt)
 
         if logger is None:
             self.logger = AgentLogger(level=verbosity_level)
@@ -485,7 +496,12 @@ You have been provided with these additional arguments, that you can access dire
             level=LogLevel.INFO,
             title=self.name if hasattr(self, "name") else None,
         )
-        self.memory.steps.append(TaskStep(task=self.task, task_images=images))
+        self.memory.append_step(TaskStep(task=self.task, task_images=images))
+
+        # Fire the on_run_start lifecycle hook after memory is ready with the task step.
+        # This allows external memory providers to inject context (e.g., recall from mem0).
+        if self.memory.on_run_start is not None:
+            self.memory.on_run_start(self.task, self.memory)
 
         if getattr(self, "python_executor", None):
             self.python_executor.send_variables(variables=self.state)
@@ -564,7 +580,7 @@ You have been provided with these additional arguments, that you can access dire
                     end_time=planning_end_time,
                 )
                 self._finalize_step(planning_step)
-                self.memory.steps.append(planning_step)
+                self.memory.append_step(planning_step)
 
             # Start action step!
             action_step_start_time = time.time()
@@ -599,7 +615,7 @@ You have been provided with these additional arguments, that you can access dire
                 action_step.error = e
             finally:
                 self._finalize_step(action_step)
-                self.memory.steps.append(action_step)
+                self.memory.append_step(action_step)
                 yield action_step
                 self.step_number += 1
 
@@ -609,6 +625,11 @@ You have been provided with these additional arguments, that you can access dire
         final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
         self._finalize_step(final_answer_step)
         yield final_answer_step
+
+        # Fire the on_run_end lifecycle hook after the run completes.
+        # This allows external memory providers to persist summaries or learned facts.
+        if self.memory.on_run_end is not None:
+            self.memory.on_run_end(task, final_answer_step.output, self.memory)
 
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
@@ -633,7 +654,7 @@ You have been provided with these additional arguments, that you can access dire
         )
         final_memory_step.action_output = final_answer.content
         self._finalize_step(final_memory_step)
-        self.memory.steps.append(final_memory_step)
+        self.memory.append_step(final_memory_step)
         return final_answer.content
 
     def _generate_planning_step(
