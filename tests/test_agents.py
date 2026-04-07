@@ -1594,6 +1594,65 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_from_dict_preserves_managed_agent_authorized_imports(self):
+        """Test that from_dict preserves managed agent's authorized_imports (fixes #1849).
+
+        When deserializing an agent with managed agents, the parent agent's kwargs
+        should not override the child agent's configuration. Each managed agent
+        should retain its own authorized_imports after deserialization.
+        """
+        # Create a managed agent with custom authorized imports
+        managed_agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            name="math_agent",
+            description="Math expert using sympy",
+            max_steps=3,
+            additional_authorized_imports=["sympy"],
+        )
+
+        # Verify the managed agent has sympy in its authorized imports
+        assert "sympy" in managed_agent.authorized_imports
+
+        # Create main agent WITHOUT sympy in its authorized imports
+        main_agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            managed_agents=[managed_agent],
+            name="main_agent",
+            max_steps=5,
+            # Note: main agent does NOT have sympy
+        )
+
+        # Verify main agent doesn't have sympy but managed agent does
+        assert "sympy" not in main_agent.authorized_imports
+        assert "sympy" in main_agent.managed_agents["math_agent"].authorized_imports
+
+        # Serialize the agent
+        agent_dict = main_agent.to_dict()
+
+        # Verify sympy is in the serialized managed agent data
+        managed_agent_dict = agent_dict["managed_agents"][0]
+        assert "sympy" in managed_agent_dict["authorized_imports"]
+
+        # Deserialize
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
+
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            restored_agent = CodeAgent.from_dict(agent_dict)
+
+        # The critical assertion: managed agent should still have sympy
+        restored_managed_agent = restored_agent.managed_agents["math_agent"]
+        assert "sympy" in restored_managed_agent.authorized_imports, (
+            "Managed agent lost its custom authorized_imports after deserialization. "
+            "Expected 'sympy' to be preserved, but it was overwritten by parent's config."
+        )
+
+        # Also verify main agent still doesn't have sympy
+        assert "sympy" not in restored_agent.authorized_imports
+
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
         agent_dict = {
