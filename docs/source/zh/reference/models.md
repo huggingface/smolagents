@@ -6,11 +6,11 @@ Smolagents 是一个实验性 API，其可能会随时发生更改。由于 API 
 
 </Tip>
 
-要了解有关智能体和工具的更多信息，请务必阅读[入门指南](../index)。此页面包含底层类的 API 文档。
+要了解有关agent和工具的更多信息，请务必阅读[入门指南](../index)。此页面包含底层类的 API 文档。
 
 ## 模型
 
-您可以自由创建和使用自己的模型为智能体提供支持。
+您可以自由创建和使用自己的模型为agent提供支持。
 
 您可以使用任何 `model` 可调用对象作为智能体的模型，只要满足以下条件：
 1. 它遵循[消息格式](./chat_templating)（`List[Dict[str, str]]`），将其作为输入 `messages`，并返回一个 `str`。
@@ -145,6 +145,6 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 ```
 
 > [!TIP]
-> 您必须在机器上安装 `mlx-lm`。如果尚未安装，请运行 `pip install 'smolagents[mlx-lm]'`。
+> 您必须在设备上安装 `mlx-lm`。如果尚未安装，请运行 `pip install 'smolagents[mlx-lm]'`。
 
 [[autodoc]] MLXModel
