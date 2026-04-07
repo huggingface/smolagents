@@ -376,7 +376,7 @@ class WebSearchTool(Tool):
             "https://lite.duckduckgo.com/lite/",
             params={"q": query},
             headers={"User-Agent": "Mozilla/5.0"},
-                    timeout=30,
+            timeout=30,
         )
         response.raise_for_status()
         parser = self._create_duckduckgo_parser()
@@ -442,7 +442,7 @@ class WebSearchTool(Tool):
         response = requests.get(
             "https://www.bing.com/search",
             params={"q": query, "format": "rss"},
-                    timeout=30,
+            timeout=30,
         )
         response.raise_for_status()
         root = ET.fromstring(response.text)
