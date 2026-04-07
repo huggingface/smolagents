@@ -293,20 +293,14 @@ class AgentMemory:
         # compute once before the loop
         total_chars = sum(step_chars(step) for step in self.steps)
 
-        while len(self.steps) > 1:  # always keep at least the TaskStep
-            if total_chars <= max_chars:
-                break
-            # drop oldest step that is not a TaskStep
-            for i, step in enumerate(self.steps):
-                if not isinstance(step, TaskStep):
-                    total_chars -= step_chars(step)  # subtract before removing
-                    self.steps.pop(i)
-                    removed += 1
-                    break
-            else:
-                break  # only TaskSteps remain
-        return removed
+        while len(self.steps) > 1 and total_chars > max_chars:
+            step = self.steps[1]
+            total_chars -= step_chars(step)
+            self.steps.pop(1)
+            removed += 1
 
+        return removed
+    
 class CallbackRegistry:
     """Registry for callbacks that are called at each step of the agent's execution.
 
