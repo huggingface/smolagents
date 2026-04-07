@@ -345,10 +345,11 @@ class WebSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results: int = 10, engine: str = "duckduckgo"):
+    def __init__(self, max_results: int = 10, engine: str = "duckduckgo", timeout: int = 30):
         super().__init__()
         self.max_results = max_results
         self.engine = engine
+        self.timeout = timeout
 
     def forward(self, query: str) -> str:
         results = self.search(query)
@@ -376,6 +377,7 @@ class WebSearchTool(Tool):
             "https://lite.duckduckgo.com/lite/",
             params={"q": query},
             headers={"User-Agent": "Mozilla/5.0"},
+            timeout=self.timeout,
         )
         response.raise_for_status()
         parser = self._create_duckduckgo_parser()
@@ -436,6 +438,7 @@ class WebSearchTool(Tool):
         response = requests.get(
             "https://www.bing.com/search",
             params={"q": query, "format": "rss"},
+            timeout=self.timeout,
         )
         response.raise_for_status()
         root = ET.fromstring(response.text)
