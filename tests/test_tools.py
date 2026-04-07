@@ -530,6 +530,20 @@ class TestTool:
 
         assert validate_tool_attributes(ValidComprehensionTool) is None
 
+    def test_validate_tool_attributes_with_nested_comprehensions(self):
+        class ValidNestedComprehensionTool(Tool):
+            name = "valid_nested_comprehension_tool"
+            description = "Tool using nested comprehensions"
+            inputs = {"matrix": {"type": "string", "description": "matrix"}}
+            output_type = "string"
+
+            def forward(self, matrix):
+                nested = [[value for value in row] for row in matrix]
+                flattened = [value for row in nested for value in row]
+                return "".join(flattened)
+
+        assert validate_tool_attributes(ValidNestedComprehensionTool) is None
+
     def test_validate_tool_attributes_undefined_comprehension_iterable(self):
         class InvalidComprehensionIterableTool(Tool):
             name = "invalid_comprehension_iterable_tool"
