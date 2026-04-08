@@ -9,7 +9,7 @@
 
 AI agents that operate autonomously - calling tools, executing code, and making decisions - need accountability. In regulated industries and production deployments, you need a verifiable record of what your agent did, when it did it, and what data it used.
 
-[asqav](https://github.com/jagmarques/asqav-sdk) provides cryptographically signed audit trails for AI agents. Each agent action is signed using ML-DSA-65 (quantum-safe cryptography), creating tamper-proof governance records that you can verify independently.
+[asqav](https://github.com/jagmarques/asqav-sdk) provides cryptographically signed audit trails for AI agents. Each agent action is signed using ML-DSA-65 (quantum-safe cryptography), creating tamper-evident governance records that you can verify independently.
 
 By using smolagents' `step_callbacks`, you can sign every agent step as a governance event without modifying your agent logic.
 
