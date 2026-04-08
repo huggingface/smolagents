@@ -40,6 +40,8 @@
     title: "Human-in-the-Loop: Customize agent plan interactively"
   - local: examples/async_agent
     title: Async Applications with Agents
+  - local: examples/asqav_governance
+    title: Governance and Audit Trails with asqav
 - title: Reference
   sections:
   - title: Agent-related objects
