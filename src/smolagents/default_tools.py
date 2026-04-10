@@ -474,6 +474,7 @@ class WebSearchTool(Tool):
                 "numResults": self.max_results,
                 "contents": {"highlights": True},
             },
+            timeout=30,
         )
         response.raise_for_status()
         data = response.json()
@@ -481,7 +482,7 @@ class WebSearchTool(Tool):
             {
                 "title": result.get("title", ""),
                 "link": result["url"],
-                "description": " ".join(result.get("highlights", [])),
+                "description": " ".join(result.get("highlights") or []),
             }
             for result in data.get("results", [])
         ]

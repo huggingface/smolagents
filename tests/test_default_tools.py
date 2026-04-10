@@ -205,6 +205,25 @@ class TestWebSearchToolExa:
 
         assert "[No Highlights Page](https://example.com)" in result
 
+    def test_exa_null_highlights(self):
+        mock_response_data = {
+            "results": [
+                {
+                    "title": "Null Highlights Page",
+                    "url": "https://example.com",
+                    "highlights": None,
+                }
+            ]
+        }
+        tool = WebSearchTool(engine="exa")
+        with patch.dict("os.environ", {"EXA_API_KEY": "test-key"}):
+            with patch("requests.post") as mock_post:
+                mock_post.return_value.json.return_value = mock_response_data
+                mock_post.return_value.raise_for_status = lambda: None
+                result = tool("test")
+
+        assert "[Null Highlights Page](https://example.com)" in result
+
 
 @pytest.mark.parametrize(
     "language, content_type, extract_format, query",
