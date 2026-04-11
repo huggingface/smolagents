@@ -1448,6 +1448,149 @@ class TestMultiStepAgent:
             agent.run("Test task")
         assert "Agent interrupted" in str(e)
 
+    def test_interrupt_with_custom_reason(self):
+        """Test that interrupt() accepts a custom reason that propagates to the error message."""
+        fake_model = MagicMock()
+        fake_model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="Model output.",
+            tool_calls=None,
+            raw="Model output.",
+            token_usage=None,
+        )
+
+        custom_reason = "Critical tool failure: API rate limit exceeded"
+
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt(reason=custom_reason)
+
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+        with pytest.raises(AgentError) as exc_info:
+            agent.run("Test task")
+        assert custom_reason in str(exc_info.value)
+
+    def test_interrupt_without_reason_uses_default(self):
+        """Test that interrupt() without a reason uses the default 'Agent interrupted.' message."""
+        fake_model = MagicMock()
+        fake_model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="Model output.",
+            tool_calls=None,
+            raw="Model output.",
+            token_usage=None,
+        )
+
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt()
+
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+        with pytest.raises(AgentError) as exc_info:
+            agent.run("Test task")
+        assert "Agent interrupted." in str(exc_info.value)
+
+    def test_interrupt_with_none_reason_uses_default(self):
+        """Test that interrupt(reason=None) uses the default message."""
+        fake_model = MagicMock()
+        fake_model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="Model output.",
+            tool_calls=None,
+            raw="Model output.",
+            token_usage=None,
+        )
+
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt(reason=None)
+
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+        with pytest.raises(AgentError) as exc_info:
+            agent.run("Test task")
+        assert "Agent interrupted." in str(exc_info.value)
+
+    def test_interrupt_reason_with_tool_calling_agent(self):
+        """Test that custom interrupt reason works with ToolCallingAgent too."""
+        fake_model = MagicMock()
+        fake_model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="Model output.",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_0",
+                    type="function",
+                    function=ChatMessageToolCallFunction(
+                        name="final_answer",
+                        arguments={"answer": "done"},
+                    ),
+                )
+            ],
+            raw="Model output.",
+            token_usage=None,
+        )
+
+        custom_reason = "User requested stop via UI button"
+
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt(reason=custom_reason)
+
+        agent = ToolCallingAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+        with pytest.raises(AgentError) as exc_info:
+            agent.run("Test task")
+        assert custom_reason in str(exc_info.value)
+
+    def test_interrupt_reason_resets_between_runs(self):
+        """Test that interrupt reason is reset between agent runs."""
+        fake_model = MagicMock()
+        call_count = 0
+
+        def generate_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="Model output.",
+                tool_calls=None,
+                raw="Model output.",
+                token_usage=None,
+            )
+
+        fake_model.generate.side_effect = generate_side_effect
+
+        custom_reason = "First run: timeout exceeded"
+
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt(reason=custom_reason)
+
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+
+        # First run with custom reason
+        with pytest.raises(AgentError) as exc_info:
+            agent.run("Test task 1")
+        assert custom_reason in str(exc_info.value)
+
+        # Verify interrupt state is reset for the next run
+        assert agent.interrupt_switch is False
+        assert agent.interrupt_reason is None
+
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
         [
