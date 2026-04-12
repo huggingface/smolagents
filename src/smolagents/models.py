@@ -1968,6 +1968,27 @@ class OCIGenAIModel(OpenAIModel):
             **kwargs,
         )
 
+    @property
+    def supports_stop_parameter(self) -> bool:
+        # OCI model IDs use dot-separated provider prefixes (e.g. "openai.gpt-5.4").
+        # Strip the provider prefix so the base check recognises the model family.
+        model_name = self.model_id or ""
+        if "." in model_name:
+            model_name = model_name.split(".", 1)[1]
+        return supports_stop_parameter(model_name)
+
+    @property
+    def _requires_max_completion_tokens(self) -> bool:
+        """Newer OpenAI models (gpt-5*, o3, o4*) require max_completion_tokens instead of max_tokens."""
+        model_name = (self.model_id or "").split(".", 1)[-1]
+        return bool(re.match(r"(gpt-5|o3(?!-mini)|o4)", model_name))
+
+    def _prepare_completion_kwargs(self, *args, **kwargs) -> dict[str, Any]:
+        completion_kwargs = super()._prepare_completion_kwargs(*args, **kwargs)
+        if self._requires_max_completion_tokens and "max_tokens" in completion_kwargs:
+            completion_kwargs["max_completion_tokens"] = completion_kwargs.pop("max_tokens")
+        return completion_kwargs
+
     def _build_signer(self):
         try:
             import oci
