@@ -1955,9 +1955,7 @@ class OCIGenAIModel(OpenAIModel):
         self.config_file = config_file
         self.profile = profile
         self.compartment_id = compartment_id
-        self._service_endpoint = service_endpoint or (
-            f"https://inference.generativeai.{region}.oci.oraclecloud.com"
-        )
+        self._service_endpoint = service_endpoint or (f"https://inference.generativeai.{region}.oci.oraclecloud.com")
         super().__init__(
             model_id=model_id,
             api_base=self._service_endpoint,
@@ -2026,8 +2024,7 @@ class OCIGenAIModel(OpenAIModel):
             import openai
         except ModuleNotFoundError as e:
             raise ModuleNotFoundError(
-                "Please install required extras to use OCIGenAIModel: "
-                "`pip install 'smolagents[oci]'`"
+                "Please install required extras to use OCIGenAIModel: `pip install 'smolagents[oci]'`"
             ) from e
 
         signer = self._build_signer()
@@ -2042,9 +2039,7 @@ class OCIGenAIModel(OpenAIModel):
                 try:
                     import requests as _requests
                 except ModuleNotFoundError as exc:
-                    raise ModuleNotFoundError(
-                        "Please install 'requests' to use OCIGenAIModel OCI signing."
-                    ) from exc
+                    raise ModuleNotFoundError("Please install 'requests' to use OCIGenAIModel OCI signing.") from exc
 
                 # Build a requests.PreparedRequest so OCI signer can sign it
                 prep = _requests.Request(
