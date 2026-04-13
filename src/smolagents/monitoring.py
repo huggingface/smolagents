@@ -114,14 +114,15 @@ class Monitor:
                 f"| Input tokens: {self.total_input_token_count:,} | Output tokens: {self.total_output_token_count:,}"
             )
         console_outputs += "]"
-        self.logger.log(Text(console_outputs, style="dim"), level=1)
+        self.logger.log(Text(console_outputs, style="dim"), level=LogLevel.INFO)
 
 
 class LogLevel(IntEnum):
     OFF = -1  # No output
     ERROR = 0  # Only errors
-    INFO = 1  # Normal output (default)
-    DEBUG = 2  # Detailed output
+    WARNING = 1  # Warnings
+    INFO = 2  # Normal output (default)
+    DEBUG = 3  # Detailed output
 
 
 YELLOW_HEX = "#d4b702"

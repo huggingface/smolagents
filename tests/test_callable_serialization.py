@@ -19,13 +19,8 @@ def my_test_check(answer):
 
 
 class TestCallableSerialization(unittest.TestCase):
-    def setUp(self):
-        # Allow the tests namespace for deserialization during tests
-        ALLOWED_CALLBACK_NAMESPACES.add("tests")
-
     def tearDown(self):
-        # Clean up: remove the tests namespace and any registry entries
-        ALLOWED_CALLBACK_NAMESPACES.discard("tests")
+        # Clean up any registry entries
         CALLBACK_REGISTRY.pop("custom.my_test_callback", None)
 
     def test_roundtrip(self):
@@ -56,7 +51,7 @@ class TestCallableSerialization(unittest.TestCase):
             self.assertIn(callback_path, data["step_callbacks"]["ActionStep"])
 
             # 2. Verify Reload
-            reloaded_agent = CodeAgent.from_folder(tmp_dir)
+            reloaded_agent = CodeAgent.from_folder(tmp_dir, allowed_callback_namespaces={"smolagents", "tests"})
 
             # Check checks
             loaded_checks = reloaded_agent.final_answer_checks
@@ -64,7 +59,7 @@ class TestCallableSerialization(unittest.TestCase):
             self.assertEqual(loaded_checks[0].__name__, "my_test_check")
 
             # Check callbacks
-            loaded_cbs = reloaded_agent.step_callbacks._callbacks[ActionStep]
+            loaded_cbs = dict(reloaded_agent.step_callbacks.items())[ActionStep]
             # One should be our callback, one should be monitor.update_metrics
             cb_names = [cb.__name__ for cb in loaded_cbs]
             self.assertIn("my_test_callback", cb_names)
@@ -105,15 +100,18 @@ class TestCallableSerialization(unittest.TestCase):
 
     def test_allowed_namespaces_extension(self):
         """Verify that ALLOWED_CALLBACK_NAMESPACES can be extended for user packages."""
-        # 'tests' was already added in setUp
-        path = f"{my_test_callback.__module__}.{my_test_callback.__qualname__}"
-        res = MultiStepAgent._deserialize_callable(path)
-        self.assertEqual(res, my_test_callback)
+        ALLOWED_CALLBACK_NAMESPACES.add("tests")
+        try:
+            path = f"{my_test_callback.__module__}.{my_test_callback.__qualname__}"
+            res = MultiStepAgent._deserialize_callable(path)
+            self.assertEqual(res, my_test_callback)
 
-        # Remove the namespace and verify it's now blocked
-        ALLOWED_CALLBACK_NAMESPACES.discard("tests")
-        res = MultiStepAgent._deserialize_callable(path)
-        self.assertIsNone(res)
+            # Remove the namespace and verify it's now blocked
+            ALLOWED_CALLBACK_NAMESPACES.discard("tests")
+            res = MultiStepAgent._deserialize_callable(path)
+            self.assertIsNone(res)
+        finally:
+            ALLOWED_CALLBACK_NAMESPACES.discard("tests")
 
     def test_instance_level_isolation(self):
         """Verify that setting allowed_callback_namespaces on one agent does not affect another."""
@@ -140,14 +138,11 @@ class TestCallableSerialization(unittest.TestCase):
 
             # Loading agent1 with 'tests' whitelist should work
             loaded1 = CodeAgent.from_folder(tmp_dir1, allowed_callback_namespaces={"smolagents", "tests"})
-            self.assertEqual(len(loaded1.step_callbacks._callbacks[ActionStep]), 2)  # our cb + monitor
-
-            # Loading agent2 WITH 'tests' whitelist should check if it was even saved
-            # Wait, serialization ALWAYS saves the path. Deserialization checks the whitelist.
+            self.assertEqual(len(dict(loaded1.step_callbacks.items())[ActionStep]), 2)  # our cb + monitor
 
             # Loading agent1 WITHOUT 'tests' whitelist should fail to load our callback
             loaded1_restricted = CodeAgent.from_folder(tmp_dir1, allowed_callback_namespaces={"smolagents"})
-            cb_names = [cb.__name__ for cb in loaded1_restricted.step_callbacks._callbacks[ActionStep]]
+            cb_names = [cb.__name__ for cb in dict(loaded1_restricted.step_callbacks.items()).get(ActionStep, [])]
             self.assertNotIn("my_test_callback", cb_names)
 
     def test_callback_registry_instance_level(self):
@@ -161,12 +156,12 @@ class TestCallableSerialization(unittest.TestCase):
 
             # Should load if we pass the same registry
             loaded = CodeAgent.from_folder(tmp_dir, callback_registry=custom_registry)
-            cb_names = [cb.__name__ for cb in loaded.step_callbacks._callbacks[ActionStep]]
+            cb_names = [cb.__name__ for cb in dict(loaded.step_callbacks.items())[ActionStep]]
             self.assertIn("my_test_callback", cb_names)
 
             # Should NOT load if we don't pass the registry and it's not in global or whitelist
             loaded_no_reg = CodeAgent.from_folder(tmp_dir)
-            cb_names_no_reg = [cb.__name__ for cb in loaded_no_reg.step_callbacks._callbacks[ActionStep]]
+            cb_names_no_reg = [cb.__name__ for cb in dict(loaded_no_reg.step_callbacks.items()).get(ActionStep, [])]
             self.assertNotIn("my_test_callback", cb_names_no_reg)
 
 

@@ -1001,16 +1001,10 @@ You have been provided with these additional arguments, that you can access dire
                 return path
 
         if not hasattr(c, "__module__") or not hasattr(c, "__qualname__"):
-            # Check if it has a __name__ at least
-            if hasattr(c, "__name__"):
-                # If it's a simple function/method, __module__ is usually available.
-                # If not, it might be a built-in or something weird.
-                self.logger.log(
-                    f"Callable {c} missing __module__ or __qualname__ and not in CALLBACK_REGISTRY. Using __name__ '{c.__name__}'.",
-                    LogLevel.WARNING,
-                )
-                return c.__name__
-            self.logger.log(f"Callable {c} cannot be serialized. Skipping.", LogLevel.WARNING)
+            self.logger.log(
+                f"Callable {c} missing __module__ or __qualname__ and not in CALLBACK_REGISTRY. Cannot serialize, skipping.",
+                LogLevel.WARNING,
+            )
             return None
 
         if "<lambda>" in c.__qualname__ or "<locals>" in c.__qualname__:
