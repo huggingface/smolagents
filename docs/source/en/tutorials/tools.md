@@ -170,48 +170,26 @@ with MCPClient([server_params1, server_params2]) as tools:
 #### Example: financial research with Chart Library MCP
 
 You can also connect smolagents to domain-specific MCP servers. For example,
-Chart Library provides an MCP server for historical chart pattern search and
-market regime analysis.
+Chart Library exposes an MCP server over SSE for historical chart pattern
+search and market regime analysis.
 
-First install the MCP dependencies for smolagents and the Chart Library server:
-
-```bash
-pip install "smolagents[mcp]" chartlibrary-mcp
-```
-
-Then configure the Chart Library MCP server and make its tools available to a `CodeAgent`:
+A minimal example looks like this:
 
 ```python
-import os
-from mcp import StdioServerParameters
-from smolagents import CodeAgent, InferenceClientModel, MCPClient
+from smolagents import CodeAgent, InferenceClientModel
+from smolagents.mcp_client import MCPClient
 
-model = InferenceClientModel()
+server_params = {"url": "https://chartlibrary.io/mcp/sse"}
 
-server_parameters = StdioServerParameters(
-    command="chartlibrary-mcp",
-    env={**os.environ, "CHART_LIBRARY_API_KEY": "cl_your_key"},
-)
-
-with MCPClient(server_parameters, structured_output=True) as tools:
-    agent = CodeAgent(
-        tools=tools,
-        model=model,
-        add_base_tools=True,
+with MCPClient(server_params) as tools:
+    agent = CodeAgent(tools=tools, model=InferenceClientModel())
+    agent.run(
+        "Find historical chart patterns similar to NVDA today "
+        "and summarize the forward 5-day return distribution."
     )
 
-    result = agent.run(
-        "Find 10 historical chart patterns similar to NVDA in early April 2026. "
-        "Summarize the average forward returns and say whether the pattern looks "
-        "more bullish or bearish based on those analogs."
-    )
-
-print(result)
-```
-
-This is useful for finance-oriented agents that need historical pattern matching,
-forward return distributions, or market regime context through a specialized MCP
-server.
+This can be useful for finance-oriented agents that need historical pattern
+matching and forward return analysis through a specialized MCP server.
 
 > [!WARNING]
 > **Security Warning:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
