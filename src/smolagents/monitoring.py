@@ -120,9 +120,8 @@ class Monitor:
 class LogLevel(IntEnum):
     OFF = -1  # No output
     ERROR = 0  # Only errors
-    WARNING = 1  # Warnings
-    INFO = 2  # Normal output (default)
-    DEBUG = 3  # Detailed output
+    INFO = 1  # Normal output (default)
+    DEBUG = 2  # Detailed output
 
 
 YELLOW_HEX = "#d4b702"
