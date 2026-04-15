@@ -289,7 +289,7 @@ class SafeSerializer:
                 try:
                     return "pickle:" + base64.b64encode(pickle.dumps(obj)).decode()
                 except (pickle.PicklingError, TypeError, AttributeError) as e:
-                    raise SerializationError(f"Cannot serialize object: {e}") from e
+                    raise SerializationError("Cannot serialize object: " + str(e)) from e
 
     @staticmethod
     def loads(data: str, allow_pickle: bool = False) -> Any:
@@ -426,7 +426,7 @@ class SafeSerializer:
                 try:
                     return "pickle:" + base64.b64encode(pickle.dumps(obj)).decode()
                 except (pickle.PicklingError, TypeError, AttributeError) as e:
-                    raise SerializationError(f"Cannot serialize object: {{e}}") from e
+                    raise SerializationError("Cannot serialize object: " + str(e)) from e
 
     @staticmethod
     def loads(data, allow_pickle=False):
