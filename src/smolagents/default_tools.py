@@ -38,11 +38,11 @@ class PreTool:
 
 class PythonInterpreterTool(Tool):
     name = "python_interpreter"
-    description = "This is a tool that evaluates python code. It can be used to perform calculations."
+    description = "This is a tool that evaluates Python code. It can be used to perform calculations."
     inputs = {
         "code": {
             "type": "string",
-            "description": "The python code to run in interpreter",
+            "description": "The Python code to run in interpreter",
         }
     }
     output_type = "string"
@@ -57,7 +57,7 @@ class PythonInterpreterTool(Tool):
                 "type": "string",
                 "description": (
                     "The code snippet to evaluate. All variables used in this snippet must be defined in this same snippet, "
-                    f"else you will get an error. This code can only import the following python libraries: {self.authorized_imports}."
+                    f"else you will get an error. This code can only import the following Python libraries: {self.authorized_imports}."
                 ),
             }
         }
