@@ -42,7 +42,7 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
-__all__ = ["BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor", "WasmExecutor"]
+__all__ = ["BlaxelExecutor", "DaytonaExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor", "WasmExecutor"]
 
 
 try:
@@ -333,6 +333,141 @@ locals().update(vars_dict)
             return pickle.loads(base64.b64decode(encoded_value[7:]))
         else:
             raise SerializationError("Unknown final answer format: expected 'safe:' or 'pickle:' prefix")
+
+
+class DaytonaExecutor(RemotePythonExecutor):
+    """
+    Remote Python code executor in a Daytona sandbox.
+
+    Args:
+        additional_imports (`list[str]`): Additional Python packages to install.
+        logger (`Logger`): Logger to use for output and errors.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
+        **kwargs: Additional keyword arguments passed to `Daytona().create()`.
+    """
+
+    def __init__(
+        self,
+        additional_imports: list[str],
+        logger,
+        allow_pickle: bool = False,
+        **kwargs,
+    ):
+        """Initialize the Daytona executor.
+
+        Creates a Daytona sandbox and an isolated interpreter context for stateful
+        Python code execution across multiple steps.
+
+        Args:
+            additional_imports (`list[str]`): Additional Python packages to install in the sandbox.
+            logger (`Logger`): Logger to use for output and errors.
+            allow_pickle (`bool`, default `False`): Whether to allow pickle serialization.
+            **kwargs: Additional keyword arguments passed to `Daytona().create()` (e.g., `params`, `timeout`).
+        """
+        super().__init__(additional_imports, logger, allow_pickle)
+        try:
+            from daytona import Daytona
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                """Please install 'daytona' extra to use DaytonaExecutor: `pip install 'smolagents[daytona]'`"""
+            )
+        self._daytona = Daytona()
+        self.sandbox = self._daytona.create(**kwargs)
+        self.context = self.sandbox.code_interpreter.create_context()
+        self.installed_packages = self.install_packages(additional_imports)
+        self.logger.log("Daytona sandbox is running", level=LogLevel.INFO)
+
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code in the Daytona sandbox and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
+        result = self.sandbox.code_interpreter.run_code(code, context=self.context)
+
+        logs = result.stdout
+        if result.stderr:
+            logs = f"{logs}\n{result.stderr}".strip()
+
+        if result.error:
+            if result.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
+                final_answer = self._deserialize_final_answer(result.error.value, self.allow_pickle)
+                return CodeOutput(output=final_answer, logs=logs, is_final_answer=True)
+
+            error_message = (
+                f"{logs}\n"
+                f"Executing code yielded an error:\n"
+                f"{result.error.name}\n"
+                f"{result.error.value}\n"
+                f"{result.error.traceback}"
+            )
+            raise AgentError(error_message, self.logger)
+
+        return CodeOutput(output=result.stdout.strip() or None, logs=logs, is_final_answer=False)
+
+    def install_packages(self, additional_imports: list[str]):
+        """Install Python packages in the Daytona sandbox using pip via subprocess.
+
+        Overrides the base class implementation because Daytona's code interpreter
+        runs plain Python (not IPython/Jupyter), so the `!pip install` shell syntax
+        is not supported.
+
+        Args:
+            additional_imports (`list[str]`): Package names to install.
+
+        Returns:
+            `list[str]`: The list of installed packages.
+        """
+        if additional_imports:
+            install_code = f"""
+import subprocess as _subprocess
+_result = _subprocess.run(
+    ["pip", "install", {", ".join(repr(p) for p in additional_imports)}],
+    capture_output=True,
+    text=True,
+)
+print(_result.stdout)
+if _result.returncode != 0:
+    raise RuntimeError(_result.stderr)
+"""
+            code_output = self.run_code_raise_errors(install_code)
+            self.logger.log(code_output.logs)
+        return additional_imports
+
+    def _patch_final_answer_with_exception(self, final_answer_tool):
+        """Patch FinalAnswerTool for Daytona's code interpreter.
+
+        Daytona's code interpreter only catches Exception subclasses, not BaseException.
+        This override calls the parent implementation and then replaces BaseException
+        with Exception in the source code that gets sent to the remote environment.
+        """
+        super()._patch_final_answer_with_exception(final_answer_tool)
+        forward = final_answer_tool.__class__.forward
+        if hasattr(forward, "__source__"):
+            forward.__source__ = forward.__source__.replace(
+                "class FinalAnswerException(BaseException):",
+                "class FinalAnswerException(Exception):",
+            )
+
+    def cleanup(self):
+        """Clean up the Daytona sandbox and resources."""
+        try:
+            if hasattr(self, "sandbox"):
+                self.logger.log("Shutting down Daytona sandbox...", level=LogLevel.INFO)
+                self.sandbox.delete()
+                self.logger.log("Daytona sandbox cleanup completed", level=LogLevel.INFO)
+                del self.sandbox
+        except Exception as e:
+            self.logger.log_error(f"Error during Daytona cleanup: {e}")
 
 
 class E2BExecutor(RemotePythonExecutor):
