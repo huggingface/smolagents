@@ -361,6 +361,8 @@ class WebSearchTool(Tool):
             return self.search_duckduckgo(query)
         elif self.engine == "bing":
             return self.search_bing(query)
+        elif self.engine == "exa":
+            return self.search_exa(query)
         else:
             raise ValueError(f"Unsupported engine: {self.engine}")
 
@@ -449,6 +451,41 @@ class WebSearchTool(Tool):
             for item in items[: self.max_results]
         ]
         return results
+
+    def search_exa(self, query: str) -> list:
+        """Search using the Exa API. Requires an EXA_API_KEY environment variable."""
+        import os
+
+        import requests
+
+        api_key = os.getenv("EXA_API_KEY")
+        if not api_key:
+            raise ValueError("Missing API key. Make sure you have 'EXA_API_KEY' in your env variables.")
+
+        response = requests.post(
+            "https://api.exa.ai/search",
+            headers={
+                "x-api-key": api_key,
+                "Content-Type": "application/json",
+                "x-exa-integration": "smolagents",
+            },
+            json={
+                "query": query,
+                "numResults": self.max_results,
+                "contents": {"highlights": True},
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return [
+            {
+                "title": result.get("title", ""),
+                "link": result["url"],
+                "description": " ".join(result.get("highlights") or []),
+            }
+            for result in data.get("results", [])
+        ]
 
 
 class VisitWebpageTool(Tool):
