@@ -207,7 +207,7 @@ class GoogleSearchTool(Tool):
         if filter_year is not None:
             params["tbs"] = f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
 
-        response = requests.get(base_url, params=params)
+        response = requests.get(base_url, params=params, timeout=30)
 
         if response.status_code == 200:
             results = response.json()
@@ -376,6 +376,7 @@ class WebSearchTool(Tool):
             "https://lite.duckduckgo.com/lite/",
             params={"q": query},
             headers={"User-Agent": "Mozilla/5.0"},
+            timeout=30,
         )
         response.raise_for_status()
         parser = self._create_duckduckgo_parser()
@@ -429,13 +430,19 @@ class WebSearchTool(Tool):
         return SimpleResultParser()
 
     def search_bing(self, query: str) -> list:
-        import xml.etree.ElementTree as ET
+        try:
+            from defusedxml import ElementTree as ET
+        except ImportError:
+            raise ImportError(
+                "defusedxml is required for Bing search. Install it with: pip install defusedxml"
+            )
 
         import requests
 
         response = requests.get(
             "https://www.bing.com/search",
             params={"q": query, "format": "rss"},
+            timeout=30,
         )
         response.raise_for_status()
         root = ET.fromstring(response.text)
