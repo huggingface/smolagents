@@ -167,6 +167,30 @@ with MCPClient([server_params1, server_params2]) as tools:
     agent.run("Please analyze the latest research and suggest remedies for headaches.")
 ```
 
+#### Example: financial research with Chart Library MCP
+
+You can also connect smolagents to domain-specific MCP servers. For example,
+Chart Library exposes an MCP server over SSE for historical chart pattern
+search and market regime analysis.
+
+A minimal example looks like this:
+
+```python
+from smolagents import CodeAgent, InferenceClientModel
+from smolagents.mcp_client import MCPClient
+
+server_params = {"url": "https://chartlibrary.io/mcp/sse"}
+
+with MCPClient(server_params) as tools:
+    agent = CodeAgent(tools=tools, model=InferenceClientModel())
+    agent.run(
+        "Find historical chart patterns similar to NVDA today "
+        "and summarize the forward 5-day return distribution."
+    )
+
+This can be useful for finance-oriented agents that need historical pattern
+matching and forward return analysis through a specialized MCP server.
+
 > [!WARNING]
 > **Security Warning:** Always verify the source and integrity of any MCP server before connecting to it, especially for production environments.
 > Using MCP servers comes with security risks:
