@@ -606,6 +606,136 @@ class WikipediaSearchTool(Tool):
             return f"Error fetching Wikipedia summary: {str(e)}"
 
 
+class ArxivSearchTool(Tool):
+    """
+    Search arXiv and return the most relevant papers for a query as formatted text.
+
+    Example:
+        ```python
+        >>> from smolagents import ArxivSearchTool
+        >>> tool = ArxivSearchTool(max_results=3)
+        >>> print(tool("vision transformers"))
+        ```
+    """
+
+    name = "arxiv_search"
+    description = "Searches arXiv and returns matching papers with titles, authors, publication dates, summaries, and links."
+    inputs = {
+        "query": {
+            "type": "string",
+            "description": "The search query to run on arXiv.",
+        },
+        "max_results": {
+            "type": "integer",
+            "description": "Optional maximum number of papers to return.",
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def __init__(self, max_results: int = 5, timeout: int = 20):
+        super().__init__()
+        self.max_results = max_results
+        self.timeout = timeout
+        self.api_url = "http://export.arxiv.org/api/query"
+        self.user_agent = "smolagents/1.0 (+https://github.com/huggingface/smolagents)"
+
+    def forward(self, query: str, max_results: int | None = None) -> str:
+        try:
+            import requests
+            from requests.exceptions import RequestException
+        except ImportError as e:
+            raise ImportError(
+                "You must install package `requests` to run this tool: for instance run `pip install requests`."
+            ) from e
+
+        requested_results = max_results if max_results is not None else self.max_results
+        if requested_results < 1:
+            raise ValueError("`max_results` must be greater than or equal to 1.")
+
+        params = {
+            "search_query": f"all:{query}",
+            "start": 0,
+            "max_results": requested_results,
+            "sortBy": "relevance",
+            "sortOrder": "descending",
+        }
+
+        try:
+            response = requests.get(
+                self.api_url,
+                params=params,
+                headers={"User-Agent": self.user_agent},
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            papers = self._parse_feed(response.text)
+        except RequestException as e:
+            return f"Error fetching arXiv results: {str(e)}"
+        except Exception as e:
+            return f"Error parsing arXiv results: {str(e)}"
+
+        if not papers:
+            return f"No arXiv papers found for '{query}'. Try a different query."
+
+        return "## arXiv Results\n\n" + "\n\n".join(
+            [self._format_paper(index, paper) for index, paper in enumerate(papers, start=1)]
+        )
+
+    def _parse_feed(self, feed_xml: str) -> list[dict[str, str]]:
+        import xml.etree.ElementTree as ET
+
+        namespaces = {"atom": "http://www.w3.org/2005/Atom"}
+        root = ET.fromstring(feed_xml)
+
+        papers = []
+        for entry in root.findall("atom:entry", namespaces):
+            summary = self._normalize_whitespace(entry.findtext("atom:summary", default="", namespaces=namespaces))
+            article_url = self._extract_article_url(entry, namespaces)
+            if "/api/errors#" in article_url:
+                raise ValueError(summary or "arXiv API returned an error entry.")
+
+            authors = [
+                self._normalize_whitespace(author.text or "")
+                for author in entry.findall("atom:author/atom:name", namespaces)
+                if author.text
+            ]
+            papers.append(
+                {
+                    "title": self._normalize_whitespace(entry.findtext("atom:title", default="", namespaces=namespaces)),
+                    "authors": ", ".join(authors) if authors else "Unknown authors",
+                    "published": self._format_published_date(
+                        entry.findtext("atom:published", default="", namespaces=namespaces)
+                    ),
+                    "summary": summary,
+                    "url": article_url,
+                }
+            )
+
+        return papers
+
+    def _extract_article_url(self, entry, namespaces: dict[str, str]) -> str:
+        for link in entry.findall("atom:link", namespaces):
+            if link.attrib.get("rel") == "alternate":
+                return link.attrib.get("href", "")
+        return entry.findtext("atom:id", default="", namespaces=namespaces)
+
+    def _format_published_date(self, published: str) -> str:
+        return published[:10] if published else "Unknown publication date"
+
+    def _normalize_whitespace(self, text: str) -> str:
+        return " ".join(text.split())
+
+    def _format_paper(self, index: int, paper: dict[str, str]) -> str:
+        return (
+            f"Paper {index}: {paper['title']}\n"
+            f"Authors: {paper['authors']}\n"
+            f"Published: {paper['published']}\n"
+            f"Summary: {paper['summary']}\n"
+            f"URL: {paper['url']}"
+        )
+
+
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
@@ -649,6 +779,7 @@ TOOL_MAPPING = {
 
 __all__ = [
     "ApiWebSearchTool",
+    "ArxivSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
