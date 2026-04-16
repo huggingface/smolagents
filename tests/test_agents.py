@@ -1448,6 +1448,28 @@ class TestMultiStepAgent:
             agent.run("Test task")
         assert "Agent interrupted" in str(e)
 
+    def test_interrupt_with_reason(self):
+        fake_model = MagicMock()
+        fake_model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="Model output.",
+            tool_calls=None,
+            raw="Model output.",
+            token_usage=None,
+        )
+
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt(reason="user cancelled")
+
+        agent = CodeAgent(
+            tools=[],
+            model=fake_model,
+            step_callbacks=[interrupt_callback],
+        )
+        with pytest.raises(AgentError) as e:
+            agent.run("Test task")
+        assert "Agent interrupted: user cancelled" in str(e)
+
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
         [
