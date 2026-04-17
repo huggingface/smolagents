@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
 from importlib.util import find_spec
-from types import BuiltinFunctionType, FunctionType, ModuleType
+from types import BuiltinFunctionType, FunctionType, MethodType, ModuleType
 from typing import Any
 
 from .tools import Tool
@@ -326,22 +326,51 @@ def timeout(timeout_seconds: int):
     return decorator
 
 
-def snapshot_execution_context(value: Any) -> Any:
-    """Deep-copy mutable execution context while preserving runtime objects like modules."""
-    if isinstance(value, (ModuleType, FunctionType, BuiltinFunctionType, type)):
+def snapshot_execution_context(value: Any, memo: dict[int, Any] | None = None) -> Any:
+    """Deep-copy execution context while preserving aliasing, cycles, and runtime objects like modules."""
+    if memo is None:
+        memo = {}
+
+    obj_id = id(value)
+    if obj_id in memo:
+        return memo[obj_id]
+
+    if isinstance(value, (ModuleType, FunctionType, BuiltinFunctionType, MethodType, type)):
+        memo[obj_id] = value
         return value
+
     if isinstance(value, dict):
-        return {key: snapshot_execution_context(val) for key, val in value.items()}
+        copied_dict = {}
+        memo[obj_id] = copied_dict
+        for key, val in value.items():
+            copied_dict[snapshot_execution_context(key, memo)] = snapshot_execution_context(val, memo)
+        return copied_dict
+
     if isinstance(value, list):
-        return [snapshot_execution_context(item) for item in value]
-    if isinstance(value, tuple):
-        return tuple(snapshot_execution_context(item) for item in value)
+        copied_list = []
+        memo[obj_id] = copied_list
+        copied_list.extend(snapshot_execution_context(item, memo) for item in value)
+        return copied_list
+
     if isinstance(value, set):
-        return {snapshot_execution_context(item) for item in value}
+        copied_set = set()
+        memo[obj_id] = copied_set
+        for item in value:
+            copied_set.add(snapshot_execution_context(item, memo))
+        return copied_set
+
+    if isinstance(value, frozenset):
+        copied_frozenset = frozenset(snapshot_execution_context(item, memo) for item in value)
+        memo[obj_id] = copied_frozenset
+        return copied_frozenset
+
     try:
-        return copy.deepcopy(value)
+        copied_value = copy.deepcopy(value, memo)
     except Exception:
-        return value
+        copied_value = value
+
+    memo[obj_id] = copied_value
+    return copied_value
 
 
 def get_iterable(obj):

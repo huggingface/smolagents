@@ -2504,6 +2504,41 @@ result = time.time() >= 0
         assert second_output.output is True
         assert "time" in executor.state
 
+    def test_evaluate_python_code_preserves_aliasing_in_reused_state(self):
+        """State snapshots should preserve shared references across variable aliases."""
+        shared_list = []
+        shared_state = {"a": shared_list, "b": shared_list}
+
+        result, _ = evaluate_python_code(
+            """
+a.append("value")
+result = (a is b, b)
+""",
+            state=shared_state,
+        )
+
+        assert result == (True, ["value"])
+        assert shared_state["a"] is shared_state["b"]
+        assert shared_state["b"] == ["value"]
+
+    def test_evaluate_python_code_preserves_cycles_in_reused_state(self):
+        """Cyclic state values should remain reusable instead of crashing during snapshotting."""
+        cyclic = {}
+        cyclic["self"] = cyclic
+        shared_state = {"payload": cyclic}
+
+        result, _ = evaluate_python_code(
+            """
+payload["value"] = 1
+result = payload is payload["self"]
+""",
+            state=shared_state,
+        )
+
+        assert result is True
+        assert shared_state["payload"] is shared_state["payload"]["self"]
+        assert shared_state["payload"]["value"] == 1
+
     def test_local_executor_disabled_timeout(self):
         """Test that LocalPythonExecutor can disable timeout."""
         executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=None)
