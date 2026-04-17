@@ -21,6 +21,7 @@ import difflib
 import inspect
 import logging
 import math
+import queue as queue_module
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
@@ -339,6 +340,15 @@ def snapshot_execution_context(value: Any, memo: dict[int, Any] | None = None) -
         memo[obj_id] = value
         return value
 
+    if isinstance(value, queue_module.Queue):
+        copied_queue = type(value)(maxsize=value.maxsize)
+        memo[obj_id] = copied_queue
+        with value.mutex:
+            items = list(value.queue)
+        for item in items:
+            copied_queue.put_nowait(snapshot_execution_context(item, memo))
+        return copied_queue
+
     if isinstance(value, dict):
         copied_dict = {}
         memo[obj_id] = copied_dict
@@ -367,7 +377,12 @@ def snapshot_execution_context(value: Any, memo: dict[int, Any] | None = None) -
     try:
         copied_value = copy.deepcopy(value, memo)
     except Exception:
-        copied_value = value
+        try:
+            copied_value = copy.copy(value)
+        except Exception as copy_error:
+            raise TypeError(
+                f"Cannot safely snapshot execution context value of type {type(value).__name__}"
+            ) from copy_error
 
     memo[obj_id] = copied_value
     return copied_value
@@ -1673,14 +1688,18 @@ def evaluate_python_code(
             f"{' ' * (e.offset or 0)}^"
         )
 
-    original_state = state
+    isolate_execution_context = timeout_seconds is not None
+    original_state = state if isolate_execution_context else None
     if state is None:
         state = {}
-    else:
+    elif isolate_execution_context:
         state = snapshot_execution_context(state)
     static_tools = static_tools.copy() if static_tools is not None else {}
-    original_custom_tools = custom_tools
-    custom_tools = snapshot_execution_context(custom_tools) if custom_tools is not None else {}
+    original_custom_tools = custom_tools if isolate_execution_context else None
+    if custom_tools is None:
+        custom_tools = {}
+    elif isolate_execution_context:
+        custom_tools = snapshot_execution_context(custom_tools)
     state["_print_outputs"] = PrintContainer()
     state["_operations_count"] = {"counter": 0}
 
@@ -1718,10 +1737,10 @@ def evaluate_python_code(
             )
 
     def commit_execution_context():
-        if original_state is not None:
+        if isolate_execution_context and original_state is not None:
             original_state.clear()
             original_state.update(state)
-        if original_custom_tools is not None:
+        if isolate_execution_context and original_custom_tools is not None:
             original_custom_tools.clear()
             original_custom_tools.update(custom_tools)
 

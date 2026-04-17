@@ -15,8 +15,10 @@
 
 import ast
 import os
+import queue
 import subprocess
 import sys
+import threading
 import time
 import types
 from contextlib import nullcontext as does_not_raise
@@ -2538,6 +2540,82 @@ result = payload is payload["self"]
         assert result is True
         assert shared_state["payload"] is shared_state["payload"]["self"]
         assert shared_state["payload"]["value"] == 1
+
+    def test_evaluate_python_code_does_not_share_queue_objects_after_timeout(self):
+        """Non-deepcopyable but copyable state objects should stay isolated from timed-out workers."""
+        shared_state = {"q": queue.Queue()}
+
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            evaluate_python_code(
+                """
+import time
+time.sleep(2)
+q.put("late")
+result = q.qsize()
+""",
+                state=shared_state,
+                authorized_imports=["time"],
+                timeout_seconds=1,
+            )
+
+        immediate_result, _ = evaluate_python_code(
+            """
+result = q.qsize()
+""",
+            state=shared_state,
+            timeout_seconds=None,
+        )
+        assert immediate_result == 0
+
+        time.sleep(1.5)
+
+        later_result, _ = evaluate_python_code(
+            """
+result = q.qsize()
+""",
+            state=shared_state,
+            timeout_seconds=None,
+        )
+        assert later_result == 0
+
+    def test_local_executor_timeout_does_not_share_queue_objects(self):
+        """Executor state should not be mutated later when timeout snapshots include queue.Queue objects."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+        executor.state["q"] = queue.Queue()
+
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(
+                """
+import time
+time.sleep(2)
+q.put("late")
+result = q.qsize()
+"""
+            )
+
+        output = executor(
+            """
+result = q.qsize()
+"""
+        )
+        assert output.output == 0
+
+        time.sleep(1.5)
+        assert executor.state["q"].qsize() == 0
+
+    def test_evaluate_python_code_timeout_rejects_uncopyable_state_objects(self):
+        """Timed executions should fail fast instead of sharing state objects they cannot safely snapshot."""
+        shared_state = {"lock": threading.Lock()}
+
+        with pytest.raises(TypeError, match="Cannot safely snapshot execution context value of type lock"):
+            evaluate_python_code(
+                """
+result = 1
+""",
+                state=shared_state,
+                timeout_seconds=1,
+            )
 
     def test_local_executor_disabled_timeout(self):
         """Test that LocalPythonExecutor can disable timeout."""
