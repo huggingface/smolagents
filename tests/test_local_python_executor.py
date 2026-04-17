@@ -2403,6 +2403,60 @@ result = x
         assert executor.state["x"] == "new"
         assert str(executor.state["_print_outputs"]) == "fresh\n"
 
+    def test_evaluate_python_code_timeout_does_not_mutate_nested_reused_state(self):
+        """Timed-out executions should not mutate nested reused state values after returning."""
+        shared_state = {"items": []}
+
+        timeout_code = """
+import time
+time.sleep(2)
+items.append("late")
+result = items
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            evaluate_python_code(timeout_code, state=shared_state, authorized_imports=["time"], timeout_seconds=1)
+
+        result, _ = evaluate_python_code(
+            """
+items.append("new")
+result = items
+""",
+            state=shared_state,
+            timeout_seconds=None,
+        )
+        assert result == ["new"]
+        assert shared_state["items"] == ["new"]
+
+        time.sleep(1.5)
+        assert shared_state["items"] == ["new"]
+
+    def test_local_executor_timeout_does_not_mutate_nested_later_state(self):
+        """Timed-out executor runs should not mutate nested state values after a later call."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+        executor.state["items"] = []
+
+        timeout_code = """
+import time
+time.sleep(2)
+items.append("late")
+result = items
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(timeout_code)
+
+        output = executor(
+            """
+items.append("new")
+result = items
+"""
+        )
+        assert output.output == ["new"]
+        assert executor.state["items"] == ["new"]
+
+        time.sleep(1.5)
+        assert executor.state["items"] == ["new"]
+
     def test_local_executor_disabled_timeout(self):
         """Test that LocalPythonExecutor can disable timeout."""
         executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=None)

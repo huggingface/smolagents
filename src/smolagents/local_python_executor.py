@@ -16,6 +16,7 @@
 # limitations under the License.
 import ast
 import builtins
+import copy
 import difflib
 import inspect
 import logging
@@ -1629,10 +1630,10 @@ def evaluate_python_code(
     if state is None:
         state = {}
     else:
-        state = state.copy()
+        state = copy.deepcopy(state)
     static_tools = static_tools.copy() if static_tools is not None else {}
     original_custom_tools = custom_tools
-    custom_tools = custom_tools.copy() if custom_tools is not None else {}
+    custom_tools = copy.deepcopy(custom_tools) if custom_tools is not None else {}
     state["_print_outputs"] = PrintContainer()
     state["_operations_count"] = {"counter": 0}
 
