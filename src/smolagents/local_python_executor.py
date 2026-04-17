@@ -16,10 +16,12 @@
 # limitations under the License.
 import ast
 import builtins
+import copy
 import difflib
 import inspect
 import logging
 import math
+import queue as queue_module
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
@@ -29,7 +31,7 @@ from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
 from importlib.util import find_spec
-from types import BuiltinFunctionType, FunctionType, ModuleType
+from types import BuiltinFunctionType, FunctionType, MethodType, ModuleType
 from typing import Any
 
 from .tools import Tool
@@ -297,27 +299,105 @@ def timeout(timeout_seconds: int):
 
     Note:
         If a timeout occurs, the thread running the function cannot be forcefully killed
-        in Python, so it will continue running in the background until completion. However,
-        the caller will receive a TimeoutError and can continue execution.
+        in Python, so it may continue running in the background until completion. However,
+        the caller regains control as soon as the timeout is reached and can continue execution.
     """
 
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
-                try:
-                    result = future.result(timeout=timeout_seconds)
-                    return result
-                except FuturesTimeoutError:
-                    raise ExecutionTimeoutError(
-                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
-                    )
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(func, *args, **kwargs)
+            timed_out = False
+            try:
+                result = future.result(timeout=timeout_seconds)
+                return result
+            except FuturesTimeoutError:
+                timed_out = True
+                future.cancel()
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
+            finally:
+                executor.shutdown(wait=not timed_out, cancel_futures=timed_out)
 
         return wrapper
 
     return decorator
+
+
+def snapshot_execution_context(value: Any, memo: dict[int, Any] | None = None) -> Any:
+    """Deep-copy execution context while preserving aliasing, cycles, and runtime objects like modules."""
+    if memo is None:
+        memo = {}
+
+    obj_id = id(value)
+    if obj_id in memo:
+        return memo[obj_id]
+
+    if isinstance(value, (ModuleType, FunctionType, BuiltinFunctionType, MethodType, type)):
+        memo[obj_id] = value
+        return value
+
+    if isinstance(value, queue_module.Queue):
+        copied_queue = type(value)(maxsize=value.maxsize)
+        memo[obj_id] = copied_queue
+        with value.mutex:
+            items = list(value.queue)
+        for item in items:
+            copied_queue.put_nowait(snapshot_execution_context(item, memo))
+        return copied_queue
+
+    if type(value) is dict:
+        copied_dict = {}
+        memo[obj_id] = copied_dict
+        for key, val in value.items():
+            copied_dict[snapshot_execution_context(key, memo)] = snapshot_execution_context(val, memo)
+        return copied_dict
+
+    if isinstance(value, dict):
+        try:
+            copied_mapping = value.copy()
+            copied_mapping.clear()
+        except Exception:
+            copied_mapping = copy.copy(value)
+            copied_mapping.clear()
+        memo[obj_id] = copied_mapping
+        for key, val in value.items():
+            copied_mapping[snapshot_execution_context(key, memo)] = snapshot_execution_context(val, memo)
+        return copied_mapping
+
+    if isinstance(value, list):
+        copied_list = []
+        memo[obj_id] = copied_list
+        copied_list.extend(snapshot_execution_context(item, memo) for item in value)
+        return copied_list
+
+    if isinstance(value, set):
+        copied_set = set()
+        memo[obj_id] = copied_set
+        for item in value:
+            copied_set.add(snapshot_execution_context(item, memo))
+        return copied_set
+
+    if isinstance(value, frozenset):
+        copied_frozenset = frozenset(snapshot_execution_context(item, memo) for item in value)
+        memo[obj_id] = copied_frozenset
+        return copied_frozenset
+
+    try:
+        copied_value = copy.deepcopy(value, memo)
+    except Exception:
+        try:
+            copied_value = copy.copy(value)
+        except Exception as copy_error:
+            raise TypeError(
+                f"Cannot safely snapshot execution context value of type {type(value).__name__}"
+            ) from copy_error
+
+    memo[obj_id] = copied_value
+    return copied_value
 
 
 def get_iterable(obj):
@@ -1620,10 +1700,18 @@ def evaluate_python_code(
             f"{' ' * (e.offset or 0)}^"
         )
 
+    isolate_execution_context = timeout_seconds is not None
+    original_state = state if isolate_execution_context else None
     if state is None:
         state = {}
+    elif isolate_execution_context:
+        state = snapshot_execution_context(state)
     static_tools = static_tools.copy() if static_tools is not None else {}
-    custom_tools = custom_tools if custom_tools is not None else {}
+    original_custom_tools = custom_tools if isolate_execution_context else None
+    if custom_tools is None:
+        custom_tools = {}
+    elif isolate_execution_context:
+        custom_tools = snapshot_execution_context(custom_tools)
     state["_print_outputs"] = PrintContainer()
     state["_operations_count"] = {"counter": 0}
 
@@ -1660,11 +1748,28 @@ def evaluate_python_code(
                 f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
             )
 
+    def commit_execution_context():
+        if isolate_execution_context and original_state is not None:
+            original_state.clear()
+            original_state.update(state)
+        if isolate_execution_context and original_custom_tools is not None:
+            original_custom_tools.clear()
+            original_custom_tools.update(custom_tools)
+
     # Apply timeout if specified
     if timeout_seconds is not None:
         _execute_code = timeout(timeout_seconds)(_execute_code)
 
-    return _execute_code()
+    try:
+        result = _execute_code()
+    except ExecutionTimeoutError:
+        raise
+    except Exception:
+        commit_execution_context()
+        raise
+
+    commit_execution_context()
+    return result
 
 
 @dataclass

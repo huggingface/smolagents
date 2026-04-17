@@ -14,9 +14,16 @@
 # limitations under the License.
 
 import ast
+import collections
+import os
+import queue
+import subprocess
+import sys
+import threading
 import time
 import types
 from contextlib import nullcontext as does_not_raise
+from pathlib import Path
 from textwrap import dedent
 from unittest.mock import patch
 
@@ -2215,6 +2222,32 @@ result = "should not complete"
         with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
             evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=2)
 
+    def test_evaluate_python_code_returns_promptly_after_timeout(self):
+        """Test timeout behavior in a fresh interpreter to avoid test-order interference from background threads."""
+        repo_root = Path(__file__).resolve().parents[1]
+        script = """
+import time
+from smolagents.local_python_executor import evaluate_python_code, ExecutionTimeoutError
+
+code = "import time\\ntime.sleep(3)\\nresult = 42\\n"
+start = time.monotonic()
+try:
+    evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=1)
+except ExecutionTimeoutError:
+    print(time.monotonic() - start)
+"""
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            check=True,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONPATH": str(repo_root / "src")},
+            cwd=repo_root,
+        )
+        elapsed = float(completed.stdout.strip())
+
+        assert elapsed < 2.5
+
     def test_timeout_works_in_thread(self):
         """Test that timeout mechanism works when called from a non-main thread.
 
@@ -2298,6 +2331,330 @@ time.sleep(2)
 """
         with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
             executor(code)
+
+    def test_local_executor_returns_promptly_after_timeout(self):
+        """Test that LocalPythonExecutor returns near the timeout deadline."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+
+        code = """
+import time
+time.sleep(3)
+"""
+
+        start = time.monotonic()
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(code)
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 2.5
+
+    def test_evaluate_python_code_timeout_does_not_overwrite_reused_state(self):
+        """Timed-out executions should not mutate a reused state dict after control returns."""
+        shared_state = {}
+
+        timeout_code = """
+import time
+time.sleep(2)
+x = "late"
+result = x
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            evaluate_python_code(timeout_code, state=shared_state, authorized_imports=["time"], timeout_seconds=1)
+
+        result, _ = evaluate_python_code(
+            """
+x = "new"
+result = x
+""",
+            state=shared_state,
+            timeout_seconds=None,
+        )
+        assert result == "new"
+        assert shared_state["x"] == "new"
+
+        time.sleep(1.5)
+        assert shared_state["x"] == "new"
+
+    def test_local_executor_timeout_does_not_overwrite_later_state(self):
+        """A timed-out execution should not mutate executor state after a later call succeeds."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+
+        timeout_code = """
+import time
+time.sleep(2)
+x = "late"
+result = x
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(timeout_code)
+
+        output = executor(
+            """
+print("fresh")
+x = "new"
+result = x
+"""
+        )
+        assert output.output == "new"
+        assert output.logs == "fresh\n"
+        assert executor.state["x"] == "new"
+        assert str(executor.state["_print_outputs"]) == "fresh\n"
+
+        time.sleep(1.5)
+        assert executor.state["x"] == "new"
+        assert str(executor.state["_print_outputs"]) == "fresh\n"
+
+    def test_evaluate_python_code_timeout_does_not_mutate_nested_reused_state(self):
+        """Timed-out executions should not mutate nested reused state values after returning."""
+        shared_state = {"items": []}
+
+        timeout_code = """
+import time
+time.sleep(2)
+items.append("late")
+result = items
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            evaluate_python_code(timeout_code, state=shared_state, authorized_imports=["time"], timeout_seconds=1)
+
+        result, _ = evaluate_python_code(
+            """
+items.append("new")
+result = items
+""",
+            state=shared_state,
+            timeout_seconds=None,
+        )
+        assert result == ["new"]
+        assert shared_state["items"] == ["new"]
+
+        time.sleep(1.5)
+        assert shared_state["items"] == ["new"]
+
+    def test_local_executor_timeout_does_not_mutate_nested_later_state(self):
+        """Timed-out executor runs should not mutate nested state values after a later call."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+        executor.state["items"] = []
+
+        timeout_code = """
+import time
+time.sleep(2)
+items.append("late")
+result = items
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(timeout_code)
+
+        output = executor(
+            """
+items.append("new")
+result = items
+"""
+        )
+        assert output.output == ["new"]
+        assert executor.state["items"] == ["new"]
+
+        time.sleep(1.5)
+        assert executor.state["items"] == ["new"]
+
+    def test_evaluate_python_code_reuses_imported_modules_after_timeout_fix(self):
+        """Reused state should keep imported modules available across calls."""
+        shared_state = {}
+
+        first_result, _ = evaluate_python_code(
+            """
+import time
+result = time.time() >= 0
+""",
+            state=shared_state,
+            authorized_imports=["time"],
+        )
+        assert first_result is True
+        assert "time" in shared_state
+
+        second_result, _ = evaluate_python_code(
+            """
+result = time.time() >= 0
+""",
+            state=shared_state,
+            authorized_imports=["time"],
+        )
+        assert second_result is True
+        assert "time" in shared_state
+
+    def test_local_executor_reuses_imported_modules_after_timeout_fix(self):
+        """Executor state with imported modules should stay reusable across calls."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+
+        first_output = executor(
+            """
+import time
+result = time.time() >= 0
+"""
+        )
+        assert first_output.output is True
+        assert "time" in executor.state
+
+        second_output = executor(
+            """
+result = time.time() >= 0
+"""
+        )
+        assert second_output.output is True
+        assert "time" in executor.state
+
+    def test_evaluate_python_code_preserves_aliasing_in_reused_state(self):
+        """State snapshots should preserve shared references across variable aliases."""
+        shared_list = []
+        shared_state = {"a": shared_list, "b": shared_list}
+
+        result, _ = evaluate_python_code(
+            """
+a.append("value")
+result = (a is b, b)
+""",
+            state=shared_state,
+        )
+
+        assert result == (True, ["value"])
+        assert shared_state["a"] is shared_state["b"]
+        assert shared_state["b"] == ["value"]
+
+    def test_evaluate_python_code_preserves_cycles_in_reused_state(self):
+        """Cyclic state values should remain reusable instead of crashing during snapshotting."""
+        cyclic = {}
+        cyclic["self"] = cyclic
+        shared_state = {"payload": cyclic}
+
+        result, _ = evaluate_python_code(
+            """
+payload["value"] = 1
+result = payload is payload["self"]
+""",
+            state=shared_state,
+        )
+
+        assert result is True
+        assert shared_state["payload"] is shared_state["payload"]["self"]
+        assert shared_state["payload"]["value"] == 1
+
+    def test_evaluate_python_code_does_not_share_queue_objects_after_timeout(self):
+        """Non-deepcopyable but copyable state objects should stay isolated from timed-out workers."""
+        shared_state = {"q": queue.Queue()}
+
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            evaluate_python_code(
+                """
+import time
+time.sleep(2)
+q.put("late")
+result = q.qsize()
+""",
+                state=shared_state,
+                authorized_imports=["time"],
+                timeout_seconds=1,
+            )
+
+        immediate_result, _ = evaluate_python_code(
+            """
+result = q.qsize()
+""",
+            state=shared_state,
+            timeout_seconds=None,
+        )
+        assert immediate_result == 0
+
+        time.sleep(1.5)
+
+        later_result, _ = evaluate_python_code(
+            """
+result = q.qsize()
+""",
+            state=shared_state,
+            timeout_seconds=None,
+        )
+        assert later_result == 0
+
+    def test_evaluate_python_code_preserves_defaultdict_subclasses_in_reused_state(self):
+        """Timed execution snapshots should preserve defaultdict behavior across later calls."""
+        shared_state = {"counts": collections.defaultdict(int)}
+
+        result, _ = evaluate_python_code(
+            """
+counts["alpha"] += 1
+result = counts["missing"]
+""",
+            state=shared_state,
+            timeout_seconds=1,
+        )
+
+        assert result == 0
+        assert isinstance(shared_state["counts"], collections.defaultdict)
+        assert shared_state["counts"].default_factory is int
+        assert shared_state["counts"]["alpha"] == 1
+        assert shared_state["counts"]["missing"] == 0
+
+    def test_local_executor_timeout_does_not_share_queue_objects(self):
+        """Executor state should not be mutated later when timeout snapshots include queue.Queue objects."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+        executor.state["q"] = queue.Queue()
+
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(
+                """
+import time
+time.sleep(2)
+q.put("late")
+result = q.qsize()
+"""
+            )
+
+        output = executor(
+            """
+result = q.qsize()
+"""
+        )
+        assert output.output == 0
+
+        time.sleep(1.5)
+        assert executor.state["q"].qsize() == 0
+
+    def test_local_executor_preserves_defaultdict_state_across_timed_runs(self):
+        """Executor state snapshots should not downgrade defaultdict to a plain dict."""
+        executor = LocalPythonExecutor(additional_authorized_imports=[], timeout_seconds=1)
+        executor.send_tools({})
+        executor.state["counts"] = collections.defaultdict(int)
+
+        output = executor(
+            """
+counts["alpha"] += 1
+result = counts["beta"]
+"""
+        )
+
+        assert output.output == 0
+        assert isinstance(executor.state["counts"], collections.defaultdict)
+        assert executor.state["counts"].default_factory is int
+        assert executor.state["counts"]["alpha"] == 1
+        assert executor.state["counts"]["beta"] == 0
+
+    def test_evaluate_python_code_timeout_rejects_uncopyable_state_objects(self):
+        """Timed executions should fail fast instead of sharing state objects they cannot safely snapshot."""
+        shared_state = {"lock": threading.Lock()}
+
+        with pytest.raises(TypeError, match="Cannot safely snapshot execution context value of type lock"):
+            evaluate_python_code(
+                """
+result = 1
+""",
+                state=shared_state,
+                timeout_seconds=1,
+            )
 
     def test_local_executor_disabled_timeout(self):
         """Test that LocalPythonExecutor can disable timeout."""
