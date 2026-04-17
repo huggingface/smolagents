@@ -78,6 +78,35 @@ model = OpenAIModel(
 )
 ```
 
+## Using Doubleword
+
+[Doubleword](https://doubleword.ai) is an AI model gateway that provides unified routing across multiple inference providers, with batch pricing offering up to 90% savings. It exposes an OpenAI-compatible API, so you can use [`OpenAIModel`] to connect to it directly.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then, [get a Doubleword API key](https://docs.doubleword.ai) and set it as an environment variable:
+```bash
+export DOUBLEWORD_API_KEY=<YOUR-DOUBLEWORD-API-KEY>
+```
+
+Now, you can initialize any model available on Doubleword using the `OpenAIModel` class:
+```python
+import os
+from smolagents import OpenAIModel, CodeAgent
+
+model = OpenAIModel(
+    model_id="Qwen/Qwen3.5-397B-A17B-FP8",
+    api_base="https://api.doubleword.ai/v1",
+    api_key=os.environ["DOUBLEWORD_API_KEY"],
+)
+
+agent = CodeAgent(tools=[], model=model)
+agent.run("What is 2+2?")
+```
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
