@@ -16,6 +16,7 @@
 # limitations under the License.
 import ast
 import builtins
+import contextvars
 import difflib
 import inspect
 import logging
@@ -304,9 +305,15 @@ def timeout(timeout_seconds: int):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            # Capture the current context (including OpenTelemetry span context)
+            # so that it is propagated to the worker thread. Without this,
+            # tool spans created during CodeAgent execution lose their parent
+            # because ThreadPoolExecutor runs the function in a new thread
+            # where context-local state (e.g. the active OTel span) is absent.
+            ctx = contextvars.copy_context()
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
             with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
+                future = executor.submit(ctx.run, func, *args, **kwargs)
                 try:
                     result = future.result(timeout=timeout_seconds)
                     return result
