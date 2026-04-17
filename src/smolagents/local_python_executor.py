@@ -20,7 +20,9 @@ import difflib
 import inspect
 import logging
 import math
+import queue
 import re
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -459,6 +461,110 @@ def evaluate_while(
     return None
 
 
+class _GeneratorThread:
+    """Coordinates generator execution between a producer (body) thread and the consumer.
+
+    Uses two SimpleQueues:
+    - ``_q``: body  → consumer: ``('yield', value)``, ``('return', value)``, ``('error', exc)``
+    - ``_resume_q``: consumer → body: ``('next', sent_value)``, ``('close', None)``, ``('throw', exc)``
+
+    Protocol (per ``next()`` / ``send()`` call):
+    1. Consumer puts ``('next', value)`` to ``_resume_q``.
+    2. Body receives it, continues running until the next ``yield`` (calls :meth:`yield_value`) or
+       until it finishes / raises.
+    3. Body puts the outcome to ``_q`` then blocks again on ``_resume_q``.
+    4. Consumer gets the outcome from ``_q``, raises ``StopIteration`` / re-raises exceptions,
+       or returns the yielded value.
+    """
+
+    def __init__(self) -> None:
+        self._q: queue.SimpleQueue = queue.SimpleQueue()
+        self._resume_q: queue.SimpleQueue = queue.SimpleQueue()
+        self._finished = False
+
+    def yield_value(self, value: Any) -> Any:
+        """Called from the body thread at each ``yield`` expression.
+
+        Puts the yielded value into ``_q``, then blocks until the consumer resumes the generator.
+        Returns the value sent by the consumer (for ``x = yield expr`` patterns).
+        """
+        self._q.put(("yield", value))
+        kind, val = self._resume_q.get()
+        if kind == "close":
+            raise GeneratorExit()
+        if kind == "throw":
+            raise val
+        return val  # value passed via generator.send()
+
+    def complete(self, value: Any = None) -> None:
+        """Called from the body thread when the function body returns normally."""
+        self._q.put(("return", value))
+
+    def error(self, exc: BaseException) -> None:
+        """Called from the body thread when an unhandled exception escapes the body."""
+        self._q.put(("error", exc))
+
+    # --- consumer interface (implements the iterator protocol) ---
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> Any:
+        return self.send(None)
+
+    def send(self, value: Any) -> Any:
+        """Resume the generator, optionally sending a value into the last ``yield`` expression."""
+        if self._finished:
+            raise StopIteration()
+        self._resume_q.put(("next", value))
+        kind, val = self._q.get()
+        if kind == "yield":
+            return val
+        self._finished = True
+        if kind == "return":
+            raise StopIteration(val)
+        raise val  # kind == "error"
+
+    def throw(self, typ, val=None, tb=None) -> Any:
+        """Inject an exception at the point where the generator is paused."""
+        if self._finished:
+            raise StopIteration()
+        exc = typ if isinstance(typ, BaseException) else (typ() if val is None else typ(val))
+        self._resume_q.put(("throw", exc))
+        kind, v = self._q.get()
+        if kind == "yield":
+            return v
+        self._finished = True
+        if kind == "return":
+            raise StopIteration(v)
+        raise v  # kind == "error"
+
+    def close(self) -> None:
+        """Terminate the generator."""
+        if self._finished:
+            return
+        self._resume_q.put(("close", None))
+        self._finished = True
+
+
+def _has_yield(func_def: ast.FunctionDef) -> bool:
+    """Return True if *func_def* contains a ``yield`` or ``yield from`` at its own scope.
+
+    Intentionally does *not* descend into nested function or class definitions so that
+    a generator defined inside a regular function does not make the outer function appear
+    to be a generator.
+    """
+    worklist = list(ast.iter_child_nodes(func_def))
+    while worklist:
+        node = worklist.pop()
+        if isinstance(node, (ast.Yield, ast.YieldFrom)):
+            return True
+        # Don't descend into nested function/class scopes
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            worklist.extend(ast.iter_child_nodes(node))
+    return False
+
+
 def create_function(
     func_def: ast.FunctionDef,
     state: dict[str, Any],
@@ -467,8 +573,10 @@ def create_function(
     authorized_imports: list[str],
 ) -> Callable:
     source_code = ast.unparse(func_def)
+    is_generator = _has_yield(func_def)
 
-    def new_func(*args: Any, **kwargs: Any) -> Any:
+    def _setup_func_state(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        """Build the local state for a single function call."""
         func_state = state.copy()
         arg_names = [arg.arg for arg in func_def.args.args]
         default_values = [
@@ -506,17 +614,47 @@ def create_function(
                 func_state["self"] = args[0]
                 func_state["__class__"] = args[0].__class__
 
-        result = None
-        try:
-            for stmt in func_def.body:
-                result = evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
-        except ReturnException as e:
-            result = e.value
+        return func_state
 
-        if func_def.name == "__init__":
-            return None
+    if is_generator:
 
-        return result
+        def new_func(*args: Any, **kwargs: Any) -> _GeneratorThread:
+            gen = _GeneratorThread()
+            func_state = _setup_func_state(*args, **kwargs)
+            func_state["_generator_thread"] = gen
+
+            def run_body() -> None:
+                try:
+                    for stmt in func_def.body:
+                        evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
+                    gen.complete(None)
+                except ReturnException as e:
+                    gen.complete(e.value)
+                except GeneratorExit:
+                    pass
+                except BaseException as exc:
+                    gen.error(exc)
+
+            t = threading.Thread(target=run_body, daemon=True)
+            t.start()
+            return gen
+
+    else:
+
+        def new_func(*args: Any, **kwargs: Any) -> Any:
+            func_state = _setup_func_state(*args, **kwargs)
+
+            result = None
+            try:
+                for stmt in func_def.body:
+                    result = evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
+            except ReturnException as e:
+                result = e.value
+
+            if func_def.name == "__init__":
+                return None
+
+            return result
 
     # Store original AST, source code, and name
     new_func.__ast__ = func_def
@@ -1564,6 +1702,32 @@ def evaluate_ast(
         return None
     elif isinstance(expression, ast.Delete):
         return evaluate_delete(expression, *common_params)
+    elif isinstance(expression, ast.Yield):
+        gen = state.get("_generator_thread")
+        if gen is None:
+            raise InterpreterError("'yield' outside generator function")
+        value = evaluate_ast(expression.value, *common_params) if expression.value is not None else None
+        return gen.yield_value(value)
+    elif isinstance(expression, ast.YieldFrom):
+        gen = state.get("_generator_thread")
+        if gen is None:
+            raise InterpreterError("'yield from' outside generator function")
+        iterable = evaluate_ast(expression.value, *common_params)
+        result = None
+        try:
+            sub_iter = iter(iterable)
+            while True:
+                try:
+                    item = next(sub_iter)
+                except StopIteration as stop:
+                    result = stop.value
+                    break
+                gen.yield_value(item)
+        except GeneratorExit:
+            if hasattr(sub_iter, "close"):
+                sub_iter.close()
+            raise
+        return result
     else:
         # For now we refuse anything else. Let's add things as we need them.
         raise InterpreterError(f"{expression.__class__.__name__} is not supported.")
