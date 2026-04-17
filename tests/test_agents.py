@@ -105,6 +105,26 @@ def get_new_path(suffix="") -> str:
     return os.path.join(directory, str(uuid.uuid4()) + suffix)
 
 
+def write_skill_file(skill_dir: Path, name: str, description: str, body: str) -> Path:
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(
+        dedent(
+            f"""
+            ---
+            name: {name}
+            description: {description}
+            ---
+
+            {body}
+            """
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    return skill_file
+
+
 @pytest.fixture
 def agent_logger():
     return AgentLogger(
@@ -1648,6 +1668,25 @@ class TestToolCallingAgent:
         assert agent.instructions == "Test instructions"
         assert "Test instructions" in agent.system_prompt
 
+    def test_toolcalling_agent_skills_are_listed_and_loaded(self, tmp_path):
+        skill_dir = tmp_path / "release-manager"
+        write_skill_file(
+            skill_dir,
+            name="release-manager",
+            description="Draft release notes and version plans.",
+            body="When loaded, include changelog highlights and migration notes.",
+        )
+
+        agent = ToolCallingAgent(tools=[], model=MagicMock(), skills=[skill_dir])
+        assert "## Skills" in agent.system_prompt
+        assert "release-manager" in agent.system_prompt
+        assert "Draft release notes and version plans." in agent.system_prompt
+        assert "<skill_content name=\"release-manager\">" not in agent.system_prompt
+
+        agent.task = "Please use $release-manager for this request."
+        assert "<skill_content name=\"release-manager\">" in agent.system_prompt
+        assert "migration notes" in agent.system_prompt
+
     def test_toolcalling_agent_passes_both_tools_and_managed_agents(self, test_tool):
         """Test that both tools and managed agents are passed to the model."""
         managed_agent = MagicMock()
@@ -2100,6 +2139,25 @@ class TestCodeAgent:
         )
         assert agent.instructions == "Test instructions"
         assert "Test instructions" in agent.system_prompt
+
+    def test_code_agent_skills_are_listed_and_loaded(self, tmp_path):
+        skill_dir = tmp_path / "security-audit"
+        write_skill_file(
+            skill_dir,
+            name="security-audit",
+            description="Review code for security issues.",
+            body="Prioritize auth bypass, injection, and secret leaks.",
+        )
+
+        agent = CodeAgent(tools=[], model=MagicMock(), skills=[skill_dir])
+        assert "## Skills" in agent.system_prompt
+        assert "security-audit" in agent.system_prompt
+        assert "Review code for security issues." in agent.system_prompt
+        assert "<skill_content name=\"security-audit\">" not in agent.system_prompt
+
+        agent.task = "Run a security-audit before returning the answer."
+        assert "<skill_content name=\"security-audit\">" in agent.system_prompt
+        assert "secret leaks" in agent.system_prompt
 
     @pytest.mark.parametrize("provide_run_summary", [False, True])
     def test_call_with_provide_run_summary(self, provide_run_summary):
