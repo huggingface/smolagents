@@ -2346,6 +2346,63 @@ time.sleep(3)
 
         assert elapsed < 2.5
 
+    def test_evaluate_python_code_timeout_does_not_overwrite_reused_state(self):
+        """Timed-out executions should not mutate a reused state dict after control returns."""
+        shared_state = {}
+
+        timeout_code = """
+import time
+time.sleep(2)
+x = "late"
+result = x
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            evaluate_python_code(timeout_code, state=shared_state, authorized_imports=["time"], timeout_seconds=1)
+
+        result, _ = evaluate_python_code(
+            """
+x = "new"
+result = x
+""",
+            state=shared_state,
+            timeout_seconds=None,
+        )
+        assert result == "new"
+        assert shared_state["x"] == "new"
+
+        time.sleep(1.5)
+        assert shared_state["x"] == "new"
+
+    def test_local_executor_timeout_does_not_overwrite_later_state(self):
+        """A timed-out execution should not mutate executor state after a later call succeeds."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+
+        timeout_code = """
+import time
+time.sleep(2)
+x = "late"
+result = x
+"""
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(timeout_code)
+
+        output = executor(
+            """
+print("fresh")
+x = "new"
+result = x
+"""
+        )
+        assert output.output == "new"
+        assert output.logs == "fresh\n"
+        assert executor.state["x"] == "new"
+        assert str(executor.state["_print_outputs"]) == "fresh\n"
+
+        time.sleep(1.5)
+        assert executor.state["x"] == "new"
+        assert str(executor.state["_print_outputs"]) == "fresh\n"
+
     def test_local_executor_disabled_timeout(self):
         """Test that LocalPythonExecutor can disable timeout."""
         executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=None)

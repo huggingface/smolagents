@@ -1625,10 +1625,14 @@ def evaluate_python_code(
             f"{' ' * (e.offset or 0)}^"
         )
 
+    original_state = state
     if state is None:
         state = {}
+    else:
+        state = state.copy()
     static_tools = static_tools.copy() if static_tools is not None else {}
-    custom_tools = custom_tools if custom_tools is not None else {}
+    original_custom_tools = custom_tools
+    custom_tools = custom_tools.copy() if custom_tools is not None else {}
     state["_print_outputs"] = PrintContainer()
     state["_operations_count"] = {"counter": 0}
 
@@ -1665,11 +1669,28 @@ def evaluate_python_code(
                 f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
             )
 
+    def commit_execution_context():
+        if original_state is not None:
+            original_state.clear()
+            original_state.update(state)
+        if original_custom_tools is not None:
+            original_custom_tools.clear()
+            original_custom_tools.update(custom_tools)
+
     # Apply timeout if specified
     if timeout_seconds is not None:
         _execute_code = timeout(timeout_seconds)(_execute_code)
 
-    return _execute_code()
+    try:
+        result = _execute_code()
+    except ExecutionTimeoutError:
+        raise
+    except Exception:
+        commit_execution_context()
+        raise
+
+    commit_execution_context()
+    return result
 
 
 @dataclass
