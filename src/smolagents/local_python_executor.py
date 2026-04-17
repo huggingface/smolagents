@@ -326,6 +326,24 @@ def timeout(timeout_seconds: int):
     return decorator
 
 
+def snapshot_execution_context(value: Any) -> Any:
+    """Deep-copy mutable execution context while preserving runtime objects like modules."""
+    if isinstance(value, (ModuleType, FunctionType, BuiltinFunctionType, type)):
+        return value
+    if isinstance(value, dict):
+        return {key: snapshot_execution_context(val) for key, val in value.items()}
+    if isinstance(value, list):
+        return [snapshot_execution_context(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(snapshot_execution_context(item) for item in value)
+    if isinstance(value, set):
+        return {snapshot_execution_context(item) for item in value}
+    try:
+        return copy.deepcopy(value)
+    except Exception:
+        return value
+
+
 def get_iterable(obj):
     if isinstance(obj, list):
         return obj
@@ -1630,10 +1648,10 @@ def evaluate_python_code(
     if state is None:
         state = {}
     else:
-        state = copy.deepcopy(state)
+        state = snapshot_execution_context(state)
     static_tools = static_tools.copy() if static_tools is not None else {}
     original_custom_tools = custom_tools
-    custom_tools = copy.deepcopy(custom_tools) if custom_tools is not None else {}
+    custom_tools = snapshot_execution_context(custom_tools) if custom_tools is not None else {}
     state["_print_outputs"] = PrintContainer()
     state["_operations_count"] = {"counter": 0}
 

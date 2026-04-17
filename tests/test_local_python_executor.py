@@ -2457,6 +2457,53 @@ result = items
         time.sleep(1.5)
         assert executor.state["items"] == ["new"]
 
+    def test_evaluate_python_code_reuses_imported_modules_after_timeout_fix(self):
+        """Reused state should keep imported modules available across calls."""
+        shared_state = {}
+
+        first_result, _ = evaluate_python_code(
+            """
+import time
+result = time.time() >= 0
+""",
+            state=shared_state,
+            authorized_imports=["time"],
+        )
+        assert first_result is True
+        assert "time" in shared_state
+
+        second_result, _ = evaluate_python_code(
+            """
+result = time.time() >= 0
+""",
+            state=shared_state,
+            authorized_imports=["time"],
+        )
+        assert second_result is True
+        assert "time" in shared_state
+
+    def test_local_executor_reuses_imported_modules_after_timeout_fix(self):
+        """Executor state with imported modules should stay reusable across calls."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+
+        first_output = executor(
+            """
+import time
+result = time.time() >= 0
+"""
+        )
+        assert first_output.output is True
+        assert "time" in executor.state
+
+        second_output = executor(
+            """
+result = time.time() >= 0
+"""
+        )
+        assert second_output.output is True
+        assert "time" in executor.state
+
     def test_local_executor_disabled_timeout(self):
         """Test that LocalPythonExecutor can disable timeout."""
         executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=None)
