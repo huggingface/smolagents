@@ -349,12 +349,24 @@ def snapshot_execution_context(value: Any, memo: dict[int, Any] | None = None) -
             copied_queue.put_nowait(snapshot_execution_context(item, memo))
         return copied_queue
 
-    if isinstance(value, dict):
+    if type(value) is dict:
         copied_dict = {}
         memo[obj_id] = copied_dict
         for key, val in value.items():
             copied_dict[snapshot_execution_context(key, memo)] = snapshot_execution_context(val, memo)
         return copied_dict
+
+    if isinstance(value, dict):
+        try:
+            copied_mapping = value.copy()
+            copied_mapping.clear()
+        except Exception:
+            copied_mapping = copy.copy(value)
+            copied_mapping.clear()
+        memo[obj_id] = copied_mapping
+        for key, val in value.items():
+            copied_mapping[snapshot_execution_context(key, memo)] = snapshot_execution_context(val, memo)
+        return copied_mapping
 
     if isinstance(value, list):
         copied_list = []

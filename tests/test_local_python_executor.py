@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ast
+import collections
 import os
 import queue
 import subprocess
@@ -2578,6 +2579,25 @@ result = q.qsize()
         )
         assert later_result == 0
 
+    def test_evaluate_python_code_preserves_defaultdict_subclasses_in_reused_state(self):
+        """Timed execution snapshots should preserve defaultdict behavior across later calls."""
+        shared_state = {"counts": collections.defaultdict(int)}
+
+        result, _ = evaluate_python_code(
+            """
+counts["alpha"] += 1
+result = counts["missing"]
+""",
+            state=shared_state,
+            timeout_seconds=1,
+        )
+
+        assert result == 0
+        assert isinstance(shared_state["counts"], collections.defaultdict)
+        assert shared_state["counts"].default_factory is int
+        assert shared_state["counts"]["alpha"] == 1
+        assert shared_state["counts"]["missing"] == 0
+
     def test_local_executor_timeout_does_not_share_queue_objects(self):
         """Executor state should not be mutated later when timeout snapshots include queue.Queue objects."""
         executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
@@ -2603,6 +2623,25 @@ result = q.qsize()
 
         time.sleep(1.5)
         assert executor.state["q"].qsize() == 0
+
+    def test_local_executor_preserves_defaultdict_state_across_timed_runs(self):
+        """Executor state snapshots should not downgrade defaultdict to a plain dict."""
+        executor = LocalPythonExecutor(additional_authorized_imports=[], timeout_seconds=1)
+        executor.send_tools({})
+        executor.state["counts"] = collections.defaultdict(int)
+
+        output = executor(
+            """
+counts["alpha"] += 1
+result = counts["beta"]
+"""
+        )
+
+        assert output.output == 0
+        assert isinstance(executor.state["counts"], collections.defaultdict)
+        assert executor.state["counts"].default_factory is int
+        assert executor.state["counts"]["alpha"] == 1
+        assert executor.state["counts"]["beta"] == 0
 
     def test_evaluate_python_code_timeout_rejects_uncopyable_state_objects(self):
         """Timed executions should fail fast instead of sharing state objects they cannot safely snapshot."""
