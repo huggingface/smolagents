@@ -18,6 +18,7 @@ import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
+    AgentDiscoveryTool,
     DuckDuckGoSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
@@ -41,6 +42,23 @@ class DefaultToolTests(unittest.TestCase):
     def test_ddgs_with_kwargs(self):
         result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
         assert isinstance(result, str)
+
+
+class TestAgentDiscoveryTool:
+    def test_invalid_domain_format(self):
+        tool = AgentDiscoveryTool()
+        result = tool("not-a-url")
+        assert isinstance(result, str)
+        # Should report a URL error
+        assert "error" in result.lower() or "invalid domain" in result.lower()
+
+    def test_nonexistent_domain(self):
+        tool = AgentDiscoveryTool()
+        # A domain that definitely doesn't exist
+        result = tool("https://this-domain-does-not-exist-123456.invalid")
+        assert isinstance(result, str)
+        # Should report an error, not raise
+        assert "error" in result.lower() or "could not" in result.lower()
 
 
 class TestPythonInterpreterTool(ToolTesterMixin):
