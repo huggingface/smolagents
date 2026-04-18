@@ -736,6 +736,33 @@ def test_get_clean_message_list_role_conversions():
     assert result[1]["content"][0]["text"] == "Tool response"
 
 
+def test_get_clean_message_list_does_not_merge_converted_tool_response_with_user():
+    # Regression test for https://github.com/huggingface/smolagents/issues/1568
+    # A TOOL_RESPONSE converted to "user" must not be merged with a following genuine USER message.
+    messages = [
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Turn on the lights."}]),
+        ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": "set_lights_tool(state='on')"}]),
+        ChatMessage(role=MessageRole.TOOL_RESPONSE, content=[{"type": "text", "text": "Observation: lights on."}]),
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Turn off the lights."}]),
+    ]
+    result = get_clean_message_list(messages, role_conversions={"tool-call": "assistant", "tool-response": "user"})
+    assert [m["role"] for m in result] == ["user", "assistant", "user", "user"]
+    assert result[2]["content"][0]["text"] == "Observation: lights on."
+    assert result[3]["content"][0]["text"] == "Turn off the lights."
+
+
+def test_get_clean_message_list_still_merges_consecutive_same_role_messages():
+    # Two genuine USER messages (no role conversion involved) must still be merged.
+    messages = [
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}]),
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Can you help me?"}]),
+    ]
+    result = get_clean_message_list(messages, role_conversions={"tool-call": "assistant", "tool-response": "user"})
+    assert len(result) == 1
+    assert result[0]["role"] == "user"
+    assert result[0]["content"][0]["text"] == "Hello\nCan you help me?"
+
+
 def test_remove_content_after_stop_sequences():
     content = "Hello<code>world!"
     stop_sequences = ["<code>"]
