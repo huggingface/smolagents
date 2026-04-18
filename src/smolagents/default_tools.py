@@ -606,6 +606,97 @@ class WikipediaSearchTool(Tool):
             return f"Error fetching Wikipedia summary: {str(e)}"
 
 
+class AgentDiscoveryTool(Tool):
+    """Discover agent services published at a domain via the Agent Discovery Protocol (ADP).
+
+    This tool fetches and parses the well-known agent-discovery.json endpoint described in the
+    Agent Discovery Protocol specification (https://github.com/walkojas-boop/agent-discovery-protocol).
+    It enables agents to automatically discover available services at a domain without prior knowledge
+    of the domain's offerings.
+
+    Examples:
+        >>> from smolagents import AgentDiscoveryTool
+        >>> discovery = AgentDiscoveryTool()
+        >>> services = discovery("https://example.com")
+        >>> print(services)
+    """
+
+    name = "discover_agent_services"
+    description = (
+        "Discovers agent services published at a given domain via the Agent Discovery Protocol (ADP). "
+        "Fetches `/.well-known/agent-discovery.json` to return a list of available services, "
+        "their endpoints, authentication requirements, and governance models. "
+        "Use this before interacting with a domain to understand what services are available."
+    )
+    inputs = {
+        "domain": {
+            "type": "string",
+            "description": "The base URL of the domain to query (e.g. 'https://example.com').",
+        }
+    }
+    output_type = "object"
+
+    def forward(self, domain: str) -> str:
+        import json
+        import urllib.request
+        import urllib.error
+
+        # Normalize domain: strip trailing slash
+        domain = domain.rstrip("/")
+
+        # Build the well-known URL per ADP spec
+        url = f"{domain}/.well-known/agent-discovery.json"
+
+        try:
+            request = urllib.request.Request(url)
+            # ADP requires no authentication for the discovery endpoint
+            with urllib.request.urlopen(request, timeout=15) as response:
+                content_type = response.headers.get("Content-Type", "")
+                # Accept any application/json MIME type
+                if "application/json" not in content_type.lower():
+                    return f"Unexpected Content-Type '{content_type}'; expected application/json."
+                data = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            return f"HTTP error {e.code} fetching {url}: {e.reason}"
+        except urllib.error.URLError as e:
+            return f"URL error fetching {url}: {e.reason}"
+        except ValueError as e:
+            return f"Invalid domain format: {e}"
+        except json.JSONDecodeError as e:
+            return f"Invalid JSON from {url}: {e}"
+
+        # Return a structured summary of discovered services
+        lines = [
+            f"Agent Discovery Protocol v{data.get('agent_discovery_version', 'unknown')} — {domain}",
+            f"Contact: {data.get('contact', 'not disclosed')}",
+            "",
+            "Services:",
+        ]
+        services = data.get("services", [])
+        if not services:
+            lines.append("  (none)")
+        else:
+            for svc in services:
+                auth = svc.get("auth", "unknown")
+                governance = svc.get("governance", "unknown")
+                free = "free" if svc.get("free_tier") else "paid"
+                lines.append(
+                    f"  - [{svc.get('name', '?')}] {svc.get('description', '')}\n"
+                    f"    endpoint: {svc.get('endpoint', '?')} | auth: {auth} | governance: {governance} | {free}"
+                )
+
+        trust = data.get("trust")
+        if trust:
+            lines.append("")
+            lines.append("Trust verification:")
+            if trust.get("verification_url"):
+                lines.append(f"  verification_url: {trust['verification_url']}")
+            if trust.get("public_key_url"):
+                lines.append(f"  public_key_url: {trust['public_key_url']}")
+
+        return "\n".join(lines)
+
+
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
@@ -648,6 +739,7 @@ TOOL_MAPPING = {
 }
 
 __all__ = [
+    "AgentDiscoveryTool",
     "ApiWebSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
