@@ -115,3 +115,58 @@ model_mini = LiteLLMModel(
     max_tokens=1000
 )
 ```
+
+## Using Text Generation Inference (TGI) Models
+
+[Text Generation Inference (TGI)](https://huggingface.co/docs/text-generation-inference) is Hugging Face's
+inference server for large language models. You can use models served through TGI with `smolagents` by
+pointing [`LiteLLMModel`] at any TGI endpoint — whether self-hosted, deployed on
+[Hugging Face Inference Endpoints](https://huggingface.co/inference-endpoints), or running locally in Docker.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[litellm]'
+```
+
+Then point `LiteLLMModel` at your TGI server. Prefix the `model_id` with `huggingface/tgi` and set
+`api_base` to your endpoint URL, including the trailing `/v1/` path that exposes TGI's OpenAI-compatible
+[Messages API](https://huggingface.co/docs/text-generation-inference/messages_api):
+```python
+from smolagents import LiteLLMModel
+
+model = LiteLLMModel(
+    model_id="huggingface/tgi",
+    api_base="https://your-endpoint.endpoints.huggingface.cloud/v1/",
+)
+```
+
+If your TGI endpoint requires authentication (for example, a private Inference Endpoint), pass a token via
+`api_key`:
+```python
+import os
+from smolagents import LiteLLMModel
+
+model = LiteLLMModel(
+    model_id="huggingface/tgi",
+    api_base="https://your-endpoint.endpoints.huggingface.cloud/v1/",
+    api_key=os.environ["HF_TOKEN"],
+)
+```
+
+To try this out locally, start a TGI container with Docker and connect to it via `http://localhost:8080/v1/`:
+```bash
+model=Qwen/Qwen2.5-Coder-7B-Instruct
+volume=$PWD/data  # share a volume to avoid re-downloading weights
+
+docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data \
+    ghcr.io/huggingface/text-generation-inference:3.3.5 \
+    --model-id $model
+```
+```python
+from smolagents import LiteLLMModel
+
+model = LiteLLMModel(
+    model_id="huggingface/tgi",
+    api_base="http://localhost:8080/v1/",
+)
+```
