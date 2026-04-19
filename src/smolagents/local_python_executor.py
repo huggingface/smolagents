@@ -546,6 +546,20 @@ class _GeneratorThread:
         self._resume_q.put(("close", None))
         self._finished = True
 
+    def __del__(self) -> None:
+        """Mirror real-generator semantics: closing on garbage collection releases the body thread.
+
+        Without this, partially-consumed generators leak the body thread because it stays
+        blocked on ``_resume_q.get()`` until process exit. Calling ``close()`` here sends a
+        ``('close', None)`` sentinel so the thread can return promptly. ``close()`` is a no-op
+        once ``_finished`` is True, so this is safe regardless of how the generator was used.
+        """
+        try:
+            self.close()
+        except Exception:
+            # __del__ must never raise; suppress any teardown errors.
+            pass
+
 
 def _has_yield(func_def: ast.FunctionDef) -> bool:
     """Return True if *func_def* contains a ``yield`` or ``yield from`` at its own scope.

@@ -778,6 +778,42 @@ simple_set = {
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert result == [1, 2]
 
+    def test_generator_function_partial_consumption_releases_thread(self):
+        """Partial consumption (e.g. ``break``) must not leak the body thread.
+
+        Regression test for the thread-leak scenario raised on PR #2201: when a
+        generator is created and only partially consumed, garbage collection
+        should call ``close()`` on the underlying ``_GeneratorThread`` so the
+        body thread unblocks and exits promptly.
+        """
+        import gc
+        import threading
+        import time
+
+        code = dedent("""\
+            def gen():
+                for i in range(1000):
+                    yield i
+
+            g = gen()
+            first = next(g)
+            del g
+            first
+        """)
+        baseline = threading.active_count()
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 0
+        # Force collection so __del__ on the _GeneratorThread fires.
+        gc.collect()
+        # Give the body thread a brief moment to wake up and exit after close().
+        for _ in range(20):
+            if threading.active_count() <= baseline:
+                break
+            time.sleep(0.05)
+        assert threading.active_count() <= baseline, (
+            f"Generator body thread leaked: baseline={baseline}, after={threading.active_count()}"
+        )
+
     def test_boolops(self):
         code = """if (not (a > b and a > c)) or d > e:
     best_city = "Brooklyn"
