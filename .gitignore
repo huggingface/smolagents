@@ -150,3 +150,6 @@ tool_output/
 
 # Gradio runtime
 .gradio/
+
+# Project-specific dev notes
+CLAUDE.md
