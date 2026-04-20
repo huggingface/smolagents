@@ -722,11 +722,11 @@ class Tool(BaseTool):
                     output = output[
                         0
                     ]  # Sometime the space also returns the generation seed, in which case the result is at index 0
-                IMAGE_EXTENTIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
-                AUDIO_EXTENTIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
-                if isinstance(output, str) and any([output.endswith(ext) for ext in IMAGE_EXTENTIONS]):
+                IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
+                AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
+                if isinstance(output, str) and any([output.endswith(ext) for ext in IMAGE_EXTENSIONS]):
                     output = AgentImage(output)
-                elif isinstance(output, str) and any([output.endswith(ext) for ext in AUDIO_EXTENTIONS]):
+                elif isinstance(output, str) and any([output.endswith(ext) for ext in AUDIO_EXTENSIONS]):
                     output = AgentAudio(output)
                 return output
 
@@ -976,7 +976,7 @@ class ToolCollection:
             trust_remote_code (`bool`, *optional*, defaults to `False`):
                 Whether to trust the execution of code from tools defined on the MCP server.
                 This option should only be set to `True` if you trust the MCP server,
-                and undertand the risks associated with running remote code on your local machine.
+                and understand the risks associated with running remote code on your local machine.
                 If set to `False`, loading tools from MCP will fail.
             structured_output (`bool`, *optional*, defaults to `False`):
                 Whether to enable structured output features for MCP tools. If True, enables:
