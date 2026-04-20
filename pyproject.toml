@@ -74,6 +74,7 @@ telemetry = [
 ]
 toolkit = [
   "ddgs>=9.0.0",  # DuckDuckGoSearchTool
+  "exa_py>=1.0.0",  # ExaSearchTool
   "markdownify>=0.14.1",  # VisitWebpageTool
 ]
 transformers = [
