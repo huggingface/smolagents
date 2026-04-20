@@ -388,7 +388,7 @@ agent.prompt_templates["system_prompt"] = agent.prompt_templates["system_prompt"
 
 This also works with the [`ToolCallingAgent`].
 
-But generally it's just simpler to pass argument `instructions` upon agent initalization, like:
+But generally it's just simpler to pass argument `instructions` upon agent initialization, like:
 ```py
 agent = CodeAgent(tools=[], model=InferenceClientModel(model_id=model_id), instructions="Always talk like a 5 year old.")
 ```
