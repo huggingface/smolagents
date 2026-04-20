@@ -2099,4 +2099,6 @@ __all__ = [
     "AmazonBedrockServerModel",
     "AmazonBedrockModel",
     "ChatMessage",
+    "ChatMessageToolCall",
+    "ChatMessageToolCallFunction"
 ]
