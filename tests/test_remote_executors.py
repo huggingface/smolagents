@@ -1,6 +1,7 @@
 import builtins
 import importlib
 import io
+from datetime import datetime, timedelta, timezone
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
@@ -183,6 +184,41 @@ class TestAzureDynamicSessionsExecutorUnit:
                 pool_management_endpoint="",
                 access_token_provider=lambda: "token",
             )
+
+    def test_default_token_provider_passes_managed_identity_client_id_kwarg(self):
+        fake_credential = MagicMock()
+        fake_credential.get_token.return_value = MagicMock(
+            token="mi-token", expires_on=int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp())
+        )
+        with patch("azure.identity.DefaultAzureCredential", return_value=fake_credential) as mock_cls:
+            provider = azure_executors._default_token_provider_factory(
+                managed_identity_client_id="00000000-0000-0000-0000-000000000001"
+            )
+            assert provider() == "mi-token"
+
+        mock_cls.assert_called_once_with(managed_identity_client_id="00000000-0000-0000-0000-000000000001")
+
+    def test_default_token_provider_reads_managed_identity_client_id_from_env(self, monkeypatch):
+        fake_credential = MagicMock()
+        fake_credential.get_token.return_value = MagicMock(
+            token="mi-token", expires_on=int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp())
+        )
+        monkeypatch.setenv("AZURE_SESSIONS_MANAGED_IDENTITY_CLIENT_ID", "env-client-id")
+        with patch("azure.identity.DefaultAzureCredential", return_value=fake_credential) as mock_cls:
+            azure_executors._default_token_provider_factory()()
+
+        mock_cls.assert_called_once_with(managed_identity_client_id="env-client-id")
+
+    def test_default_token_provider_without_managed_identity_passes_no_kwargs(self, monkeypatch):
+        fake_credential = MagicMock()
+        fake_credential.get_token.return_value = MagicMock(
+            token="default-token", expires_on=int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp())
+        )
+        monkeypatch.delenv("AZURE_SESSIONS_MANAGED_IDENTITY_CLIENT_ID", raising=False)
+        with patch("azure.identity.DefaultAzureCredential", return_value=fake_credential) as mock_cls:
+            azure_executors._default_token_provider_factory()()
+
+        mock_cls.assert_called_once_with()
 
     def test_run_code_raise_errors_posts_expected_request(self):
         logger = MagicMock()

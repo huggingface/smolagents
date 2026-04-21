@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -40,7 +41,7 @@ API_VERSION = "2024-10-02-preview"
 SESSION_VOLUME_PATH = "/mnt/data"
 
 
-def _default_token_provider_factory() -> Callable[[], str]:
+def _default_token_provider_factory(managed_identity_client_id: str | None = None) -> Callable[[], str]:
     try:
         from azure.core.credentials import AccessToken
         from azure.identity import DefaultAzureCredential
@@ -49,6 +50,12 @@ def _default_token_provider_factory() -> Callable[[], str]:
             "Please run: `pip install 'smolagents[azure]'` to use AzureDynamicSessionsExecutor"
         ) from error
 
+    client_id = managed_identity_client_id or os.environ.get("AZURE_SESSIONS_MANAGED_IDENTITY_CLIENT_ID")
+    credential_kwargs: dict[str, str] = {}
+    if client_id:
+        credential_kwargs["managed_identity_client_id"] = client_id
+    credential = DefaultAzureCredential(**credential_kwargs)
+
     cached_token: AccessToken | None = None
 
     def _provide() -> str:
@@ -56,29 +63,34 @@ def _default_token_provider_factory() -> Callable[[], str]:
         if cached_token is None or datetime.fromtimestamp(cached_token.expires_on, timezone.utc) < datetime.now(
             timezone.utc
         ) + timedelta(minutes=5):
-            cached_token = DefaultAzureCredential().get_token("https://dynamicsessions.io/.default")
+            cached_token = credential.get_token("https://dynamicsessions.io/.default")
         return cached_token.token
 
     return _provide
 
 
 class AzureDynamicSessionsExecutor(RemotePythonExecutor):
-    """Execute Python code in Azure Container Apps Dynamic Sessions.
+    """
+    Remote Python code executor backed by Azure Container Apps Dynamic Sessions.
 
-    Works with both the built-in code interpreter pool and custom container
-    session pools.  Requires ``azure-identity`` at runtime and the calling
-    identity to hold the *Azure ContainerApps Session Executor* role on the
-    session pool resource.
+    Works with both the built-in code interpreter pool and custom container session pools.
+    Requires the `azure` extra (`pip install 'smolagents[azure]'`) and an identity that
+    holds the *Azure ContainerApps Session Executor* role on the session pool resource.
 
     Args:
-        additional_imports: Packages to ``pip install`` inside the session.
-        logger: smolagents logger instance.
-        pool_management_endpoint: Base URL of the session pool
-            (e.g. ``https://pool.env.region.azurecontainerapps.io``).
-        session_id: Reuse a specific session.  A random UUID is generated
-            when omitted.
-        access_token_provider: ``() -> str`` callable that returns a valid
-            Entra bearer token.  Defaults to ``DefaultAzureCredential``.
+        additional_imports (`list[str]`): Additional Python packages to install in the session.
+        logger (`Logger`): Logger to use for output and errors.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely
+            serialized to JSON. See [`RemotePythonExecutor`] for the full security note.
+        pool_management_endpoint (`str`): Base URL of the session pool, e.g.
+            `https://<pool>.<region>.azurecontainerapps.io`.
+        session_id (`str`, *optional*): Identifier of the session to reuse. A random UUID is generated when omitted.
+        access_token_provider (`Callable[[], str]`, *optional*): Callable that returns a valid Entra bearer token.
+            Defaults to a provider built on top of `azure.identity.DefaultAzureCredential`.
+        managed_identity_client_id (`str`, *optional*): Client ID of a user-assigned managed identity to use with
+            `DefaultAzureCredential`. Falls back to the `AZURE_SESSIONS_MANAGED_IDENTITY_CLIENT_ID` environment
+            variable. Ignored when `access_token_provider` is supplied.
+        api_version (`str`, *optional*): Override the Azure Dynamic Sessions REST API version.
     """
 
     def __init__(
@@ -90,6 +102,7 @@ class AzureDynamicSessionsExecutor(RemotePythonExecutor):
         pool_management_endpoint: str,
         session_id: str | None = None,
         access_token_provider: Callable[[], str] | None = None,
+        managed_identity_client_id: str | None = None,
         api_version: str = API_VERSION,
     ):
         super().__init__(additional_imports, logger, allow_pickle)
@@ -100,7 +113,9 @@ class AzureDynamicSessionsExecutor(RemotePythonExecutor):
         self._endpoint = pool_management_endpoint.rstrip("/")
         self._session_id = session_id or str(uuid4())
         self._api_version = api_version
-        self._token_provider = access_token_provider or _default_token_provider_factory()
+        self._token_provider = access_token_provider or _default_token_provider_factory(
+            managed_identity_client_id=managed_identity_client_id
+        )
         self.installed_packages = self.install_packages(additional_imports)
         self.logger.log(
             f"Azure Dynamic Sessions executor ready (session={self._session_id})",
