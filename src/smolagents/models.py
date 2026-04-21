@@ -372,8 +372,14 @@ def get_clean_message_list(
                     else:
                         element["image"] = encode_image_base64(element["image"])
 
+        # Normalize string content to list format so the merge logic below works correctly.
+        # Raw dicts with string content (e.g. {"role": "system", "content": "..."}) arrive here
+        # with message.content still a str after ChatMessage.from_dict(), which would cause the
+        # assertion to fail for consecutive same-role messages.
+        if isinstance(message.content, str):
+            message.content = [{"type": "text", "text": message.content}]
+
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
             else:
