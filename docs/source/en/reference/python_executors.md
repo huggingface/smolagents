@@ -36,6 +36,46 @@ available executor implementations.
 
 [[autodoc]] smolagents.remote_executors.DockerExecutor
 
+### AzureDynamicSessionsExecutor
+
+Use Azure Container Apps Dynamic Sessions when you want a managed remote Python runtime with persistent session state.
+
+```python
+import time
+
+from smolagents import AzureDynamicSessionsExecutor, CodeAgent, LiteLLMModel
+
+model = LiteLLMModel(
+	model_id="azure/gpt-4.1",
+	api_base=AZURE_OPENAI_ENDPOINT,
+	api_key=AZURE_OPENAI_API_KEY,
+)
+
+agent_executor = AzureDynamicSessionsExecutor(
+	additional_imports=["pandas", "numpy"],
+	logger=agent_logger,
+	pool_management_endpoint=POOL_ENDPOINT,
+)
+
+agent = CodeAgent(
+	executor=agent_executor,
+	tools=[multiply],
+	model=model,
+	add_base_tools=False,
+	code_block_tags="markdown",
+	additional_authorized_imports=["pandas", "numpy"],
+)
+
+t0 = time.perf_counter()
+result = agent.run("What is 17 multiplied by 23? Use the multiply tool.")
+elapsed = time.perf_counter() - t0
+
+print(f"Result:  {result}")
+print(f"Elapsed: {elapsed:.2f}s")
+```
+
+[[autodoc]] smolagents.azure_executors.AzureDynamicSessionsExecutor
+
 ### WasmExecutor
 
 [[autodoc]] smolagents.remote_executors.WasmExecutor

@@ -1,3 +1,4 @@
+import builtins
 import importlib
 import io
 from textwrap import dedent
@@ -8,6 +9,8 @@ import PIL.Image
 import pytest
 from rich.console import Console
 
+import smolagents.azure_executors as azure_executors
+from smolagents.azure_executors import AzureDynamicSessionsExecutor
 from smolagents.default_tools import FinalAnswerTool, WikipediaSearchTool
 from smolagents.local_python_executor import CodeOutput
 from smolagents.monitoring import AgentLogger, LogLevel
@@ -138,6 +141,189 @@ class TestE2BExecutorUnit:
             else:
                 mock_sandbox.return_value.kill.assert_called_once()
             assert logger.log.call_count >= 2  # Should log start and completion messages
+
+
+class TestAzureDynamicSessionsExecutorUnit:
+    def test_explicit_token_provider_does_not_require_azure_identity(self):
+        logger = MagicMock()
+
+        with patch(
+            "smolagents.azure_executors._default_token_provider_factory",
+            side_effect=AssertionError("default Azure token provider should not be used"),
+        ):
+            executor = AzureDynamicSessionsExecutor(
+                additional_imports=[],
+                logger=logger,
+                pool_management_endpoint="https://pool.example.com",
+                session_id="session-123",
+                access_token_provider=lambda: "token",
+            )
+
+        assert executor._headers()["Authorization"] == "Bearer token"
+
+    def test_default_token_provider_factory_raises_helpful_error_without_azure_extra(self):
+        real_import = builtins.__import__
+
+        def patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name in {"azure.core.credentials", "azure.identity"}:
+                raise ModuleNotFoundError(name)
+            return real_import(name, globals, locals, fromlist, level)
+
+        with patch("builtins.__import__", side_effect=patched_import):
+            with pytest.raises(ModuleNotFoundError, match=r"smolagents\[azure\]"):
+                azure_executors._default_token_provider_factory()
+
+    def test_instantiation_requires_pool_endpoint(self):
+        logger = MagicMock()
+
+        with pytest.raises(ValueError, match="pool_management_endpoint is required"):
+            AzureDynamicSessionsExecutor(
+                additional_imports=[],
+                logger=logger,
+                pool_management_endpoint="",
+                access_token_provider=lambda: "token",
+            )
+
+    def test_run_code_raise_errors_posts_expected_request(self):
+        logger = MagicMock()
+        response = MagicMock()
+        response.json.return_value = {
+            "properties": {
+                "stdout": "391",
+                "stderr": "",
+                "result": {"value": 391},
+            }
+        }
+
+        with patch("smolagents.azure_executors.requests.post", return_value=response) as mock_post:
+            executor = AzureDynamicSessionsExecutor(
+                additional_imports=[],
+                logger=logger,
+                pool_management_endpoint="https://pool.example.com",
+                session_id="session-123",
+                access_token_provider=lambda: "token",
+            )
+
+            result = executor.run_code_raise_errors("print(17 * 23)")
+
+        assert result == CodeOutput(output=391, logs="391", is_final_answer=False)
+        mock_post.assert_called_once_with(
+            "https://pool.example.com/code/execute?identifier=session-123&api-version=2024-10-02-preview",
+            headers={
+                "Authorization": "Bearer token",
+                "Content-Type": "application/json",
+            },
+            json={
+                "properties": {
+                    "codeInputType": "inline",
+                    "executionType": "synchronous",
+                    "code": "print(17 * 23)",
+                }
+            },
+            timeout=230,
+        )
+
+    def test_run_code_raise_errors_handles_final_answer(self):
+        logger = MagicMock()
+        response = MagicMock()
+        response.json.return_value = {
+            "properties": {
+                "stdout": "",
+                "stderr": 'FinalAnswerException safe:"391"',
+                "result": None,
+            }
+        }
+
+        with patch("smolagents.azure_executors.requests.post", return_value=response):
+            executor = AzureDynamicSessionsExecutor(
+                additional_imports=[],
+                logger=logger,
+                pool_management_endpoint="https://pool.example.com",
+                session_id="session-123",
+                access_token_provider=lambda: "token",
+            )
+
+            result = executor.run_code_raise_errors("final_answer(391)")
+
+        assert result == CodeOutput(output="391", logs='FinalAnswerException safe:"391"', is_final_answer=True)
+
+    def test_run_code_raise_errors_raises_agent_error_on_traceback(self):
+        logger = MagicMock()
+        response = MagicMock()
+        response.json.return_value = {
+            "properties": {
+                "stdout": "",
+                "stderr": "Traceback (most recent call last):\nValueError: boom",
+                "result": None,
+            }
+        }
+
+        with patch("smolagents.azure_executors.requests.post", return_value=response):
+            executor = AzureDynamicSessionsExecutor(
+                additional_imports=[],
+                logger=logger,
+                pool_management_endpoint="https://pool.example.com",
+                session_id="session-123",
+                access_token_provider=lambda: "token",
+            )
+
+            with pytest.raises(AgentError, match="Executing code yielded an error"):
+                executor.run_code_raise_errors("raise ValueError('boom')")
+
+    def test_file_operations_and_cleanup(self, tmp_path):
+        logger = MagicMock()
+        upload_response = MagicMock()
+        upload_response.json.return_value = {"status": "uploaded"}
+        list_response = MagicMock()
+        list_response.json.return_value = {"value": [{"name": "example.txt"}]}
+        download_response = MagicMock()
+        download_response.content = b"hello"
+        delete_response = MagicMock()
+        delete_response.status_code = 204
+        local_file = tmp_path / "example.txt"
+        local_file.write_text("hello")
+
+        with (
+            patch("smolagents.azure_executors.requests.post", return_value=upload_response) as mock_post,
+            patch(
+                "smolagents.azure_executors.requests.get", side_effect=[list_response, download_response]
+            ) as mock_get,
+            patch("smolagents.azure_executors.requests.delete", return_value=delete_response) as mock_delete,
+        ):
+            executor = AzureDynamicSessionsExecutor(
+                additional_imports=[],
+                logger=logger,
+                pool_management_endpoint="https://pool.example.com",
+                session_id="session-123",
+                access_token_provider=lambda: "token",
+            )
+
+            upload_result = executor.upload_file(str(local_file))
+            list_result = executor.list_files()
+            download_result = executor.download_file("folder/example.txt")
+            executor.cleanup()
+
+        assert upload_result == {"status": "uploaded"}
+        assert list_result == [{"name": "example.txt"}]
+        assert download_result == b"hello"
+        mock_post.assert_called_once()
+        assert mock_post.call_args.args[0] == (
+            "https://pool.example.com/files?identifier=session-123&api-version=2024-10-02-preview&path=/mnt/data"
+        )
+        assert mock_get.call_args_list[0].args[0] == (
+            "https://pool.example.com/files?identifier=session-123&api-version=2024-10-02-preview"
+        )
+        assert mock_get.call_args_list[1].args[0] == (
+            "https://pool.example.com/files/folder/example.txt/content?identifier=session-123&api-version=2024-10-02-preview"
+        )
+        mock_delete.assert_called_once_with(
+            "https://pool.example.com/sessions?identifier=session-123&api-version=2024-10-02-preview",
+            headers={
+                "Authorization": "Bearer token",
+                "Content-Type": "application/json",
+            },
+            timeout=10,
+        )
 
 
 @pytest.fixture
