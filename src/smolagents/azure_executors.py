@@ -77,6 +77,15 @@ class AzureDynamicSessionsExecutor(RemotePythonExecutor):
     Requires the `azure` extra (`pip install 'smolagents[azure]'`) and an identity that
     holds the *Azure ContainerApps Session Executor* role on the session pool resource.
 
+    Each instance targets a single Azure session identified by `session_id`. Omit `session_id`
+    to get a fresh isolated session per executor instance; reuse the same value across
+    instances to opt into persistent session state. Sandbox isolation is provided by Azure
+    Dynamic Sessions; smolagents only manages the session identifier.
+
+    Session idle/cooldown duration is configured on the Azure session pool resource itself
+    (default 300 s, max 3600 s) and is not controlled by this executor. Per-execution wall
+    time is capped by Azure at 220 s for the built-in code interpreter pool.
+
     Args:
         additional_imports (`list[str]`): Additional Python packages to install in the session.
         logger (`Logger`): Logger to use for output and errors.

@@ -46,6 +46,10 @@ Authentication uses `azure.identity.DefaultAzureCredential` by default. To targe
 identity, either pass `managed_identity_client_id=...` or set the `AZURE_SESSIONS_MANAGED_IDENTITY_CLIENT_ID`
 environment variable. You can also pass a fully custom `access_token_provider` callable.
 
+Each executor instance targets one Azure session via `session_id`. Omit it for a fresh isolated session per
+instance, or reuse the same value to opt into persistent session state. Session idle/cooldown duration is
+configured on the Azure session pool resource (default 300 s, max 3600 s) and is not controlled by the executor.
+
 ```python
 import os
 
