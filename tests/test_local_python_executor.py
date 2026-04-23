@@ -814,6 +814,66 @@ simple_set = {
             f"Generator body thread leaked: baseline={baseline}, after={threading.active_count()}"
         )
 
+    def test_generator_function_send_value(self):
+        """``generator.send(value)`` must reach the ``yield`` expression as ``x = yield ...``.
+
+        Verifies the two-way communication channel (``_resume_q`` carries the sent value,
+        ``yield_value`` returns it) — covers the ``return val`` branch of ``yield_value``.
+        """
+        code = dedent("""\
+            def echo_gen():
+                x = yield 1
+                yield x * 2
+
+            g = echo_gen()
+            first = next(g)
+            second = g.send(5)
+            (first, second)
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == (1, 10)
+
+    def test_generator_function_throw_exception(self):
+        """``generator.throw(exc)`` must raise the exception at the paused ``yield``.
+
+        Covers the ``throw`` branch of ``yield_value`` (consumer-to-body exception
+        injection) and verifies the body can catch and recover from it.
+        """
+        code = dedent("""\
+            def gen():
+                try:
+                    yield 1
+                except ValueError as e:
+                    yield f"caught: {e}"
+
+            g = gen()
+            first = next(g)
+            second = g.throw(ValueError("boom"))
+            (first, second)
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == (1, "caught: boom")
+
+    def test_generator_function_close_idempotent_on_exhausted(self):
+        """``close()`` on an exhausted generator must be a no-op (regression for ``__del__`` safety).
+
+        ``__del__`` calls ``close()`` unconditionally, so calling ``close()`` on a fully
+        consumed generator (where ``_finished`` is already True) must not raise or send
+        a stray sentinel to the already-exited body thread.
+        """
+        code = dedent("""\
+            def gen():
+                yield 1
+                yield 2
+
+            g = gen()
+            list(g)  # exhaust
+            g.close()  # must be a no-op, not raise
+            "ok"
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == "ok"
+
     def test_boolops(self):
         code = """if (not (a > b and a > c)) or d > e:
     best_city = "Brooklyn"

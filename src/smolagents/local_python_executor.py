@@ -638,6 +638,17 @@ def create_function(
             func_state["_generator_thread"] = gen
 
             def run_body() -> None:
+                # Initial barrier: real generators do not start executing until the first
+                # ``next(gen)`` / ``gen.send(None)`` call. Block here so the body does not
+                # race ahead of the consumer (otherwise the FIRST ``send(value)`` would be
+                # consumed as the resume signal for an already-pending yield, leaving
+                # ``x = yield expr`` bound to ``None`` instead of ``value``).
+                kind, val = gen._resume_q.get()
+                if kind == "close":
+                    return
+                if kind == "throw":
+                    gen.error(val)
+                    return
                 try:
                     for stmt in func_def.body:
                         evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
