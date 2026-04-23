@@ -68,6 +68,14 @@ class GuardrailProvider(Protocol):
 
         Returns:
             A ``GuardrailDecision`` indicating whether the call is allowed.
+
+        .. warning::
+            Custom implementations **must** permit ``"final_answer"`` (or
+            explicitly return ``allowed=True`` for it). Blocking
+            ``final_answer`` leaves the agent with no way to terminate and will
+            cause an infinite step loop. The built-in guardrails
+            (:class:`AllowlistGuardrail`, :class:`BlocklistGuardrail`,
+            :class:`CompositeGuardrail`) all handle this correctly.
         """
         ...
 

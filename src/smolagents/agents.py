@@ -114,14 +114,18 @@ class _GuardedTool:
         self._agent_logger = agent_logger
 
     def __call__(self, *args, **kwargs):
-        # Always normalize arguments to a dict so guardrail authors get a
-        # consistent contract regardless of how the executor invokes tools.
+        # Normalize arguments so guardrail authors get a consistent contract.
+        # smolagents tools are almost always invoked with kwargs; the positional
+        # fallbacks preserve the value for content-aware guardrails rather than
+        # silently dropping it.
         if kwargs:
             arguments = dict(kwargs)
         elif len(args) == 1 and isinstance(args[0], dict):
             arguments = args[0]
+        elif len(args) == 1:
+            arguments = args[0]  # str or other scalar -- pass through as-is
         else:
-            arguments = {}
+            arguments = list(args)  # multiple positional args
         decision = self._guardrail.before_tool_call(self._tool_name, arguments)
         if not decision.allowed:
             raise AgentToolExecutionError(
