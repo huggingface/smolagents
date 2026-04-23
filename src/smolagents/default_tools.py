@@ -474,7 +474,7 @@ class WebSearchTool(Tool):
                 "numResults": self.max_results,
                 "contents": {"highlights": True},
             },
-            timeout=30,
+            timeout=getattr(self, "timeout", 30),
         )
         response.raise_for_status()
         data = response.json()
