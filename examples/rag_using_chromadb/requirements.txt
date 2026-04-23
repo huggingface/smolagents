@@ -1,0 +1,8 @@
+smolagents
+datasets
+langchain
+langchain-chroma
+langchain-huggingface
+sentence-transformers
+transformers
+tqdm
