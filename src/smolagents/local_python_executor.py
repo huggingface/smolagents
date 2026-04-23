@@ -118,6 +118,7 @@ BASE_PYTHON_TOOLS = {
     "iter": iter,
     "divmod": divmod,
     "callable": callable,
+    "open": open,
     "getattr": nodunder_getattr,
     "hasattr": hasattr,
     "setattr": setattr,
