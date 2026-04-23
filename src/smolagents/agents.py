@@ -1328,6 +1328,10 @@ class ToolCallingAgent(MultiStepAgent):
             try:
                 chat_message = self.model.parse_tool_calls(chat_message)
             except Exception as e:
+                if isinstance(e, ValueError) and "The model output does not contain any JSON blob" in str(e):
+                    self.logger.log_warning(
+                        "The model's output is missing JSON data. This could be due to an insufficient number of output tokens set in the model configuration."
+                    )
                 raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
         else:
             for tool_call in chat_message.tool_calls:
@@ -1710,6 +1714,10 @@ class CodeAgent(MultiStepAgent):
             code_action = fix_final_answer_code(code_action)
             memory_step.code_action = code_action
         except Exception as e:
+            if isinstance(e, ValueError) and "Make sure to include code with the correct pattern" in str(e):
+                self.logger.log_warning(
+                    "The model's output is missing a Code output. This could be due to an insufficient number of output tokens set in the model configuration."
+                )
             error_msg = f"Error in code parsing:\n{e}\nMake sure to provide correct code blobs."
             raise AgentParsingError(error_msg, self.logger)
 
