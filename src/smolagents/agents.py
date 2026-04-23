@@ -1790,7 +1790,6 @@ class CodeAgent(MultiStepAgent):
         """
         # Add CodeAgent-specific parameters to kwargs
         code_agent_kwargs = {
-            "additional_authorized_imports": agent_dict.get("authorized_imports"),
             "executor_type": agent_dict.get("executor_type"),
             "executor_kwargs": agent_dict.get("executor_kwargs"),
             "max_print_outputs_length": agent_dict.get("max_print_outputs_length"),
@@ -1798,8 +1797,14 @@ class CodeAgent(MultiStepAgent):
         }
         # Filter out None values
         code_agent_kwargs = {k: v for k, v in code_agent_kwargs.items() if v is not None}
-        # Update with any additional kwargs
+        # Update with any additional kwargs (e.g. model= override passed by the caller)
         code_agent_kwargs.update(kwargs)
+        # authorized_imports is agent-specific: always restore from the serialized dict
+        # last so that parent-agent kwargs propagated via MultiStepAgent.from_dict()
+        # cannot overwrite a managed agent's own import allowlist.  See issue #1849.
+        own_imports = agent_dict.get("authorized_imports")
+        if own_imports is not None:
+            code_agent_kwargs["additional_authorized_imports"] = own_imports
         # Call the parent class's from_dict method
         return super().from_dict(agent_dict, **code_agent_kwargs)
 
