@@ -134,7 +134,12 @@ class Tool(BaseTool):
     output_type: str
     output_schema: dict[str, Any] | None = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, requires_confirmation: bool = False, **kwargs):
+        """
+        Args:
+            requires_confirmation: If True, the agent must ask the user before running this tool.
+        """
+        self.requires_confirmation = requires_confirmation
         self.is_initialized = False
 
     def __init_subclass__(cls, **kwargs):
@@ -229,6 +234,13 @@ class Tool(BaseTool):
         raise NotImplementedError("Write this method in your subclass of `Tool`.")
 
     def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
+        if self.requires_confirmation:
+            print(f"\n⚠️  SECURITY ALERT: Agent wants to run tool '{self.name}'.")
+            print(f"   Arguments: {args} {kwargs}")
+            response = input("   Allow execution? (y/N): ").strip().lower()
+            if response != 'y':
+                raise ValueError(f"User denied execution of tool '{self.name}'.")
+
         if not self.is_initialized:
             self.setup()
 
