@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import threading
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -57,13 +58,21 @@ def _default_token_provider_factory(managed_identity_client_id: str | None = Non
     credential = DefaultAzureCredential(**credential_kwargs)
 
     cached_token: AccessToken | None = None
+    # Guard the refresh path so concurrent callers don't issue duplicate token requests
+    # to Entra when the cache is empty or near expiry.
+    refresh_lock = threading.Lock()
 
     def _provide() -> str:
         nonlocal cached_token
         if cached_token is None or datetime.fromtimestamp(cached_token.expires_on, timezone.utc) < datetime.now(
             timezone.utc
         ) + timedelta(minutes=5):
-            cached_token = credential.get_token("https://dynamicsessions.io/.default")
+            with refresh_lock:
+                # Re-check inside the lock: another thread may have refreshed while we waited.
+                if cached_token is None or datetime.fromtimestamp(
+                    cached_token.expires_on, timezone.utc
+                ) < datetime.now(timezone.utc) + timedelta(minutes=5):
+                    cached_token = credential.get_token("https://dynamicsessions.io/.default")
         return cached_token.token
 
     return _provide
@@ -175,6 +184,9 @@ class AzureDynamicSessionsExecutor(RemotePythonExecutor):
                 )
                 return CodeOutput(output=final_answer, logs=logs, is_final_answer=True)
             except Exception:
+                # Final-answer marker was present but we couldn't decode the payload
+                # (e.g. truncated/corrupted output). Fall through so a real traceback
+                # in stderr still surfaces as an AgentError instead of being swallowed.
                 pass
 
         if stderr and "Traceback" in stderr:
@@ -217,7 +229,7 @@ class AzureDynamicSessionsExecutor(RemotePythonExecutor):
         return resp.json()
 
     def download_file(self, remote_path: str) -> bytes:
-        encoded = urllib.parse.quote(remote_path)
+        encoded = urllib.parse.quote(remote_path, safe="")
         url = self._build_url(f"files/{encoded}/content")
         resp = requests.get(url, headers=self._headers(), timeout=120)
         resp.raise_for_status()
