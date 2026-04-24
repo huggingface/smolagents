@@ -23,6 +23,7 @@ import math
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
+import contextvars
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
@@ -304,9 +305,14 @@ def timeout(timeout_seconds: int):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            # Copy the current contextvars context so that OpenTelemetry (and any
+            # other contextvars-based state, e.g. trace spans) is propagated into
+            # the worker thread.  Without this, tool spans created inside the
+            # executor have no parent and appear as root spans.  See issue #1961.
+            ctx = contextvars.copy_context()
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
             with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
+                future = executor.submit(ctx.run, func, *args, **kwargs)
                 try:
                     result = future.result(timeout=timeout_seconds)
                     return result
