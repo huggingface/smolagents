@@ -673,6 +673,207 @@ simple_set = {
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert result == [1, 4, 9, 16, 25]
 
+    def test_generator_function_simple(self):
+        code = dedent("""\
+            def counter(n):
+                for i in range(n):
+                    yield i
+
+            result = list(counter(4))
+            result
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == [0, 1, 2, 3]
+
+    def test_generator_function_multiple_yields(self):
+        code = dedent("""\
+            def gen():
+                yield 10
+                yield 20
+                yield 30
+
+            result = list(gen())
+            result
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == [10, 20, 30]
+
+    def test_generator_function_conditional_yield(self):
+        code = dedent("""\
+            def evens(n):
+                for i in range(n):
+                    if i % 2 == 0:
+                        yield i
+
+            result = list(evens(7))
+            result
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == [0, 2, 4, 6]
+
+    def test_generator_function_with_return(self):
+        """Generator with an explicit return should raise StopIteration after all yields."""
+        code = dedent("""\
+            def gen():
+                yield 1
+                yield 2
+                return 'done'
+
+            g = gen()
+            v1 = next(g)
+            v2 = next(g)
+            try:
+                next(g)
+                stop_raised = False
+            except StopIteration:
+                stop_raised = True
+
+            result = [v1, v2, stop_raised]
+            result
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == [1, 2, True]
+
+    def test_generator_function_yield_from(self):
+        code = dedent("""\
+            def inner():
+                yield 1
+                yield 2
+
+            def outer():
+                yield 0
+                yield from inner()
+                yield 3
+
+            result = list(outer())
+            result
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == [0, 1, 2, 3]
+
+    def test_generator_function_in_for_loop(self):
+        code = dedent("""\
+            def squares(n):
+                for i in range(n):
+                    yield i * i
+
+            total = sum(squares(5))
+            total
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == sum(i * i for i in range(5))
+
+    def test_generator_function_nested_does_not_affect_outer(self):
+        """A generator nested inside a regular function must not turn outer into a generator."""
+        code = dedent("""\
+            def outer():
+                def inner():
+                    yield 1
+                    yield 2
+                return list(inner())
+
+            result = outer()
+            result
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == [1, 2]
+
+    def test_generator_function_partial_consumption_releases_thread(self):
+        """Partial consumption (e.g. ``break``) must not leak the body thread.
+
+        Regression test for the thread-leak scenario raised on PR #2201: when a
+        generator is created and only partially consumed, garbage collection
+        should call ``close()`` on the underlying ``_GeneratorThread`` so the
+        body thread unblocks and exits promptly.
+        """
+        import gc
+        import threading
+        import time
+
+        code = dedent("""\
+            def gen():
+                for i in range(1000):
+                    yield i
+
+            g = gen()
+            first = next(g)
+            del g
+            first
+        """)
+        baseline = threading.active_count()
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 0
+        # Force collection so __del__ on the _GeneratorThread fires.
+        gc.collect()
+        # Give the body thread a brief moment to wake up and exit after close().
+        for _ in range(20):
+            if threading.active_count() <= baseline:
+                break
+            time.sleep(0.05)
+        assert threading.active_count() <= baseline, (
+            f"Generator body thread leaked: baseline={baseline}, after={threading.active_count()}"
+        )
+
+    def test_generator_function_send_value(self):
+        """``generator.send(value)`` must reach the ``yield`` expression as ``x = yield ...``.
+
+        Verifies the two-way communication channel (``_resume_q`` carries the sent value,
+        ``yield_value`` returns it) — covers the ``return val`` branch of ``yield_value``.
+        """
+        code = dedent("""\
+            def echo_gen():
+                x = yield 1
+                yield x * 2
+
+            g = echo_gen()
+            first = next(g)
+            second = g.send(5)
+            (first, second)
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == (1, 10)
+
+    def test_generator_function_throw_exception(self):
+        """``generator.throw(exc)`` must raise the exception at the paused ``yield``.
+
+        Covers the ``throw`` branch of ``yield_value`` (consumer-to-body exception
+        injection) and verifies the body can catch and recover from it.
+        """
+        code = dedent("""\
+            def gen():
+                try:
+                    yield 1
+                except ValueError as e:
+                    yield f"caught: {e}"
+
+            g = gen()
+            first = next(g)
+            second = g.throw(ValueError("boom"))
+            (first, second)
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == (1, "caught: boom")
+
+    def test_generator_function_close_idempotent_on_exhausted(self):
+        """``close()`` on an exhausted generator must be a no-op (regression for ``__del__`` safety).
+
+        ``__del__`` calls ``close()`` unconditionally, so calling ``close()`` on a fully
+        consumed generator (where ``_finished`` is already True) must not raise or send
+        a stray sentinel to the already-exited body thread.
+        """
+        code = dedent("""\
+            def gen():
+                yield 1
+                yield 2
+
+            g = gen()
+            list(g)  # exhaust
+            g.close()  # must be a no-op, not raise
+            "ok"
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == "ok"
+
     def test_boolops(self):
         code = """if (not (a > b and a > c)) or d > e:
     best_city = "Brooklyn"
