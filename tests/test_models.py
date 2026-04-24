@@ -37,6 +37,7 @@ from smolagents.models import (
     get_clean_message_list,
     get_tool_call_from_text,
     get_tool_json_schema,
+    is_transient_error,
     parse_json_if_needed,
     remove_content_after_stop_sequences,
     supports_stop_parameter,
@@ -1077,3 +1078,38 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert len(data["tool_calls"]) > 0
     assert data["tool_calls"][0]["function"]["name"] == "final_answer"
     assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
+
+
+class TestIsTransientError:
+    def test_rate_limit_429(self):
+        assert is_transient_error(Exception("HTTP 429 Too Many Requests"))
+
+    def test_rate_limit_string(self):
+        assert is_transient_error(Exception("rate limit exceeded"))
+
+    def test_503_service_unavailable(self):
+        assert is_transient_error(Exception("503 Service Unavailable"))
+
+    def test_502_bad_gateway(self):
+        assert is_transient_error(Exception("502 Bad Gateway"))
+
+    def test_500_internal_server_error(self):
+        assert is_transient_error(Exception("500 Internal Server Error"))
+
+    def test_504_gateway_timeout(self):
+        assert is_transient_error(Exception("504 Gateway Timeout"))
+
+    def test_connection_reset(self):
+        assert is_transient_error(Exception("Connection reset by peer"))
+
+    def test_timeout(self):
+        assert is_transient_error(Exception("request timed out"))
+
+    def test_non_retryable_400(self):
+        assert not is_transient_error(Exception("400 Bad Request"))
+
+    def test_non_retryable_401(self):
+        assert not is_transient_error(Exception("401 Unauthorized"))
+
+    def test_non_retryable_404(self):
+        assert not is_transient_error(Exception("404 Not Found"))
