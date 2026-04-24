@@ -17,6 +17,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+from .filesystem_tool import FileSystemTool, PathNotAllowedError
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
     BASE_PYTHON_TOOLS,
@@ -658,4 +659,6 @@ __all__ = [
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
+    "FileSystemTool",
+    "PathNotAllowedError",
 ]
