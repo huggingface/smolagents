@@ -1291,7 +1291,7 @@ class WasmExecutor(RemotePythonExecutor):
         """
         # In Pyodide, we don't actually install packages here, but we keep track of them
         # to load them when executing code
-        # TODO: Install  here instead?
+        # TODO: Install here instead?
         self.logger.log(f"Adding packages to load: {', '.join(additional_imports)}", level=LogLevel.INFO)
         return additional_imports
 

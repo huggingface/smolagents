@@ -244,7 +244,7 @@ def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
             Make sure to include code with the correct pattern, for instance:
             Thoughts: Your thoughts
             {code_block_tags[0]}
-            # Your python code here
+            # Your Python code here
             {code_block_tags[1]}
             """
         ).strip()
