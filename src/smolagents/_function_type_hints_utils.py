@@ -22,9 +22,11 @@ been duplicated.
 TODO: move them to `huggingface_hub` to avoid code duplication.
 """
 
+import ast
 import inspect
 import json
 import re
+import textwrap
 import types
 from collections.abc import Callable
 from copy import copy
@@ -66,24 +68,43 @@ def get_imports(code: str) -> list[str]:
     Returns:
         `list[str]`: List of all packages required to use the input code.
     """
-    # filter out try/except block so in custom code we can have try/except imports
-    code = re.sub(r"\s*try\s*:.*?except.*?:", "", code, flags=re.DOTALL)
+    code = textwrap.dedent(code).strip()
+    tree = ast.parse(code)
+    imports: set[str] = set()
 
-    # filter out imports under is_flash_attn_2_available block for avoid import issues in cpu only environment
-    code = re.sub(
-        r"if is_flash_attn[a-zA-Z0-9_]+available\(\):\s*(from flash_attn\s*.*\s*)+",
-        "",
-        code,
-        flags=re.MULTILINE,
-    )
+    def visit(node: ast.AST, in_try_block: bool = False, in_flash_attn_block: bool = False) -> None:
+        if isinstance(node, ast.Try):
+            for child in node.body + node.handlers + node.orelse + node.finalbody:
+                visit(child, in_try_block=True, in_flash_attn_block=in_flash_attn_block)
+            return
 
-    # Imports of the form `import xxx` or `import xxx as yyy`
-    imports = re.findall(r"^\s*import\s+(\S+?)(?:\s+as\s+\S+)?\s*$", code, flags=re.MULTILINE)
-    # Imports of the form `from xxx import yyy`
-    imports += re.findall(r"^\s*from\s+(\S+)\s+import", code, flags=re.MULTILINE)
-    # Only keep the top-level module
-    imports = [imp.split(".")[0] for imp in imports if not imp.startswith(".")]
-    return [get_package_name(import_name) for import_name in set(imports)]
+        if isinstance(node, ast.If):
+            is_flash_attn_guard = (
+                isinstance(node.test, ast.Call)
+                and isinstance(node.test.func, ast.Name)
+                and re.fullmatch(r"is_flash_attn[a-zA-Z0-9_]*available", node.test.func.id) is not None
+            )
+            for child in node.body + node.orelse:
+                visit(
+                    child,
+                    in_try_block=in_try_block,
+                    in_flash_attn_block=in_flash_attn_block or is_flash_attn_guard,
+                )
+            return
+
+        if not in_try_block and not in_flash_attn_block:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.add(alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                imports.add(node.module.split(".")[0])
+
+        for child in ast.iter_child_nodes(node):
+            visit(child, in_try_block=in_try_block, in_flash_attn_block=in_flash_attn_block)
+
+    visit(tree)
+
+    return [get_package_name(import_name) for import_name in imports]
 
 
 class TypeHintParsingException(Exception):
