@@ -1032,6 +1032,20 @@ You have been provided with these additional arguments, that you can access dire
         for tool_info in agent_dict["tools"]:
             tools.append(Tool.from_code(tool_info["code"]))
         # Load managed agents
+        # Do not propagate CodeAgent-specific kwargs (authorized_imports, executor
+        # config, etc.) to managed agents: each agent carries its own configuration
+        # in its serialized dict.  Generic overrides (model=, max_steps=, ...) are
+        # still forwarded so callers can inject a new model tree-wide.  Without this
+        # filter the parent's additional_authorized_imports leaks into every managed
+        # agent and overwrites the child's own import allowlist.  See issue #1849.
+        _MANAGED_AGENT_EXCLUDED_KWARGS = frozenset({
+            "additional_authorized_imports",
+            "executor_type",
+            "executor_kwargs",
+            "max_print_outputs_length",
+            "code_block_tags",
+        })
+        managed_agent_kwargs = {k: v for k, v in kwargs.items() if k not in _MANAGED_AGENT_EXCLUDED_KWARGS}
         managed_agents = []
         for managed_agent_dict in agent_dict["managed_agents"]:
             agent_class = AGENT_REGISTRY.get(managed_agent_dict["class"])
@@ -1040,7 +1054,7 @@ You have been provided with these additional arguments, that you can access dire
                     f"Unknown agent class '{managed_agent_dict['class']}'. "
                     f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
                 )
-            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            managed_agent = agent_class.from_dict(managed_agent_dict, **managed_agent_kwargs)
             managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {
