@@ -804,6 +804,34 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_string_content_in_dict():
+    # Raw dicts with string content should not raise AssertionError when two
+    # consecutive messages share the same role (issue #1972).
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "system", "content": "Always respond in English."},
+        {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 2
+    assert result[0]["role"] == "system"
+    assert result[0]["content"] == [{"type": "text", "text": "You are a helpful assistant.
+Always respond in English."}]
+    assert result[1]["role"] == "user"
+
+
+def test_get_clean_message_list_string_content_flatten():
+    # Same scenario but with flatten_messages_as_text=True.
+    messages = [
+        {"role": "system", "content": "Be concise."},
+        {"role": "system", "content": "Be accurate."},
+    ]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 1
+    assert result[0]["content"] == "Be concise.
+Be accurate."
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
