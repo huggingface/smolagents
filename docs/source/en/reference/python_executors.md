@@ -36,6 +36,51 @@ available executor implementations.
 
 [[autodoc]] smolagents.remote_executors.DockerExecutor
 
+### AzureDynamicSessionsExecutor
+
+Use Azure Container Apps Dynamic Sessions when you want a managed remote Python runtime with persistent session state.
+Requires the `azure` extra (`pip install 'smolagents[azure]'`) and an identity with the
+*Azure ContainerApps Session Executor* role on the session pool.
+
+Authentication uses `azure.identity.DefaultAzureCredential` by default. To target a specific user-assigned managed
+identity, either pass `managed_identity_client_id=...` or set the `AZURE_SESSIONS_MANAGED_IDENTITY_CLIENT_ID`
+environment variable. You can also pass a fully custom `access_token_provider` callable.
+
+Each executor instance targets one Azure session via `session_id`. Omit it for a fresh isolated session per
+instance, or reuse the same value to opt into persistent session state. Session idle/cooldown duration is
+configured on the Azure session pool resource (default 300 s, max 3600 s) and is not controlled by the executor.
+
+```python
+import os
+
+from smolagents import AzureDynamicSessionsExecutor, CodeAgent, LiteLLMModel
+from smolagents.monitoring import AgentLogger, LogLevel
+
+model = LiteLLMModel(
+    model_id="azure/gpt-4.1",
+    api_base=os.environ["AZURE_OPENAI_ENDPOINT"],
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+)
+
+executor = AzureDynamicSessionsExecutor(
+    additional_imports=["pandas", "numpy"],
+    logger=AgentLogger(LogLevel.INFO),
+    pool_management_endpoint=os.environ["AZURE_SESSIONS_POOL_ENDPOINT"],
+)
+
+agent = CodeAgent(
+    executor=executor,
+    tools=[],
+    model=model,
+    additional_authorized_imports=["pandas", "numpy"],
+)
+
+result = agent.run("What is 17 multiplied by 23?")
+print(result)
+```
+
+[[autodoc]] smolagents.azure_executors.AzureDynamicSessionsExecutor
+
 ### WasmExecutor
 
 [[autodoc]] smolagents.remote_executors.WasmExecutor
