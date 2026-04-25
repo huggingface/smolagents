@@ -1060,7 +1060,7 @@ class BlaxelExecutor(RemotePythonExecutor):
             self._delete_sandbox()
         except Exception as e:
             # Log cleanup errors but don't raise - cleanup should be best-effort
-            self.logger.log(f"Error during cleanup: : {e}", level=LogLevel.INFO)
+            self.logger.log(f"Error during cleanup: {e}", level=LogLevel.INFO)
         finally:
             # Always clean up local references
             if hasattr(self, "sandbox"):
@@ -1083,8 +1083,8 @@ class WasmExecutor(RemotePythonExecutor):
     """
     Remote Python code executor in a sandboxed WebAssembly environment powered by Pyodide and Deno.
 
-    This executor combines Deno's secure runtime with Pyodide's WebAssembly‑compiled Python interpreter to deliver s
-    trong isolation guarantees while enabling full Python execution.
+    This executor combines Deno's secure runtime with Pyodide's WebAssembly‑compiled Python interpreter to deliver
+    strong isolation guarantees while enabling full Python execution.
 
     Args:
         additional_imports (`list[str]`): Additional Python packages to install in the Pyodide environment.
@@ -1365,7 +1365,7 @@ class WasmExecutor(RemotePythonExecutor):
                 error.pythonExceptionType = errorMatch[1].split(".").pop();
               }
 
-              // If the error is a FinalAnswerException, extract its the encoded value
+              // If the error is a FinalAnswerException, extract the encoded value
               if (error.pythonExceptionType === "FinalAnswerException") {
                 // Extract the base64 encoded value from the error message
                 const valueMatch = e.message.match(/FinalAnswerException: (.*?)(?:\\n|$)/);
