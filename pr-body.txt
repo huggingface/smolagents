@@ -1,0 +1,20 @@
+## Summary
+Implements **AgentDiscoveryTool**: a new tool that fetches `/.well-known/agent-discovery.json` per the [Agent Discovery Protocol (ADP)](https://github.com/walkojas-boop/agent-discovery-protocol) specification. This lets agents auto-discover available services at any domain without prior knowledge of its offerings.
+
+## What was added
+- **`AgentDiscoveryTool`** in `src/smolagents/default_tools.py` - stdlib-only (`urllib`, `json`), no new dependencies
+- **2 unit tests** in `tests/test_default_tools.py` covering invalid domain format and nonexistent domain
+- **Exported** via `__all__`
+
+## Why this fits smolagents
+- Small, self-contained addition (~150 lines of code)
+- No external dependencies - pure Python stdlib
+- Aligns with smolagents' mission to make agents more autonomous and infrastructure-aware
+- Closes #2190
+
+## Testing
+All tests pass (2 new + existing tests unaffected):
+```
+tests/test_default_tools.py::TestAgentDiscoveryTool::test_invalid_domain_format PASSED
+tests/test_default_tools.py::TestAgentDiscoveryTool::test_nonexistent_domain PASSED
+```
