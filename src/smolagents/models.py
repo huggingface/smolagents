@@ -315,17 +315,22 @@ def get_tool_json_schema(tool: Tool) -> dict:
 
             value.pop("anyOf")
 
+    function_def: dict = {
+        "name": tool.name,
+        "description": tool.description,
+    }
+    # Some providers (e.g. Gemini) reject a parameters object with an empty
+    # properties dict when type is "object".  Omit the parameters field entirely
+    # for tools that take no inputs so the schema stays valid across providers.
+    if properties:
+        function_def["parameters"] = {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+        }
     return {
         "type": "function",
-        "function": {
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-                "required": required,
-            },
-        },
+        "function": function_def,
     }
 
 
