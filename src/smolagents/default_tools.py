@@ -606,6 +606,168 @@ class WikipediaSearchTool(Tool):
             return f"Error fetching Wikipedia summary: {str(e)}"
 
 
+class ExaSearchTool(Tool):
+    """Web search tool that performs AI-powered searches using the Exa API.
+
+    Exa returns semantically relevant pages with optional content retrieval (text, highlights, summary).
+    The tool exposes Exa's filtering features: search type, category, domain include/exclude lists,
+    text include/exclude lists, and published-date ranges.
+
+    Args:
+        max_results (`int`, default `10`): Maximum number of search results to return.
+        search_type (`str`, default `"auto"`): One of "auto", "neural", "fast", "deep-lite", "deep",
+            "deep-reasoning", or "instant".
+        category (`str`, *optional*): Restrict results to a category (e.g. "company", "research paper",
+            "news", "personal site", "financial report", "people").
+        include_domains (`list[str]`, *optional*): Restrict results to specific domains.
+        exclude_domains (`list[str]`, *optional*): Exclude results from specific domains.
+        include_text (`list[str]`, *optional*): Strings that must appear in the page text.
+        exclude_text (`list[str]`, *optional*): Strings that must not appear in the page text.
+        start_published_date (`str`, *optional*): ISO 8601 date; only return content published after this.
+        end_published_date (`str`, *optional*): ISO 8601 date; only return content published before this.
+        contents (`str` or `dict`, default `"highlights"`): Content mode for each result. Pass a string
+            shortcut (`"text"`, `"highlights"`, or `"summary"`) or a dict with the full Exa contents
+            options (e.g. `{"text": {"maxCharacters": 1000}, "highlights": True, "summary": {"query": "..."}}`).
+        api_key (`str`, *optional*): Exa API key. Falls back to the `EXA_API_KEY` environment variable.
+
+    Examples:
+        ```python
+        >>> from smolagents import ExaSearchTool
+        >>> web_search_tool = ExaSearchTool(max_results=5, category="research paper")
+        >>> results = web_search_tool("recent advances in retrieval-augmented generation")
+        >>> print(results)
+        ```
+    """
+
+    name = "web_search"
+    description = (
+        "Performs an Exa AI-powered web search for a query and returns the top results as markdown "
+        "with titles, URLs, snippets, and (when available) author and published date."
+    )
+    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
+    output_type = "string"
+
+    _CONTENT_SHORTCUTS = {
+        "text": {"text": True},
+        "highlights": {"highlights": True},
+        "summary": {"summary": True},
+    }
+
+    def __init__(
+        self,
+        max_results: int = 10,
+        search_type: str = "auto",
+        category: str | None = None,
+        include_domains: list[str] | None = None,
+        exclude_domains: list[str] | None = None,
+        include_text: list[str] | None = None,
+        exclude_text: list[str] | None = None,
+        start_published_date: str | None = None,
+        end_published_date: str | None = None,
+        contents: str | dict | None = "highlights",
+        api_key: str | None = None,
+    ):
+        super().__init__()
+        import os
+
+        try:
+            from exa_py import Exa
+        except ImportError as e:
+            raise ImportError(
+                "You must install package `exa-py` to run this tool: for instance run `pip install exa-py`."
+            ) from e
+
+        api_key = api_key or os.getenv("EXA_API_KEY")
+        if not api_key:
+            raise ValueError("Missing API key. Set 'EXA_API_KEY' in your env variables or pass `api_key`.")
+
+        self.client = Exa(api_key=api_key)
+        # Tag requests so Exa can attribute API usage to this integration.
+        self.client.headers["x-exa-integration"] = "smolagents"
+
+        self.max_results = max_results
+        self.search_type = search_type
+        self.category = category
+        self.include_domains = include_domains
+        self.exclude_domains = exclude_domains
+        self.include_text = include_text
+        self.exclude_text = exclude_text
+        self.start_published_date = start_published_date
+        self.end_published_date = end_published_date
+
+        if contents is None:
+            self.contents = None
+        elif isinstance(contents, str):
+            if contents not in self._CONTENT_SHORTCUTS:
+                raise ValueError(
+                    f"Invalid `contents` shortcut '{contents}'. "
+                    f"Choose one of {sorted(self._CONTENT_SHORTCUTS)} or pass a dict."
+                )
+            self.contents = self._CONTENT_SHORTCUTS[contents]
+        else:
+            self.contents = contents
+
+    def forward(self, query: str) -> str:
+        kwargs: dict = {"num_results": self.max_results, "type": self.search_type}
+        if self.contents is not None:
+            kwargs["contents"] = self.contents
+        if self.category is not None:
+            kwargs["category"] = self.category
+        if self.include_domains is not None:
+            kwargs["include_domains"] = self.include_domains
+        if self.exclude_domains is not None:
+            kwargs["exclude_domains"] = self.exclude_domains
+        if self.include_text is not None:
+            kwargs["include_text"] = self.include_text
+        if self.exclude_text is not None:
+            kwargs["exclude_text"] = self.exclude_text
+        if self.start_published_date is not None:
+            kwargs["start_published_date"] = self.start_published_date
+        if self.end_published_date is not None:
+            kwargs["end_published_date"] = self.end_published_date
+
+        response = self.client.search(query, **kwargs)
+        results = getattr(response, "results", None) or []
+        if not results:
+            return f"No results found for '{query}'. Try a less restrictive query."
+        return self._format_results(results)
+
+    @staticmethod
+    def _extract_snippet(result) -> str:
+        highlights = getattr(result, "highlights", None)
+        if highlights:
+            return " … ".join(highlights)
+        summary = getattr(result, "summary", None)
+        if summary:
+            return summary
+        text = getattr(result, "text", None)
+        if text:
+            return text[:500].rstrip() + ("…" if len(text) > 500 else "")
+        return ""
+
+    def _format_results(self, results) -> str:
+        snippets = []
+        for idx, result in enumerate(results, start=1):
+            title = getattr(result, "title", None) or "Untitled"
+            url = getattr(result, "url", "")
+            line = f"{idx}. [{title}]({url})"
+
+            published_date = getattr(result, "published_date", None)
+            if published_date:
+                line += f"\nPublished: {published_date}"
+
+            author = getattr(result, "author", None)
+            if author:
+                line += f"\nAuthor: {author}"
+
+            snippet = self._extract_snippet(result)
+            if snippet:
+                line += f"\n{snippet}"
+
+            snippets.append(line)
+        return "## Search Results\n\n" + "\n\n".join(snippets)
+
+
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
@@ -654,6 +816,7 @@ __all__ = [
     "UserInputTool",
     "WebSearchTool",
     "DuckDuckGoSearchTool",
+    "ExaSearchTool",
     "GoogleSearchTool",
     "VisitWebpageTool",
     "WikipediaSearchTool",
