@@ -13,6 +13,7 @@ from smolagents.local_python_executor import CodeOutput
 from smolagents.monitoring import AgentLogger, LogLevel
 from smolagents.remote_executors import (
     BlaxelExecutor,
+    DaytonaExecutor,
     DockerExecutor,
     E2BExecutor,
     ModalExecutor,
@@ -86,6 +87,249 @@ class TestRemotePythonExecutor:
         assert executor.run_code_raise_errors.call_count == 2
         assert "!pip install wikipedia-api" == executor.run_code_raise_errors.call_args_list[0].args[0]
         assert "class WikipediaSearchTool(Tool)" in executor.run_code_raise_errors.call_args_list[1].args[0]
+
+
+class TestDaytonaExecutorUnit:
+    def test_daytona_executor_instantiation(self):
+        logger = MagicMock()
+        with patch("smolagents.remote_executors.DaytonaExecutor.install_packages", return_value=[]) as mock_install:
+            with patch("daytona.Daytona") as mock_daytona_cls:
+                mock_daytona = MagicMock()
+                mock_sandbox = MagicMock()
+                mock_context = MagicMock()
+                mock_daytona.create.return_value = mock_sandbox
+                mock_sandbox.code_interpreter.create_context.return_value = mock_context
+                mock_daytona_cls.return_value = mock_daytona
+
+                executor = DaytonaExecutor(additional_imports=[], logger=logger)
+
+        assert isinstance(executor, DaytonaExecutor)
+        assert executor.logger == logger
+        assert executor.sandbox == mock_sandbox
+        assert executor.context == mock_context
+        mock_daytona.create.assert_called_once()
+        mock_sandbox.code_interpreter.create_context.assert_called_once()
+
+    def test_daytona_executor_instantiation_without_sdk(self):
+        """Test that DaytonaExecutor raises appropriate error when daytona SDK is not installed."""
+        logger = MagicMock()
+        with patch.dict("sys.modules", {"daytona": None}):
+            with pytest.raises(ModuleNotFoundError) as excinfo:
+                DaytonaExecutor(additional_imports=[], logger=logger)
+            assert "Please install 'daytona' extra" in str(excinfo.value)
+
+    def test_cleanup(self):
+        """Test that the cleanup method properly deletes the sandbox."""
+        logger = MagicMock()
+        with patch("smolagents.remote_executors.DaytonaExecutor.install_packages", return_value=[]):
+            with patch("daytona.Daytona") as mock_daytona_cls:
+                mock_daytona = MagicMock()
+                mock_sandbox = MagicMock()
+                mock_daytona.create.return_value = mock_sandbox
+                mock_sandbox.code_interpreter.create_context.return_value = MagicMock()
+                mock_daytona_cls.return_value = mock_daytona
+
+                executor = DaytonaExecutor(additional_imports=[], logger=logger)
+                executor.cleanup()
+
+                mock_sandbox.delete.assert_called_once()
+                assert not hasattr(executor, "sandbox")
+
+    def test_run_code_raise_errors_success(self):
+        """Test successful code execution returns correct CodeOutput."""
+        logger = MagicMock()
+        with patch("smolagents.remote_executors.DaytonaExecutor.install_packages", return_value=[]):
+            with patch("daytona.Daytona") as mock_daytona_cls:
+                mock_daytona = MagicMock()
+                mock_sandbox = MagicMock()
+                mock_daytona.create.return_value = mock_sandbox
+                mock_sandbox.code_interpreter.create_context.return_value = MagicMock()
+                mock_daytona_cls.return_value = mock_daytona
+
+                executor = DaytonaExecutor(additional_imports=[], logger=logger)
+
+                # Mock run_code result
+                mock_result = MagicMock()
+                mock_result.stdout = "hello world"
+                mock_result.stderr = ""
+                mock_result.error = None
+                mock_sandbox.code_interpreter.run_code.return_value = mock_result
+
+                output = executor.run_code_raise_errors("print('hello world')")
+                assert output.output == "hello world"
+                assert output.is_final_answer is False
+
+    def test_run_code_raise_errors_with_error(self):
+        """Test that execution errors are raised as AgentError."""
+        logger = MagicMock()
+        with patch("smolagents.remote_executors.DaytonaExecutor.install_packages", return_value=[]):
+            with patch("daytona.Daytona") as mock_daytona_cls:
+                mock_daytona = MagicMock()
+                mock_sandbox = MagicMock()
+                mock_daytona.create.return_value = mock_sandbox
+                mock_sandbox.code_interpreter.create_context.return_value = MagicMock()
+                mock_daytona_cls.return_value = mock_daytona
+
+                executor = DaytonaExecutor(additional_imports=[], logger=logger)
+
+                # Mock run_code result with error
+                mock_result = MagicMock()
+                mock_result.stdout = ""
+                mock_result.stderr = ""
+                mock_result.error.name = "ZeroDivisionError"
+                mock_result.error.value = "division by zero"
+                mock_result.error.traceback = "Traceback ..."
+                mock_sandbox.code_interpreter.run_code.return_value = mock_result
+
+                with pytest.raises(AgentError) as excinfo:
+                    executor.run_code_raise_errors("1/0")
+                assert "ZeroDivisionError" in str(excinfo.value)
+
+    def test_run_code_raise_errors_final_answer(self):
+        """Test that FinalAnswerException is detected and returned as final answer."""
+        logger = MagicMock()
+        with patch("smolagents.remote_executors.DaytonaExecutor.install_packages", return_value=[]):
+            with patch("daytona.Daytona") as mock_daytona_cls:
+                mock_daytona = MagicMock()
+                mock_sandbox = MagicMock()
+                mock_daytona.create.return_value = mock_sandbox
+                mock_sandbox.code_interpreter.create_context.return_value = MagicMock()
+                mock_daytona_cls.return_value = mock_daytona
+
+                executor = DaytonaExecutor(additional_imports=[], logger=logger)
+
+                # Mock run_code result with FinalAnswerException
+                mock_result = MagicMock()
+                mock_result.stdout = ""
+                mock_result.stderr = ""
+                mock_result.error.name = "FinalAnswerException"
+                mock_result.error.value = 'safe:"the answer"'
+                mock_sandbox.code_interpreter.run_code.return_value = mock_result
+
+                output = executor.run_code_raise_errors("final_answer('the answer')")
+                assert output.is_final_answer is True
+                assert output.output == "the answer"
+
+
+@pytest.fixture(scope="class")
+def daytona_executor():
+    executor = DaytonaExecutor(
+        additional_imports=["numpy"],
+        logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
+    )
+    yield executor
+    executor.cleanup()
+
+
+@require_run_all
+class TestDaytonaExecutorIntegration:
+    @pytest.fixture(autouse=True, scope="class")
+    def set_executor(self, daytona_executor):
+        type(self).executor = daytona_executor
+
+    def test_basic_execution(self):
+        """Test basic code execution."""
+        code = "a = 2 + 2; print(f'Result: {a}')"
+        code_output = self.executor(code)
+        assert "Result: 4" in code_output.logs
+
+    def test_state_persistence(self):
+        """Test that variables and imports persist between executions."""
+        self.executor("import numpy as np; a = 2")
+        code_output = self.executor("print(np.sqrt(a))")
+        assert "1.41421" in code_output.logs
+
+    def test_final_answer(self):
+        """Test returning a final answer."""
+        self.executor.send_tools({"final_answer": FinalAnswerTool()})
+        code = 'final_answer("This is the final answer")'
+        code_output = self.executor(code)
+        assert code_output.output == "This is the final answer"
+        assert code_output.is_final_answer is True
+
+    def test_error_handling(self):
+        """Test handling of runtime errors."""
+        with pytest.raises(AgentError) as excinfo:
+            self.executor("1/0")
+        assert "ZeroDivisionError" in str(excinfo.value)
+
+    def test_syntax_error_handling(self):
+        """Test handling of syntax errors."""
+        with pytest.raises(AgentError) as excinfo:
+            self.executor('print("Missing parenthesis')
+        assert "SyntaxError" in str(excinfo.value)
+
+    @pytest.mark.parametrize(
+        "code_action, expected_result",
+        [
+            (
+                dedent('''
+                    final_answer("""This is
+                    a multiline
+                    final answer""")
+                '''),
+                "This is\na multiline\nfinal answer",
+            ),
+            (
+                dedent("""
+                    text = '''Text containing
+                    final_answer(5)
+                    '''
+                    final_answer(text)
+                """),
+                "Text containing\nfinal_answer(5)\n",
+            ),
+            (
+                dedent("""
+                    num = 2
+                    if num == 1:
+                        final_answer("One")
+                    elif num == 2:
+                        final_answer("Two")
+                """),
+                "Two",
+            ),
+        ],
+    )
+    def test_final_answer_patterns(self, code_action, expected_result):
+        self.executor.send_tools({"final_answer": FinalAnswerTool()})
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == expected_result
+
+    def test_custom_final_answer(self):
+        class CustomFinalAnswerTool(FinalAnswerTool):
+            def forward(self, answer: str) -> str:
+                return "CUSTOM" + answer
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerTool()})
+        code_action = dedent("""
+            final_answer(answer="_answer")
+        """)
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "CUSTOM_answer"
+
+    def test_custom_final_answer_with_custom_inputs(self):
+        class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
+            inputs = {
+                "answer1": {"type": "string", "description": "First part of the answer."},
+                "answer2": {"type": "string", "description": "Second part of the answer."},
+            }
+
+            def forward(self, answer1: str, answer2: str) -> str:
+                return answer1 + "CUSTOM" + answer2
+
+        self.executor.send_tools({"final_answer": CustomFinalAnswerToolWithCustomInputs()})
+        code_action = dedent("""
+            final_answer(
+                answer1="answer1_",
+                answer2="_answer2"
+            )
+        """)
+        code_output = self.executor(code_action)
+        assert code_output.is_final_answer is True
+        assert code_output.output == "answer1_CUSTOM_answer2"
 
 
 class TestE2BExecutorUnit:
