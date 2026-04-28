@@ -92,6 +92,7 @@ from .utils import (
     is_valid_name,
     make_init_file,
     parse_code_blobs,
+    sanitize_tool_output,
     truncate_content,
 )
 
@@ -1398,7 +1399,7 @@ class ToolCallingAgent(MultiStepAgent):
                 self.state[observation_name] = tool_call_result
                 observation = f"Stored '{observation_name}' in memory."
             else:
-                observation = str(tool_call_result).strip()
+                observation = sanitize_tool_output(str(tool_call_result).strip())
             self.logger.log(
                 f"Observations: {observation.replace('[', '|')}",  # escape potential rich-tag-like components
                 level=LogLevel.INFO,
@@ -1731,7 +1732,7 @@ class CodeAgent(MultiStepAgent):
                     Text("Execution logs:", style="bold"),
                     Text(code_output.logs),
                 ]
-            observation = "Execution logs:\n" + code_output.logs
+            observation = "Execution logs:\n" + sanitize_tool_output(code_output.logs)
         except Exception as e:
             if hasattr(self.python_executor, "state") and "_print_outputs" in self.python_executor.state:
                 execution_logs = str(self.python_executor.state["_print_outputs"])
@@ -1740,7 +1741,7 @@ class CodeAgent(MultiStepAgent):
                         Text("Execution logs:", style="bold"),
                         Text(execution_logs),
                     ]
-                    memory_step.observations = "Execution logs:\n" + execution_logs
+                    memory_step.observations = "Execution logs:\n" + sanitize_tool_output(execution_logs)
                     self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
             error_msg = str(e)
             if "Import of " in error_msg and " is not allowed" in error_msg:
@@ -1752,7 +1753,7 @@ class CodeAgent(MultiStepAgent):
 
         truncated_output = truncate_content(str(code_output.output))
         observation += "Last output from code snippet:\n" + truncated_output
-        memory_step.observations = observation
+        memory_step.observations = sanitize_tool_output(observation)
 
         if not code_output.is_final_answer:
             execution_outputs_console += [
