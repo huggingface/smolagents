@@ -72,6 +72,9 @@ telemetry = [
   "opentelemetry-exporter-otlp",
   "openinference-instrumentation-smolagents>=0.1.15"  # Use new TokenUsage structure
 ]
+tavily = [
+  "tavily-python",
+]
 toolkit = [
   "ddgs>=9.0.0",  # DuckDuckGoSearchTool
   "markdownify>=0.14.1",  # VisitWebpageTool
