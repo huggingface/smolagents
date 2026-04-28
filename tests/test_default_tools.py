@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,7 +22,9 @@ from smolagents.default_tools import (
     DuckDuckGoSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
+    TavilySearchTool,
     VisitWebpageTool,
+    WebSearchTool,
     WikipediaSearchTool,
 )
 from smolagents.local_python_executor import ExecutionTimeoutError
@@ -41,6 +44,217 @@ class DefaultToolTests(unittest.TestCase):
     def test_ddgs_with_kwargs(self):
         result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
         assert isinstance(result, str)
+
+
+class TestTavilySearchTool:
+    def test_requires_api_key(self, monkeypatch):
+        monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+
+        with pytest.raises(ValueError, match="TAVILY_API_KEY"):
+            TavilySearchTool()
+
+    @patch("requests.post")
+    def test_forward_formats_results(self, mock_post):
+        with patch.dict("os.environ", {"TAVILY_API_KEY": "tvly-test"}):
+            mock_response = MagicMock()
+            mock_response.json.return_value = {
+                "query": "What is Hugging Face?",
+                "answer": "Hugging Face builds open-source AI tooling.",
+                "images": [],
+                "results": [
+                    {
+                        "title": "Hugging Face",
+                        "url": "https://huggingface.co",
+                        "content": "Open-source AI models, datasets, and apps.",
+                    }
+                ],
+                "response_time": 1.23,
+            }
+            mock_post.return_value = mock_response
+
+            tool = TavilySearchTool(
+                max_results=3,
+                search_depth="advanced",
+                chunks_per_source=2,
+                topic="news",
+                time_range="week",
+                start_date="2025-01-01",
+                end_date="2025-12-31",
+                include_answer="advanced",
+                include_raw_content="markdown",
+                include_images=True,
+                include_image_descriptions=True,
+                include_favicon=True,
+                include_domains=["huggingface.co"],
+                exclude_domains=["example.com"],
+                country="united states",
+                auto_parameters=True,
+                exact_match=True,
+                include_usage=True,
+                safe_search=True,
+            )
+
+            result = tool("What is Hugging Face?")
+
+        mock_post.assert_called_once_with(
+            "https://api.tavily.com/search",
+            headers={
+                "Authorization": "Bearer tvly-test",
+                "Content-Type": "application/json",
+            },
+            json={
+                "query": "What is Hugging Face?",
+                "max_results": 3,
+                "search_depth": "advanced",
+                "chunks_per_source": 2,
+                "topic": "news",
+                "time_range": "week",
+                "start_date": "2025-01-01",
+                "end_date": "2025-12-31",
+                "include_answer": "advanced",
+                "include_raw_content": "markdown",
+                "include_images": True,
+                "include_image_descriptions": True,
+                "include_favicon": True,
+                "include_domains": ["huggingface.co"],
+                "exclude_domains": ["example.com"],
+                "country": "united states",
+                "auto_parameters": True,
+                "exact_match": True,
+                "include_usage": True,
+                "safe_search": True,
+            },
+        )
+        mock_response.raise_for_status.assert_called_once()
+        assert result["query"] == "What is Hugging Face?"
+        assert result["answer"] == "Hugging Face builds open-source AI tooling."
+        assert result["results"][0]["url"] == "https://huggingface.co"
+        assert result["results"][0]["content"] == "Open-source AI models, datasets, and apps."
+
+    @patch("requests.post")
+    def test_forward_handles_empty_results(self, mock_post):
+        with patch.dict("os.environ", {"TAVILY_API_KEY": "tvly-test"}):
+            mock_response = MagicMock()
+            mock_response.json.return_value = {
+                "query": "No results expected",
+                "answer": "",
+                "images": [],
+                "results": [],
+                "response_time": 0.5,
+            }
+            mock_post.return_value = mock_response
+
+            tool = TavilySearchTool()
+
+            result = tool("No results expected")
+
+        assert result["results"] == []
+
+
+class TestWebSearchToolTavilyEngine:
+    def test_requires_api_key(self, monkeypatch):
+        monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+
+        with pytest.raises(ValueError, match="TAVILY_API_KEY"):
+            WebSearchTool(engine="tavily")("What is Hugging Face?")
+
+    @patch("requests.post")
+    def test_forward_formats_results(self, mock_post):
+        with patch.dict("os.environ", {"TAVILY_API_KEY": "tvly-test"}):
+            mock_response = MagicMock()
+            mock_response.json.return_value = {
+                "query": "What is Hugging Face?",
+                "answer": "Hugging Face builds open-source AI tooling.",
+                "images": [],
+                "results": [
+                    {
+                        "title": "Hugging Face",
+                        "url": "https://huggingface.co",
+                        "content": "Open-source AI models, datasets, and apps.",
+                    }
+                ],
+                "response_time": 1.23,
+            }
+            mock_post.return_value = mock_response
+
+            tool = WebSearchTool(
+                engine="tavily",
+                max_results=3,
+                search_depth="advanced",
+                chunks_per_source=2,
+                topic="news",
+                time_range="week",
+                start_date="2025-01-01",
+                end_date="2025-12-31",
+                include_answer="advanced",
+                include_raw_content="markdown",
+                include_images=True,
+                include_image_descriptions=True,
+                include_favicon=True,
+                include_domains=["huggingface.co"],
+                exclude_domains=["example.com"],
+                country="united states",
+                auto_parameters=True,
+                exact_match=True,
+                include_usage=True,
+                safe_search=True,
+            )
+
+            result = tool("What is Hugging Face?")
+
+        mock_post.assert_called_once_with(
+            "https://api.tavily.com/search",
+            headers={
+                "Authorization": "Bearer tvly-test",
+                "Content-Type": "application/json",
+            },
+            json={
+                "query": "What is Hugging Face?",
+                "max_results": 3,
+                "search_depth": "advanced",
+                "chunks_per_source": 2,
+                "topic": "news",
+                "time_range": "week",
+                "start_date": "2025-01-01",
+                "end_date": "2025-12-31",
+                "include_answer": "advanced",
+                "include_raw_content": "markdown",
+                "include_images": True,
+                "include_image_descriptions": True,
+                "include_favicon": True,
+                "include_domains": ["huggingface.co"],
+                "exclude_domains": ["example.com"],
+                "country": "united states",
+                "auto_parameters": True,
+                "exact_match": True,
+                "include_usage": True,
+                "safe_search": True,
+            },
+        )
+        mock_response.raise_for_status.assert_called_once()
+        assert result["query"] == "What is Hugging Face?"
+        assert result["answer"] == "Hugging Face builds open-source AI tooling."
+        assert result["results"][0]["url"] == "https://huggingface.co"
+        assert result["results"][0]["content"] == "Open-source AI models, datasets, and apps."
+
+    @patch("requests.post")
+    def test_forward_handles_empty_results(self, mock_post):
+        with patch.dict("os.environ", {"TAVILY_API_KEY": "tvly-test"}):
+            mock_response = MagicMock()
+            mock_response.json.return_value = {
+                "query": "No results expected",
+                "answer": "",
+                "images": [],
+                "results": [],
+                "response_time": 0.5,
+            }
+            mock_post.return_value = mock_response
+
+            tool = WebSearchTool(engine="tavily")
+
+            result = tool("No results expected")
+
+        assert result["results"] == []
 
 
 class TestPythonInterpreterTool(ToolTesterMixin):
