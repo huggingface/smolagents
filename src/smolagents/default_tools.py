@@ -339,6 +339,84 @@ class ApiWebSearchTool(Tool):
         )
 
 
+class TavilySearchTool(Tool):
+    """Web search tool that performs searches using the Tavily API (via ``tavily-python``).
+
+    Tavily returns ranked web results with extracted snippets per page and optional extras such as a short
+    synthesized ``answer`` or fuller raw text per result. The tool exposes Tavily’s search-depth modes,
+    topic and recency filters, domain allow/deny lists, and optional images or usage metadata.
+
+    Authentication uses the ``TAVILY_API_KEY`` environment variable (no constructor key). Install with
+    ``pip install tavily-python`` or ``pip install 'smolagents[toolkit]'``. Pass the natural-language search string
+    as the tool argument ``query``; pass all search tuning below through the constructor.
+
+    Args:
+        max_results (`int`, *optional*): Maximum number of results to return (API/SKU limits apply).
+        search_depth (`str`, *optional*): ``"basic"``, ``"advanced"``, ``"fast"``, or ``"ultra-fast"``—deeper modes
+            trade latency/cost for richer retrieval.
+        time_range (`str`, *optional*): ``"day"``, ``"week"``, ``"month"``, or ``"year"`` to bias toward recent pages.
+        start_date (`str`, *optional*): ``"YYYY-MM-DD"``; only content published on or after this date.
+        end_date (`str`, *optional*): ``"YYYY-MM-DD"``; only content published on or before this date.
+        days (`int`, *optional*): Restrict to the last N days when supported by the API.
+        include_domains (`list[str]`, *optional*): Restrict results to these domains.
+        exclude_domains (`list[str]`, *optional*): Exclude results from these domains.
+        include_answer (`bool` or `str`, *optional*): ``True``, ``False``, or ``"basic"`` / ``"advanced"`` to
+            control the optional summary ``answer`` field in the response.
+        include_raw_content (`bool` or `str`, *optional*): Include longer page body text; use ``True`` or
+            ``"markdown"`` / ``"text"`` as supported by your SDK version.
+        include_images (`bool`, *optional*): Include image-related fields in the response.
+        country (`str`, *optional*): Regional hint; must be a full country name from Tavily’s supported list
+            (short codes may be rejected by the API).
+
+        Any other keyword accepted by ``TavilyClient.search`` is forwarded as-is.
+
+    Examples:
+        ```python
+        >>> from smolagents import TavilySearchTool
+        >>> web_search_tool = TavilySearchTool(max_results=5, search_depth="advanced", include_answer=True)
+        >>> results = web_search_tool("recent advances in retrieval-augmented generation")
+        >>> print(results)
+        ```
+    """
+
+    name = "web_search"
+    description = (
+        "Web search via the Tavily API: returns a dict with ``query``, optional ``answer``, and a ``results`` list "
+        "(each hit typically includes ``url``, ``title``, ``content``, scores). "
+        "Constructor options mirror ``TavilyClient.search``—e.g. ``max_results``, ``search_depth`` "
+        "(``basic``/``fast``/``advanced``/``ultra-fast``), ``topic`` (``general``, ``news``, ``finance``), "
+        "recency via ``time_range`` or ``start_date``/``end_date``, ``include_answer``, "
+        "``include_raw_content``, ``include_domains`` / ``exclude_domains``, ``country``. "
+        "The user query is the tool argument ``query``. Requires env ``TAVILY_API_KEY``."
+    )
+    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
+    output_type = "object"
+
+    def __init__(self, client_source: str | None = None, **kwargs):
+        super().__init__()
+        import os
+
+        self.api_key = os.getenv("TAVILY_API_KEY")
+        if self.api_key is None:
+            raise ValueError("Missing API key. Make sure you have 'TAVILY_API_KEY' in your env variables.")
+
+        self._client_source = client_source or os.getenv("TAVILY_CLIENT_SOURCE") or "smolagents"
+        self._search_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
+    def forward(self, query: str) -> dict:
+        try:
+            from tavily import TavilyClient
+        except ImportError as err:
+            raise ImportError(
+                "The Tavily integration requires the tavily-python package. "
+                "Install it with: pip install tavily-python "
+                "or pip install 'smolagents[toolkit]'."
+            ) from err
+
+        client = TavilyClient(api_key=self.api_key, client_source=self._client_source)
+        return client.search(query, **self._search_kwargs)
+
+
 class WebSearchTool(Tool):
     name = "web_search"
     description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, links, and descriptions."
@@ -652,6 +730,7 @@ __all__ = [
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
+    "TavilySearchTool",
     "WebSearchTool",
     "DuckDuckGoSearchTool",
     "GoogleSearchTool",
