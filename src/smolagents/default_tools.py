@@ -606,6 +606,141 @@ class WikipediaSearchTool(Tool):
             return f"Error fetching Wikipedia summary: {str(e)}"
 
 
+class PerplexitySearchTool(Tool):
+    """Web search tool that uses the [Perplexity Search API](https://docs.perplexity.ai/api-reference/search-post).
+
+    Returns ranked web search results for a query via `POST https://api.perplexity.ai/search`.
+    Authenticates via the `PERPLEXITY_API_KEY` environment variable (or `PPLX_API_KEY` as a fallback).
+    Supports Perplexity's domain and date/recency filters.
+
+    Args:
+        max_results (`int`, default `5`): Maximum number of results to return per query.
+        search_domain_filter (`list[str]`, *optional*): Restrict results to specific domains.
+            Use a leading `-` on a domain to exclude it (e.g. `["nytimes.com"]` or `["-pinterest.com"]`).
+            Allow and deny entries cannot be mixed.
+        search_recency_filter (`str`, *optional*): One of `"hour"`, `"day"`, `"week"`, `"month"`, `"year"`.
+        search_after_date_filter (`str`, *optional*): Only include pages published on or after this date,
+            formatted as `m/d/yyyy`.
+        search_before_date_filter (`str`, *optional*): Only include pages published on or before this date,
+            formatted as `m/d/yyyy`.
+        max_tokens_per_page (`int`, *optional*): Maximum tokens of context returned per result page.
+        endpoint (`str`, *optional*): Override the search endpoint URL.
+        api_key (`str`, *optional*): Perplexity API key. Falls back to `PERPLEXITY_API_KEY`,
+            then `PPLX_API_KEY` from the environment.
+
+    Examples:
+        ```python
+        >>> from smolagents import PerplexitySearchTool
+        >>> tool = PerplexitySearchTool(max_results=5, search_recency_filter="week")
+        >>> print(tool("latest open-source LLM releases"))
+        ```
+    """
+
+    name = "perplexity_search"
+    description = (
+        "Performs a web search via the Perplexity Search API for a query and returns the top results "
+        "as markdown with titles, URLs, and snippets."
+    )
+    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
+    output_type = "string"
+
+    _ALLOWED_RECENCY = {"hour", "day", "week", "month", "year"}
+    _DEFAULT_ENDPOINT = "https://api.perplexity.ai/search"
+
+    def __init__(
+        self,
+        max_results: int = 5,
+        search_domain_filter: list[str] | None = None,
+        search_recency_filter: str | None = None,
+        search_after_date_filter: str | None = None,
+        search_before_date_filter: str | None = None,
+        max_tokens_per_page: int | None = None,
+        endpoint: str | None = None,
+        api_key: str | None = None,
+    ):
+        super().__init__()
+        import os
+
+        api_key = api_key or os.getenv("PERPLEXITY_API_KEY") or os.getenv("PPLX_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "Missing API key. Set 'PERPLEXITY_API_KEY' (or 'PPLX_API_KEY') in your env variables "
+                "or pass `api_key`."
+            )
+
+        if search_recency_filter is not None and search_recency_filter not in self._ALLOWED_RECENCY:
+            raise ValueError(
+                f"Invalid `search_recency_filter` '{search_recency_filter}'. "
+                f"Choose one of {sorted(self._ALLOWED_RECENCY)}."
+            )
+
+        if search_domain_filter:
+            has_allow = any(not d.startswith("-") for d in search_domain_filter)
+            has_deny = any(d.startswith("-") for d in search_domain_filter)
+            if has_allow and has_deny:
+                raise ValueError(
+                    "`search_domain_filter` cannot mix allowlist and denylist entries. "
+                    "Use only positive domains or only `-domain.com` entries."
+                )
+
+        self.api_key = api_key
+        self.endpoint = endpoint or self._DEFAULT_ENDPOINT
+        self.max_results = max_results
+        self.search_domain_filter = search_domain_filter
+        self.search_recency_filter = search_recency_filter
+        self.search_after_date_filter = search_after_date_filter
+        self.search_before_date_filter = search_before_date_filter
+        self.max_tokens_per_page = max_tokens_per_page
+
+    def _build_payload(self, query: str) -> dict:
+        payload: dict = {"query": query, "max_results": self.max_results}
+        if self.search_domain_filter is not None:
+            payload["search_domain_filter"] = self.search_domain_filter
+        if self.search_recency_filter is not None:
+            payload["search_recency_filter"] = self.search_recency_filter
+        if self.search_after_date_filter is not None:
+            payload["search_after_date_filter"] = self.search_after_date_filter
+        if self.search_before_date_filter is not None:
+            payload["search_before_date_filter"] = self.search_before_date_filter
+        if self.max_tokens_per_page is not None:
+            payload["max_tokens_per_page"] = self.max_tokens_per_page
+        return payload
+
+    def forward(self, query: str) -> str:
+        import requests
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        response = requests.post(self.endpoint, headers=headers, json=self._build_payload(query))
+        response.raise_for_status()
+        data = response.json()
+        results = data.get("results") or []
+        if not results:
+            return f"No results found for '{query}'. Try a less restrictive query."
+        return self._format_results(results)
+
+    @staticmethod
+    def _format_results(results: list[dict]) -> str:
+        lines = []
+        for idx, result in enumerate(results, start=1):
+            title = result.get("title") or "Untitled"
+            url = result.get("url", "")
+            line = f"{idx}. [{title}]({url})"
+
+            date = result.get("date")
+            if date:
+                line += f"\nPublished: {date}"
+
+            snippet = result.get("snippet")
+            if snippet:
+                line += f"\n{snippet}"
+
+            lines.append(line)
+        return "## Search Results\n\n" + "\n\n".join(lines)
+
+
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
@@ -655,6 +790,7 @@ __all__ = [
     "WebSearchTool",
     "DuckDuckGoSearchTool",
     "GoogleSearchTool",
+    "PerplexitySearchTool",
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
