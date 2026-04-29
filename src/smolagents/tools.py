@@ -119,6 +119,8 @@ class Tool(BaseTool):
       description for your tool.
     - **output_type** (`type`) -- The type of the tool output. This is used by `launch_gradio_demo`
       or to make a nice space from your tool, and also can be used in the generated description for your tool.
+    - **output_description** (`str`, *optional*) -- A natural-language description of the tool output. This is
+      included in generated prompts when provided, for example from the `Returns:` block of an `@tool` docstring.
     - **output_schema** (`Dict[str, Any]`, *optional*) -- The JSON schema defining the expected structure of the tool output.
       This can be included in system prompts to help agents understand the expected output format. Note: This is currently
       used for informational purposes only and does not perform actual output validation.
@@ -132,6 +134,7 @@ class Tool(BaseTool):
     description: str
     inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
+    output_description: str | None = None
     output_schema: dict[str, Any] | None = None
 
     def __init__(self, *args, **kwargs):
@@ -162,6 +165,11 @@ class Tool(BaseTool):
         output_schema = getattr(self, "output_schema", None)
         if output_schema is not None and not isinstance(output_schema, dict):
             raise TypeError(f"Attribute output_schema should have type dict, got {type(output_schema)} instead.")
+        output_description = getattr(self, "output_description", None)
+        if output_description is not None and not isinstance(output_description, str):
+            raise TypeError(
+                f"Attribute output_description should have type str, got {type(output_description)} instead."
+            )
 
         # - Validate name
         if not is_valid_name(self.name):
@@ -280,14 +288,23 @@ class Tool(BaseTool):
         if has_schema:
             formatted_schema = json.dumps(self.output_schema, indent=4)
             indented_schema = textwrap.indent(formatted_schema, "        ")
-            returns_doc = f"\nReturns:\n    dict (structured output): This tool ALWAYS returns a dictionary that strictly adheres to the following JSON schema:\n{indented_schema}"
+            output_description = getattr(self, "output_description", None)
+            output_description = f"{output_description} " if output_description else ""
+            returns_doc = f"\nReturns:\n    dict (structured output): {output_description}This tool ALWAYS returns a dictionary that strictly adheres to the following JSON schema:\n{indented_schema}"
+            tool_doc += f"\n{returns_doc}"
+        elif output_description := getattr(self, "output_description", None):
+            returns_doc = f"\nReturns:\n    {self.output_type}: {output_description}"
             tool_doc += f"\n{returns_doc}"
 
         tool_doc = f'"""{tool_doc}\n"""'
         return f"def {self.name}{tool_signature}:\n{textwrap.indent(tool_doc, '    ')}"
 
     def to_tool_calling_prompt(self) -> str:
-        return f"{self.name}: {self.description}\n    Takes inputs: {self.inputs}\n    Returns an output of type: {self.output_type}"
+        output_description = getattr(self, "output_description", None)
+        returns_prompt = f"Returns an output of type: {self.output_type}"
+        if output_description:
+            returns_prompt += f": {output_description}"
+        return f"{self.name}: {self.description}\n    Takes inputs: {self.inputs}\n    {returns_prompt}"
 
     def to_dict(self) -> dict:
         """Returns a dictionary representing the tool"""
@@ -318,9 +335,12 @@ class Tool(BaseTool):
             """
             ).strip()
 
+            if getattr(self, "output_description", None):
+                tool_code += f"\n    output_description = {json.dumps(self.output_description)}"
+
             # Add output_schema if it exists
             if hasattr(self, "output_schema") and self.output_schema is not None:
-                tool_code += f"\n                output_schema = {repr(self.output_schema)}"
+                tool_code += f"\n    output_schema = {repr(self.output_schema)}"
             import re
 
             def add_self_argument(source_code: str) -> str:
@@ -361,6 +381,8 @@ class Tool(BaseTool):
         # Add output_schema if it exists
         if hasattr(self, "output_schema") and self.output_schema is not None:
             tool_dict["output_schema"] = self.output_schema
+        if getattr(self, "output_description", None):
+            tool_dict["output_description"] = self.output_description
 
         return tool_dict
 
@@ -384,6 +406,8 @@ class Tool(BaseTool):
         # Set output_schema if it exists in the dictionary
         if "output_schema" in tool_dict:
             tool.output_schema = tool_dict["output_schema"]
+        if "output_description" in tool_dict:
+            tool.output_description = tool_dict["output_description"]
 
         return tool
 
@@ -1086,6 +1110,7 @@ def tool(tool_function: Callable) -> Tool:
     SimpleTool.description = tool_json_schema["description"]
     SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
     SimpleTool.output_type = tool_json_schema["return"]["type"]
+    SimpleTool.output_description = tool_json_schema["return"].get("description")
 
     # Set output_schema if it exists in the JSON schema
     if "output_schema" in tool_json_schema:
@@ -1152,6 +1177,7 @@ def tool(tool_function: Callable) -> Tool:
             description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
             inputs: dict[str, dict[str, str]] = {tool_json_schema["parameters"]["properties"]}
             output_type: str = "{tool_json_schema["return"]["type"]}"
+            output_description: str | None = {json.dumps(tool_json_schema["return"].get("description"))}
 
             def __init__(self):
                 self.is_initialized = True
