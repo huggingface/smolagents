@@ -289,6 +289,10 @@ class MultiStepAgent(ABC):
             - Take the final answer, the agent's memory, and the agent itself as arguments.
             - Return a boolean indicating whether the final answer is valid.
         return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
+        preserve_reasoning (`bool`, default `False`): Whether to include reasoning_content from thinking models in
+            the conversation history sent to the next LLM call. Set to ``True`` for providers that require
+            reasoning in history (e.g. Kimi/Moonshot returns 400 if reasoning is missing). Set to ``False`` for
+            providers that reject reasoning in history (e.g. DeepSeek returns 400 if reasoning is re-sent).
     """
 
     def __init__(
@@ -309,9 +313,11 @@ class MultiStepAgent(ABC):
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
         logger: AgentLogger | None = None,
+        preserve_reasoning: bool = False,
     ):
         self.agent_name = self.__class__.__name__
         self.model = model
+        self.preserve_reasoning = preserve_reasoning
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         if prompt_templates is not None:
             missing_keys = set(EMPTY_PROMPT_TEMPLATES.keys()) - set(prompt_templates.keys())
@@ -1321,6 +1327,10 @@ class ToolCallingAgent(MultiStepAgent):
             memory_step.model_output_message = chat_message
             memory_step.model_output = chat_message.content
             memory_step.token_usage = chat_message.token_usage
+            if self.preserve_reasoning:
+                memory_step.reasoning_content = chat_message.reasoning_content
+            # When preserve_reasoning is False, reasoning_content stays None;
+            # chat_message.raw still has the original response for debugging
         except Exception as e:
             raise AgentGenerationError(f"Error while generating output:\n{e}", self.logger) from e
 
@@ -1697,6 +1707,10 @@ class CodeAgent(MultiStepAgent):
 
             memory_step.token_usage = chat_message.token_usage
             memory_step.model_output = output_text
+            if self.preserve_reasoning:
+                memory_step.reasoning_content = chat_message.reasoning_content
+            # When preserve_reasoning is False, reasoning_content stays None;
+            # chat_message.raw still has the original response for debugging
         except Exception as e:
             raise AgentGenerationError(f"Error in generating model output:\n{e}", self.logger) from e
 
