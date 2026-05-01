@@ -1674,6 +1674,18 @@ class CodeAgent(MultiStepAgent):
                 chat_message = agglomerate_stream_deltas(chat_message_stream_deltas)
                 memory_step.model_output_message = chat_message
                 output_text = chat_message.content
+
+                # Strip trailing partial stop sequences from streamed output.
+                # Some streaming servers (e.g., llama-server) may emit a partial
+                # stop sequence before halting generation (e.g., "</code" instead
+                # of "</code>"), which causes code parsing failures downstream.
+                if output_text:
+                    for stop_seq in stop_sequences:
+                        for length in range(len(stop_seq) - 1, 0, -1):
+                            if output_text.endswith(stop_seq[:length]):
+                                output_text = output_text[:-length]
+                                memory_step.model_output_message.content = output_text
+                                break
             else:
                 chat_message: ChatMessage = self.model.generate(
                     input_messages,
