@@ -2099,21 +2099,42 @@ class LangChainModel(Model):
                 f"Expected a LangChain BaseChatModel instance, got {type(model).__name__}"
             )
         self.langchain_model = model
-        model_id = getattr(model, "model_name", None) or getattr(model, "model", None) or type(model).__name__
+        # Try common attribute names used by LangChain providers; fall back to the class name
+        # but warn the caller so the surprising id is observable.
+        model_id = getattr(model, "model_name", None) or getattr(model, "model", None)
+        if not model_id:
+            model_id = type(model).__name__
+            logger.warning(
+                "LangChainModel: could not find `model_name` or `model` attribute on %s; "
+                "falling back to class name `%s` as model_id. Pass `model_id=...` to "
+                "LangChainModel(...) to override.",
+                type(model).__name__,
+                model_id,
+            )
         super().__init__(model_id=model_id, **kwargs)
 
-    def _convert_to_langchain_messages(self, messages: list) -> list:
-        """Convert smolagents ChatMessage objects to LangChain BaseMessage objects."""
-        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+    def _convert_to_langchain_messages(self, messages: list) -> "list[BaseMessage]":
+        """Convert smolagents ChatMessage objects to LangChain BaseMessage objects.
 
-        lc_messages = []
+        Mapping:
+            - role=system           -> SystemMessage
+            - role=assistant or tool-call -> AIMessage
+            - role=tool-response    -> ToolMessage (with tool_call_id from message)
+            - role=user (and others) -> HumanMessage
+        """
+        from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+
+        lc_messages: list[BaseMessage] = []
         for msg in messages:
+            tool_call_id = None
             if isinstance(msg, dict):
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
+                tool_call_id = msg.get("tool_call_id")
             else:
                 role = msg.role.value if isinstance(msg.role, MessageRole) else str(msg.role)
                 content = msg.content
+                tool_call_id = getattr(msg, "tool_call_id", None)
 
             # Flatten list content to string
             if isinstance(content, list):
@@ -2128,12 +2149,17 @@ class LangChainModel(Model):
             if content is None:
                 content = ""
 
-            if role in ("system",):
+            if role == "system":
                 lc_messages.append(SystemMessage(content=content))
             elif role in ("assistant", "tool-call"):
                 lc_messages.append(AIMessage(content=content))
+            elif role in ("tool-response", "tool"):
+                # LangChain requires tool_call_id to associate the result with the originating call.
+                # If the smolagents message lacks one, we still construct a ToolMessage with an empty
+                # id rather than dropping to HumanMessage, since the role semantics differ.
+                lc_messages.append(ToolMessage(content=content, tool_call_id=tool_call_id or ""))
             else:
-                # user, tool-response, and any other roles map to HumanMessage
+                # user and any unrecognised role
                 lc_messages.append(HumanMessage(content=content))
 
         return lc_messages

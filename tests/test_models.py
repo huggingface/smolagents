@@ -1127,6 +1127,70 @@ class TestLangChainModel:
         assert isinstance(lc_messages[2], AIMessage)
         assert lc_messages[2].content == "Hi there!"
 
+    def test_convert_tool_response_to_tool_message(self):
+        """ToolMessage role should map to LangChain ToolMessage carrying tool_call_id."""
+        try:
+            from langchain_core.messages import ToolMessage
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        model = self._make_model()
+
+        # smolagents uses dict-form for tool-response messages with a tool_call_id field
+        messages = [
+            {
+                "role": "tool-response",
+                "content": "Tool returned: 42",
+                "tool_call_id": "call_abc123",
+            }
+        ]
+
+        lc_messages = model._convert_to_langchain_messages(messages)
+
+        assert len(lc_messages) == 1
+        assert isinstance(lc_messages[0], ToolMessage)
+        assert lc_messages[0].content == "Tool returned: 42"
+        assert lc_messages[0].tool_call_id == "call_abc123"
+
+    def test_convert_tool_response_without_tool_call_id(self):
+        """ToolMessage without explicit tool_call_id should still be a ToolMessage (empty id)."""
+        try:
+            from langchain_core.messages import ToolMessage
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        model = self._make_model()
+
+        messages = [{"role": "tool", "content": "result"}]
+        lc_messages = model._convert_to_langchain_messages(messages)
+
+        assert len(lc_messages) == 1
+        assert isinstance(lc_messages[0], ToolMessage)
+        assert lc_messages[0].content == "result"
+        assert lc_messages[0].tool_call_id == ""
+
+    def test_init_logs_warning_when_falling_back_to_class_name(self, caplog):
+        """When neither model_name nor model attribute is present, a warning is logged."""
+        try:
+            from langchain_core.language_models import BaseChatModel
+        except ImportError:
+            pytest.skip("langchain-core not installed")
+
+        mock_lc_model = MagicMock(spec=BaseChatModel)
+        # Force both lookups to be falsy so the fallback path triggers
+        mock_lc_model.model_name = None
+        mock_lc_model.model = None
+
+        with caplog.at_level("WARNING", logger="smolagents.models"):
+            model = LangChainModel(mock_lc_model)
+
+        assert any(
+            "falling back to class name" in record.message and record.levelname == "WARNING"
+            for record in caplog.records
+        ), f"Expected fallback warning, got records: {[r.message for r in caplog.records]}"
+        # model_id should still be set to the class name
+        assert model.model_id == type(mock_lc_model).__name__
+
     def test_convert_handles_string_content(self):
         """Test conversion when content is a plain string instead of list."""
         try:
