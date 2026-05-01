@@ -10,7 +10,7 @@ import requests
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
 
-from smolagents import Tool, tool
+from smolagents import Tool
 
 
 load_dotenv(override=True)
@@ -102,7 +102,7 @@ def resize_image(image_path):
     return new_image_path
 
 
-class VisualQATool(Tool):
+class VisualQAHfTool(Tool):
     name = "visualizer"
     description = "A tool that can answer questions about attached images."
     inputs = {
@@ -114,7 +114,10 @@ class VisualQATool(Tool):
     }
     output_type = "string"
 
-    client = InferenceClient("HuggingFaceM4/idefics2-8b-chatty")
+    def __init__(self, model: str = "HuggingFaceM4/idefics2-8b-chatty"):
+        super().__init__()
+        self.model = model
+        self.client = InferenceClient(self.model)
 
     def forward(self, image_path: str, question: str | None = None) -> str:
         output = ""
@@ -138,52 +141,63 @@ class VisualQATool(Tool):
         return output
 
 
-@tool
-def visualizer(image_path: str, question: str | None = None) -> str:
-    """A tool that can answer questions about attached images.
-
-    Args:
-        image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
-        question: The question to answer.
-    """
-    import mimetypes
-    import os
-
-    import requests
-
-    from .visual_qa import encode_image
-
-    add_note = False
-    if not question:
-        add_note = True
-        question = "Please write a detailed caption for this image."
-    if not isinstance(image_path, str):
-        raise Exception("You should provide at least `image_path` string argument to this tool!")
-
-    mime_type, _ = mimetypes.guess_type(image_path)
-    base64_image = encode_image(image_path)
-
-    payload = {
-        "model": "gpt-4o",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": question},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
-                ],
-            }
-        ],
-        "max_tokens": 1000,
+class VisualQAOpenAITool(Tool):
+    name = "visualizer"
+    description = "A tool that can answer questions about attached images."
+    inputs = {
+        "image_path": {
+            "description": "The path to the image on which to answer the question",
+            "type": "string",
+        },
+        "question": {"description": "the question to answer", "type": "string", "nullable": True},
     }
-    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    try:
-        output = response.json()["choices"][0]["message"]["content"]
-    except Exception:
-        raise Exception(f"Response format unexpected: {response.json()}")
+    output_type = "string"
 
-    if add_note:
-        output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
+    def __init__(self, model: str = "gpt-4o"):
+        super().__init__()
+        self.model = model
 
-    return output
+    def forward(self, image_path: str, question: str | None = None) -> str:
+        import mimetypes
+        import os
+
+        import requests
+
+        from .visual_qa import encode_image
+
+        add_note = False
+        if not question:
+            add_note = True
+            question = "Please write a detailed caption for this image."
+        if not isinstance(image_path, str):
+            raise Exception("You should provide at least `image_path` string argument to this tool!")
+
+        mime_type, _ = mimetypes.guess_type(image_path)
+        base64_image = encode_image(image_path)
+
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": question},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
+                    ],
+                }
+            ],
+            "max_tokens": 1000,
+        }
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        try:
+            output = response.json()["choices"][0]["message"]["content"]
+        except Exception:
+            raise Exception(f"Response format unexpected: {response.json()}")
+
+        if add_note:
+            output = (
+                f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
+            )
+
+        return output
