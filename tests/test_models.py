@@ -772,8 +772,8 @@ def test_remove_content_after_stop_sequences_handles_none():
             dict(
                 role=MessageRole.USER,
                 content=[
-                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,encoded_image"}},
-                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,second_encoded_image"}},
+                    {"format": "png", "source": {"bytes": "encoded_image"}},
+                    {"format": "png", "source": {"bytes": "second_encoded_image"}},
                 ],
             ),
         ),
@@ -784,7 +784,7 @@ def test_get_clean_message_list_image_encoding(convert_images_to_image_urls, exp
         role=MessageRole.USER,
         content=[{"type": "image", "image": b"image_data"}, {"type": "image", "image": b"second_image_data"}],
     )
-    with patch("smolagents.models.encode_image_base64") as mock_encode:
+    with patch("smolagents.models.get_image_bytes") as mock_encode:
         mock_encode.side_effect = ["encoded_image", "second_encoded_image"]
         result = get_clean_message_list([message], convert_images_to_image_urls=convert_images_to_image_urls)
         mock_encode.assert_any_call(b"image_data")
