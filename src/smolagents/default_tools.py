@@ -507,6 +507,74 @@ class VisitWebpageTool(Tool):
             return f"An unexpected error occurred: {str(e)}"
 
 
+class ZeroApiKeyWebSearchTool(Tool):
+    """Search the web using Zero-API-Key Web Search.
+
+    Free by default (DuckDuckGo), with optional production-grade
+    Bright Data SERP supporting 7 search engines (Google, Bing,
+    DuckDuckGo, Yandex, Baidu, Yahoo, Naver) and geo-targeting
+    for 195 countries.
+
+    Also supports claim verification and page reading.
+
+    Install the package first:
+        pip install zero-api-key-web-search
+
+    Example:
+        ```python
+        from smolagents import ZeroApiKeyWebSearchTool
+        tool = ZeroApiKeyWebSearchTool()
+        result = tool("Python 3.13 release")
+        ```
+    """
+
+    name = "zero_api_key_web_search"
+    description = (
+        "Search the web for real-time information using Zero-API-Key Web Search. "
+        "Free by default (DuckDuckGo). Optionally use Bright Data for production-grade "
+        "multi-engine SERP with geo-targeting. Returns search results with titles, "
+        "URLs, and descriptions."
+    )
+    inputs = {
+        "query": {
+            "type": "string",
+            "description": "The search query to perform.",
+        }
+    }
+    output_type = "string"
+
+    def __init__(self, max_results: int = 10, profile: str = "default", **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
+        self.profile = profile
+
+    def forward(self, query: str) -> str:
+        from zero_api_key_web_search import UltimateSearcher
+
+        searcher = UltimateSearcher(profile=self.profile)
+        answer = searcher.search(query=query, max_results=self.max_results)
+
+        if not answer.sources:
+            return f"No results found for: {query}"
+
+        result = f"## Search Results for: {query}\n\n"
+        result += f"**Answer:** {answer.answer}\n\n"
+        result += "### Sources:\n\n"
+        for i, source in enumerate(answer.sources[:self.max_results], 1):
+            result += f"{i}. **{source.title}**\n   [{source.url}]({source.url})\n"
+            if source.snippet:
+                result += f"   {source.snippet}\n"
+            if source.date:
+                result += f"   Date: {source.date}\n"
+            result += "\n"
+
+        providers_used = ", ".join(answer.metadata.get("providers_used", []))
+        if providers_used:
+            result += f"Providers: {providers_used}\n"
+
+        return result
+
+
 class WikipediaSearchTool(Tool):
     """
     Search Wikipedia and return the summary or full text of the requested article, along with the page URL.
@@ -658,4 +726,5 @@ __all__ = [
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
+    "ZeroApiKeyWebSearchTool",
 ]
