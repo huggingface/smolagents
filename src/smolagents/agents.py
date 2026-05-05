@@ -1722,6 +1722,30 @@ class CodeAgent(MultiStepAgent):
         memory_step.tool_calls = [tool_call]
 
         ### Execute action ###
+        inner_tool_calls: list[ToolCall] = []
+        original_static_tools: dict[str, Callable] = {}
+        agent_tool_names = set(self.tools.keys()) | set(self.managed_agents.keys())
+
+        if hasattr(self.python_executor, "static_tools") and self.python_executor.static_tools:
+            for tool_name in agent_tool_names & set(self.python_executor.static_tools.keys()):
+                original_tool = self.python_executor.static_tools[tool_name]
+                original_static_tools[tool_name] = original_tool
+
+                def make_tool_call_wrapper(name: str, tool: Callable) -> Callable:
+                    def tool_call_wrapper(*args, **kwargs):
+                        inner_tool_calls.append(
+                            ToolCall(
+                                name=name,
+                                arguments=kwargs if kwargs else (args[0] if len(args) == 1 else list(args)),
+                                id=f"call_{len(self.memory.steps)}_{len(inner_tool_calls)}",
+                            )
+                        )
+                        return tool(*args, **kwargs)
+
+                    return tool_call_wrapper
+
+                self.python_executor.static_tools[tool_name] = make_tool_call_wrapper(tool_name, original_tool)
+
         self.logger.log_code(title="Executing parsed code:", content=code_action, level=LogLevel.INFO)
         try:
             code_output = self.python_executor(code_action)
@@ -1749,6 +1773,11 @@ class CodeAgent(MultiStepAgent):
                     level=LogLevel.INFO,
                 )
             raise AgentExecutionError(error_msg, self.logger)
+        finally:
+            for tool_name, original_tool in original_static_tools.items():
+                self.python_executor.static_tools[tool_name] = original_tool
+            if inner_tool_calls:
+                memory_step.inner_tool_calls = inner_tool_calls
 
         truncated_output = truncate_content(str(code_output.output))
         observation += "Last output from code snippet:\n" + truncated_output
