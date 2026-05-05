@@ -62,14 +62,14 @@ That's it! Your agent will use Python code to solve the task and return the resu
 
 ### Adding Tools
 
-Let's make our agent more capable by adding some tools:
+Let's make our agent more capable by adding some tools. When `PERPLEXITY_API_KEY` is set, [`PerplexitySearchTool`] is the recommended web search tool — it returns LLM-ready snippets from a single ranked index. Otherwise, fall back to [`DuckDuckGoSearchTool`].
 
 ```python
-from smolagents import CodeAgent, InferenceClientModel, DuckDuckGoSearchTool
+from smolagents import CodeAgent, InferenceClientModel, PerplexitySearchTool
 
 model = InferenceClientModel()
 agent = CodeAgent(
-    tools=[DuckDuckGoSearchTool()],
+    tools=[PerplexitySearchTool()],  # requires PERPLEXITY_API_KEY
     model=model,
 )
 
