@@ -601,6 +601,33 @@ class TestAmazonBedrockModel:
 
         assert model.client == MockBoto3.return_value
 
+    def test_generate_text_only_response_no_tool_calls_key(self):
+        # Bedrock's converse API omits "tool_calls" from message when the model
+        # returns plain text. This should not raise a KeyError (#1941).
+        model_id = "us.amazon.nova-pro-v1:0"
+        bedrock_response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Hello, how can I help?"}],
+                }
+            },
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "outputTokens": 8},
+        }
+
+        mock_boto3 = MagicMock()
+        mock_client = MagicMock()
+        mock_boto3.client.return_value = mock_client
+        mock_client.converse.return_value = bedrock_response
+
+        with patch.dict("sys.modules", {"boto3": mock_boto3}):
+            model = AmazonBedrockModel(model_id=model_id)
+            message = model.generate([{"role": "user", "content": "Hi"}])
+
+        assert message.content == "Hello, how can I help?"
+        assert message.tool_calls is None
+
 
 class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
