@@ -373,11 +373,18 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
-            if flatten_messages_as_text:
-                output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
+            # Normalize string content to list of text blocks for consistent merge handling
+            if isinstance(message.content, str):
+                curr_content = [{"type": "text", "text": message.content}]
             else:
-                for el in message.content:
+                curr_content = message.content
+            if flatten_messages_as_text:
+                output_message_list[-1]["content"] += "\n" + curr_content[0]["text"]
+            else:
+                # Normalize previous content to list if it was stored as a bare string
+                if isinstance(output_message_list[-1]["content"], str):
+                    output_message_list[-1]["content"] = [{"type": "text", "text": output_message_list[-1]["content"]}]
+                for el in curr_content:
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
                         output_message_list[-1]["content"][-1]["text"] += "\n" + el["text"]
@@ -385,7 +392,10 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                content = message.content[0]["text"]
+                if isinstance(message.content, str):
+                    content = message.content
+                else:
+                    content = message.content[0]["text"]
             else:
                 content = message.content
             output_message_list.append(
