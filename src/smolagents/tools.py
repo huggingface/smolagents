@@ -66,6 +66,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_VERBOSE = os.environ.get("SMOLAGENTS_VERBOSE", "0").strip() in ("1", "true", "yes")
+
 
 def validate_after_init(cls):
     original_init = cls.__init__
@@ -243,7 +245,17 @@ class Tool(BaseTool):
 
         if sanitize_inputs_outputs:
             args, kwargs = handle_agent_input_types(*args, **kwargs)
+
+        if _VERBOSE:
+            _bound = dict(zip(list(self.inputs.keys()), args))
+            _bound.update(kwargs)
+            print(f"[smolagents] CALL {self.name} inputs={json.dumps(_bound, default=str)}", file=sys.stderr)
+
         outputs = self.forward(*args, **kwargs)
+
+        if _VERBOSE:
+            print(f"[smolagents] RESULT {self.name} output={json.dumps(outputs, default=str)}", file=sys.stderr)
+
         if sanitize_inputs_outputs:
             outputs = handle_agent_output_types(outputs, self.output_type)
         return outputs
