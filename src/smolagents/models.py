@@ -910,6 +910,20 @@ class TransformersModel(Model):
         torch_dtype: str | None = None,
         trust_remote_code: bool = False,
         model_kwargs: dict[str, Any] | None = None,
+        token: str | bool | None = None,
+        revision: str = "main",
+        cache_dir: str | None = None,
+        force_download: bool = False,
+        local_files_only: bool = False,
+        subfolder: str = "",
+        quantization_config: Any | None = None,
+        attn_implementation: str | None = None,
+        max_memory: dict | None = None,
+        offload_folder: str | None = None,
+        offload_buffers: bool = False,
+        variant: str | None = None,
+        gguf_file: str | None = None,
+        ignore_mismatched_sizes: bool = False,
         max_new_tokens: int = 4096,
         max_tokens: int | None = None,
         apply_chat_template_kwargs: dict[str, Any] | None = None,
@@ -946,15 +960,50 @@ class TransformersModel(Model):
         self._is_vlm = False
         self.model_kwargs = model_kwargs or {}
         self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
+
+        shared_kwargs = {}
+        if token is not None:
+            shared_kwargs["token"] = token
+        if revision != "main":
+            shared_kwargs["revision"] = revision
+        if cache_dir is not None:
+            shared_kwargs["cache_dir"] = cache_dir
+        if force_download:
+            shared_kwargs["force_download"] = force_download
+        if local_files_only:
+            shared_kwargs["local_files_only"] = local_files_only
+        if subfolder:
+            shared_kwargs["subfolder"] = subfolder
+
+        model_only_kwargs = {**shared_kwargs, **self.model_kwargs}
+        if quantization_config is not None:
+            model_only_kwargs["quantization_config"] = quantization_config
+        if attn_implementation is not None:
+            model_only_kwargs["attn_implementation"] = attn_implementation
+        if max_memory is not None:
+            model_only_kwargs["max_memory"] = max_memory
+        if offload_folder is not None:
+            model_only_kwargs["offload_folder"] = offload_folder
+        if offload_buffers:
+            model_only_kwargs["offload_buffers"] = offload_buffers
+        if variant is not None:
+            model_only_kwargs["variant"] = variant
+        if gguf_file is not None:
+            model_only_kwargs["gguf_file"] = gguf_file
+        if ignore_mismatched_sizes:
+            model_only_kwargs["ignore_mismatched_sizes"] = ignore_mismatched_sizes
+
         try:
             self.model = AutoModelForImageTextToText.from_pretrained(
                 model_id,
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 trust_remote_code=trust_remote_code,
-                **self.model_kwargs,
+                **model_only_kwargs,
             )
-            self.processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+            self.processor = AutoProcessor.from_pretrained(
+                model_id, trust_remote_code=trust_remote_code, **shared_kwargs
+            )
             self._is_vlm = True
             self.streamer = TextIteratorStreamer(self.processor.tokenizer, skip_prompt=True, skip_special_tokens=True)  # type: ignore
 
@@ -965,9 +1014,11 @@ class TransformersModel(Model):
                     device_map=device_map,
                     torch_dtype=torch_dtype,
                     trust_remote_code=trust_remote_code,
-                    **self.model_kwargs,
+                    **model_only_kwargs,
                 )
-                self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    model_id, trust_remote_code=trust_remote_code, **shared_kwargs
+                )
                 self.streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)  # type: ignore
             else:
                 raise e
