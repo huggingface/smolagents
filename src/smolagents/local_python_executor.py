@@ -282,7 +282,7 @@ class ExecutionTimeoutError(Exception):
     pass
 
 
-def timeout(timeout_seconds: int):
+def timeout(timeout_seconds: int | float):
     """
     Decorator to limit the execution time of a function using threading.
 
@@ -290,7 +290,7 @@ def timeout(timeout_seconds: int):
     called from any thread, not just the main thread), unlike signal-based approaches.
 
     Args:
-        timeout_seconds (`int`): Maximum time in seconds allowed for function execution.
+        timeout_seconds (`int` or `float`): Maximum time in seconds allowed for function execution.
 
     Raises:
         ExecutionTimeoutError: If the function execution exceeds the timeout period.
@@ -305,15 +305,19 @@ def timeout(timeout_seconds: int):
         @wraps(func)
         def wrapper(*args, **kwargs):
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
-                try:
-                    result = future.result(timeout=timeout_seconds)
-                    return result
-                except FuturesTimeoutError:
-                    raise ExecutionTimeoutError(
-                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
-                    )
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(func, *args, **kwargs)
+            timed_out = False
+            try:
+                return future.result(timeout=timeout_seconds)
+            except FuturesTimeoutError:
+                timed_out = True
+                future.cancel()
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
+            finally:
+                executor.shutdown(wait=not timed_out, cancel_futures=timed_out)
 
         return wrapper
 
@@ -1587,7 +1591,7 @@ def evaluate_python_code(
     state: dict[str, Any] | None = None,
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
     max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
-    timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
+    timeout_seconds: int | float | None = MAX_EXECUTION_TIME_SECONDS,
 ):
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
@@ -1608,7 +1612,7 @@ def evaluate_python_code(
             A dictionary mapping variable names to values. The `state` should contain the initial inputs but will be
             updated by this function to contain all variables as they are evaluated.
             The print outputs will be stored in the state under the key "_print_outputs".
-        timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
+        timeout_seconds (`int` or `float`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
     """
     try:
@@ -1701,7 +1705,7 @@ class LocalPythonExecutor(PythonExecutor):
             Maximum length of the print outputs.
         additional_functions (`dict[str, Callable]`, *optional*):
             Additional Python functions to be added to the executor.
-        timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
+        timeout_seconds (`int` or `float`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
     """
 
@@ -1710,7 +1714,7 @@ class LocalPythonExecutor(PythonExecutor):
         additional_authorized_imports: list[str],
         max_print_outputs_length: int | None = None,
         additional_functions: dict[str, Callable] | None = None,
-        timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
+        timeout_seconds: int | float | None = MAX_EXECUTION_TIME_SECONDS,
     ):
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}

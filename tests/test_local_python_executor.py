@@ -2198,6 +2198,19 @@ class TestTimeout:
         with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
             long_task()
 
+    def test_timeout_decorator_returns_promptly_when_exceeded(self):
+        """Test that the timeout does not wait for the worker to finish before raising."""
+
+        @timeout(0.1)
+        def long_task():
+            time.sleep(1)
+
+        start_time = time.perf_counter()
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            long_task()
+
+        assert time.perf_counter() - start_time < 0.8
+
     def test_evaluate_python_code_with_timeout_completes(self):
         """Test that evaluate_python_code completes within timeout for quick code."""
         code = "result = 2 + 2"
@@ -2298,6 +2311,21 @@ time.sleep(2)
 """
         with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
             executor(code)
+
+    def test_local_executor_timeout_returns_promptly_when_exceeded(self):
+        """Test that LocalPythonExecutor does not wait for timed-out code to finish."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=0.1)
+        executor.send_tools({})
+
+        code = """
+import time
+time.sleep(1)
+"""
+        start_time = time.perf_counter()
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            executor(code)
+
+        assert time.perf_counter() - start_time < 0.8
 
     def test_local_executor_disabled_timeout(self):
         """Test that LocalPythonExecutor can disable timeout."""
