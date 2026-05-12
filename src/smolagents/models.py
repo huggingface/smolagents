@@ -71,6 +71,12 @@ def get_dict_from_nested_dataclasses(obj, ignore_key=None):
     def convert(obj):
         if hasattr(obj, "__dataclass_fields__"):
             return {k: convert(v) for k, v in asdict(obj).items() if k != ignore_key}
+        if hasattr(obj, "model_dump"):
+            return obj.model_dump()
+        if isinstance(obj, list):
+            return [convert(item) for item in obj]
+        if isinstance(obj, dict):
+            return {k: convert(v) for k, v in obj.items()}
         return obj
 
     return convert(obj)
