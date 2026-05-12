@@ -18,6 +18,8 @@
     title: 🛡️ Secure code execution
   - local: tutorials/memory
     title: 📚 Manage your agent's memory
+  - local: tutorials/verifiable_receipts
+    title: 🧾 Verifiable receipts (chain-anchor/v1)
 - title: Conceptual guides
   sections:
   - local: conceptual_guides/intro_agents
