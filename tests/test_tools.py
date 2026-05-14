@@ -555,7 +555,7 @@ class TestTool:
         assert get_choice.inputs["choice"]["nullable"] is True
         assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
 
-    def test_saving_tool_produces_valid_pyhon_code_with_multiline_description(self, tmp_path):
+    def test_saving_tool_produces_valid_python_code_with_multiline_description(self, tmp_path):
         @tool
         def get_weather(location: Any) -> None:
             """
