@@ -1153,7 +1153,7 @@ class ApiModel(Model):
         requests_per_minute (`float`, **optional**):
             Rate limit in requests per minute.
         retry (`bool`, **optional**):
-            Wether to retry on rate limit errors, up to RETRY_MAX_ATTEMPTS times. Defaults to True.
+            Whether to retry on rate limit errors, up to RETRY_MAX_ATTEMPTS times. Defaults to True.
         **kwargs:
             Additional keyword arguments to forward to the underlying model completion call.
     """

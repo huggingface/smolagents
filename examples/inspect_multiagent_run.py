@@ -36,4 +36,4 @@ run_result = manager_agent.run(
     "If the US keeps it 2024 growth rate, how many years would it take for the GDP to double?"
 )
 print("Here is the token usage for the manager agent", run_result.token_usage)
-print("Here are the timing informations for the manager agent:", run_result.timing)
+print("Here are the timing details for the manager agent:", run_result.timing)
