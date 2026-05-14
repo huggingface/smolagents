@@ -407,6 +407,7 @@ class TestLiteLLMModel:
             "The api_key client option must be set",
             "AuthenticationError",
             "Unauthorized",
+            "Missing credentials",
         ]
         model = LiteLLMModel(model_id=model_id)
         messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
