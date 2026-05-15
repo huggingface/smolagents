@@ -128,7 +128,7 @@ agent = CodeAgent(
 )
 
 # Import helium for the agent
-agent.python_executor("from helium import *", agent.state)
+agent.python_executor("from helium import *")
 ```
 
 The agent needs instructions on how to use Helium for web automation. Here are the instructions we'll provide:
