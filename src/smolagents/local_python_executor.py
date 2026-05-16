@@ -71,6 +71,18 @@ def nodunder_getattr(obj, name, default=None):
     return getattr(obj, name, default)
 
 
+def nodunder_setattr(obj, name, value):
+    if isinstance(name, str) and name.startswith("__") and name.endswith("__"):
+        raise InterpreterError(f"Forbidden access to dunder attribute: {name}")
+    return setattr(obj, name, value)
+
+
+def nodunder_hasattr(obj, name):
+    if isinstance(name, str) and name.startswith("__") and name.endswith("__"):
+        raise InterpreterError(f"Forbidden access to dunder attribute: {name}")
+    return hasattr(obj, name)
+
+
 BASE_PYTHON_TOOLS = {
     "print": custom_print,
     "isinstance": isinstance,
@@ -119,8 +131,8 @@ BASE_PYTHON_TOOLS = {
     "divmod": divmod,
     "callable": callable,
     "getattr": nodunder_getattr,
-    "hasattr": hasattr,
-    "setattr": setattr,
+    "hasattr": nodunder_hasattr,
+    "setattr": nodunder_setattr,
     "issubclass": issubclass,
     "type": type,
     "complex": complex,
@@ -650,6 +662,8 @@ def evaluate_augassign(
             key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
             return obj[key]
         elif isinstance(target, ast.Attribute):
+            if target.attr.startswith("__") and target.attr.endswith("__"):
+                raise InterpreterError(f"Forbidden access to dunder attribute: {target.attr}")
             obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
             return getattr(obj, target.attr)
         elif isinstance(target, ast.Tuple):
@@ -818,6 +832,8 @@ def set_value(
         key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
         obj[key] = value
     elif isinstance(target, ast.Attribute):
+        if target.attr.startswith("__") and target.attr.endswith("__"):
+            raise InterpreterError(f"Forbidden access to dunder attribute: {target.attr}")
         obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
         setattr(obj, target.attr, value)
 
@@ -903,7 +919,7 @@ def evaluate_call(
         state["_print_outputs"] += " ".join(map(str, args)) + "\n"
         return None
     else:  # Assume it's a callable object
-        if (inspect.getmodule(func) == builtins) and inspect.isbuiltin(func) and (func not in static_tools.values()):
+        if inspect.isbuiltin(func) and callable(func) and (func not in static_tools.values()):
             raise InterpreterError(
                 f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
             )
