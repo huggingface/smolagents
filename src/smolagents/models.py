@@ -1857,16 +1857,22 @@ AzureOpenAIServerModel = AzureOpenAIModel
 
 
 class OCIGenAIModel(OpenAIModel):
-    """This model connects to Oracle Cloud Infrastructure (OCI) Generative AI Service.
+    """This model connects to Oracle Cloud Infrastructure (OCI) Generative AI Service
+    via its OpenAI-compatible v1 transport (``/20231130/actions/v1/chat/completions``).
 
     OCI Generative AI exposes an OpenAI-compatible endpoint, so this class extends
-    :class:`OpenAIModel` and only differs in how authentication is handled — using
-    OCI request signing rather than a plain API key.
+    :class:`OpenAIModel` and only differs in how authentication is handled — via
+    either an OCI bearer API key or OCI IAM request signing.
 
     Authentication:
-        OCI Generative AI supports three authentication methods:
+        OCI Generative AI supports four authentication methods on the v1 endpoint:
 
-        - **API Key** (default): Uses ``~/.oci/config``. Set ``auth_type="API_KEY"``.
+        - **Bearer API Key**: Use an OCI Generative AI API key (introduced
+          2026-01-21) as a plain bearer token — the simplest path, no request
+          signing. Set ``auth_type="BEARER_TOKEN"`` and pass ``api_key=<key>``
+          or set ``OCI_GENAI_API_KEY``.
+        - **API Key (IAM)** (default): IAM request signing via ``~/.oci/config``.
+          Set ``auth_type="API_KEY"``.
         - **Instance Principal**: For code running on OCI Compute instances.
           Set ``auth_type="INSTANCE_PRINCIPAL"``.
         - **Resource Principal**: For OCI Functions / container workloads.
@@ -1879,14 +1885,20 @@ class OCIGenAIModel(OpenAIModel):
             OCI region identifier. Used to build the service endpoint when
             ``service_endpoint`` is not provided.
         compartment_id (`str`, *optional*):
-            OCI compartment OCID. If not provided, the tenancy OCID from
-            ``~/.oci/config`` is used.
+            OCI compartment OCID. Required for ``BEARER_TOKEN`` auth (no config
+            file fallback). For IAM auth, defaults to the tenancy OCID from
+            ``~/.oci/config``.
         service_endpoint (`str`, *optional*):
-            Full service endpoint URL. Defaults to
-            ``https://inference.generativeai.{region}.oci.customer-oci.com/20231130``.
+            Full base URL of the OpenAI-compatible v1 transport. Defaults to
+            ``https://inference.generativeai.{region}.oci.oraclecloud.com/20231130/actions/v1``.
+            The OpenAI SDK appends ``/chat/completions`` to this base.
         auth_type (`str`, *optional*, defaults to ``"API_KEY"``):
-            Authentication method. One of ``"API_KEY"``, ``"INSTANCE_PRINCIPAL"``,
-            ``"RESOURCE_PRINCIPAL"``.
+            Authentication method. One of ``"BEARER_TOKEN"``, ``"API_KEY"``,
+            ``"INSTANCE_PRINCIPAL"``, ``"RESOURCE_PRINCIPAL"``.
+        api_key (`str`, *optional*):
+            OCI Generative AI bearer API key. Only consulted when
+            ``auth_type="BEARER_TOKEN"``. Falls back to the ``OCI_GENAI_API_KEY``
+            environment variable.
         config_file (`str`, *optional*):
             Path to the OCI config file. Defaults to ``~/.oci/config``.
         profile (`str`, *optional*):
@@ -1903,11 +1915,22 @@ class OCIGenAIModel(OpenAIModel):
             (e.g. ``temperature``, ``max_tokens``).
 
     Examples:
-        API key authentication (default):
+        Bearer API key (simplest, requires an OCI Generative AI API key):
 
         ```python
         from smolagents import OCIGenAIModel, CodeAgent
 
+        model = OCIGenAIModel(
+            model_id="meta.llama-3.1-70b-instruct",
+            auth_type="BEARER_TOKEN",
+            api_key="<your-oci-genai-api-key>",
+            compartment_id="ocid1.compartment.oc1..xxx",
+        )
+        ```
+
+        IAM request signing (default, uses ``~/.oci/config``):
+
+        ```python
         model = OCIGenAIModel(
             model_id="meta.llama-3.1-70b-instruct",
             region="us-chicago-1",
@@ -1943,6 +1966,7 @@ class OCIGenAIModel(OpenAIModel):
         compartment_id: str | None = None,
         service_endpoint: str | None = None,
         auth_type: str = "API_KEY",
+        api_key: str | None = None,
         config_file: str | None = None,
         profile: str | None = None,
         client_kwargs: dict[str, Any] | None = None,
@@ -1955,13 +1979,33 @@ class OCIGenAIModel(OpenAIModel):
         self.config_file = config_file
         self.profile = profile
         self.compartment_id = compartment_id
+        self._bearer_token = api_key or os.environ.get("OCI_GENAI_API_KEY")
+        # OCI's OpenAI-compatible v1 transport lives under /20231130/actions/v1.
+        # The OpenAI SDK appends /chat/completions; the trailing slash matters
+        # so the SDK does not strip the actions/v1 segment when joining.
         self._service_endpoint = service_endpoint or (
-            f"https://inference.generativeai.{region}.oci.oraclecloud.com"
+            f"https://inference.generativeai.{region}.oci.oraclecloud.com/20231130/actions/v1"
         )
+
+        if self.auth_type == "BEARER_TOKEN":
+            if not self._bearer_token:
+                raise ValueError(
+                    "auth_type='BEARER_TOKEN' requires api_key=... or the "
+                    "OCI_GENAI_API_KEY environment variable to be set."
+                )
+            if not self.compartment_id:
+                raise ValueError(
+                    "auth_type='BEARER_TOKEN' requires compartment_id=... "
+                    "(no ~/.oci/config fallback is consulted in bearer mode)."
+                )
+            super_api_key = self._bearer_token
+        else:
+            super_api_key = "oci"  # placeholder — auth via request signing
+
         super().__init__(
             model_id=model_id,
             api_base=self._service_endpoint,
-            api_key="oci",  # placeholder — actual auth is via request signing
+            api_key=super_api_key,
             client_kwargs=client_kwargs,
             custom_role_conversions=custom_role_conversions,
             flatten_messages_as_text=flatten_messages_as_text,
@@ -2001,47 +2045,54 @@ class OCIGenAIModel(OpenAIModel):
 
     def create_client(self):
         try:
-            import httpx
             import openai
         except ModuleNotFoundError as e:
             raise ModuleNotFoundError(
-                "Please install required extras to use OCIGenAIModel: "
-                "`pip install 'smolagents[oci]'`"
+                "Please install required extras to use OCIGenAIModel: `pip install 'smolagents[oci]'`"
             ) from e
 
-        signer = self._build_signer()
-
-        class _OCIAuth(httpx.Auth):
-            """httpx Auth that signs each request with OCI request signing."""
-
-            def __init__(self, signer):
-                self._signer = signer
-
-            def auth_flow(self, request: httpx.Request):
-                try:
-                    import requests as _requests
-                except ModuleNotFoundError as exc:
-                    raise ModuleNotFoundError(
-                        "Please install 'requests' to use OCIGenAIModel OCI signing."
-                    ) from exc
-
-                # Build a requests.PreparedRequest so OCI signer can sign it
-                prep = _requests.Request(
-                    method=request.method,
-                    url=str(request.url),
-                    headers=dict(request.headers),
-                    data=request.content,
-                ).prepare()
-                self._signer(prep)
-                # Copy signed headers back onto the httpx request
-                for key, value in prep.headers.items():
-                    request.headers[key] = value
-                yield request
-
-        http_client = httpx.Client(auth=_OCIAuth(signer))
-
         client_kwargs = {k: v for k, v in self.client_kwargs.items() if v is not None}
-        client_kwargs["http_client"] = http_client
+
+        if self.auth_type != "BEARER_TOKEN":
+            # IAM modes: sign every request via httpx auth hook. _build_signer()
+            # also resolves self.compartment_id from ~/.oci/config when it was
+            # not passed in, so we must call it before reading compartment_id.
+            try:
+                import httpx
+            except ModuleNotFoundError as e:
+                raise ModuleNotFoundError("Please install 'httpx' to use OCIGenAIModel with IAM auth.") from e
+
+            signer = self._build_signer()
+
+            class _OCIAuth(httpx.Auth):
+                """httpx Auth that signs each request with OCI request signing."""
+
+                def __init__(self, signer):
+                    self._signer = signer
+
+                def auth_flow(self, request: httpx.Request):
+                    try:
+                        import requests as _requests
+                    except ModuleNotFoundError as exc:
+                        raise ModuleNotFoundError(
+                            "Please install 'requests' to use OCIGenAIModel OCI signing."
+                        ) from exc
+
+                    prep = _requests.Request(
+                        method=request.method,
+                        url=str(request.url),
+                        headers=dict(request.headers),
+                        data=request.content,
+                    ).prepare()
+                    self._signer(prep)
+                    for key, value in prep.headers.items():
+                        request.headers[key] = value
+                    yield request
+
+            client_kwargs["http_client"] = httpx.Client(auth=_OCIAuth(signer))
+
+        # compartment_id is now resolved (either explicit, BEARER_TOKEN-required,
+        # or populated from ~/.oci/config inside _build_signer above).
         client_kwargs["default_headers"] = {"opc-compartment-id": self.compartment_id}
 
         return openai.OpenAI(**client_kwargs)
