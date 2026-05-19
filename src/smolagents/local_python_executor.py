@@ -1689,10 +1689,10 @@ class LocalPythonExecutor(PythonExecutor):
     """
     Executor of Python code in a local environment.
 
-    This executor evaluates Python code with restricted access to imports and built-in functions,
-    making it suitable for running untrusted code. It maintains state between executions,
-    allows for custom tools and functions to be made available to the code, and captures
-    print outputs separately from return values.
+    This executor evaluates Python code with restricted access to imports and built-in functions.
+    It is not a security sandbox: for isolated execution of untrusted code, use a remote executor.
+    It maintains state between executions, allows for custom tools and functions to be made available
+    to the code, and captures print outputs separately from return values.
 
     Args:
         additional_authorized_imports (`list[str]`):
