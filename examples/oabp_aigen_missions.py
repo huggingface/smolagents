@@ -1,16 +1,13 @@
-# How to run with uv:
-#   uv run oabp_aigen_missions.py
-#
-# Modify the smolagents dependency to point to the local smolagents repo or
-# remove `@ file:///<path-to-smolagents>`.
-#
-# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#   "smolagents @ file:///<path-to-smolagents>",
-#   "requests",
-# ]
-# ///
+"""Discover and optionally submit AIGEN OABP missions with smolagents.
+
+Run the default scripted workflow from the repository root with:
+
+    PYTHONPATH=src python examples/oabp_aigen_missions.py
+
+The default workflow calls the same smolagents tools directly, so it can be run
+without an LLM API key and without accidentally submitting to a live mission.
+Use ``--run-agent`` to let a CodeAgent orchestrate those tools.
+"""
 
 from __future__ import annotations
 
@@ -183,6 +180,31 @@ def build_oabp_agent(model: Any) -> CodeAgent:
     return CodeAgent(tools=[fetch_open_aigen_missions, read_aigen_mission, submit_aigen_mission], model=model)
 
 
+def build_agent_task(args: argparse.Namespace) -> str:
+    mission_hint = f"Use mission id {args.mission_id!r}." if args.mission_id else "Pick one open mission."
+    submit_instruction = (
+        f"Submit this proof content: {args.content!r}."
+        if args.submit
+        else "Do not submit anything; only report the selected mission and endpoint data."
+    )
+    wallet_instruction = (
+        f"Include submitter wallet {args.submitter_wallet!r} if you submit." if args.submitter_wallet else ""
+    )
+    return (
+        f"Use the OABP tools against {args.base_url}. Fetch open AIGEN missions. "
+        f"{mission_hint} Read that mission's details. {submit_instruction} "
+        f"Use public agent id {args.agent_id!r}. {wallet_instruction} Return a concise JSON-like summary."
+    )
+
+
+def run_agent_workflow(args: argparse.Namespace) -> Any:
+    """Let a CodeAgent call the OABP tools. This requires a configured model provider."""
+    from smolagents import InferenceClientModel
+
+    agent = build_oabp_agent(InferenceClientModel(model_id=args.model_id))
+    return agent.run(build_agent_task(args))
+
+
 def run_scripted_workflow(args: argparse.Namespace) -> dict[str, Any]:
     """Run the same OABP tools deterministically so the example works without an API key."""
     mission_listing = json.loads(fetch_open_aigen_missions.forward(args.base_url))
@@ -219,12 +241,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Discover and optionally submit AIGEN OABP missions.")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--agent-id", default=DEFAULT_AGENT_ID)
+    parser.add_argument("--model-id", default="Qwen/Qwen2.5-Coder-32B-Instruct")
     parser.add_argument("--mission-id", default=None)
     parser.add_argument("--submitter-wallet", default="")
     parser.add_argument("--content", default="")
     parser.add_argument("--submit", action="store_true")
+    parser.add_argument("--run-agent", action="store_true")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
-    print(json.dumps(run_scripted_workflow(parse_args()), indent=2, sort_keys=True))
+    parsed_args = parse_args()
+    result = run_agent_workflow(parsed_args) if parsed_args.run_agent else run_scripted_workflow(parsed_args)
+    print(json.dumps(result, indent=2, sort_keys=True, default=str))
