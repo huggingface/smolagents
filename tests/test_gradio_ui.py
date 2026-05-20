@@ -130,6 +130,25 @@ class GradioUITester(unittest.TestCase):
             self.assertIn("File uploaded:", textbox.value)
             self.assertEqual(len(uploads_log), 1)
 
+    def test_process_message_rejects_disallowed_multimodal_file(self):
+        """Test that ChatInterface multimodal uploads use the same file type validation."""
+        with tempfile.NamedTemporaryFile(suffix=".py") as temp_file:
+            with self.assertRaisesRegex(ValueError, "File type disallowed"):
+                self.ui._process_message({"text": "analyze this", "files": [temp_file.name]})
+
+            self.assertFalse(os.path.exists(os.path.join(self.temp_dir, os.path.basename(temp_file.name))))
+
+    def test_process_message_accepts_configured_multimodal_file_type(self):
+        """Test custom allowed file types in ChatInterface multimodal uploads."""
+        ui = GradioUI(agent=self.mock_agent, file_upload_folder=self.temp_dir, allowed_file_types=[".csv"])
+
+        with tempfile.NamedTemporaryFile(suffix=".csv") as temp_file:
+            text, saved_files = ui._process_message({"text": "analyze this", "files": [temp_file.name]})
+
+            self.assertIn("You have been provided with these files:", text)
+            self.assertEqual(saved_files, [os.path.join(self.temp_dir, os.path.basename(temp_file.name))])
+            self.assertTrue(os.path.exists(saved_files[0]))
+
 
 class TestStreamToGradio:
     """Tests for the stream_to_gradio function."""

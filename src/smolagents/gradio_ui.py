@@ -292,6 +292,8 @@ class GradioUI:
             If not provided, file uploads are disabled.
         reset_agent_memory (`bool`, *optional*, defaults to `False`): Whether to reset the agent's memory at the start of each interaction.
             If `True`, the agent will not remember previous interactions.
+        allowed_file_types (`list[str]`, *optional*): File extensions accepted by the upload flow.
+            Defaults to `[".pdf", ".docx", ".txt"]`.
 
     Raises:
         ModuleNotFoundError: If the `gradio` extra is not installed.
@@ -307,7 +309,15 @@ class GradioUI:
         ```
     """
 
-    def __init__(self, agent: MultiStepAgent, file_upload_folder: str | None = None, reset_agent_memory: bool = False):
+    DEFAULT_ALLOWED_FILE_TYPES = [".pdf", ".docx", ".txt"]
+
+    def __init__(
+        self,
+        agent: MultiStepAgent,
+        file_upload_folder: str | None = None,
+        reset_agent_memory: bool = False,
+        allowed_file_types: list[str] | None = None,
+    ):
         if not _is_package_available("gradio"):
             raise ModuleNotFoundError(
                 "Please install 'gradio' extra to use the GradioUI: `pip install 'smolagents[gradio]'`"
@@ -315,11 +325,18 @@ class GradioUI:
         self.agent = agent
         self.file_upload_folder = Path(file_upload_folder) if file_upload_folder is not None else None
         self.reset_agent_memory = reset_agent_memory
+        self.allowed_file_types = allowed_file_types or self.DEFAULT_ALLOWED_FILE_TYPES
         self.name = getattr(agent, "name") or "Agent interface"
         self.description = getattr(agent, "description", None)
         if self.file_upload_folder is not None:
             if not self.file_upload_folder.exists():
                 self.file_upload_folder.mkdir(parents=True, exist_ok=True)
+
+    def _validate_file_type(self, file_path: str, allowed_file_types: list[str] | None = None):
+        allowed_file_types = allowed_file_types or self.allowed_file_types
+        file_ext = os.path.splitext(file_path)[1].lower()
+        if file_ext not in allowed_file_types:
+            raise ValueError("File type disallowed")
 
     def _save_uploaded_file(self, file_path: str) -> str:
         """Save an uploaded file to the upload folder and return the new path."""
@@ -349,11 +366,9 @@ class GradioUI:
         if file is None:
             return gr.Textbox(value="No file uploaded", visible=True), file_uploads_log
 
-        if allowed_file_types is None:
-            allowed_file_types = [".pdf", ".docx", ".txt"]
-
-        file_ext = os.path.splitext(file.name)[1].lower()
-        if file_ext not in allowed_file_types:
+        try:
+            self._validate_file_type(file.name, allowed_file_types)
+        except ValueError:
             return gr.Textbox(value="File type disallowed", visible=True), file_uploads_log
 
         file_path = self._save_uploaded_file(file.name)
@@ -368,6 +383,8 @@ class GradioUI:
         files = message.get("files", [])
 
         if files and self.file_upload_folder:
+            for file_path in files:
+                self._validate_file_type(file_path)
             saved_files = [self._save_uploaded_file(f) for f in files]
             if saved_files:
                 text += f"\nYou have been provided with these files: {saved_files}"
