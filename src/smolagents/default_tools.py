@@ -133,7 +133,8 @@ class DuckDuckGoSearchTool(Tool):
             from ddgs import DDGS
         except ImportError as e:
             raise ImportError(
-                "You must install package `ddgs` to run this tool: for instance run `pip install ddgs`."
+                "You must install toolkit dependencies to run this tool: "
+                "for instance run `pip install 'smolagents[toolkit]'`."
             ) from e
         self.ddgs = DDGS(**kwargs)
 
@@ -484,7 +485,8 @@ class VisitWebpageTool(Tool):
             from requests.exceptions import RequestException
         except ImportError as e:
             raise ImportError(
-                "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
+                "You must install toolkit dependencies to run this tool: "
+                "for instance run `pip install 'smolagents[toolkit]'`."
             ) from e
         try:
             # Send a GET request to the URL with a 20-second timeout

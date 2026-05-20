@@ -78,6 +78,7 @@ from .monitoring import (
     TokenUsage,
 )
 from .remote_executors import BlaxelExecutor, DockerExecutor, E2BExecutor, ModalExecutor, WasmExecutor
+from .skills import AgentSkill, load_agent_skills, select_skills_for_task
 from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
     AgentError,
@@ -289,6 +290,7 @@ class MultiStepAgent(ABC):
             - Take the final answer, the agent's memory, and the agent itself as arguments.
             - Return a boolean indicating whether the final answer is valid.
         return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
+        skills (`list[str | pathlib.Path]`, *optional*): Local skill paths (`SKILL.md` file or containing folder).
     """
 
     def __init__(
@@ -308,6 +310,7 @@ class MultiStepAgent(ABC):
         provide_run_summary: bool = False,
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
+        skills: list[str | Path] | None = None,
         logger: AgentLogger | None = None,
     ):
         self.agent_name = self.__class__.__name__
@@ -335,6 +338,7 @@ class MultiStepAgent(ABC):
         self.final_answer_checks = final_answer_checks if final_answer_checks is not None else []
         self.return_full_result = return_full_result
         self.instructions = instructions
+        self.skills = load_agent_skills(skills)
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
@@ -432,6 +436,50 @@ class MultiStepAgent(ABC):
                 raise ValueError("step_callbacks must be a list or a dict")
         # Register monitor update_metrics only for ActionStep for backward compatibility
         self.step_callbacks.register(ActionStep, self.monitor.update_metrics)
+
+    def _select_skills_for_current_task(self) -> list[AgentSkill]:
+        return select_skills_for_task(self.skills, self.task)
+
+    def _build_skills_instruction_block(self) -> str:
+        if not self.skills:
+            return ""
+
+        lines = [
+            "## Skills",
+            "A skill is a reusable instruction set stored in a `SKILL.md` file.",
+            "### Available skills",
+        ]
+
+        for skill in self.skills:
+            lines.append(f"- {skill.name}: {skill.description} (file: {skill.path.as_posix()})")
+
+        lines += [
+            "### Activation",
+            "If the task explicitly mentions a skill name (for example `$my-skill`), follow that skill's instructions.",
+        ]
+
+        loaded_skills = self._select_skills_for_current_task()
+        if loaded_skills:
+            lines.append("### Loaded skill instructions")
+            for skill in loaded_skills:
+                lines.append(f'<skill_content name="{skill.name}">')
+                lines.append(skill.content or "(No additional skill instructions provided.)")
+                lines.append("</skill_content>")
+
+        return "\n".join(lines)
+
+    def _build_custom_instructions(self) -> str | None:
+        instructions_parts = []
+        if self.instructions:
+            instructions_parts.append(self.instructions.strip())
+
+        skills_instructions = self._build_skills_instruction_block()
+        if skills_instructions:
+            instructions_parts.append(skills_instructions)
+
+        if not instructions_parts:
+            return None
+        return "\n\n".join(instructions_parts)
 
     def run(
         self,
@@ -1268,7 +1316,7 @@ class ToolCallingAgent(MultiStepAgent):
             variables={
                 "tools": self.tools,
                 "managed_agents": self.managed_agents,
-                "custom_instructions": self.instructions,
+                "custom_instructions": self._build_custom_instructions(),
             },
         )
         return system_prompt
@@ -1629,7 +1677,7 @@ class CodeAgent(MultiStepAgent):
                     if "*" in self.authorized_imports
                     else str(self.authorized_imports)
                 ),
-                "custom_instructions": self.instructions,
+                "custom_instructions": self._build_custom_instructions(),
                 "code_block_opening_tag": self.code_block_tags[0],
                 "code_block_closing_tag": self.code_block_tags[1],
             },

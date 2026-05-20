@@ -27,6 +27,8 @@ from .models import *
 from .monitoring import *
 from .remote_executors import *
 from .serialization import *
+from .skills import *
+from .tui import *
 from .tools import *
 from .utils import *
 from .cli import *
