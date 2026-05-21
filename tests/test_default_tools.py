@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -160,3 +161,48 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+def test_google_search_tool_passes_request_timeout(monkeypatch):
+    """GoogleSearchTool must pass an HTTP timeout to requests.get().
+
+    Without a timeout, a stalled search API hangs the call (and therefore
+    the whole agent loop) indefinitely. VisitWebpageTool already passes
+    timeout=20; the search tools must do the same.
+    """
+    from smolagents.default_tools import GoogleSearchTool
+
+    monkeypatch.setenv("SERPER_API_KEY", "test-key")
+    tool = GoogleSearchTool(provider="serper")
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {tool.organic_key: []}
+
+    with patch("requests.get", return_value=mock_response) as mock_get:
+        tool.forward("hello world")
+
+    mock_get.assert_called_once()
+    assert mock_get.call_args.kwargs.get("timeout") == 20
+
+
+def test_api_web_search_tool_passes_request_timeout():
+    """ApiWebSearchTool must pass an HTTP timeout to requests.get().
+
+    Without a timeout, a stalled search API hangs the call (and therefore
+    the whole agent loop) indefinitely.
+    """
+    from smolagents.default_tools import ApiWebSearchTool
+
+    tool = ApiWebSearchTool(api_key="test-key", rate_limit=None)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status.return_value = None
+    mock_response.json.return_value = {"web": {"results": []}}
+
+    with patch("requests.get", return_value=mock_response) as mock_get:
+        tool.forward("hello world")
+
+    mock_get.assert_called_once()
+    assert mock_get.call_args.kwargs.get("timeout") == 20
