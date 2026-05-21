@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
+from unittest.mock import Mock, patch
 
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
+    ArxivSearchTool,
     DuckDuckGoSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
@@ -160,3 +162,50 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+def test_arxiv_search_returns_formatted_papers():
+    tool = ArxivSearchTool(max_results=2)
+    response = Mock()
+    response.raise_for_status = Mock()
+    response.text = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/1234.5678v1</id>
+    <updated>2024-01-02T00:00:00Z</updated>
+    <published>2024-01-01T00:00:00Z</published>
+    <title> Sample Paper Title </title>
+    <summary>
+      This is a sample abstract with
+      extra whitespace.
+    </summary>
+    <author><name>Jane Doe</name></author>
+    <author><name>John Smith</name></author>
+    <link href="https://arxiv.org/abs/1234.5678" rel="alternate" type="text/html" />
+  </entry>
+</feed>"""
+
+    with patch("requests.get", return_value=response) as mock_get:
+        result = tool.forward("sample query")
+
+    mock_get.assert_called_once()
+    assert "## arXiv Results" in result
+    assert "Paper 1: Sample Paper Title" in result
+    assert "Authors: Jane Doe, John Smith" in result
+    assert "Published: 2024-01-01" in result
+    assert "Summary: This is a sample abstract with extra whitespace." in result
+    assert "URL: https://arxiv.org/abs/1234.5678" in result
+
+
+def test_arxiv_search_handles_no_results():
+    tool = ArxivSearchTool()
+    response = Mock()
+    response.raise_for_status = Mock()
+    response.text = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+</feed>"""
+
+    with patch("requests.get", return_value=response):
+        result = tool.forward("no hits please")
+
+    assert result == "No arXiv papers found for 'no hits please'. Try a different query."
