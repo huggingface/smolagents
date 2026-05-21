@@ -805,6 +805,21 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_merges_consecutive_string_messages():
+    messages = [
+        {"role": "system", "content": "Start with FOO."},
+        {"role": "system", "content": "End with BAR."},
+        {"role": "user", "content": "Say hello."},
+    ]
+
+    result = get_clean_message_list(messages)
+
+    assert result == [
+        {"role": "system", "content": "Start with FOO.\nEnd with BAR."},
+        {"role": "user", "content": "Say hello."},
+    ]
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
