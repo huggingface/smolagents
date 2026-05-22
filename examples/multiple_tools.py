@@ -1,3 +1,5 @@
+import os
+
 import requests
 
 # from smolagents.agents import ToolCallingAgent
@@ -24,13 +26,14 @@ def get_weather(location: str, celsius: bool | None = False) -> str:
     Returns:
         A string describing the current weather at the location.
     """
-    api_key = "your_api_key"  # Replace with your API key from https://weatherstack.com/
+    api_key = os.getenv("WEATHERSTACK_API_KEY", "your_api_key")
     units = "m" if celsius else "f"  # 'm' for Celsius, 'f' for Fahrenheit
 
-    url = f"http://api.weatherstack.com/current?access_key={api_key}&query={location}&units={units}"
+    url = "https://api.weatherstack.com/current"
+    params = {"access_key": api_key, "query": location, "units": units}
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()  # Raise an exception for HTTP errors
 
         data = response.json()
@@ -64,11 +67,11 @@ def convert_currency(amount: float, from_currency: str, to_currency: str) -> str
     Raises:
         requests.exceptions.RequestException: If there is an issue with the HTTP request to the ExchangeRate-API.
     """
-    api_key = "your_api_key"  # Replace with your actual API key from https://www.exchangerate-api.com/
+    api_key = os.getenv("EXCHANGERATE_API_KEY", "your_api_key")
     url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/{from_currency}"
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
 
         data = response.json()
@@ -95,11 +98,12 @@ def get_news_headlines() -> str:
     Returns:
         str: A string containing the top 5 news headlines and their sources, or an error message.
     """
-    api_key = "your_api_key"  # Replace with your actual API key from https://newsapi.org/
-    url = f"https://newsapi.org/v2/top-headlines?country=us&apiKey={api_key}"
+    api_key = os.getenv("NEWSAPI_API_KEY", "your_api_key")
+    url = "https://newsapi.org/v2/top-headlines"
+    params = {"country": "us", "apiKey": api_key}
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
 
         data = response.json()
@@ -128,7 +132,7 @@ def get_joke() -> str:
     url = "https://v2.jokeapi.dev/joke/Any?type=single"
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
 
         data = response.json()
@@ -155,10 +159,10 @@ def get_time_in_timezone(location: str) -> str:
     Raises:
         requests.exceptions.RequestException: If there is an issue with the HTTP request.
     """
-    url = f"http://worldtimeapi.org/api/timezone/{location}.json"
+    url = f"https://worldtimeapi.org/api/timezone/{location}.json"
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
 
         data = response.json()
@@ -180,7 +184,7 @@ def get_random_fact() -> str:
     url = "https://uselessfacts.jsph.pl/random.json?language=en"
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
 
         data = response.json()
@@ -205,7 +209,7 @@ def search_wikipedia(query: str) -> str:
     url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{query}"
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
 
         data = response.json()
