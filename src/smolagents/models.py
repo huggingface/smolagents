@@ -619,7 +619,11 @@ class Model:
 
         dangerous_attributes = ["token", "api_key"]
         for attribute_name in dangerous_attributes:
-            if hasattr(self, attribute_name):
+            # Strip from the exported dict regardless of whether it lives as a direct
+            # attribute or in self.kwargs — previously only the attribute check fired,
+            # so kwargs-passed secrets were silently exported.
+            removed = model_dictionary.pop(attribute_name, None) is not None
+            if removed or hasattr(self, attribute_name):
                 print(
                     f"For security reasons, we do not export the `{attribute_name}` attribute of your model. Please export it manually."
                 )

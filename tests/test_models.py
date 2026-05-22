@@ -207,6 +207,30 @@ class TestModel:
         else:
             assert "tool_choice" not in completion_kwargs
 
+    def test_to_dict_strips_secrets_from_kwargs(self, capsys):
+        # When `api_key` / `token` are passed as **kwargs, they end up in self.kwargs
+        # and were previously spread into the exported dict by `**self.kwargs`. The
+        # `dangerous_attributes` warning only checked `hasattr(self, ...)`, so neither
+        # the warning fired nor were the secrets stripped.
+        model = Model(model_id="m", api_key="secret-key", token="secret-token", temperature=0.5)
+        exported = model.to_dict()
+        assert "api_key" not in exported
+        assert "token" not in exported
+        assert exported["temperature"] == 0.5
+        captured = capsys.readouterr().out
+        assert "api_key" in captured
+        assert "token" in captured
+
+    def test_to_dict_strips_secrets_from_direct_attributes(self, capsys):
+        # Subclasses that assign `self.api_key = ...` directly (e.g. LiteLLMModel)
+        # should also be covered.
+        model = Model(model_id="m")
+        model.api_key = "secret-direct"
+        exported = model.to_dict()
+        assert "api_key" not in exported
+        captured = capsys.readouterr().out
+        assert "api_key" in captured
+
     def test_get_json_schema_has_nullable_args(self):
         @tool
         def get_weather(location: str, celsius: bool | None = False) -> str:
