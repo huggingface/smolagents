@@ -2090,6 +2090,22 @@ class TestToolCallingAgent:
 
 
 class TestCodeAgent:
+    def test_to_dict_strips_secrets_from_executor_kwargs(self, capsys):
+        # E2BExecutor (and other remote executors) accept `api_key` / `token`
+        # via **kwargs. If a user passes them through `executor_kwargs`, they
+        # used to be exported verbatim by `CodeAgent.to_dict()`.
+        # Use a no-op executor placeholder so we don't need a real sandbox.
+        agent = CodeAgent(tools=[], model=MagicMock(), executor=MagicMock())
+        agent.executor_kwargs = {"api_key": "e2b-secret-key", "token": "extra-secret", "cpu": 2}
+        exported = agent.to_dict()
+        assert "api_key" not in exported["executor_kwargs"]
+        assert "token" not in exported["executor_kwargs"]
+        # non-secret values are still exported
+        assert exported["executor_kwargs"]["cpu"] == 2
+        captured = capsys.readouterr().out
+        assert "api_key" in captured
+        assert "token" in captured
+
     def test_code_agent_instructions(self):
         agent = CodeAgent(tools=[], model=MagicMock(), instructions="Test instructions")
         assert agent.instructions == "Test instructions"
