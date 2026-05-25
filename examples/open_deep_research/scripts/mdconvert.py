@@ -58,7 +58,7 @@ class _CustomMarkdownify(markdownify.MarkdownConverter):
         return super().convert_hn(n, el, text, convert_as_inline)  # type: ignore
 
     def convert_a(self, el: Any, text: str, convert_as_inline: bool):
-        """Same as usual converter, but removes Javascript links and escapes URIs."""
+        """Same as usual converter, but removes JavaScript links and escapes URIs."""
         prefix, suffix, text = markdownify.chomp(text)  # type: ignore
         if not text:
             return ""
