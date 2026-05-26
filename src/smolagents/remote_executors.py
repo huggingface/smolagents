@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import atexit
 import base64
 import inspect
 import json
@@ -594,6 +595,7 @@ class DockerExecutor(RemotePythonExecutor):
         self.host = host
         self.port = port
         self.image_name = image_name
+        self._cleaned_up = False
 
         self.dockerfile_content = dockerfile_content or dedent(
             """\
@@ -675,6 +677,8 @@ class DockerExecutor(RemotePythonExecutor):
                 f"Container {self.container.short_id} is running with kernel {self.kernel_id}", level=LogLevel.INFO
             )
 
+            atexit.register(self._atexit_cleanup)
+
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
@@ -696,6 +700,9 @@ class DockerExecutor(RemotePythonExecutor):
 
     def cleanup(self):
         """Clean up the Docker container and resources."""
+        if self._cleaned_up:
+            return
+        self._cleaned_up = True
         try:
             if hasattr(self, "container"):
                 self.logger.log(f"Stopping and removing container {self.container.short_id}...", level=LogLevel.INFO)
@@ -705,6 +712,10 @@ class DockerExecutor(RemotePythonExecutor):
                 del self.container
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
+
+    def _atexit_cleanup(self):
+        """Cleanup handler registered with atexit for unexpected process exits."""
+        self.cleanup()
 
     def delete(self):
         """Ensure cleanup on deletion."""
