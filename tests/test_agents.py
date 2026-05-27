@@ -2247,6 +2247,27 @@ print("Ok, calculation done!")""")
         agent.run("Test run")
         assert "open" in agent.python_executor.static_tools
 
+    def test_create_python_executor_with_monty(self):
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=None,
+            raw="",
+            token_usage=None,
+        )
+        with patch("smolagents.agents.MontyExecutor") as mock_monty_executor:
+            agent = CodeAgent(
+                tools=[],
+                model=model,
+                executor_type="monty",
+                executor_kwargs={"script_name": "agent_test.py"},
+            )
+
+        mock_monty_executor.assert_called_once()
+        assert mock_monty_executor.call_args.args[:2] == ([], agent.logger)
+        assert mock_monty_executor.call_args.kwargs == {"script_name": "agent_test.py"}
+
     @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10", "v1.20"])
     def test_from_folder(self, agent_dict_version, get_agent_dict):
         agent_dict = get_agent_dict(agent_dict_version)

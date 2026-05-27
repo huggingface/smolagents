@@ -118,8 +118,7 @@ When working with AI agents that execute code, security is paramount. There are 
 
 ![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png)
 
-1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="blaxel"`, `executor_type="e2b"`, `executor_type="modal"`, or
-`executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
+1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="blaxel"`, `executor_type="e2b"`, `executor_type="modal"`, `executor_type="docker"`, or `executor_type="monty"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
 
 2. **Running the entire agentic system in a sandbox**: This approach (right side of diagram) runs the entire agentic system, including the agent, model, and tools, within a sandbox environment. This provides better isolation but requires more manual setup and may require passing sensitive credentials (like API keys) to the sandbox environment.
 
@@ -303,6 +302,26 @@ with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker") a
 > [!TIP]
 > Using the agent as a context manager (with the `with` statement) ensures that the Docker container is cleaned immediately after the agent completes its task.
 > Alternatively, you can manually call the agent's `cleanup()` method.
+
+### Monty setup
+
+#### Installation
+
+1. Install the required packages:
+```bash
+pip install 'smolagents[monty]'
+```
+
+#### Running your agent with Monty: quick start
+
+We provide a simple way to use Monty: simply add `executor_type="monty"` to the agent initialization, as follows:
+
+```py
+from smolagents import InferenceClientModel, CodeAgent
+
+agent = CodeAgent(model=InferenceClientModel(), tools=[], executor_type="monty")
+agent.run("Can you give me the 100th Fibonacci number?")
+```
 
 #### Advanced docker usage
 

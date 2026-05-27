@@ -16,6 +16,7 @@ from smolagents.remote_executors import (
     DockerExecutor,
     E2BExecutor,
     ModalExecutor,
+    MontyExecutor,
     RemotePythonExecutor,
     WasmExecutor,
 )
@@ -138,6 +139,29 @@ class TestE2BExecutorUnit:
             else:
                 mock_sandbox.return_value.kill.assert_called_once()
             assert logger.log.call_count >= 2  # Should log start and completion messages
+
+
+class TestMontyExecutor:
+    def test_monty_executor_instantiation_without_monty(self):
+        with patch.dict("sys.modules", {"pydantic_monty": None}):
+            with pytest.raises(ModuleNotFoundError, match="Please install 'monty' extra"):
+                MontyExecutor(additional_imports=[], logger=MagicMock())
+
+    def test_monty_executor_round_trip(self):
+        pytest.importorskip("pydantic_monty")
+
+        logger = AgentLogger(
+            LogLevel.DEBUG, console=Console(record=True, no_color=True, force_terminal=False, file=io.StringIO())
+        )
+        executor = MontyExecutor(additional_imports=[], logger=logger)
+        executor.send_tools({"final_answer": FinalAnswerTool()})
+        executor.send_variables({"x": 41})
+
+        code_output = executor("x = x + 1\nprint(x)")
+        assert code_output == CodeOutput(output=None, logs="42\n", is_final_answer=False)
+
+        final_output = executor("final_answer(x)")
+        assert final_output == CodeOutput(output=42, logs="", is_final_answer=True)
 
 
 @pytest.fixture

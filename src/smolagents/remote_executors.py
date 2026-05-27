@@ -42,7 +42,7 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
-__all__ = ["BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor", "WasmExecutor"]
+__all__ = ["BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor", "MontyExecutor", "WasmExecutor"]
 
 
 try:
@@ -333,6 +333,98 @@ locals().update(vars_dict)
             return pickle.loads(base64.b64decode(encoded_value[7:]))
         else:
             raise SerializationError("Unknown final answer format: expected 'safe:' or 'pickle:' prefix")
+
+
+_MONTY_FINAL_ANSWER_PREFIX = "__smolagents_final_answer__:"
+
+
+class MontyExecutor(PythonExecutor):
+    """
+    Executor of Python code in a sandboxed Monty REPL.
+
+    Args:
+        additional_imports (`list[str]`): Additional imports requested by the agent. Monty decides which imports are
+            supported at runtime.
+        logger (`Logger`): Logger to use for output and errors.
+        additional_functions (`dict[str, Callable]`, *optional*): Additional Python callables exposed to Monty.
+        script_name (`str`, default `"smolagents_monty.py"`): Script name to use for the Monty REPL.
+    """
+
+    def __init__(
+        self,
+        additional_imports: list[str],
+        logger,
+        additional_functions: dict[str, Any] | None = None,
+        script_name: str = "smolagents_monty.py",
+    ):
+        try:
+            import pydantic_monty
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                """Please install 'monty' extra to use MontyExecutor: `pip install 'smolagents[monty]'`"""
+            ) from e
+
+        self.additional_imports = additional_imports
+        self.logger = logger
+        self.additional_functions = additional_functions or {}
+        self._pydantic_monty = pydantic_monty
+        self.repl = pydantic_monty.MontyRepl(script_name=script_name)
+        self._pending_variables: dict[str, Any] = {}
+        self.static_tools: dict[str, Any] = {}
+
+    def _build_print_callback(self) -> tuple[list[str], Any]:
+        logs: list[str] = []
+
+        def callback(stream: str, text: str) -> None:
+            if stream == "stdout":
+                logs.append(text)
+
+        return logs, callback
+
+    def _patch_final_answer(self, final_answer_tool: FinalAnswerTool) -> Any:
+        def final_answer(*args, **kwargs) -> Any:
+            serialized_value = SafeSerializer.dumps(final_answer_tool(*args, **kwargs), allow_pickle=True)
+            raise Exception(f"{_MONTY_FINAL_ANSWER_PREFIX}{serialized_value}")
+
+        return final_answer
+
+    def send_variables(self, variables: dict[str, Any]):
+        self._pending_variables.update(variables)
+
+    def send_tools(self, tools: dict[str, Tool]):
+        self.static_tools = {**tools, **self.additional_functions}
+        if "final_answer" in self.static_tools:
+            self.static_tools["final_answer"] = self._patch_final_answer(self.static_tools["final_answer"])
+
+    def __call__(self, code_action: str) -> CodeOutput:
+        logs, callback = self._build_print_callback()
+        inputs = self._pending_variables or None
+        self._pending_variables = {}
+        try:
+            output = self.repl.feed_run(
+                code_action,
+                inputs=inputs,
+                external_functions=self.static_tools or None,
+                print_callback=callback,
+            )
+        except self._pydantic_monty.MontyRuntimeError as e:
+            inner_exception = e.exception()
+            if (
+                type(inner_exception) is Exception
+                and inner_exception.args
+                and isinstance(inner_exception.args[0], str)
+                and inner_exception.args[0].startswith(_MONTY_FINAL_ANSWER_PREFIX)
+            ):
+                final_answer = SafeSerializer.loads(
+                    inner_exception.args[0][len(_MONTY_FINAL_ANSWER_PREFIX) :], allow_pickle=True
+                )
+                return CodeOutput(output=final_answer, logs="".join(logs), is_final_answer=True)
+            raise
+
+        return CodeOutput(output=output, logs="".join(logs), is_final_answer=False)
+
+    def cleanup(self):
+        """Monty REPL state is process-local and requires no explicit cleanup."""
 
 
 class E2BExecutor(RemotePythonExecutor):
