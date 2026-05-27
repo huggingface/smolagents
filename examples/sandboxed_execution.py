@@ -8,6 +8,11 @@ with CodeAgent(tools=[WebSearchTool()], model=model, executor_type="blaxel") as 
     output = agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
 print("Blaxel executor result:", output)
 
+# Daytona executor example
+with CodeAgent(tools=[WebSearchTool()], model=model, executor_type="daytona") as agent:
+    output = agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
+print("Daytona executor result:", output)
+
 # Docker executor example
 with CodeAgent(tools=[WebSearchTool()], model=model, executor_type="docker") as agent:
     output = agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")

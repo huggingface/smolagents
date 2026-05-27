@@ -24,6 +24,10 @@ available executor implementations.
 
 [[autodoc]] smolagents.remote_executors.BlaxelExecutor
 
+### DaytonaExecutor
+
+[[autodoc]] smolagents.remote_executors.DaytonaExecutor
+
 ### E2BExecutor
 
 [[autodoc]] smolagents.remote_executors.E2BExecutor
