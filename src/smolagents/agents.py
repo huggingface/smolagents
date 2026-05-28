@@ -1008,11 +1008,13 @@ You have been provided with these additional arguments, that you can access dire
         return agent_dict
 
     @classmethod
-    def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "MultiStepAgent":
+    def from_dict(cls, agent_dict: dict[str, Any], trust_remote_code: bool = False, **kwargs) -> "MultiStepAgent":
         """Create agent from a dictionary representation.
 
         Args:
             agent_dict (`dict[str, Any]`): Dictionary representation of the agent.
+            trust_remote_code (`bool`, *optional*, defaults to `False`):
+                Whether to trust the execution of code from tools.
             **kwargs: Additional keyword arguments that will override agent_dict values.
 
         Returns:
@@ -1030,7 +1032,7 @@ You have been provided with these additional arguments, that you can access dire
         # Load tools
         tools = []
         for tool_info in agent_dict["tools"]:
-            tools.append(Tool.from_code(tool_info["code"]))
+            tools.append(Tool.from_code(tool_info["code"], trust_remote_code=trust_remote_code))
         # Load managed agents
         managed_agents = []
         for managed_agent_dict in agent_dict["managed_agents"]:
@@ -1040,7 +1042,7 @@ You have been provided with these additional arguments, that you can access dire
                     f"Unknown agent class '{managed_agent_dict['class']}'. "
                     f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
                 )
-            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            managed_agent = agent_class.from_dict(managed_agent_dict, trust_remote_code=trust_remote_code, **kwargs)
             managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {
@@ -1116,11 +1118,13 @@ You have been provided with these additional arguments, that you can access dire
         return cls.from_folder(download_folder, **kwargs)
 
     @classmethod
-    def from_folder(cls, folder: str | Path, **kwargs):
+    def from_folder(cls, folder: str | Path, trust_remote_code: bool = False, **kwargs):
         """Loads an agent from a local folder.
 
         Args:
             folder (`str` or `Path`): The folder where the agent is saved.
+            trust_remote_code (`bool`, *optional*, defaults to `False`):
+                Whether to trust the execution of code from the agent.
             **kwargs: Additional keyword arguments that will be passed to the agent's init.
         """
         # Load agent.json
@@ -1155,7 +1159,7 @@ You have been provided with these additional arguments, that you can access dire
         if managed_agents:
             kwargs["managed_agents"] = managed_agents
 
-        return cls.from_dict(agent_dict, **kwargs)
+        return cls.from_dict(agent_dict, trust_remote_code=trust_remote_code, **kwargs)
 
     def push_to_hub(
         self,
