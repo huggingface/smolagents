@@ -261,6 +261,89 @@ class TestDockerExecutorUnit:
             mock_container.stop.assert_called_once()
             mock_container.remove.assert_called_once()
 
+    def test_signal_handlers_registered_on_init(self):
+        """Test that SIGINT and SIGTERM handlers are registered on initialization."""
+        logger = MagicMock()
+        with (
+            patch("docker.from_env") as mock_docker_client,
+            patch("requests.get") as mock_get,
+            patch("requests.post") as mock_post,
+            patch("websocket.create_connection"),
+            patch("signal.signal") as mock_signal,
+        ):
+            # Setup mocks
+            mock_container = MagicMock()
+            mock_container.status = "running"
+            mock_container.short_id = "test123"
+
+            mock_docker_client.return_value.containers.run.return_value = mock_container
+            mock_docker_client.return_value.images.get.return_value = MagicMock()
+
+            mock_get.return_value.status_code = 200
+            mock_post.return_value.status_code = 201
+            mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
+
+            # Track registered signal handlers
+            registered_handlers = {}
+
+            def mock_signal_handler(sig, handler):
+                registered_handlers[sig] = handler
+
+            mock_signal.side_effect = mock_signal_handler
+
+            # Create executor
+            executor = DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+
+            # Verify signal handlers were registered
+            import signal
+
+            assert signal.SIGINT in registered_handlers, "SIGINT handler should be registered"
+            assert signal.SIGTERM in registered_handlers, "SIGTERM handler should be registered"
+            assert registered_handlers[signal.SIGINT] == executor._signal_handler
+            assert registered_handlers[signal.SIGTERM] == executor._signal_handler
+
+            executor.cleanup()
+
+    def test_signal_handler_calls_cleanup(self):
+        """Test that the signal handler properly cleans up the container on signal."""
+        logger = MagicMock()
+        with (
+            patch("docker.from_env") as mock_docker_client,
+            patch("requests.get") as mock_get,
+            patch("requests.post") as mock_post,
+            patch("websocket.create_connection"),
+            patch("sys.exit") as mock_exit,
+        ):
+            # Setup mocks
+            mock_container = MagicMock()
+            mock_container.status = "running"
+            mock_container.short_id = "test123"
+
+            mock_docker_client.return_value.containers.run.return_value = mock_container
+            mock_docker_client.return_value.images.get.return_value = MagicMock()
+
+            mock_get.return_value.status_code = 200
+            mock_post.return_value.status_code = 201
+            mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
+
+            # Create executor
+            executor = DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+
+            # Verify container exists before signal
+            assert hasattr(executor, "container")
+
+            import signal
+
+            # Call signal handler directly (simulating SIGINT)
+            executor._signal_handler(signal.SIGINT, None)
+
+            # Verify cleanup was called (container should be stopped and removed)
+            mock_container.stop.assert_called_once()
+            mock_container.remove.assert_called_once()
+
+            # Verify sys.exit was called
+            mock_exit.assert_called_once_with(0)
+
 
 class CommonDockerExecutorIntegration:
     @pytest.fixture(autouse=True)
