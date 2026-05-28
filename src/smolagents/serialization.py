@@ -328,22 +328,11 @@ class SafeSerializer:
             )
             return pickle.loads(base64.b64decode(data[7:]))
         else:
-            # No prefix - legacy format, assume pickle
-            if not allow_pickle:
-                raise SerializationError(
-                    "Pickle data rejected: allow_pickle=False requires safe-only data. "
-                    "This data appears to be pickle-serialized (legacy format). To deserialize it, set "
-                    "allow_pickle=True (not recommended for untrusted data)."
-                )
-            # Warn about insecure pickle deserialization
-            import warnings
-
-            warnings.warn(
-                "Deserializing pickle data. This is a security risk if the data is untrusted.",
-                FutureWarning,
-                stacklevel=2,
+            # No prefix - unknown format, reject for security
+            raise SerializationError(
+                "Unknown serialization format. Data must start with a recognized prefix "
+                f"({SafeSerializer.SAFE_PREFIX!r} for safe JSON, or 'pickle:' for pickle)."
             )
-            return pickle.loads(base64.b64decode(data))
 
     @staticmethod
     def _extract_method_body(method) -> str:

@@ -63,8 +63,8 @@ class TestSafeSerializationSecurity:
         # Create pickle data (no "safe:" prefix)
         pickle_data = base64.b64encode(pickle.dumps({"test": "data"})).decode()
 
-        # Should raise error in safe mode
-        with pytest.raises(SerializationError, match="Pickle data rejected"):
+        # Should raise error in safe mode — legacy unprefixed format is now rejected
+        with pytest.raises(SerializationError, match="Unknown serialization format"):
             SafeSerializer.loads(pickle_data, allow_pickle=False)
 
     def test_pickle_fallback_with_warning(self):
@@ -186,16 +186,21 @@ class TestBackwardCompatibility:
     """Test that legacy pickle data can still be read when explicitly allowed."""
 
     def test_read_legacy_pickle_data(self):
-        """Verify we can read old pickle data when allow_insecure=True."""
+        """Verify legacy pickle data requires explicit 'pickle:' prefix for security."""
 
-        # Simulate legacy pickle data (no "safe:" prefix)
+        # Legacy unprefixed pickle data is now rejected for security
         legacy_data = {"key": "value", "number": 42}
         pickle_encoded = base64.b64encode(pickle.dumps(legacy_data)).decode()
 
-        # Should work with allow_pickle=True
+        # Unprefixed pickle data is rejected even with allow_pickle=True
+        with pytest.raises(SerializationError, match="Unknown serialization format"):
+            SafeSerializer.loads(pickle_encoded, allow_pickle=True)
+
+        # Explicit 'pickle:' prefix still works with allow_pickle=True
+        explicit_pickle = "pickle:" + pickle_encoded
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            result = SafeSerializer.loads(pickle_encoded, allow_pickle=True)
+            result = SafeSerializer.loads(explicit_pickle, allow_pickle=True)
 
             assert result == legacy_data
             assert len(w) == 1  # Warning emitted
@@ -244,8 +249,8 @@ class TestDefaultBehavior:
         # Create pickle data
         pickle_data = base64.b64encode(pickle.dumps(obj)).decode()
 
-        # Should reject pickle data by default
-        with pytest.raises(SerializationError, match="Pickle data rejected"):
+        # Should reject unprefixed data by default (security fix)
+        with pytest.raises(SerializationError, match="Unknown serialization format"):
             SafeSerializer.loads(pickle_data)
 
 
@@ -807,14 +812,14 @@ class TestPrefixHandling:
         assert result.value == 42
 
     def test_legacy_format_detection(self):
-        """Test detection and handling of legacy format (no prefix)."""
+        """Test that legacy unprefixed format is rejected for security."""
         # Simulate legacy pickle data (no prefix)
         legacy_data = {"key": "value"}
         legacy_encoded = base64.b64encode(pickle.dumps(legacy_data)).decode()
 
-        # Should work with allow_pickle=True
-        result = SafeSerializer.loads(legacy_encoded, allow_pickle=True)
-        assert result == legacy_data
+        # Unprefixed data is now rejected even with allow_pickle=True
+        with pytest.raises(SerializationError, match="Unknown serialization format"):
+            SafeSerializer.loads(legacy_encoded, allow_pickle=True)
 
 
 class TestRealWorldScenarios:
