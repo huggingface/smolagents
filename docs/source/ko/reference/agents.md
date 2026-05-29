@@ -72,7 +72,3 @@ Smolagents는 여러 단계에 걸쳐 정보를 저장하기 위해 메모리를
 #### DockerExecutor[[smolagents.DockerExecutor]]
 
 [[autodoc]] smolagents.remote_executors.DockerExecutor
-
-#### WasmExecutor[[smolagents.WasmExecutor]]
-
-[[autodoc]] smolagents.remote_executors.WasmExecutor

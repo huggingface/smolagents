@@ -35,7 +35,3 @@ available executor implementations.
 ### DockerExecutor
 
 [[autodoc]] smolagents.remote_executors.DockerExecutor
-
-### WasmExecutor
-
-[[autodoc]] smolagents.remote_executors.WasmExecutor
