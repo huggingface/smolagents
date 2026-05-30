@@ -28,5 +28,9 @@ from .monitoring import *
 from .remote_executors import *
 from .serialization import *
 from .tools import *
-from .utils import *
+try:  # noqa: I001
+    from .torchagentic_planner import *  # noqa: F401
+except ImportError:
+    pass
 from .cli import *
+from .utils import *
