@@ -78,6 +78,35 @@ model = OpenAIModel(
 )
 ```
 
+## Using Tuning Engines
+
+Tuning Engines exposes an OpenAI-compatible endpoint for teams that want to run
+`smolagents` agents through a governed AI control plane. The agent code remains
+the same, while Tuning Engines can centralize model access, policy enforcement,
+audit logs, traces, and usage/cost reporting.
+
+First, create an inference key in Tuning Engines and make sure the key has
+access to the model alias you want to use:
+```python
+TUNING_ENGINES_API_KEY = <YOUR-TUNING-ENGINES-INFERENCE-KEY>
+```
+
+Then, initialize the model with [`OpenAIModel`] and point `api_base` at the
+Tuning Engines API:
+```python
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    model_id="gpt-4o",
+    api_base="https://api.tuningengines.com/v1",
+    api_key=TUNING_ENGINES_API_KEY,
+)
+```
+
+This is useful when your application team wants to keep using `smolagents` for
+agent behavior and tools, while platform or security teams manage model routing,
+allowed models, policy checks, and traceability in one place.
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
