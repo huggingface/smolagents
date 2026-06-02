@@ -21,7 +21,23 @@ import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
-from smolagents.mcp_firewall import MCPPayloadValidator, MCPServerUntrustedError, TrustVerifier, _extract_server_id
+from smolagents.mcp_firewall import (
+    MCPAuditLogger,
+    MCPCallSentinel,
+    MCPPayloadValidator,
+    MCPRateLimiter,
+    MCPResponseSanitizer,
+    MCPRugPullDetectedError,
+    MCPSecurityHook,
+    MCPServerUntrustedError,
+    MCPToolAllowlist,
+    MCPToolBlockedError,
+    MCPToolFingerprinter,
+    TrustVerifier,
+    _dispatch_hooks,
+    _extract_server_id,
+    wrap_tool_with_guardian,
+)
 from smolagents.tools import Tool
 
 
@@ -68,6 +84,22 @@ class MCPClient:
             and input schema for prompt-injection patterns and resource-exhaustion
             attacks. Raises ``MCPPayloadValidationError`` if any tool fails validation.
             Defaults to None (no validation — preserves backward compatibility).
+        fingerprinter (MCPToolFingerprinter, optional):
+            Rug-pull detector.  On first connect, records SHA-256 fingerprints of
+            every tool's definition in a local lockfile (``.mcp-lock.json``).
+            On every subsequent connect, re-fingerprints and raises
+            ``MCPRugPullDetectedError`` if any definition has changed.
+            Defaults to None (no fingerprinting).
+        sentinel (MCPCallSentinel, optional):
+            Runtime firewall.  Wraps each tool's ``forward()`` to scan arguments
+            for credential exfiltration patterns (pre-call) and responses for
+            injection patterns and size violations (post-call).
+            Raises ``MCPCallInterceptedError`` when a violation is detected.
+            Defaults to None (no call interception).
+        audit_logger (MCPAuditLogger, optional):
+            Structured audit log.  Records every tool call (timestamp, server_id,
+            hashed args, hashed response, duration, blocked status) to a JSONL
+            file.  Defaults to None (no audit logging).
 
     Example:
         ```python
@@ -110,18 +142,39 @@ class MCPClient:
         structured_output: bool | None = None,
         trust_verifier: TrustVerifier | None = None,
         payload_validator: MCPPayloadValidator | None = None,
+        fingerprinter: MCPToolFingerprinter | None = None,
+        sentinel: MCPCallSentinel | None = None,
+        audit_logger: MCPAuditLogger | None = None,
+        allowlist: MCPToolAllowlist | None = None,
+        sanitizer: MCPResponseSanitizer | None = None,
+        rate_limiter: MCPRateLimiter | None = None,
+        hooks: list[MCPSecurityHook] | None = None,
     ):
+        self._hooks: list[MCPSecurityHook] = list(hooks) if hooks else []
+
         # --- Layer 1: Pre-flight trust verification (before any TCP connection) ---
+        self._trust_score: float | None = None
         if trust_verifier is not None:
             result = trust_verifier.verify(server_parameters)
             if not result.trusted:
+                _dispatch_hooks(self._hooks, "server_blocked", result.server_id, {
+                    "trust_score": result.trust_score,
+                    "reasons": result.reasons,
+                })
                 raise MCPServerUntrustedError(
                     server_id=result.server_id,
                     trust_score=result.trust_score,
                     reasons=result.reasons,
                 )
+            self._trust_score = result.trust_score
 
         self._payload_validator = payload_validator
+        self._fingerprinter = fingerprinter
+        self._sentinel = sentinel
+        self._audit_logger = audit_logger
+        self._allowlist = allowlist
+        self._sanitizer = sanitizer
+        self._rate_limiter = rate_limiter
         self._server_id = _extract_server_id(server_parameters)
 
         # Handle future warning for structured_output default value change
@@ -163,6 +216,45 @@ class MCPClient:
         # --- Layer 2: Post-connection payload validation ---
         if self._payload_validator is not None and self._tools is not None:
             self._payload_validator.validate_tool_list(self._tools, self._server_id)
+        # --- Layer 3: Rug-pull fingerprint verification ---
+        if self._fingerprinter is not None and self._tools is not None:
+            try:
+                self._fingerprinter.fingerprint_and_verify(self._tools, self._server_id)
+            except MCPRugPullDetectedError as exc:
+                _dispatch_hooks(self._hooks, "rug_pull_detected", self._server_id, {
+                    "tool_name": getattr(exc, "tool_name", "?"),
+                    "reason": str(exc),
+                })
+                raise
+        # --- Layer 5: Allowlist enforcement ---
+        if self._allowlist is not None and self._tools is not None:
+            try:
+                self._allowlist.validate_tool_list(self._tools, self._server_id)
+            except MCPToolBlockedError as exc:
+                _dispatch_hooks(self._hooks, "tool_blocked", self._server_id, {
+                    "tool_name": exc.tool_name,
+                    "reason": exc.reason,
+                })
+                raise
+        # --- Layers 4/6/7/8: Wrap tools with runtime guardian ---
+        if (
+            self._sentinel is not None or self._audit_logger is not None
+            or self._allowlist is not None or self._sanitizer is not None
+            or self._rate_limiter is not None or self._hooks
+        ) and self._tools is not None:
+            for tool in self._tools:
+                wrap_tool_with_guardian(
+                    tool,
+                    server_id=self._server_id,
+                    sentinel=self._sentinel,
+                    audit_logger=self._audit_logger,
+                    trust_score=self._trust_score,
+                    fingerprint_verified=self._fingerprinter is not None,
+                    allowlist=self._allowlist,
+                    sanitizer=self._sanitizer,
+                    rate_limiter=self._rate_limiter,
+                    hooks=self._hooks or None,
+                )
 
     def disconnect(
         self,

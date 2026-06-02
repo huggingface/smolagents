@@ -139,3 +139,4 @@ lines-after-imports = 2
 [project.scripts]
 smolagent = "smolagents.cli:main"
 webagent = "smolagents.vision_web_browser:main"
+smolagents-firewall = "smolagents.mcp_firewall_cli:main"
