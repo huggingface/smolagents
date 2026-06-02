@@ -214,7 +214,7 @@ _[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj
 
 This part shows how to monitor and debug your Hugging Face **smolagents** with **Latitude** using the `SmolagentsInstrumentor`.
 
-> **What is Latitude?** [Latitude](https://latitude.so) is an open-source platform for LLM engineering. It provides tracing, evaluation, and prompt management for AI applications. Latitude's ingestion endpoint speaks standard OpenTelemetry (OTLP over HTTP), so smolagents traces flow in without a vendor-specific library.
+> **What is Latitude?** [Latitude](https://latitude.so) is an open-source (MIT-licensed) platform for improving production AI agents. It provides observability, search, and evaluation — helping teams capture real agent traffic, surface important behaviours, and turn repeated failures into trackable issues. Latitude's ingestion endpoint speaks standard OpenTelemetry (OTLP over HTTP), so smolagents traces flow in without a vendor-specific library.
 
 ### Step 1: Install Dependencies
 
