@@ -84,7 +84,8 @@ model = OpenAIModel(
 allowing you to use the [`OpenAIModel`] class directly.
 
 Available models:
-- `MiniMax-M2.7` — Latest flagship model with enhanced reasoning and coding
+- `MiniMax-M3` — Latest flagship model with 512K context, 128K max output, and image input support
+- `MiniMax-M2.7` — Previous-generation model with enhanced reasoning and coding
 - `MiniMax-M2.7-highspeed` — High-speed version of M2.7 for low-latency scenarios
 
 First, install the required dependencies:
@@ -102,7 +103,7 @@ Now, you can initialize MiniMax models using the `OpenAIModel` class:
 from smolagents import OpenAIModel
 
 model = OpenAIModel(
-    model_id="MiniMax-M2.7",
+    model_id="MiniMax-M3",
     api_base="https://api.minimax.io/v1",
     api_key=MINIMAX_API_KEY,
 )
