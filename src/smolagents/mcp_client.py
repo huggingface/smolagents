@@ -21,6 +21,7 @@ import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
+from smolagents.mcp_firewall import MCPPayloadValidator, MCPServerUntrustedError, TrustVerifier, _extract_server_id
 from smolagents.tools import Tool
 
 
@@ -56,6 +57,17 @@ class MCPClient:
             - Structured content handling (structuredContent from MCP responses)
             - JSON parsing fallback for structured data
             If False, uses the original simple text-only behavior for backwards compatibility.
+        trust_verifier (TrustVerifier, optional):
+            A pre-flight trust verifier that is evaluated *before* any TCP connection
+            is established. Use ``StaticTrustVerifier`` for URL/command-based rules,
+            or subclass ``TrustVerifier`` to call an external reputation API.
+            When provided, raises ``MCPServerUntrustedError`` if the server is rejected.
+            Defaults to None (no verification — preserves backward compatibility).
+        payload_validator (MCPPayloadValidator, optional):
+            A post-connection validator that inspects each tool's name, description,
+            and input schema for prompt-injection patterns and resource-exhaustion
+            attacks. Raises ``MCPPayloadValidationError`` if any tool fails validation.
+            Defaults to None (no validation — preserves backward compatibility).
 
     Example:
         ```python
@@ -70,6 +82,15 @@ class MCPClient:
         # Enable structured output for advanced MCP tools:
         with MCPClient(server_parameters, structured_output=True) as tools:
             # tools with structured output support are now available
+
+        # With security layers enabled:
+        from smolagents import StaticTrustVerifier, MCPPayloadValidator
+        with MCPClient(
+            server_parameters,
+            trust_verifier=StaticTrustVerifier(require_https=True),
+            payload_validator=MCPPayloadValidator(),
+        ) as tools:
+            # tools have been trust-verified and payload-validated
 
         # manually manage the connection via the mcp_client object:
         try:
@@ -87,7 +108,22 @@ class MCPClient:
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
         adapter_kwargs: dict[str, Any] | None = None,
         structured_output: bool | None = None,
+        trust_verifier: TrustVerifier | None = None,
+        payload_validator: MCPPayloadValidator | None = None,
     ):
+        # --- Layer 1: Pre-flight trust verification (before any TCP connection) ---
+        if trust_verifier is not None:
+            result = trust_verifier.verify(server_parameters)
+            if not result.trusted:
+                raise MCPServerUntrustedError(
+                    server_id=result.server_id,
+                    trust_score=result.trust_score,
+                    reasons=result.reasons,
+                )
+
+        self._payload_validator = payload_validator
+        self._server_id = _extract_server_id(server_parameters)
+
         # Handle future warning for structured_output default value change
         if structured_output is None:
             warnings.warn(
@@ -124,6 +160,9 @@ class MCPClient:
     def connect(self):
         """Connect to the MCP server and initialize the tools."""
         self._tools: list[Tool] = self._adapter.__enter__()
+        # --- Layer 2: Post-connection payload validation ---
+        if self._payload_validator is not None and self._tools is not None:
+            self._payload_validator.validate_tool_list(self._tools, self._server_id)
 
     def disconnect(
         self,

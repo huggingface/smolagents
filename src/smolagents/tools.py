@@ -50,6 +50,13 @@ from ._function_type_hints_utils import (
     get_json_schema,
 )
 from .agent_types import AgentAudio, AgentImage, handle_agent_input_types, handle_agent_output_types
+from .mcp_firewall import (
+    MCPPayloadValidator,
+    MCPServerUntrustedError,
+    TrustVerifier,
+    _extract_server_id,
+    _validate_tool_code_ast,
+)
 from .tool_validation import MethodChecker, validate_tool_attributes
 from .utils import (
     BASE_BUILTIN_MODULES,
@@ -570,6 +577,7 @@ class Tool(BaseTool):
 
     @classmethod
     def from_code(cls, tool_code: str, **kwargs):
+        _validate_tool_code_ast(tool_code)
         module = types.ModuleType("dynamic_tool")
 
         exec(tool_code, module.__dict__)
@@ -953,6 +961,8 @@ class ToolCollection:
         server_parameters: "mcp.StdioServerParameters" | dict,
         trust_remote_code: bool = False,
         structured_output: bool | None = None,
+        trust_verifier: TrustVerifier | None = None,
+        payload_validator: MCPPayloadValidator | None = None,
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
@@ -984,6 +994,16 @@ class ToolCollection:
                 - Structured content handling (structuredContent from MCP responses)
                 - JSON parsing fallback for structured data
                 If False, uses the original simple text-only behavior for backwards compatibility.
+            trust_verifier (`TrustVerifier`, *optional*):
+                A pre-flight trust verifier evaluated *before* any TCP connection is made.
+                When provided, raises ``MCPServerUntrustedError`` if the server is rejected.
+                Subclass ``TrustVerifier`` to add custom reputation API checks.
+                Defaults to None (preserves backward compatibility).
+            payload_validator (`MCPPayloadValidator`, *optional*):
+                A post-connection validator that inspects each tool's name, description,
+                and input schema for prompt-injection patterns and resource-exhaustion attacks.
+                Raises ``MCPPayloadValidationError`` if any tool fails validation.
+                Defaults to None (preserves backward compatibility).
 
         Returns:
             ToolCollection: A tool collection instance.
@@ -1007,20 +1027,31 @@ class ToolCollection:
         >>>     agent.run("Please find a remedy for hangover.")
         ```
 
-        Example with structured output enabled:
+        Example with security layers enabled:
         ```py
-        >>> with ToolCollection.from_mcp(server_parameters, trust_remote_code=True, structured_output=True) as tool_collection:
-        >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
-        >>>     agent.run("Please find a remedy for hangover.")
-        ```
-
-        Example with a Streamable HTTP MCP server:
-        ```py
-        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
+        >>> from smolagents import StaticTrustVerifier, MCPPayloadValidator
+        >>> with ToolCollection.from_mcp(
+        >>>     server_parameters,
+        >>>     trust_remote_code=True,
+        >>>     trust_verifier=StaticTrustVerifier(require_https=True),
+        >>>     payload_validator=MCPPayloadValidator(),
+        >>> ) as tool_collection:
         >>>     agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True, model=model)
         >>>     agent.run("Please find a remedy for hangover.")
         ```
         """
+        # --- Layer 1: Pre-flight trust verification (before any TCP connection) ---
+        if trust_verifier is not None:
+            result = trust_verifier.verify(server_parameters)
+            if not result.trusted:
+                raise MCPServerUntrustedError(
+                    server_id=result.server_id,
+                    trust_score=result.trust_score,
+                    reasons=result.reasons,
+                )
+
+        server_id = _extract_server_id(server_parameters)
+
         # Handle future warning for structured_output default value change
         if structured_output is None:
             warnings.warn(
@@ -1055,6 +1086,9 @@ class ToolCollection:
                 "as it will execute code on your local machine: pass `trust_remote_code=True`."
             )
         with MCPAdapt(server_parameters, SmolAgentsAdapter(structured_output=structured_output)) as tools:
+            # --- Layer 2: Post-connection payload validation ---
+            if payload_validator is not None:
+                payload_validator.validate_tool_list(tools, server_id)
             yield cls(tools)
 
 

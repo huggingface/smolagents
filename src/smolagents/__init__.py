@@ -22,6 +22,7 @@ from .default_tools import *
 from .gradio_ui import *
 from .local_python_executor import *
 from .mcp_client import *
+from .mcp_firewall import *
 from .memory import *
 from .models import *
 from .monitoring import *

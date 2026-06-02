@@ -138,6 +138,7 @@ cython_debug/
 
 # PyCharm
 .idea/
+claude.md
 
 # Interpreter
 interpreter_workspace/
