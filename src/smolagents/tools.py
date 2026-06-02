@@ -53,6 +53,7 @@ from .agent_types import AgentAudio, AgentImage, handle_agent_input_types, handl
 from .mcp_firewall import (
     MCPAuditLogger,
     MCPCallSentinel,
+    MCPPayloadValidationError,
     MCPPayloadValidator,
     MCPRateLimiter,
     MCPResponseSanitizer,
@@ -981,6 +982,7 @@ class ToolCollection:
         sanitizer: MCPResponseSanitizer | None = None,
         rate_limiter: MCPRateLimiter | None = None,
         hooks: list[MCPSecurityHook] | None = None,
+        warn_mode: bool = False,
     ) -> "ToolCollection":
         """Automatically load a tool collection from an MCP server.
 
@@ -1084,15 +1086,28 @@ class ToolCollection:
         if trust_verifier is not None:
             result = trust_verifier.verify(server_parameters)
             if not result.trusted:
-                _dispatch_hooks(_hooks, "server_blocked", result.server_id, {
-                    "trust_score": result.trust_score,
-                    "reasons": result.reasons,
-                })
-                raise MCPServerUntrustedError(
-                    server_id=result.server_id,
-                    trust_score=result.trust_score,
-                    reasons=result.reasons,
-                )
+                if warn_mode:
+                    warnings.warn(
+                        f"[WARN] MCPFirewall: server untrusted ({result.server_id}): "
+                        + "; ".join(result.reasons),
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    _dispatch_hooks(_hooks, "violation_warned", result.server_id, {
+                        "violation_type": "server_blocked",
+                        "trust_score": result.trust_score,
+                        "reasons": result.reasons,
+                    })
+                else:
+                    _dispatch_hooks(_hooks, "server_blocked", result.server_id, {
+                        "trust_score": result.trust_score,
+                        "reasons": result.reasons,
+                    })
+                    raise MCPServerUntrustedError(
+                        server_id=result.server_id,
+                        trust_score=result.trust_score,
+                        reasons=result.reasons,
+                    )
             trust_score = result.trust_score
 
         server_id = _extract_server_id(server_parameters)
@@ -1133,27 +1148,53 @@ class ToolCollection:
         with MCPAdapt(server_parameters, SmolAgentsAdapter(structured_output=structured_output)) as tools:
             # --- Layer 2: Post-connection payload validation ---
             if payload_validator is not None:
-                payload_validator.validate_tool_list(tools, server_id)
+                if warn_mode:
+                    try:
+                        payload_validator.validate_tool_list(tools, server_id)
+                    except MCPPayloadValidationError as exc:
+                        warnings.warn(f"[WARN] MCPFirewall: {exc}", RuntimeWarning, stacklevel=2)
+                        _dispatch_hooks(_hooks, "violation_warned", server_id, {
+                            "violation_type": "payload_validation",
+                            "reason": str(exc),
+                        })
+                else:
+                    payload_validator.validate_tool_list(tools, server_id)
             # --- Layer 3: Rug-pull fingerprint verification ---
             if fingerprinter is not None:
                 try:
                     fingerprinter.fingerprint_and_verify(tools, server_id)
                 except MCPRugPullDetectedError as exc:
-                    _dispatch_hooks(_hooks, "rug_pull_detected", server_id, {
-                        "tool_name": getattr(exc, "tool_name", "?"),
-                        "reason": str(exc),
-                    })
-                    raise
+                    if warn_mode:
+                        warnings.warn(f"[WARN] MCPFirewall: {exc}", RuntimeWarning, stacklevel=2)
+                        _dispatch_hooks(_hooks, "violation_warned", server_id, {
+                            "violation_type": "rug_pull_detected",
+                            "tool_name": getattr(exc, "tool_name", "?"),
+                            "reason": str(exc),
+                        })
+                    else:
+                        _dispatch_hooks(_hooks, "rug_pull_detected", server_id, {
+                            "tool_name": getattr(exc, "tool_name", "?"),
+                            "reason": str(exc),
+                        })
+                        raise
             # --- Layer 5: Allowlist enforcement ---
             if allowlist is not None:
                 try:
                     allowlist.validate_tool_list(tools, server_id)
                 except MCPToolBlockedError as exc:
-                    _dispatch_hooks(_hooks, "tool_blocked", server_id, {
-                        "tool_name": exc.tool_name,
-                        "reason": exc.reason,
-                    })
-                    raise
+                    if warn_mode:
+                        warnings.warn(f"[WARN] MCPFirewall: {exc}", RuntimeWarning, stacklevel=2)
+                        _dispatch_hooks(_hooks, "violation_warned", server_id, {
+                            "violation_type": "tool_blocked",
+                            "tool_name": exc.tool_name,
+                            "reason": exc.reason,
+                        })
+                    else:
+                        _dispatch_hooks(_hooks, "tool_blocked", server_id, {
+                            "tool_name": exc.tool_name,
+                            "reason": exc.reason,
+                        })
+                        raise
             # --- Layers 4/6/7/8: Wrap tools with runtime guardian ---
             if (sentinel is not None or audit_logger is not None or allowlist is not None
                     or sanitizer is not None or rate_limiter is not None or _hooks):
@@ -1169,6 +1210,7 @@ class ToolCollection:
                         sanitizer=sanitizer,
                         rate_limiter=rate_limiter,
                         hooks=_hooks or None,
+                        warn_mode=warn_mode,
                     )
             yield cls(tools)
 

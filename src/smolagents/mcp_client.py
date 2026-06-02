@@ -21,9 +21,12 @@ import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
+import logging as _logging
+
 from smolagents.mcp_firewall import (
     MCPAuditLogger,
     MCPCallSentinel,
+    MCPPayloadValidationError,
     MCPPayloadValidator,
     MCPRateLimiter,
     MCPResponseSanitizer,
@@ -38,6 +41,8 @@ from smolagents.mcp_firewall import (
     _extract_server_id,
     wrap_tool_with_guardian,
 )
+
+_logger = _logging.getLogger(__name__)
 from smolagents.tools import Tool
 
 
@@ -149,23 +154,34 @@ class MCPClient:
         sanitizer: MCPResponseSanitizer | None = None,
         rate_limiter: MCPRateLimiter | None = None,
         hooks: list[MCPSecurityHook] | None = None,
+        warn_mode: bool = False,
     ):
         self._hooks: list[MCPSecurityHook] = list(hooks) if hooks else []
+        self._warn_mode = warn_mode
 
         # --- Layer 1: Pre-flight trust verification (before any TCP connection) ---
         self._trust_score: float | None = None
         if trust_verifier is not None:
             result = trust_verifier.verify(server_parameters)
             if not result.trusted:
-                _dispatch_hooks(self._hooks, "server_blocked", result.server_id, {
-                    "trust_score": result.trust_score,
-                    "reasons": result.reasons,
-                })
-                raise MCPServerUntrustedError(
-                    server_id=result.server_id,
-                    trust_score=result.trust_score,
-                    reasons=result.reasons,
-                )
+                if warn_mode:
+                    _logger.warning("[WARN] MCPFirewall: server untrusted (%s): %s",
+                                    result.server_id, "; ".join(result.reasons))
+                    _dispatch_hooks(self._hooks, "violation_warned", result.server_id, {
+                        "violation_type": "server_blocked",
+                        "trust_score": result.trust_score,
+                        "reasons": result.reasons,
+                    })
+                else:
+                    _dispatch_hooks(self._hooks, "server_blocked", result.server_id, {
+                        "trust_score": result.trust_score,
+                        "reasons": result.reasons,
+                    })
+                    raise MCPServerUntrustedError(
+                        server_id=result.server_id,
+                        trust_score=result.trust_score,
+                        reasons=result.reasons,
+                    )
             self._trust_score = result.trust_score
 
         self._payload_validator = payload_validator
@@ -215,27 +231,53 @@ class MCPClient:
         self._tools: list[Tool] = self._adapter.__enter__()
         # --- Layer 2: Post-connection payload validation ---
         if self._payload_validator is not None and self._tools is not None:
-            self._payload_validator.validate_tool_list(self._tools, self._server_id)
+            if self._warn_mode:
+                try:
+                    self._payload_validator.validate_tool_list(self._tools, self._server_id)
+                except MCPPayloadValidationError as exc:
+                    _logger.warning("[WARN] MCPFirewall: %s", exc)
+                    _dispatch_hooks(self._hooks, "violation_warned", self._server_id, {
+                        "violation_type": "payload_validation",
+                        "reason": str(exc),
+                    })
+            else:
+                self._payload_validator.validate_tool_list(self._tools, self._server_id)
         # --- Layer 3: Rug-pull fingerprint verification ---
         if self._fingerprinter is not None and self._tools is not None:
             try:
                 self._fingerprinter.fingerprint_and_verify(self._tools, self._server_id)
             except MCPRugPullDetectedError as exc:
-                _dispatch_hooks(self._hooks, "rug_pull_detected", self._server_id, {
-                    "tool_name": getattr(exc, "tool_name", "?"),
-                    "reason": str(exc),
-                })
-                raise
+                if self._warn_mode:
+                    _logger.warning("[WARN] MCPFirewall: %s", exc)
+                    _dispatch_hooks(self._hooks, "violation_warned", self._server_id, {
+                        "violation_type": "rug_pull_detected",
+                        "tool_name": getattr(exc, "tool_name", "?"),
+                        "reason": str(exc),
+                    })
+                else:
+                    _dispatch_hooks(self._hooks, "rug_pull_detected", self._server_id, {
+                        "tool_name": getattr(exc, "tool_name", "?"),
+                        "reason": str(exc),
+                    })
+                    raise
         # --- Layer 5: Allowlist enforcement ---
         if self._allowlist is not None and self._tools is not None:
             try:
                 self._allowlist.validate_tool_list(self._tools, self._server_id)
             except MCPToolBlockedError as exc:
-                _dispatch_hooks(self._hooks, "tool_blocked", self._server_id, {
-                    "tool_name": exc.tool_name,
-                    "reason": exc.reason,
-                })
-                raise
+                if self._warn_mode:
+                    _logger.warning("[WARN] MCPFirewall: %s", exc)
+                    _dispatch_hooks(self._hooks, "violation_warned", self._server_id, {
+                        "violation_type": "tool_blocked",
+                        "tool_name": exc.tool_name,
+                        "reason": exc.reason,
+                    })
+                else:
+                    _dispatch_hooks(self._hooks, "tool_blocked", self._server_id, {
+                        "tool_name": exc.tool_name,
+                        "reason": exc.reason,
+                    })
+                    raise
         # --- Layers 4/6/7/8: Wrap tools with runtime guardian ---
         if (
             self._sentinel is not None or self._audit_logger is not None
@@ -254,6 +296,7 @@ class MCPClient:
                     sanitizer=self._sanitizer,
                     rate_limiter=self._rate_limiter,
                     hooks=self._hooks or None,
+                    warn_mode=self._warn_mode,
                 )
 
     def disconnect(

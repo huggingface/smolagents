@@ -18,22 +18,40 @@
 """
 MCP Application Firewall
 ========================
-Three security layers for smolagents MCP tool ingestion:
+A multi-layer application firewall for smolagents MCP tool ingestion.
+Prevents tool poisoning, prompt injection, rug-pull attacks, PII leakage,
+and rate abuse via MCP servers.
 
-  Layer 1 — TrustVerifier   : pre-flight check on server URL/command before any
-                               TCP connection is made.
-  Layer 2 — MCPPayloadValidator : post-connection check on every tool's metadata
-                               (name, description, inputSchema) to block prompt
-                               injection and resource-exhaustion attacks.
-  Layer 3 — _validate_tool_code_ast (in tools.py) : AST static analysis of
-                               Hub-tool source code before exec().
+Eight security layers
+---------------------
+  1. TrustVerifier        — pre-flight reputation/trust-score check on MCP
+                            server URLs/commands before any TCP connection.
+  2. MCPPayloadValidator  — validates tool metadata (name, description, schema)
+                            to block prompt injection and resource exhaustion.
+  3. MCPToolFingerprinter — SHA-256 lockfile detects rug-pull attacks (tool
+                            definitions changing between connections).
+  4. MCPCallSentinel      — pre/post-call inspection; blocks credential
+                            exfiltration in args and injection in responses.
+  5. MCPAuditLogger       — structured JSONL audit log of every tool call.
+  6. MCPToolAllowlist     — whitelist mode; blocks calls to unapproved tools.
+  7. MCPResponseSanitizer — strips PII (emails, cards, SSNs, JWTs) from
+                            responses before they reach the LLM context.
+  8. MCPRateLimiter       — sliding-window call budget per server and tool.
 
-Public API
-----------
-  Exceptions:     MCPServerUntrustedError, MCPPayloadValidationError
-  Data:           TrustVerificationResult
-  Verifiers:      TrustVerifier (ABC), StaticTrustVerifier, CompositeTrustVerifier
-  Validator:      MCPPayloadValidator
+Main entry point
+----------------
+  ``MCPFirewall`` is the facade that wires all eight layers together.
+  Use a preset or build from a config file::
+
+      fw = MCPFirewall.preset("strict")
+      fw = MCPFirewall.from_yaml("firewall.yml")
+      fw = MCPFirewall.from_env()
+
+      with MCPClient(server_params, **fw.as_kwargs()) as tools:
+          ...
+
+  See ``MCPFirewall.PRESETS`` for available presets and ``from_config()``
+  for the full configuration reference.
 """
 
 from __future__ import annotations
@@ -59,40 +77,43 @@ import ast as _ast
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    # Phase 1–4 (trust + payload + AST)
+    # Exceptions
     "MCPServerUntrustedError",
     "MCPPayloadValidationError",
+    "MCPRugPullDetectedError",
+    "MCPCallInterceptedError",
+    "MCPToolBlockedError",
+    "MCPRateLimitExceededError",
+    # Trust verification
     "TrustVerificationResult",
     "TrustVerifier",
     "StaticTrustVerifier",
     "CompositeTrustVerifier",
+    # Payload & AST validation
     "MCPPayloadValidator",
     "_validate_tool_code_ast",
-    # Phase 5 (runtime guardian)
-    "MCPRugPullDetectedError",
-    "MCPCallInterceptedError",
+    # Runtime guardian
     "MCPToolFingerprint",
     "MCPToolFingerprinter",
     "MCPCallSentinel",
     "MCPAuditLogger",
+    "MCPAuditLogReader",
     "wrap_tool_with_guardian",
-    # Phase 6 (facade + presets)
-    "MCPFirewall",
-    # Phase 7 (analytics + CLI)
-    "MCPCallStats",
-    "MCPSecurityReport",
-    # Phase 8 (allowlist + PII sanitization)
-    "MCPToolBlockedError",
+    # Allowlist & sanitizer
     "MCPToolAllowlist",
     "MCPResponseSanitizer",
-    # Phase 9 (rate limiting)
-    "MCPRateLimitExceededError",
+    # Rate limiting
     "MCPRateLimiter",
-    # Phase 10 (security event hooks)
+    # Security event hooks
     "MCPSecurityHook",
     "MCPConsoleHook",
     "MCPFileHook",
     "MCPCallbackHook",
+    # Analytics
+    "MCPCallStats",
+    "MCPSecurityReport",
+    # Firewall facade (the main entry point)
+    "MCPFirewall",
 ]
 
 
@@ -581,6 +602,7 @@ class MCPPayloadValidator:
         max_input_params: int = 20,
         max_param_description_length: int = 1024,
         allow_builtin_names: bool = False,
+        extra_injection_patterns: list[str] | None = None,
     ):
         self.max_tool_name_length = max_tool_name_length
         self.max_description_length = max_description_length
@@ -588,6 +610,11 @@ class MCPPayloadValidator:
         self.max_input_params = max_input_params
         self.max_param_description_length = max_param_description_length
         self.allow_builtin_names = allow_builtin_names
+        self.extra_injection_patterns: list[str] = list(extra_injection_patterns or [])
+        self._compiled_extra_injection: list[tuple[str, re.Pattern[str]]] = [
+            (f"custom-injection-{i}", re.compile(p))
+            for i, p in enumerate(self.extra_injection_patterns)
+        ]
 
     # ------------------------------------------------------------------
     # Public API
@@ -715,6 +742,16 @@ class MCPPayloadValidator:
     def _scan_for_injection(self, tool_name: str, field: str, text: str) -> None:
         """Raise MCPPayloadValidationError if text matches any injection pattern."""
         for pattern_name, pattern in _INJECTION_PATTERNS:
+            if pattern.search(text):
+                raise MCPPayloadValidationError(
+                    tool_name=tool_name,
+                    field=field,
+                    detail=(
+                        f"suspicious pattern '{pattern_name}' detected. "
+                        "This may indicate a prompt injection or code injection attempt."
+                    ),
+                )
+        for pattern_name, pattern in self._compiled_extra_injection:
             if pattern.search(text):
                 raise MCPPayloadValidationError(
                     tool_name=tool_name,
@@ -1856,6 +1893,158 @@ class MCPAuditLogger:
 
 
 # ===========================================================================
+# Phase 17 — Audit Log Reader
+# ===========================================================================
+
+
+class MCPAuditLogReader:
+    """Read and analyse an :class:`MCPAuditLogger` JSONL audit log file.
+
+    Each line of the log file is a JSON object written by
+    :meth:`MCPAuditLogger.log_call`.  Malformed or blank lines are silently
+    skipped with a warning.
+
+    Args:
+        path: Path to the JSONL audit log file.
+
+    Raises:
+        FileNotFoundError: If ``path`` does not exist.
+
+    Example::
+
+        reader = MCPAuditLogReader("~/.smolagents/audit.jsonl")
+        print(reader.summary())
+        blocked = reader.filter(blocked=True)
+    """
+
+    def __init__(self, path: str | Path):
+        self._path = Path(path)
+        self.events: list[dict] = self._load()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def filter(
+        self,
+        blocked: bool | None = None,
+        server_id: str | None = None,
+        tool_name: str | None = None,
+        last: int | None = None,
+    ) -> list[dict]:
+        """Return a filtered subset of log events.
+
+        All criteria are ANDed together.  ``None`` means "no filter on this
+        field".
+
+        Args:
+            blocked: If ``True``, include only blocked calls.  If ``False``,
+                include only allowed calls.  ``None`` = no filter.
+            server_id: Keep only records for this server identifier.
+            tool_name: Keep only records for this tool name.
+            last: Return at most the last *N* matching records.
+
+        Returns:
+            List of matching event dicts (chronological order).
+        """
+        result = self.events
+        if blocked is not None:
+            result = [e for e in result if e.get("blocked") is blocked]
+        if server_id is not None:
+            result = [e for e in result if e.get("server_id") == server_id]
+        if tool_name is not None:
+            result = [e for e in result if e.get("tool_name") == tool_name]
+        if last is not None:
+            result = result[-last:]
+        return result
+
+    def summary(self) -> dict:
+        """Return a summary dictionary computed from *all* loaded events.
+
+        Keys
+        ----
+        ``total_calls``
+            Total number of records in the log.
+        ``blocked_calls``
+            Number of calls where ``blocked`` is ``True``.
+        ``allowed_calls``
+            Number of calls where ``blocked`` is ``False``.
+        ``block_reason_breakdown``
+            Mapping of ``block_reason`` string → count (blocked calls only).
+        ``top_tools``
+            List of ``(tool_name, count)`` tuples, sorted by count descending,
+            up to 5 entries.
+        ``top_servers``
+            List of ``(server_id, count)`` tuples, sorted by count descending,
+            up to 5 entries.
+        ``avg_duration_ms``
+            Average ``call_duration_ms`` across all records, rounded to 3
+            decimal places.  ``0.0`` when no records have a duration field.
+        ``unverified_fingerprints``
+            Count of records where ``fingerprint_verified`` is ``False``.
+
+        Returns:
+            Summary dict.
+        """
+        events = self.events
+        total = len(events)
+        blocked_events = [e for e in events if e.get("blocked")]
+        allowed_events = [e for e in events if not e.get("blocked")]
+
+        reason_counts: dict[str, int] = {}
+        for e in blocked_events:
+            reason = e.get("block_reason") or "unknown"
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
+        tool_counts: dict[str, int] = {}
+        for e in events:
+            t = e.get("tool_name", "<unknown>")
+            tool_counts[t] = tool_counts.get(t, 0) + 1
+        top_tools = sorted(tool_counts.items(), key=lambda x: -x[1])[:5]
+
+        server_counts: dict[str, int] = {}
+        for e in events:
+            s = e.get("server_id", "<unknown>")
+            server_counts[s] = server_counts.get(s, 0) + 1
+        top_servers = sorted(server_counts.items(), key=lambda x: -x[1])[:5]
+
+        durations = [e["call_duration_ms"] for e in events if "call_duration_ms" in e]
+        avg_duration = sum(durations) / len(durations) if durations else 0.0
+
+        unverified = sum(1 for e in events if not e.get("fingerprint_verified", True))
+
+        return {
+            "total_calls": total,
+            "blocked_calls": len(blocked_events),
+            "allowed_calls": len(allowed_events),
+            "block_reason_breakdown": reason_counts,
+            "top_tools": top_tools,
+            "top_servers": top_servers,
+            "avg_duration_ms": round(avg_duration, 3),
+            "unverified_fingerprints": unverified,
+        }
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _load(self) -> list[dict]:
+        records: list[dict] = []
+        with open(self._path, encoding="utf-8") as fh:
+            for lineno, line in enumerate(fh, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(_json.loads(line))
+                except _json.JSONDecodeError:
+                    logger.warning(
+                        "MCPAuditLogReader: skipping malformed JSON on line %d", lineno
+                    )
+        return records
+
+
+# ===========================================================================
 # Phase 10 — Security Event Hooks
 # ===========================================================================
 # Real-time push notifications for every firewall block event.
@@ -2098,6 +2287,7 @@ def wrap_tool_with_guardian(
     sanitizer: MCPResponseSanitizer | None = None,
     rate_limiter: MCPRateLimiter | None = None,
     hooks: list[MCPSecurityHook] | None = None,
+    warn_mode: bool = False,
 ) -> None:
     """Wrap ``tool.forward()`` in-place with all active security layers.
 
@@ -2125,6 +2315,9 @@ def wrap_tool_with_guardian(
         sanitizer: Optional ``MCPResponseSanitizer`` to strip PII from responses.
         rate_limiter: Optional ``MCPRateLimiter`` for sliding-window call budgets.
         hooks: Optional list of ``MCPSecurityHook`` instances for real-time alerts.
+        warn_mode: If ``True``, violations are logged as warnings and the call
+            continues instead of raising.  A ``"violation_warned"`` hook event
+            is fired with a ``violation_type`` field indicating what was detected.
     """
     if (sentinel is None and audit_logger is None and allowlist is None
             and sanitizer is None and rate_limiter is None and not hooks):
@@ -2143,71 +2336,98 @@ def wrap_tool_with_guardian(
                 tool_name=tool.name,
                 reason="tool is not on the allowlist",
             )
-            _dispatch_hooks(hooks, "tool_blocked", server_id, {
-                "tool_name": tool.name, "reason": exc.reason,
-            })
-            if audit_logger is not None:
-                audit_logger.log_call(
-                    server_id=server_id,
-                    tool_name=tool.name,
-                    args_hash=args_hash,
-                    response_hash="",
-                    trust_score=trust_score,
-                    fingerprint_verified=fingerprint_verified,
-                    call_duration_ms=0.0,
-                    blocked=True,
-                    block_reason=str(exc),
-                )
-            raise exc
+            if warn_mode:
+                logger.warning("[WARN] MCPFirewall: %s", exc)
+                _dispatch_hooks(hooks, "violation_warned", server_id, {
+                    "tool_name": tool.name,
+                    "violation_type": "tool_blocked",
+                    "reason": exc.reason,
+                })
+            else:
+                _dispatch_hooks(hooks, "tool_blocked", server_id, {
+                    "tool_name": tool.name, "reason": exc.reason,
+                })
+                if audit_logger is not None:
+                    audit_logger.log_call(
+                        server_id=server_id,
+                        tool_name=tool.name,
+                        args_hash=args_hash,
+                        response_hash="",
+                        trust_score=trust_score,
+                        fingerprint_verified=fingerprint_verified,
+                        call_duration_ms=0.0,
+                        blocked=True,
+                        block_reason=str(exc),
+                    )
+                raise exc
 
         # Rate-limit pre-call check
         if rate_limiter is not None:
             try:
                 rate_limiter.check(server_id, tool.name)
             except MCPRateLimitExceededError as exc:
-                _dispatch_hooks(hooks, "rate_limit_exceeded", server_id, {
-                    "tool_name": tool.name,
-                    "limit": exc.limit,
-                    "scope": exc.scope,
-                    "reason": str(exc),
-                })
-                if audit_logger is not None:
-                    audit_logger.log_call(
-                        server_id=server_id,
-                        tool_name=tool.name,
-                        args_hash=args_hash,
-                        response_hash="",
-                        trust_score=trust_score,
-                        fingerprint_verified=fingerprint_verified,
-                        call_duration_ms=0.0,
-                        blocked=True,
-                        block_reason=str(exc),
-                    )
-                raise
+                if warn_mode:
+                    logger.warning("[WARN] MCPFirewall: %s", exc)
+                    _dispatch_hooks(hooks, "violation_warned", server_id, {
+                        "tool_name": tool.name,
+                        "violation_type": "rate_limit_exceeded",
+                        "limit": exc.limit,
+                        "scope": exc.scope,
+                        "reason": str(exc),
+                    })
+                else:
+                    _dispatch_hooks(hooks, "rate_limit_exceeded", server_id, {
+                        "tool_name": tool.name,
+                        "limit": exc.limit,
+                        "scope": exc.scope,
+                        "reason": str(exc),
+                    })
+                    if audit_logger is not None:
+                        audit_logger.log_call(
+                            server_id=server_id,
+                            tool_name=tool.name,
+                            args_hash=args_hash,
+                            response_hash="",
+                            trust_score=trust_score,
+                            fingerprint_verified=fingerprint_verified,
+                            call_duration_ms=0.0,
+                            blocked=True,
+                            block_reason=str(exc),
+                        )
+                    raise
 
         # Sentinel pre-call inspection
         if sentinel is not None:
             try:
                 sentinel.inspect_call_args(tool.name, kwargs)
             except MCPCallInterceptedError as exc:
-                _dispatch_hooks(hooks, "call_intercepted", server_id, {
-                    "tool_name": tool.name,
-                    "phase": exc.phase,
-                    "reason": exc.reason,
-                })
-                if audit_logger is not None:
-                    audit_logger.log_call(
-                        server_id=server_id,
-                        tool_name=tool.name,
-                        args_hash=args_hash,
-                        response_hash="",
-                        trust_score=trust_score,
-                        fingerprint_verified=fingerprint_verified,
-                        call_duration_ms=0.0,
-                        blocked=True,
-                        block_reason=str(exc),
-                    )
-                raise
+                if warn_mode:
+                    logger.warning("[WARN] MCPFirewall: %s", exc)
+                    _dispatch_hooks(hooks, "violation_warned", server_id, {
+                        "tool_name": tool.name,
+                        "violation_type": "call_intercepted",
+                        "phase": exc.phase,
+                        "reason": exc.reason,
+                    })
+                else:
+                    _dispatch_hooks(hooks, "call_intercepted", server_id, {
+                        "tool_name": tool.name,
+                        "phase": exc.phase,
+                        "reason": exc.reason,
+                    })
+                    if audit_logger is not None:
+                        audit_logger.log_call(
+                            server_id=server_id,
+                            tool_name=tool.name,
+                            args_hash=args_hash,
+                            response_hash="",
+                            trust_score=trust_score,
+                            fingerprint_verified=fingerprint_verified,
+                            call_duration_ms=0.0,
+                            blocked=True,
+                            block_reason=str(exc),
+                        )
+                    raise
 
         # Execute the original forward
         response = original_forward(**kwargs)
@@ -2219,24 +2439,33 @@ def wrap_tool_with_guardian(
             try:
                 sentinel.inspect_response(tool.name, response)
             except MCPCallInterceptedError as exc:
-                _dispatch_hooks(hooks, "call_intercepted", server_id, {
-                    "tool_name": tool.name,
-                    "phase": exc.phase,
-                    "reason": exc.reason,
-                })
-                if audit_logger is not None:
-                    audit_logger.log_call(
-                        server_id=server_id,
-                        tool_name=tool.name,
-                        args_hash=args_hash,
-                        response_hash=response_hash,
-                        trust_score=trust_score,
-                        fingerprint_verified=fingerprint_verified,
-                        call_duration_ms=elapsed_ms,
-                        blocked=True,
-                        block_reason=str(exc),
-                    )
-                raise
+                if warn_mode:
+                    logger.warning("[WARN] MCPFirewall: %s", exc)
+                    _dispatch_hooks(hooks, "violation_warned", server_id, {
+                        "tool_name": tool.name,
+                        "violation_type": "call_intercepted",
+                        "phase": exc.phase,
+                        "reason": exc.reason,
+                    })
+                else:
+                    _dispatch_hooks(hooks, "call_intercepted", server_id, {
+                        "tool_name": tool.name,
+                        "phase": exc.phase,
+                        "reason": exc.reason,
+                    })
+                    if audit_logger is not None:
+                        audit_logger.log_call(
+                            server_id=server_id,
+                            tool_name=tool.name,
+                            args_hash=args_hash,
+                            response_hash=response_hash,
+                            trust_score=trust_score,
+                            fingerprint_verified=fingerprint_verified,
+                            call_duration_ms=elapsed_ms,
+                            blocked=True,
+                            block_reason=str(exc),
+                        )
+                    raise
 
         # PII sanitization — applied after inspection, before returning to LLM
         if sanitizer is not None:
@@ -2342,7 +2571,12 @@ class MCPFirewall:
         sanitizer: MCPResponseSanitizer | None = None,
         rate_limiter: MCPRateLimiter | None = None,
         hooks: list[MCPSecurityHook] | None = None,
+        mode: str = "enforce",
     ):
+        if mode not in ("enforce", "warn"):
+            raise ValueError(
+                f"MCPFirewall: mode must be 'enforce' or 'warn', got {mode!r}"
+            )
         self.trust_verifier = trust_verifier
         self.payload_validator = payload_validator
         self.fingerprinter = fingerprinter
@@ -2352,6 +2586,7 @@ class MCPFirewall:
         self.sanitizer = sanitizer
         self.rate_limiter = rate_limiter
         self.hooks: list[MCPSecurityHook] = list(hooks) if hooks else []
+        self.mode = mode
 
     # ------------------------------------------------------------------
     # Public API
@@ -2422,6 +2657,9 @@ class MCPFirewall:
         ``preset`` (str):
             Optional.  Start from ``"strict"``, ``"balanced"``, ``"paranoid"``,
             or ``"dev"``.  Defaults to an empty firewall if omitted.
+        ``mode`` (str):
+            ``"enforce"`` (default) raises on violations; ``"warn"`` logs a
+            warning and fires hooks but lets the call through.
         ``trust_verifier`` (dict | ``false``):
             Keys: ``require_https`` (bool), ``min_trust_score`` (float),
             ``blocklist`` (list[str]), ``allowlist`` (list[str]).
@@ -2429,14 +2667,33 @@ class MCPFirewall:
         ``payload_validator`` (dict | ``false``):
             Keys: ``max_tool_name_length``, ``max_description_length``,
             ``max_tools_per_server``, ``max_input_params``,
-            ``max_param_description_length``.
+            ``max_param_description_length``, ``extra_injection_patterns``
+            (list[str] — additional regex patterns scanned in tool metadata).
         ``fingerprinter`` (dict | bool | ``false``):
             Keys: ``lockfile_path`` (str).
         ``sentinel`` (dict | bool | ``false``):
             Keys: ``max_response_length`` (int),
-            ``block_credential_exfil`` (bool), ``block_sensitive_paths`` (bool).
+            ``block_credential_exfil`` (bool), ``block_sensitive_paths`` (bool),
+            ``extra_blocked_arg_patterns`` (list[str] — additional regex patterns
+            scanned in tool call arguments),
+            ``extra_blocked_response_patterns`` (list[str] — additional regex
+            patterns scanned in tool responses).
         ``audit_logger`` (dict | bool | ``false``):
             Keys: ``log_path`` (str).
+        ``allowlist`` (dict | ``false``):
+            Keys: ``allowlist_path`` (str), ``auto_approve_first_connection``
+            (bool).
+        ``sanitizer`` (dict | ``false``):
+            Keys: ``redact_emails``, ``redact_credit_cards``, ``redact_ssn``,
+            ``redact_phone_numbers``, ``redact_jwt`` (all bool), ``mode``
+            (``"redact"`` | ``"hash"`` | ``"drop"``), ``custom_patterns``
+            (list of ``{name: str, pattern: str}`` dicts).
+        ``rate_limiter`` (dict | ``false``):
+            Keys: ``max_calls_per_minute`` (int), ``window_seconds`` (float),
+            ``per_tool_max_calls_per_minute`` (dict[str, int]).
+        ``hooks`` (dict):
+            Keys: ``console`` (bool — emit to stderr), ``file`` (str — path
+            to append security-event JSONL records).
 
         Example YAML::
 
@@ -2459,7 +2716,13 @@ class MCPFirewall:
             A configured ``MCPFirewall`` instance.
         """
         preset_name = config.get("preset")
+        mode = config.get("mode", "enforce")
+        if mode not in ("enforce", "warn"):
+            raise ValueError(
+                f"MCPFirewall.from_config: mode must be 'enforce' or 'warn', got {mode!r}"
+            )
         instance: MCPFirewall = cls.preset(preset_name) if preset_name else cls()
+        instance.mode = mode
 
         def _apply(key: str, builder):
             val = config.get(key)
@@ -2488,6 +2751,7 @@ class MCPFirewall:
             max_tools_per_server=d.get("max_tools_per_server", 100),
             max_input_params=d.get("max_input_params", 20),
             max_param_description_length=d.get("max_param_description_length", 1024),
+            extra_injection_patterns=d.get("extra_injection_patterns"),
         ))
         _apply("fingerprinter", lambda d: MCPToolFingerprinter(
             lockfile_path=d.get("lockfile_path"),
@@ -2496,6 +2760,8 @@ class MCPFirewall:
             max_response_length=d.get("max_response_length", 100_000),
             block_credential_exfil=d.get("block_credential_exfil", True),
             block_sensitive_paths=d.get("block_sensitive_paths", True),
+            extra_blocked_arg_patterns=d.get("extra_blocked_arg_patterns"),
+            extra_blocked_response_patterns=d.get("extra_blocked_response_patterns"),
         ))
         _apply("audit_logger", lambda d: MCPAuditLogger(
             log_path=d.get("log_path"),
@@ -2504,14 +2770,23 @@ class MCPFirewall:
             allowlist_path=d.get("allowlist_path"),
             auto_approve_first_connection=d.get("auto_approve_first_connection", True),
         ))
-        _apply("sanitizer", lambda d: MCPResponseSanitizer(
-            redact_emails=d.get("redact_emails", True),
-            redact_credit_cards=d.get("redact_credit_cards", True),
-            redact_ssn=d.get("redact_ssn", True),
-            redact_phone_numbers=d.get("redact_phone_numbers", True),
-            redact_jwt=d.get("redact_jwt", True),
-            mode=d.get("mode", "redact"),
-        ))
+        def _build_sanitizer(d: dict) -> "MCPResponseSanitizer":
+            raw_custom = d.get("custom_patterns") or []
+            compiled_custom: list[tuple[str, re.Pattern[str]]] = [
+                (entry["name"], re.compile(entry["pattern"]))
+                for entry in raw_custom
+                if isinstance(entry, dict) and "name" in entry and "pattern" in entry
+            ]
+            return MCPResponseSanitizer(
+                redact_emails=d.get("redact_emails", True),
+                redact_credit_cards=d.get("redact_credit_cards", True),
+                redact_ssn=d.get("redact_ssn", True),
+                redact_phone_numbers=d.get("redact_phone_numbers", True),
+                redact_jwt=d.get("redact_jwt", True),
+                mode=d.get("mode", "redact"),
+                custom_patterns=compiled_custom or None,
+            )
+        _apply("sanitizer", _build_sanitizer)
         _apply("rate_limiter", lambda d: MCPRateLimiter(
             max_calls_per_minute=d.get("max_calls_per_minute", 300),
             per_tool_max_calls_per_minute=d.get("per_tool_max_calls_per_minute"),
@@ -2534,13 +2809,13 @@ class MCPFirewall:
         """Serialize current firewall state to a plain config dictionary.
 
         The result is compatible with :meth:`from_config`, :meth:`from_yaml`,
-        and :meth:`save_yaml`.  Only ``StaticTrustVerifier`` is fully
+        :meth:`save_yaml`, and :meth:`save_json`.  Only ``StaticTrustVerifier`` is fully
         round-tripped; custom ``TrustVerifier`` subclasses are skipped.
 
         Returns:
             A nested dict representing all 8 layers.
         """
-        config: dict = {}
+        config: dict = {"mode": self.mode}
 
         # trust_verifier
         if self.trust_verifier is None:
@@ -2562,13 +2837,16 @@ class MCPFirewall:
             config["payload_validator"] = False
         else:
             pv = self.payload_validator
-            config["payload_validator"] = {
+            pv_dict: dict = {
                 "max_tool_name_length": pv.max_tool_name_length,
                 "max_description_length": pv.max_description_length,
                 "max_tools_per_server": pv.max_tools_per_server,
                 "max_input_params": pv.max_input_params,
                 "max_param_description_length": pv.max_param_description_length,
             }
+            if pv.extra_injection_patterns:
+                pv_dict["extra_injection_patterns"] = list(pv.extra_injection_patterns)
+            config["payload_validator"] = pv_dict
 
         # fingerprinter
         if self.fingerprinter is None:
@@ -2582,11 +2860,20 @@ class MCPFirewall:
         if self.sentinel is None:
             config["sentinel"] = False
         else:
-            config["sentinel"] = {
+            sentinel_dict: dict = {
                 "max_response_length": self.sentinel.max_response_length,
                 "block_credential_exfil": self.sentinel.block_credential_exfil,
                 "block_sensitive_paths": self.sentinel.block_sensitive_paths,
             }
+            if self.sentinel._extra_arg_patterns:
+                sentinel_dict["extra_blocked_arg_patterns"] = [
+                    p.pattern for _, p in self.sentinel._extra_arg_patterns
+                ]
+            if self.sentinel._extra_response_patterns:
+                sentinel_dict["extra_blocked_response_patterns"] = [
+                    p.pattern for _, p in self.sentinel._extra_response_patterns
+                ]
+            config["sentinel"] = sentinel_dict
 
         # audit_logger
         if self.audit_logger is None:
@@ -2609,8 +2896,9 @@ class MCPFirewall:
         if self.sanitizer is None:
             config["sanitizer"] = False
         else:
+            _STANDARD_SANITIZER_NAMES = {"email", "credit-card", "ssn", "phone", "jwt"}
             active_names = {name for name, _ in self.sanitizer._active}
-            config["sanitizer"] = {
+            sanitizer_dict: dict = {
                 "mode": self.sanitizer.mode,
                 "redact_emails": "email" in active_names,
                 "redact_credit_cards": "credit-card" in active_names,
@@ -2618,6 +2906,14 @@ class MCPFirewall:
                 "redact_phone_numbers": "phone" in active_names,
                 "redact_jwt": "jwt" in active_names,
             }
+            custom_pats = [
+                {"name": name, "pattern": pat.pattern}
+                for name, pat in self.sanitizer._active
+                if name not in _STANDARD_SANITIZER_NAMES
+            ]
+            if custom_pats:
+                sanitizer_dict["custom_patterns"] = custom_pats
+            config["sanitizer"] = sanitizer_dict
 
         # rate_limiter
         if self.rate_limiter is None:
@@ -2749,10 +3045,181 @@ class MCPFirewall:
         with open(path, "w", encoding="utf-8") as fh:
             _yaml.dump(config, fh, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
+    def save_json(self, path: "str | Path", *, indent: int = 2) -> None:
+        """Serialize the current firewall configuration to a JSON file.
+
+        Uses the Python standard library — no extra dependencies required.
+        The output is reloadable with :meth:`from_json`.  Intermediate
+        directories are created automatically.
+
+        Args:
+            path: Destination file path.  Overwrites any existing file.
+            indent: JSON indentation level (default 2).
+        """
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        config = self._to_config_dict()
+        with open(path, "w", encoding="utf-8") as fh:
+            _json.dump(config, fh, indent=indent, ensure_ascii=False)
+            fh.write("\n")
+
+    @classmethod
+    def from_env(cls, prefix: str = "MCP_FIREWALL_") -> "MCPFirewall":
+        """Build an ``MCPFirewall`` from environment variables.
+
+        Reads environment variables with the given ``prefix`` and constructs a
+        config dict that is then passed to :meth:`from_config`.  Variables not
+        present in the environment are silently ignored — only variables that
+        are explicitly set have any effect.
+
+        Supported variables (shown with the default ``MCP_FIREWALL_`` prefix)
+        -----------------------------------------------------------------------
+        ``MCP_FIREWALL_PRESET``
+            Preset base: ``strict``, ``balanced``, ``paranoid``, or ``dev``.
+        ``MCP_FIREWALL_MODE``
+            Enforcement mode: ``enforce`` (default) or ``warn``.
+        ``MCP_FIREWALL_REQUIRE_HTTPS``
+            Require HTTPS for remote servers: ``true`` / ``false``.
+        ``MCP_FIREWALL_MIN_TRUST_SCORE``
+            Minimum trust score threshold, 0.0–1.0 (float string).
+        ``MCP_FIREWALL_BLOCKLIST``
+            Comma-separated regex patterns added to the trust verifier blocklist.
+        ``MCP_FIREWALL_MAX_RESPONSE_LENGTH``
+            Maximum tool response length before the sentinel blocks the call (int).
+        ``MCP_FIREWALL_AUDIT_LOG``
+            File path for the structured JSONL audit log.
+        ``MCP_FIREWALL_LOCKFILE``
+            File path for the rug-pull fingerprint lockfile.
+        ``MCP_FIREWALL_RATE_LIMIT``
+            Maximum MCP tool calls per minute per server (int).
+        ``MCP_FIREWALL_HOOK_CONSOLE``
+            Emit security events to stderr: ``true`` / ``false``.
+        ``MCP_FIREWALL_HOOK_FILE``
+            File path to append security event JSONL records.
+        ``MCP_FIREWALL_BLOCKED_ARG_PATTERNS``
+            Comma-separated regex strings added to the sentinel's extra arg blocked patterns.
+        ``MCP_FIREWALL_BLOCKED_RESPONSE_PATTERNS``
+            Comma-separated regex strings added to the sentinel's extra response blocked patterns.
+
+        .. note::
+            When a layer is partially configured via env vars and a ``PRESET``
+            is also set, the env-var values take precedence but the layer is
+            rebuilt from its constructor defaults for any value not explicitly
+            specified.
+
+        Args:
+            prefix: Environment variable prefix.  Defaults to
+                ``"MCP_FIREWALL_"``.
+
+        Returns:
+            A configured ``MCPFirewall`` instance.
+
+        Raises:
+            ValueError: If a variable contains an unparseable value (e.g. a
+                non-numeric string for an integer variable, or an unrecognised
+                boolean string).
+
+        Example::
+
+            # In the shell:
+            #   export MCP_FIREWALL_PRESET=strict
+            #   export MCP_FIREWALL_MODE=warn
+            #   export MCP_FIREWALL_HOOK_CONSOLE=true
+
+            fw = MCPFirewall.from_env()
+            with MCPClient(server_params, **fw.as_kwargs()) as tools:
+                ...
+        """
+        import os as _os
+
+        def _bool(val: str, var: str) -> bool:
+            if val.lower() in ("1", "true", "yes", "on"):
+                return True
+            if val.lower() in ("0", "false", "no", "off"):
+                return False
+            raise ValueError(
+                f"Cannot parse boolean from {var}={val!r}; "
+                "expected one of: true, false, 1, 0, yes, no, on, off"
+            )
+
+        def _int(val: str, var: str) -> int:
+            try:
+                return int(val)
+            except ValueError:
+                raise ValueError(
+                    f"Cannot parse integer from {var}={val!r}"
+                )
+
+        def _float(val: str, var: str) -> float:
+            try:
+                return float(val)
+            except ValueError:
+                raise ValueError(
+                    f"Cannot parse float from {var}={val!r}"
+                )
+
+        env = _os.environ
+        config: dict = {}
+
+        # Preset
+        if preset := env.get(f"{prefix}PRESET"):
+            config["preset"] = preset
+
+        # Mode
+        if mode := env.get(f"{prefix}MODE"):
+            config["mode"] = mode
+
+        # Trust verifier
+        tv: dict = {}
+        if (v := env.get(f"{prefix}REQUIRE_HTTPS")) is not None:
+            tv["require_https"] = _bool(v, f"{prefix}REQUIRE_HTTPS")
+        if (v := env.get(f"{prefix}MIN_TRUST_SCORE")) is not None:
+            tv["min_trust_score"] = _float(v, f"{prefix}MIN_TRUST_SCORE")
+        if (v := env.get(f"{prefix}BLOCKLIST")) is not None:
+            tv["blocklist"] = [p.strip() for p in v.split(",") if p.strip()]
+        if tv:
+            config["trust_verifier"] = tv
+
+        # Sentinel
+        sentinel: dict = {}
+        if (v := env.get(f"{prefix}MAX_RESPONSE_LENGTH")) is not None:
+            sentinel["max_response_length"] = _int(v, f"{prefix}MAX_RESPONSE_LENGTH")
+        if (v := env.get(f"{prefix}BLOCKED_ARG_PATTERNS")) is not None:
+            sentinel["extra_blocked_arg_patterns"] = [p.strip() for p in v.split(",") if p.strip()]
+        if (v := env.get(f"{prefix}BLOCKED_RESPONSE_PATTERNS")) is not None:
+            sentinel["extra_blocked_response_patterns"] = [p.strip() for p in v.split(",") if p.strip()]
+        if sentinel:
+            config["sentinel"] = sentinel
+
+        # Audit logger
+        if v := env.get(f"{prefix}AUDIT_LOG"):
+            config["audit_logger"] = {"log_path": v}
+
+        # Fingerprinter
+        if v := env.get(f"{prefix}LOCKFILE"):
+            config["fingerprinter"] = {"lockfile_path": v}
+
+        # Rate limiter
+        if (v := env.get(f"{prefix}RATE_LIMIT")) is not None:
+            config["rate_limiter"] = {
+                "max_calls_per_minute": _int(v, f"{prefix}RATE_LIMIT"),
+            }
+
+        # Hooks
+        hooks: dict = {}
+        if (v := env.get(f"{prefix}HOOK_CONSOLE")) is not None:
+            hooks["console"] = _bool(v, f"{prefix}HOOK_CONSOLE")
+        if v := env.get(f"{prefix}HOOK_FILE"):
+            hooks["file"] = v
+        if hooks:
+            config["hooks"] = hooks
+
+        return cls.from_config(config)
+
     def as_kwargs(self) -> dict:
         """Return a dict of keyword arguments for ``MCPClient`` or ``ToolCollection.from_mcp()``.
 
-        The returned dict contains only the five security-layer parameters.
+        The returned dict contains all security-layer parameters plus ``warn_mode``.
         Merge it with your other constructor arguments using ``**``:
 
         ```python
@@ -2771,6 +3238,7 @@ class MCPFirewall:
             "sanitizer":         self.sanitizer,
             "rate_limiter":      self.rate_limiter,
             "hooks":             self.hooks or None,
+            "warn_mode":         self.mode == "warn",
         }
 
     def summary(self) -> str:
@@ -2845,11 +3313,173 @@ class MCPFirewall:
             self.fingerprinter, self.sentinel, self.audit_logger,
             self.allowlist, self.sanitizer, self.rate_limiter,
         ) if x is not None)
-        header = f"MCPFirewall ({enabled}/8 layers active):\n"
+        mode_label = "WARN (audit-only)" if self.mode == "warn" else "ENFORCE"
+        header = f"MCPFirewall ({enabled}/8 layers active, mode={mode_label}):\n"
         return header + "\n".join(parts)
 
     def __repr__(self) -> str:
         return self.summary()
+
+    # ------------------------------------------------------------------
+    # Phase 14 — Config diff
+    # ------------------------------------------------------------------
+
+    def diff(self, other: "MCPFirewall") -> str:
+        """Return a human-readable diff of two firewall configurations.
+
+        Compares the serialisable state of both instances (via
+        :meth:`_to_config_dict`) and reports every setting that differs.
+
+        .. note::
+            Custom ``TrustVerifier`` subclasses are not fully serialisable and
+            will show as absent in the diff — the same limitation as
+            :meth:`save_yaml` and :meth:`save_json`.
+
+        Args:
+            other: The firewall configuration to compare against.
+
+        Returns:
+            A multi-line string starting with ``"MCPFirewall diff:\\n"`` when
+            differences exist, or ``""`` when the configurations are identical.
+
+        Example::
+
+            fw_old = MCPFirewall.preset("balanced")
+            fw_new = MCPFirewall.from_yaml(".smolagents-firewall.yml")
+            print(fw_old.diff(fw_new))
+        """
+        def _fmt(val: Any) -> str:
+            # _fmt is only called for sub-key values; the top-level False
+            # (layer disabled) is handled directly in the loop below.
+            if val is None:
+                return "None"
+            if isinstance(val, list):
+                return "[" + ", ".join(str(v) for v in val) + "]"
+            return str(val)
+
+        left = self._to_config_dict()
+        right = other._to_config_dict()
+        left.setdefault("hooks", {})
+        right.setdefault("hooks", {})
+
+        key_order = [
+            "mode",
+            "trust_verifier", "payload_validator", "fingerprinter",
+            "sentinel", "audit_logger", "allowlist", "sanitizer",
+            "rate_limiter", "hooks",
+        ]
+
+        lines: list[str] = []
+        for key in key_order:
+            lv = left.get(key)
+            rv = right.get(key)
+            if lv == rv:
+                continue
+            if isinstance(lv, dict) and isinstance(rv, dict):
+                for sub in sorted(set(lv) | set(rv)):
+                    ls, rs = lv.get(sub), rv.get(sub)
+                    if ls != rs:
+                        lines.append(f"  {key}.{sub}: {_fmt(ls)} → {_fmt(rs)}")
+            elif lv is False and isinstance(rv, dict):
+                lines.append(f"  {key}: DISABLED → enabled")
+            elif isinstance(lv, dict) and rv is False:
+                lines.append(f"  {key}: enabled → DISABLED")
+            else:
+                lines.append(f"  {key}: {_fmt(lv)} → {_fmt(rv)}")
+
+        if not lines:
+            return ""
+        return "MCPFirewall diff:\n" + "\n".join(lines)
+
+    @classmethod
+    def diff_presets(cls, a: str, b: str) -> str:
+        """Return a human-readable diff between two named presets.
+
+        Equivalent to ``MCPFirewall.preset(a).diff(MCPFirewall.preset(b))``.
+
+        Args:
+            a: Name of the left preset (``"strict"``, ``"balanced"``,
+                ``"paranoid"``, or ``"dev"``).
+            b: Name of the right preset.
+
+        Returns:
+            Diff string, or ``""`` if the presets produce identical configs.
+        """
+        return cls.preset(a).diff(cls.preset(b))
+
+    # ------------------------------------------------------------------
+    # Phase 16 — Firewall composition (merge)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def merge(cls, base: "MCPFirewall", override: "MCPFirewall") -> "MCPFirewall":
+        """Compose two firewalls: *override*'s layers take precedence over *base*.
+
+        For each of the 8 security layers, the override's value is used when it
+        is not ``None``; otherwise the base layer is kept.  ``mode`` always
+        comes from the override.  Hooks from both firewalls are unioned and
+        deduplicated: at most one ``MCPConsoleHook``, one ``MCPFileHook`` per
+        unique path, and callback hooks deduplicated by identity.
+
+        Args:
+            base: The baseline firewall (e.g. a preset).
+            override: The firewall whose layers take precedence (e.g. from env
+                or a project-specific config file).
+
+        Returns:
+            A new ``MCPFirewall`` with the merged configuration.
+
+        Example::
+
+            base = MCPFirewall.preset("strict")
+            project = MCPFirewall.from_yaml("project-firewall.yml")
+            fw = MCPFirewall.merge(base, project)
+        """
+        merged = cls(
+            trust_verifier    = override.trust_verifier    if override.trust_verifier    is not None else base.trust_verifier,
+            payload_validator = override.payload_validator if override.payload_validator is not None else base.payload_validator,
+            fingerprinter     = override.fingerprinter     if override.fingerprinter     is not None else base.fingerprinter,
+            sentinel          = override.sentinel          if override.sentinel          is not None else base.sentinel,
+            audit_logger      = override.audit_logger      if override.audit_logger      is not None else base.audit_logger,
+            allowlist         = override.allowlist         if override.allowlist         is not None else base.allowlist,
+            sanitizer         = override.sanitizer         if override.sanitizer         is not None else base.sanitizer,
+            rate_limiter      = override.rate_limiter      if override.rate_limiter      is not None else base.rate_limiter,
+            mode              = override.mode,
+        )
+        seen_console = False
+        seen_file_paths: set[str] = set()
+        seen_cb_ids: set[int] = set()
+        for hook in list(base.hooks) + list(override.hooks):
+            if isinstance(hook, MCPConsoleHook):
+                if not seen_console:
+                    merged.add_hook(hook)
+                    seen_console = True
+            elif isinstance(hook, MCPFileHook):
+                path_key = str(hook._path)
+                if path_key not in seen_file_paths:
+                    merged.add_hook(hook)
+                    seen_file_paths.add(path_key)
+            elif isinstance(hook, MCPCallbackHook):
+                cb_id = id(hook._callback)
+                if cb_id not in seen_cb_ids:
+                    merged.add_hook(hook)
+                    seen_cb_ids.add(cb_id)
+        return merged
+
+    @classmethod
+    def merge_from_config(cls, base_config: dict, override_config: dict) -> "MCPFirewall":
+        """Merge two config dicts and return the composed firewall.
+
+        Equivalent to ``MCPFirewall.merge(from_config(base), from_config(override))``.
+
+        Args:
+            base_config: Base config dictionary (same format as :meth:`from_config`).
+            override_config: Override config dictionary.
+
+        Returns:
+            A new ``MCPFirewall`` with the merged configuration.
+        """
+        return cls.merge(cls.from_config(base_config), cls.from_config(override_config))
 
     # ------------------------------------------------------------------
     # Preset factories (private)

@@ -18,11 +18,23 @@
 """
 smolagents-firewall — MCP Application Firewall management CLI
 
-Usage:
-  smolagents-firewall check   <url> [--allow-http] [--blocklist PATTERN ...]
-  smolagents-firewall report  [--log PATH]
-  smolagents-firewall status  [--lockfile PATH]
-  smolagents-firewall approve <server_id> <tool_name> [--lockfile PATH]
+Subcommands
+-----------
+  check       Score a URL's trustworthiness (no network connection made)
+  report      Security analytics from the audit JSONL log
+  status      Show registered server fingerprints from the lockfile
+  approve     Approve a tool definition change
+  allowlist   Manage the tool allowlist (show, add, remove)
+  rate-status Show per-server/per-tool call rates from the audit log
+  test-hook   Fire a synthetic security event to verify hook wiring
+  init        Generate a starter .smolagents-firewall.yml config file
+  validate    Validate a firewall config file without connecting
+  env         Show current MCP_FIREWALL_* environment variable values
+  diff        Show what differs between two firewall configurations
+  merge       Merge two firewall configs (override takes precedence over base)
+  audit       Analyse an MCPAuditLogger JSONL log file
+
+Run ``smolagents-firewall <subcommand> --help`` for per-command options.
 """
 from __future__ import annotations
 
@@ -33,6 +45,7 @@ from pathlib import Path
 
 from smolagents.mcp_firewall import (
     MCPAuditLogger,
+    MCPAuditLogReader,
     MCPCallbackHook,
     MCPConsoleHook,
     MCPFileHook,
@@ -406,6 +419,270 @@ def cmd_approve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_firewall_arg(arg: str) -> "MCPFirewall":
+    """Resolve a diff argument to an MCPFirewall instance.
+
+    Accepted forms:
+    - ``preset:NAME``  — a named preset (strict, balanced, paranoid, dev)
+    - ``env:``         — current environment variables
+    - ``/path/to/file`` — a YAML / TOML / JSON config file
+    """
+    if arg.startswith("preset:"):
+        return MCPFirewall.preset(arg[len("preset:"):])
+    if arg in ("env:", "env"):
+        return MCPFirewall.from_env()
+    path = Path(arg)
+    ext = path.suffix.lower()
+    if ext in (".yml", ".yaml"):
+        return MCPFirewall.from_yaml(path)
+    if ext == ".toml":
+        return MCPFirewall.from_toml(path)
+    if ext == ".json":
+        return MCPFirewall.from_json(path)
+    return MCPFirewall.from_yaml(path)  # fallback: try YAML
+
+
+def cmd_diff(args: argparse.Namespace) -> int:
+    """Show what differs between two firewall configurations."""
+    try:
+        left = _load_firewall_arg(args.left)
+    except Exception as exc:
+        msg = f"Cannot load left config '{args.left}': {exc}"
+        if _RICH:
+            _console.print(f"[red]✗  {msg}[/red]")
+        else:
+            print(f"ERROR: {msg}", file=sys.stderr)
+        return 2
+
+    try:
+        right = _load_firewall_arg(args.right)
+    except Exception as exc:
+        msg = f"Cannot load right config '{args.right}': {exc}"
+        if _RICH:
+            _console.print(f"[red]✗  {msg}[/red]")
+        else:
+            print(f"ERROR: {msg}", file=sys.stderr)
+        return 2
+
+    diff_text = left.diff(right)
+
+    if not diff_text:
+        msg = "Configurations are identical."
+        if _RICH:
+            _console.print(f"[green]✓[/green] {msg}")
+        else:
+            print(msg)
+        return 0
+
+    if _RICH:
+        _console.print()
+        _console.print(Panel.fit(
+            f"[bold]MCPFirewall Diff[/bold]  "
+            f"[dim]{args.left}[/dim]  →  [dim]{args.right}[/dim]"
+        ))
+        for line in diff_text.splitlines()[1:]:  # skip header line
+            if "→" in line:
+                lpart, rpart = line.split("→", 1)
+                _console.print(
+                    f"[dim]{lpart.rstrip()}[/dim] [yellow]→[/yellow] [bold green]{rpart.lstrip()}[/bold green]"
+                )
+            else:
+                _console.print(line)
+        _console.print()
+    else:
+        print(diff_text)
+
+    return 1  # exit 1 = configs differ (mirrors POSIX diff convention)
+
+
+def cmd_audit(args: argparse.Namespace) -> int:
+    """Analyse an MCPAuditLogger JSONL log file."""
+    log_path = Path(args.log) if args.log else MCPAuditLogger._DEFAULT_LOG_FILE
+
+    if not log_path.exists():
+        msg = f"Audit log not found: {log_path}"
+        if _RICH:
+            _console.print(f"[red]✗  {msg}[/red]")
+        else:
+            print(f"ERROR: {msg}", file=sys.stderr)
+        return 2
+
+    try:
+        reader = MCPAuditLogReader(log_path)
+    except Exception as exc:
+        msg = f"Failed to read audit log '{log_path}': {exc}"
+        if _RICH:
+            _console.print(f"[red]✗  {msg}[/red]")
+        else:
+            print(f"ERROR: {msg}", file=sys.stderr)
+        return 2
+
+    filtered = reader.filter(
+        blocked=True if args.blocked else None,
+        server_id=args.server or None,
+        tool_name=args.tool or None,
+        last=args.last,
+    )
+
+    if args.json:
+        import json as _json_mod
+        print(_json_mod.dumps(filtered, indent=2))
+        return 0
+
+    summary = reader.summary()
+    active_filters = any([args.blocked, args.server, args.tool, args.last])
+
+    if _RICH:
+        _console.print()
+        _console.print(Panel.fit(
+            f"[bold]MCP Firewall — Audit Log[/bold]  [dim]{log_path}[/dim]"
+        ))
+        _console.print(
+            f"  Total calls:    [bold]{summary['total_calls']}[/bold]"
+            f"   Blocked: [red]{summary['blocked_calls']}[/red]"
+            f"   Allowed: [green]{summary['allowed_calls']}[/green]"
+            f"   Avg duration: {summary['avg_duration_ms']:.1f} ms"
+        )
+        if summary["unverified_fingerprints"]:
+            _console.print(
+                f"  [yellow]Unverified fingerprints: {summary['unverified_fingerprints']}[/yellow]"
+            )
+        if summary["top_tools"]:
+            _console.print()
+            t = Table(box=rich_box.SIMPLE, show_header=True, title="Top Tools")
+            t.add_column("Tool")
+            t.add_column("Calls", justify="right")
+            for name, count in summary["top_tools"]:
+                t.add_row(name, str(count))
+            _console.print(t)
+        if summary["block_reason_breakdown"]:
+            _console.print()
+            t2 = Table(box=rich_box.SIMPLE, show_header=True, title="Block Reasons")
+            t2.add_column("Reason")
+            t2.add_column("Count", justify="right")
+            for reason, count in sorted(
+                summary["block_reason_breakdown"].items(), key=lambda x: -x[1]
+            ):
+                t2.add_row(reason, str(count))
+            _console.print(t2)
+        if active_filters:
+            _console.print(f"\n  [dim]Matched {len(filtered)} events with active filters.[/dim]")
+    else:
+        print(f"Audit log: {log_path}")
+        print(f"  Total:   {summary['total_calls']}")
+        print(f"  Blocked: {summary['blocked_calls']}")
+        print(f"  Allowed: {summary['allowed_calls']}")
+        print(f"  Avg duration: {summary['avg_duration_ms']:.1f} ms")
+        if summary["unverified_fingerprints"]:
+            print(f"  Unverified fingerprints: {summary['unverified_fingerprints']}")
+        if summary["top_tools"]:
+            print("\nTop Tools:")
+            for name, count in summary["top_tools"]:
+                print(f"  {name:<40} {count}")
+        if summary["block_reason_breakdown"]:
+            print("\nBlock Reasons:")
+            for reason, count in sorted(
+                summary["block_reason_breakdown"].items(), key=lambda x: -x[1]
+            ):
+                print(f"  {reason:<50} {count}")
+        if active_filters:
+            print(f"\nMatched {len(filtered)} events with active filters.")
+
+    return 0
+
+
+def cmd_merge(args: argparse.Namespace) -> int:
+    """Merge two firewall configs, writing or printing the result."""
+    try:
+        base = _load_firewall_arg(args.base)
+    except Exception as exc:
+        msg = f"Cannot load base config '{args.base}': {exc}"
+        if _RICH:
+            _console.print(f"[red]✗  {msg}[/red]")
+        else:
+            print(f"ERROR: {msg}", file=sys.stderr)
+        return 2
+
+    try:
+        override = _load_firewall_arg(args.override)
+    except Exception as exc:
+        msg = f"Cannot load override config '{args.override}': {exc}"
+        if _RICH:
+            _console.print(f"[red]✗  {msg}[/red]")
+        else:
+            print(f"ERROR: {msg}", file=sys.stderr)
+        return 2
+
+    merged = MCPFirewall.merge(base, override)
+
+    if args.output:
+        merged.save_yaml(args.output)
+        msg = f"Merged config written to {args.output}"
+        if _RICH:
+            _console.print(f"[green]✓[/green] {msg}")
+        else:
+            print(msg)
+    else:
+        try:
+            import yaml as _yaml
+            print(_yaml.dump(merged._to_config_dict(), default_flow_style=False, sort_keys=False))
+        except ImportError:
+            import json as _json
+            print(_json.dumps(merged._to_config_dict(), indent=2))
+
+    return 0
+
+
+_ENV_VAR_DOCS: list[tuple[str, str]] = [
+    ("PRESET",              "Preset base (strict|balanced|paranoid|dev)"),
+    ("MODE",                "Enforcement mode (enforce|warn)"),
+    ("REQUIRE_HTTPS",       "Require HTTPS for remote servers (true|false)"),
+    ("MIN_TRUST_SCORE",     "Minimum trust score 0.0–1.0 (float)"),
+    ("BLOCKLIST",           "Comma-separated regex patterns to block"),
+    ("MAX_RESPONSE_LENGTH", "Max tool response length before blocking (int)"),
+    ("AUDIT_LOG",           "Path to audit JSONL file"),
+    ("LOCKFILE",            "Path to rug-pull fingerprint lockfile"),
+    ("RATE_LIMIT",          "Max tool calls per minute per server (int)"),
+    ("HOOK_CONSOLE",             "Emit security events to stderr (true|false)"),
+    ("HOOK_FILE",                "Append security events to a file (path)"),
+    ("BLOCKED_ARG_PATTERNS",     "Comma-separated regex patterns blocked in tool arguments"),
+    ("BLOCKED_RESPONSE_PATTERNS","Comma-separated regex patterns blocked in tool responses"),
+]
+
+
+def cmd_env(args: argparse.Namespace) -> int:
+    """Print current environment variable values and their resolved meaning."""
+    import os as _os
+    prefix = args.prefix
+
+    rows: list[tuple[str, str, str]] = []
+    for suffix, description in _ENV_VAR_DOCS:
+        var = f"{prefix}{suffix}"
+        value = _os.environ.get(var, "(not set)")
+        rows.append((var, value, description))
+
+    if _RICH:
+        _console.print()
+        _console.print(Panel.fit(
+            f"[bold]MCP Firewall — Environment Variables[/bold]  "
+            f"([dim]prefix: {prefix}[/dim])"
+        ))
+        table = Table(box=rich_box.SIMPLE, show_header=True)
+        table.add_column("Variable", style="bold", min_width=36)
+        table.add_column("Current Value", min_width=16)
+        table.add_column("Description")
+        for var, value, desc in rows:
+            style = "dim" if value == "(not set)" else "green"
+            table.add_row(var, f"[{style}]{value}[/{style}]", desc)
+        _console.print(table)
+    else:
+        print(f"MCP Firewall environment variables (prefix: {prefix})\n")
+        for var, value, desc in rows:
+            print(f"  {var:<40} {value:<20}  {desc}")
+
+    return 0
+
+
 _INIT_TEMPLATE = """\
 # smolagents MCP Application Firewall — configuration
 # Generated by: smolagents-firewall init
@@ -433,6 +710,8 @@ payload_validator:
   max_tools_per_server: 100
   max_input_params: 20
   max_param_description_length: 1024
+  # extra_injection_patterns:
+  #   - "FORBIDDEN_KEYWORD"     # block tools whose description contains this
 
 # Layer 3 — Rug-pull fingerprinting
 fingerprinter:
@@ -443,6 +722,10 @@ sentinel:
   max_response_length: 100000
   block_credential_exfil: true
   block_sensitive_paths: true
+  # extra_blocked_arg_patterns:
+  #   - "my-secret-\\w+"       # block args matching a custom pattern
+  # extra_blocked_response_patterns:
+  #   - "INTERNAL_TOKEN"       # block responses containing this literal
 
 # Layer 5 — Tool allowlist (whitelist mode — set to false to disable)
 # allowlist:
@@ -457,6 +740,9 @@ sanitizer:
   redact_ssn: true
   redact_phone_numbers: true
   redact_jwt: true
+  # custom_patterns:
+  #   - name: internal-token
+  #     pattern: "MYAPP_TOKEN_[A-Z0-9]+"
 
 # Layer 7 — Rate limiter (sliding-window call budget)
 rate_limiter:
@@ -721,6 +1007,114 @@ examples:
         help="Path to the config file (.yml, .yaml, .toml, .json)",
     )
     validate_p.set_defaults(func=cmd_validate)
+
+    # env
+    env_p = sub.add_parser(
+        "env",
+        help="Show current MCP_FIREWALL_* environment variable values",
+    )
+    env_p.add_argument(
+        "--prefix", default="MCP_FIREWALL_", metavar="PREFIX",
+        help="Environment variable prefix (default: MCP_FIREWALL_)",
+    )
+    env_p.set_defaults(func=cmd_env)
+
+    # diff
+    diff_p = sub.add_parser(
+        "diff",
+        help="Show what differs between two firewall configurations",
+        description=(
+            "Each argument may be a config file (.yml/.toml/.json), "
+            "'preset:NAME' (strict|balanced|paranoid|dev), or 'env:' "
+            "(current environment variables)."
+        ),
+    )
+    diff_p.add_argument(
+        "left",
+        help="Left config: file path, preset:NAME, or env:",
+    )
+    diff_p.add_argument(
+        "right",
+        help="Right config: file path, preset:NAME, or env:",
+    )
+    diff_p.set_defaults(func=cmd_diff)
+
+    merge_p = sub.add_parser(
+        "merge",
+        help="Merge two firewall configs (override takes precedence over base)",
+        description=(
+            "Compose two firewall configurations.  The override's layers take "
+            "precedence; the base fills in any layers the override leaves unset.  "
+            "Each argument may be a config file (.yml/.toml/.json), "
+            "'preset:NAME', or 'env:'."
+        ),
+    )
+    merge_p.add_argument(
+        "base",
+        help="Base config: file path, preset:NAME, or env:",
+    )
+    merge_p.add_argument(
+        "override",
+        help="Override config: file path, preset:NAME, or env:",
+    )
+    merge_p.add_argument(
+        "--output",
+        metavar="PATH",
+        default=None,
+        help="Write merged config to this YAML file instead of printing to stdout",
+    )
+    merge_p.set_defaults(func=cmd_merge)
+
+    audit_p = sub.add_parser(
+        "audit",
+        help="Analyse an MCPAuditLogger JSONL log file",
+        description=(
+            "Read an MCPAuditLogger JSONL log file and print a summary of "
+            "call activity, blocked events, top tools, and block reasons.  "
+            "Use --json to dump raw filtered events instead."
+        ),
+    )
+    audit_p.add_argument(
+        "--log",
+        metavar="PATH",
+        default=None,
+        help=(
+            f"Path to the JSONL audit log file "
+            f"(default: {MCPAuditLogger._DEFAULT_LOG_FILE})"
+        ),
+    )
+    audit_p.add_argument(
+        "--last",
+        metavar="N",
+        type=int,
+        default=None,
+        help="Limit output to the last N matching events",
+    )
+    audit_p.add_argument(
+        "--blocked",
+        action="store_true",
+        default=False,
+        help="Show only blocked calls",
+    )
+    audit_p.add_argument(
+        "--server",
+        metavar="ID",
+        default=None,
+        help="Filter events by server_id",
+    )
+    audit_p.add_argument(
+        "--tool",
+        metavar="NAME",
+        default=None,
+        help="Filter events by tool_name",
+    )
+    audit_p.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Output filtered events as a JSON array instead of a summary",
+    )
+    audit_p.set_defaults(func=cmd_audit)
 
     return parser
 
