@@ -77,7 +77,7 @@ from .monitoring import (
     Monitor,
     TokenUsage,
 )
-from .remote_executors import BlaxelExecutor, DockerExecutor, E2BExecutor, ModalExecutor, WasmExecutor
+from .remote_executors import BlaxelExecutor, DockerExecutor, E2BExecutor, ModalExecutor
 from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
     AgentError,
@@ -1517,7 +1517,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         executor ([`PythonExecutor`], *optional*): Custom Python code executor. If not provided, a default executor will be created based on `executor_type`.
-        executor_type (`Literal["local", "blaxel", "e2b", "modal", "docker", "wasm"]`, default `"local"`): Type of code executor.
+        executor_type (`Literal["local", "blaxel", "e2b", "modal", "docker"]`, default `"local"`): Type of code executor.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
@@ -1536,7 +1536,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
         executor: PythonExecutor = None,
-        executor_type: Literal["local", "blaxel", "e2b", "modal", "docker", "wasm"] = "local",
+        executor_type: Literal["local", "blaxel", "e2b", "modal", "docker"] = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
@@ -1600,7 +1600,7 @@ class CodeAgent(MultiStepAgent):
             self.python_executor.cleanup()
 
     def create_python_executor(self) -> PythonExecutor:
-        if self.executor_type not in {"local", "blaxel", "e2b", "modal", "docker", "wasm"}:
+        if self.executor_type not in {"local", "blaxel", "e2b", "modal", "docker"}:
             raise ValueError(f"Unsupported executor type: {self.executor_type}")
 
         if self.executor_type == "local":
@@ -1615,7 +1615,6 @@ class CodeAgent(MultiStepAgent):
                 "blaxel": BlaxelExecutor,
                 "e2b": E2BExecutor,
                 "docker": DockerExecutor,
-                "wasm": WasmExecutor,
                 "modal": ModalExecutor,
             }
             return remote_executors[self.executor_type](
