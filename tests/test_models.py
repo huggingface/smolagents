@@ -805,6 +805,43 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_consecutive_string_content():
+    # Regression test: consecutive same-role messages with string content (e.g. system messages
+    # passed as plain dicts) must merge without raising AssertionError.
+    messages = [
+        {"role": "system", "content": "Start every reply with 'FOO'"},
+        {"role": "system", "content": "End every reply with 'BAR'"},
+        {"role": "user", "content": "Just say '.'"},
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 2
+    merged_system = result[0]
+    assert merged_system["role"] == "system"
+    # Both instructions must appear in the merged content
+    merged_text = (
+        merged_system["content"][-1]["text"]
+        if isinstance(merged_system["content"], list)
+        else merged_system["content"]
+    )
+    assert "FOO" in merged_text
+    assert "BAR" in merged_text
+    assert result[1]["role"] == "user"
+
+
+def test_get_clean_message_list_consecutive_string_content_flatten():
+    # Same scenario but with flatten_messages_as_text=True.
+    messages = [
+        {"role": "system", "content": "Start every reply with 'FOO'"},
+        {"role": "system", "content": "End every reply with 'BAR'"},
+        {"role": "user", "content": [{"type": "text", "text": "Just say '.'"}]},
+    ]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 2
+    assert result[0]["role"] == "system"
+    assert "FOO" in result[0]["content"]
+    assert "BAR" in result[0]["content"]
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
