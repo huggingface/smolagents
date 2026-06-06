@@ -487,6 +487,7 @@ class Model:
         tool_name_key: str = "name",
         tool_arguments_key: str = "arguments",
         model_id: str | None = None,
+        use_prompt_caching: bool = False,
         **kwargs,
     ):
         self.flatten_messages_as_text = flatten_messages_as_text
@@ -494,6 +495,7 @@ class Model:
         self.tool_arguments_key = tool_arguments_key
         self.kwargs = kwargs
         self.model_id: str | None = model_id
+        self.use_prompt_caching = use_prompt_caching
 
     @property
     def supports_stop_parameter(self) -> bool:
@@ -526,6 +528,29 @@ class Model:
             convert_images_to_image_urls=convert_images_to_image_urls,
             flatten_messages_as_text=flatten_messages_as_text,
         )
+        is_anthropic = self.model_id and ("claude" in self.model_id.lower() or "anthropic" in self.model_id.lower())
+        if self.use_prompt_caching and is_anthropic:
+            if len(messages_as_dicts) > 0:
+                first_msg = messages_as_dicts[0]
+                if isinstance(first_msg["content"], list) and len(first_msg["content"]) > 0:
+                    first_msg["content"][0]["cache_control"] = {"type": "ephemeral"}
+                elif isinstance(first_msg["content"], str):
+                    first_msg["content"] = [{"type": "text", "text": first_msg["content"], "cache_control": {"type": "ephemeral"}}]
+            
+            if len(messages_as_dicts) > 1:
+                second_msg = messages_as_dicts[1]
+                if isinstance(second_msg["content"], list) and len(second_msg["content"]) > 0:
+                    second_msg["content"][0]["cache_control"] = {"type": "ephemeral"}
+                elif isinstance(second_msg["content"], str):
+                    second_msg["content"] = [{"type": "text", "text": second_msg["content"], "cache_control": {"type": "ephemeral"}}]
+
+            if len(messages_as_dicts) >= 4:
+                hist_msg = messages_as_dicts[-3]
+                if isinstance(hist_msg["content"], list) and len(hist_msg["content"]) > 0:
+                    hist_msg["content"][-1]["cache_control"] = {"type": "ephemeral"}
+                elif isinstance(hist_msg["content"], str):
+                    hist_msg["content"] = [{"type": "text", "text": hist_msg["content"], "cache_control": {"type": "ephemeral"}}]
+
         # Start with messages
         completion_kwargs = {
             "messages": messages_as_dicts,
@@ -613,6 +638,7 @@ class Model:
             "organization",
             "project",
             "azure_endpoint",
+            "use_prompt_caching",
         ]:
             if hasattr(self, attribute):
                 model_dictionary[attribute] = getattr(self, attribute)
