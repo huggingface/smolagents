@@ -72,7 +72,7 @@ For the push to Hub to work, your tool will need to respect some rules:
 - If you subclass the `__init__` method, you can give it no other argument than `self`. This is because arguments set during a specific tool instance's initialization are hard to track, which prevents from sharing them properly to the hub. And anyway, the idea of making a specific class is that you can already set class attributes for anything you need to hard-code (just set `your_variable=(...)` directly under the `class YourTool(Tool):` line). And of course you can still create a class attribute anywhere in your code by assigning stuff to `self.your_variable`.
 
 
-Once your tool is pushed to Hub, you can visualize it. [Here](https://huggingface.co/spaces/m-ric/hf-model-downloads) is the `model_downloads_tool` that I've pushed. It has a nice gradio interface.
+Once your tool is pushed to Hub, you can inspect it as a Space repository. [Here](https://huggingface.co/spaces/m-ric/hf-model-downloads/tree/main) is the `model_downloads_tool` that I've pushed.
 
 When diving into the tool files, you can find that all the tool's logic is under [tool.py](https://huggingface.co/spaces/m-ric/hf-model-downloads/blob/main/tool.py). That is where you can inspect a tool shared by someone else.
 
@@ -409,4 +409,3 @@ agent.run("Please draw me a picture of rivers and lakes.")
 ```
 
 To speed up the start, tools are loaded only if called by the agent.
-
