@@ -601,6 +601,35 @@ class TestAmazonBedrockModel:
 
         assert model.client == MockBoto3.return_value
 
+    def test_generate_allows_missing_tool_calls(self):
+        response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "The 118th Fibonacci number is returned."}],
+                }
+            },
+            "usage": {
+                "inputTokens": 11,
+                "outputTokens": 7,
+            },
+        }
+
+        with patch("boto3.client") as MockBoto3:
+            mock_client = MockBoto3.return_value
+            mock_client.converse.return_value = response
+
+            model = AmazonBedrockModel(model_id="us.amazon.nova-pro-v1:0")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+            result = model.generate(messages)
+
+        assert result.role == "assistant"
+        assert result.content == "The 118th Fibonacci number is returned."
+        assert result.tool_calls is None
+        assert result.token_usage is not None
+        assert result.token_usage.input_tokens == 11
+        assert result.token_usage.output_tokens == 7
+
 
 class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
