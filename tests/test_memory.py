@@ -116,6 +116,29 @@ def test_action_step_dict():
     assert action_step_dict["action_output"] == "Output"
 
 
+def test_action_step_dict_with_tool_observations():
+    action_step = ActionStep(
+        model_input_messages=[ChatMessage(role=MessageRole.USER, content="Hello")],
+        tool_calls=[ToolCall(id="id", name="get_weather", arguments={"location": "Paris"})],
+        timing=Timing(start_time=0.0, end_time=1.0),
+        step_number=1,
+        error=None,
+        model_output_message=ChatMessage(role=MessageRole.ASSISTANT, content="Hi"),
+        model_output="Hi",
+        observations="This is a nice observation",
+        tool_observations=[
+            {"id": "id", "name": "get_weather", "observation": "This is a nice observation"},
+        ],
+        observations_images=[Image.new("RGB", (100, 100))],
+        action_output="Output",
+        token_usage=TokenUsage(input_tokens=10, output_tokens=20),
+    )
+    action_step_dict = action_step.dict()
+    assert action_step_dict["tool_observations"] == [
+        {"id": "id", "name": "get_weather", "observation": "This is a nice observation"},
+    ]
+
+
 def test_action_step_to_messages():
     action_step = ActionStep(
         model_input_messages=[ChatMessage(role=MessageRole.USER, content="Hello")],
