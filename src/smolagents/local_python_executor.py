@@ -916,17 +916,24 @@ def evaluate_call(
         ):
             raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
         tracked_tool_name = get_tracked_tool_name(func_name, func, state, static_tools)
+        result = func(*args, **kwargs)
         if tracked_tool_name is not None:
             state["_executed_tool_calls"].append(
                 {
                     "name": tracked_tool_name,
-                    "arguments": serialize_tool_call_arguments(args, kwargs),
+                    "arguments": format_tool_call_arguments(args, kwargs),
                 }
             )
-        return func(*args, **kwargs)
+        return result
 
 
-def serialize_tool_call_arguments(args: list[Any], kwargs: dict[str, Any]) -> Any:
+def format_tool_call_arguments(args: list[Any], kwargs: dict[str, Any]) -> Any:
+    """Reshape tool call arguments into a normalized form for recording in memory.
+
+    Returns kwargs dict if present, positional args otherwise.
+    Note: returned values may contain arbitrary Python objects; consumers
+    that need JSON-safe output should apply their own serialization.
+    """
     if kwargs:
         if args:
             return {"args": args, "kwargs": kwargs}
@@ -948,13 +955,10 @@ def get_tracked_tool_name(
     if func_name in tracked_tool_names:
         return func_name
 
-    resolved_func = inspect.unwrap(func)
-    for name in tracked_tool_names:
-        static_tool = static_tools.get(name)
-        if static_tool is None:
-            continue
-        if inspect.unwrap(static_tool) is resolved_func:
-            return name
+    reverse_lookup = state.get("_tool_reverse_lookup")
+    if reverse_lookup is not None:
+        resolved_func = inspect.unwrap(func)
+        return reverse_lookup.get(id(resolved_func))
     return None
 
 
@@ -1811,6 +1815,11 @@ class LocalPythonExecutor(PythonExecutor):
         # Combine agent tools, base Python tools, and additional Python functions
         self.state["_tracked_tool_names"] = set(tools.keys())
         self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy(), **self.additional_functions}
+
+        # Build reverse lookup for O(1) tool name resolution by function identity
+        self.state["_tool_reverse_lookup"] = {}
+        for name, tool in tools.items():
+            self.state["_tool_reverse_lookup"][id(inspect.unwrap(tool))] = name
 
 
 __all__ = ["evaluate_python_code", "LocalPythonExecutor"]
