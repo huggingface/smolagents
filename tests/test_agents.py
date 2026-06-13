@@ -2247,6 +2247,37 @@ print("Ok, calculation done!")""")
         agent.run("Test run")
         assert "open" in agent.python_executor.static_tools
 
+    def test_remote_executor_rejects_runtime_adapter_tools_before_starting_executor(self):
+        class MCPAdaptTool(Tool):
+            skip_forward_signature_validation = True
+
+            def __init__(self, name: str, description: str, inputs: dict, output_type: str):
+                self.name = name
+                self.description = description
+                self.inputs = inputs
+                self.output_type = output_type
+                super().__init__()
+
+            def forward(self, **kwargs):
+                return kwargs
+
+        tool = MCPAdaptTool(
+            name="list_tables",
+            description="List database tables.",
+            inputs={"ref": {"type": "string", "description": "Database reference."}},
+            output_type="string",
+        )
+
+        with patch("smolagents.agents.E2BExecutor") as mock_executor:
+            with pytest.raises(AgentError) as exception_info:
+                CodeAgent(tools=[tool], model=FakeCodeModel(), executor_type="e2b")
+
+        error_message = str(exception_info.value)
+        assert "list_tables" in error_message
+        assert "MCPAdaptTool" in error_message
+        assert 'executor_type="local"' in error_message
+        mock_executor.assert_not_called()
+
     @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10", "v1.20"])
     def test_from_folder(self, agent_dict_version, get_agent_dict):
         agent_dict = get_agent_dict(agent_dict_version)
