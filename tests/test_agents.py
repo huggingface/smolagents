@@ -2626,3 +2626,35 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+# ---- Tests for Fix 1: max_execution_time_seconds (#1129) ----
+
+def test_code_agent_max_execution_time_seconds_param_accepted():
+    """CodeAgent should accept max_execution_time_seconds without error."""
+    agent = CodeAgent(model=FakeCodeModel(), tools=[], max_execution_time_seconds=10)
+    assert agent.executor_kwargs.get("timeout_seconds") == 10
+
+
+def test_code_agent_max_execution_time_seconds_sets_executor_kwargs():
+    """max_execution_time_seconds should be forwarded to executor_kwargs as timeout_seconds."""
+    agent = CodeAgent(model=FakeCodeModel(), tools=[], max_execution_time_seconds=5)
+    assert "timeout_seconds" in agent.executor_kwargs
+    assert agent.executor_kwargs["timeout_seconds"] == 5
+
+
+def test_code_agent_max_execution_time_seconds_none_does_not_set_executor_kwargs():
+    """When max_execution_time_seconds is None, timeout_seconds should not be forced into executor_kwargs."""
+    agent = CodeAgent(model=FakeCodeModel(), tools=[])
+    assert "timeout_seconds" not in agent.executor_kwargs
+
+
+def test_code_agent_timeout_raises_agent_execution_error():
+    """A code step that times out should raise AgentExecutionError."""
+    from smolagents.local_python_executor import ExecutionTimeoutError
+
+    agent = CodeAgent(model=FakeCodeModel(), tools=[], max_execution_time_seconds=1)
+    mock_executor = MagicMock(side_effect=ExecutionTimeoutError("timed out"))
+    agent.python_executor = mock_executor
+    with pytest.raises(AgentExecutionError):
+        list(agent._step_stream(ActionStep(step_number=0, timing="mock_timing", model_output="")))
