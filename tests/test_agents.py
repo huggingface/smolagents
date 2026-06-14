@@ -2626,3 +2626,103 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+# ---- Tests for Fix 1: max_execution_time_seconds (#1129) ----
+
+def test_code_agent_max_execution_time_seconds_param_accepted():
+    """CodeAgent should accept max_execution_time_seconds without error."""
+    agent = CodeAgent(model=FakeCodeModel(), tools=[], max_execution_time_seconds=10)
+    assert agent.executor_kwargs.get("timeout_seconds") == 10
+
+
+def test_code_agent_max_execution_time_seconds_sets_executor_kwargs():
+    """max_execution_time_seconds should be forwarded to executor_kwargs as timeout_seconds."""
+    agent = CodeAgent(model=FakeCodeModel(), tools=[], max_execution_time_seconds=5)
+    assert "timeout_seconds" in agent.executor_kwargs
+    assert agent.executor_kwargs["timeout_seconds"] == 5
+
+
+def test_code_agent_max_execution_time_seconds_none_does_not_set_executor_kwargs():
+    """When max_execution_time_seconds is None, timeout_seconds should not be forced into executor_kwargs."""
+    agent = CodeAgent(model=FakeCodeModel(), tools=[])
+    assert "timeout_seconds" not in agent.executor_kwargs
+
+
+def test_code_agent_timeout_raises_agent_execution_error():
+    """A code step that times out should raise AgentExecutionError."""
+    from smolagents.local_python_executor import ExecutionTimeoutError
+
+    agent = CodeAgent(model=FakeCodeModel(), tools=[], max_execution_time_seconds=1)
+    mock_executor = MagicMock(side_effect=ExecutionTimeoutError("timed out"))
+    agent.python_executor = mock_executor
+    with pytest.raises(AgentExecutionError):
+        list(agent._step_stream(ActionStep(step_number=0, timing="mock_timing", model_output="")))
+
+
+# ---- Tests for Fix 2: max_tool_output_length (#1930) ----
+
+def test_multistep_agent_max_tool_output_length_param_accepted():
+    """MultiStepAgent subclasses should accept max_tool_output_length."""
+    agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[], max_tool_output_length=1000)
+    assert agent.max_tool_output_length == 1000
+
+
+def test_multistep_agent_max_tool_output_length_default():
+    """Default max_tool_output_length should be 50_000."""
+    agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[])
+    assert agent.max_tool_output_length == 50_000
+
+
+def test_tool_output_is_truncated_when_exceeds_max_tool_output_length():
+    """Tool output that exceeds max_tool_output_length should be truncated in the observation."""
+
+    @tool
+    def big_output_tool(x: str) -> str:
+        """Returns a very long string.
+
+        Args:
+            x: ignored input
+        Returns:
+            A large string
+        """
+        return "A" * 200
+
+    class FakeBigOutputModel(Model):
+        def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+            if len(messages) < 3:
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id="call_0",
+                            type="function",
+                            function=ChatMessageToolCallFunction(
+                                name="big_output_tool",
+                                arguments={"x": "test"},
+                            ),
+                        )
+                    ],
+                )
+            else:
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id="call_1",
+                            type="function",
+                            function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "done"}),
+                        )
+                    ],
+                )
+
+    agent = ToolCallingAgent(
+        model=FakeBigOutputModel(), tools=[big_output_tool], max_tool_output_length=100
+    )
+    agent.run("Do something.")
+    action_steps = [s for s in agent.memory.steps if isinstance(s, ActionStep)]
+    assert any(
+        len(step.observations) <= 200 for step in action_steps
+    ), "Observations should be truncated"
