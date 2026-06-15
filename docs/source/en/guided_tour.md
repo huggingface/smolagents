@@ -140,7 +140,7 @@ These parameters are automatically forwarded to the underlying model's completio
 
 Inference Providers need a `HF_TOKEN` to authenticate, but a free HF account already comes with included credits. Upgrade to PRO to raise your included credits.
 
-To access gated models or rise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass `token` variable upon initialization of `InferenceClientModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
+To access gated models or raise your rate limits with a PRO account, you need to set the environment variable `HF_TOKEN` or pass the `token` argument when initializing `InferenceClientModel`. You can get your token from your [settings page](https://huggingface.co/settings/tokens)
 
 ```python
 from smolagents import CodeAgent, InferenceClientModel
@@ -425,7 +425,7 @@ When the agent is initialized, the tool attributes are used to generate a tool d
 
 If you install `smolagents` with the "toolkit" extra, it comes with a default toolbox for empowering agents, that you can add to your agent upon initialization with argument `add_base_tools=True`:
 
-- **DuckDuckGo web search***: performs a web search using DuckDuckGo browser.
+- **DuckDuckGo web search**: performs a web search using DuckDuckGo.
 - **Python code interpreter**: runs your LLM generated Python code in a secure environment. This tool will only be added to [`ToolCallingAgent`] if you initialize it with `add_base_tools=True`, since code-based agent can already natively execute Python code
 - **Transcriber**: a speech-to-text pipeline built on Whisper-Turbo that transcribes an audio to text.
 
