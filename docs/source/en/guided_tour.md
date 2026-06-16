@@ -425,7 +425,7 @@ When the agent is initialized, the tool attributes are used to generate a tool d
 
 If you install `smolagents` with the "toolkit" extra, it comes with a default toolbox for empowering agents, that you can add to your agent upon initialization with argument `add_base_tools=True`:
 
-- **DuckDuckGo web search**: performs a web search using DuckDuckGo.
+- **DuckDuckGo web search**: performs a web search using DuckDuckGo's browser-based search.
 - **Python code interpreter**: runs your LLM generated Python code in a secure environment. This tool will only be added to [`ToolCallingAgent`] if you initialize it with `add_base_tools=True`, since code-based agent can already natively execute Python code
 - **Transcriber**: a speech-to-text pipeline built on Whisper-Turbo that transcribes an audio to text.
 
