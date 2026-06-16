@@ -10,7 +10,7 @@ Smolagents 是一个实验性的 API，可能会随时发生变化。由于 API 
 
 ## 智能体（Agents）
 
-我们的智能体继承自 [`MultiStepAgent`]，这意味着它们可以执行多步操作，每一步包含一个思考（thought），然后是一个工具调用和执行。请阅读[概念指南](../conceptual_guides/react)以了解更多信息。
+我们的agent继承自 [`MultiStepAgent`]，这意味着它们可以执行多步操作，每一步包含一个思考（thought），然后是一个工具调用和执行。请阅读[概念指南](../conceptual_guides/react)以了解更多信息。
 
 我们提供两种类型的代理，它们基于主要的 [`Agent`] 类：
   - [`CodeAgent`] 是默认代理，它以 Python 代码编写工具调用。
@@ -18,7 +18,7 @@ Smolagents 是一个实验性的 API，可能会随时发生变化。由于 API 
 
 两者在初始化时都需要提供参数 `model` 和工具列表 `tools`。
 
-### 智能体类
+### Agent类
 
 [[autodoc]] MultiStepAgent
 

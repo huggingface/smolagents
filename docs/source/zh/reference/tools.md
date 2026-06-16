@@ -6,7 +6,7 @@ Smolagents 是一个实验性 API，可能会随时更改。由于 API 或底层
 
 </Tip>
 
-要了解更多关于智能体和工具的信息，请务必阅读[入门指南](../index)。本页面包含底层类的 API 文档。
+要了解更多关于agent和工具的信息，请务必阅读[入门指南](../index)。本页面包含底层类的 API 文档。
 
 ## 工具
 
@@ -27,6 +27,28 @@ Smolagents 是一个实验性 API，可能会随时更改。由于 API 或底层
 [[autodoc]] launch_gradio_demo
 
 ## 默认工具
+
+这些默认工具是 [`Tool`] 基类的具体实现，每个工具都设计用于特定任务，例如网络搜索、Python代码执行、网页抓取和用户交互。
+您可以直接在您的agent中使用这些工具，而无需自己实现底层功能。
+每个工具处理一项特定能力，并遵循一致的接口，这使得将它们组合成强大的agent工作流变得很容易。
+
+默认工具可按其主要功能分类：
+*   **信息检索**：从网络和特定知识源搜索和获取信息。
+    *   [`ApiWebSearchTool`]
+    *   [`DuckDuckGoSearchTool`]
+    *   [`GoogleSearchTool`]
+    *   [`WebSearchTool`]
+    *   [`WikipediaSearchTool`]
+*   **网络交互**：获取并处理特定网页的内容。
+    *   [`VisitWebpageTool`]
+*   **代码执行**：为计算任务动态执行 Python 代码。
+    *   [`PythonInterpreterTool`]
+*   **用户交互**：实现智能体与用户之间的人机协同。
+    *   [`UserInputTool`]：收集用户输入。
+*   **语音处理**：将音频转换为文本数据。
+    *   [`SpeechToTextTool`]
+*   **工作流控制**：管理和指导智能体操作的流程。
+    *   [`FinalAnswerTool`]：用最终响应结束智能体工作流
 
 ### PythonInterpreterTool
 
