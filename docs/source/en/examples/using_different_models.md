@@ -115,3 +115,86 @@ model_mini = LiteLLMModel(
     max_tokens=1000
 )
 ```
+
+## Using Groq Models
+
+[Groq](https://groq.com/) is a popular LLM inference provider, valued for its low latency and free tier.
+`smolagents` does not ship a dedicated Groq model class — Groq is supported through [`LiteLLMModel`]
+by using the `groq/` model-id prefix.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[litellm]'
+```
+
+Then, [get a Groq API key](https://console.groq.com/keys) and set it in your code:
+```python
+GROQ_API_KEY = <YOUR-GROQ-API-KEY>
+```
+
+Now, you can initialize a Groq model using the `LiteLLMModel` class with a `groq/...` `model_id`:
+```python
+from smolagents import LiteLLMModel
+
+model = LiteLLMModel(
+    model_id="groq/llama-3.3-70b-versatile",
+    api_key=GROQ_API_KEY,
+    temperature=0.1,  # recommended for more consistent code generation
+)
+```
+
+> [!TIP]
+> `smolagents` automatically sets `flatten_messages_as_text=True` for any `model_id` starting with
+> `groq/`, `ollama/` or `cerebras/`, so you do not need to pass it manually.
+
+### Available Groq models
+
+Groq's catalog changes often; the [current model list](https://console.groq.com/docs/models) is the source of truth. As of writing, the most common picks are:
+
+| Model | `model_id` | Notes |
+| --- | --- | --- |
+| Llama 3.3 70B Versatile | `groq/llama-3.3-70b-versatile` | Good default for `CodeAgent` |
+| Llama 3.1 8B Instant | `groq/llama-3.1-8b-instant` | Fastest, weaker on multi-step reasoning |
+| Mixtral 8x7B | `groq/mixtral-8x7b-32768` | Strong long-context option (32k) |
+| DeepSeek R1 Distill | `groq/deepseek-r1-distill-llama-70b` | Reasoning-style, slower but more accurate |
+
+### Prefer `CodeAgent` over `ToolCallingAgent` with Groq
+
+`ToolCallingAgent` has known tool-call format incompatibilities with the Groq API (tracked in
+issue [#1119](https://github.com/huggingface/smolagents/issues/1119)). When using Groq, prefer
+`CodeAgent` — it asks the model to write Python that calls the tools, which Groq models handle
+reliably. If you do need native tool calling, validate the result on a real task before shipping.
+
+A minimal end-to-end example with a custom tool:
+```python
+from smolagents import CodeAgent, LiteLLMModel, tool
+
+@tool
+def get_weather(city: str) -> str:
+    """Get the current weather for a city.
+
+    Args:
+        city: Name of the city.
+    """
+    return f"Sunny, 25°C in {city}"  # replace with a real call
+
+agent = CodeAgent(
+    tools=[get_weather],
+    model=LiteLLMModel(
+        model_id="groq/llama-3.3-70b-versatile",
+        api_key=GROQ_API_KEY,
+        temperature=0.1,
+    ),
+    max_steps=6,  # cap the loop to stay within Groq's free-tier rate limits
+)
+
+print(agent.run("What is the weather in Paris?"))
+```
+
+A runnable version of this example lives at [`examples/groq_via_litellm.py`](https://github.com/huggingface/smolagents/blob/main/examples/groq_via_litellm.py).
+
+### Common gotchas
+
+- **Rate limits on the free tier.** Groq throttles aggressively; if your agent loops a lot, raise `max_steps` only when needed and consider switching to a paid tier for long runs.
+- **No `stop` parameter.** Like the xAI Grok family, Groq's OpenAI-compatible surface does not accept `stop` — don't pass it to `LiteLLMModel` (smolagents does not send one by default).
+- **Temperature = 0 is not always stable.** Llama-3.x on Groq is more deterministic at `temperature=0.1` than at exactly `0` (subtle difference, but observed by multiple users).
