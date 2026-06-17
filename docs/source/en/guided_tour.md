@@ -127,10 +127,11 @@ To initialize a minimal agent, you need at least these two arguments:
     - [`AzureOpenAIModel`] allows you to use OpenAI models deployed in [Azure](https://azure.microsoft.com/en-us/products/ai-services/openai-service).
     - [`AmazonBedrockModel`] allows you to use Amazon Bedrock in [AWS](https://aws.amazon.com/bedrock/?nc1=h_ls).
     - [`MLXModel`] creates a [mlx-lm](https://pypi.org/project/mlx-lm/) pipeline to run inference on your local machine.
+    - [`OpenAIModel`] connects to any OpenAI-compatible API, including third-party providers like [Pinstripes](https://pinstripes.io).
 
 - `tools`, a list of `Tools` that the agent can use to solve the task. It can be an empty list. You can also add the default toolbox on top of your `tools` list by defining the optional argument `add_base_tools=True`.
 
-Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), [Amazon Bedrock](https://aws.amazon.com/bedrock/?nc1=h_ls), or [mlx-lm](https://pypi.org/project/mlx-lm/).
+Once you have these two arguments, `tools` and `model`,  you can create an agent and run it. You can use any LLM you'd like, either through [Inference Providers](https://huggingface.co/blog/inference-providers), [transformers](https://github.com/huggingface/transformers/), [ollama](https://ollama.com/), [LiteLLM](https://www.litellm.ai/), [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service), [Amazon Bedrock](https://aws.amazon.com/bedrock/?nc1=h_ls), [mlx-lm](https://pypi.org/project/mlx-lm/), or [Pinstripes](https://pinstripes.io).
 
 All model classes support passing additional keyword arguments (like `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time.
 These parameters are automatically forwarded to the underlying model's completion calls, allowing you to configure model behavior such as creativity, response length, and sampling strategies.
@@ -329,6 +330,26 @@ from smolagents import CodeAgent, MLXModel
 
 mlx_model = MLXModel("mlx-community/Qwen2.5-Coder-32B-Instruct-4bit")
 agent = CodeAgent(model=mlx_model, tools=[], add_base_tools=True)
+
+agent.run("Could you give me the 118th number in the Fibonacci sequence?")
+```
+
+</hfoption>
+<hfoption id="Pinstripes">
+
+[Pinstripes](https://pinstripes.io) is an OpenAI-compatible inference API. Set the `PINSTRIPES_API_KEY` environment variable with your API key, then use `OpenAIModel` pointed at the Pinstripes base URL:
+
+```python
+# !pip install 'smolagents[openai]'
+import os
+from smolagents import CodeAgent, OpenAIModel
+
+model = OpenAIModel(
+    model_id="ps/deepseek-v4-flash",  # or ps/glm-4.5-air, ps/qwen3-35b, ps/minimax-m2.7
+    api_base="https://pinstripes.io/v1",
+    api_key=os.environ["PINSTRIPES_API_KEY"],
+)
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
 
 agent.run("Could you give me the 118th number in the Fibonacci sequence?")
 ```

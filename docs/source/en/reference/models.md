@@ -172,6 +172,22 @@ model = OpenAIModel(
 
 [[autodoc]] OpenAIModel
 
+#### Pinstripes
+
+[Pinstripes](https://pinstripes.io) is an OpenAI-compatible inference API. Use `OpenAIModel` with the Pinstripes base URL and your `PINSTRIPES_API_KEY`:
+
+```py
+# !pip install 'smolagents[openai]'
+import os
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    model_id="ps/deepseek-v4-flash",  # or ps/glm-4.5-air, ps/qwen3-35b, ps/minimax-m2.7
+    api_base="https://pinstripes.io/v1",
+    api_key=os.environ["PINSTRIPES_API_KEY"],
+)
+```
+
 ### AzureOpenAIModel
 
 `AzureOpenAIModel` allows you to connect to any Azure OpenAI deployment. 
