@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import atexit
 import base64
 import inspect
 import json
@@ -591,6 +592,8 @@ class DockerExecutor(RemotePythonExecutor):
         self.host = host
         self.port = port
         self.image_name = image_name
+        self._cleaned_up = False
+        self._cleanup_callback = None
 
         self.dockerfile_content = dockerfile_content or dedent(
             """\
@@ -650,6 +653,8 @@ class DockerExecutor(RemotePythonExecutor):
             container_kwargs["environment"] = env
 
             self.container = self.client.containers.run(self.image_name, **container_kwargs)
+            self._cleanup_callback = self.cleanup
+            atexit.register(self._cleanup_callback)
 
             retries = 0
             while self.container.status != "running" and retries < 5:
@@ -693,6 +698,9 @@ class DockerExecutor(RemotePythonExecutor):
 
     def cleanup(self):
         """Clean up the Docker container and resources."""
+        if self._cleaned_up:
+            return
+
         try:
             if hasattr(self, "container"):
                 self.logger.log(f"Stopping and removing container {self.container.short_id}...", level=LogLevel.INFO)
@@ -702,6 +710,14 @@ class DockerExecutor(RemotePythonExecutor):
                 del self.container
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
+        finally:
+            if self._cleanup_callback is not None:
+                try:
+                    atexit.unregister(self._cleanup_callback)
+                except Exception:
+                    pass
+                self._cleanup_callback = None
+            self._cleaned_up = True
 
     def delete(self):
         """Ensure cleanup on deletion."""
