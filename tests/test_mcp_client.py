@@ -50,6 +50,34 @@ def structured_output_server_script():
     )
 
 
+@pytest.fixture
+def multi_tool_server_script():
+    return dedent(
+        '''
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP("Multi Tool Server")
+
+        @mcp.tool()
+        def search_docs(query: str) -> str:
+            """Search documentation"""
+            return f"Results for: {query}"
+
+        @mcp.tool()
+        def run_shell(cmd: str) -> str:
+            """Run a shell command"""
+            return f"Ran: {cmd}"
+
+        @mcp.tool()
+        def delete_file(path: str) -> str:
+            """Delete a file"""
+            return f"Deleted: {path}"
+
+        mcp.run()
+        '''
+    )
+
+
 # Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
 @pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
 def test_mcp_client_with_syntax(echo_server_script: str):
@@ -129,3 +157,52 @@ def test_multiple_servers(echo_server_script: str):
         assert tools[1].name == "echo_tool"
         assert tools[0].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
         assert tools[1].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
+
+
+# ── tool_filter tests ──────────────────────────────────────────────
+
+
+def test_tool_filter_allowlist(multi_tool_server_script: str):
+    """tool_filter keeps only tools matching a name prefix."""
+    server_parameters = StdioServerParameters(command="python", args=["-c", multi_tool_server_script])
+    with MCPClient(
+        server_parameters,
+        structured_output=False,
+        tool_filter=lambda t: t.name.startswith("search_"),
+    ) as tools:
+        assert len(tools) == 1
+        assert tools[0].name == "search_docs"
+
+
+def test_tool_filter_denylist(multi_tool_server_script: str):
+    """tool_filter drops tools in a denylist."""
+    server_parameters = StdioServerParameters(command="python", args=["-c", multi_tool_server_script])
+    _DENYLIST = {"run_shell", "delete_file"}
+    with MCPClient(
+        server_parameters,
+        structured_output=False,
+        tool_filter=lambda t: t.name not in _DENYLIST,
+    ) as tools:
+        assert len(tools) == 1
+        assert tools[0].name == "search_docs"
+
+
+def test_tool_filter_drops_all(multi_tool_server_script: str):
+    """When the filter rejects every tool, get_tools returns an empty list."""
+    server_parameters = StdioServerParameters(command="python", args=["-c", multi_tool_server_script])
+    with MCPClient(
+        server_parameters,
+        structured_output=False,
+        tool_filter=lambda t: False,
+    ) as tools:
+        assert tools == []
+
+
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
+def test_tool_filter_default_none(echo_server_script: str):
+    """Default (no filter) preserves backward compatibility — all tools kept."""
+    server_parameters = StdioServerParameters(command="python", args=["-c", echo_server_script])
+    with MCPClient(server_parameters) as tools:
+        assert len(tools) == 1
+        assert tools[0].name == "echo_tool"

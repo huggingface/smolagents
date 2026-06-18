@@ -17,12 +17,16 @@
 
 from __future__ import annotations
 
+import logging
 import warnings
+from collections.abc import Callable
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 from smolagents.tools import Tool
 
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["MCPClient"]
 
@@ -56,6 +60,23 @@ class MCPClient:
             - Structured content handling (structuredContent from MCP responses)
             - JSON parsing fallback for structured data
             If False, uses the original simple text-only behavior for backwards compatibility.
+        tool_filter (Callable[[Tool], bool], optional):
+            An optional callable that receives each :class:`~smolagents.tools.Tool` discovered
+            from the MCP server and returns ``True`` to keep it or ``False`` to drop it.
+            Filtered tools are excluded from the agent's toolset and logged at DEBUG level.
+            Use this to enforce a **local allowlist / denylist** without depending on any
+            external trust-scoring service.
+
+            .. code-block:: python
+
+                # Only expose tools whose name starts with "search_"
+                with MCPClient(params, tool_filter=lambda t: t.name.startswith("search_")) as tools:
+                    ...
+
+                # Denylist specific tools
+                _DENYLIST = {"run_shell", "delete_file"}
+                with MCPClient(params, tool_filter=lambda t: t.name not in _DENYLIST) as tools:
+                    ...
 
     Example:
         ```python
@@ -87,6 +108,7 @@ class MCPClient:
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
         adapter_kwargs: dict[str, Any] | None = None,
         structured_output: bool | None = None,
+        tool_filter: Callable[[Tool], bool] | None = None,
     ):
         # Handle future warning for structured_output default value change
         if structured_output is None:
@@ -118,12 +140,19 @@ class MCPClient:
         self._adapter = MCPAdapt(
             server_parameters, SmolAgentsAdapter(structured_output=structured_output), **adapter_kwargs
         )
+        self._tool_filter = tool_filter
         self._tools: list[Tool] | None = None
         self.connect()
 
     def connect(self):
         """Connect to the MCP server and initialize the tools."""
         self._tools: list[Tool] = self._adapter.__enter__()
+        if self._tool_filter is not None and self._tools:
+            before = len(self._tools)
+            self._tools = [t for t in self._tools if self._tool_filter(t)]
+            after = len(self._tools)
+            if after < before:
+                logger.debug("MCPClient tool_filter dropped %d of %d tools", before - after, before)
 
     def disconnect(
         self,
