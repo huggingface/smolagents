@@ -271,6 +271,17 @@ Security is a critical consideration when working with code-executing agents. En
 
 **Warning:** `LocalPythonExecutor` provides best-effort mitigations only and is **not a security boundary**. Do not use it to run untrusted code.
 
+### MCP interop and sandbox checklist
+
+When connecting MCP tools in production-style workflows, apply a small safety checklist:
+
+- Only connect to trusted MCP servers and pin versions where possible.
+- Treat MCP tool boundaries as privileged execution surfaces and review requested capabilities.
+- Run code-executing workloads in a sandbox (E2B, Blaxel, Modal, or Docker), not `LocalPythonExecutor`.
+- Record tool input/output traces for incident analysis and reproducibility.
+
+These practices reduce operational risk while preserving flexibility for agentic automation.
+
 For security policies, vulnerability reporting, and more information on secure agent execution, please see our [Security Policy](SECURITY.md).
 
 ## Contribute
