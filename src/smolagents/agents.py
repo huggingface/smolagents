@@ -315,15 +315,17 @@ class MultiStepAgent(ABC):
         self.prompt_templates = prompt_templates or EMPTY_PROMPT_TEMPLATES
         if prompt_templates is not None:
             missing_keys = set(EMPTY_PROMPT_TEMPLATES.keys()) - set(prompt_templates.keys())
-            assert not missing_keys, (
-                f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
-            )
+            if missing_keys:
+                raise ValueError(
+                    f"Some prompt templates are missing from your custom `prompt_templates`: {missing_keys}"
+                )
             for key, value in EMPTY_PROMPT_TEMPLATES.items():
                 if isinstance(value, dict):
                     for subkey in value.keys():
-                        assert key in prompt_templates.keys() and (subkey in prompt_templates[key].keys()), (
-                            f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
-                        )
+                        if key not in prompt_templates.keys() or subkey not in prompt_templates[key].keys():
+                            raise ValueError(
+                                f"Some prompt templates are missing from your custom `prompt_templates`: {subkey} under {key}"
+                            )
 
         self.max_steps = max_steps
         self.step_number = 0
@@ -370,9 +372,8 @@ class MultiStepAgent(ABC):
         """Setup managed agents with proper logging."""
         self.managed_agents = {}
         if managed_agents:
-            assert all(agent.name and agent.description for agent in managed_agents), (
-                "All managed agents need both a name and a description!"
-            )
+            if not all(agent.name and agent.description for agent in managed_agents):
+                raise ValueError("All managed agents need both a name and a description!")
             self.managed_agents = {agent.name: agent for agent in managed_agents}
             # Ensure managed agents can be called as tools by the model: set their inputs and output_type
             for agent in self.managed_agents.values():
@@ -387,9 +388,8 @@ class MultiStepAgent(ABC):
                 agent.output_type = "string"
 
     def _setup_tools(self, tools, add_base_tools):
-        assert all(isinstance(tool, BaseTool) for tool in tools), (
-            "All elements must be instance of BaseTool (or a subclass)"
-        )
+        if not all(isinstance(tool, BaseTool) for tool in tools):
+            raise TypeError("All elements must be instance of BaseTool (or a subclass)")
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
             self.tools.update(
@@ -499,7 +499,10 @@ You have been provided with these additional arguments, that you can access dire
         steps = list(self._run_stream(task=self.task, max_steps=max_steps, images=images))
 
         # Outputs are returned only at the end. We only look at the last step.
-        assert isinstance(steps[-1], FinalAnswerStep)
+        if not isinstance(steps[-1], FinalAnswerStep):
+            raise RuntimeError(
+                f"Expected the last step to be a FinalAnswerStep, got {type(steps[-1]).__name__}"
+            )
         output = steps[-1].output
 
         return_full_result = return_full_result if return_full_result is not None else self.return_full_result
@@ -557,7 +560,10 @@ You have been provided with these additional arguments, that you can access dire
                 ):  # Don't use the attribute step_number here, because there can be steps from previous runs
                     yield element
                     planning_step = element
-                assert isinstance(planning_step, PlanningStep)  # Last yielded element should be a PlanningStep
+                if not isinstance(planning_step, PlanningStep):  # Last yielded element should be a PlanningStep
+                    raise RuntimeError(
+                        f"Expected the last yielded planning element to be a PlanningStep, got {type(planning_step).__name__}"
+                    )
                 planning_end_time = time.time()
                 planning_step.timing = Timing(
                     start_time=planning_start_time,
@@ -613,7 +619,8 @@ You have been provided with these additional arguments, that you can access dire
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
             try:
-                assert check_function(final_answer, self.memory, agent=self)
+                if not check_function(final_answer, self.memory, agent=self):
+                    raise ValueError(f"Check {check_function.__name__} returned False")
             except Exception as e:
                 raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
 
@@ -1371,7 +1378,8 @@ class ToolCallingAgent(MultiStepAgent):
             `ToolCall | ToolOutput`: The tool call or tool output.
         """
         parallel_calls: dict[str, ToolCall] = {}
-        assert chat_message.tool_calls is not None
+        if chat_message.tool_calls is None:
+            raise ValueError("Expected tool calls in chat message but got None")
         for chat_tool_call in chat_message.tool_calls:
             tool_call = ToolCall(
                 name=chat_tool_call.function.name, arguments=chat_tool_call.function.arguments, id=chat_tool_call.id
