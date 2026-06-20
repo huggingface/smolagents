@@ -111,7 +111,8 @@ class Monitor:
             self.total_input_token_count += step_log.token_usage.input_tokens
             self.total_output_token_count += step_log.token_usage.output_tokens
             console_outputs += (
-                f"| Input tokens: {self.total_input_token_count:,} | Output tokens: {self.total_output_token_count:,}"
+                f"| Input tokens: {step_log.token_usage.input_tokens:,} "
+                f"| Output tokens: {step_log.token_usage.output_tokens:,}"
             )
         console_outputs += "]"
         self.logger.log(Text(console_outputs, style="dim"), level=1)
