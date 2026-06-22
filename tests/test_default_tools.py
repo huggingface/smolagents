@@ -21,6 +21,7 @@ from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
     DuckDuckGoSearchTool,
     PythonInterpreterTool,
+    ScavioSearchTool,
     SpeechToTextTool,
     VisitWebpageTool,
     WebSearchTool,
@@ -252,3 +253,40 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+class TestScavioSearchTool:
+    """Tests for ScavioSearchTool (Scavio web search)."""
+
+    def test_missing_api_key(self):
+        with patch.dict("os.environ", {}, clear=True):
+            with patch("scavio.ScavioClient"):
+                with pytest.raises(ValueError, match="SCAVIO_API_KEY"):
+                    ScavioSearchTool()
+
+    def test_search_results(self):
+        mock_response = {
+            "results": [
+                {"title": "Scavio", "url": "https://scavio.dev", "description": "Search API for AI agents."},
+                {"title": "Hugging Face", "url": "https://huggingface.co", "description": "The AI community."},
+            ]
+        }
+        with patch("scavio.ScavioClient") as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.google.search.return_value = mock_response
+            tool = ScavioSearchTool(api_key="test-key", max_results=2)
+            result = tool("test query")
+
+        assert "## Search Results" in result
+        assert "[Scavio](https://scavio.dev)" in result
+        assert "[Hugging Face](https://huggingface.co)" in result
+        assert "Search API for AI agents." in result
+        mock_client.google.search.assert_called_once()
+
+    def test_no_results(self):
+        with patch("scavio.ScavioClient") as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.google.search.return_value = {"results": []}
+            tool = ScavioSearchTool(api_key="test-key")
+            with pytest.raises(Exception, match="No results found"):
+                tool("obscure query")
