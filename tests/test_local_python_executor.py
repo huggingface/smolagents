@@ -225,6 +225,36 @@ test_func(**None)
         assert result == 42
         assert state["instance"].__doc__ == "A class with a value."
 
+    @pytest.mark.parametrize("method_name", ["__del__", "__getattribute__", "__eq__"])
+    def test_evaluate_class_def_rejects_host_implicit_dunder_methods(self, method_name):
+        code = dedent(f"""
+            class TimeBomb:
+                def {method_name}(self):
+                    return True
+        """)
+
+        with pytest.raises(InterpreterError, match=f"Forbidden class dunder method definition: {method_name}"):
+            evaluate_python_code(code, {}, state={})
+
+    def test_evaluate_class_def_allows_explicit_dunder_whitelist(self):
+        code = dedent("""
+            class SafeDisplay:
+                def __init__(self, value):
+                    self.value = value
+
+                def __str__(self):
+                    return self.value
+
+                def __repr__(self):
+                    return self.value
+
+            result = SafeDisplay("ok").value
+        """)
+
+        result, _ = evaluate_python_code(code, {}, state={})
+
+        assert result == "ok"
+
     def test_evaluate_class_def_with_assign_attribute_target(self):
         """
         Test evaluate_class_def function when stmt is an instance of ast.Assign with ast.Attribute target.

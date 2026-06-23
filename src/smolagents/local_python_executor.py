@@ -564,6 +564,8 @@ def evaluate_class_def(
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
+            if stmt.name.startswith("__") and stmt.name.endswith("__") and stmt.name not in ALLOWED_DUNDER_METHODS:
+                raise InterpreterError(f"Forbidden class dunder method definition: {stmt.name}")
             class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value:
