@@ -265,6 +265,16 @@ class TestModel:
             {"role": MessageRole.SYSTEM, "content": "Start with FOO\nEnd with BAR"},
         ]
 
+    def test_get_clean_message_list_merges_string_with_text_blocks(self):
+        messages = [
+            {"role": "system", "content": "Start with FOO"},
+            {"role": "system", "content": [{"type": "text", "text": "End with BAR"}]},
+        ]
+
+        assert get_clean_message_list(messages) == [
+            {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "Start with FOO\nEnd with BAR"}]},
+        ]
+
     @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
