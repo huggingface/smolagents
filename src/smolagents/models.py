@@ -373,10 +373,18 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
-            if flatten_messages_as_text:
-                output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
+            if isinstance(message.content, str):
+                if flatten_messages_as_text or isinstance(output_message_list[-1]["content"], str):
+                    output_message_list[-1]["content"] += "\n" + message.content
+                else:
+                    output_message_list[-1]["content"].append({"type": "text", "text": message.content})
             else:
+                assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
+                if flatten_messages_as_text:
+                    output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
+                    continue
+                if isinstance(output_message_list[-1]["content"], str):
+                    output_message_list[-1]["content"] = [{"type": "text", "text": output_message_list[-1]["content"]}]
                 for el in message.content:
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
