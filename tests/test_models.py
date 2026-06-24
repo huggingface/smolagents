@@ -724,6 +724,24 @@ def test_get_clean_message_list_with_dicts(messages, expected_roles, expected_te
         assert msg["content"][0]["text"] == expected_texts[i]
 
 
+def test_get_clean_message_list_merges_consecutive_string_system_messages():
+    messages = [
+        {"role": "system", "content": "When you say anything Start with 'FOO'"},
+        {"role": "system", "content": "When you say anything End with 'BAR'"},
+        {"role": "user", "content": "Just say '.'"},
+    ]
+
+    result = get_clean_message_list(messages)
+
+    assert result == [
+        {
+            "role": "system",
+            "content": "When you say anything Start with 'FOO'\nWhen you say anything End with 'BAR'",
+        },
+        {"role": "user", "content": "Just say '.'"},
+    ]
+
+
 def test_get_clean_message_list_role_conversions():
     messages = [
         ChatMessage(role=MessageRole.TOOL_CALL, content=[{"type": "text", "text": "Calling tool..."}]),
