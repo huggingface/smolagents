@@ -274,6 +274,20 @@ test_func(**None)
         with pytest.raises(InterpreterError, match=f"Invalid methods: {dunder_method}"):
             evaluate_python_code(code, {}, state={}, allowed_class_dunder_methods=[dunder_method])
 
+    def test_evaluate_class_def_does_not_allow_user_code_to_override_dunder_policy(self):
+        code = dedent("""\
+            _allowed_class_dunder_methods = {"__del__"}
+
+            class Trap:
+                def __del__(self):
+                    return None
+        """)
+        with pytest.raises(
+            InterpreterError,
+            match="Cannot assign to name '_allowed_class_dunder_methods': this name is reserved for interpreter state",
+        ):
+            evaluate_python_code(code, {}, state={})
+
     def test_evaluate_class_def_with_assign_attribute_target(self):
         """
         Test evaluate_class_def function when stmt is an instance of ast.Assign with ast.Attribute target.

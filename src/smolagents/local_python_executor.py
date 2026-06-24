@@ -75,6 +75,7 @@ CONFIGURABLE_CLASS_DUNDER_METHODS = {
     "__str__",
 }
 DEFAULT_FORBIDDEN_CLASS_DUNDER_METHODS = ALWAYS_FORBIDDEN_CLASS_DUNDER_METHODS | CONFIGURABLE_CLASS_DUNDER_METHODS
+ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY = "_allowed_class_dunder_methods"
 
 
 def validate_allowed_class_dunder_methods(allowed_class_dunder_methods: list[str] | None) -> set[str]:
@@ -593,7 +594,7 @@ def evaluate_class_def(
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
-            allowed_class_dunder_methods = state.get("_allowed_class_dunder_methods", set())
+            allowed_class_dunder_methods = state.get(ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY, set())
             if stmt.name in DEFAULT_FORBIDDEN_CLASS_DUNDER_METHODS and stmt.name not in allowed_class_dunder_methods:
                 raise InterpreterError(
                     f"Defining class method {stmt.name!r} is not allowed because it can be invoked implicitly "
@@ -835,6 +836,10 @@ def set_value(
     authorized_imports: list[str],
 ) -> None:
     if isinstance(target, ast.Name):
+        if target.id == ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY:
+            raise InterpreterError(
+                f"Cannot assign to name '{target.id}': this name is reserved for interpreter state."
+            )
         if target.id in static_tools:
             raise InterpreterError(f"Cannot assign to name '{target.id}': doing this would erase the existing tool!")
         state[target.id] = value
@@ -1432,6 +1437,10 @@ def evaluate_delete(
     for target in delete_node.targets:
         if isinstance(target, ast.Name):
             # Handle simple variable deletion (del x)
+            if target.id == ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY:
+                raise InterpreterError(
+                    f"Cannot delete name '{target.id}': this name is reserved for interpreter state."
+                )
             if target.id in state:
                 del state[target.id]
             else:
@@ -1661,9 +1670,9 @@ def evaluate_python_code(
     if state is None:
         state = {}
     allowed_class_dunder_methods = validate_allowed_class_dunder_methods(allowed_class_dunder_methods)
-    had_allowed_class_dunder_methods = "_allowed_class_dunder_methods" in state
-    previous_allowed_class_dunder_methods = state.get("_allowed_class_dunder_methods")
-    state["_allowed_class_dunder_methods"] = allowed_class_dunder_methods
+    had_allowed_class_dunder_methods = ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY in state
+    previous_allowed_class_dunder_methods = state.get(ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY)
+    state[ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY] = allowed_class_dunder_methods
     static_tools = static_tools.copy() if static_tools is not None else {}
     custom_tools = custom_tools if custom_tools is not None else {}
     state["_print_outputs"] = PrintContainer()
@@ -1710,9 +1719,9 @@ def evaluate_python_code(
         return _execute_code()
     finally:
         if had_allowed_class_dunder_methods:
-            state["_allowed_class_dunder_methods"] = previous_allowed_class_dunder_methods
+            state[ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY] = previous_allowed_class_dunder_methods
         else:
-            state.pop("_allowed_class_dunder_methods", None)
+            state.pop(ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY, None)
 
 
 @dataclass
