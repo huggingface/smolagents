@@ -371,6 +371,31 @@ for result in search_results:
         assert result == 2
         self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
 
+    def test_for_else_clause(self):
+        # for-else: the else clause runs when the loop completes without break,
+        # and is skipped when the loop breaks (CPython semantics).
+        state = {}
+        evaluate_python_code("r = 'no'\nfor i in range(3):\n    pass\nelse:\n    r = 'yes'", {"range": range}, state=state)
+        assert state["r"] == "yes"
+
+        state = {}
+        evaluate_python_code(
+            "r = 'init'\nfor i in range(3):\n    if i == 1:\n        break\nelse:\n    r = 'else'",
+            {"range": range},
+            state=state,
+        )
+        assert state["r"] == "init"
+
+    def test_while_else_clause(self):
+        # while-else: else runs when the test becomes false, skipped on break.
+        state = {}
+        evaluate_python_code("i = 0\nr = 'no'\nwhile i < 2:\n    i += 1\nelse:\n    r = 'yes'", {}, state=state)
+        assert state["r"] == "yes"
+
+        state = {}
+        evaluate_python_code("i = 0\nr = 'init'\nwhile i < 3:\n    if i == 1:\n        break\n    i += 1\nelse:\n    r = 'else'", {}, state=state)
+        assert state["r"] == "init"
+
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
