@@ -288,6 +288,18 @@ test_func(**None)
             state, {"x": 3.336, "text": "This is x: 3.34.", "_operations_count": {"counter": 8}}
         )
 
+    def test_evaluate_f_string_with_conversion(self):
+        # !r / !s / !a conversion fields must be applied (matching CPython f-strings).
+        result, _ = evaluate_python_code("text = f'{x!r}'", {}, state={"x": "hello"})
+        assert result == "'hello'"
+        result, _ = evaluate_python_code("text = f'{x!s}'", {}, state={"x": 42})
+        assert result == "42"
+        result, _ = evaluate_python_code("text = f'{x!a}'", {}, state={"x": "café"})
+        assert result == "'caf\\xe9'"
+        # conversion combined with a format spec
+        result, _ = evaluate_python_code("text = f'{x!r:>10}'", {}, state={"x": "hi"})
+        assert result == "      'hi'"
+
     def test_evaluate_f_string_with_complex_format(self):
         code = "text = f'This is x: {x:>{width}.{precision}f}.'"
         state = {"x": 3.336, "width": 10, "precision": 2}
