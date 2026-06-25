@@ -263,6 +263,16 @@ test_func(**None)
             state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": {"counter": 7}}
         )
 
+    def test_evaluate_dict_unpacking(self):
+        # {**mapping} dict-literal unpacking (CPython semantics), including override order.
+        result, _ = evaluate_python_code('d = {"a": 1}\nout = {**d, "b": 2}', {}, state={})
+        assert result == {"a": 1, "b": 2}
+        result, _ = evaluate_python_code('a = {"x": 1}\nb = {"y": 2}\nout = {**a, **b}', {}, state={})
+        assert result == {"x": 1, "y": 2}
+        # later entries override earlier ones
+        result, _ = evaluate_python_code('d = {"a": 1}\nout = {**d, "a": 9}', {}, state={})
+        assert result == {"a": 9}
+
     def test_evaluate_expression(self):
         code = "x = 3\ny = 5"
         state = {}
