@@ -14,6 +14,7 @@
 # limitations under the License.
 import json
 import sys
+import types
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
@@ -34,6 +35,7 @@ from smolagents.models import (
     Model,
     OpenAIModel,
     TransformersModel,
+    VLLMModel,
     get_clean_message_list,
     get_tool_call_from_text,
     get_tool_json_schema,
@@ -44,6 +46,58 @@ from smolagents.models import (
 from smolagents.tools import tool
 
 from .utils.markers import require_run_all
+
+
+class FakeVLLMOutput:
+    text = "vllm output"
+    token_ids = [1, 2]
+
+
+class FakeVLLMGeneration:
+    prompt_token_ids = [1]
+    outputs = [FakeVLLMOutput()]
+
+
+class FakeVLLMTokenizer:
+    def apply_chat_template(self, messages, tools=None, add_generation_prompt=True, tokenize=False, **kwargs):
+        return "prompt"
+
+
+class FakeVLLM:
+    instances = []
+
+    def __init__(self, model, **kwargs):
+        self.model = model
+        self.kwargs = kwargs
+        self.generate_calls = []
+        self.__class__.instances.append(self)
+
+    def generate(self, prompt, sampling_params=None, **kwargs):
+        self.generate_calls.append({"prompt": prompt, "sampling_params": sampling_params, "kwargs": kwargs})
+        return [FakeVLLMGeneration()]
+
+
+class FakeSamplingParams:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+
+def install_fake_vllm(monkeypatch):
+    FakeVLLM.instances = []
+    vllm_module = types.ModuleType("vllm")
+    vllm_module.LLM = FakeVLLM
+    vllm_module.SamplingParams = FakeSamplingParams
+
+    tokenizers_module = types.ModuleType("vllm.tokenizers")
+    tokenizers_module.get_tokenizer = lambda model_id: FakeVLLMTokenizer()
+
+    sampling_params_module = types.ModuleType("vllm.sampling_params")
+    sampling_params_module.StructuredOutputsParams = lambda **kwargs: kwargs
+
+    monkeypatch.setitem(sys.modules, "vllm", vllm_module)
+    monkeypatch.setitem(sys.modules, "vllm.tokenizers", tokenizers_module)
+    monkeypatch.setitem(sys.modules, "vllm.sampling_params", sampling_params_module)
+    monkeypatch.setattr("smolagents.models._is_package_available", lambda package_name: package_name == "vllm")
 
 
 class TestModel:
@@ -242,6 +296,24 @@ class TestModel:
         message2 = ChatMessage.from_dict(message_data)
         assert isinstance(message2.role, MessageRole)
         assert message2.role == MessageRole.ASSISTANT
+
+    def test_vllm_model_uses_current_tokenizer_import_path(self, monkeypatch):
+        install_fake_vllm(monkeypatch)
+
+        model = VLLMModel(model_id="test-model")
+
+        assert isinstance(model.tokenizer, FakeVLLMTokenizer)
+
+    def test_vllm_model_constructor_max_tokens_becomes_sampling_param(self, monkeypatch):
+        install_fake_vllm(monkeypatch)
+        model = VLLMModel(model_id="test-model", max_tokens=123)
+
+        output = model.generate([ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])])
+
+        generate_call = FakeVLLM.instances[0].generate_calls[0]
+        assert output.content == "vllm output"
+        assert generate_call["sampling_params"].kwargs["max_tokens"] == 123
+        assert "max_tokens" not in generate_call["kwargs"]
 
     @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
