@@ -462,6 +462,11 @@ def test_e2e_ipython_function_tool_save(tmp_path):
             {"simple": "json"},
             "With text before",
         ),
+        (
+            """With text before{"simple": "json"}Use } only in prose after the call""",
+            {"simple": "json"},
+            "With text before",
+        ),
     ],
 )
 def test_parse_json_blob_with_valid_json(raw_json, expected_data, expected_blob):
@@ -478,6 +483,7 @@ def test_parse_json_blob_with_valid_json(raw_json, expected_data, expected_blob)
         """With text here"simple": "json"}""",
         """{"simple": ""json"}With text after""",
         """{"simple": "json"With text after""",
+        """{"simple": "json"},\n{"second": "call"}""",
         "}}",
     ],
 )
