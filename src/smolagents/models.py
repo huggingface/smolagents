@@ -1192,13 +1192,19 @@ class ApiModel(Model):
 
 
 def is_rate_limit_error(exception: BaseException) -> bool:
-    """Check if the exception is a rate limit error."""
+    """Check if the exception is a rate limit error or a transient connection/server error."""
     error_str = str(exception).lower()
     return (
         "429" in error_str
         or "rate limit" in error_str
         or "too many requests" in error_str
         or "rate_limit" in error_str
+        or "503" in error_str
+        or "overloaded" in error_str
+        or "loading" in error_str
+        or "service unavailable" in error_str
+        or "timeout" in error_str
+        or "connection" in error_str
     )
 
 
