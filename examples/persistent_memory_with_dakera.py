@@ -39,10 +39,10 @@ def persist_step(step: ActionStep, agent) -> None:
     """
     if not step.observations:
         return
-    client.store(
+    client.store_memory(
+        agent_id=AGENT_ID,
         content=step.observations,
         session_id=SESSION_ID,
-        agent_id=AGENT_ID,
         metadata={"step_number": step.step_number},
     )
 
@@ -53,12 +53,12 @@ def load_prior_context(query: str) -> str:
     Uses Dakera's decay-weighted semantic search: recent and frequently-
     accessed memories rank higher than stale ones.
     """
-    memories = client.recall(
-        query=query,
-        session_id=SESSION_ID,
+    response = client.recall(
         agent_id=AGENT_ID,
+        query=query,
         top_k=5,
     )
+    memories = response.memories if response else []
     if not memories:
         return ""
     lines = "\n".join(f"- {m.content}" for m in memories)
