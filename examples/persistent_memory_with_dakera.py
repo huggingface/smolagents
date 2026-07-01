@@ -7,11 +7,11 @@ Closes: https://github.com/huggingface/smolagents/issues/1216
 Relates to: https://github.com/huggingface/smolagents/issues/945
 
 Setup:
-    docker run -d -p 3000:3000 -e DAKERA_API_KEY=demo dakera/dakera:latest
+    docker run -d -p 3300:3300 -e DAKERA_API_KEY=demo ghcr.io/dakera-ai/dakera:latest
     pip install smolagents dakera
 
 Usage:
-    DAKERA_URL=http://localhost:3000 DAKERA_API_KEY=demo python examples/persistent_memory_with_dakera.py
+    DAKERA_URL=http://localhost:3300 DAKERA_API_KEY=demo python examples/persistent_memory_with_dakera.py
 """
 
 import os
@@ -24,7 +24,7 @@ from dakera import DakeraClient  # pip install dakera
 # Memory client — connects to local or remote Dakera server
 # ---------------------------------------------------------------------------
 client = DakeraClient(
-    base_url=os.environ.get("DAKERA_URL", "http://localhost:3000"),
+    base_url=os.environ.get("DAKERA_URL", "http://localhost:3300"),
     api_key=os.environ.get("DAKERA_API_KEY", "demo"),
 )
 SESSION_ID = "smolagents-research"
