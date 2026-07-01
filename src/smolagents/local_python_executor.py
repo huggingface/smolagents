@@ -1564,6 +1564,12 @@ def evaluate_ast(
         return None
     elif isinstance(expression, ast.Delete):
         return evaluate_delete(expression, *common_params)
+    elif isinstance(expression, ast.NamedExpr):
+        # Walrus operator (:=): evaluate the value, assign to the target name in the
+        # current scope, and return the value so it can be used in the enclosing expression.
+        value = evaluate_ast(expression.value, *common_params)
+        state[expression.target.id] = value
+        return value
     else:
         # For now we refuse anything else. Let's add things as we need them.
         raise InterpreterError(f"{expression.__class__.__name__} is not supported.")
