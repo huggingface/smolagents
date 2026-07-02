@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from smolagents.monitoring import AgentLogger
 
 
-__all__ = ["AgentMemory"]
+__all__ = ["AgentMemory", "SummaryStep"]
 
 
 logger = getLogger(__name__)
@@ -211,6 +211,30 @@ class FinalAnswerStep(MemoryStep):
     output: Any
 
 
+@dataclass
+class SummaryStep(MemoryStep):
+    """A step that holds a summary of older steps that were compressed to save context space."""
+
+    summary: str
+    summarized_step_count: int
+
+    def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
+        return [
+            ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=[{"type": "text", "text": f"[Summary of previous {self.summarized_step_count} steps]\n{self.summary}"}],
+            )
+        ]
+
+
+SUMMARIZATION_PROMPT = """Below is the history of previous steps taken by an AI agent. Summarize the key information, decisions, tool results, and findings into a concise paragraph. Preserve important facts, URLs, numbers, and conclusions. Omit redundant reasoning or failed attempts unless the failure is informative.
+
+Steps to summarize:
+{steps_text}
+
+Write a concise summary:"""
+
+
 class AgentMemory:
     """Memory for the agent, containing the system prompt and all steps taken by the agent.
 
@@ -225,13 +249,85 @@ class AgentMemory:
         - **steps** (`list[TaskStep | ActionStep | PlanningStep]`) -- List of steps taken by the agent, which can include tasks, actions, and planning steps.
     """
 
-    def __init__(self, system_prompt: str):
+    def __init__(self, system_prompt: str, max_steps_before_summary: int | None = None):
         self.system_prompt: SystemPromptStep = SystemPromptStep(system_prompt=system_prompt)
-        self.steps: list[TaskStep | ActionStep | PlanningStep] = []
+        self.steps: list[TaskStep | ActionStep | PlanningStep | SummaryStep] = []
+        self.max_steps_before_summary = max_steps_before_summary
 
     def reset(self):
         """Reset the agent's memory, clearing all steps and keeping the system prompt."""
         self.steps = []
+
+    def summarize_if_needed(self, model) -> bool:
+        """Summarize older steps if memory exceeds the configured threshold.
+
+        Keeps the most recent steps intact and replaces older ones with a SummaryStep.
+        Returns True if summarization was performed.
+
+        Args:
+            model: A model instance with a `generate` method to produce the summary.
+        """
+        if self.max_steps_before_summary is None:
+            return False
+
+        action_steps = [s for s in self.steps if isinstance(s, (ActionStep, PlanningStep))]
+        if len(action_steps) <= self.max_steps_before_summary:
+            return False
+
+        keep_recent = self.max_steps_before_summary // 2
+        steps_to_summarize = []
+        steps_to_keep = []
+        action_count = 0
+        for step in reversed(self.steps):
+            if isinstance(step, (ActionStep, PlanningStep)):
+                action_count += 1
+            if action_count <= keep_recent:
+                steps_to_keep.insert(0, step)
+            else:
+                steps_to_summarize.insert(0, step)
+
+        if not steps_to_summarize:
+            return False
+
+        steps_text = self._steps_to_text(steps_to_summarize)
+        prompt = SUMMARIZATION_PROMPT.format(steps_text=steps_text)
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": prompt}])]
+
+        response = model.generate(messages)
+        summary_text = response.content if isinstance(response.content, str) else str(response.content)
+
+        summary_step = SummaryStep(
+            summary=summary_text,
+            summarized_step_count=len(steps_to_summarize),
+        )
+
+        task_steps = [s for s in steps_to_summarize if isinstance(s, TaskStep)]
+        self.steps = task_steps + [summary_step] + steps_to_keep
+        logger.info(f"Summarized {len(steps_to_summarize)} steps into a single summary.")
+        return True
+
+    @staticmethod
+    def _steps_to_text(steps: list) -> str:
+        """Convert a list of steps to a plain text representation for summarization."""
+        parts = []
+        for step in steps:
+            if isinstance(step, TaskStep):
+                parts.append(f"Task: {step.task}")
+            elif isinstance(step, ActionStep):
+                if step.model_output:
+                    output = step.model_output[:500] if len(step.model_output) > 500 else step.model_output
+                    parts.append(f"Thought: {output}")
+                if step.tool_calls:
+                    for tc in step.tool_calls:
+                        parts.append(f"Tool call: {tc.name}({tc.arguments})")
+                if step.observations:
+                    obs = step.observations[:500] if len(step.observations) > 500 else step.observations
+                    parts.append(f"Observation: {obs}")
+                if step.error:
+                    parts.append(f"Error: {step.error}")
+            elif isinstance(step, PlanningStep):
+                parts.append(f"Plan: {step.plan[:500] if len(step.plan) > 500 else step.plan}")
+        return "\n".join(parts)
 
     def get_succinct_steps(self) -> list[dict]:
         """Return a succinct representation of the agent's steps, excluding model input messages."""
