@@ -401,6 +401,30 @@ This validation mechanism enables:
 - Implementing domain-specific validation rules
 - Creating more robust agents that validate their own outputs
 
+### Auditing and governing tool calls
+
+Use `tool_callbacks` when you need to record, sign, or block tool calls at the execution boundary.
+Each callback receives a `ToolCallEvent` before and after the tool runs. The event contains the phase, tool name, arguments, step number, output, and any error raised by the tool or callback.
+For [`CodeAgent`], `tool_callbacks` are supported with the local executor. Remote executors run tools out-of-process, so they cannot call back into local Python callbacks.
+
+```python
+from smolagents import CodeAgent, InferenceClientModel, ToolCallEvent
+
+def audit_tool_call(event: ToolCallEvent, agent):
+    if event.phase == "before" and event.tool_name == "delete_file":
+        raise PermissionError("delete_file requires manual approval")
+    print(event.phase, event.tool_name, event.arguments, event.output, event.error)
+
+agent = CodeAgent(
+    tools=[...],
+    model=InferenceClientModel(),
+    tool_callbacks=[audit_tool_call],
+)
+```
+
+If a `before` callback raises, the tool is not executed and an `after` event is emitted with the error.
+This lets audit systems record both successful and denied tool calls.
+
 ## Inspecting an agent run
 
 Here are a few useful attributes to inspect what happened after a run:

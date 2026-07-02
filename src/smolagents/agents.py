@@ -14,7 +14,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import importlib
+import inspect
 import json
 import os
 import tempfile
@@ -120,6 +122,84 @@ class ToolOutput:
     is_final_answer: bool
     observation: str
     tool_call: ToolCall
+
+
+@dataclass
+class ToolCallEvent:
+    """Event passed to tool callbacks before and after a tool executes."""
+
+    phase: Literal["before", "after"]
+    tool_name: str
+    arguments: Any
+    step_number: int | None = None
+    output: Any = None
+    error: Exception | None = None
+
+
+class _ToolCallCallbackWrapper(BaseTool):
+    def __init__(self, tool: BaseTool, agent: "MultiStepAgent"):
+        self._tool = tool
+        self._agent = agent
+        self.name = tool.name
+        self.description = getattr(tool, "description", "")
+        self.inputs = getattr(tool, "inputs", {})
+        self.output_type = getattr(tool, "output_type", "any")
+        self.output_schema = getattr(tool, "output_schema", None)
+
+    def __getattr__(self, attr):
+        if attr in {"_tool", "_agent"}:
+            raise AttributeError(attr)
+        return getattr(self._tool, attr)
+
+    def __deepcopy__(self, memo):
+        return self.__class__(copy.deepcopy(self._tool, memo), self._agent)
+
+    def __call__(self, *args, **kwargs):
+        callback_arguments = self._get_callback_arguments(args, kwargs)
+        try:
+            self._agent._notify_tool_callbacks(
+                ToolCallEvent(
+                    phase="before",
+                    tool_name=self.name,
+                    arguments=callback_arguments,
+                    step_number=self._agent.step_number,
+                )
+            )
+            output = self._tool(*args, **kwargs)
+        except Exception as error:
+            self._agent._notify_tool_callbacks(
+                ToolCallEvent(
+                    phase="after",
+                    tool_name=self.name,
+                    arguments=callback_arguments,
+                    step_number=self._agent.step_number,
+                    error=error,
+                )
+            )
+            raise
+        self._agent._notify_tool_callbacks(
+            ToolCallEvent(
+                phase="after",
+                tool_name=self.name,
+                arguments=callback_arguments,
+                step_number=self._agent.step_number,
+                output=output,
+            )
+        )
+        return output
+
+    @staticmethod
+    def _get_callback_arguments(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+        kwargs = {key: value for key, value in kwargs.items() if key != "sanitize_inputs_outputs"}
+        if kwargs and not args:
+            return kwargs
+        if args and not kwargs:
+            if len(args) == 1 and isinstance(args[0], dict):
+                return args[0]
+            return args
+        if args and kwargs:
+            return {"args": args, "kwargs": kwargs}
+        return {}
 
 
 class PlanningPromptTemplate(TypedDict):
@@ -280,6 +360,7 @@ class MultiStepAgent(ABC):
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable | list[Callable]]`, *optional*): Callbacks that will be called at each step.
+        tool_callbacks (`list[Callable]`, *optional*): Callbacks that will be called before and after each tool execution.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
@@ -302,6 +383,7 @@ class MultiStepAgent(ABC):
         verbosity_level: LogLevel = LogLevel.INFO,
         managed_agents: list | None = None,
         step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable | list[Callable]] | None = None,
+        tool_callbacks: list[Callable] | None = None,
         planning_interval: int | None = None,
         name: str | None = None,
         description: str | None = None,
@@ -335,6 +417,7 @@ class MultiStepAgent(ABC):
         self.final_answer_checks = final_answer_checks if final_answer_checks is not None else []
         self.return_full_result = return_full_result
         self.instructions = instructions
+        self._setup_tool_callbacks(tool_callbacks)
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)
         self._validate_tools_and_managed_agents(tools, managed_agents)
@@ -400,6 +483,26 @@ class MultiStepAgent(ABC):
                 }
             )
         self.tools.setdefault("final_answer", FinalAnswerTool())
+        if self.tool_callbacks:
+            self.tools = {name: _ToolCallCallbackWrapper(tool, self) for name, tool in self.tools.items()}
+
+    def _setup_tool_callbacks(self, tool_callbacks):
+        if tool_callbacks is None:
+            self.tool_callbacks = []
+        elif isinstance(tool_callbacks, list):
+            self.tool_callbacks = tool_callbacks
+        else:
+            raise ValueError("tool_callbacks must be a list")
+
+        if not all(callable(callback) for callback in self.tool_callbacks):
+            raise ValueError("tool_callbacks must contain only callables")
+
+    def _notify_tool_callbacks(self, event: ToolCallEvent):
+        for callback in self.tool_callbacks:
+            if len(inspect.signature(callback).parameters) == 1:
+                callback(event)
+            else:
+                callback(event, self)
 
     def _validate_tools_and_managed_agents(self, tools, managed_agents):
         tool_and_managed_agent_names = [tool.name for tool in tools]
@@ -973,8 +1076,8 @@ You have been provided with these additional arguments, that you can access dire
         Returns:
             `dict`: Dictionary representation of the agent.
         """
-        # TODO: handle serializing step_callbacks and final_answer_checks
-        for attr in ["final_answer_checks", "step_callbacks"]:
+        # TODO: handle serializing step_callbacks, tool_callbacks and final_answer_checks
+        for attr in ["final_answer_checks", "step_callbacks", "tool_callbacks"]:
             if getattr(self, attr, None):
                 self.logger.log(f"This agent has {attr}: they will be ignored by this method.", LogLevel.INFO)
 
@@ -1562,6 +1665,9 @@ class CodeAgent(MultiStepAgent):
             if code_block_tags == "markdown"
             else ("<code>", "</code>")
         )
+
+        if kwargs.get("tool_callbacks") and executor_type != "local":
+            raise ValueError("CodeAgent tool_callbacks are only supported with the local executor.")
 
         super().__init__(
             tools=tools,
