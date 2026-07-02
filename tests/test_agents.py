@@ -2120,6 +2120,48 @@ class TestCodeAgent:
             )
         assert result == expected_summary
 
+    def test_call_with_provide_run_summary_excludes_tool_messages(self):
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+        agent.write_memory_to_messages = MagicMock(
+            return_value=[
+                ChatMessage(role=MessageRole.ASSISTANT, content="Safe summary"),
+                ChatMessage(role=MessageRole.TOOL_CALL, content="Calling tools: SECRET_TOOL_CALL"),
+                ChatMessage(role=MessageRole.TOOL_RESPONSE, content="Observation: SECRET_TOOL_RESPONSE"),
+            ]
+        )
+
+        result = agent("Test request")
+
+        assert "Test output" in result
+        assert "Safe summary" in result
+        assert "SECRET_TOOL_CALL" not in result
+        assert "SECRET_TOOL_RESPONSE" not in result
+        assert "Calling tools:" not in result
+        assert "Observation:" not in result
+
+    def test_call_with_provide_run_summary_filters_tool_messages_from_memory(self):
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+        agent.memory.steps.append(
+            ActionStep(
+                step_number=1,
+                timing=Timing(start_time=0.0),
+                tool_calls=[ToolCall(name="search", arguments={"query": "SECRET_TOOL_CALL"}, id="call_1")],
+                observations="SECRET_TOOL_RESPONSE",
+            )
+        )
+
+        result = agent("Test request")
+
+        assert "Test output" in result
+        assert "SECRET_TOOL_CALL" not in result
+        assert "SECRET_TOOL_RESPONSE" not in result
+        assert "Calling tools:" not in result
+        assert "Observation:" not in result
+
     def test_code_agent_image_output(self):
         from PIL import Image
 
