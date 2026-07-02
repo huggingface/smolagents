@@ -613,9 +613,11 @@ You have been provided with these additional arguments, that you can access dire
     def _validate_final_answer(self, final_answer: Any):
         for check_function in self.final_answer_checks:
             try:
-                assert check_function(final_answer, self.memory, agent=self)
+                result = check_function(final_answer, self.memory, agent=self)
             except Exception as e:
                 raise AgentError(f"Check {check_function.__name__} failed with error: {e}", self.logger)
+            if not result:
+                raise AgentError(f"Check {check_function.__name__} returned False.", self.logger)
 
     def _finalize_step(self, memory_step: ActionStep | PlanningStep | FinalAnswerStep):
         if not isinstance(memory_step, FinalAnswerStep):
