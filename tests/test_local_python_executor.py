@@ -2200,15 +2200,21 @@ class TestTimeout:
 
     def test_timeout_decorator_does_not_deadlock_on_hanging_call(self):
         """Test that a hanging call times out without blocking on executor shutdown."""
+        import threading
+
+        stop_event = threading.Event()
 
         @timeout(1)
         def hanging_task():
-            while True:
+            while not stop_event.is_set():
                 time.sleep(0.01)
 
         start = time.monotonic()
-        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
-            hanging_task()
+        try:
+            with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+                hanging_task()
+        finally:
+            stop_event.set()
         elapsed = time.monotonic() - start
         assert elapsed < 3
 

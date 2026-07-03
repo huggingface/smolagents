@@ -307,17 +307,18 @@ def timeout(timeout_seconds: int):
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
             executor = ThreadPoolExecutor(max_workers=1)
             future = executor.submit(func, *args, **kwargs)
+            timed_out = False
             try:
                 return future.result(timeout=timeout_seconds)
             except FuturesTimeoutError:
-                # Do not wait for the stuck worker thread: shutdown(wait=True) would deadlock
-                # when the wrapped call hangs indefinitely.
-                executor.shutdown(wait=False)
+                timed_out = True
                 raise ExecutionTimeoutError(
                     f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
                 )
-            else:
-                executor.shutdown(wait=True)
+            finally:
+                # Do not wait for the stuck worker thread on timeout: shutdown(wait=True) would
+                # deadlock when the wrapped call hangs indefinitely.
+                executor.shutdown(wait=not timed_out)
 
         return wrapper
 
