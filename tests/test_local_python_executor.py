@@ -457,6 +457,26 @@ for block in text_block:
         result, _ = evaluate_python_code(code, {"len": len, "range": range}, state={})
         assert result == "THESEAGULL"
 
+    def test_list_display_unpacking(self):
+        result, _ = evaluate_python_code("a = [1, 2]\nb = [3, 4]\n[0, *a, *b, 9]", {}, state={})
+        assert result == [0, 1, 2, 3, 4, 9]
+
+    def test_tuple_display_unpacking(self):
+        result, _ = evaluate_python_code("a = [1, 2]\n(*a, 3)", {}, state={})
+        assert result == (1, 2, 3)
+
+    def test_set_display_unpacking(self):
+        result, _ = evaluate_python_code("a = {1, 2}\nb = {2, 3}\n{*a, *b}", {}, state={})
+        assert result == {1, 2, 3}
+
+    def test_display_unpacking_of_non_list_iterable(self):
+        result, _ = evaluate_python_code("[*range(3), 9]", {"range": range}, state={})
+        assert result == [0, 1, 2, 9]
+
+    def test_nested_display_unpacking(self):
+        result, _ = evaluate_python_code("a = [1, 2]\n[*[*a], 3]", {}, state={})
+        assert result == [1, 2, 3]
+
     def test_tuples(self):
         code = "x = (1, 2, 3)\nx[1]"
         result, _ = evaluate_python_code(code, {}, state={})
