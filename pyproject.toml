@@ -78,7 +78,7 @@ toolkit = [
 ]
 transformers = [
   "accelerate",
-  "transformers>=4.0.0",
+  "transformers>=4.0.0,!=5.13.0",  # !=5.13.0 (see GH-2487)
   "smolagents[torch]",
 ]
 vision = [
