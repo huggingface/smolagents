@@ -1349,32 +1349,17 @@ def evaluate_generatorexp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Generator[Any]:
-    def generator():
-        for gen in genexp.generators:
-            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
-            for value in iter_value:
-                new_state = state.copy()
-                set_value(
-                    gen.target,
-                    value,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                if all(
-                    evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                    for if_clause in gen.ifs
-                ):
-                    yield evaluate_ast(
-                        genexp.elt,
-                        new_state,
-                        static_tools,
-                        custom_tools,
-                        authorized_imports,
-                    )
-
-    return generator()
+    # Reuse the shared, recursive comprehension helper so that multiple `for` clauses are
+    # properly nested (e.g. `(x + y for x in a for y in b)`), matching list/set/dict
+    # comprehensions. The helper is itself a generator, so laziness is preserved.
+    return _evaluate_comprehensions(
+        genexp.generators,
+        lambda comp_state: evaluate_ast(genexp.elt, comp_state, static_tools, custom_tools, authorized_imports),
+        state,
+        static_tools,
+        custom_tools,
+        authorized_imports,
+    )
 
 
 def evaluate_delete(
