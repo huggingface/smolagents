@@ -655,7 +655,7 @@ class Tool(BaseTool):
             ):
                 self.name = name
                 self.description = description
-                self.client = Client(space_id, hf_token=token)
+                self.client = Client(space_id, token=token)
                 space_api = self.client.view_api(return_format="dict", print_info=False)
                 assert isinstance(space_api, dict)
                 space_description = space_api["named_endpoints"]
