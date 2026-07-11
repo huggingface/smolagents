@@ -13,15 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
+    AgentLookupTool,
+    AgentSearchTool,
+    AgentVerifyTool,
     DuckDuckGoSearchTool,
+    MarketplaceSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
+    TrustGateTool,
     VisitWebpageTool,
     WebSearchTool,
     WikipediaSearchTool,
@@ -133,6 +138,149 @@ class TestSpeechToTextTool:
         assert tool is not None
         assert tool.pre_processor_class == WhisperProcessor
         assert tool.model_class == WhisperForConditionalGeneration
+
+
+class TestAgentFolioTools:
+    def test_lookup_formats_profile_from_agentfolio(self):
+        tool = AgentLookupTool(base_url="https://agentfolio.test/api")
+        mock_profile = {
+            "id": "agent_braintest",
+            "name": "brainTEST",
+            "bio": "testing agent",
+            "skills": ["testing"],
+            "trustScore": 800,
+            "verificationLevelName": "Verified",
+        }
+
+        with patch("requests.get") as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = mock_profile
+            mock_get.return_value.raise_for_status = lambda: None
+            result = tool("agent_braintest")
+
+        mock_get.assert_called_once_with("https://agentfolio.test/api/profile/agent_braintest", timeout=10)
+        assert "brainTEST" in result
+        assert "testing" in result
+        assert "800" in result
+
+    def test_search_uses_agents_endpoint_and_filters_by_trust(self):
+        tool = AgentSearchTool(base_url="https://agentfolio.test/api")
+        mock_agents = {
+            "agents": [
+                {"id": "agent_low", "name": "Low", "trustScore": 10, "skills": ["solana"]},
+                {"id": "agent_high", "name": "High", "trustScore": 800, "skills": ["solana"]},
+            ]
+        }
+
+        with patch("requests.get") as mock_get:
+            mock_get.return_value.json.return_value = mock_agents
+            mock_get.return_value.raise_for_status = lambda: None
+            result = tool(query="solana", min_trust=500)
+
+        mock_get.assert_called_once_with("https://agentfolio.test/api/agents", params={"search": "solana"}, timeout=10)
+        assert "agent_high" in result
+        assert "agent_low" not in result
+
+    def test_search_handles_top_level_agent_list_response(self):
+        tool = AgentSearchTool(base_url="https://agentfolio.test/api")
+        mock_agents = [
+            {"id": "agent_low", "name": "Low", "trustScore": 10, "skills": ["solana"]},
+            {"id": "agent_high", "name": "High", "trust_score": {"reputationScore": 800}, "skills": ["solana"]},
+        ]
+
+        with patch("requests.get") as mock_get:
+            mock_get.return_value.json.return_value = mock_agents
+            mock_get.return_value.raise_for_status = lambda: None
+            result = tool(query="solana", min_trust=500)
+
+        assert "agent_high" in result
+        assert "agent_low" not in result
+
+    def test_verify_fetches_profile_and_endorsements(self):
+        tool = AgentVerifyTool(base_url="https://agentfolio.test/api")
+        mock_profile = {
+            "id": "agent_braintest",
+            "name": "brainTEST",
+            "trustScore": 80,
+            "verification": '{"tier":"verified","score":0}',
+            "verification_data": {"solana": {"verified": True}, "github": {"verified": False}},
+        }
+
+        with patch("requests.get") as mock_get:
+            profile_response = mock_get.return_value
+            endorsements_response = Mock()
+            profile_response.status_code = 200
+            profile_response.json.return_value = mock_profile
+            profile_response.raise_for_status = lambda: None
+            endorsements_response.status_code = 200
+            endorsements_response.json.return_value = {"endorsements": [{"id": "endorsement-1"}], "total": 1}
+            mock_get.side_effect = [profile_response, endorsements_response]
+            result = tool("agent_braintest")
+
+        assert mock_get.call_args_list[0].args[0] == "https://agentfolio.test/api/profile/agent_braintest"
+        assert mock_get.call_args_list[1].args[0] == "https://agentfolio.test/api/profile/agent_braintest/endorsements"
+        assert '"trust_score": 80' in result
+        assert '"tier": "verified"' in result
+        assert '"endorsement_count": 1' in result
+        assert "solana" in result
+        assert "github" not in result
+
+    def test_trust_gate_uses_profile_trust_score(self):
+        tool = TrustGateTool(base_url="https://agentfolio.test/api")
+        mock_profile = {
+            "id": "agent_braintest",
+            "trust_score": {"reputationScore": 800},
+            "verification": '{"score":0}',
+        }
+
+        with patch("requests.get") as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = mock_profile
+            mock_get.return_value.raise_for_status = lambda: None
+            result = tool(agent_id="agent_braintest", min_trust=500)
+
+        assert '"passed": true' in result
+        assert '"trust_score": 800' in result
+        assert '"required": 500' in result
+
+    def test_marketplace_search_filters_jobs_by_category(self):
+        tool = MarketplaceSearchTool(base_url="https://agentfolio.test/api")
+        mock_jobs = {
+            "jobs": [
+                {
+                    "id": "job_1",
+                    "title": "QA task",
+                    "category": "testing",
+                    "budgetAmount": 5,
+                    "budgetCurrency": "USDC",
+                },
+                {
+                    "id": "job_2",
+                    "title": "Design task",
+                    "category": "design",
+                    "budgetAmount": 9,
+                    "budgetCurrency": "USDC",
+                },
+            ]
+        }
+
+        with patch("requests.get") as mock_get:
+            mock_get.return_value.json.return_value = mock_jobs
+            mock_get.return_value.raise_for_status = lambda: None
+            result = tool(category="testing")
+
+        mock_get.assert_called_once_with("https://agentfolio.test/api/marketplace/jobs", timeout=10)
+        assert "QA task" in result
+        assert "Design task" not in result
+
+    def test_agentfolio_tools_are_not_enabled_by_default(self):
+        from smolagents.default_tools import TOOL_MAPPING
+
+        assert "agent_lookup" not in TOOL_MAPPING
+        assert "agent_search" not in TOOL_MAPPING
+        assert "agent_verify" not in TOOL_MAPPING
+        assert "trust_gate" not in TOOL_MAPPING
+        assert "marketplace_search" not in TOOL_MAPPING
 
 
 class TestWebSearchToolExa:
