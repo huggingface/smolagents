@@ -19,6 +19,7 @@ from smolagents.remote_executors import (
     RemotePythonExecutor,
 )
 from smolagents.serialization import SerializationError
+from smolagents.tools import Tool
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
@@ -85,6 +86,39 @@ class TestRemotePythonExecutor:
         assert executor.run_code_raise_errors.call_count == 2
         assert "!pip install wikipedia-api" == executor.run_code_raise_errors.call_args_list[0].args[0]
         assert "class WikipediaSearchTool(Tool)" in executor.run_code_raise_errors.call_args_list[1].args[0]
+
+    def test_send_tools_rejects_runtime_adapter_tools_with_clear_error(self):
+        class MCPAdaptTool(Tool):
+            skip_forward_signature_validation = True
+
+            def __init__(self, name: str, description: str, inputs: dict, output_type: str):
+                self.name = name
+                self.description = description
+                self.inputs = inputs
+                self.output_type = output_type
+                super().__init__()
+
+            def forward(self, **kwargs):
+                return kwargs
+
+        tool = MCPAdaptTool(
+            name="list_tables",
+            description="List database tables.",
+            inputs={"ref": {"type": "string", "description": "Database reference."}},
+            output_type="string",
+        )
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
+        executor.run_code_raise_errors = MagicMock()
+
+        with pytest.raises(AgentError) as exception_info:
+            executor.send_tools({"list_tables": tool})
+
+        error_message = str(exception_info.value)
+        assert "list_tables" in error_message
+        assert "MCPAdaptTool" in error_message
+        assert "remote Python executor" in error_message
+        assert 'executor_type="local"' in error_message
+        executor.run_code_raise_errors.assert_not_called()
 
 
 class TestE2BExecutorUnit:
