@@ -830,6 +830,15 @@ def function():
         evaluate_python_code(code, {"print": print, "range": range}, state=state)
         assert state["_print_outputs"].value == "1\n2\n2\n2\n2\n2\n2\n2\n2\n2\n2\n"
 
+    def test_syntax_error_clears_previous_print_output(self):
+        state = {}
+        evaluate_python_code("print('from previous step')", BASE_PYTHON_TOOLS, state=state)
+
+        with pytest.raises(InterpreterError):
+            evaluate_python_code("print('new step')\ndef broken(", BASE_PYTHON_TOOLS, state=state)
+
+        assert state["_print_outputs"].value == ""
+
     def test_tuple_target_in_iterator(self):
         code = "for a, b in [('Ralf Weikert', 'Austria'), ('Samuel Seungwon Lee', 'South Korea')]:res = a.split()[0]"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
