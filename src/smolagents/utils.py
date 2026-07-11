@@ -30,6 +30,7 @@ from logging import Logger
 from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, Callable
+from PIL import Image
 
 import jinja2
 
@@ -428,6 +429,11 @@ def get_source(obj) -> str:
 
 
 def encode_image_base64(image):
+      if isinstance(image, str):
+        try:
+            image = Image.open(image)
+        except Exception as e:
+            raise ValueError(f"Could not open image: {image}. Error: {e}")
     buffered = BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
