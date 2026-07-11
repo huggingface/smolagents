@@ -2088,6 +2088,93 @@ class TestToolCallingAgent:
                     for tool_call in test_case["tool_calls"]
                 ]
 
+    def test_tool_executor_is_persistent(self, test_tool):
+        """Test that ThreadPoolExecutor is reused across multiple process_tool_calls calls."""
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock())
+        assert agent._tool_executor is None, "Executor should be None before first use"
+
+        chat_message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_1",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value1"}),
+                ),
+                ChatMessageToolCall(
+                    id="call_2",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value2"}),
+                ),
+            ],
+        )
+        memory_step = ActionStep(step_number=1, timing="mock_timing", model_output="")
+
+        # First call - executor should be created and cached
+        list(agent.process_tool_calls(chat_message, memory_step))
+        assert agent._tool_executor is not None
+        first_executor = agent._tool_executor
+
+        # Second call - executor should be reused
+        memory_step2 = ActionStep(step_number=2, timing="mock_timing", model_output="")
+        list(agent.process_tool_calls(chat_message, memory_step2))
+        assert agent._tool_executor is first_executor, "Executor should be reused across calls"
+
+    def test_tool_executor_max_threads(self, test_tool):
+        """Test that max_tool_threads parameter is respected."""
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock(), max_tool_threads=4)
+        assert agent._max_tool_threads == 4
+
+        chat_message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_1",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value1"}),
+                ),
+                ChatMessageToolCall(
+                    id="call_2",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value2"}),
+                ),
+            ],
+        )
+        memory_step = ActionStep(step_number=1, timing="mock_timing", model_output="")
+        list(agent.process_tool_calls(chat_message, memory_step))
+
+        assert agent._tool_executor is not None
+        assert agent._tool_executor._max_workers == 4
+
+    def test_tool_executor_cleanup(self, test_tool):
+        """Test that cleanup() properly shuts down and clears the executor."""
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock(), max_tool_threads=2)
+
+        chat_message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_1",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value1"}),
+                ),
+                ChatMessageToolCall(
+                    id="call_2",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value2"}),
+                ),
+            ],
+        )
+        memory_step = ActionStep(step_number=1, timing="mock_timing", model_output="")
+        list(agent.process_tool_calls(chat_message, memory_step))
+        assert agent._tool_executor is not None
+
+        agent.cleanup()
+        assert agent._tool_executor is None, "Executor should be None after cleanup"
+
 
 class TestCodeAgent:
     def test_code_agent_instructions(self):
