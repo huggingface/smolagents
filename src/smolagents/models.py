@@ -346,6 +346,7 @@ def get_clean_message_list(
         flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
     """
     output_message_list: list[dict[str, Any]] = []
+    output_was_converted: list[bool] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
     for message in message_list:
         if isinstance(message, dict):
@@ -354,6 +355,7 @@ def get_clean_message_list(
         if role not in MessageRole.roles():
             raise ValueError(f"Incorrect role {role}, only {MessageRole.roles()} are supported for now.")
 
+        was_converted = role in role_conversions
         if role in role_conversions:
             message.role = role_conversions[role]  # type: ignore
         # encode images if needed
@@ -372,7 +374,12 @@ def get_clean_message_list(
                     else:
                         element["image"] = encode_image_base64(element["image"])
 
-        if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
+        if (
+            len(output_message_list) > 0
+            and message.role == output_message_list[-1]["role"]
+            and not was_converted
+            and not output_was_converted[-1]
+        ):
             assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
@@ -394,6 +401,7 @@ def get_clean_message_list(
                     "content": content,
                 }
             )
+            output_was_converted.append(was_converted)
     return output_message_list
 
 
