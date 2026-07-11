@@ -574,6 +574,25 @@ class TestAgent:
         assert agent.name == "managed_agent"
         assert agent.description == "Empty"
 
+    def test_managed_agent_reports_empty_result(self):
+        agent = CodeAgent(tools=[], model=FakeCodeModel(), name="managed_agent", description="Empty")
+        agent.run = MagicMock(return_value=None)
+
+        report = agent("Delegate this task")
+
+        assert "managed_agent" in report
+        assert "did not produce a result" in report
+
+    def test_managed_agent_reports_run_exception(self):
+        agent = CodeAgent(tools=[], model=FakeCodeModel(), name="managed_agent", description="Empty")
+        agent.run = MagicMock(side_effect=RuntimeError("tool exploded"))
+
+        report = agent("Delegate this task")
+
+        assert "managed_agent" in report
+        assert "failed while running" in report
+        assert "tool exploded" in report
+
     def test_agent_description_gets_correctly_inserted_in_system_prompt(self):
         managed_agent = CodeAgent(
             tools=[], model=FakeCodeModelFunctionDef(), name="managed_agent", description="Empty"
