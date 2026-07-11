@@ -225,6 +225,37 @@ test_func(**None)
         assert result == 42
         assert state["instance"].__doc__ == "A class with a value."
 
+    def test_evaluate_class_def_allowed_dunder_methods(self):
+        code = dedent('''\
+            class MyClass:
+                def __init__(self, value):
+                    self.value = value
+
+                def __str__(self):
+                    return "value=" + str(self.value)
+
+                def __repr__(self):
+                    return "MyClass(" + str(self.value) + ")"
+
+                def get_value(self):
+                    return self.value
+
+            instance = MyClass(42)
+            result = (str(instance), repr(instance), instance.get_value())
+        ''')
+        result, _ = evaluate_python_code(code, {"str": str, "repr": repr}, state={})
+        assert result == ("value=42", "MyClass(42)", 42)
+
+    @pytest.mark.parametrize("method_name", ["__del__", "__getattribute__", "__setattr__", "__delattr__", "__new__"])
+    def test_evaluate_class_def_forbidden_dunder_methods(self, method_name):
+        code = dedent(f'''\
+            class MyClass:
+                def {method_name}(self):
+                    pass
+        ''')
+        with pytest.raises(InterpreterError, match=f"Defining '{method_name}' in a class body is not allowed"):
+            evaluate_python_code(code, {}, state={})
+
     def test_evaluate_class_def_with_assign_attribute_target(self):
         """
         Test evaluate_class_def function when stmt is an instance of ast.Assign with ast.Attribute target.
