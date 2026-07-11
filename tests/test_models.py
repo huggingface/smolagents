@@ -429,18 +429,18 @@ class TestLiteLLMModel:
 
     def test_retry_on_rate_limit_error(self):
         """Test that the retry mechanism does trigger on 429 rate limit errors"""
-        import time
-
-        # Patch RETRY_WAIT to 1 second for faster testing
         mock_litellm = MagicMock()
 
         with (
             patch("smolagents.models.RETRY_WAIT", 0.1),
             patch("smolagents.utils.random.random", side_effect=[0.1, 0.1]),
+            patch("smolagents.utils.time.sleep") as mock_sleep,
             patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
         ):
             model = LiteLLMModel(model_id="test-model")
-            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
+            messages: list[ChatMessage | dict] = [
+                ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])
+            ]
 
             # Create a mock response for successful call
             mock_success_response = MagicMock()
@@ -458,10 +458,7 @@ class TestLiteLLMModel:
             # Mock the litellm client to raise an error twice, and then succeed
             model.client.completion.side_effect = [rate_limit_error, rate_limit_error, mock_success_response]
 
-            # Measure time to verify retry wait time
-            start_time = time.time()
             result = model.generate(messages)
-            elapsed_time = time.time() - start_time
 
             # Verify that completion was called thrice (twice failed, once succeeded)
             assert model.client.completion.call_count == 3
@@ -469,11 +466,8 @@ class TestLiteLLMModel:
             assert result.token_usage.input_tokens == 10
             assert result.token_usage.output_tokens == 20
 
-            # Verify that the wait time was around
-            # 0.22s (1st retry) [0.1 * 2.0 * (1 + 1 * 0.1)]
-            # + 0.48s (2nd retry) [0.22 * 2.0 * (1 + 1 * 0.1)]
-            # = 0.704s (allow some tolerance)
-            assert 0.67 <= elapsed_time <= 0.73
+            # Verify the exponential backoff delays without relying on wall-clock time.
+            assert [call.args[0] for call in mock_sleep.call_args_list] == pytest.approx([0.22, 0.484])
 
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
@@ -481,6 +475,35 @@ class TestLiteLLMModel:
 
         model = LiteLLMModel(model_id="fal/llama-3.3-70b", flatten_messages_as_text=True)
         assert model.flatten_messages_as_text
+
+    def test_retries_empty_choices_response(self):
+        empty_response = MagicMock()
+        empty_response.choices = []
+        empty_response.model_dump.return_value = {"choices": []}
+
+        success_response = MagicMock()
+        success_response.choices = [MagicMock()]
+        success_response.choices[0].message.content = "Success response"
+        success_response.choices[0].message.role = "assistant"
+        success_response.choices[0].message.tool_calls = None
+        success_response.usage.prompt_tokens = 10
+        success_response.usage.completion_tokens = 20
+
+        mock_litellm = MagicMock()
+        mock_litellm.completion.side_effect = [empty_response, success_response]
+
+        with (
+            patch("smolagents.models.RETRY_WAIT", 0),
+            patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
+        ):
+            model = LiteLLMModel(model_id="test-model")
+            messages: list[ChatMessage | dict] = [
+                ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])
+            ]
+            result = model.generate(messages)
+
+        assert mock_litellm.completion.call_count == 2
+        assert result.content == "Success response"
 
 
 class TestLiteLLMRouterModel:
