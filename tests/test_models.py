@@ -682,6 +682,40 @@ class TestTransformersModel:
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.args == ("test-model",)
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
 
+    @pytest.mark.parametrize(
+        "patching,loader_target",
+        [
+            (
+                [
+                    (
+                        "transformers.AutoModelForImageTextToText.from_pretrained",
+                        {"side_effect": ValueError("Unrecognized configuration class")},
+                    ),
+                    ("transformers.AutoModelForCausalLM.from_pretrained", {}),
+                    ("transformers.AutoTokenizer.from_pretrained", {}),
+                ],
+                "transformers.AutoModelForCausalLM.from_pretrained",
+            ),
+            (
+                [
+                    ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
+                    ("transformers.AutoProcessor.from_pretrained", {}),
+                ],
+                "transformers.AutoModelForImageTextToText.from_pretrained",
+            ),
+        ],
+    )
+    def test_init_passes_quantization_config(self, patching, loader_target):
+        with ExitStack() as stack:
+            mocks = {target: stack.enter_context(patch(target, **kwargs)) for target, kwargs in patching}
+            TransformersModel(
+                model_id="test-model",
+                device_map="cpu",
+                quantization_config="QCFG",
+            )
+
+        assert mocks[loader_target].call_args.kwargs["quantization_config"] == "QCFG"
+
 
 def test_get_clean_message_list_basic():
     messages = [
