@@ -373,16 +373,28 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
-            if flatten_messages_as_text:
-                output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
-            else:
-                for el in message.content:
-                    if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
-                        # Merge consecutive text messages rather than creating new ones
-                        output_message_list[-1]["content"][-1]["text"] += "\n" + el["text"]
-                    else:
-                        output_message_list[-1]["content"].append(el)
+            prev_content = output_message_list[-1]["content"]
+            curr_content = message.content
+            if isinstance(curr_content, str):
+                # Handle string content merging
+                if isinstance(prev_content, str):
+                    output_message_list[-1]["content"] = prev_content + "\n" + curr_content
+                else:
+                    # Previous was list, current is string — append as text element
+                    output_message_list[-1]["content"].append({"type": "text", "text": curr_content})
+            elif isinstance(curr_content, list):
+                if flatten_messages_as_text:
+                    output_message_list[-1]["content"] += "\n" + curr_content[0]["text"]
+                else:
+                    if isinstance(prev_content, str):
+                        # Previous was string, current is list — convert previous to list format
+                        output_message_list[-1]["content"] = [{"type": "text", "text": prev_content}]
+                    for el in curr_content:
+                        if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
+                            # Merge consecutive text messages rather than creating new ones
+                            output_message_list[-1]["content"][-1]["text"] += "\n" + el["text"]
+                        else:
+                            output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
                 content = message.content[0]["text"]
