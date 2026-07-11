@@ -576,6 +576,17 @@ simple_set = {
         assert isinstance(result, types.GeneratorType)
         assert list(result) == [0, 1, 2]
 
+    def test_generatorexp_with_multiple_clauses(self):
+        # A generator expression with several `for` clauses must nest them (like the
+        # equivalent list comprehension), not iterate them independently.
+        code = "list(x + y for x in [1, 2] for y in [10, 20])"
+        result, _ = evaluate_python_code(code, {"list": list}, state={})
+        assert result == [11, 21, 12, 22]
+        # Later clauses may depend on earlier targets.
+        code = "list(j for i in range(3) for j in range(i))"
+        result, _ = evaluate_python_code(code, {"list": list, "range": range}, state={})
+        assert result == [0, 0, 1]
+
     def test_generatorexp_with_infinite_sequence(self):
         """Test that generator expressions handle infinite sequences correctly without hanging."""
         code = dedent(
