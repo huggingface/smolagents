@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 
 from .agent_types import AgentAudio, AgentImage, handle_agent_output_types
 from .default_tools import TOOL_MAPPING, FinalAnswerTool
-from .local_python_executor import BASE_BUILTIN_MODULES, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
+from .local_python_executor import BASE_BUILTIN_MODULES, ExecutionTimeoutError, LocalPythonExecutor, PythonExecutor, fix_final_answer_code
 from .memory import (
     ActionStep,
     AgentMemory,
@@ -1516,6 +1516,7 @@ class CodeAgent(MultiStepAgent):
         executor_type (`Literal["local", "blaxel", "e2b", "modal", "docker"]`, default `"local"`): Type of code executor.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
+        max_execution_time_seconds (`int`, *optional*): Maximum time in seconds allowed for a single code execution step. Set to `None` to disable. Defaults to the executor's built-in timeout.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
         use_structured_outputs_internally (`bool`, default `False`): Whether to use structured generation at each action step: improves performance for many models.
 
@@ -1535,6 +1536,7 @@ class CodeAgent(MultiStepAgent):
         executor_type: Literal["local", "blaxel", "e2b", "modal", "docker"] = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
+        max_execution_time_seconds: int | None = None,
         stream_outputs: bool = False,
         use_structured_outputs_internally: bool = False,
         code_block_tags: str | tuple[str, str] | None = None,
@@ -1582,6 +1584,8 @@ class CodeAgent(MultiStepAgent):
             )
         self.executor_type = executor_type
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
+        if max_execution_time_seconds is not None:
+            self.executor_kwargs.setdefault("timeout_seconds", max_execution_time_seconds)
         self.python_executor = executor or self.create_python_executor()
 
     def __enter__(self):
@@ -1742,7 +1746,12 @@ class CodeAgent(MultiStepAgent):
                     memory_step.observations = "Execution logs:\n" + execution_logs
                     self.logger.log(Group(*execution_outputs_console), level=LogLevel.INFO)
             error_msg = str(e)
-            if "Import of " in error_msg and " is not allowed" in error_msg:
+            if isinstance(e, ExecutionTimeoutError):
+                self.logger.log(
+                    "[bold red]Warning to user: Code execution timed out. Consider increasing `max_execution_time_seconds` when initializing your CodeAgent.",
+                    level=LogLevel.INFO,
+                )
+            elif "Import of " in error_msg and " is not allowed" in error_msg:
                 self.logger.log(
                     "[bold red]Warning to user: Code execution failed due to an unauthorized import - Consider passing said import under `additional_authorized_imports` when initializing your CodeAgent.",
                     level=LogLevel.INFO,
