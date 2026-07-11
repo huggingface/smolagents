@@ -91,12 +91,21 @@ class ActionStep(MemoryStep):
 
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         messages = []
-        if self.model_output is not None and not summary_mode:
+        if self.model_output_message is not None and self.model_output_message.tool_calls and not summary_mode:
             messages.append(
-                ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.model_output.strip()}])
+                ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=self.model_output_message.content or [{"type": "text", "text": ""}],
+                    tool_calls=self.model_output_message.tool_calls,
+                )
             )
+        elif self.model_output is not None and not summary_mode:
+            model_output = self.model_output.strip() if isinstance(self.model_output, str) else str(self.model_output)
+            messages.append(ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": model_output}]))
 
-        if self.tool_calls is not None:
+        if self.tool_calls is not None and not (
+            self.model_output_message is not None and self.model_output_message.tool_calls
+        ):
             messages.append(
                 ChatMessage(
                     role=MessageRole.TOOL_CALL,

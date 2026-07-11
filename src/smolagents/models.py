@@ -372,7 +372,12 @@ def get_clean_message_list(
                     else:
                         element["image"] = encode_image_base64(element["image"])
 
-        if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
+        if (
+            len(output_message_list) > 0
+            and message.role == output_message_list[-1]["role"]
+            and not message.tool_calls
+            and not output_message_list[-1].get("tool_calls")
+        ):
             assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
@@ -388,12 +393,15 @@ def get_clean_message_list(
                 content = message.content[0]["text"]
             else:
                 content = message.content
-            output_message_list.append(
-                {
-                    "role": message.role,
-                    "content": content,
-                }
-            )
+            output_message = {
+                "role": message.role,
+                "content": content,
+            }
+            if message.tool_calls:
+                output_message["tool_calls"] = [
+                    get_dict_from_nested_dataclasses(tool_call) for tool_call in message.tool_calls
+                ]
+            output_message_list.append(output_message)
     return output_message_list
 
 

@@ -26,6 +26,7 @@ from smolagents.models import (
     AzureOpenAIModel,
     ChatMessage,
     ChatMessageToolCall,
+    ChatMessageToolCallFunction,
     InferenceClientModel,
     LiteLLMModel,
     LiteLLMRouterModel,
@@ -47,6 +48,37 @@ from .utils.markers import require_run_all
 
 
 class TestModel:
+    def test_get_clean_message_list_preserves_tool_calls(self):
+        messages: list[ChatMessage | dict] = [
+            ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=[{"type": "text", "text": "I will call a tool."}],
+                tool_calls=[
+                    ChatMessageToolCall(
+                        id="call_0",
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="count", arguments={}),
+                    )
+                ],
+            )
+        ]
+
+        clean_messages = get_clean_message_list(messages)
+
+        assert clean_messages == [
+            {
+                "role": MessageRole.ASSISTANT,
+                "content": [{"type": "text", "text": "I will call a tool."}],
+                "tool_calls": [
+                    {
+                        "function": {"arguments": {}, "name": "count", "description": None},
+                        "id": "call_0",
+                        "type": "function",
+                    }
+                ],
+            }
+        ]
+
     def test_prepare_completion_kwargs_parameter_precedence(self):
         """Test that self.kwargs have highest precedence and REMOVE_PARAMETER works correctly"""
         from smolagents.models import REMOVE_PARAMETER
