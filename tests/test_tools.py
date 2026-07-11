@@ -1066,3 +1066,65 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+def test_from_space_passes_token_not_hf_token(monkeypatch):
+    """Test that Tool.from_space passes 'token' (not 'hf_token') to gradio_client.Client.
+
+    Regression test for issue #2481: gradio_client >= 1.0 renamed 'hf_token'
+    parameter to 'token'. Passing 'hf_token' raises TypeError.
+    """
+    import sys
+    import types
+
+    captured_init_args = {}
+
+    class MockClient:
+        def __init__(self, src, token=None):
+            captured_init_args["src"] = src
+            captured_init_args["token"] = token
+
+        def view_api(self, return_format="dict", print_info=False):
+            return {
+                "named_endpoints": {
+                    "/predict": {
+                        "parameters": [
+                            {
+                                "parameter_name": "prompt",
+                                "type": {"type": "string"},
+                                "python_type": {"description": "The prompt to generate an image from"},
+                                "parameter_has_default": False,
+                            }
+                        ],
+                        "returns": [
+                            {"component": "Image"},
+                        ],
+                    }
+                }
+            }
+
+    # Mock gradio_client module
+    mock_module = types.ModuleType("gradio_client")
+    mock_module.Client = MockClient
+    mock_module.handle_file = lambda file: file
+    monkeypatch.setitem(sys.modules, "gradio_client", mock_module)
+
+    # Mock gradio_client.utils (used by sanitize_argument_for_prediction)
+    mock_utils = types.ModuleType("gradio_client.utils")
+    mock_utils.is_http_url_like = lambda url: str(url).startswith("http")
+    monkeypatch.setitem(sys.modules, "gradio_client.utils", mock_utils)
+
+    tool = Tool.from_space(
+        "test/space",
+        name="image_generator",
+        description="Generate an image from a prompt",
+        token="hf_test_token_123",
+    )
+
+    # Verify token was passed correctly
+    assert captured_init_args["token"] == "hf_test_token_123"
+    assert captured_init_args["src"] == "test/space"
+    # Verify the tool was set up correctly
+    assert tool.name == "image_generator"
+    assert tool.output_type == "image"
+    assert "prompt" in tool.inputs
