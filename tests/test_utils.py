@@ -104,6 +104,10 @@ class AgentTextTests(unittest.TestCase):
         with pytest.raises(ValueError):
             parse_code_blobs("Wrong blob!", ("<code>", "</code>"))
 
+        # None input should raise ValueError with a clear message (issue #1896)
+        with pytest.raises(ValueError, match="model output is empty"):
+            parse_code_blobs(None, ("<code>", "</code>"))
+
         # Parsing mardkwon with code blobs should work
         output = parse_code_blobs(
             """
