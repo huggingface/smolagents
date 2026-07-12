@@ -225,6 +225,69 @@ test_func(**None)
         assert result == 42
         assert state["instance"].__doc__ == "A class with a value."
 
+    @pytest.mark.parametrize(
+        "dunder_method",
+        [
+            "__del__",
+            "__delattr__",
+            "__eq__",
+            "__getattr__",
+            "__getattribute__",
+            "__hash__",
+            "__index__",
+            "__ne__",
+            "__repr__",
+            "__setattr__",
+            "__str__",
+        ],
+    )
+    def test_evaluate_class_def_rejects_implicitly_invoked_dunder_methods(self, dunder_method):
+        code = dedent(f"""\
+            class Trap:
+                def {dunder_method}(self, *args):
+                    return None
+        """)
+        with pytest.raises(InterpreterError, match=f"Defining class method {dunder_method!r} is not allowed"):
+            evaluate_python_code(code, {}, state={})
+
+    @pytest.mark.parametrize(
+        "dunder_method",
+        ["__eq__", "__hash__", "__index__", "__ne__", "__repr__", "__str__"],
+    )
+    def test_evaluate_class_def_allows_configured_representation_and_comparison_dunders(self, dunder_method):
+        code = dedent(f"""\
+            class Custom:
+                def {dunder_method}(self, *args):
+                    return 1
+
+            result = Custom()
+        """)
+        result, _ = evaluate_python_code(code, {}, state={}, allowed_class_dunder_methods=[dunder_method])
+        assert result.__class__.__name__ == "Custom"
+
+    @pytest.mark.parametrize(
+        "dunder_method",
+        ["__del__", "__delattr__", "__getattr__", "__getattribute__", "__setattr__"],
+    )
+    def test_evaluate_class_def_never_allows_lifecycle_and_attribute_dunders(self, dunder_method):
+        code = "result = 1"
+        with pytest.raises(InterpreterError, match=f"Invalid methods: {dunder_method}"):
+            evaluate_python_code(code, {}, state={}, allowed_class_dunder_methods=[dunder_method])
+
+    def test_evaluate_class_def_does_not_allow_user_code_to_override_dunder_policy(self):
+        code = dedent("""\
+            _allowed_class_dunder_methods = {"__del__"}
+
+            class Trap:
+                def __del__(self):
+                    return None
+        """)
+        with pytest.raises(
+            InterpreterError,
+            match="Cannot assign to name '_allowed_class_dunder_methods': this name is reserved for interpreter state",
+        ):
+            evaluate_python_code(code, {}, state={})
+
     def test_evaluate_class_def_with_assign_attribute_target(self):
         """
         Test evaluate_class_def function when stmt is an instance of ast.Assign with ast.Attribute target.
@@ -905,6 +968,7 @@ cat_str = str(cat)
             code,
             {"print": print, "len": len, "super": super, "str": str, "sum": sum},
             state=state,
+            allowed_class_dunder_methods=["__str__"],
         )
 
         # Assert results
@@ -1798,7 +1862,7 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
             b = NonStdComparisonClass("b")
             result = a == b
             """)
-        result, _ = evaluate_python_code(code, state={})
+        result, _ = evaluate_python_code(code, state={}, allowed_class_dunder_methods=["__eq__", "__str__"])
         assert not isinstance(result, bool)
         assert str(result) == "a == b"
 
@@ -2359,6 +2423,20 @@ class TestLocalPythonExecutor:
     def test_state_name(self):
         executor = LocalPythonExecutor(additional_authorized_imports=[])
         assert executor.state.get("__name__") == "__main__"
+
+    def test_allowed_class_dunder_methods_pass_through_executor(self):
+        executor = LocalPythonExecutor([], allowed_class_dunder_methods=["__str__"])
+        executor.send_tools({})
+        result = executor(
+            dedent("""
+                class Custom:
+                    def __str__(self):
+                        return "custom"
+
+                result = str(Custom())
+            """)
+        )
+        assert result.output == "custom"
 
     @pytest.mark.parametrize(
         "code",
