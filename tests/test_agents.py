@@ -683,6 +683,29 @@ nested_answer()
         assert len([step for step in agent.memory.steps if isinstance(step, ActionStep)]) == 2
         assert error_string not in str(agent.write_memory_to_messages())
 
+    def test_final_answer_checks_see_current_step_in_memory(self):
+        """Test that final_answer_checks can access the current action step already stored in memory."""
+        check_called = False
+
+        def check_step_in_memory(final_answer, memory, agent):
+            nonlocal check_called
+            check_called = True
+            action_steps = [step for step in memory.steps if isinstance(step, ActionStep)]
+            assert len(action_steps) > 0, "Expected action step to be in memory during final answer check"
+            last_step = action_steps[-1]
+            assert last_step.is_final_answer, "Expected last step to be marked as final answer"
+            return True
+
+        agent = CodeAgent(
+            model=FakeCodeModel(),
+            tools=[],
+            final_answer_checks=[check_step_in_memory],
+            max_steps=2,
+        )
+        output = agent.run("Dummy task.")
+        assert output == 7.2904  # Should pass the check
+        assert check_called, "Expected final answer check to be called"
+
     def test_final_answer_checks_with_agent_access(self):
         """Test that final answer checks can access agent properties."""
 

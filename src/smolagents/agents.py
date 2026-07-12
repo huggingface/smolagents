@@ -586,10 +586,14 @@ You have been provided with these additional arguments, that you can access dire
                             level=LogLevel.INFO,
                         )
 
-                        if self.final_answer_checks:
-                            self._validate_final_answer(final_answer)
                         returned_final_answer = True
                         action_step.is_final_answer = True
+                        # Finalize and append the step BEFORE running final_answer_checks
+                        # so that checks can inspect the current step in memory.
+                        self._finalize_step(action_step)
+                        self.memory.steps.append(action_step)
+                        if self.final_answer_checks:
+                            self._validate_final_answer(final_answer)
 
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
@@ -598,8 +602,9 @@ You have been provided with these additional arguments, that you can access dire
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
                 action_step.error = e
             finally:
-                self._finalize_step(action_step)
-                self.memory.steps.append(action_step)
+                if not returned_final_answer:
+                    self._finalize_step(action_step)
+                    self.memory.steps.append(action_step)
                 yield action_step
                 self.step_number += 1
 
