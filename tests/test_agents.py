@@ -2113,12 +2113,27 @@ class TestCodeAgent:
 
         result = agent("Test request")
         expected_summary = "Here is the final answer from your managed agent 'test_agent':\nTest output"
-        if provide_run_summary:
-            expected_summary += (
-                "\n\nFor more detail, find below a summary of this agent's work:\n"
-                "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
-            )
         assert result == expected_summary
+
+    def test_call_with_provide_run_summary_does_not_leak_raw_memory(self):
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+        agent.write_memory_to_messages = MagicMock(
+            return_value=[
+                ChatMessage(role=MessageRole.TOOL_CALL, content="Calling tools:\nsearch(secret)"),
+                ChatMessage(role=MessageRole.TOOL_RESPONSE, content="Observation:\nSECRET_TOKEN"),
+            ]
+        )
+
+        result = agent("Test request")
+
+        assert result == "Here is the final answer from your managed agent 'test_agent':\nTest output"
+        assert "Calling tools" not in result
+        assert "Observation:" not in result
+        assert "SECRET_TOKEN" not in result
+        assert "<summary_of_work>" not in result
+        agent.write_memory_to_messages.assert_not_called()
 
     def test_code_agent_image_output(self):
         from PIL import Image
