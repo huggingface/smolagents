@@ -289,10 +289,67 @@ class Tool(BaseTool):
     def to_tool_calling_prompt(self) -> str:
         return f"{self.name}: {self.description}\n    Takes inputs: {self.inputs}\n    Returns an output of type: {self.output_type}"
 
+    def _get_mcp_export_code(self) -> str | None:
+        """Return source for reconnecting to an MCP-backed tool, if this tool came from MCP."""
+        mcp_tool_name = getattr(self, "_mcp_tool_name", None)
+        mcp_server_parameters = getattr(self, "_mcp_server_parameters", None)
+        mcp_structured_output = getattr(self, "_mcp_structured_output", None)
+        if mcp_tool_name is None or mcp_server_parameters is None:
+            return None
+
+        if not isinstance(mcp_server_parameters, dict):
+            raise ValueError(
+                "Cannot serialize MCP tools loaded from stdio server parameters. "
+                "Stdio MCP parameters may contain command arguments or environment variables that should not be "
+                "exported. Recreate these tools with ToolCollection.from_mcp(...) instead."
+            )
+
+        supported_keys = {"url", "transport"}
+        unsupported_keys = set(mcp_server_parameters) - supported_keys
+        if unsupported_keys:
+            raise ValueError(
+                "Cannot serialize MCP tools loaded with custom server parameter keys: "
+                f"{', '.join(sorted(unsupported_keys))}. "
+                "Recreate these tools with ToolCollection.from_mcp(...) instead."
+            )
+        server_parameters_code = repr(mcp_server_parameters)
+
+        return textwrap.dedent(
+            f"""
+            from smolagents import Tool, ToolCollection
+
+
+            class {self.__class__.__name__}(Tool):
+                name = {self.name!r}
+                description = {self.description!r}
+                inputs = {repr(self.inputs)}
+                output_type = {self.output_type!r}
+                skip_forward_signature_validation = True
+
+                def __init__(self):
+                    self.is_initialized = True
+
+                def forward(self, *args, **kwargs):
+                    with ToolCollection.from_mcp(
+                        {server_parameters_code},
+                        trust_remote_code=True,
+                        structured_output={mcp_structured_output!r},
+                    ) as tool_collection:
+                        tool = next(
+                            tool for tool in tool_collection.tools
+                            if getattr(tool, "_mcp_tool_name", tool.name) == {mcp_tool_name!r}
+                        )
+                        return tool(*args, **kwargs)
+            """
+        ).strip()
+
     def to_dict(self) -> dict:
         """Returns a dictionary representing the tool"""
         class_name = self.__class__.__name__
-        if type(self).__name__ == "SimpleTool":
+        mcp_tool_code = self._get_mcp_export_code()
+        if mcp_tool_code is not None:
+            tool_code = mcp_tool_code
+        elif type(self).__name__ == "SimpleTool":
             # Check that imports are self-contained
             source_code = get_source(self.forward).replace("@tool", "")
             forward_node = ast.parse(source_code)
@@ -355,6 +412,8 @@ class Tool(BaseTool):
             tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
 
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
+        if mcp_tool_code is not None:
+            requirements.add("mcpadapt")
 
         tool_dict = {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
 
@@ -1055,6 +1114,11 @@ class ToolCollection:
                 "as it will execute code on your local machine: pass `trust_remote_code=True`."
             )
         with MCPAdapt(server_parameters, SmolAgentsAdapter(structured_output=structured_output)) as tools:
+            for tool in tools:
+                if hasattr(tool, "__dict__"):
+                    tool._mcp_tool_name = getattr(tool, "name", None)
+                    tool._mcp_server_parameters = server_parameters
+                    tool._mcp_structured_output = structured_output
             yield cls(tools)
 
 

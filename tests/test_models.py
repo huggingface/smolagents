@@ -15,7 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, sentinel
 
 import pytest
 from huggingface_hub import ChatCompletionOutputMessage
@@ -682,6 +682,74 @@ class TestTransformersModel:
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.args == ("test-model",)
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
 
+    def test_prepare_completion_args_for_vlm_keeps_raw_images_for_processor(self):
+        input_ids = MagicMock()
+        input_ids.shape = (1, 3)
+        pixel_values = MagicMock()
+        prompt_tensor = {"input_ids": input_ids, "pixel_values": pixel_values}
+        prompt_tensor_mock = MagicMock()
+        prompt_tensor_mock.to.return_value = prompt_tensor
+
+        processor = MagicMock()
+        processor.apply_chat_template.return_value = "rendered prompt"
+        processor.return_value = prompt_tensor_mock
+        processor.tokenizer = MagicMock()
+
+        model = TransformersModel.__new__(TransformersModel)
+        Model.__init__(model, model_id="test-vlm", flatten_messages_as_text=False, max_new_tokens=8)
+        model.processor = processor
+        model.model = MagicMock()
+        model.model.device = "cpu"
+        model.apply_chat_template_kwargs = {}
+
+        image = sentinel.image
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "image", "image": image}])]
+
+        with patch("smolagents.models.encode_image_base64") as mock_encode:
+            generation_kwargs = model._prepare_completion_args(messages)
+
+        mock_encode.assert_not_called()
+        processor.apply_chat_template.assert_called_once_with(
+            [{"role": MessageRole.USER, "content": [{"type": "image", "image": image}]}],
+            tools=None,
+            add_generation_prompt=True,
+            tokenize=False,
+        )
+        processor.assert_called_once_with(text="rendered prompt", images=[image], return_tensors="pt")
+        assert generation_kwargs["inputs"] is input_ids
+        assert generation_kwargs["pixel_values"] is pixel_values
+
+    def test_prepare_completion_args_for_vlm_handles_template_kwargs(self):
+        input_ids = MagicMock()
+        input_ids.shape = (1, 3)
+        prompt_tensor_mock = MagicMock()
+        prompt_tensor_mock.to.return_value = {"input_ids": input_ids}
+
+        processor = MagicMock()
+        processor.apply_chat_template.return_value = "rendered prompt"
+        processor.return_value = prompt_tensor_mock
+        processor.tokenizer = MagicMock()
+
+        model = TransformersModel.__new__(TransformersModel)
+        Model.__init__(model, model_id="test-vlm", flatten_messages_as_text=False)
+        model.processor = processor
+        model.model = MagicMock()
+        model.model.device = "cpu"
+        model.apply_chat_template_kwargs = {"add_generation_prompt": False, "tokenize": True}
+
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Describe this"}])]
+
+        generation_kwargs = model._prepare_completion_args(messages)
+
+        processor.apply_chat_template.assert_called_once_with(
+            [{"role": MessageRole.USER, "content": [{"type": "text", "text": "Describe this"}]}],
+            tools=None,
+            add_generation_prompt=False,
+            tokenize=False,
+        )
+        processor.assert_called_once_with(text="rendered prompt", images=None, return_tensors="pt")
+        assert generation_kwargs["inputs"] is input_ids
+
 
 def test_get_clean_message_list_basic():
     messages = [
@@ -792,6 +860,17 @@ def test_get_clean_message_list_image_encoding(convert_images_to_image_urls, exp
         mock_encode.assert_any_call(b"second_image_data")
         assert len(result) == 1
         assert result[0] == expected_clean_message
+
+
+def test_get_clean_message_list_can_keep_raw_images():
+    image = sentinel.image
+    message = ChatMessage(role=MessageRole.USER, content=[{"type": "image", "image": image}])
+
+    with patch("smolagents.models.encode_image_base64") as mock_encode:
+        result = get_clean_message_list([message], encode_images=False)
+
+    mock_encode.assert_not_called()
+    assert result == [{"role": MessageRole.USER, "content": [{"type": "image", "image": image}]}]
 
 
 def test_get_clean_message_list_flatten_messages_as_text():
