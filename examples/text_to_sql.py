@@ -10,9 +10,15 @@ from sqlalchemy import (
     inspect,
     text,
 )
+from sqlalchemy.pool import StaticPool
 
-
-engine = create_engine("sqlite:///:memory:")
+# Use StaticPool + check_same_thread=False so the in-memory SQLite engine survives
+# smolagents' CodeAgent sandbox which executes generated code in a different thread.
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 metadata_obj = MetaData()
 
 # create city SQL table
