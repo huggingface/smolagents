@@ -603,9 +603,9 @@ You have been provided with these additional arguments, that you can access dire
                 yield action_step
                 self.step_number += 1
 
-        if not returned_final_answer and self.step_number == max_steps + 1:
-            final_answer = self._handle_max_steps_reached(task)
-            yield action_step
+        if not returned_final_answer:
+            final_answer, max_steps_step = self._handle_max_steps_reached(task)
+            yield max_steps_step
         final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
         self._finalize_step(final_answer_step)
         yield final_answer_step
@@ -622,7 +622,7 @@ You have been provided with these additional arguments, that you can access dire
             memory_step.timing.end_time = time.time()
         self.step_callbacks.callback(memory_step, agent=self)
 
-    def _handle_max_steps_reached(self, task: str) -> Any:
+    def _handle_max_steps_reached(self, task: str) -> tuple[Any, ActionStep]:
         action_step_start_time = time.time()
         final_answer = self.provide_final_answer(task)
         final_memory_step = ActionStep(
@@ -634,7 +634,7 @@ You have been provided with these additional arguments, that you can access dire
         final_memory_step.action_output = final_answer.content
         self._finalize_step(final_memory_step)
         self.memory.steps.append(final_memory_step)
-        return final_answer.content
+        return final_answer.content, final_memory_step
 
     def _generate_planning_step(
         self, task, is_first_step: bool, step: int
