@@ -865,6 +865,30 @@ You have been provided with these additional arguments, that you can access dire
         """
         self.memory.replay(self.logger, detailed=detailed)
 
+    # def __call__(self, task: str, **kwargs):
+    #     """Adds additional prompting for the managed agent, runs it, and wraps the output.
+    #     This method is called only by a managed agent.
+    #     """
+    #     full_task = populate_template(
+    #         self.prompt_templates["managed_agent"]["task"],
+    #         variables=dict(name=self.name, task=task),
+    #     )
+    #     result = self.run(full_task, **kwargs)
+    #     if isinstance(result, RunResult):
+    #         report = result.output
+    #     else:
+    #         report = result
+    #     answer = populate_template(
+    #         self.prompt_templates["managed_agent"]["report"], variables=dict(name=self.name, final_answer=report)
+    #     )
+    #     if self.provide_run_summary:
+    #         answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
+    #         for message in self.write_memory_to_messages(summary_mode=True):
+    #             content = message.content
+    #             answer += "\n" + truncate_content(str(content)) + "\n---"
+    #         answer += "\n</summary_of_work>"
+    #     return answer
+
     def __call__(self, task: str, **kwargs):
         """Adds additional prompting for the managed agent, runs it, and wraps the output.
         This method is called only by a managed agent.
@@ -873,21 +897,36 @@ You have been provided with these additional arguments, that you can access dire
             self.prompt_templates["managed_agent"]["task"],
             variables=dict(name=self.name, task=task),
         )
-        result = self.run(full_task, **kwargs)
-        if isinstance(result, RunResult):
-            report = result.output
-        else:
-            report = result
-        answer = populate_template(
-            self.prompt_templates["managed_agent"]["report"], variables=dict(name=self.name, final_answer=report)
-        )
-        if self.provide_run_summary:
-            answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
-            for message in self.write_memory_to_messages(summary_mode=True):
-                content = message.content
-                answer += "\n" + truncate_content(str(content)) + "\n---"
-            answer += "\n</summary_of_work>"
-        return answer
+
+        try:
+            # 1. Attempt to execute the managed sub-agent
+            result = self.run(full_task, **kwargs)
+            if isinstance(result, RunResult):
+                report = result.output
+            else:
+                report = result
+
+            # 2. Handle the "Silent None" bug where it finishes but returns nothing
+            if report is None or str(report).strip() == "":
+                return (
+                    f"Warning: The managed agent '{self.name}' completed its execution "
+                    f"but returned an empty result. Please adjust your instructions."
+                )
+
+            answer = populate_template(
+                self.prompt_templates["managed_agent"]["report"], variables=dict(name=self.name, final_answer=report)
+            )
+            if self.provide_run_summary:
+                answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
+                for message in self.write_memory_to_messages(summary_mode=True):
+                    content = message.content
+                    answer += "\n" + truncate_content(str(content)) + "\n---"
+                answer += "\n</summary_of_work>"
+            return answer
+
+        except Exception as e:
+            # 3. Catch critical crashes and feed them back to the manager as a string observation
+            return f"Error: The managed agent '{self.name}' encountered a critical failure: {type(e).__name__} - {str(e)}. Adjust your strategy."
 
     def save(self, output_dir: str | Path, relative_path: str | None = None):
         """
