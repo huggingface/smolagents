@@ -78,6 +78,33 @@ model = OpenAIModel(
 )
 ```
 
+## Using DaoXE (multi-model multi-protocol gateway)
+
+[DaoXE](https://daoxe.com) is a multi-model multi-protocol API gateway with an OpenAI-compatible Chat Completions API.
+You can use [`OpenAIModel`] with `api_base="https://daoxe.com/v1"`.
+
+DaoXE also exposes OpenAI Responses and Anthropic Messages for other clients; this example uses the OpenAI-compatible path.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Create an API key in the [DaoXE dashboard](https://daoxe.com) and pick an **exact** model ID from your account catalog (`GET /v1/models`). Do not hardcode a public model price list. DaoXE is not available in mainland China.
+
+```python
+import os
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    model_id=os.environ["DAOXE_MODEL"],  # exact ID from your DaoXE account
+    api_base="https://daoxe.com/v1",
+    api_key=os.environ["DAOXE_API_KEY"],
+)
+```
+
+Examples: [DaoXE-AI](https://github.com/seven7763/DaoXE-AI)
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
