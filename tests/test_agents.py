@@ -2343,6 +2343,66 @@ print("Ok, calculation done!")""")
         assert agent.additional_authorized_imports == ["requests"]
         assert agent.executor_kwargs == {"max_print_outputs_length": 5_000}
 
+    def test_from_dict_managed_agent_authorized_imports_not_leaked(self):
+        """Managed agents must reconstruct with their own authorized_imports, not the parent's.
+
+        Regression test for https://github.com/huggingface/smolagents/issues/1849.
+
+        When a CodeAgent with managed sub-agents is deserialized, CodeAgent.from_dict()
+        builds code_agent_kwargs that includes the parent's additional_authorized_imports
+        and passes them via super().from_dict(). Without the fix, MultiStepAgent.from_dict()
+        forwards those kwargs unchanged to every managed agent, overwriting the child's
+        own import allowlist.
+        """
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
+
+        child_agent_dict = {
+            "class": "CodeAgent",
+            "model": {"class": "InferenceClientModel", "data": {"model_id": "child/model"}},
+            "tools": [],
+            "managed_agents": {},
+            "authorized_imports": ["sympy", "math"],  # child's own imports
+            "executor_type": "local",
+            "executor_kwargs": {},
+        }
+        parent_agent_dict = {
+            "class": "CodeAgent",
+            "model": {"class": "InferenceClientModel", "data": {"model_id": "parent/model"}},
+            "tools": [],
+            "managed_agents": [child_agent_dict],
+            "authorized_imports": ["numpy", "pandas"],  # parent's own imports
+            "executor_type": "local",
+            "executor_kwargs": {},
+        }
+
+        with patch.dict(
+            "smolagents.models.MODEL_REGISTRY",
+            {"InferenceClientModel": mock_model_class},
+        ):
+            parent = CodeAgent.from_dict(parent_agent_dict)
+
+        # Parent should have its own imports
+        assert "numpy" in parent.authorized_imports
+        assert "pandas" in parent.authorized_imports
+
+        assert len(parent.managed_agents) == 1
+        child = list(parent.managed_agents.values())[0]
+
+        # Child must retain its own imports, not the parent's
+        assert "sympy" in child.authorized_imports, (
+            "Child agent lost its 'sympy' import after from_dict(). "
+            "Parent's authorized_imports were incorrectly propagated to the child."
+        )
+        assert "math" in child.authorized_imports
+        assert "numpy" not in child.authorized_imports, (
+            "Parent's 'numpy' import leaked into the child agent's authorized_imports."
+        )
+        assert "pandas" not in child.authorized_imports, (
+            "Parent's 'pandas' import leaked into the child agent's authorized_imports."
+        )
+
     def test_custom_final_answer_with_custom_inputs(self):
         class CustomFinalAnswerToolWithCustomInputs(FinalAnswerTool):
             inputs = {
