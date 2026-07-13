@@ -1,0 +1,9 @@
+httpx>=0.25.0
+python-dotenv>=1.0.0
+
+# Install smolagents from the repo root:
+#   pip install -e .
+#
+# Run Memanto separately (not a Python import dependency of this example):
+#   pip install memanto
+#   memanto serve
