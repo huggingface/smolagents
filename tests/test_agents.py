@@ -495,6 +495,51 @@ class TestAgent:
         assert output == 7.2904
         assert len(agent.memory.steps) == 3
 
+    def test_managed_agent_reset_on_call_default(self):
+        """By default, managed agent memory is reset on each __call__ invocation."""
+        managed_agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModel(),
+            name="calc_agent",
+            description="A calculator agent",
+        )
+        assert managed_agent.reset_on_managed_call is True
+
+        # First call via __call__ (as if from parent agent)
+        managed_agent(task="What is 2 multiplied by 3.6452?")
+        steps_after_first = len(managed_agent.memory.steps)
+        assert steps_after_first > 0
+
+        # Second call - memory should be reset (default behavior)
+        managed_agent(task="What is 2 multiplied by 3.6452?")
+        steps_after_second = len(managed_agent.memory.steps)
+
+        # With reset_on_managed_call=True (default), step counts should match
+        assert steps_after_second == steps_after_first
+
+    def test_managed_agent_retain_memory_across_calls(self):
+        """When reset_on_managed_call=False, managed agent retains memory across __call__ invocations."""
+        managed_agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModel(),
+            name="calc_agent",
+            description="A calculator agent",
+            reset_on_managed_call=False,
+        )
+        assert managed_agent.reset_on_managed_call is False
+
+        # First call
+        managed_agent(task="What is 2 multiplied by 3.6452?")
+        steps_after_first = len(managed_agent.memory.steps)
+        assert steps_after_first > 0
+
+        # Second call - memory should accumulate
+        managed_agent(task="What is 2 multiplied by 3.6452?")
+        steps_after_second = len(managed_agent.memory.steps)
+
+        # Steps should accumulate when memory is retained
+        assert steps_after_second > steps_after_first
+
     def test_setup_agent_with_empty_toolbox(self):
         ToolCallingAgent(model=FakeToolCallModel(), tools=[])
 
