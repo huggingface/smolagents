@@ -297,23 +297,28 @@ def timeout(timeout_seconds: int):
 
     Note:
         If a timeout occurs, the thread running the function cannot be forcefully killed
-        in Python, so it will continue running in the background until completion. However,
-        the caller will receive a TimeoutError and can continue execution.
+        in Python, so it may continue running in the background until completion. However,
+        the caller regains control as soon as the timeout is reached and can continue execution.
     """
 
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
-                try:
-                    result = future.result(timeout=timeout_seconds)
-                    return result
-                except FuturesTimeoutError:
-                    raise ExecutionTimeoutError(
-                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
-                    )
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(func, *args, **kwargs)
+            timed_out = False
+            try:
+                result = future.result(timeout=timeout_seconds)
+                return result
+            except FuturesTimeoutError:
+                timed_out = True
+                future.cancel()
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
+            finally:
+                executor.shutdown(wait=not timed_out, cancel_futures=timed_out)
 
         return wrapper
 
