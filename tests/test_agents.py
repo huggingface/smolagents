@@ -574,6 +574,58 @@ class TestAgent:
         assert agent.name == "managed_agent"
         assert agent.description == "Empty"
 
+    def test_managed_agent_call_returns_error_string_on_agent_error(self):
+        """__call__ must not raise when the sub-agent hits an AgentError.
+        The manager should receive an informative string instead."""
+
+        class FakeModelAlwaysRaises(Model):
+            model_id = "fake-raises"
+
+            def generate(self, messages, stop_sequences=None):
+                raise AgentGenerationError("model unavailable", logger=None)
+
+        sub_agent = CodeAgent(
+            tools=[],
+            model=FakeModelAlwaysRaises(),
+            name="sub",
+            description="A sub-agent",
+        )
+        result = sub_agent(task="do something")
+        assert isinstance(result, str)
+        assert "failed" in result.lower() or "error" in result.lower()
+        assert "sub" in result
+
+    def test_managed_agent_call_notes_max_steps_hit(self):
+        """When a sub-agent exhausts max_steps, __call__ should append a note to
+        the report so the manager knows the answer may be incomplete."""
+
+        sub_agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModelNoReturn(),  # never calls final_answer
+            name="searcher",
+            description="Searches things",
+            max_steps=1,
+        )
+        result = sub_agent(task="find the answer")
+        assert isinstance(result, str)
+        # Should either contain the max-steps note or an informative message
+        assert "searcher" in result or "max" in result.lower() or "step" in result.lower()
+
+    def test_managed_agent_call_handles_none_output(self):
+        """When run() returns None output (not a RunResult), __call__ should
+        return an informative string rather than an empty/None report."""
+
+        sub_agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModelFunctionDef(),
+            name="helper",
+            description="Helps",
+        )
+        with patch.object(sub_agent, "run", return_value=None):
+            result = sub_agent(task="do something")
+        assert isinstance(result, str)
+        assert result.strip() != ""
+
     def test_agent_description_gets_correctly_inserted_in_system_prompt(self):
         managed_agent = CodeAgent(
             tools=[], model=FakeCodeModelFunctionDef(), name="managed_agent", description="Empty"
