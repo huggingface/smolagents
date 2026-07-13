@@ -1378,6 +1378,17 @@ shift_intervals
         assert "SyntaxError" in str(e)
         assert "     ^" in str(e)
 
+    def test_syntax_error_resets_previous_print_outputs(self):
+        state = {}
+        evaluate_python_code("print('previous step')", BASE_PYTHON_TOOLS, state=state)
+        assert state["_print_outputs"].value == "previous step\n"
+
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code("print('current step')\ndef broken(", BASE_PYTHON_TOOLS, state=state)
+
+        assert "SyntaxError" in str(e)
+        assert state["_print_outputs"].value == ""
+
     def test_close_matches_subscript(self):
         code = 'capitals = {"Czech Republic": "Prague", "Monaco": "Monaco", "Bhutan": "Thimphu"};capitals["Butan"]'
         with pytest.raises(Exception) as e:
