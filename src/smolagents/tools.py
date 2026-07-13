@@ -46,6 +46,7 @@ from ._function_type_hints_utils import (
     TypeHintParsingException,
     _convert_type_hints_to_json_schema,
     _get_json_schema_type,
+    _parse_google_format_docstring,
     get_imports,
     get_json_schema,
 )
@@ -282,6 +283,14 @@ class Tool(BaseTool):
             indented_schema = textwrap.indent(formatted_schema, "        ")
             returns_doc = f"\nReturns:\n    dict (structured output): This tool ALWAYS returns a dictionary that strictly adheres to the following JSON schema:\n{indented_schema}"
             tool_doc += f"\n{returns_doc}"
+        else:
+            # Fall back to the return description parsed from the forward docstring.
+            forward_doc = inspect.getdoc(self.forward)
+            if forward_doc:
+                _, _, return_doc = _parse_google_format_docstring(forward_doc)
+                if return_doc:
+                    returns_doc = f"Returns:\n{textwrap.indent(return_doc, '    ')}"
+                    tool_doc += f"\n\n{returns_doc}"
 
         tool_doc = f'"""{tool_doc}\n"""'
         return f"def {self.name}{tool_signature}:\n{textwrap.indent(tool_doc, '    ')}"

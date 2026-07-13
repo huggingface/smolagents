@@ -139,6 +139,10 @@ class TestTool:
                 "multiline_description_tool",
                 'def multiline_description_tool(input: string) -> string:\n    """This is a tool with\n    multiple lines\n    in the description\n\n    Args:\n        input: Some input\n    """',
             ),
+            (
+                "with_returns_doc",
+                'def with_returns_doc(input: string) -> string:\n    """Tool with a returns section.\n\n    Args:\n        input: Input text\n\n    Returns:\n        The same string as the input\n    """',
+            ),
         ],
     )
     def test_tool_to_code_prompt_output_format(self, tool_fixture, expected_output, request):
