@@ -56,6 +56,9 @@ class ActionStep(MemoryStep):
     error: AgentError | None = None
     model_output_message: ChatMessage | None = None
     model_output: str | list[dict[str, Any]] | None = None
+    reasoning_content: str | None = (
+        None  # Chain-of-thought from thinking models, preserved when preserve_reasoning=True
+    )
     code_action: str | None = None
     observations: str | None = None
     observations_images: list["PIL.Image.Image"] | None = None
@@ -92,9 +95,13 @@ class ActionStep(MemoryStep):
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         messages = []
         if self.model_output is not None and not summary_mode:
-            messages.append(
-                ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.model_output.strip()}])
+            assistant_message = ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=[{"type": "text", "text": self.model_output.strip()}],
             )
+            if self.reasoning_content:
+                assistant_message.reasoning_content = self.reasoning_content
+            messages.append(assistant_message)
 
         if self.tool_calls is not None:
             messages.append(
