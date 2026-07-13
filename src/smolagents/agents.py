@@ -1164,6 +1164,7 @@ You have been provided with these additional arguments, that you can access dire
         private: bool | None = None,
         token: bool | str | None = None,
         create_pr: bool = False,
+        space_sdk: str = "gradio",
     ) -> str:
         """
         Upload the agent to the Hub.
@@ -1181,6 +1182,10 @@ You have been provided with these additional arguments, that you can access dire
                 when running `huggingface-cli login` (stored in `~/.huggingface`).
             create_pr (`bool`, *optional*, defaults to `False`):
                 Whether to create a PR with the uploaded files or directly commit.
+            space_sdk (`str`, *optional*, defaults to `"gradio"`):
+                The SDK of the Space to create (e.g. `"gradio"`, `"docker"`, `"static"`). Defaults to `"gradio"`.
+                Use another SDK such as `"static"` when your account cannot create Gradio Spaces (creating a Gradio
+                Space otherwise raises `402 Payment Required`).
         """
         repo_url = create_repo(
             repo_id=repo_id,
@@ -1188,7 +1193,7 @@ You have been provided with these additional arguments, that you can access dire
             private=private,
             exist_ok=True,
             repo_type="space",
-            space_sdk="gradio",
+            space_sdk=space_sdk,
         )
         repo_id = repo_url.repo_id
         metadata_update(
