@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, Type
 
 from smolagents.models import ChatMessage, MessageRole, get_dict_from_nested_dataclasses
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
-from smolagents.utils import AgentError, make_json_serializable
+from smolagents.utils import AgentError, make_json_serializable, sanitize_tool_output
 
 
 if TYPE_CHECKING:
@@ -130,7 +130,7 @@ class ActionStep(MemoryStep):
                     content=[
                         {
                             "type": "text",
-                            "text": f"Observation:\n{self.observations}",
+                            "text": f"Observation:\n{sanitize_tool_output(self.observations)}",
                         }
                     ],
                 )
