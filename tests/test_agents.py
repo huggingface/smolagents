@@ -519,6 +519,24 @@ class TestAgent:
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
 
+    def test_run_max_steps_zero_is_respected(self):
+        """Regression test for #2458.
+
+        `max_steps=0` is an explicit, distinct value from "not provided" (the
+        parameter defaults to `None`), and must actually mean zero action
+        steps, not silently fall back to the agent's configured default via
+        `max_steps or self.max_steps` (0 is falsy).
+        """
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModelNoReturn(),  # use this callable because it never ends
+            max_steps=20,
+        )
+        answer = agent.run("What is 2 multiplied by 3.6452?", max_steps=0)
+        assert len(agent.memory.steps) == 2  # Task step + Final answer, no action steps taken
+        assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
+        assert isinstance(answer, str)
+
     def test_tool_descriptions_get_baked_in_system_prompt(self):
         tool = PythonInterpreterTool()
         tool.name = "fake_tool_name"
@@ -1297,7 +1315,9 @@ class TestMultiStepAgent:
         )
         task = "Test task"
 
-        planning_step = list(agent._generate_planning_step(task, is_first_step=(step == 1), step=step))[-1]
+        planning_step = list(
+            agent._generate_planning_step(task, is_first_step=(step == 1), step=step, max_steps=agent.max_steps)
+        )[-1]
         expected_message_texts = {
             "INITIAL_PLAN_USER_PROMPT": populate_template(
                 agent.prompt_templates["planning"]["initial_plan"],
@@ -1351,6 +1371,32 @@ class TestMultiStepAgent:
                 assert isinstance(message.content, list)
                 for content, expected_content in zip(message.content, expected_message.content):
                     assert content == expected_content
+
+    def test_planning_step_remaining_steps_uses_per_run_max_steps_override(self):
+        """Regression test for #2510.
+
+        `run(..., max_steps=N)` overrides the agent's constructor `max_steps`, and
+        planning's `remaining_steps` value must reflect that override, not the
+        constructor default. Also verifies the `{{ remaining_steps }}` Jinja
+        placeholder is actually interpolated (single-brace `{remaining_steps}`
+        is never substituted and reaches the model as literal text).
+        """
+        fake_model = MagicMock()
+        agent = CodeAgent(tools=[], model=fake_model, max_steps=20)
+        task = "Test task"
+        step = 2
+        override_max_steps = 3
+
+        planning_step = list(
+            agent._generate_planning_step(
+                task, is_first_step=False, step=step, max_steps=override_max_steps
+            )
+        )[-1]
+        rendered_text = planning_step.model_input_messages[1].content[0]["text"]
+
+        assert "{remaining_steps}" not in rendered_text, "Jinja placeholder was not interpolated"
+        assert f"you have {override_max_steps - step} steps remaining" in rendered_text
+        assert f"you have {agent.max_steps - step} steps remaining" not in rendered_text
 
     @pytest.mark.parametrize(
         "expected_messages_list",

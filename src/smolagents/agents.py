@@ -465,7 +465,7 @@ class MultiStepAgent(ABC):
         agent.run("What is the result of 2 power 3.7384?")
         ```
         """
-        max_steps = max_steps or self.max_steps
+        max_steps = max_steps if max_steps is not None else self.max_steps
         self.task = task
         self.interrupt_switch = False
         if additional_args:
@@ -542,6 +542,10 @@ You have been provided with these additional arguments, that you can access dire
     ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
         self.step_number = 1
         returned_final_answer = False
+        # max_steps=0 means the loop body never runs, so this stays None; guarded
+        # before the final `yield action_step` below instead of assuming a step
+        # was always taken.
+        action_step: ActionStep | None = None
         while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
@@ -553,7 +557,7 @@ You have been provided with these additional arguments, that you can access dire
                 planning_start_time = time.time()
                 planning_step = None
                 for element in self._generate_planning_step(
-                    task, is_first_step=len(self.memory.steps) == 1, step=self.step_number
+                    task, is_first_step=len(self.memory.steps) == 1, step=self.step_number, max_steps=max_steps
                 ):  # Don't use the attribute step_number here, because there can be steps from previous runs
                     yield element
                     planning_step = element
@@ -605,7 +609,9 @@ You have been provided with these additional arguments, that you can access dire
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
-            yield action_step
+            # No action step was ever taken when max_steps=0, nothing to yield here.
+            if action_step is not None:
+                yield action_step
         final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
         self._finalize_step(final_answer_step)
         yield final_answer_step
@@ -637,7 +643,7 @@ You have been provided with these additional arguments, that you can access dire
         return final_answer.content
 
     def _generate_planning_step(
-        self, task, is_first_step: bool, step: int
+        self, task, is_first_step: bool, step: int, max_steps: int
     ) -> Generator[ChatMessageStreamDelta | PlanningStep]:
         start_time = time.time()
         if is_first_step:
@@ -704,7 +710,7 @@ You have been provided with these additional arguments, that you can access dire
                                 "task": task,
                                 "tools": self.tools,
                                 "managed_agents": self.managed_agents,
-                                "remaining_steps": (self.max_steps - step),
+                                "remaining_steps": (max_steps - step),
                             },
                         ),
                     }
