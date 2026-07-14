@@ -255,7 +255,7 @@ planning:
     ### 2. 1. ...
     Etc.
     This plan should involve individual tasks based on the available tools, that if executed correctly will yield the correct answer.
-    Beware that you have {remaining_steps} steps remaining.
+    Beware that you have {{ remaining_steps }} steps remaining.
     Do not skip steps, do not add any superfluous steps. Only write the high-level plan, DO NOT DETAIL INDIVIDUAL TOOL CALLS.
     After writing the final step of the plan, write the '<end_plan>' tag and stop there.
 
