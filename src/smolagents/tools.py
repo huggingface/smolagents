@@ -349,6 +349,12 @@ class Tool(BaseTool):
                 raise ValueError(
                     "Cannot save objects created with from_space, from_langchain or from_gradio, as this would create errors."
                 )
+            if type(self).__name__ == "MCPAdaptTool":
+                raise ValueError(
+                    f"Cannot serialize MCP tool '{self.name}': it wraps a live MCP server session, which cannot be "
+                    "saved as standalone code. Remove MCP tools from your agent before calling to_dict, save or "
+                    "push_to_hub, and recreate them with MCPClient or ToolCollection.from_mcp when loading the agent."
+                )
 
             validate_tool_attributes(self.__class__)
 
