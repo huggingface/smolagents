@@ -339,6 +339,85 @@ class ApiWebSearchTool(Tool):
         )
 
 
+class KeenableSearchTool(Tool):
+    """Web search tool backed by the Keenable Search API.
+
+    Keyless by default: it queries the public endpoint with no account or API key. Setting an
+    optional API key (the ``KEENABLE_API_KEY`` environment variable by default) only lifts the
+    rate limit; it is never required.
+
+    Args:
+        api_key (`str`, *optional*): Keenable API key. If omitted, the tool reads `api_key_name`
+            from the environment; if that is also unset it stays keyless (public endpoint).
+        api_key_name (`str`, default `"KEENABLE_API_KEY"`): Environment variable holding the key.
+        max_results (`int`, default `10`): Maximum number of search results to return.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable.
+
+    Examples:
+        ```python
+        >>> from smolagents import KeenableSearchTool
+        >>> web_search_tool = KeenableSearchTool()  # keyless
+        >>> results = web_search_tool("Hugging Face")
+        >>> print(results)
+        ```
+    """
+
+    name = "web_search"
+    description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, URLs, and descriptions."
+    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
+    output_type = "string"
+
+    def __init__(
+        self,
+        api_key: str = "",
+        api_key_name: str = "",
+        max_results: int = 10,
+        rate_limit: float | None = 1.0,
+    ):
+        import os
+
+        super().__init__()
+        self.api_key_name = api_key_name or "KEENABLE_API_KEY"
+        self.api_key = api_key or os.getenv(self.api_key_name)
+        self.max_results = max_results
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        # No rate limit enforced
+        if not self.rate_limit:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
+
+    def forward(self, query: str) -> str:
+        import requests
+
+        self._enforce_rate_limit()
+        # Keyless by default; the optional key only lifts the rate limit.
+        endpoint = "https://api.keenable.ai/v1/search" if self.api_key else "https://api.keenable.ai/v1/search/public"
+        headers = {"Content-Type": "application/json", "X-Keenable-Title": "smolagents"}
+        if self.api_key:
+            headers["X-API-Key"] = self.api_key
+        response = requests.post(endpoint, headers=headers, json={"query": query, "mode": "pro"})
+        response.raise_for_status()
+        data = response.json()
+        results = data.get("results", [])[: self.max_results]
+        if not results:
+            raise Exception("No results found! Try a less restrictive/shorter query.")
+        return "## Search Results\n\n" + "\n\n".join(
+            f"{idx}. [{result.get('title', '')}]({result.get('url', '')})\n{result.get('description', '')}"
+            for idx, result in enumerate(results, start=1)
+        )
+
+
 class WebSearchTool(Tool):
     name = "web_search"
     description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, links, and descriptions."
@@ -686,6 +765,7 @@ TOOL_MAPPING = {
 
 __all__ = [
     "ApiWebSearchTool",
+    "KeenableSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
