@@ -949,6 +949,12 @@ def test_launch_gradio_demo_does_not_raise(tool_fixture_name, request):
         (str | int, 1, False),
         (str | int, None, True),
         (str | int, True, True),
+        # Union types that include "number": an int should be accepted wherever a float is,
+        # mirroring the scalar integer -> number coercion.
+        (float | str, 1, False),
+        (str | float, 1, False),
+        (float | str, 1.5, False),
+        (float | str, "a", False),
     ],
 )
 def test_validate_tool_arguments(tool_input_type, expected_input, expects_error):
