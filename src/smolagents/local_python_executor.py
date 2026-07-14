@@ -1608,6 +1608,11 @@ def evaluate_python_code(
             A dictionary mapping variable names to values. The `state` should contain the initial inputs but will be
             updated by this function to contain all variables as they are evaluated.
             The print outputs will be stored in the state under the key "_print_outputs".
+        authorized_imports (`List[str]`):
+            The list of modules that can be imported by the code. By default, only a few safe modules are allowed.
+            Add more at your own risk!
+        max_print_outputs_length (`int`):
+            Maximum length for the captured print outputs.    
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
     """
