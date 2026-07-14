@@ -155,7 +155,7 @@ def interactive_mode():
     model_type = Prompt.ask(
         "[bold]Model type[/]",
         default="InferenceClientModel",
-        choices=["InferenceClientModel", "OpenAIServerModel", "LiteLLMModel", "TransformersModel"],
+        choices=["InferenceClientModel", "OpenAIModel", "LiteLLMModel", "TransformersModel"],
     )
 
     model_id = Prompt.ask("[bold white]Model ID[/]", default="Qwen/Qwen2.5-Coder-32B-Instruct")
@@ -165,10 +165,9 @@ def interactive_mode():
     api_base = None
     api_key = None
     imports = []
-    action_type = "code"
 
     if Confirm.ask("\n[bold white]Configure advanced options?[/]", default=False):
-        if model_type in ["InferenceClientModel", "OpenAIServerModel", "LiteLLMModel"]:
+        if model_type in ["InferenceClientModel", "OpenAIModel", "LiteLLMModel"]:
             provider = Prompt.ask("[bold white]Provider[/]", default="")
             api_base = Prompt.ask("[bold white]API Base URL[/]", default="")
             api_key = Prompt.ask("[bold white]API Key[/]", default="", password=True)
