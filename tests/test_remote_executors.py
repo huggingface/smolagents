@@ -618,6 +618,18 @@ class TestBlaxelExecutorUnit:
         assert not hasattr(executor, "sandbox")
 
 
+@require_run_all
+class TestTenkiExecutorIntegration(CommonDockerExecutorIntegration):
+    @pytest.fixture
+    def custom_executor(self):
+        executor = TenkiExecutor(
+            additional_imports=["pillow", "numpy"],
+            logger=AgentLogger(LogLevel.INFO, Console(force_terminal=False, file=io.StringIO())),
+        )
+        yield executor
+        executor.delete()
+
+
 class TestTenkiExecutorUnit:
     def test_tenki_executor_instantiation_without_tenki_sdk(self):
         """Test that TenkiExecutor raises appropriate error when tenki-sandbox SDK is not installed."""
