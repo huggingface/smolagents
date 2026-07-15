@@ -188,6 +188,12 @@ class TaskStep(MemoryStep):
     task: str
     task_images: list["PIL.Image.Image"] | None = None
 
+    def dict(self):
+        return {
+            "task": self.task,
+            "task_images": [image.tobytes() for image in self.task_images] if self.task_images is not None else None,
+        }
+
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         content = [{"type": "text", "text": f"New task:\n{self.task}"}]
         if self.task_images:
