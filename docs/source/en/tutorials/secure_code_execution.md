@@ -314,10 +314,6 @@ Each agent run executes in a disposable Linux microVM with kernel-level isolatio
 You can customize the sandbox via `executor_kwargs`, e.g. `executor_kwargs={"create_kwargs": {"cpu_cores": 4, "memory_mb": 8192}}`;
 the sandbox image only needs to provide `python3` and `pip`.
 
-> [!TIP]
-> As a cost safety net, you can cap the sandbox lifetime server-side with `executor_kwargs={"create_kwargs": {"max_duration": 3600}}` (in seconds):
-> Tenki then terminates the sandbox after that time even if your process exits without running cleanup.
-
 ### Docker setup
 
 #### Installation
