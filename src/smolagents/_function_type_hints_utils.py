@@ -22,9 +22,11 @@ been duplicated.
 TODO: move them to `huggingface_hub` to avoid code duplication.
 """
 
+import ast
 import inspect
 import json
 import re
+import textwrap
 import types
 from collections.abc import Callable
 from copy import copy
@@ -60,30 +62,61 @@ def get_imports(code: str) -> list[str]:
     """
     Extracts all the libraries (not relative imports) that are imported in a code.
 
+    Imports nested under a `try` block (optional dependencies) or an
+    `if is_flash_attn_*_available()` guard (cpu-only environments) are ignored, as are
+    relative imports.
+
     Args:
         code (`str`): Code text to inspect.
 
     Returns:
         `list[str]`: List of all packages required to use the input code.
     """
-    # filter out try/except block so in custom code we can have try/except imports
-    code = re.sub(r"\s*try\s*:.*?except.*?:", "", code, flags=re.DOTALL)
+    # Parse with `ast` instead of regex so that comments, multi-name imports and other
+    # syntactic details don't cause imports to be missed (GH-2211). `dedent` lets callers
+    # pass indented snippets (e.g. an indented tool body) without an IndentationError.
+    tree = ast.parse(textwrap.dedent(code))
 
-    # filter out imports under is_flash_attn_2_available block for avoid import issues in cpu only environment
-    code = re.sub(
-        r"if is_flash_attn[a-zA-Z0-9_]+available\(\):\s*(from flash_attn\s*.*\s*)+",
-        "",
-        code,
-        flags=re.MULTILINE,
+    collected: list[str] = []
+    for node in tree.body:
+        _collect_imports(node, collected)
+
+    top_level_modules = [module.split(".")[0] for module in collected if not module.startswith(".")]
+    return [get_package_name(module_name) for module_name in set(top_level_modules)]
+
+
+def _is_flash_attn_guard(test: ast.expr) -> bool:
+    """True for conditions shaped like `is_flash_attn_*_available()`."""
+    return (
+        isinstance(test, ast.Call)
+        and isinstance(test.func, ast.Name)
+        and test.func.id.startswith("is_flash_attn")
+        and test.func.id.endswith("available")
     )
 
-    # Imports of the form `import xxx` or `import xxx as yyy`
-    imports = re.findall(r"^\s*import\s+(\S+?)(?:\s+as\s+\S+)?\s*$", code, flags=re.MULTILINE)
-    # Imports of the form `from xxx import yyy`
-    imports += re.findall(r"^\s*from\s+(\S+)\s+import", code, flags=re.MULTILINE)
-    # Only keep the top-level module
-    imports = [imp.split(".")[0] for imp in imports if not imp.startswith(".")]
-    return [get_package_name(import_name) for import_name in set(imports)]
+
+def _collect_imports(node: ast.AST, collected: list[str], *, skip: bool = False) -> None:
+    """Walk `node`, appending import module names to `collected`.
+
+    `skip` is inherited from enclosing `try` blocks and `is_flash_attn_*_available()`
+    guards, whose imports describe optional dependencies and must be ignored.
+    """
+    if isinstance(node, ast.Try):
+        # imports inside try/except describe optional dependencies
+        skip = True
+    elif isinstance(node, ast.If):
+        skip = skip or _is_flash_attn_guard(node.test)
+    elif isinstance(node, ast.Import):
+        if not skip:
+            collected.extend(alias.name for alias in node.names)
+        return
+    elif isinstance(node, ast.ImportFrom):
+        # `level > 0` means a relative import (e.g. `from . import x`).
+        if not skip and node.module and not node.level:
+            collected.append(node.module)
+        return
+    for child in ast.iter_child_nodes(node):
+        _collect_imports(child, collected, skip=skip)
 
 
 class TypeHintParsingException(Exception):
