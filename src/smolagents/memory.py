@@ -58,6 +58,7 @@ class ActionStep(MemoryStep):
     model_output: str | list[dict[str, Any]] | None = None
     code_action: str | None = None
     observations: str | None = None
+    tool_observations: list[dict[str, str]] | None = None
     observations_images: list["PIL.Image.Image"] | None = None
     action_output: Any = None
     token_usage: TokenUsage | None = None
@@ -81,6 +82,7 @@ class ActionStep(MemoryStep):
             "model_output": self.model_output,
             "code_action": self.code_action,
             "observations": self.observations,
+            "tool_observations": self.tool_observations,
             "observations_images": [image.tobytes() for image in self.observations_images]
             if self.observations_images
             else None,
