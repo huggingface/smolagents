@@ -292,6 +292,8 @@ pip install 'smolagents[tenki]'
 ```bash
 export TENKI_API_KEY="your-api-key"
 ```
+If your account has more than one project, also set `TENKI_PROJECT_ID` (or pass `executor_kwargs={"create_kwargs": {"project_id": ...}}`);
+with a single project it is detected automatically.
 
 #### Running your agent in Tenki: quick start
 
