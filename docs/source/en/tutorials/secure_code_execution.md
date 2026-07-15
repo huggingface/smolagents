@@ -469,7 +469,7 @@ finally:
 
 ### Best practices for sandboxes
 
-These key practices apply to Blaxel, E2B, Modal, Tenki, and Docker sandboxes:
+These key practices apply to Blaxel, E2B, Tenki, and Docker sandboxes:
 
 - Resource management
   - Set memory and CPU limits
