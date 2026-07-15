@@ -17,6 +17,7 @@ from smolagents.remote_executors import (
     E2BExecutor,
     ModalExecutor,
     RemotePythonExecutor,
+    TenkiExecutor,
 )
 from smolagents.serialization import SerializationError
 from smolagents.utils import AgentError
@@ -615,3 +616,98 @@ class TestBlaxelExecutorUnit:
         assert mock_delete_sandbox.sync.called
         # Verify sandbox reference was cleaned up
         assert not hasattr(executor, "sandbox")
+
+
+class TestTenkiExecutorUnit:
+    def test_tenki_executor_instantiation_without_tenki_sdk(self):
+        """Test that TenkiExecutor raises appropriate error when tenki-sandbox SDK is not installed."""
+        logger = MagicMock()
+        with patch.dict("sys.modules", {"tenki_sandbox": None}):
+            with pytest.raises(ModuleNotFoundError) as excinfo:
+                TenkiExecutor(additional_imports=[], logger=logger)
+            assert "Please install 'tenki' extra" in str(excinfo.value)
+
+    @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
+    @patch("smolagents.remote_executors._create_kernel_http")
+    @patch("tenki_sandbox.Sandbox")
+    def test_tenki_executor_instantiation(self, mock_sandbox_cls, mock_create_kernel, mock_wait_for_server):
+        """Test TenkiExecutor instantiation with mocked Tenki SDK."""
+        logger = MagicMock()
+        mock_sandbox = MagicMock()
+        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
+        mock_sandbox_cls.create.return_value = mock_sandbox
+        mock_create_kernel.return_value = "kernel-123"
+
+        executor = TenkiExecutor(additional_imports=[], logger=logger)
+
+        assert mock_sandbox_cls.create.call_args.kwargs["name"].startswith("smolagent-executor-")
+        mock_sandbox.expose_port.assert_called_once_with(8888)
+        assert executor.ws_url.startswith("wss://test-sandbox.tenki.cloud/api/kernels/kernel-123/channels?token=")
+
+    @patch("smolagents.remote_executors.TenkiExecutor.install_packages")
+    @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
+    @patch("smolagents.remote_executors._create_kernel_http")
+    @patch("tenki_sandbox.Sandbox")
+    def test_tenki_executor_custom_parameters(
+        self, mock_sandbox_cls, mock_create_kernel, mock_wait_for_server, mock_install_packages
+    ):
+        """Test TenkiExecutor with custom parameters."""
+        logger = MagicMock()
+        mock_sandbox = MagicMock()
+        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
+        mock_sandbox_cls.create.return_value = mock_sandbox
+        mock_create_kernel.return_value = "kernel-123"
+        mock_install_packages.return_value = ["numpy"]
+
+        executor = TenkiExecutor(
+            additional_imports=["numpy"],
+            logger=logger,
+            sandbox_name="test-sandbox",
+            port=9999,
+            create_kwargs={"image": "custom-image:latest", "cpu_cores": 4},
+        )
+
+        create_kwargs = mock_sandbox_cls.create.call_args.kwargs
+        assert create_kwargs["name"] == "test-sandbox"
+        assert create_kwargs["image"] == "custom-image:latest"
+        assert create_kwargs["cpu_cores"] == 4
+        mock_sandbox.expose_port.assert_called_once_with(9999)
+        assert executor.port == 9999
+        assert mock_install_packages.called
+
+    @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
+    @patch("smolagents.remote_executors._create_kernel_http")
+    @patch("tenki_sandbox.Sandbox")
+    def test_tenki_executor_cleanup(self, mock_sandbox_cls, mock_create_kernel, mock_wait_for_server):
+        """Test TenkiExecutor cleanup method and double-cleanup guard."""
+        logger = MagicMock()
+        mock_sandbox = MagicMock()
+        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
+        mock_sandbox_cls.create.return_value = mock_sandbox
+        mock_create_kernel.return_value = "kernel-123"
+
+        executor = TenkiExecutor(additional_imports=[], logger=logger)
+        executor.cleanup()
+
+        assert mock_sandbox.close_if_open.call_count == 1
+        assert not hasattr(executor, "sandbox")
+
+        # Second cleanup should be a no-op
+        executor.cleanup()
+        assert mock_sandbox.close_if_open.call_count == 1
+
+    @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
+    @patch("smolagents.remote_executors._create_kernel_http")
+    @patch("tenki_sandbox.Sandbox")
+    def test_tenki_executor_cleanup_on_init_failure(self, mock_sandbox_cls, mock_create_kernel, mock_wait_for_server):
+        """Test that the sandbox is cleaned up when initialization fails."""
+        logger = MagicMock()
+        mock_sandbox = MagicMock()
+        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
+        mock_sandbox_cls.create.return_value = mock_sandbox
+        mock_create_kernel.side_effect = RuntimeError("Failed to create kernel")
+
+        with pytest.raises(RuntimeError, match="Failed to initialize Tenki sandbox"):
+            TenkiExecutor(additional_imports=[], logger=logger)
+
+        assert mock_sandbox.close_if_open.call_count == 1

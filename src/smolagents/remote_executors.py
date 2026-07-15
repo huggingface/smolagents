@@ -39,7 +39,7 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
-__all__ = ["BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor"]
+__all__ = ["BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor", "TenkiExecutor"]
 
 
 try:
@@ -1074,3 +1074,133 @@ class BlaxelExecutor(RemotePythonExecutor):
             self.cleanup()
         except Exception:
             pass  # Silently ignore errors during cleanup
+
+
+class TenkiExecutor(RemotePythonExecutor):
+    """
+    Remote Python code executor in a Tenki sandbox.
+
+    Tenki provides disposable Linux microVMs with kernel-level isolation that boot from
+    pre-warmed pools in a few seconds. Authentication is read from the `TENKI_API_KEY`
+    environment variable.
+
+    Args:
+        additional_imports (`list[str]`): Additional Python packages to install.
+        logger (`Logger`): Logger to use for output and errors.
+        allow_pickle (`bool`, default `False`): Whether to allow pickle serialization for objects that cannot be safely serialized to JSON.
+            - `False` (default, recommended): Only safe JSON serialization is used. Raises error if object cannot be safely serialized.
+            - `True` (legacy mode): Tries safe JSON serialization first, falls back to pickle with warning if needed.
+
+            **Security Warning:** Pickle deserialization can execute arbitrary code. Only set `allow_pickle=True`
+            if you fully trust the execution environment and need backward compatibility with custom types.
+        sandbox_name (`str`, *optional*): Name for the sandbox. Defaults to "smolagent-executor-" followed by a random suffix.
+        port (`int`, default `8888`): Port for the Jupyter Kernel Gateway to bind to inside the sandbox.
+        create_kwargs (`dict`, *optional*): Additional keyword arguments to pass to the Tenki Sandbox create command,
+            e.g. `image`, `cpu_cores`, `memory_mb`, `max_duration`. The sandbox image must provide `python3` and `pip`.
+    """
+
+    def __init__(
+        self,
+        additional_imports: list[str],
+        logger,
+        allow_pickle: bool = False,
+        sandbox_name: str | None = None,
+        port: int = 8888,
+        create_kwargs: Optional[dict] = None,
+    ):
+        super().__init__(additional_imports, logger, allow_pickle)
+        try:
+            from tenki_sandbox import Sandbox
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                """Please install 'tenki' extra to use TenkiExecutor: `pip install 'smolagents[tenki]'`"""
+            )
+
+        self.port = port
+        self._cleaned_up = False
+        token = secrets.token_urlsafe(16)
+        create_kwargs = {
+            "name": sandbox_name or f"smolagent-executor-{uuid.uuid4().hex[:8]}",
+            **(create_kwargs or {}),
+        }
+
+        self.logger.log("Starting Tenki sandbox", level=LogLevel.INFO)
+        try:
+            self.sandbox = Sandbox.create(**create_kwargs)
+            # Ensure the Jupyter Kernel Gateway is available in the sandbox (no-op if the image already has it)
+            self.sandbox.shell(
+                "python3 -c 'import kernel_gateway' 2>/dev/null"
+                " || pip install --quiet jupyter_kernel_gateway ipykernel",
+                timeout=300,
+                check=True,
+            )
+            self.logger.log("Starting Jupyter Kernel Gateway", level=LogLevel.INFO)
+            self._kernel_gateway_process = self.sandbox.start(
+                "bash",
+                "-lc",
+                f"jupyter kernelgateway --KernelGatewayApp.ip=0.0.0.0 --KernelGatewayApp.port={port}",
+                env={"KG_AUTH_TOKEN": token},
+            )
+            base_url = self.sandbox.expose_port(port).url.rstrip("/")
+            self._wait_for_server(base_url, token)
+
+            kernel_id = _create_kernel_http(f"{base_url}/api/kernels?token={token}", self.logger)
+            ws_scheme = "wss" if base_url.startswith("https") else "ws"
+            ws_base = base_url.replace("https://", "").replace("http://", "")
+            self.ws_url = f"{ws_scheme}://{ws_base}/api/kernels/{kernel_id}/channels?token={token}"
+
+            self.installed_packages = self.install_packages(additional_imports)
+            self.logger.log("Tenki sandbox is running", level=LogLevel.INFO)
+        except Exception as e:
+            self.cleanup()
+            raise RuntimeError(f"Failed to initialize Tenki sandbox: {e}") from e
+
+    def run_code_raise_errors(self, code: str) -> CodeOutput:
+        """
+        Execute Python code in the Tenki sandbox and return the result.
+
+        Args:
+            code (`str`): Python code to execute.
+
+        Returns:
+            `CodeOutput`: Code output containing the result, logs, and whether it is the final answer.
+        """
+        from websocket import create_connection
+
+        with closing(create_connection(self.ws_url)) as ws:
+            return _websocket_run_code_raise_errors(code, ws, self.logger, self.allow_pickle)
+
+    def cleanup(self):
+        """Clean up the Tenki sandbox by terminating it."""
+        if self._cleaned_up:
+            return
+        self._cleaned_up = True
+        try:
+            if hasattr(self, "sandbox"):
+                self.logger.log("Shutting down sandbox...", level=LogLevel.INFO)
+                self.sandbox.close_if_open()
+                self.logger.log("Sandbox cleanup completed", level=LogLevel.INFO)
+                del self.sandbox
+        except Exception as e:
+            self.logger.log_error(f"Error during cleanup: {e}")
+
+    def delete(self):
+        """Ensure cleanup on deletion."""
+        self.cleanup()
+
+    def _wait_for_server(self, base_url: str, token: str):
+        """Wait for the Jupyter Kernel Gateway to start up."""
+        n_retries = 0
+        while True:
+            try:
+                resp = requests.get(f"{base_url}/api/kernelspecs?token={token}", timeout=2)
+                if resp.status_code == 200:
+                    break
+            except RequestException:
+                pass
+            n_retries += 1
+            if n_retries % 10 == 0:
+                self.logger.log("Waiting for server to startup, retrying...", level=LogLevel.INFO)
+            if n_retries > 60:
+                raise RuntimeError("Unable to connect to sandbox")
+            time.sleep(1.0)
