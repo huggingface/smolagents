@@ -465,7 +465,7 @@ class MultiStepAgent(ABC):
         agent.run("What is the result of 2 power 3.7384?")
         ```
         """
-        max_steps = max_steps or self.max_steps
+        max_steps = max_steps if max_steps is not None else self.max_steps
         self.task = task
         self.interrupt_switch = False
         if additional_args:
