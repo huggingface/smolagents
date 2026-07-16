@@ -32,7 +32,7 @@ while llm_should_continue(memory): # this loop is the multi-step part
     memory += [action, observations]
 ```
 
-This agentic system runs in a loop, executing a new action at each step (the action can involve calling some pre-determined *tools* that are just functions), until its observations make it apparent that a satisfactory state has been reached to solve the given task. Here’s an example of how a multi-step agent can solve a simple math question:
+This agentic system runs in a loop, executing a new action at each step (the action can involve calling some pre-determined *tools* that are just functions), until its observations make it apparent that a satisfactory state has been reached to solve the given task. Here's an example of how a multi-step agent can solve a simple math question:
 
 <div class="flex justify-center">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/Agent_ManimCE.gif"/>
@@ -41,7 +41,7 @@ This agentic system runs in a loop, executing a new action at each step (the act
 
 ## ✅ When to use agents / ⛔ when to avoid them
 
-Agents are useful when you need an LLM to determine the workflow of an app. But they’re often overkill. The question is: do I really need flexibility in the workflow to efficiently solve the task at hand?
+Agents are useful when you need an LLM to determine the workflow of an app. But they're often overkill. The question is: do I really need flexibility in the workflow to efficiently solve the task at hand?
 If the pre-determined workflow falls short too often, that means you need more flexibility.
 Let's take an example: say you're making an app that handles customer requests on a surfing trip website.
 
@@ -102,4 +102,4 @@ Writing actions in code rather than JSON-like snippets provides better:
 - **Composability:** could you nest JSON actions within each other, or define a set of JSON actions to re-use later, the same way you could just define a python function?
 - **Object management:** how do you store the output of an action like `generate_image` in JSON?
 - **Generality:** code is built to express simply anything you can have a computer do.
-- **Representation in LLM training data:** plenty of quality code actions are already included in LLMs’ training data which means they’re already trained for this!
+- **Representation in LLM training data:** plenty of quality code actions are already included in LLMs' training data which means they're already trained for this!
