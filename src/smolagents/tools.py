@@ -133,6 +133,7 @@ class Tool(BaseTool):
     inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
     output_schema: dict[str, Any] | None = None
+    output_description: str | None = None
 
     def __init__(self, *args, **kwargs):
         self.is_initialized = False
@@ -282,6 +283,8 @@ class Tool(BaseTool):
             indented_schema = textwrap.indent(formatted_schema, "        ")
             returns_doc = f"\nReturns:\n    dict (structured output): This tool ALWAYS returns a dictionary that strictly adheres to the following JSON schema:\n{indented_schema}"
             tool_doc += f"\n{returns_doc}"
+        elif self.output_description:
+            tool_doc += f"\n\nReturns:\n    {self.output_type}: {self.output_description}"
 
         tool_doc = f'"""{tool_doc}\n"""'
         return f"def {self.name}{tool_signature}:\n{textwrap.indent(tool_doc, '    ')}"
@@ -1092,6 +1095,10 @@ def tool(tool_function: Callable) -> Tool:
         SimpleTool.output_schema = tool_json_schema["output_schema"]
     elif "return" in tool_json_schema and "schema" in tool_json_schema["return"]:
         SimpleTool.output_schema = tool_json_schema["return"]["schema"]
+
+    # Preserve the return description from the docstring for use in to_code_prompt()
+    if "return" in tool_json_schema and "description" in tool_json_schema["return"]:
+        SimpleTool.output_description = tool_json_schema["return"]["description"]
 
     @wraps(tool_function)
     def wrapped_function(*args, **kwargs):
