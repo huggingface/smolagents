@@ -569,7 +569,12 @@ class Tool(BaseTool):
         return Tool.from_code(tool_code, **kwargs)
 
     @classmethod
-    def from_code(cls, tool_code: str, **kwargs):
+    def from_code(cls, tool_code: str, trust_remote_code: bool = False, **kwargs):
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading a tool from code is dangerous and can lead to arbitrary code execution. "
+                "Please set `trust_remote_code=True` to allow this."
+            )
         module = types.ModuleType("dynamic_tool")
 
         exec(tool_code, module.__dict__)
