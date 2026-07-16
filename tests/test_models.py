@@ -243,6 +243,34 @@ class TestModel:
         assert isinstance(message2.role, MessageRole)
         assert message2.role == MessageRole.ASSISTANT
 
+    def test_prepare_completion_kwargs_prompt_caching(self):
+        model = Model(model_id="gpt-4", use_prompt_caching=True)
+        messages = [
+            ChatMessage(role=MessageRole.SYSTEM, content="System prompt"),
+            ChatMessage(role=MessageRole.USER, content="User message"),
+        ]
+        completion_kwargs = model._prepare_completion_kwargs(messages)
+        for msg in completion_kwargs["messages"]:
+            if isinstance(msg["content"], list):
+                assert "cache_control" not in msg["content"][0]
+            else:
+                assert "cache_control" not in msg
+
+        anthropic_model = Model(model_id="anthropic/claude-3-5-sonnet", use_prompt_caching=True)
+        messages = [
+            ChatMessage(role=MessageRole.SYSTEM, content="System prompt"),
+            ChatMessage(role=MessageRole.USER, content="User message"),
+            ChatMessage(role=MessageRole.ASSISTANT, content="Assistant message"),
+            ChatMessage(role=MessageRole.USER, content="Last user message"),
+        ]
+        completion_kwargs = anthropic_model._prepare_completion_kwargs(messages)
+        formatted_messages = completion_kwargs["messages"]
+        
+        assert formatted_messages[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        assert formatted_messages[1]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        assert formatted_messages[-3]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        assert "cache_control" not in formatted_messages[-1]["content"][0]
+
     @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
