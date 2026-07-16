@@ -1083,7 +1083,7 @@ class TenkiExecutor(RemotePythonExecutor):
 
     Tenki provides disposable Linux microVMs with kernel-level isolation that boot from
     pre-warmed pools in a few seconds. Authentication is read from the `TENKI_API_KEY`
-    environment variable.
+    (or `TENKI_AUTH_TOKEN`) environment variable, or can be passed via `create_kwargs={"auth_token": ...}`.
 
     Args:
         additional_imports (`list[str]`): Additional Python packages to install.
@@ -1097,20 +1097,24 @@ class TenkiExecutor(RemotePythonExecutor):
         sandbox_name (`str`, *optional*): Name for the sandbox. Defaults to "smolagent-executor-" followed by a random suffix.
         port (`int`, default `8888`): Port for the Jupyter Kernel Gateway to bind to inside the sandbox.
         create_kwargs (`dict`, *optional*): Additional keyword arguments to pass to the Tenki Sandbox create command,
-            e.g. `project_id`, `image`, `cpu_cores`, `memory_mb`, `max_duration`. The sandbox image must provide
+            e.g. `project_id`, `image`, `cpu_cores`, `memory_mb`. The sandbox image must provide
             `python3`; the Jupyter Kernel Gateway (and `pip`, if missing) is installed on startup, so an image with
             them preinstalled boots faster. If `project_id` is not provided, it is read from the `TENKI_PROJECT_ID`
-            environment variable, or resolved automatically when the account has a single project.
+            environment variable, or resolved automatically when the account (or the given `workspace_id`) has a
+            single project.
     """
 
-    # Bootstraps the Jupyter Kernel Gateway on any python3-capable image: no-op if already installed,
-    # and installs to the user site (the sandbox filesystem does not support virtualenv symlinks).
+    # Bootstraps the Jupyter Kernel Gateway on any python3-capable image: no-op if already installed.
+    # Everything is installed to the user site so that the kernel and the agent's in-kernel `!pip install`
+    # share one interpreter without touching the externally-managed system site. The user-site directory is
+    # created upfront because CPython only adds it to sys.path when it exists at interpreter startup.
     _SETUP_KERNEL_GATEWAY_COMMAND = dedent("""\
+        mkdir -p "$(python3 -m site --user-site)"
         python3 -c 'import kernel_gateway' 2>/dev/null || {
             python3 -m pip --version >/dev/null 2>&1 \\
                 || python3 -m ensurepip --user >/dev/null 2>&1 \\
                 || { sudo apt-get update -qq && sudo apt-get install -y -qq python3-pip >/dev/null; }
-            python3 -m pip install --quiet --user --break-system-packages jupyter_kernel_gateway ipykernel
+            PIP_BREAK_SYSTEM_PACKAGES=1 python3 -m pip install --quiet --user jupyter_kernel_gateway ipykernel
         }""")
 
     def __init__(
@@ -1124,36 +1128,47 @@ class TenkiExecutor(RemotePythonExecutor):
     ):
         super().__init__(additional_imports, logger, allow_pickle)
         try:
-            from tenki_sandbox import Sandbox
+            from tenki_sandbox import Client
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 """Please install 'tenki' extra to use TenkiExecutor: `pip install 'smolagents[tenki]'`"""
             )
 
-        self.port = port
+        self.port = int(port)
         self._cleaned_up = False
         token = secrets.token_urlsafe(16)
         create_kwargs = {
             "name": sandbox_name or f"smolagent-executor-{uuid.uuid4().hex[:8]}",
             **(create_kwargs or {}),
         }
-        if not create_kwargs.get("project_id"):
-            create_kwargs["project_id"] = self._resolve_project_id(create_kwargs)
-
-        self.logger.log("Starting Tenki sandbox", level=LogLevel.INFO)
+        client_kwargs = {
+            key: create_kwargs.pop(key)
+            for key in ("auth_token", "base_url", "gateway_url", "cookie_name", "timeout")
+            if key in create_kwargs
+        }
+        self.client = Client(**client_kwargs)
         try:
-            self.sandbox = Sandbox.create(**create_kwargs)
-            self.sandbox.shell(self._SETUP_KERNEL_GATEWAY_COMMAND, timeout=600, check=True)
+            if not create_kwargs.get("project_id"):
+                create_kwargs["project_id"] = self._resolve_project_id(self.client, create_kwargs.get("workspace_id"))
+
+            self.logger.log("Starting Tenki sandbox", level=LogLevel.INFO)
+            self.sandbox = self.client.create(**create_kwargs)
+            setup_result = self.sandbox.shell(self._SETUP_KERNEL_GATEWAY_COMMAND, timeout=600)
+            if not setup_result.ok:
+                raise RuntimeError(
+                    f"Kernel gateway setup failed with exit code {setup_result.exit_code}: "
+                    f"{setup_result.stderr_text.strip()[-2000:]}"
+                )
             self.logger.log("Starting Jupyter Kernel Gateway", level=LogLevel.INFO)
             self._kernel_gateway_process = self.sandbox.start(
                 "bash",
                 "-lc",
                 'export PATH="$HOME/.local/bin:$PATH";'
-                f" exec jupyter kernelgateway --KernelGatewayApp.ip=0.0.0.0 --KernelGatewayApp.port={port}",
+                f" exec jupyter kernelgateway --KernelGatewayApp.ip=0.0.0.0 --KernelGatewayApp.port={self.port}",
                 # PIP_USER/PIP_BREAK_SYSTEM_PACKAGES let the kernel's `!pip install` work on externally-managed images
                 env={"KG_AUTH_TOKEN": token, "PIP_USER": "1", "PIP_BREAK_SYSTEM_PACKAGES": "1"},
             )
-            base_url = self.sandbox.expose_port(port).url.rstrip("/")
+            base_url = self.sandbox.expose_port(self.port).url.rstrip("/")
             self._wait_for_server(base_url, token)
 
             kernel_id = _create_kernel_http(f"{base_url}/api/kernels?token={token}", self.logger)
@@ -1163,28 +1178,27 @@ class TenkiExecutor(RemotePythonExecutor):
 
             self.installed_packages = self.install_packages(additional_imports)
             self.logger.log("Tenki sandbox is running", level=LogLevel.INFO)
+        except ValueError:
+            self.cleanup()
+            raise
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Tenki sandbox: {e}") from e
 
     @staticmethod
-    def _resolve_project_id(create_kwargs: dict) -> str:
+    def _resolve_project_id(client, workspace_id: str | None = None) -> str:
         """Resolve the Tenki project id from the environment or the account's sole project."""
         project_id = os.getenv("TENKI_PROJECT_ID")
         if project_id:
             return project_id
-        from tenki_sandbox.client import Client
-
-        client_kwargs = {
-            key: create_kwargs[key] for key in ("auth_token", "base_url", "timeout") if key in create_kwargs
-        }
-        with Client(**client_kwargs) as client:
-            identity = client.who_am_i()
-        projects = [project for workspace in identity.workspaces for project in workspace.projects]
+        identity = client.who_am_i()
+        workspaces = [ws for ws in identity.workspaces if workspace_id is None or ws.id == workspace_id]
+        projects = [project for workspace in workspaces for project in workspace.projects]
         if len(projects) != 1:
             raise ValueError(
                 f"Could not determine which Tenki project to use ({len(projects)} projects found): "
-                "set the TENKI_PROJECT_ID environment variable or pass create_kwargs={'project_id': ...}"
+                "set the TENKI_PROJECT_ID environment variable or pass create_kwargs={'project_id': ...} "
+                '(with CodeAgent: executor_kwargs={"create_kwargs": {"project_id": ...}})'
             )
         return projects[0].id
 
@@ -1213,9 +1227,16 @@ class TenkiExecutor(RemotePythonExecutor):
                 self.logger.log("Shutting down sandbox...", level=LogLevel.INFO)
                 self.sandbox.close_if_open()
                 self.logger.log("Sandbox cleanup completed", level=LogLevel.INFO)
-                del self.sandbox
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
+        finally:
+            if hasattr(self, "sandbox"):
+                del self.sandbox
+            if hasattr(self, "client"):
+                try:
+                    self.client.close()
+                except Exception as e:
+                    self.logger.log_error(f"Error closing Tenki client: {e}")
 
     def delete(self):
         """Ensure cleanup on deletion."""
@@ -1235,5 +1256,12 @@ class TenkiExecutor(RemotePythonExecutor):
             if n_retries % 10 == 0:
                 self.logger.log("Waiting for server to startup, retrying...", level=LogLevel.INFO)
             if n_retries > 60:
-                raise RuntimeError("Unable to connect to sandbox")
+                error_message = "Unable to connect to the Jupyter Kernel Gateway in the Tenki sandbox"
+                try:
+                    stderr = self._kernel_gateway_process.stderr.read_text().strip()
+                except Exception:
+                    stderr = ""
+                if stderr:
+                    error_message += f". Kernel gateway output:\n{stderr[-2000:]}"
+                raise RuntimeError(error_message)
             time.sleep(1.0)

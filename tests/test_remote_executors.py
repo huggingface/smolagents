@@ -639,37 +639,51 @@ class TestTenkiExecutorUnit:
                 TenkiExecutor(additional_imports=[], logger=logger)
             assert "Please install 'tenki' extra" in str(excinfo.value)
 
+    @staticmethod
+    def _make_mock_client(mock_client_cls):
+        """Wire the mocked tenki_sandbox.Client with a sandbox whose init calls succeed."""
+        mock_client = mock_client_cls.return_value
+        mock_sandbox = mock_client.create.return_value
+        mock_sandbox.shell.return_value = MagicMock(ok=True)
+        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
+        return mock_client, mock_sandbox
+
     @patch.dict("os.environ", {"TENKI_PROJECT_ID": "proj-123"})
     @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
     @patch("smolagents.remote_executors._create_kernel_http")
-    @patch("tenki_sandbox.Sandbox")
-    def test_tenki_executor_instantiation(self, mock_sandbox_cls, mock_create_kernel, mock_wait_for_server):
+    @patch("tenki_sandbox.Client")
+    def test_tenki_executor_instantiation(self, mock_client_cls, mock_create_kernel, mock_wait_for_server):
         """Test TenkiExecutor instantiation with mocked Tenki SDK."""
         logger = MagicMock()
-        mock_sandbox = MagicMock()
-        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
-        mock_sandbox_cls.create.return_value = mock_sandbox
+        mock_client, mock_sandbox = self._make_mock_client(mock_client_cls)
         mock_create_kernel.return_value = "kernel-123"
 
         executor = TenkiExecutor(additional_imports=[], logger=logger)
 
-        assert mock_sandbox_cls.create.call_args.kwargs["name"].startswith("smolagent-executor-")
-        assert mock_sandbox_cls.create.call_args.kwargs["project_id"] == "proj-123"
+        create_kwargs = mock_client.create.call_args.kwargs
+        assert create_kwargs["name"].startswith("smolagent-executor-")
+        assert create_kwargs["project_id"] == "proj-123"
+        # The kernel gateway bootstrap ran in the sandbox
+        assert "jupyter_kernel_gateway" in mock_sandbox.shell.call_args.args[0]
+        # The gateway process gets the auth token, and pip env vars for in-kernel `!pip install`
+        start_env = mock_sandbox.start.call_args.kwargs["env"]
+        assert start_env["KG_AUTH_TOKEN"]
+        assert start_env["PIP_USER"] == "1"
+        assert start_env["PIP_BREAK_SYSTEM_PACKAGES"] == "1"
         mock_sandbox.expose_port.assert_called_once_with(8888)
         assert executor.ws_url.startswith("wss://test-sandbox.tenki.cloud/api/kernels/kernel-123/channels?token=")
 
+    @patch.dict("os.environ", {"TENKI_PROJECT_ID": "proj-123"})
     @patch("smolagents.remote_executors.TenkiExecutor.install_packages")
     @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
     @patch("smolagents.remote_executors._create_kernel_http")
-    @patch("tenki_sandbox.Sandbox")
+    @patch("tenki_sandbox.Client")
     def test_tenki_executor_custom_parameters(
-        self, mock_sandbox_cls, mock_create_kernel, mock_wait_for_server, mock_install_packages
+        self, mock_client_cls, mock_create_kernel, mock_wait_for_server, mock_install_packages
     ):
-        """Test TenkiExecutor with custom parameters."""
+        """Test TenkiExecutor with custom parameters, including client-kwarg routing."""
         logger = MagicMock()
-        mock_sandbox = MagicMock()
-        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
-        mock_sandbox_cls.create.return_value = mock_sandbox
+        mock_client, mock_sandbox = self._make_mock_client(mock_client_cls)
         mock_create_kernel.return_value = "kernel-123"
         mock_install_packages.return_value = ["numpy"]
 
@@ -678,10 +692,18 @@ class TestTenkiExecutorUnit:
             logger=logger,
             sandbox_name="test-sandbox",
             port=9999,
-            create_kwargs={"project_id": "proj-456", "image": "custom-image:latest", "cpu_cores": 4},
+            create_kwargs={
+                "project_id": "proj-456",
+                "image": "custom-image:latest",
+                "cpu_cores": 4,
+                "auth_token": "test-token",
+            },
         )
 
-        create_kwargs = mock_sandbox_cls.create.call_args.kwargs
+        # Client-level kwargs are routed to the Client, not to sandbox creation
+        mock_client_cls.assert_called_once_with(auth_token="test-token")
+        create_kwargs = mock_client.create.call_args.kwargs
+        assert "auth_token" not in create_kwargs
         assert create_kwargs["name"] == "test-sandbox"
         assert create_kwargs["project_id"] == "proj-456"
         assert create_kwargs["image"] == "custom-image:latest"
@@ -693,70 +715,105 @@ class TestTenkiExecutorUnit:
     @patch.dict("os.environ", {"TENKI_PROJECT_ID": "proj-123"})
     @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
     @patch("smolagents.remote_executors._create_kernel_http")
-    @patch("tenki_sandbox.Sandbox")
-    def test_tenki_executor_cleanup(self, mock_sandbox_cls, mock_create_kernel, mock_wait_for_server):
+    @patch("tenki_sandbox.Client")
+    def test_tenki_executor_cleanup(self, mock_client_cls, mock_create_kernel, mock_wait_for_server):
         """Test TenkiExecutor cleanup method and double-cleanup guard."""
         logger = MagicMock()
-        mock_sandbox = MagicMock()
-        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
-        mock_sandbox_cls.create.return_value = mock_sandbox
+        mock_client, mock_sandbox = self._make_mock_client(mock_client_cls)
         mock_create_kernel.return_value = "kernel-123"
 
         executor = TenkiExecutor(additional_imports=[], logger=logger)
         executor.cleanup()
 
         assert mock_sandbox.close_if_open.call_count == 1
+        assert mock_client.close.call_count == 1
         assert not hasattr(executor, "sandbox")
 
         # Second cleanup should be a no-op
         executor.cleanup()
         assert mock_sandbox.close_if_open.call_count == 1
+        assert mock_client.close.call_count == 1
 
     @patch.dict("os.environ", {"TENKI_PROJECT_ID": "proj-123"})
     @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
     @patch("smolagents.remote_executors._create_kernel_http")
-    @patch("tenki_sandbox.Sandbox")
-    def test_tenki_executor_cleanup_on_init_failure(self, mock_sandbox_cls, mock_create_kernel, mock_wait_for_server):
-        """Test that the sandbox is cleaned up when initialization fails."""
+    @patch("tenki_sandbox.Client")
+    def test_tenki_executor_cleanup_on_init_failure(self, mock_client_cls, mock_create_kernel, mock_wait_for_server):
+        """Test that the sandbox and client are cleaned up when initialization fails."""
         logger = MagicMock()
-        mock_sandbox = MagicMock()
-        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
-        mock_sandbox_cls.create.return_value = mock_sandbox
+        mock_client, mock_sandbox = self._make_mock_client(mock_client_cls)
         mock_create_kernel.side_effect = RuntimeError("Failed to create kernel")
 
         with pytest.raises(RuntimeError, match="Failed to initialize Tenki sandbox"):
             TenkiExecutor(additional_imports=[], logger=logger)
 
         assert mock_sandbox.close_if_open.call_count == 1
+        assert mock_client.close.call_count == 1
+
+    @patch.dict("os.environ", {"TENKI_PROJECT_ID": "proj-123"})
+    @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
+    @patch("smolagents.remote_executors._create_kernel_http")
+    @patch("tenki_sandbox.Client")
+    def test_tenki_executor_bootstrap_failure_surfaces_stderr(
+        self, mock_client_cls, mock_create_kernel, mock_wait_for_server
+    ):
+        """Test that a failed kernel gateway bootstrap reports the command's stderr."""
+        logger = MagicMock()
+        mock_client, mock_sandbox = self._make_mock_client(mock_client_cls)
+        mock_sandbox.shell.return_value = MagicMock(ok=False, exit_code=127, stderr_text="apt-get: not found")
+
+        with pytest.raises(RuntimeError, match="apt-get: not found"):
+            TenkiExecutor(additional_imports=[], logger=logger)
+
+        assert mock_sandbox.close_if_open.call_count == 1
 
     @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
     @patch("smolagents.remote_executors._create_kernel_http")
-    @patch("tenki_sandbox.client.Client")
-    @patch("tenki_sandbox.Sandbox")
+    @patch("tenki_sandbox.Client")
     def test_tenki_executor_project_id_auto_resolution(
-        self, mock_sandbox_cls, mock_client_cls, mock_create_kernel, mock_wait_for_server
+        self, mock_client_cls, mock_create_kernel, mock_wait_for_server
     ):
         """Test that a sole project is auto-resolved when TENKI_PROJECT_ID is not set."""
         logger = MagicMock()
-        mock_sandbox = MagicMock()
-        mock_sandbox.expose_port.return_value = MagicMock(url="https://test-sandbox.tenki.cloud")
-        mock_sandbox_cls.create.return_value = mock_sandbox
+        mock_client, mock_sandbox = self._make_mock_client(mock_client_cls)
         mock_create_kernel.return_value = "kernel-123"
-        mock_client = mock_client_cls.return_value.__enter__.return_value
         mock_client.who_am_i.return_value = MagicMock(workspaces=[MagicMock(projects=[MagicMock(id="proj-auto")])])
 
         with patch.dict("os.environ", {}, clear=True):
             executor = TenkiExecutor(additional_imports=[], logger=logger)
 
-        assert mock_sandbox_cls.create.call_args.kwargs["project_id"] == "proj-auto"
+        assert mock_client.create.call_args.kwargs["project_id"] == "proj-auto"
         assert isinstance(executor, TenkiExecutor)
 
-    @patch("tenki_sandbox.client.Client")
-    @patch("tenki_sandbox.Sandbox")
-    def test_tenki_executor_project_id_ambiguous(self, mock_sandbox_cls, mock_client_cls):
-        """Test that an ambiguous project resolution raises a helpful error."""
+    @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
+    @patch("smolagents.remote_executors._create_kernel_http")
+    @patch("tenki_sandbox.Client")
+    def test_tenki_executor_project_id_workspace_filter(
+        self, mock_client_cls, mock_create_kernel, mock_wait_for_server
+    ):
+        """Test that a workspace_id in create_kwargs disambiguates project resolution."""
         logger = MagicMock()
-        mock_client = mock_client_cls.return_value.__enter__.return_value
+        mock_client, mock_sandbox = self._make_mock_client(mock_client_cls)
+        mock_create_kernel.return_value = "kernel-123"
+        mock_client.who_am_i.return_value = MagicMock(
+            workspaces=[
+                MagicMock(id="ws-1", projects=[MagicMock(id="proj-1")]),
+                MagicMock(id="ws-2", projects=[MagicMock(id="proj-2")]),
+            ]
+        )
+
+        with patch.dict("os.environ", {}, clear=True):
+            TenkiExecutor(additional_imports=[], logger=logger, create_kwargs={"workspace_id": "ws-2"})
+
+        create_kwargs = mock_client.create.call_args.kwargs
+        assert create_kwargs["project_id"] == "proj-2"
+        assert create_kwargs["workspace_id"] == "ws-2"
+
+    @patch("tenki_sandbox.Client")
+    def test_tenki_executor_project_id_ambiguous(self, mock_client_cls):
+        """Test that an ambiguous project resolution raises a helpful error without creating a sandbox."""
+        logger = MagicMock()
+        mock_client = mock_client_cls.return_value
         mock_client.who_am_i.return_value = MagicMock(
             workspaces=[MagicMock(projects=[MagicMock(id="proj-1"), MagicMock(id="proj-2")])]
         )
@@ -764,3 +821,6 @@ class TestTenkiExecutorUnit:
         with patch.dict("os.environ", {}, clear=True):
             with pytest.raises(ValueError, match="TENKI_PROJECT_ID"):
                 TenkiExecutor(additional_imports=[], logger=logger)
+
+        mock_client.create.assert_not_called()
+        assert mock_client.close.call_count == 1

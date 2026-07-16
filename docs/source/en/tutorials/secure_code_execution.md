@@ -312,7 +312,7 @@ with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="tenki") as
 
 Each agent run executes in a disposable Linux microVM with kernel-level isolation, booted from a pre-warmed pool.
 You can customize the sandbox via `executor_kwargs`, e.g. `executor_kwargs={"create_kwargs": {"cpu_cores": 4, "memory_mb": 8192}}`;
-the sandbox image only needs to provide `python3` and `pip`.
+the sandbox image only needs to provide `python3` (`pip` and the Jupyter Kernel Gateway are installed on startup if missing).
 
 ### Docker setup
 
