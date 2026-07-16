@@ -266,9 +266,9 @@ class TestScavioSearchTool:
 
     def test_search_results(self):
         mock_response = {
-            "results": [
-                {"title": "Scavio", "url": "https://scavio.dev", "description": "Search API for AI agents."},
-                {"title": "Hugging Face", "url": "https://huggingface.co", "description": "The AI community."},
+            "organic_results": [
+                {"title": "Scavio", "link": "https://scavio.dev", "snippet": "Search API for AI agents."},
+                {"title": "Hugging Face", "link": "https://huggingface.co", "snippet": "The AI community."},
             ]
         }
         with patch("scavio.ScavioClient") as mock_client_cls:
@@ -286,7 +286,7 @@ class TestScavioSearchTool:
     def test_no_results(self):
         with patch("scavio.ScavioClient") as mock_client_cls:
             mock_client = mock_client_cls.return_value
-            mock_client.google.search.return_value = {"results": []}
+            mock_client.google.search.return_value = {"organic_results": []}
             tool = ScavioSearchTool(api_key="test-key")
             with pytest.raises(Exception, match="No results found"):
                 tool("obscure query")

@@ -290,15 +290,15 @@ class ScavioSearchTool(Tool):
         self.client = ScavioClient(api_key=self.api_key)
 
     def forward(self, query: str) -> str:
-        response = self.client.google.search(query, country_code=self.country_code)
-        results = response.get("results", [])
+        response = self.client.google.search(query, gl=self.country_code)
+        results = response.get("organic_results", [])
         if not results:
             raise Exception(f"No results found for query: '{query}'. Use a less restrictive query.")
         web_snippets = []
         for idx, page in enumerate(results[: self.max_results], start=1):
             title = page.get("title", "")
-            link = page.get("url") or page.get("link", "")
-            snippet = page.get("content") or page.get("description") or page.get("snippet", "")
+            link = page.get("link", "")
+            snippet = page.get("snippet", "")
             web_snippets.append(f"{idx}. [{title}]({link})\n{snippet}")
         return "## Search Results\n\n" + "\n\n".join(web_snippets)
 
