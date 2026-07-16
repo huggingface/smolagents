@@ -611,6 +611,27 @@ simple_set = {
         # If this were a list, the code would hang indefinitely trying to
         # evaluate the entire infinite sequence upfront
 
+    def test_walrus_operator_in_if(self):
+        code = "import re\ntext = 'price: 42'\nif m := re.search(r'\\d+', text):\n    result = int(m.group())\nresult"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS | {"re": __import__("re")}, state={})
+        assert result == 42
+
+    def test_walrus_operator_no_match(self):
+        code = "import re\ntext = 'no digits here'\nmatched = False\nif m := re.search(r'\\d+', text):\n    matched = True\nmatched"
+        result, _ = evaluate_python_code(code, {"re": __import__("re")}, state={})
+        assert result is False
+
+    def test_walrus_operator_in_while(self):
+        code = "data = iter([1, 2, 3])\ntotal = 0\nwhile (val := next(data, None)) is not None:\n    total += val\ntotal"
+        result, _ = evaluate_python_code(code, {"iter": iter, "next": next}, state={})
+        assert result == 6
+
+    def test_walrus_operator_in_listcomp_filter(self):
+        # math.sqrt(4)=2.0, math.sqrt(9)=3.0, math.sqrt(16)=4.0; only 4.0 > 3
+        code = "import math\nvalues = [4, 9, 16]\nroots = [r for x in values if (r := math.sqrt(x)) > 3]\nroots"
+        result, _ = evaluate_python_code(code, {"math": __import__("math")}, state={})
+        assert result == [4.0]
+
     def test_break(self):
         code = "for i in range(10):\n    if i == 5:\n        break\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})
