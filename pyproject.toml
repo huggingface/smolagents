@@ -49,6 +49,9 @@ e2b = [
 gradio = [
   "gradio>=5.14.0",  # Sidebar component GH-797
 ]
+langchain = [
+  "langchain-core>=0.3.0",
+]
 litellm = [
   "litellm>=1.60.2",
 ]
@@ -90,7 +93,7 @@ vllm = [
   "torch"
 ]
 all = [
-  "smolagents[audio,blaxel,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
+  "smolagents[audio,blaxel,docker,e2b,gradio,langchain,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
 ]
 quality = [
   "ruff>=0.9.0",

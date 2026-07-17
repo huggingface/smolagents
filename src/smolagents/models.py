@@ -2063,6 +2063,164 @@ class AmazonBedrockModel(ApiModel):
 AmazonBedrockServerModel = AmazonBedrockModel
 
 
+class LangChainModel(Model):
+    """Wrapper for using [LangChain](https://python.langchain.com/) chat models with smolagents.
+
+    This allows you to use any LangChain-compatible chat model (e.g. `ChatOpenAI`, `ChatAnthropic`)
+    as the model backend for smolagents agents.
+
+    Parameters:
+        model (`langchain_core.language_models.BaseChatModel`):
+            A LangChain chat model instance.
+        **kwargs:
+            Additional keyword arguments forwarded to the [`Model`] base class.
+
+    Example:
+        ```python
+        from langchain_openai import ChatOpenAI
+        from smolagents import CodeAgent, LangChainModel
+
+        llm = ChatOpenAI(model_name="gpt-4o")
+        model = LangChainModel(llm)
+        agent = CodeAgent(model=model, tools=[])
+        agent.run("Hello!")
+        ```
+    """
+
+    def __init__(self, model, **kwargs):
+        try:
+            from langchain_core.language_models import BaseChatModel
+        except ImportError:
+            raise ImportError(
+                "Please install 'langchain-core' to use LangChainModel: `pip install langchain-core`"
+            )
+        if not isinstance(model, BaseChatModel):
+            raise TypeError(
+                f"Expected a LangChain BaseChatModel instance, got {type(model).__name__}"
+            )
+        self.langchain_model = model
+        # Try common attribute names used by LangChain providers; fall back to the class name
+        # but warn the caller so the surprising id is observable.
+        model_id = getattr(model, "model_name", None) or getattr(model, "model", None)
+        if not model_id:
+            model_id = type(model).__name__
+            logger.warning(
+                "LangChainModel: could not find `model_name` or `model` attribute on %s; "
+                "falling back to class name `%s` as model_id. Pass `model_id=...` to "
+                "LangChainModel(...) to override.",
+                type(model).__name__,
+                model_id,
+            )
+        super().__init__(model_id=model_id, **kwargs)
+
+    def _convert_to_langchain_messages(self, messages: list) -> "list[BaseMessage]":
+        """Convert smolagents ChatMessage objects to LangChain BaseMessage objects.
+
+        Mapping:
+            - role=system           -> SystemMessage
+            - role=assistant or tool-call -> AIMessage
+            - role=tool-response    -> ToolMessage (with tool_call_id from message)
+            - role=user (and others) -> HumanMessage
+        """
+        from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+
+        lc_messages: list[BaseMessage] = []
+        for msg in messages:
+            tool_call_id = None
+            if isinstance(msg, dict):
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                tool_call_id = msg.get("tool_call_id")
+            else:
+                role = msg.role.value if isinstance(msg.role, MessageRole) else str(msg.role)
+                content = msg.content
+                tool_call_id = getattr(msg, "tool_call_id", None)
+
+            # Flatten list content to string
+            if isinstance(content, list):
+                text_parts = []
+                for part in content:
+                    if isinstance(part, dict) and "text" in part:
+                        text_parts.append(part["text"])
+                    elif isinstance(part, str):
+                        text_parts.append(part)
+                content = "\n".join(text_parts)
+
+            if content is None:
+                content = ""
+
+            if role == "system":
+                lc_messages.append(SystemMessage(content=content))
+            elif role in ("assistant", "tool-call"):
+                lc_messages.append(AIMessage(content=content))
+            elif role in ("tool-response", "tool"):
+                # LangChain requires tool_call_id to associate the result with the originating call.
+                # If the smolagents message lacks one, we still construct a ToolMessage with an empty
+                # id rather than dropping to HumanMessage, since the role semantics differ.
+                lc_messages.append(ToolMessage(content=content, tool_call_id=tool_call_id or ""))
+            else:
+                # user and any unrecognised role
+                lc_messages.append(HumanMessage(content=content))
+
+        return lc_messages
+
+    def generate(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        lc_messages = self._convert_to_langchain_messages(messages)
+
+        invoke_kwargs: dict[str, Any] = {}
+        if stop_sequences:
+            invoke_kwargs["stop"] = stop_sequences
+
+        if tools_to_call_from:
+            lc_tools = [get_tool_json_schema(tool) for tool in tools_to_call_from]
+            response = self.langchain_model.bind_tools(lc_tools).invoke(lc_messages, **invoke_kwargs)
+        else:
+            response = self.langchain_model.invoke(lc_messages, **invoke_kwargs)
+
+        # Convert tool calls if present
+        tool_calls = None
+        if hasattr(response, "tool_calls") and response.tool_calls:
+            tool_calls = [
+                ChatMessageToolCall(
+                    function=ChatMessageToolCallFunction(
+                        name=tc["name"],
+                        arguments=tc.get("args", {}),
+                    ),
+                    id=tc.get("id", str(uuid.uuid4())),
+                    type="function",
+                )
+                for tc in response.tool_calls
+            ]
+
+        # Extract token usage if available
+        token_usage = None
+        usage_metadata = getattr(response, "usage_metadata", None)
+        if usage_metadata:
+            token_usage = TokenUsage(
+                input_tokens=usage_metadata.get("input_tokens", 0),
+                output_tokens=usage_metadata.get("output_tokens", 0),
+            )
+
+        content = response.content
+        if stop_sequences is not None:
+            content = remove_content_after_stop_sequences(content, stop_sequences)
+
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=content,
+            tool_calls=tool_calls,
+            raw=response,
+            token_usage=token_usage,
+        )
+
+
 # Model Registry for secure deserialization
 # This registry maps model class names to their actual classes.
 # Only classes listed here can be instantiated during deserialization (from_dict).
@@ -2077,6 +2235,7 @@ MODEL_REGISTRY = {
     "OpenAIModel": OpenAIModel,
     "AzureOpenAIModel": AzureOpenAIModel,
     "AmazonBedrockModel": AmazonBedrockModel,
+    "LangChainModel": LangChainModel,
 }
 
 __all__ = [
@@ -2098,5 +2257,6 @@ __all__ = [
     "AzureOpenAIModel",
     "AmazonBedrockServerModel",
     "AmazonBedrockModel",
+    "LangChainModel",
     "ChatMessage",
 ]
