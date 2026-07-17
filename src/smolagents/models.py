@@ -373,10 +373,16 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
+            # Normalize incoming string content to list format for uniform merging
+            if isinstance(message.content, str):
+                message.content = [{"type": "text", "text": message.content}]
             assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
             else:
+                # Normalize existing string content to list format before appending
+                if isinstance(output_message_list[-1]["content"], str):
+                    output_message_list[-1]["content"] = [{"type": "text", "text": output_message_list[-1]["content"]}]
                 for el in message.content:
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
@@ -385,7 +391,8 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                content = message.content[0]["text"]
+                # Handle both string and list content formats
+                content = message.content if isinstance(message.content, str) else message.content[0]["text"]
             else:
                 content = message.content
             output_message_list.append(
