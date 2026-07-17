@@ -216,12 +216,12 @@ class Tool(BaseTool):
                 assert key in json_schema, (
                     f"Input '{key}' should be present in function signature, found only {json_schema.keys()}"
                 )
-                if "nullable" in value:
-                    assert "nullable" in json_schema[key], (
+                if value.get("nullable"):
+                    assert json_schema[key].get("nullable"), (
                         f"Nullable argument '{key}' in inputs should have key 'nullable' set to True in function signature."
                     )
-                if key in json_schema and "nullable" in json_schema[key]:
-                    assert "nullable" in value, (
+                if key in json_schema and json_schema[key].get("nullable"):
+                    assert value.get("nullable"), (
                         f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
                     )
 
