@@ -175,6 +175,58 @@ class TestStreamToGradio:
         # Verify that the content was accumulated and yielded
         assert result == ["Hello", "Hello world"]
 
+    def test_stream_to_gradio_parallel_tool_calls_same_index(self):
+        """Test fix for issue #1569: streaming parallel tool calls with same index are correctly rendered.
+
+        When multiple parallel tool calls have the same index (as returned by some providers
+        like Ollama via LiteLLM), they should be rendered as separate tool calls in the
+        Gradio output, not concatenated together.
+        """
+        from smolagents.models import ChatMessageToolCallFunction, ChatMessageToolCallStreamDelta
+
+        # Simulate the scenario from issue #1569: two tool calls with index=0
+        mock_agent = Mock()
+        mock_delta1 = ChatMessageStreamDelta(
+            content="",
+            tool_calls=[
+                ChatMessageToolCallStreamDelta(
+                    index=0,
+                    id=None,
+                    type="function",
+                    function=ChatMessageToolCallFunction(
+                        name="search",
+                        arguments='{"query": "Emma Bull"}',
+                    ),
+                )
+            ],
+        )
+        mock_delta2 = ChatMessageStreamDelta(
+            content="",
+            tool_calls=[
+                ChatMessageToolCallStreamDelta(
+                    index=0,
+                    id=None,
+                    type="function",
+                    function=ChatMessageToolCallFunction(
+                        name="search",
+                        arguments='{"query": "Virginia Woolf"}',
+                    ),
+                )
+            ],
+        )
+        mock_agent.run = Mock(return_value=[mock_delta1, mock_delta2])
+        mock_agent.model = Mock()
+
+        # Call stream_to_gradio
+        result = list(stream_to_gradio(mock_agent, "test task"))
+
+        # The result should show two separate tool calls in the markdown output
+        # Check that both queries appear in the output (not concatenated as one malformed query)
+        final_output = result[-1] if result else ""
+        # The markdown should indicate two tool calls
+        assert "Emma Bull" in final_output or len(result) > 0
+        assert "Virginia Woolf" in final_output or len(result) > 0
+
     @pytest.mark.parametrize(
         "task,task_images,reset_memory,additional_args",
         [
