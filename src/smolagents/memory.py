@@ -1,5 +1,6 @@
 import inspect
 from dataclasses import asdict, dataclass
+from enum import Enum
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Callable, Type
 
@@ -15,7 +16,70 @@ if TYPE_CHECKING:
     from smolagents.monitoring import AgentLogger
 
 
-__all__ = ["AgentMemory"]
+__all__ = [
+    "AgentMemory",
+    "LifecycleEvent",
+    "LifecycleCallbackRegistry",
+    "ModelOutputEvent",
+    "PreExecutionEvent",
+]
+
+
+class LifecycleEvent(str, Enum):
+    """Enumeration of lifecycle events that can be hooked into during agent execution.
+
+    These events allow callbacks to be triggered at specific points in the agent's
+    execution flow, enabling use cases like:
+    - Sending LLM output to TTS before code execution
+    - Custom validation logic before tool execution
+    - Human-in-the-loop approval for critical operations
+    - Logging and monitoring at different execution phases
+    """
+
+    MODEL_OUTPUT = "model_output"
+    """Triggered after the LLM generates output, before parsing/processing."""
+
+    PRE_EXECUTION = "pre_execution"
+    """Triggered before code or tool execution, after parsing is complete."""
+
+
+@dataclass
+class ModelOutputEvent:
+    """Event data for MODEL_OUTPUT lifecycle event.
+
+    This event is triggered after the LLM generates output but before any
+    parsing or execution occurs. Useful for TTS, logging, or validation.
+
+    Attributes:
+        step_number: The current step number in the agent's execution.
+        model_output: The raw text output from the model.
+        memory_step: The ActionStep being built for this execution step.
+    """
+
+    step_number: int
+    model_output: str | None
+    memory_step: "ActionStep"
+
+
+@dataclass
+class PreExecutionEvent:
+    """Event data for PRE_EXECUTION lifecycle event.
+
+    This event is triggered after parsing is complete but before code or tool
+    execution begins. For CodeAgent, this is after code parsing; for
+    ToolCallingAgent, this is after tool calls are parsed.
+
+    Attributes:
+        step_number: The current step number in the agent's execution.
+        code_action: For CodeAgent, the parsed code to be executed.
+        tool_calls: For ToolCallingAgent, the parsed tool calls to be executed.
+        memory_step: The ActionStep being built for this execution step.
+    """
+
+    step_number: int
+    code_action: str | None
+    tool_calls: list["ToolCall"] | None
+    memory_step: "ActionStep"
 
 
 logger = getLogger(__name__)
@@ -314,3 +378,65 @@ class CallbackRegistry:
         for cls in memory_step.__class__.__mro__:
             for cb in self._callbacks.get(cls, []):
                 cb(memory_step) if len(inspect.signature(cb).parameters) == 1 else cb(memory_step, **kwargs)
+
+
+class LifecycleCallbackRegistry:
+    """Registry for lifecycle callbacks that are called at specific points during agent execution.
+
+    Unlike step callbacks (which fire after a step completes), lifecycle callbacks fire at
+    specific points within a step's execution, enabling finer-grained control over the
+    agent's behavior.
+
+    Example usage:
+        ```python
+        def on_model_output(event: ModelOutputEvent, agent: MultiStepAgent):
+            # Send to TTS service before code execution
+            tts_service.queue(event.model_output)
+
+        def on_pre_execution(event: PreExecutionEvent, agent: MultiStepAgent):
+            # Validate code before execution
+            if "dangerous_function" in (event.code_action or ""):
+                raise ValueError("Dangerous code detected!")
+
+        agent = CodeAgent(
+            tools=[...],
+            model=model,
+            lifecycle_callbacks={
+                LifecycleEvent.MODEL_OUTPUT: on_model_output,
+                LifecycleEvent.PRE_EXECUTION: on_pre_execution,
+            }
+        )
+        ```
+    """
+
+    def __init__(self):
+        self._callbacks: dict[LifecycleEvent, list[Callable]] = {}
+
+    def register(self, event: LifecycleEvent, callback: Callable):
+        """Register a callback for a lifecycle event.
+
+        Args:
+            event (LifecycleEvent): The lifecycle event to register the callback for.
+            callback (Callable): Callback function to register. Should accept the event
+                data object (ModelOutputEvent or PreExecutionEvent) as first argument,
+                and optionally the agent instance as second argument.
+        """
+        if event not in self._callbacks:
+            self._callbacks[event] = []
+        self._callbacks[event].append(callback)
+
+    def trigger(self, event: LifecycleEvent, event_data: ModelOutputEvent | PreExecutionEvent, **kwargs):
+        """Trigger all callbacks registered for a lifecycle event.
+
+        Args:
+            event (LifecycleEvent): The lifecycle event being triggered.
+            event_data: The event data object (ModelOutputEvent or PreExecutionEvent).
+            **kwargs: Additional arguments to pass to callbacks that accept them.
+                Typically includes the agent instance.
+        """
+        for cb in self._callbacks.get(event, []):
+            # Support both single-arg (event_data only) and multi-arg (event_data + kwargs) signatures
+            if len(inspect.signature(cb).parameters) == 1:
+                cb(event_data)
+            else:
+                cb(event_data, **kwargs)
