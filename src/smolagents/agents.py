@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import importlib
 import json
 import os
@@ -889,6 +890,36 @@ You have been provided with these additional arguments, that you can access dire
             answer += "\n</summary_of_work>"
         return answer
 
+    def _clone_for_parallel_execution(self) -> "MultiStepAgent":
+        """Create a clone of this agent for parallel execution.
+
+        This method creates a shallow copy of the agent with fresh stateful attributes
+        (memory, state, monitor, step_number) while sharing non-stateful attributes
+        (model, tools, prompt_templates, etc.). This ensures that parallel calls to
+        managed agents don't interfere with each other's state.
+
+        Returns:
+            A cloned agent instance suitable for parallel execution.
+        """
+        # Create a shallow copy of the agent
+        cloned = copy.copy(self)
+
+        # Reset stateful attributes to fresh instances
+        cloned.memory = AgentMemory(cloned.system_prompt)
+        cloned.state = {}
+        cloned.step_number = 0
+        cloned.monitor = Monitor(cloned.model, cloned.logger)
+
+        # Reset interrupt switch
+        cloned.interrupt_switch = False
+
+        # Deep copy step_callbacks to avoid shared mutable state
+        cloned.step_callbacks = CallbackRegistry()
+        # Re-register the monitor callback for the cloned monitor
+        cloned.step_callbacks.register(ActionStep, cloned.monitor.update_metrics)
+
+        return cloned
+
     def save(self, output_dir: str | Path, relative_path: str | None = None):
         """
         Saves the relevant code files for your agent. This will copy the code of your agent in `output_dir` as well as autogenerate:
@@ -1379,15 +1410,25 @@ class ToolCallingAgent(MultiStepAgent):
             yield tool_call
             parallel_calls[tool_call.id] = tool_call
 
+        # Pre-create clones of managed agents for parallel execution to avoid shared state issues.
+        # When multiple tool calls target the same managed agent, each call gets its own clone.
+        managed_agent_clones: dict[str, "MultiStepAgent"] = {}
+        if len(parallel_calls) > 1:
+            for tool_call in parallel_calls.values():
+                tool_name = tool_call.name
+                if tool_name in self.managed_agents:
+                    # Create a unique clone for each tool call to the same managed agent
+                    managed_agent_clones[tool_call.id] = self.managed_agents[tool_name]._clone_for_parallel_execution()
+
         # Helper function to process a single tool call
-        def process_single_tool_call(tool_call: ToolCall) -> ToolOutput:
+        def process_single_tool_call(tool_call: ToolCall, agent_clone: "MultiStepAgent | None" = None) -> ToolOutput:
             tool_name = tool_call.name
             tool_arguments = tool_call.arguments or {}
             self.logger.log(
                 Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
                 level=LogLevel.INFO,
             )
-            tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
+            tool_call_result = self.execute_tool_call(tool_name, tool_arguments, managed_agent_override=agent_clone)
             tool_call_result_type = type(tool_call_result)
             if tool_call_result_type in [AgentImage, AgentAudio]:
                 if tool_call_result_type == AgentImage:
@@ -1416,18 +1457,20 @@ class ToolCallingAgent(MultiStepAgent):
         # Process tool calls in parallel
         outputs = {}
         if len(parallel_calls) == 1:
-            # If there's only one call, process it directly
+            # If there's only one call, process it directly (no need for cloning)
             tool_call = list(parallel_calls.values())[0]
             tool_output = process_single_tool_call(tool_call)
             outputs[tool_output.id] = tool_output
             yield tool_output
         else:
-            # If multiple tool calls, process them in parallel
+            # If multiple tool calls, process them in parallel with cloned managed agents
             with ThreadPoolExecutor(self.max_tool_threads) as executor:
                 futures = []
                 for tool_call in parallel_calls.values():
                     ctx = copy_context()
-                    futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
+                    # Pass the cloned agent if this is a managed agent call
+                    agent_clone = managed_agent_clones.get(tool_call.id)
+                    futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call, agent_clone))
                 for future in as_completed(futures):
                     tool_output = future.result()
                     outputs[tool_output.id] = tool_output
@@ -1450,7 +1493,9 @@ class ToolCallingAgent(MultiStepAgent):
             }
         return arguments
 
-    def execute_tool_call(self, tool_name: str, arguments: dict[str, str] | str) -> Any:
+    def execute_tool_call(
+        self, tool_name: str, arguments: dict[str, str] | str, managed_agent_override: "MultiStepAgent | None" = None
+    ) -> Any:
         """
         Execute a tool or managed agent with the provided arguments.
 
@@ -1459,6 +1504,8 @@ class ToolCallingAgent(MultiStepAgent):
         Args:
             tool_name (`str`): Name of the tool or managed agent to execute.
             arguments (dict[str, str] | str): Arguments passed to the tool call.
+            managed_agent_override (`MultiStepAgent`, *optional*): A cloned managed agent to use instead of
+                the original. This is used for parallel execution to avoid shared state issues.
         """
         # Check if the tool exists
         available_tools = {**self.tools, **self.managed_agents}
@@ -1468,9 +1515,13 @@ class ToolCallingAgent(MultiStepAgent):
             )
 
         # Get the tool and substitute state variables in arguments
-        tool = available_tools[tool_name]
-        arguments = self._substitute_state_variables(arguments)
         is_managed_agent = tool_name in self.managed_agents
+        # Use the override if provided (for parallel execution), otherwise use the original
+        if is_managed_agent and managed_agent_override is not None:
+            tool = managed_agent_override
+        else:
+            tool = available_tools[tool_name]
+        arguments = self._substitute_state_variables(arguments)
 
         try:
             validate_tool_arguments(tool, arguments)
