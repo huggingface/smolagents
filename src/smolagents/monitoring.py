@@ -187,6 +187,9 @@ class AgentLogger:
             level=level,
         )
 
+    def log_warning(self, title: str, level: int = LogLevel.INFO) -> None:
+        self.log("Warning: " + title, style=YELLOW_HEX, level=LogLevel.INFO)
+
     def log_rule(self, title: str, level: int = LogLevel.INFO) -> None:
         self.log(
             Rule(

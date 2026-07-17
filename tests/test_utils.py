@@ -143,6 +143,19 @@ import numpy as np
         assert result == "Foo\n\ncode_a\n\ncode_b"
 
 
+@pytest.mark.parametrize(
+    "raw_text",
+    [
+        "This is just some conversational text.",
+        "Here is an invalid code snippet `x = 10",
+    ],
+)
+def test_parse_code_blobs_without_valid_code(raw_text):
+    # Note: If the exact string is changed a parsing warning needs to be modified in agents.py
+    with pytest.raises(ValueError, match="Make sure to include code with the correct pattern"):
+        parse_code_blobs(raw_text, ("<code>", "</code>"))
+
+
 @pytest.fixture(scope="function")
 def ipython_shell():
     """Reset IPython shell before and after each test."""
@@ -483,6 +496,21 @@ def test_parse_json_blob_with_valid_json(raw_json, expected_data, expected_blob)
 )
 def test_parse_json_blob_with_invalid_json(raw_json):
     with pytest.raises(Exception):
+        parse_json_blob(raw_json)
+
+
+@pytest.mark.parametrize(
+    "raw_json",
+    [
+        "this string has no json blob",
+        "this string has an opening brace { but no closing one",
+        "",
+        "some text {",
+    ],
+)
+def test_parse_json_blob_without_json_blob(raw_json):
+    # Note: If the exact string is changed a parsing warning needs to be modified in agents.py
+    with pytest.raises(ValueError, match="The model output does not contain any JSON blob."):
         parse_json_blob(raw_json)
 
 
