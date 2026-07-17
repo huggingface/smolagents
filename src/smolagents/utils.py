@@ -428,6 +428,10 @@ def get_source(obj) -> str:
 
 
 def encode_image_base64(image):
+    from PIL import Image
+
+    if isinstance(image, str):
+        image = Image.open(image)
     buffered = BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
