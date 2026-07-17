@@ -682,6 +682,88 @@ class TestTransformersModel:
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.args == ("test-model",)
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
 
+    @pytest.mark.parametrize(
+        "patching",
+        [
+            [
+                (
+                    "transformers.AutoModelForImageTextToText.from_pretrained",
+                    {"side_effect": ValueError("Unrecognized configuration class")},
+                ),
+                ("transformers.AutoModelForCausalLM.from_pretrained", {}),
+                ("transformers.AutoTokenizer.from_pretrained", {}),
+            ],
+            [
+                ("transformers.AutoModelForImageTextToText.from_pretrained", {}),
+                ("transformers.AutoProcessor.from_pretrained", {}),
+            ],
+        ],
+    )
+    def test_init_forwards_kwargs(self, patching):
+        with ExitStack() as stack:
+            mocks = {target: stack.enter_context(patch(target, **kwargs)) for target, kwargs in patching}
+            TransformersModel(
+                model_id="test-model",
+                device_map="cpu",
+                torch_dtype="float16",
+                trust_remote_code=True,
+                token="hf_test_token",
+                revision="feature-branch",
+                cache_dir="/tmp/cache",
+                force_download=True,
+                local_files_only=True,
+                subfolder="models",
+                quantization_config={"load_in_4bit": True},
+                attn_implementation="flash_attention_2",
+                max_memory={0: "2GiB"},
+                offload_folder="/tmp/offload",
+                offload_buffers=True,
+                variant="fp16",
+                gguf_file="model.gguf",
+                ignore_mismatched_sizes=True,
+            )
+            shared_kwargs = {
+                "token": "hf_test_token",
+                "revision": "feature-branch",
+                "cache_dir": "/tmp/cache",
+                "force_download": True,
+                "local_files_only": True,
+                "subfolder": "models",
+            }
+            model_only_kwargs = {
+                **shared_kwargs,
+                "quantization_config": {"load_in_4bit": True},
+                "attn_implementation": "flash_attention_2",
+                "max_memory": {0: "2GiB"},
+                "offload_folder": "/tmp/offload",
+                "offload_buffers": True,
+                "variant": "fp16",
+                "gguf_file": "model.gguf",
+                "ignore_mismatched_sizes": True,
+            }
+            if "transformers.AutoTokenizer.from_pretrained" in mocks:
+                assert mocks["transformers.AutoModelForCausalLM.from_pretrained"].call_args.kwargs == {
+                    "device_map": "cpu",
+                    "torch_dtype": "float16",
+                    "trust_remote_code": True,
+                    **model_only_kwargs,
+                }
+                assert mocks["transformers.AutoTokenizer.from_pretrained"].call_args.kwargs == {
+                    "trust_remote_code": True,
+                    **shared_kwargs,
+                }
+            elif "transformers.AutoProcessor.from_pretrained" in mocks:
+                assert mocks["transformers.AutoModelForImageTextToText.from_pretrained"].call_args.kwargs == {
+                    "device_map": "cpu",
+                    "torch_dtype": "float16",
+                    "trust_remote_code": True,
+                    **model_only_kwargs,
+                }
+                assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.kwargs == {
+                    "trust_remote_code": True,
+                    **shared_kwargs,
+                }
+
 
 def test_get_clean_message_list_basic():
     messages = [
