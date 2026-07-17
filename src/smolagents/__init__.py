@@ -20,6 +20,7 @@ from .agent_types import *  # noqa: I001
 from .agents import *  # Above noqa avoids a circular dependency due to cli.py
 from .default_tools import *
 from .gradio_ui import *
+from .guardrails import *
 from .local_python_executor import *
 from .mcp_client import *
 from .memory import *
