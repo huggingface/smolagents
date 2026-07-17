@@ -2313,6 +2313,19 @@ result = "completed"
         output = executor(code)
         assert output.output == "completed"
 
+    def test_timeout_decorator_preserves_contextvars(self):
+        """Test that contextvars from the caller are visible inside the timeout thread."""
+        from contextvars import ContextVar
+
+        test_var = ContextVar("test_var", default=None)
+        test_var.set("from_parent")
+
+        @timeout(5)
+        def read_context():
+            return test_var.get()
+
+        assert read_context() == "from_parent"
+
 
 @pytest.mark.parametrize(
     "module,authorized_imports,expected",
