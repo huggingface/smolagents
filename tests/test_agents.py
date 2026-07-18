@@ -49,6 +49,7 @@ from smolagents.agents import (
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.local_python_executor import CodeOutput
 from smolagents.memory import (
     ActionStep,
     CallbackRegistry,
@@ -1647,6 +1648,44 @@ class TestToolCallingAgent:
         agent = ToolCallingAgent(tools=[], model=MagicMock(), instructions="Test instructions")
         assert agent.instructions == "Test instructions"
         assert "Test instructions" in agent.system_prompt
+
+    def test_toolcalling_agent_calls_code_execute(self):
+        """Test that the ToolCallingAgent can execute simple Python code using `code_execute`."""
+        mock_model = MagicMock()
+        agent = ToolCallingAgent(tools=[], model=mock_model, instructions="Test instructions")
+
+        code_args = {"code": "result = 1 + 1; result"} 
+
+        code_output = agent.execute_tool_call("code_execute", code_args)
+
+        assert isinstance(code_output, CodeOutput)
+        assert code_output.output == 2
+        assert code_output.is_final_answer is True or code_output.is_final_answer is False
+        assert hasattr(code_output, "logs")
+
+
+    def test_toolcalling_agent_calls_tool_from_tools_list(self):
+        """Test that Python code executed via `code_execute` can call tools from the agent's tool list."""
+        class MockTool(Tool):
+            def __init__(self, name):
+                self.name = name
+                self.description = "Mock tool description"
+                self.inputs = {}
+                self.output_type = "any"
+                self.is_initialized = True
+
+            def forward(self):
+                return 42
+            
+        mock_tool = MockTool(name="increment")
+        agent = ToolCallingAgent(tools=[mock_tool], model=MagicMock(), instructions="Test instructions")
+
+        code_args = {"code": "tool_result = increment(); tool_result * 2"}
+
+        code_output = agent.execute_tool_call("code_execute", code_args)
+
+        assert code_output.output == 84
+        assert isinstance(code_output, CodeOutput)
 
     def test_toolcalling_agent_passes_both_tools_and_managed_agents(self, test_tool):
         """Test that both tools and managed agents are passed to the model."""
