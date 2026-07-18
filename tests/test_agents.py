@@ -1594,6 +1594,44 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_from_dict_kwargs_do_not_override_managed_agents(self):
+        managed_agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            name="pytest_agent",
+            description="A managed agent with custom imports",
+            max_steps=5,
+            additional_authorized_imports=["pytest"],
+        )
+        main_agent = CodeAgent(
+            tools=[],
+            managed_agents=[managed_agent],
+            model=MagicMock(),
+            name="main_agent",
+            description="Main agent with managed agents",
+            max_steps=10,
+        )
+        agent_dict = main_agent.to_dict()
+
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
+
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated_agent = CodeAgent.from_dict(
+                agent_dict,
+                max_steps=30,
+                additional_authorized_imports=["numpy"],
+            )
+
+        recreated_managed_agent = recreated_agent.managed_agents["pytest_agent"]
+
+        assert recreated_agent.max_steps == 30
+        assert "numpy" in recreated_agent.authorized_imports
+        assert recreated_managed_agent.max_steps == 5
+        assert "pytest" in recreated_managed_agent.authorized_imports
+        assert "numpy" not in recreated_managed_agent.authorized_imports
+
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
         agent_dict = {
