@@ -126,18 +126,18 @@ class TestTool:
     @pytest.mark.parametrize(
         "tool_fixture, expected_output",
         [
-            ("no_input_tool", 'def no_input_tool() -> string:\n    """Tool with no inputs\n    """'),
+            ("no_input_tool", 'def no_input_tool() -> str:\n    """Tool with no inputs\n    """'),
             (
                 "single_input_tool",
-                'def single_input_tool(text: string) -> string:\n    """Tool with one input\n\n    Args:\n        text: Input text\n    """',
+                'def single_input_tool(text: str) -> str:\n    """Tool with one input\n\n    Args:\n        text: Input text\n    """',
             ),
             (
                 "multi_input_tool",
-                'def multi_input_tool(text: string, count: integer) -> object:\n    """Tool with multiple inputs\n\n    Args:\n        text: Text input\n        count: Number count\n    """',
+                'def multi_input_tool(text: str, count: int) -> dict:\n    """Tool with multiple inputs\n\n    Args:\n        text: Text input\n        count: Number count\n    """',
             ),
             (
                 "multiline_description_tool",
-                'def multiline_description_tool(input: string) -> string:\n    """This is a tool with\n    multiple lines\n    in the description\n\n    Args:\n        input: Some input\n    """',
+                'def multiline_description_tool(input: str) -> str:\n    """This is a tool with\n    multiple lines\n    in the description\n\n    Args:\n        input: Some input\n    """',
             ),
         ],
     )
@@ -173,6 +173,136 @@ class TestTool:
         tool = request.getfixturevalue(tool_fixture)
         tool_calling_prompt = tool.to_tool_calling_prompt()
         assert tool_calling_prompt == expected_output
+
+    def test_tool_to_code_prompt_array_type_extraction(self):
+        """Test that to_code_prompt properly extracts array item types and shows Python type hints."""
+
+        # Test 1: Array of strings
+        @tool
+        def get_weather(locations: list[str]) -> dict[str, float]:
+            """
+            Get weather at given locations.
+
+            Args:
+                locations: The locations to get the weather for.
+            """
+            return {"temp": 72.5}
+
+        code_prompt = get_weather.to_code_prompt()
+        # Should show list[str] not just array
+        assert "locations: list[str]" in code_prompt, f"Expected 'locations: list[str]' in output but got: {code_prompt}"
+        assert "locations: array" not in code_prompt, f"Should not contain 'locations: array' but got: {code_prompt}"
+        assert "-> dict" in code_prompt, f"Expected '-> dict' in output but got: {code_prompt}"
+
+        # Test 2: Array of integers with dict return type
+        @tool
+        def process_data(items: list[int], config: dict[str, str]) -> str:
+            """
+            Process data items with configuration.
+
+            Args:
+                items: List of integer items to process
+                config: Configuration dictionary
+            """
+            return "done"
+
+        code_prompt = process_data.to_code_prompt()
+        # Should show list[int] not just array
+        assert "items: list[int]" in code_prompt, f"Expected 'items: list[int]' in output but got: {code_prompt}"
+        assert "config: dict[str, str]" in code_prompt, f"Expected 'config: dict[str, str]' in output but got: {code_prompt}"
+        assert "-> str" in code_prompt, f"Expected '-> str' in output but got: {code_prompt}"
+
+        # Test 3: Tool with simple array (no items specification in manual definition)
+        class SimpleArrayTool(Tool):
+            name = "simple_array_tool"
+            description = "Tool with simple array"
+            inputs = {
+                "items": {
+                    "type": "array",
+                    "description": "Some items"
+                }
+            }
+            output_type = "string"
+
+            def forward(self, items):
+                return "done"
+
+        simple_tool = SimpleArrayTool()
+        code_prompt = simple_tool.to_code_prompt()
+        # Should show list (not array) even without items
+        assert "items: list" in code_prompt, f"Expected 'items: list' in output but got: {code_prompt}"
+        assert "items: array" not in code_prompt, f"Should not contain 'items: array' but got: {code_prompt}"
+
+        # Test 4: Nested arrays
+        class NestedArrayTool(Tool):
+            name = "nested_array_tool"
+            description = "Tool with nested arrays"
+            inputs = {
+                "matrix": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {"type": "integer"}
+                    },
+                    "description": "2D matrix"
+                }
+            }
+            output_type = "string"
+
+            def forward(self, matrix):
+                return "done"
+
+        nested_tool = NestedArrayTool()
+        code_prompt = nested_tool.to_code_prompt()
+        # Should show list[list[int]] for nested arrays
+        assert "matrix: list[list[int]]" in code_prompt, f"Expected 'matrix: list[list[int]]' in output but got: {code_prompt}"
+
+        # Test 5: Array of objects with properties (complex nested structure)
+        class ComplexArrayTool(Tool):
+            name = "complex_array_tool"
+            description = "Tool with array of option objects"
+            inputs = {
+                "options": {
+                    "type": "array",
+                    "description": (
+                        "Required for single_choice/multiple_choice. Omit for text input. "
+                        "Array of option objects where each has 'value' and 'label', optionally 'description'."
+                    ),
+                    "nullable": True,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "value": {
+                                "type": "string",
+                                "description": "The value to return when selected (e.g., 'grid', 'modern', 'analytics')",
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": (
+                                    "Display text shown to user (e.g., 'Grid Layout', 'Modern Style', 'Analytics Dashboard')"
+                                ),
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": (
+                                    "Optional help text explaining the option (e.g., 'Cards arranged in a responsive grid')"
+                                ),
+                                "nullable": True,
+                            },
+                        },
+                    },
+                }
+            }
+            output_type = "string"
+
+            def forward(self, options: list[dict] | None = None):
+                return "done"
+
+        complex_tool = ComplexArrayTool()
+        code_prompt = complex_tool.to_code_prompt()
+        # Should show list[dict] for array of objects with properties
+        assert "options: list[dict]" in code_prompt, f"Expected 'options: list[dict]' in output but got: {code_prompt}"
+        assert "options: array" not in code_prompt, f"Should not contain 'options: array' but got: {code_prompt}"
 
     def test_tool_init_with_decorator(self):
         @tool
