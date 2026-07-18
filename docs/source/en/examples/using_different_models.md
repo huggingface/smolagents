@@ -78,6 +78,37 @@ model = OpenAIModel(
 )
 ```
 
+## Using MiniMax Models
+
+[MiniMax](https://www.minimax.io/) provides powerful language models through an OpenAI-compatible API,
+allowing you to use the [`OpenAIModel`] class directly.
+
+Available models:
+- `MiniMax-M3` — Latest flagship model with 512K context, 128K max output, and image input support
+- `MiniMax-M2.7` — Previous-generation model with enhanced reasoning and coding
+- `MiniMax-M2.7-highspeed` — High-speed version of M2.7 for low-latency scenarios
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then, [get a MiniMax API key](https://platform.minimax.io/) and set it in your code:
+```python
+MINIMAX_API_KEY = <YOUR-MINIMAX-API-KEY>
+```
+
+Now, you can initialize MiniMax models using the `OpenAIModel` class:
+```python
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    model_id="MiniMax-M3",
+    api_base="https://api.minimax.io/v1",
+    api_key=MINIMAX_API_KEY,
+)
+```
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
