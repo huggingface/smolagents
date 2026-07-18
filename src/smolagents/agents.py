@@ -1423,15 +1423,19 @@ class ToolCallingAgent(MultiStepAgent):
             yield tool_output
         else:
             # If multiple tool calls, process them in parallel
+            errors = []
             with ThreadPoolExecutor(self.max_tool_threads) as executor:
                 futures = []
                 for tool_call in parallel_calls.values():
                     ctx = copy_context()
                     futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
                 for future in as_completed(futures):
-                    tool_output = future.result()
-                    outputs[tool_output.id] = tool_output
-                    yield tool_output
+                    try:
+                        tool_output = future.result()
+                        outputs[tool_output.id] = tool_output
+                        yield tool_output
+                    except AgentToolExecutionError as e:
+                        errors.append(e)
 
         memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
         memory_step.observations = memory_step.observations or ""
@@ -1440,6 +1444,10 @@ class ToolCallingAgent(MultiStepAgent):
         memory_step.observations = (
             memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
         )
+
+        if errors:
+            error_messages = "\n".join(str(e) for e in errors)
+            raise AgentToolExecutionError(error_messages, self.logger)
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
