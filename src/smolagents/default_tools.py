@@ -675,12 +675,39 @@ class SpeechToTextTool(PipelineTool):
         return self.pre_processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
+
+class CurrentTimeTool(Tool):
+    name = "current_time"
+    description = (
+        "Returns the current local time, date, and day of the week."
+        "Use this tool whenever you need to know the current date or time to answer a user's query about 'today', 'tomorrow', or relative dates."
+    )
+    inputs = {}
+    output_type = "string"
+
+    def forward(self) -> str:
+        import datetime
+        try:
+            #get current local time
+            now = datetime.datetime.now()
+            #format it as "Monday, January 1, 2024, 12:00 PM"
+            current_time_str = now.strftime("%Y-%m-%d %H:%M:%S")
+            #get weekday,eg "Monday"
+            weekday = now.strftime("%A")
+
+            return f"Current local time: {current_time_str} (Weekday: {weekday})"
+        except Exception as e:
+            return f"Error fetching current time: {str(e)}"
+
 TOOL_MAPPING = {
     tool_class.name: tool_class
     for tool_class in [
         PythonInterpreterTool,
         DuckDuckGoSearchTool,
         VisitWebpageTool,
+        WikipediaSearchTool,
+        SpeechToTextTool,
+        CurrentTimeTool,
     ]
 }
 
@@ -695,4 +722,5 @@ __all__ = [
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
+    "CurrentTimeTool"
 ]
