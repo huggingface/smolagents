@@ -270,9 +270,87 @@ class Tool(BaseTool):
 
         # Add arguments documentation
         if self.inputs:
-            args_descriptions = "\n".join(
-                f"{arg_name}: {arg_schema['description']}" for arg_name, arg_schema in self.inputs.items()
-            )
+
+            def format_nested_args(args_dict, indent_level=0, depth=1, max_depth=3):
+                """Recursively format nested argument descriptions
+
+                Note: max_depth is set to 3 as deeper nesting levels make it harder for LLMs
+                to understand and accurately configure parameters. This covers most use cases.
+                If deeper nesting is needed, this can be discussed and improved in the future.
+
+                Args:
+                    args_dict: The dictionary of arguments
+                    indent_level: The level of indentation
+                    depth: The depth of the nested dictionary
+                    max_depth: Maximum nesting depth to format (fixed at 3)
+                """
+                if depth > max_depth:
+                    return ""
+                descriptions = []
+                indent = "    " * indent_level
+
+                for arg_name, arg_schema in args_dict.items():
+                    if isinstance(arg_schema, dict):
+                        # Check if this is a standard smolagents format (has type and description)
+                        if "type" in arg_schema and "description" in arg_schema:
+                            # Standard smolagents format
+                            if "properties" in arg_schema:
+                                descriptions.append(f"{indent}{arg_name}: {arg_schema['description']}")
+                                nested_descriptions = format_nested_args(
+                                    arg_schema["properties"], indent_level + 1, depth + 1, max_depth
+                                )
+                                if nested_descriptions:
+                                    descriptions.append(nested_descriptions)
+                            else:
+                                # Handle array types and other simple types
+                                arg_type = arg_schema.get("type", "string")
+                                if arg_type == "array":
+                                    descriptions.append(f"{indent}{arg_name} (array): {arg_schema['description']}")
+                                else:
+                                    descriptions.append(f"{indent}{arg_name}: {arg_schema['description']}")
+                        elif "description" in arg_schema:
+                            # MCP format - has description but may not have type in the same way
+                            if "properties" in arg_schema:
+                                descriptions.append(f"{indent}{arg_name}: {arg_schema['description']}")
+                                nested_descriptions = format_nested_args(
+                                    arg_schema["properties"], indent_level + 1, depth + 1, max_depth
+                                )
+                                if nested_descriptions:
+                                    descriptions.append(nested_descriptions)
+                            else:
+                                # Handle array types and other simple types in MCP format
+                                arg_type = arg_schema.get("type", "string")
+                                if arg_type == "array":
+                                    descriptions.append(f"{indent}{arg_name} (array): {arg_schema['description']}")
+                                else:
+                                    descriptions.append(f"{indent}{arg_name}: {arg_schema['description']}")
+                        elif "title" in arg_schema:
+                            # MCP format with title instead of description
+                            if "properties" in arg_schema:
+                                descriptions.append(f"{indent}{arg_name}: {arg_schema['title']}")
+                                nested_descriptions = format_nested_args(
+                                    arg_schema["properties"], indent_level + 1, depth + 1, max_depth
+                                )
+                                if nested_descriptions:
+                                    descriptions.append(nested_descriptions)
+                            else:
+                                # Handle array types and other simple types in MCP format
+                                arg_type = arg_schema.get("type", "string")
+                                if arg_type == "array":
+                                    descriptions.append(f"{indent}{arg_name} (array): {arg_schema['title']}")
+                                else:
+                                    descriptions.append(f"{indent}{arg_name}: {arg_schema['title']}")
+                        else:
+                            # Handle direct nested objects
+                            nested_descriptions = format_nested_args(arg_schema, indent_level, depth + 1, max_depth)
+                            if nested_descriptions:
+                                descriptions.append(nested_descriptions)
+                    else:
+                        descriptions.append(f"{indent}{arg_name}: {arg_schema}")
+
+                return "\n".join(descriptions)
+
+            args_descriptions = format_nested_args(self.inputs)
             args_doc = f"Args:\n{textwrap.indent(args_descriptions, '    ')}"
             tool_doc += f"\n\n{args_doc}"
 
