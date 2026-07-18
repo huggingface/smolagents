@@ -830,7 +830,7 @@ def evaluate_call(
     authorized_imports: list[str],
 ) -> Any:
     if not isinstance(call.func, (ast.Call, ast.Lambda, ast.Attribute, ast.Name, ast.Subscript)):
-        raise InterpreterError(f"This is not a correct function: {call.func}).")
+        raise InterpreterError(f"This is not a correct function: {call.func}.")
 
     func, func_name = None, None
 
@@ -861,7 +861,7 @@ def evaluate_call(
     elif isinstance(call.func, ast.Subscript):
         func = evaluate_ast(call.func, state, static_tools, custom_tools, authorized_imports)
         if not callable(func):
-            raise InterpreterError(f"This is not a correct function: {call.func}).")
+            raise InterpreterError(f"This is not a correct function: {call.func}.")
         func_name = None
 
     args = []
