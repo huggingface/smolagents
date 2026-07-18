@@ -1421,6 +1421,87 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert result == 1
         assert is_final_answer is True
 
+    def test_break_in_try_except_is_not_swallowed(self):
+        code = dedent("""
+            result = []
+            for i in range(5):
+                try:
+                    if i == 2:
+                        break
+                except Exception:
+                    pass
+                result.append(i)
+            result
+        """)
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == [0, 1]
+
+    def test_continue_in_try_except_is_not_swallowed(self):
+        code = dedent("""
+            result = []
+            for i in range(5):
+                try:
+                    if i % 2 == 0:
+                        continue
+                except Exception:
+                    pass
+                result.append(i)
+            result
+        """)
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == [1, 3]
+
+    def test_return_in_try_except_is_not_swallowed(self):
+        code = dedent("""
+            def f():
+                try:
+                    return "early"
+                except Exception:
+                    return "caught"
+            f()
+        """)
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == "early"
+
+    def test_bare_except_does_not_swallow_break(self):
+        code = dedent("""
+            result = []
+            for i in range(3):
+                try:
+                    break
+                except:
+                    pass
+                result.append(i)
+            result
+        """)
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == []
+
+    def test_finally_runs_when_try_body_breaks(self):
+        code = dedent("""
+            log = []
+            for i in range(3):
+                try:
+                    break
+                finally:
+                    log.append("finally")
+            log
+        """)
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == ["finally"]
+
+    def test_try_except_still_catches_real_exceptions(self):
+        code = dedent("""
+            result = None
+            try:
+                x = 1 / 0
+            except ZeroDivisionError:
+                result = "caught"
+            result
+        """)
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == "caught"
+
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
             eval("1 + 1")
