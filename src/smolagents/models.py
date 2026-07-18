@@ -24,6 +24,7 @@ from enum import Enum
 from threading import Thread
 from typing import TYPE_CHECKING, Any
 
+from . import __version__
 from .monitoring import TokenUsage
 from .tools import Tool
 from .utils import RateLimiter, Retrying, _is_package_available, encode_image_base64, make_image_url, parse_json_blob
@@ -1281,6 +1282,7 @@ class LiteLLMModel(ApiModel):
             api_key=self.api_key,
             convert_images_to_image_urls=True,
             custom_role_conversions=self.custom_role_conversions,
+            extra_headers={"User-Agent": f"smolagents/{__version__}", **kwargs.pop("extra_headers", {})},
             **kwargs,
         )
         self._apply_rate_limit()
@@ -1324,6 +1326,7 @@ class LiteLLMModel(ApiModel):
             api_key=self.api_key,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
+            extra_headers={"User-Agent": f"smolagents/{__version__}", **kwargs.pop("extra_headers", {})},
             **kwargs,
         )
         self._apply_rate_limit()
