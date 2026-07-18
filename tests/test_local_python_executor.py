@@ -33,6 +33,7 @@ from smolagents.local_python_executor import (
     LocalPythonExecutor,
     PrintContainer,
     check_import_authorized,
+    check_safer_result,
     evaluate_boolop,
     evaluate_condition,
     evaluate_delete,
@@ -2533,6 +2534,14 @@ class TestLocalPythonExecutorSecurity:
             error_match = f".*Forbidden access to function: {dangerous_function_name}.*"
         with pytest.raises(InterpreterError, match=error_match):
             executor(f"import {dangerous_module_name}; {dangerous_function}")
+
+    def test_vulnerability_windows_nt_system_alias(self):
+        def system():
+            pass
+
+        system.__module__ = "nt"
+        with pytest.raises(InterpreterError, match="Forbidden access to function: system"):
+            check_safer_result(system)
 
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
