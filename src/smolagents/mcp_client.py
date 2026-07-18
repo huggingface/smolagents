@@ -21,6 +21,28 @@ import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
+import logging as _logging
+
+from smolagents.mcp_firewall import (
+    MCPAuditLogger,
+    MCPCallSentinel,
+    MCPPayloadValidationError,
+    MCPPayloadValidator,
+    MCPRateLimiter,
+    MCPResponseSanitizer,
+    MCPRugPullDetectedError,
+    MCPSecurityHook,
+    MCPServerUntrustedError,
+    MCPToolAllowlist,
+    MCPToolBlockedError,
+    MCPToolFingerprinter,
+    TrustVerifier,
+    _dispatch_hooks,
+    _extract_server_id,
+    wrap_tool_with_guardian,
+)
+
+_logger = _logging.getLogger(__name__)
 from smolagents.tools import Tool
 
 
@@ -56,6 +78,33 @@ class MCPClient:
             - Structured content handling (structuredContent from MCP responses)
             - JSON parsing fallback for structured data
             If False, uses the original simple text-only behavior for backwards compatibility.
+        trust_verifier (TrustVerifier, optional):
+            A pre-flight trust verifier that is evaluated *before* any TCP connection
+            is established. Use ``StaticTrustVerifier`` for URL/command-based rules,
+            or subclass ``TrustVerifier`` to call an external reputation API.
+            When provided, raises ``MCPServerUntrustedError`` if the server is rejected.
+            Defaults to None (no verification — preserves backward compatibility).
+        payload_validator (MCPPayloadValidator, optional):
+            A post-connection validator that inspects each tool's name, description,
+            and input schema for prompt-injection patterns and resource-exhaustion
+            attacks. Raises ``MCPPayloadValidationError`` if any tool fails validation.
+            Defaults to None (no validation — preserves backward compatibility).
+        fingerprinter (MCPToolFingerprinter, optional):
+            Rug-pull detector.  On first connect, records SHA-256 fingerprints of
+            every tool's definition in a local lockfile (``.mcp-lock.json``).
+            On every subsequent connect, re-fingerprints and raises
+            ``MCPRugPullDetectedError`` if any definition has changed.
+            Defaults to None (no fingerprinting).
+        sentinel (MCPCallSentinel, optional):
+            Runtime firewall.  Wraps each tool's ``forward()`` to scan arguments
+            for credential exfiltration patterns (pre-call) and responses for
+            injection patterns and size violations (post-call).
+            Raises ``MCPCallInterceptedError`` when a violation is detected.
+            Defaults to None (no call interception).
+        audit_logger (MCPAuditLogger, optional):
+            Structured audit log.  Records every tool call (timestamp, server_id,
+            hashed args, hashed response, duration, blocked status) to a JSONL
+            file.  Defaults to None (no audit logging).
 
     Example:
         ```python
@@ -70,6 +119,15 @@ class MCPClient:
         # Enable structured output for advanced MCP tools:
         with MCPClient(server_parameters, structured_output=True) as tools:
             # tools with structured output support are now available
+
+        # With security layers enabled:
+        from smolagents import StaticTrustVerifier, MCPPayloadValidator
+        with MCPClient(
+            server_parameters,
+            trust_verifier=StaticTrustVerifier(require_https=True),
+            payload_validator=MCPPayloadValidator(),
+        ) as tools:
+            # tools have been trust-verified and payload-validated
 
         # manually manage the connection via the mcp_client object:
         try:
@@ -87,7 +145,54 @@ class MCPClient:
         server_parameters: "StdioServerParameters" | dict[str, Any] | list["StdioServerParameters" | dict[str, Any]],
         adapter_kwargs: dict[str, Any] | None = None,
         structured_output: bool | None = None,
+        trust_verifier: TrustVerifier | None = None,
+        payload_validator: MCPPayloadValidator | None = None,
+        fingerprinter: MCPToolFingerprinter | None = None,
+        sentinel: MCPCallSentinel | None = None,
+        audit_logger: MCPAuditLogger | None = None,
+        allowlist: MCPToolAllowlist | None = None,
+        sanitizer: MCPResponseSanitizer | None = None,
+        rate_limiter: MCPRateLimiter | None = None,
+        hooks: list[MCPSecurityHook] | None = None,
+        warn_mode: bool = False,
     ):
+        self._hooks: list[MCPSecurityHook] = list(hooks) if hooks else []
+        self._warn_mode = warn_mode
+
+        # --- Layer 1: Pre-flight trust verification (before any TCP connection) ---
+        self._trust_score: float | None = None
+        if trust_verifier is not None:
+            result = trust_verifier.verify(server_parameters)
+            if not result.trusted:
+                if warn_mode:
+                    _logger.warning("[WARN] MCPFirewall: server untrusted (%s): %s",
+                                    result.server_id, "; ".join(result.reasons))
+                    _dispatch_hooks(self._hooks, "violation_warned", result.server_id, {
+                        "violation_type": "server_blocked",
+                        "trust_score": result.trust_score,
+                        "reasons": result.reasons,
+                    })
+                else:
+                    _dispatch_hooks(self._hooks, "server_blocked", result.server_id, {
+                        "trust_score": result.trust_score,
+                        "reasons": result.reasons,
+                    })
+                    raise MCPServerUntrustedError(
+                        server_id=result.server_id,
+                        trust_score=result.trust_score,
+                        reasons=result.reasons,
+                    )
+            self._trust_score = result.trust_score
+
+        self._payload_validator = payload_validator
+        self._fingerprinter = fingerprinter
+        self._sentinel = sentinel
+        self._audit_logger = audit_logger
+        self._allowlist = allowlist
+        self._sanitizer = sanitizer
+        self._rate_limiter = rate_limiter
+        self._server_id = _extract_server_id(server_parameters)
+
         # Handle future warning for structured_output default value change
         if structured_output is None:
             warnings.warn(
@@ -124,6 +229,75 @@ class MCPClient:
     def connect(self):
         """Connect to the MCP server and initialize the tools."""
         self._tools: list[Tool] = self._adapter.__enter__()
+        # --- Layer 2: Post-connection payload validation ---
+        if self._payload_validator is not None and self._tools is not None:
+            if self._warn_mode:
+                try:
+                    self._payload_validator.validate_tool_list(self._tools, self._server_id)
+                except MCPPayloadValidationError as exc:
+                    _logger.warning("[WARN] MCPFirewall: %s", exc)
+                    _dispatch_hooks(self._hooks, "violation_warned", self._server_id, {
+                        "violation_type": "payload_validation",
+                        "reason": str(exc),
+                    })
+            else:
+                self._payload_validator.validate_tool_list(self._tools, self._server_id)
+        # --- Layer 3: Rug-pull fingerprint verification ---
+        if self._fingerprinter is not None and self._tools is not None:
+            try:
+                self._fingerprinter.fingerprint_and_verify(self._tools, self._server_id)
+            except MCPRugPullDetectedError as exc:
+                if self._warn_mode:
+                    _logger.warning("[WARN] MCPFirewall: %s", exc)
+                    _dispatch_hooks(self._hooks, "violation_warned", self._server_id, {
+                        "violation_type": "rug_pull_detected",
+                        "tool_name": getattr(exc, "tool_name", "?"),
+                        "reason": str(exc),
+                    })
+                else:
+                    _dispatch_hooks(self._hooks, "rug_pull_detected", self._server_id, {
+                        "tool_name": getattr(exc, "tool_name", "?"),
+                        "reason": str(exc),
+                    })
+                    raise
+        # --- Layer 5: Allowlist enforcement ---
+        if self._allowlist is not None and self._tools is not None:
+            try:
+                self._allowlist.validate_tool_list(self._tools, self._server_id)
+            except MCPToolBlockedError as exc:
+                if self._warn_mode:
+                    _logger.warning("[WARN] MCPFirewall: %s", exc)
+                    _dispatch_hooks(self._hooks, "violation_warned", self._server_id, {
+                        "violation_type": "tool_blocked",
+                        "tool_name": exc.tool_name,
+                        "reason": exc.reason,
+                    })
+                else:
+                    _dispatch_hooks(self._hooks, "tool_blocked", self._server_id, {
+                        "tool_name": exc.tool_name,
+                        "reason": exc.reason,
+                    })
+                    raise
+        # --- Layers 4/6/7/8: Wrap tools with runtime guardian ---
+        if (
+            self._sentinel is not None or self._audit_logger is not None
+            or self._allowlist is not None or self._sanitizer is not None
+            or self._rate_limiter is not None or self._hooks
+        ) and self._tools is not None:
+            for tool in self._tools:
+                wrap_tool_with_guardian(
+                    tool,
+                    server_id=self._server_id,
+                    sentinel=self._sentinel,
+                    audit_logger=self._audit_logger,
+                    trust_score=self._trust_score,
+                    fingerprint_verified=self._fingerprinter is not None,
+                    allowlist=self._allowlist,
+                    sanitizer=self._sanitizer,
+                    rate_limiter=self._rate_limiter,
+                    hooks=self._hooks or None,
+                    warn_mode=self._warn_mode,
+                )
 
     def disconnect(
         self,
