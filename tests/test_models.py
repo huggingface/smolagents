@@ -475,6 +475,39 @@ class TestLiteLLMModel:
             # = 0.704s (allow some tolerance)
             assert 0.67 <= elapsed_time <= 0.73
 
+    def test_retry_on_overload_and_loading_errors(self):
+        """Test that the retry mechanism triggers on 503, overloaded, and loading errors."""
+        mock_litellm = MagicMock()
+
+        with (
+            patch("smolagents.models.RETRY_WAIT", 0.1),
+            patch("smolagents.utils.random.random", side_effect=[0.1, 0.1]),
+            patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
+        ):
+            model = LiteLLMModel(model_id="test-model")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
+
+            mock_success_response = MagicMock()
+            mock_success_response.choices = [MagicMock()]
+            mock_success_response.choices[0].message.content = "Success response"
+            mock_success_response.choices[0].message.role = "assistant"
+            mock_success_response.choices[0].message.tool_calls = None
+            mock_success_response.usage.prompt_tokens = 10
+            mock_success_response.usage.completion_tokens = 20
+
+            # Create a 503 overloaded error and a model loading error
+            overloaded_error = Exception("Error code: 503 - Service Unavailable (overloaded)")
+            loading_error = Exception("Model is currently loading")
+
+            # Mock the litellm client to raise overloaded, then loading, then succeed
+            model.client.completion.side_effect = [overloaded_error, loading_error, mock_success_response]
+
+            result = model.generate(messages)
+
+            # Verify that completion was called thrice (twice failed, once succeeded)
+            assert model.client.completion.call_count == 3
+            assert result.content == "Success response"
+
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
         assert not model.flatten_messages_as_text
