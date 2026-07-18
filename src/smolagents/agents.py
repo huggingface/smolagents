@@ -1772,7 +1772,16 @@ class CodeAgent(MultiStepAgent):
         agent_dict = super().to_dict()
         agent_dict["authorized_imports"] = self.authorized_imports
         agent_dict["executor_type"] = self.executor_type
-        agent_dict["executor_kwargs"] = self.executor_kwargs
+        # Strip credentials from executor_kwargs before exporting. Remote executors
+        # such as E2BExecutor accept `api_key` / `token` via **kwargs and pass them
+        # straight to the sandbox client, so they can land in self.executor_kwargs.
+        sanitized_executor_kwargs = {k: v for k, v in self.executor_kwargs.items() if k not in ("api_key", "token")}
+        for stripped in set(self.executor_kwargs) - set(sanitized_executor_kwargs):
+            print(
+                f"For security reasons, we do not export the `{stripped}` value from `executor_kwargs`. "
+                "Please export it manually."
+            )
+        agent_dict["executor_kwargs"] = sanitized_executor_kwargs
         agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
         return agent_dict
 
