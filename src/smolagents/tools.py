@@ -292,6 +292,7 @@ class Tool(BaseTool):
     def to_dict(self) -> dict:
         """Returns a dictionary representing the tool"""
         class_name = self.__class__.__name__
+        requirements_sources: list[str] = []
         if type(self).__name__ == "SimpleTool":
             # Check that imports are self-contained
             source_code = get_source(self.forward).replace("@tool", "")
@@ -339,6 +340,7 @@ class Tool(BaseTool):
             forward_source_code = add_self_argument(forward_source_code)
             forward_source_code = forward_source_code.replace("@tool", "").strip()
             tool_code += "\n\n" + textwrap.indent(forward_source_code, "    ")
+            requirements_sources.extend([tool_code, forward_source_code])
 
         else:  # If the tool was not created by the @tool decorator, it was made by subclassing Tool
             if type(self).__name__ in [
@@ -353,8 +355,14 @@ class Tool(BaseTool):
             validate_tool_attributes(self.__class__)
 
             tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
+            requirements_sources.append(tool_code)
 
-        requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
+        requirements = {
+            el
+            for source in requirements_sources
+            for el in get_imports(source)
+            if el not in sys.stdlib_module_names
+        } | {"smolagents"}
 
         tool_dict = {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
 

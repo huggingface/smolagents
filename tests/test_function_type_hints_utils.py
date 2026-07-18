@@ -508,6 +508,13 @@ class TestGetCode:
         """,
                 [],
             ),
+            (
+                """
+        import IPython  # noqa: F401
+        from pandas import DataFrame  # type: ignore[import-not-found]
+        """,
+                ["IPython", "pandas"],
+            ),
         ],
     )
     def test_get_imports(self, code: str, expected: list[str]):
