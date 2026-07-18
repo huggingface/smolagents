@@ -78,6 +78,43 @@ model = OpenAIModel(
 )
 ```
 
+## Using Groq Models
+
+[Groq](https://groq.com/) provides very fast inference for open-source models like Llama and Mixtral.
+You can use [`LiteLLMModel`] to access Groq.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[litellm]'
+```
+
+Then, [get a Groq API key](https://console.groq.com/keys) and set it in your code:
+```python
+GROQ_API_KEY = <YOUR-GROQ-API-KEY>
+```
+
+Now, you can initialize a Groq model using the `LiteLLMModel` class with the `groq/` prefix:
+```python
+from smolagents import LiteLLMModel
+
+model = LiteLLMModel(
+    model_id="groq/llama-3.3-70b-versatile",
+    api_key=GROQ_API_KEY,
+)
+```
+
+Then use it with any agent:
+```python
+from smolagents import CodeAgent
+
+agent = CodeAgent(model=model, tools=[])
+agent.run("Calculate the 10th Fibonacci number.")
+```
+
+Other popular Groq models include `groq/llama-3.1-8b-instant` (fastest, lowest latency) and
+`groq/mixtral-8x7b-32768` (large context window). See the full list at
+[console.groq.com/docs/models](https://console.groq.com/docs/models).
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
