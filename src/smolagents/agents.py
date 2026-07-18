@@ -1116,13 +1116,23 @@ You have been provided with these additional arguments, that you can access dire
         return cls.from_folder(download_folder, **kwargs)
 
     @classmethod
-    def from_folder(cls, folder: str | Path, **kwargs):
+    def from_folder(cls, folder: str | Path, trust_remote_code: bool = False, **kwargs):
         """Loads an agent from a local folder.
 
         Args:
             folder (`str` or `Path`): The folder where the agent is saved.
+            trust_remote_code (`bool`, *optional*, defaults to `False`):
+                This flags marks that you understand the risk of running code loaded from a local folder.
+                The tool code in the folder will be executed using Python's `exec`. If not setting this to True,
+                loading the agent from a folder will fail.
             **kwargs: Additional keyword arguments that will be passed to the agent's init.
         """
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading an agent from a local folder means executing code stored in that folder. "
+                "To acknowledge you trust the code, pass `trust_remote_code=True`."
+            )
+
         # Load agent.json
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
@@ -1141,7 +1151,7 @@ You have been provided with these additional arguments, that you can access dire
                     f"Unknown agent class '{managed_agent_class_name}'. "
                     f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
                 )
-            managed_agents.append(agent_cls.from_folder(folder / "managed_agents" / managed_agent_name))
+            managed_agents.append(agent_cls.from_folder(folder / "managed_agents" / managed_agent_name, trust_remote_code=trust_remote_code))
         agent_dict["managed_agents"] = {}
 
         # Load tools

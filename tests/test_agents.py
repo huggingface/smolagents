@@ -2262,7 +2262,7 @@ print("Ok, calculation done!")""")
             import json
 
             mock_path.return_value.__truediv__.return_value.read_text.return_value = json.dumps(agent_dict)
-            agent = CodeAgent.from_folder("ignored_dummy_folder")
+            agent = CodeAgent.from_folder("ignored_dummy_folder", trust_remote_code=True)
         assert isinstance(agent, CodeAgent)
         assert agent.name == "test_agent"
         assert agent.description == "dummy description"
@@ -2431,7 +2431,7 @@ class TestMultiAgents:
         verify_structure(tmp_path, expected_structure)
 
         # Test that re-loaded agents work as expected.
-        agent2 = CodeAgent.from_folder(tmp_path, planning_interval=5)
+        agent2 = CodeAgent.from_folder(tmp_path, trust_remote_code=True, planning_interval=5)
         assert agent2.planning_interval == 5  # Check that kwargs are used
         assert set(agent2.authorized_imports) == set(["pandas", "datetime"] + BASE_BUILTIN_MODULES)
         assert agent2.max_print_outputs_length == 1000
