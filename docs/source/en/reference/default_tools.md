@@ -10,6 +10,7 @@ The built-in tools can be categorized by their primary functions:
 - **Information Retrieval**: Search and retrieve information from the web and specific knowledge sources.
   - [`ApiWebSearchTool`]
   - [`DuckDuckGoSearchTool`]
+  - [`ExaSearchTool`]
   - [`GoogleSearchTool`]
   - [`WebSearchTool`]
   - [`WikipediaSearchTool`]
@@ -31,6 +32,10 @@ The built-in tools can be categorized by their primary functions:
 ## DuckDuckGoSearchTool
 
 [[autodoc]] smolagents.default_tools.DuckDuckGoSearchTool
+
+## ExaSearchTool
+
+[[autodoc]] smolagents.default_tools.ExaSearchTool
 
 ## FinalAnswerTool
 
