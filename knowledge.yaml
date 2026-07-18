@@ -1,0 +1,301 @@
+kcp_version: "0.3"
+id: smolagents
+description: "Barebones Python library for building AI agents that think in code — CodeAgent and ToolCallingAgent with 100+ LLM integrations"
+entry_points:
+  primary: docs/source/en/index.md
+  architecture: docs/source/en/conceptual_guides/intro_agents.md
+
+units:
+  - id: overview
+    path: docs/source/en/index.md
+    kind: guide
+    intent: "What is smolagents, what are its key features, and how do I get started quickly?"
+    scope: overview
+    audience: [beginner, developer]
+    triggers:
+      - what is smolagents
+      - smolagents overview
+      - smolagents features
+      - smolagents quickstart
+      - install smolagents
+    hints:
+      token_estimate: 600
+      load_strategy: eager
+      priority: high
+
+  - id: installation
+    path: docs/source/en/installation.md
+    kind: guide
+    intent: "How do I install smolagents and its optional dependencies?"
+    scope: focused
+    audience: [beginner]
+    triggers:
+      - how to install smolagents
+      - pip install smolagents
+      - smolagents dependencies
+      - smolagents setup
+      - install from source
+    hints:
+      token_estimate: 800
+      load_strategy: lazy
+      priority: medium
+
+  - id: getting-started-tldr
+    path: docs/source/en/getting-started-tldr.md
+    kind: reference
+    intent: "What is the difference between CodeAgent and ToolCallingAgent, and how do I run a minimal agent?"
+    scope: focused
+    audience: [beginner, developer]
+    triggers:
+      - CodeAgent vs ToolCallingAgent
+      - difference between CodeAgent and ToolCallingAgent
+      - which agent type should I use
+      - minimal agent example
+      - supported LLM models
+      - how to use OpenAI with smolagents
+      - how to use Anthropic with smolagents
+      - how to use Ollama with smolagents
+    hints:
+      token_estimate: 700
+      load_strategy: eager
+      priority: high
+      summary_available: true
+      summary_of: guided-tour
+
+  - id: guided-tour
+    path: docs/source/en/guided_tour.md
+    kind: tutorial
+    intent: "Full walkthrough of smolagents: agent types, models, tools, multi-agents, Hub sharing, and Gradio UI"
+    scope: comprehensive
+    audience: [beginner, developer]
+    triggers:
+      - guided tour
+      - full smolagents tutorial
+      - how to build an agent
+      - how to customize an agent
+      - smolagents gradio UI
+      - share agent to Hub
+      - multi-agent smolagents
+    hints:
+      token_estimate: 6000
+      load_strategy: lazy
+      priority: medium
+      summary_available: true
+      summary_unit: getting-started-tldr
+
+  - id: agent-concepts
+    path: docs/source/en/conceptual_guides/intro_agents.md
+    kind: architecture
+    intent: "What are AI agents conceptually, what is the spectrum of agency, and why do code agents work better?"
+    scope: overview
+    audience: [beginner, developer, advanced]
+    triggers:
+      - what is an agent
+      - agency spectrum
+      - why code agents
+      - agent theory
+      - agentic system concepts
+      - ReAct pattern introduction
+    hints:
+      token_estimate: 1800
+      load_strategy: lazy
+      priority: medium
+
+  - id: react-pattern
+    path: docs/source/en/conceptual_guides/react.md
+    kind: architecture
+    intent: "How does the ReAct (Reason + Act) pattern work in smolagents?"
+    scope: focused
+    audience: [developer, advanced]
+    triggers:
+      - ReAct pattern
+      - reason and act
+      - how does the agent reasoning loop work
+      - agent steps and observations
+    hints:
+      token_estimate: 600
+      load_strategy: lazy
+      priority: low
+
+  - id: tools-tldr
+    path: docs/source/en/tools-tldr.md
+    kind: reference
+    intent: "How do I create a custom tool quickly, what are the required elements, and what built-in tools exist?"
+    scope: focused
+    audience: [developer]
+    triggers:
+      - how to create a tool
+      - custom tool smolagents
+      - tool decorator
+      - Tool class
+      - built-in tools
+      - default tools smolagents
+      - DuckDuckGoSearchTool
+      - WebSearchTool
+      - load tool from hub
+      - MCP tools smolagents
+    hints:
+      token_estimate: 700
+      load_strategy: lazy
+      priority: medium
+      summary_available: true
+      summary_of: tools-tutorial
+
+  - id: tools-tutorial
+    path: docs/source/en/tutorials/tools.md
+    kind: tutorial
+    intent: "Complete guide to building, sharing, and loading tools in smolagents including MCP, LangChain, and Hub integration"
+    scope: comprehensive
+    audience: [developer, advanced]
+    triggers:
+      - advanced tool usage
+      - push tool to hub
+      - MCP server integration
+      - LangChain tool smolagents
+      - tool from space
+      - structured output tool
+    hints:
+      token_estimate: 3800
+      load_strategy: lazy
+      priority: medium
+      summary_available: true
+      summary_unit: tools-tldr
+
+  - id: production-tldr
+    path: docs/source/en/production-tldr.md
+    kind: reference
+    intent: "What are the top best practices for building reliable, production-grade agents?"
+    scope: focused
+    audience: [developer, advanced]
+    triggers:
+      - best practices agents
+      - reliable agents production
+      - agent debugging tips
+      - how to improve agent performance
+      - agent reliability
+      - agent observability
+      - how to debug agent
+    hints:
+      token_estimate: 700
+      load_strategy: lazy
+      priority: medium
+      summary_available: true
+      summary_of: building-good-agents
+
+  - id: building-good-agents
+    path: docs/source/en/tutorials/building_good_agents.md
+    kind: tutorial
+    intent: "Comprehensive guide to building production-quality agents: simplification, tool design, debugging, and observability"
+    scope: comprehensive
+    audience: [developer, advanced]
+    triggers:
+      - building good agents tutorial
+      - agent best practices deep dive
+      - how to reduce LLM errors
+      - tool design patterns
+      - agent performance optimization
+      - instrument agent runs
+    hints:
+      token_estimate: 5000
+      load_strategy: lazy
+      priority: high
+      summary_available: true
+      summary_unit: production-tldr
+
+  - id: secure-execution
+    path: docs/source/en/tutorials/secure_code_execution.md
+    kind: tutorial
+    intent: "How do I run CodeAgent code safely using sandboxes like E2B, Docker, or Blaxel?"
+    scope: comprehensive
+    audience: [developer, advanced]
+    triggers:
+      - secure code execution
+      - sandboxed code execution
+      - E2B smolagents
+      - Docker smolagents
+      - Blaxel smolagents
+      - safe CodeAgent
+      - executor_type e2b
+      - executor_type docker
+      - local python executor
+      - code execution security
+    hints:
+      token_estimate: 4400
+      load_strategy: lazy
+      priority: medium
+
+  - id: memory
+    path: docs/source/en/tutorials/memory.md
+    kind: tutorial
+    intent: "How does agent memory work and how do I manage conversation history and context across runs?"
+    scope: focused
+    audience: [developer, advanced]
+    triggers:
+      - agent memory
+      - conversation history
+      - agent context management
+      - memory management smolagents
+      - reset agent memory
+    hints:
+      token_estimate: 1000
+      load_strategy: lazy
+      priority: low
+
+  - id: multiagent-tldr
+    path: docs/source/en/multiagent-tldr.md
+    kind: reference
+    intent: "How do I set up a multi-agent system with a manager and subagents, and how does RAG integration work?"
+    scope: focused
+    audience: [developer, advanced]
+    triggers:
+      - multi-agent system
+      - manager agent subagent
+      - orchestrate agents
+      - how to set up multi-agent
+      - RAG with smolagents
+      - retrieval augmented generation smolagents
+      - web browser agent
+      - agent hierarchy
+    hints:
+      token_estimate: 700
+      load_strategy: lazy
+      priority: medium
+      summary_available: true
+      summary_of: multiagents-example
+
+  - id: multiagents-example
+    path: docs/source/en/examples/multiagents.md
+    kind: example
+    intent: "Full walkthrough of building a multi-agent web browser system with manager and web search subagent"
+    scope: comprehensive
+    audience: [developer, advanced]
+    triggers:
+      - multi-agent web browser example
+      - managed_agents parameter
+      - full multi-agent example
+      - web search multi-agent
+    hints:
+      token_estimate: 1400
+      load_strategy: lazy
+      priority: medium
+      summary_available: true
+      summary_unit: multiagent-tldr
+
+  - id: model-reference
+    path: docs/source/en/reference/models.md
+    kind: reference
+    intent: "API reference for all model classes: InferenceClientModel, LiteLLMModel, TransformersModel, AzureOpenAIModel, AmazonBedrockModel, MLXModel"
+    scope: comprehensive
+    audience: [developer, advanced]
+    triggers:
+      - model API reference
+      - InferenceClientModel parameters
+      - LiteLLMModel configuration
+      - AzureOpenAIModel setup
+      - AmazonBedrockModel
+      - model class reference
+      - supported inference providers
+    hints:
+      token_estimate: 2000
+      load_strategy: lazy
+      priority: medium
