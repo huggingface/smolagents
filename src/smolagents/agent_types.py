@@ -24,9 +24,41 @@ import PIL.Image
 import requests
 
 from .utils import _is_package_available
+from urllib.parse import urlparse
+import ipaddress
 
 
 logger = logging.getLogger(__name__)
+
+
+def validate_url(url: str) -> bool:
+    """
+    Validate URL to prevent SSRF attacks.
+    Blocks access to internal IPs, localhost, and private networks.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        
+        # Try to resolve the hostname to an IP
+        import socket
+        try:
+            hostname = parsed.netloc.split(':')[0]  # Remove port if present
+            if hostname in ('localhost', '127.0.0.1', '::1'):
+                return False
+            ip = socket.gethostbyname(hostname)
+            # Check if IP is private or internal
+            ip_obj = ipaddress.ip_address(ip)
+            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+                return False
+        except socket.gaierror:
+            # If we can't resolve, allow but log warning
+            logger.warning(f"Could not resolve hostname: {parsed.netloc}")
+        
+        return True
+    except Exception:
+        return False
 
 
 class AgentType:
@@ -226,6 +258,9 @@ class AgentAudio(AgentType, str):
 
         if self._path is not None:
             if "://" in str(self._path):
+                # Validate URL to prevent SSRF attacks
+                if not validate_url(str(self._path)):
+                    raise ValueError(f"URL validation failed for: {self._path}. Blocked internal/private network access.")
                 response = requests.get(self._path)
                 response.raise_for_status()
                 tensor, self.samplerate = sf.read(BytesIO(response.content))
