@@ -16,7 +16,7 @@
 # limitations under the License.
 """This module contains utilities exclusively taken from `transformers` repository.
 
-Since they are not specific to `transformers` and that `transformers` is an heavy dependencies, those helpers have
+Since they are not specific to `transformers` and that `transformers` is a heavy dependency, those helpers have
 been duplicated.
 
 TODO: move them to `huggingface_hub` to avoid code duplication.

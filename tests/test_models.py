@@ -259,7 +259,7 @@ class TestModel:
         messages = [
             ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": f"Please{stop_sequence}'"}]),
         ]
-        # check our assumption that that ">" is followed by "'"
+        # check our assumption that ">" is followed by "'"
         assert model.tokenizer.vocab[">'"]
         assert model(messages, stop_sequences=[]).content == f"I'm ready to help you{stop_sequence}'"
         # check stop_sequence capture when output has trailing chars
