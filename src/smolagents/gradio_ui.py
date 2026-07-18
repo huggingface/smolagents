@@ -419,15 +419,36 @@ class GradioUI:
                     all_messages[streaming_msg_idx] = msg
                 yield all_messages
 
-    def launch(self, share: bool = True, **kwargs):
+    def launch(self, share: bool = False, debug: bool = False, auth=None, **kwargs):
         """
         Launch the Gradio app with the agent interface.
 
+        SECURITY: passing ``share=True`` exposes the agent — and any tools it
+        can execute, including arbitrary Python code for ``CodeAgent`` — to the
+        public internet via a Gradio tunnel (``*.gradio.live``). When sharing,
+        always pass ``auth=("user", "pass")`` (or stronger) to prevent
+        unauthenticated remote code execution by anyone who finds the URL.
+
         Args:
-            share (`bool`, defaults to `True`): Whether to share the app publicly.
-            **kwargs: Additional keyword arguments to pass to the Gradio launch method.
+            share (`bool`, defaults to `False`): Whether to share the app publicly via a Gradio tunnel.
+            debug (`bool`, defaults to `False`): Whether to launch Gradio in debug mode.
+            auth: Optional Gradio ``auth`` value forwarded to ``gradio.Blocks.launch``.
+                A ``("user", "pass")`` tuple, callable, or list of credentials.
+            **kwargs: Additional keyword arguments forwarded to ``gradio.Blocks.launch``.
         """
-        self.create_app().launch(debug=True, share=share, **kwargs)
+        # Refuse to publicly expose a CodeAgent without authentication —
+        # share=True + CodeAgent + no auth == unauthenticated RCE-as-a-Service.
+        from smolagents.agents import CodeAgent  # local import to avoid circular at module load
+
+        if share and auth is None and isinstance(self.agent, CodeAgent):
+            raise ValueError(
+                "Refusing to launch a CodeAgent publicly without authentication. "
+                "CodeAgent executes arbitrary code on the host; share=True with no "
+                "auth would expose that capability to the public internet. "
+                'Pass auth=("user", "pass") to launch(), or set share=False.'
+            )
+
+        self.create_app().launch(debug=debug, share=share, auth=auth, **kwargs)
 
     def create_app(self):
         import gradio as gr
