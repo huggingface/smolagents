@@ -153,6 +153,38 @@ DANGEROUS_FUNCTIONS = [
 ]
 
 
+def _format_string_has_dunder_field(format_string: str) -> bool:
+    """
+    Return True if `format_string` references a dunder attribute via a field-path
+    expression such as ``{0.__class__.__bases__}``.
+
+    ``str.format`` and ``str.format_map`` evaluate field paths using CPython's
+    C-level ``_PyObject_LookupAttr`` from the ``_string`` module, which
+    bypasses the sandbox's Python-level ``getattr`` override and the AST-level
+    dunder check in :func:`evaluate_attribute`. Format strings must therefore
+    be validated before delegating to ``str.format`` / ``str.format_map``.
+    """
+    import string
+
+    try:
+        parsed = list(string.Formatter().parse(format_string))
+    except (ValueError, TypeError):
+        # Malformed format strings will raise when actually called; let that
+        # happen at call time rather than masking the error here.
+        return False
+
+    for _literal_text, field_name, _format_spec, _conversion in parsed:
+        if not field_name:
+            continue
+        # field_name looks like "0", "0.foo", "0.foo.bar[2]", "name.attr", etc.
+        # Split on '.' and '[' to enumerate attribute segments.
+        for segment in re.split(r"[\.\[]", field_name):
+            segment = segment.rstrip("]")
+            if segment.startswith("__") and segment.endswith("__"):
+                return True
+    return False
+
+
 def check_safer_result(result: Any, static_tools: dict[str, Callable] = None, authorized_imports: list[str] = None):
     """
     Checks if a result is safer according to authorized imports and static tools.
@@ -915,6 +947,21 @@ def evaluate_call(
             and (func.__name__ not in ALLOWED_DUNDER_METHODS)
         ):
             raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
+        # ``str.format`` / ``str.format_map`` evaluate field paths (e.g.
+        # ``{0.__class__.__bases__}``) through CPython's C-level
+        # ``_PyObject_LookupAttr``, which bypasses the Python-level dunder
+        # check above and the dunder check in :func:`evaluate_attribute`.
+        # Validate the format string before delegating to the real method.
+        if (
+            func_name in ("format", "format_map")
+            and isinstance(getattr(func, "__self__", None), str)
+            and _format_string_has_dunder_field(func.__self__)
+        ):
+            raise InterpreterError(
+                "Forbidden dunder access in format string field path "
+                "(e.g. '{0.__class__}'): the sandbox's dunder filter applies to attribute "
+                "access expressions as well as format-string field paths."
+            )
         return func(*args, **kwargs)
 
 
