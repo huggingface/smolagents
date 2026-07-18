@@ -373,6 +373,14 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
+            # Normalize string content to list before merging consecutive same-role messages.
+            # String content is valid (e.g. {"role": "system", "content": "..."}) but the
+            # merge logic below assumes list format.  Without this guard, two consecutive
+            # system messages with string content raise AssertionError.  See issue #1972.
+            if isinstance(message.content, str):
+                message.content = [{"type": "text", "text": message.content}]
+            if isinstance(output_message_list[-1]["content"], str):
+                output_message_list[-1]["content"] = [{"type": "text", "text": output_message_list[-1]["content"]}]
             assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
