@@ -339,6 +339,127 @@ class ApiWebSearchTool(Tool):
         )
 
 
+class SearchApiSearchTool(Tool):
+    """Web search tool that uses the SearchApi.io API to query multiple search engines.
+
+    Supports Google, Google News, Google Shopping, Google Jobs, YouTube, Bing, Baidu, and more.
+    The agent can dynamically select the search engine at query time via the `engine` parameter.
+
+    Args:
+        api_key (`str`, *optional*): SearchApi.io API key. Defaults to SEARCHAPI_API_KEY env var.
+        engine (`str`, default `"google"`): Default search engine.
+        num_results (`int`, default `10`): Maximum number of results to return.
+        rate_limit (`float`, default `1.0`): Maximum queries per second. Set to `None` to disable.
+
+    Examples:
+        ```python
+        >>> from smolagents import SearchApiSearchTool
+        >>> search_tool = SearchApiSearchTool()
+        >>> results = search_tool("latest AI news")
+        >>> print(results)
+        ```
+    """
+
+    name = "web_search"
+    description = (
+        "Performs a web search using SearchApi.io, which supports multiple engines: "
+        "google, google_news, google_shopping, google_jobs, youtube, bing, baidu. "
+        "Returns the top search results as markdown with titles, URLs, and snippets."
+    )
+    inputs = {
+        "query": {"type": "string", "description": "The search query to perform."},
+        "engine": {
+            "type": "string",
+            "description": "Search engine to use: google, google_news, google_shopping, google_jobs, youtube, bing, baidu.",
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def __init__(
+        self,
+        api_key: str = "",
+        engine: str = "google",
+        num_results: int = 10,
+        rate_limit: float | None = 1.0,
+    ):
+        import os
+
+        super().__init__()
+        self.api_key = api_key or os.getenv("SEARCHAPI_API_KEY")
+        if not self.api_key:
+            raise ValueError("Missing API key. Set 'SEARCHAPI_API_KEY' env variable or pass api_key.")
+        self.engine = engine
+        self.num_results = num_results
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        if not self.rate_limit:
+            return
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
+
+    def forward(self, query: str, engine: str | None = None) -> str:
+        import requests
+
+        self._enforce_rate_limit()
+        params = {
+            "engine": engine or self.engine,
+            "q": query,
+            "num": self.num_results,
+        }
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        response = requests.get(
+            "https://www.searchapi.io/api/v1/search",
+            params=params,
+            headers=headers,
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return self._format_results(data)
+
+    def _format_results(self, data: dict) -> str:
+        snippets = []
+
+        if "answer_box" in data:
+            ab = data["answer_box"]
+            if "answer" in ab:
+                snippets.append(f"**Answer:** {ab['answer']}")
+            elif "snippet" in ab:
+                snippets.append(f"**Answer:** {ab['snippet']}")
+
+        for result in data.get("organic_results", []):
+            title = result.get("title", "")
+            link = result.get("link", "")
+            snippet = result.get("snippet", "")
+            snippets.append(f"[{title}]({link})\n{snippet}")
+
+        for result in data.get("news_results", []):
+            title = result.get("title", "")
+            link = result.get("link", "")
+            snippet = result.get("snippet", "")
+            source = result.get("source", "")
+            snippets.append(f"[{title}]({link})\n{snippet}" + (f" ({source})" if source else ""))
+
+        for result in data.get("videos", []):
+            title = result.get("title", "")
+            link = result.get("link", "")
+            snippets.append(f"[{title}]({link})")
+
+        if not snippets:
+            raise Exception(f"No results found for query: '{query}'. Try a less restrictive query.")
+
+        return "## Search Results\n\n" + "\n\n".join(snippets)
+
+
 class WebSearchTool(Tool):
     name = "web_search"
     description = "Performs a web search for a query and returns a string of the top search results formatted as markdown with titles, links, and descriptions."
@@ -692,6 +813,7 @@ __all__ = [
     "WebSearchTool",
     "DuckDuckGoSearchTool",
     "GoogleSearchTool",
+    "SearchApiSearchTool",
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
