@@ -806,6 +806,13 @@ class TestPrefixHandling:
         result = SafeSerializer.loads(serialized, allow_pickle=True)
         assert result.value == 42
 
+    def test_generated_safe_serializer_reports_real_pickle_error(self):
+        """Generated sandbox serializer should include the real pickle error text."""
+        code = SafeSerializer.get_safe_serializer_code()
+        assert "Cannot serialize object: " in code
+        assert "Cannot serialize object: {e}" not in code
+        assert "Cannot serialize object: " + '" + str(e)' in code
+
     def test_legacy_format_detection(self):
         """Test detection and handling of legacy format (no prefix)."""
         # Simulate legacy pickle data (no prefix)
