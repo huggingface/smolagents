@@ -165,7 +165,6 @@ def interactive_mode():
     api_base = None
     api_key = None
     imports = []
-    action_type = "code"
 
     if Confirm.ask("\n[bold white]Configure advanced options?[/]", default=False):
         if model_type in ["InferenceClientModel", "OpenAIServerModel", "LiteLLMModel"]:
