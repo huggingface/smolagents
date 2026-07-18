@@ -458,11 +458,17 @@ class MultiStepAgent(ABC):
             return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
                 If `None` (default), the agent's `self.return_full_result` setting is used.
 
+        Returns:
+            If `stream` is False:
+                - The final answer to the task
+            If `stream` is True:
+                - The output of each step, as it is taken, as a Generator
+
         Example:
         ```py
         from smolagents import CodeAgent
         agent = CodeAgent(tools=[])
-        agent.run("What is the result of 2 power 3.7384?")
+        final_answer = agent.run("What is the result of 2 power 3.7384?")
         ```
         """
         max_steps = max_steps or self.max_steps
