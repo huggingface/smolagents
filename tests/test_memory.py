@@ -24,6 +24,61 @@ class TestAgentMemory:
         assert memory.system_prompt.system_prompt == system_prompt
         assert memory.steps == []
 
+    def test_hooks_default_to_none(self):
+        """Lifecycle hooks should default to None when not provided."""
+        memory = AgentMemory(system_prompt="test")
+        assert memory.on_step_added is None
+        assert memory.on_run_start is None
+        assert memory.on_run_end is None
+
+    def test_initialization_with_hooks(self):
+        """Lifecycle hooks should be stored on the instance when provided."""
+
+        def on_step(step, mem):
+            pass
+
+        def on_start(task, mem):
+            pass
+
+        def on_end(task, result, mem):
+            pass
+
+        memory = AgentMemory(
+            system_prompt="test",
+            on_step_added=on_step,
+            on_run_start=on_start,
+            on_run_end=on_end,
+        )
+        assert memory.on_step_added is on_step
+        assert memory.on_run_start is on_start
+        assert memory.on_run_end is on_end
+
+    def test_append_step_fires_on_step_added(self):
+        """append_step() should add the step and fire on_step_added with correct args."""
+        recorded = []
+
+        def on_step(step, mem):
+            recorded.append((step, mem))
+
+        memory = AgentMemory(system_prompt="test", on_step_added=on_step)
+        task_step = TaskStep(task="Do something")
+        memory.append_step(task_step)
+
+        assert len(memory.steps) == 1
+        assert memory.steps[0] is task_step
+        assert len(recorded) == 1
+        assert recorded[0][0] is task_step
+        assert recorded[0][1] is memory
+
+    def test_append_step_without_hook(self):
+        """append_step() should work normally when no hook is set."""
+        memory = AgentMemory(system_prompt="test")
+        task_step = TaskStep(task="Do something")
+        memory.append_step(task_step)
+
+        assert len(memory.steps) == 1
+        assert memory.steps[0] is task_step
+
     def test_return_all_code_actions(self):
         memory = AgentMemory(system_prompt="This is a system prompt.")
         memory.steps = [

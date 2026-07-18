@@ -51,6 +51,7 @@ from smolagents.agents import (
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
 from smolagents.memory import (
     ActionStep,
+    AgentMemory,
     CallbackRegistry,
     FinalAnswerStep,
     MemoryStep,
@@ -819,6 +820,133 @@ nested_answer()
         assert previous_task in conversation_text, "Previous task should be included in the conversation history"
         assert task in conversation_text, "Current task should be included in the conversation history"
         assert "tools" in conversation_text, "Tool interactions should be included in the conversation history"
+
+
+class TestMemoryLifecycleHooks:
+    """Tests for AgentMemory lifecycle hooks integration with the agent run loop.
+
+    These tests verify that the on_step_added, on_run_start, and on_run_end hooks
+    fire at the correct points during an agent run, enabling external memory providers
+    to plug into the agent without modifying core logic. See issue #945.
+    """
+
+    def test_memory_param_uses_provided_memory(self):
+        """When a pre-configured AgentMemory is passed, the agent should use it directly."""
+        recorded_steps = []
+
+        def on_step(step, mem):
+            recorded_steps.append(step)
+
+        memory = AgentMemory(system_prompt="placeholder", on_step_added=on_step)
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel(), memory=memory)
+
+        # The agent should use the provided memory instance (not create a new one)
+        assert agent.memory is memory
+        # The agent should overwrite the system prompt to match its own
+        assert agent.memory.system_prompt.system_prompt == agent.system_prompt
+        # Hooks should be preserved
+        assert agent.memory.on_step_added is on_step
+
+    def test_on_step_added_fires_for_each_step(self):
+        """on_step_added should fire once for each step appended during a run."""
+        recorded_steps = []
+
+        def on_step(step, mem):
+            recorded_steps.append(type(step).__name__)
+
+        memory = AgentMemory(system_prompt="placeholder", on_step_added=on_step)
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel(), memory=memory)
+        agent.run("What is 2 multiplied by 3.6452?")
+
+        # FakeCodeModel produces: TaskStep → ActionStep (step 1) → ActionStep (step 2, final answer)
+        assert recorded_steps[0] == "TaskStep"
+        assert "ActionStep" in recorded_steps
+        assert len(recorded_steps) >= 3  # At minimum: TaskStep + 2 ActionSteps
+
+    def test_on_run_start_fires_after_task_step(self):
+        """on_run_start should fire once at the beginning of a run, after the TaskStep is appended."""
+        run_start_calls = []
+
+        def on_start(task, mem):
+            # At this point, the TaskStep should already be in memory
+            run_start_calls.append(
+                {
+                    "task": task,
+                    "num_steps": len(mem.steps),
+                    "first_step_type": type(mem.steps[0]).__name__ if mem.steps else None,
+                }
+            )
+
+        memory = AgentMemory(system_prompt="placeholder", on_run_start=on_start)
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel(), memory=memory)
+        agent.run("What is 2 multiplied by 3.6452?")
+
+        assert len(run_start_calls) == 1
+        assert run_start_calls[0]["task"] == "What is 2 multiplied by 3.6452?"
+        assert run_start_calls[0]["num_steps"] == 1  # TaskStep already appended
+        assert run_start_calls[0]["first_step_type"] == "TaskStep"
+
+    def test_on_run_end_fires_with_final_result(self):
+        """on_run_end should fire once after the run completes, with the task and final result."""
+        run_end_calls = []
+
+        def on_end(task, result, mem):
+            run_end_calls.append(
+                {
+                    "task": task,
+                    "result": result,
+                    "num_steps": len(mem.steps),
+                }
+            )
+
+        memory = AgentMemory(system_prompt="placeholder", on_run_end=on_end)
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel(), memory=memory)
+        agent.run("What is 2 multiplied by 3.6452?")
+
+        assert len(run_end_calls) == 1
+        assert run_end_calls[0]["task"] == "What is 2 multiplied by 3.6452?"
+        assert run_end_calls[0]["result"] == 7.2904
+        assert run_end_calls[0]["num_steps"] >= 3  # TaskStep + ActionSteps
+
+    def test_all_hooks_fire_in_correct_order(self):
+        """All three hooks should fire in order: on_run_start → on_step_added (×N) → on_run_end."""
+        events = []
+
+        def on_start(task, mem):
+            events.append("run_start")
+
+        def on_step(step, mem):
+            events.append(f"step_added:{type(step).__name__}")
+
+        def on_end(task, result, mem):
+            events.append("run_end")
+
+        memory = AgentMemory(
+            system_prompt="placeholder",
+            on_run_start=on_start,
+            on_step_added=on_step,
+            on_run_end=on_end,
+        )
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel(), memory=memory)
+        agent.run("What is 2 multiplied by 3.6452?")
+
+        # First event after TaskStep append should be run_start
+        assert events[0] == "step_added:TaskStep"
+        assert events[1] == "run_start"
+        # Last event should be run_end
+        assert events[-1] == "run_end"
+        # There should be ActionStep events in between
+        assert any("step_added:ActionStep" in e for e in events)
+
+    def test_no_hooks_backward_compatible(self):
+        """Agent should work identically when no memory param or hooks are provided."""
+        agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())
+        output = agent.run("What is 2 multiplied by 3.6452?")
+
+        assert output == 7.2904
+        assert agent.memory.on_step_added is None
+        assert agent.memory.on_run_start is None
+        assert agent.memory.on_run_end is None
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
