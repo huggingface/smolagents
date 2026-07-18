@@ -78,6 +78,53 @@ model = OpenAIModel(
 )
 ```
 
+## Using FuturMix.ai Models
+
+FuturMix.ai is a unified AI gateway that provides OpenAI-compatible access to 22+ models including
+Claude, GPT, and Gemini through a single endpoint. You can use the [`OpenAIModel`] to connect to
+FuturMix.ai by setting the appropriate base URL.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then, [get a FuturMix API key](https://futurmix.ai) and set it in your code:
+```python
+FUTURMIX_API_KEY = <YOUR-FUTURMIX-API-KEY>
+```
+
+Now, you can initialize any model available on FuturMix.ai using the `OpenAIModel` class:
+```python
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    # You can use any model ID available on FuturMix.ai
+    model_id="claude-sonnet-4-20250514",
+    # FuturMix.ai API base URL
+    api_base="https://futurmix.ai/v1",
+    api_key=FUTURMIX_API_KEY,
+)
+```
+
+You can switch between different model families with the same API key:
+```python
+from smolagents import OpenAIModel
+
+# Switch between Claude, GPT, and Gemini models
+gpt_model = OpenAIModel(
+    model_id="gpt-4o",
+    api_base="https://futurmix.ai/v1",
+    api_key=FUTURMIX_API_KEY,
+)
+
+gemini_model = OpenAIModel(
+    model_id="gemini-2.5-flash",
+    api_base="https://futurmix.ai/v1",
+    api_key=FUTURMIX_API_KEY,
+)
+```
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
