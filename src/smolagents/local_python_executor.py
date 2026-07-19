@@ -58,7 +58,48 @@ DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
 MAX_EXECUTION_TIME_SECONDS = 30
+# A single `**`, `<<` or `*` on ints beyond this result size runs as one uninterruptible C call
+# holding the GIL, which the thread-based `timeout` cannot stop and which freezes the whole process.
+MAX_INT_BITS = 1000000
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
+
+
+def check_safe_int_operation(op: str, left: Any, right: Any) -> None:
+    """
+    Raise InterpreterError if an integer operation would produce a result too large to compute safely.
+
+    Args:
+        op (`str`): The operator symbol: `"**"`, `"<<"` or `"*"`.
+        left: Left operand.
+        right: Right operand.
+    """
+    if type(left) is not int or type(right) is not int:
+        return
+    if op == "**":
+        if abs(left) <= 1 or right <= 1:
+            return
+        estimated_bits = left.bit_length() * right
+    elif op == "<<":
+        if left == 0 or right <= 0:
+            return
+        estimated_bits = left.bit_length() + right
+    elif op == "*":
+        estimated_bits = left.bit_length() + right.bit_length()
+    else:
+        return
+    if estimated_bits > MAX_INT_BITS:
+        raise InterpreterError(
+            f"Operation '{op}' would produce an integer of around {estimated_bits} bits, "
+            f"exceeding the maximum of {MAX_INT_BITS} bits allowed. "
+            "Use smaller operands, or pow(base, exp, mod) for modular exponentiation."
+        )
+
+
+def safe_pow(base, exp, mod=None):
+    if mod is None:
+        check_safe_int_operation("**", base, exp)
+        return pow(base, exp)
+    return pow(base, exp, mod)
 
 
 def custom_print(*args):
@@ -97,7 +138,7 @@ BASE_PYTHON_TOOLS = {
     "atan2": math.atan2,
     "degrees": math.degrees,
     "radians": math.radians,
-    "pow": pow,
+    "pow": safe_pow,
     "sqrt": math.sqrt,
     "len": len,
     "sum": sum,
@@ -672,12 +713,14 @@ def evaluate_augassign(
     elif isinstance(expression.op, ast.Sub):
         current_value -= value_to_add
     elif isinstance(expression.op, ast.Mult):
+        check_safe_int_operation("*", current_value, value_to_add)
         current_value *= value_to_add
     elif isinstance(expression.op, ast.Div):
         current_value /= value_to_add
     elif isinstance(expression.op, ast.Mod):
         current_value %= value_to_add
     elif isinstance(expression.op, ast.Pow):
+        check_safe_int_operation("**", current_value, value_to_add)
         current_value **= value_to_add
     elif isinstance(expression.op, ast.FloorDiv):
         current_value //= value_to_add
@@ -688,6 +731,7 @@ def evaluate_augassign(
     elif isinstance(expression.op, ast.BitXor):
         current_value ^= value_to_add
     elif isinstance(expression.op, ast.LShift):
+        check_safe_int_operation("<<", current_value, value_to_add)
         current_value <<= value_to_add
     elif isinstance(expression.op, ast.RShift):
         current_value >>= value_to_add
@@ -744,12 +788,14 @@ def evaluate_binop(
     elif isinstance(binop.op, ast.Sub):
         return left_val - right_val
     elif isinstance(binop.op, ast.Mult):
+        check_safe_int_operation("*", left_val, right_val)
         return left_val * right_val
     elif isinstance(binop.op, ast.Div):
         return left_val / right_val
     elif isinstance(binop.op, ast.Mod):
         return left_val % right_val
     elif isinstance(binop.op, ast.Pow):
+        check_safe_int_operation("**", left_val, right_val)
         return left_val**right_val
     elif isinstance(binop.op, ast.FloorDiv):
         return left_val // right_val
@@ -760,6 +806,7 @@ def evaluate_binop(
     elif isinstance(binop.op, ast.BitXor):
         return left_val ^ right_val
     elif isinstance(binop.op, ast.LShift):
+        check_safe_int_operation("<<", left_val, right_val)
         return left_val << right_val
     elif isinstance(binop.op, ast.RShift):
         return left_val >> right_val
