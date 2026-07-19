@@ -431,6 +431,8 @@ recur_fibo(6)"""
             "x = 1\nx <<= 10 ** 9",
             "x = 10 ** 300000\nx *= 10 ** 300000\nx *= 10 ** 300000",
             "pow(10, 10 ** 8)",
+            "True << 10 ** 9",
+            "class BigInt(int):\n    pass\n\nBigInt(10) ** (10 ** 8)",
         ],
     )
     def test_huge_int_operations_are_blocked(self, code):
@@ -449,6 +451,8 @@ recur_fibo(6)"""
             ("1 ** 10 ** 9", 1),
             ("0 ** 10 ** 9", 0),
             ("2 ** -2", 0.25),
+            ("True * 5", 5),
+            ("True ** 10 ** 9", 1),
         ],
     )
     def test_reasonable_int_operations_still_work(self, code, expected):

@@ -73,7 +73,7 @@ def check_safe_int_operation(op: str, left: Any, right: Any) -> None:
         left: Left operand.
         right: Right operand.
     """
-    if type(left) is not int or type(right) is not int:
+    if not isinstance(left, int) or not isinstance(right, int):
         return
     if op == "**":
         if abs(left) <= 1 or right <= 1:
