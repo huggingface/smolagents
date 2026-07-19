@@ -459,6 +459,38 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert result == expected
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "('a' * 10 ** 6) * 10 ** 4",
+            "[0] * 10 ** 9",
+            "10 ** 4 * ('ab' * 10 ** 6)",
+            "b'x' * 10 ** 9",
+            "(1,) * 10 ** 9",
+            "x = [1]\nx *= 10 ** 9",
+        ],
+    )
+    def test_huge_sequence_repetitions_are_blocked(self, code):
+        # Sequence repetition also builds the result in one uninterruptible C call: see issue #2473 follow-up
+        with pytest.raises(InterpreterError, match="exceeding the maximum"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    @pytest.mark.parametrize(
+        "code, expected",
+        [
+            ("'ab' * 3", "ababab"),
+            ("3 * 'ab'", "ababab"),
+            ("[1, 2] * 4", [1, 2, 1, 2, 1, 2, 1, 2]),
+            ("(0,) * 5", (0, 0, 0, 0, 0)),
+            ("b'ab' * 2", b"abab"),
+            ("'a' * True", "a"),
+            ("[1] * False", []),
+        ],
+    )
+    def test_reasonable_sequence_repetitions_still_work(self, code, expected):
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == expected
+
     def test_evaluate_string_methods(self):
         code = "'hello'.replace('h', 'o').split('e')"
         result, _ = evaluate_python_code(code, {}, state={})
