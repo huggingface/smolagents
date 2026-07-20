@@ -129,7 +129,6 @@ To run tests locally, run this command:
 ```bash
 make test
 ```
-</details>
 
 ## I want to become a maintainer of the project. How do I get there?
 
