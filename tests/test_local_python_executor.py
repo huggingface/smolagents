@@ -263,6 +263,25 @@ test_func(**None)
             state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": {"counter": 7}}
         )
 
+    @pytest.mark.parametrize(
+        "code, expected",
+        [
+            ("{**{'a': 1}, 'b': 2}", {"a": 1, "b": 2}),
+            ("{**{'a': 1}, **{'b': 2}}", {"a": 1, "b": 2}),
+            ("{**{'a': 1}, 'a': 2}", {"a": 2}),
+            ("{'a': 0, **{'a': 1}}", {"a": 1}),
+            ("base = {'x': 1}\n{**base, 'y': 2}", {"x": 1, "y": 2}),
+            ("{**{}}", {}),
+        ],
+    )
+    def test_evaluate_dict_unpacking(self, code, expected):
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == expected
+
+    def test_evaluate_dict_unpacking_non_mapping_raises(self):
+        with pytest.raises(InterpreterError, match="'list' object is not a mapping"):
+            evaluate_python_code("{**[1, 2]}", {}, state={})
+
     def test_evaluate_expression(self):
         code = "x = 3\ny = 5"
         state = {}
