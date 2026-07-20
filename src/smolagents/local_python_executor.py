@@ -1493,10 +1493,20 @@ def evaluate_ast(
     elif isinstance(expression, ast.FunctionDef):
         return evaluate_function_def(expression, *common_params)
     elif isinstance(expression, ast.Dict):
-        # Dict -> evaluate all keys and values
-        keys = (evaluate_ast(k, *common_params) for k in expression.keys)
-        values = (evaluate_ast(v, *common_params) for v in expression.values)
-        return dict(zip(keys, values))
+        # Dict -> evaluate all keys and values; a None key marks a `**mapping` entry to merge
+        result = {}
+        for key_node, value_node in zip(expression.keys, expression.values):
+            if key_node is None:
+                value = evaluate_ast(value_node, *common_params)
+                # CPython gates `{**obj}` on the mapping protocol, not the Mapping ABC:
+                # any object with `keys()` is accepted, pair iterables are not.
+                if not hasattr(value, "keys"):
+                    raise InterpreterError(f"'{type(value).__name__}' object is not a mapping")
+                result.update(value)
+            else:
+                key = evaluate_ast(key_node, *common_params)
+                result[key] = evaluate_ast(value_node, *common_params)
+        return result
     elif isinstance(expression, ast.Expr):
         # Expression -> evaluate the content
         return evaluate_ast(expression.value, *common_params)
