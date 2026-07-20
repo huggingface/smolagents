@@ -278,9 +278,26 @@ test_func(**None)
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == expected
 
-    def test_evaluate_dict_unpacking_non_mapping_raises(self):
-        with pytest.raises(InterpreterError, match="'list' object is not a mapping"):
-            evaluate_python_code("{**[1, 2]}", {}, state={})
+    def test_evaluate_dict_unpacking_accepts_mapping_protocol_objects(self):
+        code = dedent(
+            """
+            class MyMap:
+                def keys(self):
+                    return ["a"]
+
+                def __getitem__(self, key):
+                    return 1
+
+            {**MyMap(), "b": 2}
+            """
+        )
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {"a": 1, "b": 2}
+
+    @pytest.mark.parametrize("code", ["{**[1, 2]}", "{**[('a', 1)]}"])
+    def test_evaluate_dict_unpacking_non_mapping_raises(self, code):
+        with pytest.raises(InterpreterError, match="object is not a mapping"):
+            evaluate_python_code(code, {}, state={})
 
     def test_evaluate_expression(self):
         code = "x = 3\ny = 5"

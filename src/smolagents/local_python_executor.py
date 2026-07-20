@@ -1498,7 +1498,9 @@ def evaluate_ast(
         for key_node, value_node in zip(expression.keys, expression.values):
             if key_node is None:
                 value = evaluate_ast(value_node, *common_params)
-                if not isinstance(value, Mapping):
+                # CPython gates `{**obj}` on the mapping protocol, not the Mapping ABC:
+                # any object with `keys()` is accepted, pair iterables are not.
+                if not hasattr(value, "keys"):
                     raise InterpreterError(f"'{type(value).__name__}' object is not a mapping")
                 result.update(value)
             else:
