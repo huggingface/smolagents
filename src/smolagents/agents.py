@@ -1415,6 +1415,7 @@ class ToolCallingAgent(MultiStepAgent):
 
         # Process tool calls in parallel
         outputs = {}
+        parallel_errors: list[BaseException] = []
         if len(parallel_calls) == 1:
             # If there's only one call, process it directly
             tool_call = list(parallel_calls.values())[0]
@@ -1422,14 +1423,20 @@ class ToolCallingAgent(MultiStepAgent):
             outputs[tool_output.id] = tool_output
             yield tool_output
         else:
-            # If multiple tool calls, process them in parallel
+            # If multiple tool calls, process them in parallel.
+            # Collect successes even when some futures fail so partial results
+            # are written to memory before re-raising (#2457).
             with ThreadPoolExecutor(self.max_tool_threads) as executor:
                 futures = []
                 for tool_call in parallel_calls.values():
                     ctx = copy_context()
                     futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
                 for future in as_completed(futures):
-                    tool_output = future.result()
+                    try:
+                        tool_output = future.result()
+                    except BaseException as e:  # noqa: BLE001 — re-raise after partial write
+                        parallel_errors.append(e)
+                        continue
                     outputs[tool_output.id] = tool_output
                     yield tool_output
 
@@ -1440,6 +1447,10 @@ class ToolCallingAgent(MultiStepAgent):
         memory_step.observations = (
             memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
         )
+
+        # Re-raise after partial successes are recorded so the agent keeps context.
+        if parallel_errors:
+            raise parallel_errors[0]
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
