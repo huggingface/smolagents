@@ -137,6 +137,52 @@ import numpy as np
         )
         assert output == "import numpy as np"
 
+        # Unlabeled markdown blocks in thoughts should not be treated as code when
+        # a later Code section provides the executable block.
+        output = parse_code_blobs(
+            """
+Thought:
+This reasoning includes a fenced example:
+```
+invalid code
+```
+
+Code:
+```
+print("valid code")
+```
+""",
+            ("<code>", "</code>"),
+        )
+        assert output == 'print("valid code")'
+
+        # Inline triple backticks in code are not closing fences unless they are
+        # alone on their own line.
+        output = parse_code_blobs(
+            '''
+Code:
+```
+final_answer("""
+``` nested ```
+""")
+```
+''',
+            ("<code>", "</code>"),
+        )
+        assert output == 'final_answer("""\n``` nested ```\n""")'
+
+        output = parse_code_blobs(
+            '''
+```python
+final_answer("""
+``` nested ```
+""")
+```
+''',
+            ("```python", "```"),
+        )
+        assert output == 'final_answer("""\n``` nested ```\n""")'
+
     def test_multiple_code_blobs(self):
         test_input = "<code>\nFoo\n</code>\n\n<code>\ncode_a\n</code>\n\n<code>\ncode_b\n</code>"
         result = parse_code_blobs(test_input, ("<code>", "</code>"))
