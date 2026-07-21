@@ -803,16 +803,43 @@ def set_value(
         if target.id in static_tools:
             raise InterpreterError(f"Cannot assign to name '{target.id}': doing this would erase the existing tool!")
         state[target.id] = value
-    elif isinstance(target, ast.Tuple):
-        if not isinstance(value, tuple):
-            if hasattr(value, "__iter__") and not isinstance(value, (str, bytes)):
-                value = tuple(value)
-            else:
-                raise InterpreterError("Cannot unpack non-tuple value")
-        if len(target.elts) != len(value):
-            raise InterpreterError("Cannot unpack tuple of wrong size")
-        for i, elem in enumerate(target.elts):
-            set_value(elem, value[i], state, static_tools, custom_tools, authorized_imports)
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        # Unpacking assignment, matching CPython: any iterable is accepted, and a single
+        # starred target absorbs the surplus into a list (e.g. `a, *b = [1, 2, 3]`).
+        elts = target.elts
+        starred_positions = [i for i, elem in enumerate(elts) if isinstance(elem, ast.Starred)]
+        if len(starred_positions) > 1:
+            raise InterpreterError("multiple starred expressions in assignment")
+        if not hasattr(value, "__iter__"):
+            raise InterpreterError(f"cannot unpack non-iterable {type(value).__name__} object")
+        values = list(value)
+        if starred_positions:
+            star_index = starred_positions[0]
+            n_after = len(elts) - star_index - 1
+            if len(values) < star_index + n_after:
+                raise InterpreterError(
+                    f"not enough values to unpack (expected at least {star_index + n_after}, got {len(values)})"
+                )
+            split_after = len(values) - n_after
+            for elem, val in zip(elts[:star_index], values[:star_index]):
+                set_value(elem, val, state, static_tools, custom_tools, authorized_imports)
+            set_value(
+                elts[star_index].value,
+                values[star_index:split_after],
+                state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            for elem, val in zip(elts[star_index + 1 :], values[split_after:]):
+                set_value(elem, val, state, static_tools, custom_tools, authorized_imports)
+        else:
+            if len(values) < len(elts):
+                raise InterpreterError(f"not enough values to unpack (expected {len(elts)}, got {len(values)})")
+            if len(values) > len(elts):
+                raise InterpreterError(f"too many values to unpack (expected {len(elts)})")
+            for elem, val in zip(elts, values):
+                set_value(elem, val, state, static_tools, custom_tools, authorized_imports)
     elif isinstance(target, ast.Subscript):
         obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
         key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
