@@ -64,7 +64,7 @@ modal = [
   "websocket-client",
 ]
 tenki = [
-  "tenki-sandbox>=0.3.6",
+  "tenki-sandbox>=0.4.0",
   "websocket-client",
 ]
 openai = [
