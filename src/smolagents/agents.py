@@ -85,6 +85,7 @@ from .utils import (
     AgentGenerationError,
     AgentMaxStepsError,
     AgentParsingError,
+    AgentToolCallBlockedError,
     AgentToolCallError,
     AgentToolExecutionError,
     create_agent_gradio_app_template,
@@ -280,6 +281,10 @@ class MultiStepAgent(ABC):
         verbosity_level (`LogLevel`, default `LogLevel.INFO`): Level of verbosity of the agent's logs.
         managed_agents (`list`, *optional*): Managed agents that the agent can call.
         step_callbacks (`list[Callable]` | `dict[Type[MemoryStep], Callable | list[Callable]]`, *optional*): Callbacks that will be called at each step.
+        before_tool_call_hooks (`list[Callable]`, *optional*): Hooks called before each tool execution.
+            Each hook receives `(tool_name, arguments, agent)` and should return `False`
+            to block the tool call or `True` (or any truthy value) to allow it.
+            This enables pre-execution policy gates for security-sensitive tools.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         name (`str`, *optional*): Necessary for a managed agent only - the name by which this agent can be called.
         description (`str`, *optional*): Necessary for a managed agent only - the description of this agent.
@@ -302,6 +307,7 @@ class MultiStepAgent(ABC):
         verbosity_level: LogLevel = LogLevel.INFO,
         managed_agents: list | None = None,
         step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable | list[Callable]] | None = None,
+        before_tool_call_hooks: list[Callable] | None = None,
         planning_interval: int | None = None,
         name: str | None = None,
         description: str | None = None,
@@ -349,6 +355,7 @@ class MultiStepAgent(ABC):
 
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)
+        self.before_tool_call_hooks = before_tool_call_hooks or []
         self.stream_outputs = False
 
     @property
@@ -973,8 +980,8 @@ You have been provided with these additional arguments, that you can access dire
         Returns:
             `dict`: Dictionary representation of the agent.
         """
-        # TODO: handle serializing step_callbacks and final_answer_checks
-        for attr in ["final_answer_checks", "step_callbacks"]:
+        # TODO: handle serializing step_callbacks, before_tool_call_hooks, and final_answer_checks
+        for attr in ["final_answer_checks", "step_callbacks", "before_tool_call_hooks"]:
             if getattr(self, attr, None):
                 self.logger.log(f"This agent has {attr}: they will be ignored by this method.", LogLevel.INFO)
 
@@ -1387,6 +1394,22 @@ class ToolCallingAgent(MultiStepAgent):
                 Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
                 level=LogLevel.INFO,
             )
+            # Run before_tool_call hooks — any hook returning False blocks execution.
+            for hook in self.before_tool_call_hooks:
+                try:
+                    allowed = hook(tool_name, tool_arguments, self)
+                    if allowed is False:
+                        raise AgentToolCallBlockedError(
+                            f"Tool call '{tool_name}' was blocked by hook '{hook.__name__}'.",
+                            self.logger,
+                        )
+                except AgentToolCallBlockedError:
+                    raise
+                except Exception as e:
+                    self.logger.log(
+                        f"Before-tool-call hook '{hook.__name__}' raised {type(e).__name__}: {e}",
+                        level=LogLevel.INFO,
+                    )
             tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
             tool_call_result_type = type(tool_call_result)
             if tool_call_result_type in [AgentImage, AgentAudio]:

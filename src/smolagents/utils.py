@@ -131,6 +131,12 @@ class AgentToolExecutionError(AgentExecutionError):
     pass
 
 
+class AgentToolCallBlockedError(AgentExecutionError):
+    """Exception raised when a before_tool_call hook blocks execution."""
+
+    pass
+
+
 class AgentGenerationError(AgentError):
     """Exception raised for errors in generation in the agent"""
 
