@@ -58,6 +58,8 @@ DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
 MAX_EXECUTION_TIME_SECONDS = 30
+MAX_POWER_EXPONENT = 10000  # Maximum exponent for integer ** operations
+MAX_SHIFT_BITS = 10000  # Maximum shift amount for integer << operations
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
@@ -678,6 +680,16 @@ def evaluate_augassign(
     elif isinstance(expression.op, ast.Mod):
         current_value %= value_to_add
     elif isinstance(expression.op, ast.Pow):
+        if (
+            isinstance(current_value, int)
+            and isinstance(value_to_add, int)
+            and value_to_add > MAX_POWER_EXPONENT
+            and abs(current_value) > 1
+        ):
+            raise InterpreterError(
+                f"Integer exponentiation with exponent {value_to_add} exceeds "
+                f"the maximum allowed ({MAX_POWER_EXPONENT})."
+            )
         current_value **= value_to_add
     elif isinstance(expression.op, ast.FloorDiv):
         current_value //= value_to_add
@@ -688,6 +700,16 @@ def evaluate_augassign(
     elif isinstance(expression.op, ast.BitXor):
         current_value ^= value_to_add
     elif isinstance(expression.op, ast.LShift):
+        if (
+            isinstance(current_value, int)
+            and isinstance(value_to_add, int)
+            and value_to_add > MAX_SHIFT_BITS
+            and current_value != 0
+        ):
+            raise InterpreterError(
+                f"Left shift by {value_to_add} bits exceeds the maximum "
+                f"allowed ({MAX_SHIFT_BITS})."
+            )
         current_value <<= value_to_add
     elif isinstance(expression.op, ast.RShift):
         current_value >>= value_to_add
@@ -750,6 +772,19 @@ def evaluate_binop(
     elif isinstance(binop.op, ast.Mod):
         return left_val % right_val
     elif isinstance(binop.op, ast.Pow):
+        # Guard against explosive integer exponentiation that holds the GIL
+        # indefinitely (e.g., 10 ** 10**8), bypassing thread-based timeout.
+        if (
+            isinstance(left_val, int)
+            and isinstance(right_val, int)
+            and right_val > MAX_POWER_EXPONENT
+            and abs(left_val) > 1
+        ):
+            raise InterpreterError(
+                f"Integer exponentiation with exponent {right_val} exceeds the "
+                f"maximum allowed ({MAX_POWER_EXPONENT}). This operation would "
+                f"consume excessive memory and cannot be interrupted."
+            )
         return left_val**right_val
     elif isinstance(binop.op, ast.FloorDiv):
         return left_val // right_val
@@ -760,6 +795,18 @@ def evaluate_binop(
     elif isinstance(binop.op, ast.BitXor):
         return left_val ^ right_val
     elif isinstance(binop.op, ast.LShift):
+        # Guard against explosive left-shift that holds the GIL indefinitely.
+        if (
+            isinstance(left_val, int)
+            and isinstance(right_val, int)
+            and right_val > MAX_SHIFT_BITS
+            and left_val != 0
+        ):
+            raise InterpreterError(
+                f"Left shift by {right_val} bits exceeds the maximum allowed "
+                f"({MAX_SHIFT_BITS}). This operation would consume excessive "
+                f"memory and cannot be interrupted."
+            )
         return left_val << right_val
     elif isinstance(binop.op, ast.RShift):
         return left_val >> right_val
