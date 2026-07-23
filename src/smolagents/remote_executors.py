@@ -1152,7 +1152,12 @@ class TenkiExecutor(RemotePythonExecutor):
                 create_kwargs["project_id"] = self._resolve_project_id(self.client, create_kwargs.get("workspace_id"))
 
             self.logger.log("Starting Tenki sandbox", level=LogLevel.INFO)
+            # Allocate without the server-side readiness wait, assign the handle, THEN wait: if
+            # wait_ready() fails, self.sandbox is already set so cleanup() can terminate the session.
+            # create(wait=True) would raise mid-wait before this assignment, leaking the allocated session.
+            create_kwargs["wait"] = False
             self.sandbox = self.client.create(**create_kwargs)
+            self.sandbox.wait_ready()
             setup_result = self.sandbox.shell(self._SETUP_KERNEL_GATEWAY_COMMAND, timeout=600)
             if not setup_result.ok:
                 raise RuntimeError(
@@ -1184,6 +1189,11 @@ class TenkiExecutor(RemotePythonExecutor):
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Tenki sandbox: {e}") from e
+        except BaseException:
+            # KeyboardInterrupt / cancellation inherit from BaseException, not Exception; without this
+            # a Ctrl+C during the multi-second startup would leak the sandbox and client.
+            self.cleanup()
+            raise
 
     @staticmethod
     def _resolve_project_id(client, workspace_id: str | None = None) -> str:
@@ -1221,22 +1231,23 @@ class TenkiExecutor(RemotePythonExecutor):
         """Clean up the Tenki sandbox by terminating it."""
         if self._cleaned_up:
             return
-        self._cleaned_up = True
-        try:
-            if hasattr(self, "sandbox"):
+        if hasattr(self, "sandbox"):
+            try:
                 self.logger.log("Shutting down sandbox...", level=LogLevel.INFO)
                 self.sandbox.close_if_open()
                 self.logger.log("Sandbox cleanup completed", level=LogLevel.INFO)
-        except Exception as e:
-            self.logger.log_error(f"Error during cleanup: {e}")
-        finally:
-            if hasattr(self, "sandbox"):
-                del self.sandbox
-            if hasattr(self, "client"):
-                try:
-                    self.client.close()
-                except Exception as e:
-                    self.logger.log_error(f"Error closing Tenki client: {e}")
+            except Exception as e:
+                # Keep the sandbox handle and client so a later cleanup() can retry, rather than
+                # letting a transient termination failure become a permanent leak.
+                self.logger.log_error(f"Error during cleanup, will retry on next attempt: {e}")
+                return
+            del self.sandbox
+        if hasattr(self, "client"):
+            try:
+                self.client.close()
+            except Exception as e:
+                self.logger.log_error(f"Error closing Tenki client: {e}")
+        self._cleaned_up = True
 
     def delete(self):
         """Ensure cleanup on deletion."""

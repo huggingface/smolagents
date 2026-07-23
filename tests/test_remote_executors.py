@@ -663,6 +663,9 @@ class TestTenkiExecutorUnit:
         create_kwargs = mock_client.create.call_args.kwargs
         assert create_kwargs["name"].startswith("smolagent-executor-")
         assert create_kwargs["project_id"] == "proj-123"
+        # The sandbox is allocated with wait=False, then wait_ready() is awaited on the retained handle
+        assert create_kwargs["wait"] is False
+        mock_sandbox.wait_ready.assert_called_once()
         # The kernel gateway bootstrap ran in the sandbox
         assert "jupyter_kernel_gateway" in mock_sandbox.shell.call_args.args[0]
         # The gateway process gets the auth token, and pip env vars for in-kernel `!pip install`
@@ -738,6 +741,35 @@ class TestTenkiExecutorUnit:
     @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
     @patch("smolagents.remote_executors._create_kernel_http")
     @patch("tenki_sandbox.Client")
+    def test_tenki_executor_cleanup_retries_after_transient_failure(
+        self, mock_client_cls, mock_create_kernel, mock_wait_for_server
+    ):
+        """A transient close_if_open failure must not be marked as cleaned up: the handle is retained and retried."""
+        logger = MagicMock()
+        mock_client, mock_sandbox = self._make_mock_client(mock_client_cls)
+        mock_create_kernel.return_value = "kernel-123"
+        mock_sandbox.close_if_open.side_effect = [RuntimeError("transient"), None]
+
+        executor = TenkiExecutor(additional_imports=[], logger=logger)
+
+        # First cleanup: termination fails, handle + client retained for a retry
+        executor.cleanup()
+        assert mock_sandbox.close_if_open.call_count == 1
+        assert mock_client.close.call_count == 0
+        assert hasattr(executor, "sandbox")
+        assert executor._cleaned_up is False
+
+        # Second cleanup: termination succeeds, resources released
+        executor.cleanup()
+        assert mock_sandbox.close_if_open.call_count == 2
+        assert mock_client.close.call_count == 1
+        assert not hasattr(executor, "sandbox")
+        assert executor._cleaned_up is True
+
+    @patch.dict("os.environ", {"TENKI_PROJECT_ID": "proj-123"})
+    @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
+    @patch("smolagents.remote_executors._create_kernel_http")
+    @patch("tenki_sandbox.Client")
     def test_tenki_executor_cleanup_on_init_failure(self, mock_client_cls, mock_create_kernel, mock_wait_for_server):
         """Test that the sandbox and client are cleaned up when initialization fails."""
         logger = MagicMock()
@@ -745,6 +777,24 @@ class TestTenkiExecutorUnit:
         mock_create_kernel.side_effect = RuntimeError("Failed to create kernel")
 
         with pytest.raises(RuntimeError, match="Failed to initialize Tenki sandbox"):
+            TenkiExecutor(additional_imports=[], logger=logger)
+
+        assert mock_sandbox.close_if_open.call_count == 1
+        assert mock_client.close.call_count == 1
+
+    @patch.dict("os.environ", {"TENKI_PROJECT_ID": "proj-123"})
+    @patch("smolagents.remote_executors.TenkiExecutor._wait_for_server")
+    @patch("smolagents.remote_executors._create_kernel_http")
+    @patch("tenki_sandbox.Client")
+    def test_tenki_executor_cleanup_on_keyboard_interrupt(
+        self, mock_client_cls, mock_create_kernel, mock_wait_for_server
+    ):
+        """A KeyboardInterrupt during init (BaseException, not Exception) must still clean up and re-raise unchanged."""
+        logger = MagicMock()
+        mock_client, mock_sandbox = self._make_mock_client(mock_client_cls)
+        mock_create_kernel.side_effect = KeyboardInterrupt()
+
+        with pytest.raises(KeyboardInterrupt):
             TenkiExecutor(additional_imports=[], logger=logger)
 
         assert mock_sandbox.close_if_open.call_count == 1

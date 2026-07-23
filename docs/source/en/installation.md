@@ -188,6 +188,10 @@ Extras for executing code remotely:
   ```bash
   pip install "smolagents[e2b]"
   ```
+- **tenki**: Enable Tenki support for remote execution.
+  ```bash
+  pip install "smolagents[tenki]"
+  ```
 - **docker**: Add support for executing code in Docker containers.
   ```bash
   pip install "smolagents[docker]"
@@ -201,6 +205,10 @@ Extras for executing code remotely:
 - **e2b**: Enable E2B support for remote execution.
   ```bash
   uv pip install "smolagents[e2b]"
+  ```
+- **tenki**: Enable Tenki support for remote execution.
+  ```bash
+  uv pip install "smolagents[tenki]"
   ```
 - **docker**: Add support for executing code in Docker containers.
   ```bash

@@ -22,3 +22,8 @@ print("E2B executor result:", output)
 with CodeAgent(tools=[WebSearchTool()], model=model, executor_type="modal") as agent:
     output = agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
 print("Modal executor result:", output)
+
+# Tenki executor example
+with CodeAgent(tools=[WebSearchTool()], model=model, executor_type="tenki") as agent:
+    output = agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
+print("Tenki executor result:", output)
