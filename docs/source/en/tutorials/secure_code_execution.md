@@ -118,7 +118,7 @@ When working with AI agents that execute code, security is paramount. There are 
 
 ![Sandbox approaches comparison](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/sandboxed_execution.png)
 
-1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="blaxel"`, `executor_type="e2b"`, `executor_type="modal"`, or
+1. **Running individual code snippets in a sandbox**: This approach (left side of diagram) only executes the agent-generated Python code snippets in a sandbox while keeping the rest of the agentic system in your local environment. It's simpler to set up using `executor_type="blaxel"`, `executor_type="e2b"`, `executor_type="modal"`, `executor_type="tenki"`, or
 `executor_type="docker"`, but it doesn't support multi-agents and still requires passing state data between your environment and the sandbox.
 
 2. **Running the entire agentic system in a sandbox**: This approach (right side of diagram) runs the entire agentic system, including the agent, model, and tools, within a sandbox environment. This provides better isolation but requires more manual setup and may require passing sensitive credentials (like API keys) to the sandbox environment.
@@ -279,6 +279,41 @@ with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="modal") as
 
 The agent state and generated code from the `InferenceClientModel` are sent to a Modal sandbox, which can securely execute code inside them.
 
+### Tenki setup
+
+#### Installation
+
+1. Create a Tenki account at [tenki.cloud](https://tenki.cloud)
+2. Install the required packages:
+```bash
+pip install 'smolagents[tenki]'
+```
+3. Set your API key as an environment variable:
+```bash
+export TENKI_API_KEY="your-api-key"
+```
+If your account has more than one project, also set `TENKI_PROJECT_ID` (or pass `executor_kwargs={"create_kwargs": {"project_id": ...}}`);
+with a single project it is detected automatically.
+
+#### Running your agent in Tenki: quick start
+
+We provide a simple way to use a Tenki Sandbox: simply add `executor_type="tenki"` to the agent initialization, as follows:
+
+```py
+from smolagents import InferenceClientModel, CodeAgent
+
+with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="tenki") as agent:
+    agent.run("What is the 42th Fibonacci number?")
+```
+
+> [!TIP]
+> Using the agent as a context manager (with the `with` statement) ensures that the Tenki sandbox is cleaned up immediately after the agent completes its task.
+> Alternatively, you can manually call the agent's `cleanup()` method.
+
+Each agent run executes in a disposable Linux microVM with kernel-level isolation, booted from a pre-warmed pool.
+You can customize the sandbox via `executor_kwargs`, e.g. `executor_kwargs={"create_kwargs": {"cpu_cores": 4, "memory_mb": 8192}}`;
+the sandbox image only needs to provide `python3` (`pip` and the Jupyter Kernel Gateway are installed on startup if missing).
+
 ### Docker setup
 
 #### Installation
@@ -434,7 +469,7 @@ finally:
 
 ### Best practices for sandboxes
 
-These key practices apply to Blaxel, E2B, and Docker sandboxes:
+These key practices apply to Blaxel, E2B, Tenki, and Docker sandboxes:
 
 - Resource management
   - Set memory and CPU limits
