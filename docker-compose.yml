@@ -1,0 +1,148 @@
+# Docker Compose for Contract Finder Agent v2
+# Development and testing environment
+
+version: '3.8'
+
+services:
+  # Contract Finder Agent Application
+  contract-finder-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contract-finder-agent
+    ports:
+      - "5000:5000"  # Flask application port
+    environment:
+      # Flask Configuration
+      FLASK_APP: run.py
+      FLASK_ENV: development
+      DEBUG: "false"
+      
+      # OpenAI Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder-key}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+      
+      # Database Configuration
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-contract_finder}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      
+      # Agent Configuration
+      AGENT_NAME: ContractFinderAgent
+      LOG_LEVEL: INFO
+      
+      # Session Configuration
+      SESSION_TIMEOUT: 3600
+      MAX_SESSION_DOCUMENTS: 100
+      
+    volumes:
+      - ./agents:/app/agents
+      - ./logs:/app/logs
+      - ./data:/app/data
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+    networks:
+      - contract-finder-network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    restart: unless-stopped
+    
+    # Resource limits (optional, uncomment for production)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 1G
+
+  # PostgreSQL Database (for local testing)
+  postgres:
+    image: postgres:15-alpine
+    container_name: contract-finder-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-contract_finder}
+      POSTGRES_INITDB_ARGS: "-c shared_buffers=256MB -c max_connections=200"
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    
+    ports:
+      - "5432:5432"
+    
+    networks:
+      - contract-finder-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    restart: unless-stopped
+
+  # Redis Cache (optional, for future session caching)
+  redis:
+    image: redis:7-alpine
+    container_name: contract-finder-redis
+    ports:
+      - "6379:6379"
+    
+    volumes:
+      - redis_data:/data
+    
+    networks:
+      - contract-finder-network
+    
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    restart: unless-stopped
+
+  # pgAdmin - Database Management UI (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: contract-finder-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    
+    ports:
+      - "5050:80"
+    
+    networks:
+      - contract-finder-network
+    
+    depends_on:
+      - postgres
+    
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  contract-finder-network:
+    driver: bridge
+

@@ -1,0 +1,134 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+PIPFILE.lock
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.sublime-project
+.sublime-workspace
+*.iml
+
+# Testing
+.pytest_cache/
+.tox/
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# Documentation
+docs/_build/
+*.md
+!README.md
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Docker
+Dockerfile.dev
+docker-compose.dev.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Code review documents (not needed in production image)
+CODE_REVIEW_*.md
+EXECUTIVE_SUMMARY.md
+DEVELOPER_GUIDE.md
+
+# Test files
+test/
+tests/
+*.test.py
+
+# Build artifacts
+dist/
+build/
+.eggs/
+*.egg-info/
+
+# Node (if using any frontend tools)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Database dumps
+*.sql
+*.dump
+*.bak
+
+# Credentials and secrets
+.aws/
+.gcp/
+.azure/
+.ssh/
+secrets/
+
+# Cache
+.cache/
+.mypy_cache/
+.pylint.d/
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Large files
+*.zip
+*.tar.gz
+*.rar
+
