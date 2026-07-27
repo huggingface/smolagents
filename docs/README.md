@@ -117,7 +117,7 @@ Adding a new tutorial or section is done in two steps:
 - Add a new Markdown (.md) file under `./source`.
 - Link that file in `./source/_toctree.yml` on the correct toc-tree.
 
-Make sure to put your new file under the proper section. If you have a doubt, feel free to ask in a Github Issue or PR.
+Make sure to put your new file under the proper section. If you have a doubt, feel free to ask in a GitHub issue or PR.
 
 ### Writing source documentation
 
@@ -266,4 +266,3 @@ output.
 Often, readers will try out the example before even going through the function
 or class definitions. Therefore, it is of utmost importance that the example
 works as expected.
-
