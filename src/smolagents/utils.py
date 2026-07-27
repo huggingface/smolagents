@@ -83,9 +83,13 @@ def sanitize_for_rich(value) -> str:
         s = str(value)
 
     # Fast path: the common case is text with no control characters to escape. Skip the
-    # per-character list build + join entirely and return the string unchanged.
+    # per-character list build + join. str() normalizes str subclasses back to a plain
+    # str -- a no-op returning the same object for an exact str (so the allocation is
+    # still avoided), while matching the slow path's "".join(...), which also always
+    # yields a plain str. This keeps callers like Rich from ever receiving a str subclass
+    # whose overridden methods (e.g. translate) could behave differently.
     if not _CONTROL_CHAR_RE.search(s):
-        return s
+        return str(s)
 
     out: list[str] = []
     for ch in s:
