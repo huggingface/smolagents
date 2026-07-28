@@ -92,6 +92,7 @@ class ActionStep(MemoryStep):
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         messages = []
         if self.model_output is not None and not summary_mode:
+            # Preserve structured content verbatim; whitespace normalization applies only to plain strings.
             model_output_content = (
                 [{"type": "text", "text": self.model_output.strip()}]
                 if isinstance(self.model_output, str)

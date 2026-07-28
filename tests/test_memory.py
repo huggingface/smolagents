@@ -158,7 +158,7 @@ def test_action_step_to_messages():
 
 def test_action_step_to_messages_preserves_structured_model_output():
     model_output = [
-        {"type": "text", "text": "I will inspect the image."},
+        {"type": "text", "text": "  I will inspect the image.  "},
         {"type": "image", "image": Image.new("RGB", (100, 100))},
     ]
     action_step = ActionStep(
