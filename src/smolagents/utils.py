@@ -167,6 +167,11 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
     "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
     try:
         first_accolade_index = json_blob.find("{")
+        if first_accolade_index == -1:
+            # Without an opening brace the slice below would start at -1 and produce a
+            # meaningless fragment, so the decode error would blame the JSON rather than
+            # say there wasn't any.
+            raise ValueError("The model output does not contain any JSON blob.")
         last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
         json_str = json_blob[first_accolade_index : last_accolade_index + 1]
         json_data = json.loads(json_str, strict=False)

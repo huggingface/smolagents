@@ -552,3 +552,22 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+@pytest.mark.parametrize(
+    "raw_json",
+    [
+        "no braces at all",
+        "Thought: I should stop. } trailing brace",
+        "}}",
+        "{ opening only",
+    ],
+)
+def test_parse_json_blob_without_a_complete_blob_says_so(raw_json):
+    """The message goes back to the model as retry feedback, so it has to name the problem.
+
+    Without an opening brace, `find("{")` returns -1 and the slice started at the last
+    character, so the model was told its JSON was malformed rather than absent.
+    """
+    with pytest.raises(ValueError, match="does not contain any JSON blob"):
+        parse_json_blob(raw_json)
