@@ -142,6 +142,22 @@ def test_disconnect_clears_session_tools_when_adapter_exit_fails():
         client.get_tools()
 
 
+def test_client_can_reconnect_after_disconnect():
+    first_tools = [MagicMock()]
+    reconnected_tools = [MagicMock()]
+    with patch("mcpadapt.core.MCPAdapt") as mock_mcp_adapt:
+        mock_mcp_adapt.return_value.__enter__.side_effect = [first_tools, reconnected_tools]
+        client = MCPClient(StdioServerParameters(command="python"), structured_output=False)
+
+    assert client.get_tools() is first_tools
+
+    client.disconnect()
+    client.connect()
+
+    assert client.get_tools() is reconnected_tools
+    assert client._adapter.__enter__.call_count == 2
+
+
 # Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
 @pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
 def test_multiple_servers(echo_server_script: str):
