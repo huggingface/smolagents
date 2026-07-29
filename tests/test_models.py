@@ -1078,3 +1078,63 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert len(data["tool_calls"]) > 0
     assert data["tool_calls"][0]["function"]["name"] == "final_answer"
     assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
+
+
+class TestEncodeImageBase64:
+    """Regression tests for encode_image_base64 handling string/Path inputs (issue #2088)."""
+
+    def test_encode_pil_image(self):
+        """encode_image_base64 should accept PIL Image objects."""
+        from PIL import Image
+
+        from smolagents.utils import encode_image_base64
+
+        img = Image.new("RGB", (10, 10), color="red")
+        result = encode_image_base64(img)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_encode_string_path(self, tmp_path):
+        """encode_image_base64 should accept string file paths (fixes #2088)."""
+        from PIL import Image
+
+        from smolagents.utils import encode_image_base64
+
+        img = Image.new("RGB", (10, 10), color="blue")
+        img_path = str(tmp_path / "test.png")
+        img.save(img_path)
+
+        result = encode_image_base64(img_path)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_encode_pathlib_path(self, tmp_path):
+        """encode_image_base64 should accept pathlib.Path objects."""
+        from pathlib import Path
+
+        from PIL import Image as PILImage
+
+        from smolagents.utils import encode_image_base64
+
+        img = PILImage.new("RGB", (10, 10), color="green")
+        img_path = Path(tmp_path) / "test_pathlib.png"
+        img.save(img_path)
+
+        result = encode_image_base64(img_path)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_encode_string_and_pil_produce_same_output(self, tmp_path):
+        """Encoding via path should produce the same result as encoding the PIL Image directly."""
+        from PIL import Image
+
+        from smolagents.utils import encode_image_base64
+
+        img = Image.new("RGB", (5, 5), color="white")
+        img_path = str(tmp_path / "same_test.png")
+        img.save(img_path)
+
+        loaded_img = Image.open(img_path)
+        result_from_path = encode_image_base64(img_path)
+        result_from_pil = encode_image_base64(loaded_img)
+        assert result_from_path == result_from_pil
