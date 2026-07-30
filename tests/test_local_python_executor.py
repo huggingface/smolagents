@@ -2410,6 +2410,92 @@ class TestLocalPythonExecutor:
         with pytest.raises(InterpreterError, match=".*Cannot unpack tuple of wrong size"):
             executor(code)
 
+    @pytest.mark.parametrize(
+        "code, expected_result",
+        [
+            # Starred target, in tuple and list form
+            ("a, *b = [1, 2, 3]; (a, b)", (1, [2, 3])),
+            ("[a, *b] = [1, 2, 3]; (a, b)", (1, [2, 3])),
+            # Starred target in every position, including one that absorbs nothing
+            ("*a, b = [1, 2, 3]; (a, b)", ([1, 2], 3)),
+            ("a, *b, c = [1, 2, 3, 4]; (a, b, c)", (1, [2, 3], 4)),
+            ("a, *b = [1]; (a, b)", (1, [])),
+            ("a, *b, c = [1, 2]; (a, b, c)", (1, [], 2)),
+            # Right-hand side does not have to be a list
+            ("a, *b = (1, 2, 3); (a, b)", (1, [2, 3])),
+            ("a, *b = range(3); (a, b)", (0, [1, 2])),
+            # Nested targets
+            ("a, (b, *c) = [1, [2, 3, 4]]; (a, b, c)", (1, 2, [3, 4])),
+            # List targets without a star
+            ("[a, b] = [1, 2]; (a, b)", (1, 2)),
+            ("[[a, b], c] = [[1, 2], 3]; (a, b, c)", (1, 2, 3)),
+        ],
+    )
+    def test_evaluate_assign_unpacking(self, code, expected_result):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        assert executor(code).output == expected_result
+
+    @pytest.mark.parametrize(
+        "code, expected_result",
+        [
+            (
+                dedent("""
+                out = []
+                for a, *b in [(1, 2, 3), (4, 5, 6)]:
+                    out.append((a, b))
+                out"""),
+                [(1, [2, 3]), (4, [5, 6])],
+            ),
+            (
+                dedent("""
+                out = []
+                for [a, b] in [(1, 2)]:
+                    out.append((a, b))
+                out"""),
+                [(1, 2)],
+            ),
+            ("[(a, b) for a, *b in [(1, 2, 3)]]", [(1, [2, 3])]),
+            ("{a: b for a, *b in [(1, 2, 3)]}", {1: [2, 3]}),
+        ],
+    )
+    def test_unpacking_in_loops_and_comprehensions(self, code, expected_result):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        assert executor(code).output == expected_result
+
+    @pytest.mark.parametrize(
+        "code, expected_result",
+        [
+            ('d = {"a": 1}; {**d}', {"a": 1}),
+            ('d = {"a": 1}; {**d, "b": 2}', {"a": 1, "b": 2}),
+            ('d = {"a": 1}; e = {"b": 2}; {**d, **e}', {"a": 1, "b": 2}),
+            # Later entries win over earlier ones, in both directions
+            ('d = {"a": 1}; {"a": 0, **d}', {"a": 1}),
+            ('d = {"a": 1}; {**d, "a": 9}', {"a": 9}),
+            ("{**{}}", {}),
+        ],
+    )
+    def test_evaluate_dict_unpacking(self, code, expected_result):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        assert executor(code).output == expected_result
+
+    @pytest.mark.parametrize(
+        "code, expected_error_message",
+        [
+            ("a, *b, c = [1]", "Cannot unpack tuple of wrong size"),
+            ("a, *b, *c = [1, 2, 3]", "Cannot unpack: multiple starred expressions in assignment"),
+            ("{**5}", "Cannot unpack non-dict value in dict literal: int"),
+            ("{**[1, 2]}", "Cannot unpack non-dict value in dict literal: list"),
+        ],
+    )
+    def test_evaluate_unpacking_errors(self, code, expected_error_message):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        with pytest.raises(InterpreterError, match=f".*{expected_error_message}"):
+            executor(code)
+
     def test_function_def_recovers_source_code(self):
         executor = LocalPythonExecutor([])
         executor.send_tools({"final_answer": FinalAnswerTool()})
