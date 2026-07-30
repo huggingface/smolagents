@@ -94,6 +94,46 @@ CodeAgent(
 
 Head to our [vision web browser code](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py) to see the full working example.
 
+### Limit input token growth on long runs
+
+Each action sends the system prompt and the memory accumulated so far to the model. This preserves the context that the agent needs to reason about earlier actions, but it also means that input token usage grows faster than the number of steps.
+
+Suppose the fixed part of the prompt contains $P$ tokens and every completed step adds an average of $s$ tokens. Over $n$ model calls, the approximate number of input tokens is:
+
+$$
+nP + s\frac{n(n-1)}{2}
+$$
+
+For 20 calls, replaying the step history contributes $190s$ tokens. That is 9.5 times the $20s$ tokens needed to send each step only once. You can inspect the measured total after a run when the model provider reports token usage:
+
+```py
+result = agent.run("Your task", return_full_result=True)
+if result.token_usage is not None:
+    print(result.token_usage.input_tokens)
+```
+
+If tool observations are large and their exact older contents are no longer useful, a step callback can replace them with a short marker:
+
+```py
+from smolagents import ActionStep
+
+
+def compact_old_observations(memory_step: ActionStep, agent, keep_last: int = 3) -> None:
+    previous_actions = [step for step in agent.memory.steps if isinstance(step, ActionStep)]
+    for step in previous_actions[:-keep_last]:
+        if step.observations:
+            step.observations = "[Earlier observation omitted to limit context growth.]"
+
+
+agent = CodeAgent(
+    tools=tools,
+    model=model,
+    step_callbacks=[compact_old_observations],
+)
+```
+
+Callbacks run before the current step is appended to `agent.memory.steps`, so this example changes only earlier observations. This is a lossy optimization: the model cannot recover omitted details, and the remaining model outputs, tool calls, and markers still consume context. Choose `keep_last` according to how far back the task needs exact evidence, and prefer summarization over omission when older details still matter.
+
 ### Run agents one step at a time
 
 This can be useful in case you have tool calls that take days: you can just run your agents step by step.
