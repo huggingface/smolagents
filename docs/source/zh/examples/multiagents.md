@@ -39,12 +39,12 @@ login()
 
 ⚡️ HF的Inference API 可以快速轻松地运行任何开源模型，因此我们的agent将使用HF的Inference API
 中的`InferenceClientModel`类来调用
-[Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking)模型。
+[Qwen/Qwen3-4B-Instruct-2507](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507)模型。
 
 _Note:_ 基于多参数和部署模型的 Inference API 可能在没有预先通知的情况下更新或替换模型。了解更多信息，请参阅[这里](https://huggingface.co/docs/api-inference/supported-models)。
 
 ```py
-model_id = "Qwen/Qwen3-Next-80B-A3B-Thinking"
+model_id = "Qwen/Qwen3-4B-Instruct-2507"
 ```
 
 ## 🔍 创建网络搜索工具

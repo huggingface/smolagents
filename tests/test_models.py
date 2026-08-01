@@ -328,6 +328,17 @@ class TestModel:
 
 
 class TestInferenceClientModel:
+    def test_default_model_id_is_not_unsupported_model(self):
+        """Regression test for #2584: the default model must be served by the HF router."""
+        import inspect
+
+        signature = inspect.signature(InferenceClientModel.__init__)
+        default_model_id = signature.parameters["model_id"].default
+        # Qwen/Qwen3-Next-80B-A3B-Thinking is not served by any inference provider,
+        # so it must not be the default (see issue #2584).
+        assert default_model_id != "Qwen/Qwen3-Next-80B-A3B-Thinking"
+        assert default_model_id == "Qwen/Qwen3-4B-Instruct-2507"
+
     def test_call_with_custom_role_conversions(self):
         custom_role_conversions = {MessageRole.USER: MessageRole.SYSTEM}
         model = InferenceClientModel(model_id="test-model", custom_role_conversions=custom_role_conversions)

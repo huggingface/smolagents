@@ -138,7 +138,7 @@ model = OpenAIModel(
 from smolagents import TransformersModel
 
 model = TransformersModel(
-    model_id="Qwen/Qwen3-Next-80B-A3B-Thinking",
+    model_id="Qwen/Qwen3-4B-Instruct-2507",
     max_new_tokens=4096,
     device_map="auto"
 )
@@ -180,7 +180,7 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`.
 
 ```bash
 # Run with direct prompt and options
-smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen3-Next-80B-A3B-Thinking" --imports pandas numpy --tools web_search
+smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen3-4B-Instruct-2507" --imports pandas numpy --tools web_search
 
 # Run in interactive mode (launches setup wizard when no prompt provided)
 smolagent
