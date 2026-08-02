@@ -23,6 +23,8 @@ from IPython.core.interactiveshell import InteractiveShell
 from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
+    RetryError,
+    Retrying,
     create_agent_gradio_app_template,
     get_source,
     instance_to_source,
@@ -552,3 +554,57 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+class RetryingTest(unittest.TestCase):
+    def test_default_wait_seconds_backs_off_exponentially(self):
+        sleeps = []
+
+        def fake_sleep(s):
+            sleeps.append(round(s, 3))
+
+        def boom():
+            raise ValueError("rate limited")
+
+        with unittest.mock.patch("smolagents.utils.time.sleep", fake_sleep):
+            retryer = Retrying(
+                max_attempts=4,
+                retry_predicate=lambda e: True,
+                jitter=False,
+            )
+            with self.assertRaises(RetryError):
+                retryer(boom)
+
+        self.assertEqual(len(sleeps), 3)
+        self.assertEqual(sleeps[0], 1.0)
+        self.assertEqual(sleeps[1], 2.0)
+        self.assertEqual(sleeps[2], 4.0)
+
+    def test_reraise_true_raises_original_exception(self):
+        def boom():
+            raise ValueError("boom")
+
+        retryer = Retrying(max_attempts=3, retry_predicate=lambda e: True, wait_seconds=0.0, reraise=True)
+        with self.assertRaises(ValueError):
+            retryer(boom)
+
+    def test_reraise_false_wraps_last_exception_in_retry_error(self):
+        def boom():
+            raise ValueError("boom")
+
+        retryer = Retrying(max_attempts=3, retry_predicate=lambda e: True, wait_seconds=0.0, reraise=False)
+        with self.assertRaises(RetryError) as cm:
+            retryer(boom)
+        self.assertIsInstance(cm.exception.last_exception, ValueError)
+
+    def test_no_retry_when_predicate_is_false(self):
+        calls = {"n": 0}
+
+        def boom():
+            calls["n"] += 1
+            raise ValueError("boom")
+
+        retryer = Retrying(max_attempts=5, retry_predicate=lambda e: False, wait_seconds=0.0)
+        with self.assertRaises(RetryError):
+            retryer(boom)
+        self.assertEqual(calls["n"], 1)
