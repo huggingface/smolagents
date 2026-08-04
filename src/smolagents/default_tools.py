@@ -251,7 +251,8 @@ class ScavioSearchTool(Tool):
 
     Scavio is a unified search API for AI agents. This tool uses its Google web search
     endpoint and returns the top results as markdown. The same `scavio` SDK also covers
-    YouTube, Amazon, Walmart, Reddit, TikTok and Instagram for users who need them.
+    YouTube, Amazon, Walmart, Reddit, TikTok, TikTok Shop, Instagram, X and LinkedIn for
+    users who need them.
 
     Args:
         api_key (`str`, *optional*): Scavio API key. Falls back to the `SCAVIO_API_KEY` env variable.
