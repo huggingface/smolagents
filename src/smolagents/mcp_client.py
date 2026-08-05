@@ -17,9 +17,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import warnings
 from types import TracebackType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from smolagents.tools import Tool
 
@@ -160,6 +162,144 @@ class MCPClient:
         is already connected at this point.
         """
         return self._tools
+
+    def get_resource_access_tools(self) -> list[Tool]:
+        """Return SmolAgents tools to access the MCP server's resources.
+
+        MCP servers can expose resources: context-efficient, read-only data
+        (documents, configuration, schemas, ...) addressable by URI. This
+        method returns two tools that let the agent discover and read them
+        like any other tool:
+
+        - ``list_resources``: lists the available resources with their URI,
+          name, MIME type and description. Call it first to discover what
+          data is available.
+        - ``read_resource(uri)``: reads the content of the resource
+          identified by ``uri`` (as returned by ``list_resources``). Text
+          content is returned as-is; binary content is returned base64-encoded.
+
+        Example:
+            ```python
+            mcp_client = MCPClient(server_parameters)
+            resource_tools = mcp_client.get_resource_access_tools()
+            tools = mcp_client.get_tools() + resource_tools
+            ```
+
+        Returns:
+            list[Tool]: A list containing the ``list_resources`` and
+            ``read_resource`` tools.
+
+        Raises:
+            RuntimeError: If the MCP server sessions are not initialized
+                (usually meaning the client is not connected).
+        """
+        if not self._adapter.sessions:
+            raise RuntimeError(
+                "Couldn't retrieve resources from MCP server, run `mcp_client.connect()` first before accessing resources"
+            )
+
+        # mcp is guaranteed to be installed here (MCPClient init requires mcpadapt)
+        from mcp.types import BlobResourceContents, TextResourceContents
+        from pydantic.networks import AnyUrl
+
+        def _sync_list_resources() -> list[dict[str, Any]]:
+            resources: list[dict[str, Any]] = []
+            for session in self._adapter.sessions:
+                result = asyncio.run_coroutine_threadsafe(session.list_resources(), self._adapter.loop).result()
+                for resource in result.resources:
+                    resources.append(
+                        {
+                            "uri": str(resource.uri),
+                            "name": resource.name or "",
+                            "mimeType": resource.mimeType or "",
+                            "description": resource.description or "",
+                        }
+                    )
+            return resources
+
+        def _sync_read_resource(uri: str) -> dict[str, Any]:
+            for session in self._adapter.sessions:
+                try:
+                    result = asyncio.run_coroutine_threadsafe(
+                        session.read_resource(AnyUrl(uri)), self._adapter.loop
+                    ).result()
+                except Exception:
+                    continue  # resource not available on this server, try the next one
+                contents: list[dict[str, Any]] = []
+                for content in result.contents:
+                    entry: dict[str, Any] = {
+                        "uri": str(content.uri),
+                        "mimeType": content.mimeType or "",
+                    }
+                    if isinstance(content, TextResourceContents):
+                        entry["content"] = content.text
+                    elif isinstance(content, BlobResourceContents):
+                        raw = base64.b64decode(content.blob)
+                        try:
+                            entry["content"] = raw.decode("utf-8")
+                        except UnicodeDecodeError:
+                            # binary content: keep the base64 payload
+                            entry["content"] = content.blob
+                            entry["encoding"] = "base64"
+                    contents.append(entry)
+                return {"uri": uri, "contents": contents}
+            return {"uri": uri, "error": f"No resource found with uri '{uri}'"}
+
+        class _MCPResourceTool(Tool):
+            def __init__(
+                self,
+                name: str,
+                description: str,
+                inputs: dict[str, dict[str, str | type | bool]],
+                output_type: str,
+                func: Callable[..., Any],
+            ):
+                self.name = name
+                self.description = description
+                self.inputs = inputs
+                self.output_type = output_type
+                self._func = func
+                self.is_initialized = True
+                self.skip_forward_signature_validation = True
+
+            def forward(self, *args, **kwargs) -> Any:
+                if args:
+                    raise ValueError(
+                        f"tool {self.name} does not support positional arguments, please use keyword arguments"
+                    )
+                return self._func(**kwargs)
+
+        return [
+            _MCPResourceTool(
+                name="list_resources",
+                description=(
+                    "List all resources available from the MCP server(s). "
+                    "Returns a list of resources with their URI, name, MIME type and description. "
+                    "Use this tool first to discover what data is available, "
+                    "then call `read_resource` with the URI of the resource you want to fetch."
+                ),
+                inputs={},
+                output_type="object",
+                func=_sync_list_resources,
+            ),
+            _MCPResourceTool(
+                name="read_resource",
+                description=(
+                    "Read the content of a resource exposed by the MCP server(s). "
+                    "Takes the `uri` of the resource to read, as returned by `list_resources`. "
+                    "Returns the resource content: text content is returned as-is, "
+                    "binary content is returned base64-encoded."
+                ),
+                inputs={
+                    "uri": {
+                        "type": "string",
+                        "description": "The URI of the resource to read, as returned by `list_resources`.",
+                    }
+                },
+                output_type="object",
+                func=_sync_read_resource,
+            ),
+        ]
 
     def __exit__(
         self,
