@@ -81,7 +81,7 @@ class MethodChecker(ast.NodeVisitor):
         target = node.target
         if isinstance(target, ast.Name):
             self.assigned_names.add(target.id)
-        elif isinstance(target, ast.Tuple):
+        elif isinstance(target, (ast.Tuple, ast.List)):
             for elt in target.elts:
                 if isinstance(elt, ast.Name):
                     self.assigned_names.add(elt.id)
