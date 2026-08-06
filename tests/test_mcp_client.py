@@ -192,3 +192,71 @@ def test_mcp_client_resource_access(resource_server_script: str):
         assert "error" in missing
     finally:
         mcp_client.disconnect()
+
+
+@pytest.fixture
+def prompt_server_script():
+    return dedent(
+        '''
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP("Prompt Server")
+
+        @mcp.prompt()
+        def summarize(text: str) -> str:
+            """Summarize the given text"""
+            return f"Please summarize the following text:\\n\\n{text}"
+
+        @mcp.prompt()
+        def greeting(name: str) -> str:
+            """Generate a friendly greeting"""
+            return f"Hello {name}, welcome to the MCP prompt server!"
+
+        mcp.run()
+        '''
+    )
+
+
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
+def test_mcp_client_prompt_access(prompt_server_script: str):
+    """Test listing and fetching MCP prompts through prompt access tools."""
+    server_parameters = StdioServerParameters(command="python", args=["-c", prompt_server_script])
+    mcp_client = MCPClient(server_parameters)
+    try:
+        prompt_tools = mcp_client.get_prompt_access_tools()
+        assert len(prompt_tools) == 2
+        assert {tool.name for tool in prompt_tools} == {"list_prompts", "get_prompt"}
+
+        # list_prompts returns metadata for all exposed prompts
+        list_tool = next(tool for tool in prompt_tools if tool.name == "list_prompts")
+        listed = list_tool.forward()
+        assert isinstance(listed, list)
+        assert len(listed) == 2
+        names = {prompt["name"] for prompt in listed}
+        assert names == {"summarize", "greeting"}
+        # metadata includes a description and the argument schema
+        summarize = next(prompt for prompt in listed if prompt["name"] == "summarize")
+        assert summarize["description"]
+        assert any(argument["name"] == "text" for argument in summarize["arguments"])
+
+        # get_prompt renders the template with the provided arguments
+        get_tool = next(tool for tool in prompt_tools if tool.name == "get_prompt")
+        result = get_tool.forward(name="summarize", arguments={"text": "Hello world"})
+        assert "error" not in result
+        assert result["name"] == "summarize"
+        assert len(result["messages"]) >= 1
+        message = result["messages"][0]
+        assert message["role"] == "user"
+        assert message["type"] == "text"
+        assert "Hello world" in message["content"]
+
+        # arguments are optional for prompts without arguments
+        greeting_result = get_tool.forward(name="greeting", arguments={"name": "Agent"})
+        assert "Agent" in greeting_result["messages"][0]["content"]
+
+        # get_prompt reports an error for an unknown prompt instead of raising
+        missing = get_tool.forward(name="nonexistent", arguments={})
+        assert "error" in missing
+    finally:
+        mcp_client.disconnect()
