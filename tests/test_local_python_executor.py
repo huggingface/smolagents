@@ -2987,3 +2987,170 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+class TestExplosiveIntegerGuard:
+    """Regression tests for #2473: explosive integer operations (``a ** b``,
+    ``a << b``, ``a * b``, sequence repetition) hold the GIL in C-level code
+    and bypass the thread-based ``timeout()`` decorator because the C call
+    never reaches a Python bytecode boundary.  The guard in
+    ``_check_safe_operation`` estimates the result size *without* computing
+    it and raises ``InterpreterError`` before the C call starts."""
+
+    # --- Power (**) ---
+
+    def test_power_with_huge_exponent_raises(self):
+        """``10 ** 10**8`` must raise immediately, not hang."""
+        with pytest.raises(InterpreterError, match="Reduce the exponent"):
+            evaluate_python_code("10 ** 10**8", BASE_PYTHON_TOOLS, state={})
+
+    def test_power_with_large_exponent_raises(self):
+        """``2 ** 999999`` exceeds MAX_INT_BITS (1M) and must raise."""
+        with pytest.raises(InterpreterError, match="Reduce the exponent"):
+            evaluate_python_code("2 ** 999999", BASE_PYTHON_TOOLS, state={})
+
+    def test_power_negative_base_raises(self):
+        """``-2 ** 10**8`` must raise — abs(base) >= 2 is checked."""
+        with pytest.raises(InterpreterError, match="Reduce the exponent"):
+            evaluate_python_code("(-2) ** 10**8", BASE_PYTHON_TOOLS, state={})
+
+    def test_power_base_one_allowed(self):
+        """``1 ** n`` is O(1) regardless of n — must not raise."""
+        result, _ = evaluate_python_code("1 ** 10**8", BASE_PYTHON_TOOLS, state={})
+        assert result == 1
+
+    def test_power_base_zero_allowed(self):
+        """``0 ** n`` is O(1) — must not raise."""
+        result, _ = evaluate_python_code("0 ** 10**8", BASE_PYTHON_TOOLS, state={})
+        assert result == 0
+
+    def test_power_small_exponent_allowed(self):
+        """``2 ** 1000`` is a normal crypto-sized exponent — must not raise."""
+        result, _ = evaluate_python_code("2 ** 1000", BASE_PYTHON_TOOLS, state={})
+        assert result == 2**1000
+
+    def test_power_float_exponent_allowed(self):
+        """``2.0 ** 100000`` is float exponentiation — our guard only applies to
+        int×int, so it must not raise our InterpreterError about the exponent.
+        Python's own OverflowError is wrapped by the executor, which is fine
+        (that's a normal float overflow, not a GIL freeze)."""
+        with pytest.raises(InterpreterError, match="OverflowError"):
+            evaluate_python_code("2.0 ** 100000", BASE_PYTHON_TOOLS, state={})
+
+    def test_power_bypass_via_nested_exponent_blocked(self):
+        """The #2559 bypass: ``(10**9999) ** 999`` has exponent 999 (under
+        #2559's threshold of 10000) but the result is ~33M bits. Our
+        bit-length estimate catches it because the base is already large."""
+        with pytest.raises(InterpreterError, match="Reduce the exponent"):
+            evaluate_python_code("x = 10 ** 9999; x ** 999", BASE_PYTHON_TOOLS, state={})
+
+    # --- Left-shift (<<) ---
+
+    def test_lshift_huge_shift_raises(self):
+        """``1 << 10**8`` must raise immediately — estimated 100M bits > 1M limit."""
+        with pytest.raises(InterpreterError, match="Reduce the shift"):
+            evaluate_python_code("1 << 10**8", BASE_PYTHON_TOOLS, state={})
+
+    def test_lshift_small_shift_allowed(self):
+        """``1 << 100`` is normal — must not raise."""
+        result, _ = evaluate_python_code("1 << 100", BASE_PYTHON_TOOLS, state={})
+        assert result == 1 << 100
+
+    def test_lshift_zero_value_allowed(self):
+        """``0 << 10**8`` is O(1) — must not raise."""
+        result, _ = evaluate_python_code("0 << 10**8", BASE_PYTHON_TOOLS, state={})
+        assert result == 0
+
+    # --- Multiplication (*) for integers ---
+
+    def test_int_mult_huge_operands_raises(self):
+        """Two ~600K-bit integers multiplied produce ~1.2M bits, exceeding
+        MAX_INT_BITS. Build the operands via left-shift (which is under the
+        1M limit individually) so the multiplication guard is what triggers."""
+        with pytest.raises(InterpreterError, match="Reduce the operands"):
+            evaluate_python_code("x = 1 << 600000; x * x", BASE_PYTHON_TOOLS, state={})
+
+    def test_int_mult_normal_allowed(self):
+        """``123 * 456`` is normal — must not raise."""
+        result, _ = evaluate_python_code("123 * 456", BASE_PYTHON_TOOLS, state={})
+        assert result == 123 * 456
+
+    def test_repeated_squaring_blocked(self):
+        """The #2559 repeated-squaring bypass: 15 multiplications of
+        ``x = x * x`` starting from ``10 ** 9999`` produces a 1B-bit integer.
+        Our guard catches it when the result exceeds MAX_INT_BITS."""
+        code = "x = 10 ** 9999\n" + "x = x * x\n" * 15
+        with pytest.raises(InterpreterError, match="Reduce the operands"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    # --- Sequence repetition (* for str/bytes/list/tuple) ---
+
+    def test_str_repetition_raises(self):
+        """``'a' * 10**8`` allocates 100M chars in C while holding the GIL."""
+        with pytest.raises(InterpreterError, match="Reduce the repeat"):
+            evaluate_python_code("'a' * 10**8", BASE_PYTHON_TOOLS, state={})
+
+    def test_list_repetition_raises(self):
+        """``[0] * 10**8`` allocates 100M elements in C while holding the GIL."""
+        with pytest.raises(InterpreterError, match="Reduce the repeat"):
+            evaluate_python_code("[0] * 10**8", BASE_PYTHON_TOOLS, state={})
+
+    def test_bytes_repetition_raises(self):
+        """``b'a' * 10**8`` — same GIL-hold for bytes."""
+        with pytest.raises(InterpreterError, match="Reduce the repeat"):
+            evaluate_python_code("b'a' * 10**8", BASE_PYTHON_TOOLS, state={})
+
+    def test_tuple_repetition_raises(self):
+        """``(0,) * 10**8`` — same GIL-hold for tuples."""
+        with pytest.raises(InterpreterError, match="Reduce the repeat"):
+            evaluate_python_code("(0,) * 10**8", BASE_PYTHON_TOOLS, state={})
+
+    def test_str_repetition_small_allowed(self):
+        """``'a' * 100`` is normal — must not raise."""
+        result, _ = evaluate_python_code("'a' * 100", BASE_PYTHON_TOOLS, state={})
+        assert result == "a" * 100
+
+    def test_list_repetition_small_allowed(self):
+        """``[0] * 100`` is normal — must not raise."""
+        result, _ = evaluate_python_code("[0] * 100", BASE_PYTHON_TOOLS, state={})
+        assert result == [0] * 100
+
+    def test_str_repetition_reversed_operands_raises(self):
+        """``10**8 * 'a'`` — count on the left, sequence on the right."""
+        with pytest.raises(InterpreterError, match="Reduce the repeat"):
+            evaluate_python_code("10**8 * 'a'", BASE_PYTHON_TOOLS, state={})
+
+    # --- Builtin pow() ---
+
+    def test_builtin_pow_huge_exponent_raises(self):
+        """``pow(10, 10**8)`` bypasses BinOp — must be caught by _safe_pow."""
+        with pytest.raises(InterpreterError, match="Reduce the exponent"):
+            evaluate_python_code("pow(10, 10**8)", BASE_PYTHON_TOOLS, state={})
+
+    def test_builtin_pow_small_allowed(self):
+        """``pow(2, 10)`` is normal — must not raise."""
+        result, _ = evaluate_python_code("pow(2, 10)", BASE_PYTHON_TOOLS, state={})
+        assert result == 1024
+
+    def test_builtin_pow_modular_allowed(self):
+        """``pow(2, 10**8, 1000000007)`` — three-arg modular form never
+        materialises the large intermediate, so it must be allowed."""
+        result, _ = evaluate_python_code("pow(2, 10**8, 1000000007)", BASE_PYTHON_TOOLS, state={})
+        assert result == pow(2, 10**8, 1000000007)
+
+    # --- AugAssign paths ---
+
+    def test_augassign_power_raises(self):
+        """``x **= 10**8`` must raise via the AugAssign path."""
+        with pytest.raises(InterpreterError, match="Reduce the exponent"):
+            evaluate_python_code("x = 10; x **= 10**8", BASE_PYTHON_TOOLS, state={})
+
+    def test_augassign_lshift_raises(self):
+        """``x <<= 10**8`` must raise via the AugAssign path."""
+        with pytest.raises(InterpreterError, match="Reduce the shift"):
+            evaluate_python_code("x = 1; x <<= 10**8", BASE_PYTHON_TOOLS, state={})
+
+    def test_augassign_mult_raises(self):
+        """``x *= 10**8`` where x is a string must raise via AugAssign."""
+        with pytest.raises(InterpreterError, match="Reduce the repeat"):
+            evaluate_python_code("x = 'a'; x *= 10**8", BASE_PYTHON_TOOLS, state={})
