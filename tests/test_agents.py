@@ -2107,18 +2107,255 @@ class TestCodeAgent:
         assert agent.provide_run_summary is provide_run_summary
         agent.name = "test_agent"
         agent.run = MagicMock(return_value="Test output")
-        agent.write_memory_to_messages = MagicMock(
-            return_value=[ChatMessage(role=MessageRole.ASSISTANT, content="Test summary")]
-        )
+        # The summary is now built directly from memory steps (not
+        # write_memory_to_messages), so set up a real TaskStep.
+        agent.memory.steps = [TaskStep(task="Test task")]
 
         result = agent("Test request")
         expected_summary = "Here is the final answer from your managed agent 'test_agent':\nTest output"
         if provide_run_summary:
             expected_summary += (
                 "\n\nFor more detail, find below a summary of this agent's work:\n"
-                "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
+                "<summary_of_work>\n\nNew task:\nTest task\n---\n</summary_of_work>"
             )
         assert result == expected_summary
+
+    def test_call_with_provide_run_summary_filters_tool_messages(self):
+        """Regression for #2424: raw TOOL_CALL and TOOL_RESPONSE messages (which
+        carry tool arguments, observations, and potentially secrets) must not
+        leak into the parent agent's context via the managed-agent summary.
+
+        Uses a real ActionStep with tool_calls and observations to tie the test
+        to actual ActionStep.to_messages(summary_mode=True) behaviour, so the
+        test catches role changes or filter regressions.
+
+        Note: summary_mode=True already suppresses the assistant model_output,
+        so the only messages that reach the filter are TOOL_CALL and
+        TOOL_RESPONSE. The test verifies that tool *names* are redacted in
+        (so the summary is useful) while raw arguments and observations
+        (which may contain secrets) are absent."""
+        from smolagents.memory import ActionStep, Timing
+
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+
+        # Build a real ActionStep with tool calls and observations, then run it
+        # through write_memory_to_messages(summary_mode=True) to get the actual
+        # messages that the filter will process.
+        secret_tool_args = "SUPER_SECRET_API_KEY=sk-leak"
+        secret_tool_output = "password=hunter2"
+        step = ActionStep(
+            step_number=1,
+            timing=Timing(start_time=0.0, end_time=1.0),
+            model_output="I used the search tool.",
+            tool_calls=[ToolCall(name="search", arguments={"query": secret_tool_args}, id="call_1")],
+            observations=secret_tool_output,
+        )
+        agent.memory.steps = [step]
+
+        result = agent("Test request")
+
+        # The raw tool-call arguments and tool-response observations
+        # (which may contain secrets) must be filtered out.
+        assert secret_tool_args not in result
+        assert secret_tool_output not in result
+        assert "SUPER_SECRET_API_KEY" not in result
+        assert "password=hunter2" not in result
+        # Tool-call/response markers with raw content must be absent.
+        assert "Calling tools:" not in result
+        assert "Observation:" not in result
+        # But the tool *name* should be present (redacted, not dropped)
+        # so the summary is useful to the parent agent.
+        assert "search" in result
+        assert "Called tools:" in result
+        # Tool names must appear exactly once, not repeated per TOOL_CALL message
+        assert result.count("Called tools:") == 1
+
+    def test_call_with_provide_run_summary_multiple_steps_no_repeat(self):
+        """Regression for ErenAta16's review: with multiple ActionSteps, tool
+        names must be emitted once, not repeated per TOOL_CALL message (which
+        would grow O(steps²) in the parent's context)."""
+        from smolagents.memory import ActionStep, Timing
+
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+
+        # Three ActionSteps with different tool calls
+        steps = [
+            ActionStep(
+                step_number=i + 1,
+                timing=Timing(start_time=0.0, end_time=1.0),
+                model_output=f"Step {i + 1}",
+                tool_calls=[ToolCall(name=tool, arguments={}, id=f"call_{i}")],
+                observations=f"output {i}",
+            )
+            for i, tool in enumerate(["search", "wiki", "final_answer"])
+        ]
+        agent.memory.steps = steps
+
+        result = agent("Test request")
+
+        # "Called tools:" must appear exactly once, not 3 times
+        assert result.count("Called tools:") == 1
+        # All three tool names should be in the single line
+        assert "search" in result
+        assert "wiki" in result
+        assert "final_answer" in result
+        # Observations must not leak
+        assert "output 0" not in result
+        assert "output 1" not in result
+        assert "output 2" not in result
+
+    def test_call_with_provide_run_summary_does_not_leak_argument_named_name(self):
+        """Regression for ErenAta16's review on #2424: an argument whose key is
+        'name' must not be extracted as a tool name. Tool names must come from
+        the ToolCall objects directly, not from regex over the rendered string
+        (which includes arguments). Also verifies that apostrophes in argument
+        values do not break tool name extraction."""
+        from smolagents.memory import ActionStep, Timing
+
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+
+        # Tool call with an argument named "name" — its value must NOT appear
+        # in the summary as a tool name.
+        secret_value = "sk-live-DEADBEEF"
+        step = ActionStep(
+            step_number=1,
+            timing=Timing(start_time=0.0, end_time=1.0),
+            model_output="I used the search tool.",
+            tool_calls=[ToolCall(name="search", arguments={"name": secret_value}, id="call_1")],
+            observations="some output",
+        )
+        agent.memory.steps = [step]
+
+        result = agent("Test request")
+
+        # The secret argument value must not leak
+        assert secret_value not in result
+        # The real tool name should be present
+        assert "search" in result
+        assert "Called tools:" in result
+        # The argument value should not appear as a tool name
+        assert "Called tools: search, " not in result
+
+    def test_call_with_provide_run_summary_apostrophe_in_arguments(self):
+        """Regression for ErenAta16's review on #2424: apostrophes in argument
+        values must not break tool name extraction. The old regex approach
+        failed when repr() switched quote styles due to apostrophes."""
+        from smolagents.memory import ActionStep, Timing
+
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+
+        step = ActionStep(
+            step_number=1,
+            timing=Timing(start_time=0.0, end_time=1.0),
+            model_output="I used the search tool.",
+            tool_calls=[ToolCall(name="search", arguments={"query": "it's fine"}, id="call_1")],
+            observations="result",
+        )
+        agent.memory.steps = [step]
+
+        result = agent("Test request")
+
+        # Tool name should still be extracted despite apostrophe in arguments
+        assert "search" in result
+        assert "Called tools:" in result
+
+    def test_call_with_provide_run_summary_arguments_never_serialized(self):
+        """Regression for #2424 review: ToolCall.arguments must never be
+        serialized when building the managed-agent summary. The old approach
+        called write_memory_to_messages(summary_mode=True), which invokes
+        ActionStep.to_messages() → tc.dict() → make_json_serializable(arguments)
+        before the role filter could discard the result. A raising argument
+        serializer would abort summary construction entirely. The new approach
+        reads only tc.name from the ToolCall objects, so arguments are never
+        touched."""
+        from smolagents.memory import ActionStep, Timing
+
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+
+        # A ToolCall whose arguments raise on any attribute access — if the
+        # summary path ever touches arguments, this will explode.
+        class ExplodingArguments:
+            def __getitem__(self, key):
+                raise RuntimeError("arguments must not be accessed")
+
+            def __iter__(self):
+                raise RuntimeError("arguments must not be iterated")
+
+            def __repr__(self):
+                raise RuntimeError("arguments must not be repr'd")
+
+            def __str__(self):
+                raise RuntimeError("arguments must not be str'd")
+
+            def dict(self):
+                raise RuntimeError("arguments must not be dict'd")
+
+        step = ActionStep(
+            step_number=1,
+            timing=Timing(start_time=0.0, end_time=1.0),
+            model_output="I used the search tool.",
+            tool_calls=[ToolCall(name="search", arguments=ExplodingArguments(), id="call_1")],
+            observations="some output",
+        )
+        agent.memory.steps = [step]
+
+        # Must not raise — arguments are never serialized
+        result = agent("Test request")
+
+        # Tool name should still be present
+        assert "search" in result
+        assert "Called tools:" in result
+
+    def test_call_with_provide_run_summary_image_observations_excluded(self):
+        """Regression for #2424 review: image observations must not leak into
+        the parent agent's summary. The old approach called
+        write_memory_to_messages(summary_mode=True), which invokes
+        ActionStep.to_messages() and emits observations_images as
+        MessageRole.USER messages — bypassing the TOOL_CALL/TOOL_RESPONSE
+        filter. The new approach never calls to_messages(), so images are
+        never rendered."""
+        from PIL import Image
+
+        from smolagents.memory import ActionStep, Timing
+
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+
+        # Create a small test image
+        image = Image.new("RGB", (1, 1), color="red")
+
+        step = ActionStep(
+            step_number=1,
+            timing=Timing(start_time=0.0, end_time=1.0),
+            model_output="I used the search tool.",
+            tool_calls=[ToolCall(name="search", arguments={"query": "test"}, id="call_1")],
+            observations="some output",
+            observations_images=[image],
+        )
+        agent.memory.steps = [step]
+
+        result = agent("Test request")
+
+        # The image observation must not appear in the summary — the old code
+        # emitted it as a MessageRole.USER message that bypassed the filter.
+        # We verify by checking that the summary section contains no image
+        # content markers and no raw observations.
+        assert "image" not in result.lower()
+        assert "some output" not in result
+        # Tool name should still be present
+        assert "search" in result
+        assert "Called tools:" in result
 
     def test_code_agent_image_output(self):
         from PIL import Image
