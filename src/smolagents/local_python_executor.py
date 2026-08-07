@@ -58,7 +58,98 @@ DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
 MAX_EXECUTION_TIME_SECONDS = 30
+MAX_INT_BITS = 1_000_000
+MAX_SEQUENCE_LENGTH = 100_000_000
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
+
+
+def _check_safe_operation(op: str, left: Any, right: Any) -> None:
+    """Guard against operations that would produce explosively large results.
+
+    Estimates the size of the result *without* computing it, and raises
+    ``InterpreterError`` if the estimate exceeds the relevant limit.  This
+    prevents single-expression GIL-level freezes (e.g. ``10 ** 10**8`` or
+    ``'a' * 10**8``) that the thread-based ``timeout()`` decorator cannot
+    interrupt because the C-level call never reaches a bytecode boundary.
+
+    For integer operations (``**``, ``<<``, ``*``) the bit-length of the
+    result is estimated and checked against ``MAX_INT_BITS``.
+
+    For sequence repetition (``*`` with ``str``/``bytes``/``list``/``tuple``)
+    the total element count is estimated and checked against
+    ``MAX_SEQUENCE_LENGTH``.
+
+    Note: ``int('9' * N)`` and ``str(huge_int)`` are already blocked by
+    CPython's ``sys.set_int_max_str_digits`` limit (4300 digits, enforced
+    since 3.11, backported to 3.10.7+), so this guard does not need to
+    handle string↔int conversions.
+
+    Args:
+        op: The operation name (``'**'``, ``'<<'``, ``'*'``).
+        left: The left operand.
+        right: The right operand.
+    """
+    # --- Integer guards ---
+    if isinstance(left, int | bool) and isinstance(right, int | bool):
+        left_bits = left.bit_length() if isinstance(left, int) else 0
+        right_bits = right.bit_length() if isinstance(right, int) else 0
+
+        if op == "**":
+            # result bit-length ≈ left_bits * right  (when |left| >= 2, right >= 2)
+            if abs(left) >= 2 and right >= 2:
+                estimated = left_bits * right
+                if estimated > MAX_INT_BITS:
+                    raise InterpreterError(
+                        f"Operation would produce an integer with ~{estimated} bits "
+                        f"(max allowed: {MAX_INT_BITS}). Reduce the exponent to prevent a freeze."
+                    )
+        elif op == "<<":
+            # result bit-length ≈ left_bits + right
+            if left != 0 and right > 0:
+                estimated = left_bits + right
+                if estimated > MAX_INT_BITS:
+                    raise InterpreterError(
+                        f"Left-shift would produce an integer with ~{estimated} bits "
+                        f"(max allowed: {MAX_INT_BITS}). Reduce the shift amount to prevent a freeze."
+                    )
+        elif op == "*":
+            # result bit-length ≈ left_bits + right_bits
+            if left_bits > 0 and right_bits > 0:
+                estimated = left_bits + right_bits
+                if estimated > MAX_INT_BITS:
+                    raise InterpreterError(
+                        f"Multiplication would produce an integer with ~{estimated} bits "
+                        f"(max allowed: {MAX_INT_BITS}). Reduce the operands to prevent a freeze."
+                    )
+        return
+
+    # --- Sequence repetition guard ---
+    # 'a' * 10**8 or [0] * 10**8 allocates a huge sequence in C while holding
+    # the GIL — same liveness bug as the integer case.
+    if op == "*":
+        seq, count = None, None
+        if isinstance(left, (str, bytes, list, tuple)) and isinstance(right, int):
+            seq, count = left, right
+        elif isinstance(right, (str, bytes, list, tuple)) and isinstance(left, int):
+            seq, count = right, left
+        if seq is not None and count > 0:
+            estimated = len(seq) * count
+            if estimated >= MAX_SEQUENCE_LENGTH:
+                raise InterpreterError(
+                    f"Sequence repetition would produce ~{estimated} elements "
+                    f"(max allowed: {MAX_SEQUENCE_LENGTH}). Reduce the repeat count to prevent a freeze."
+                )
+
+
+def _safe_pow(base: Any, exp: Any, mod: Any = None) -> Any:
+    """Wrapper around ``pow()`` that guards against explosively large results.
+
+    The three-argument form ``pow(a, b, m)`` is always allowed (modular
+    exponentiation does not produce large integers).
+    """
+    if mod is None:
+        _check_safe_operation("**", base, exp)
+    return pow(base, exp, mod)
 
 
 def custom_print(*args):
@@ -97,7 +188,7 @@ BASE_PYTHON_TOOLS = {
     "atan2": math.atan2,
     "degrees": math.degrees,
     "radians": math.radians,
-    "pow": pow,
+    "pow": _safe_pow,
     "sqrt": math.sqrt,
     "len": len,
     "sum": sum,
@@ -672,12 +763,14 @@ def evaluate_augassign(
     elif isinstance(expression.op, ast.Sub):
         current_value -= value_to_add
     elif isinstance(expression.op, ast.Mult):
+        _check_safe_operation("*", current_value, value_to_add)
         current_value *= value_to_add
     elif isinstance(expression.op, ast.Div):
         current_value /= value_to_add
     elif isinstance(expression.op, ast.Mod):
         current_value %= value_to_add
     elif isinstance(expression.op, ast.Pow):
+        _check_safe_operation("**", current_value, value_to_add)
         current_value **= value_to_add
     elif isinstance(expression.op, ast.FloorDiv):
         current_value //= value_to_add
@@ -688,6 +781,7 @@ def evaluate_augassign(
     elif isinstance(expression.op, ast.BitXor):
         current_value ^= value_to_add
     elif isinstance(expression.op, ast.LShift):
+        _check_safe_operation("<<", current_value, value_to_add)
         current_value <<= value_to_add
     elif isinstance(expression.op, ast.RShift):
         current_value >>= value_to_add
@@ -744,12 +838,14 @@ def evaluate_binop(
     elif isinstance(binop.op, ast.Sub):
         return left_val - right_val
     elif isinstance(binop.op, ast.Mult):
+        _check_safe_operation("*", left_val, right_val)
         return left_val * right_val
     elif isinstance(binop.op, ast.Div):
         return left_val / right_val
     elif isinstance(binop.op, ast.Mod):
         return left_val % right_val
     elif isinstance(binop.op, ast.Pow):
+        _check_safe_operation("**", left_val, right_val)
         return left_val**right_val
     elif isinstance(binop.op, ast.FloorDiv):
         return left_val // right_val
@@ -760,6 +856,7 @@ def evaluate_binop(
     elif isinstance(binop.op, ast.BitXor):
         return left_val ^ right_val
     elif isinstance(binop.op, ast.LShift):
+        _check_safe_operation("<<", left_val, right_val)
         return left_val << right_val
     elif isinstance(binop.op, ast.RShift):
         return left_val >> right_val
