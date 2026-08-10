@@ -17,7 +17,7 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 from smolagents.agents import MultiStepAgent, PlanningStep
@@ -36,16 +36,23 @@ def get_step_footnote_content(step_log: ActionStep | PlanningStep, step_name: st
     return step_footnote_content
 
 
-def _clean_model_output(model_output: str) -> str:
+def _clean_model_output(model_output: str | list[dict[str, Any]]) -> str:
     """
     Clean up model output by removing trailing tags and extra backticks.
 
     Args:
-        model_output (`str`): Raw model output.
+        model_output (`str` or `list[dict[str, Any]]`): Raw model output.
 
     Returns:
         `str`: Cleaned model output.
     """
+    if isinstance(model_output, list):
+        model_output = "\n".join(
+            block["text"]
+            for block in model_output
+            if block.get("type") == "text" and isinstance(block.get("text"), str)
+        )
+
     if not model_output:
         return ""
     model_output = model_output.strip()
@@ -98,7 +105,8 @@ def _process_action_step(step_log: ActionStep, skip_model_outputs: bool = False)
     # First yield the thought/reasoning from the LLM
     if not skip_model_outputs and getattr(step_log, "model_output", ""):
         model_output = _clean_model_output(step_log.model_output)
-        yield gr.ChatMessage(role=MessageRole.ASSISTANT, content=model_output, metadata={"status": "done"})
+        if model_output:
+            yield gr.ChatMessage(role=MessageRole.ASSISTANT, content=model_output, metadata={"status": "done"})
 
     # For tool calls, create a parent message
     if getattr(step_log, "tool_calls", []):
