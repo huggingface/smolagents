@@ -23,6 +23,7 @@ from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
+from threading import Event
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
@@ -1811,6 +1812,60 @@ class TestToolCallingAgent:
         assert agent.memory.steps[1].model_output_message.tool_calls[0].function.name == "test_tool"
         assert agent.memory.steps[1].model_output_message.tool_calls[1].function.name == "test_tool"
         assert agent.memory.steps[1].observations == "Processed: output1\nProcessed: output2"
+
+    def test_toolcalling_agent_preserves_successful_parallel_tool_outputs_when_one_fails(self):
+        successful_tool_finished = Event()
+
+        @tool
+        def successful_tool() -> str:
+            """Return a successful result.
+
+            Returns:
+                The successful result.
+            """
+
+            successful_tool_finished.set()
+            return "successful result"
+
+        @tool
+        def failing_tool() -> str:
+            """Raise after the successful tool has completed.
+
+            Returns:
+                This tool never returns.
+            """
+
+            assert successful_tool_finished.wait(timeout=5)
+            raise ValueError("expected failure")
+
+        agent = ToolCallingAgent(
+            tools=[successful_tool, failing_tool],
+            model=MagicMock(),
+            max_tool_threads=2,
+        )
+        chat_message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_success",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name=successful_tool.name, arguments={}),
+                ),
+                ChatMessageToolCall(
+                    id="call_failure",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name=failing_tool.name, arguments={}),
+                ),
+            ],
+        )
+        memory_step = ActionStep(step_number=1, timing=Timing(start_time=0))
+
+        with pytest.raises(AgentToolExecutionError):
+            list(agent.process_tool_calls(chat_message, memory_step))
+
+        assert {tool_call.name for tool_call in memory_step.tool_calls} == {successful_tool.name, failing_tool.name}
+        assert memory_step.observations == "successful result"
 
     @patch("openai.OpenAI")
     def test_toolcalling_agent_final_answer_cannot_be_called_with_parallel_tool_calls(
