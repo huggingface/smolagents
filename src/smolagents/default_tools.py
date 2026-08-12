@@ -382,7 +382,7 @@ class WebSearchTool(Tool):
         response.raise_for_status()
         parser = self._create_duckduckgo_parser()
         parser.feed(response.text)
-        return parser.results
+        return parser.results[: self.max_results]
 
     def _create_duckduckgo_parser(self):
         from html.parser import HTMLParser
