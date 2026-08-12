@@ -2120,6 +2120,26 @@ class TestCodeAgent:
             )
         assert result == expected_summary
 
+    def test_call_with_provide_run_summary_excludes_tool_messages(self):
+        agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=True)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+        agent.memory.steps.append(
+            ActionStep(
+                step_number=1,
+                timing=Timing(start_time=0, end_time=0),
+                tool_calls=[ToolCall(name="private_tool", arguments={"query": "secret"}, id="call_1")],
+                observations="SECRET_TOOL_RESPONSE",
+            )
+        )
+
+        result = agent("Test request")
+
+        assert "Test output" in result
+        assert "Calling tools:" not in result
+        assert "Observation:" not in result
+        assert "SECRET_TOOL_RESPONSE" not in result
+
     def test_code_agent_image_output(self):
         from PIL import Image
 
