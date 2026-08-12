@@ -54,7 +54,7 @@ litellm = [
 ]
 mcp = [
   "mcpadapt>=0.1.13",  # Support structured output
-  "mcp",
+  "mcp>=1.10.1,<2.0",
 ]
 mlx-lm = [
   "mlx-lm",
