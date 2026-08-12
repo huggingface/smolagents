@@ -94,7 +94,7 @@ class DocstringParsingException(Exception):
     """Exception raised for errors in parsing docstrings to generate JSON schemas"""
 
 
-def get_json_schema(func: Callable) -> dict:
+def get_json_schema(func: Callable, skip_self: bool = False) -> dict:
     """
     This function generates a JSON schema for a given function, based on its docstring and type hints. This is
     mostly used for passing lists of tools to a chat template. The JSON schema contains the name and description of
@@ -107,6 +107,7 @@ def get_json_schema(func: Callable) -> dict:
 
     Args:
         func: The function to generate a JSON schema for.
+        skip_self: Whether to omit an instance method's ``self`` parameter from the schema.
 
     Returns:
         A dictionary containing the JSON schema for the function.
@@ -209,7 +210,7 @@ def get_json_schema(func: Callable) -> dict:
     doc = doc.strip()
     main_doc, param_descriptions, return_doc = _parse_google_format_docstring(doc)
 
-    json_schema = _convert_type_hints_to_json_schema(func)
+    json_schema = _convert_type_hints_to_json_schema(func, skip_self=skip_self)
     if (return_dict := json_schema["properties"].pop("return", None)) is not None:
         if return_doc is not None:  # We allow a missing return docstring since most templates ignore it
             return_dict["description"] = return_doc
@@ -288,16 +289,22 @@ def _parse_google_format_docstring(
     return description, args_dict, returns
 
 
-def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hints: bool = True) -> dict:
+def _convert_type_hints_to_json_schema(
+    func: Callable, error_on_missing_type_hints: bool = True, skip_self: bool = False
+) -> dict:
     type_hints = get_type_hints(func)
     signature = inspect.signature(func)
 
     properties = {}
     for param_name, param_type in type_hints.items():
+        if skip_self and param_name == "self":
+            continue
         properties[param_name] = _parse_type_hint(param_type)
 
     required = []
     for param_name, param in signature.parameters.items():
+        if skip_self and param_name == "self":
+            continue
         if param.annotation == inspect.Parameter.empty and error_on_missing_type_hints:
             raise TypeHintParsingException(f"Argument {param.name} is missing a type hint in function {func.__name__}")
         if param_name not in properties:
