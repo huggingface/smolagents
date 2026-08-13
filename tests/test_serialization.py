@@ -91,6 +91,26 @@ class TestSafeSerializationSecurity:
             assert len(w) == 1
             assert "pickle data" in str(w[0].message).lower()
 
+    def test_cyclic_list_uses_pickle_fallback(self):
+        """Verify recursive safe conversion does not block the pickle fallback."""
+        obj = []
+        obj.append(obj)
+
+        with pytest.warns(FutureWarning, match="insecure pickle"):
+            serialized = SafeSerializer.dumps(obj, allow_pickle=True)
+
+        with pytest.warns(FutureWarning, match="pickle data"):
+            result = SafeSerializer.loads(serialized, allow_pickle=True)
+        assert result[0] is result
+
+    def test_cyclic_list_raises_serialization_error_in_safe_mode(self):
+        """Verify cyclic containers fail with the serializer's public exception."""
+        obj = []
+        obj.append(obj)
+
+        with pytest.raises(SerializationError, match="cyclic object graph"):
+            SafeSerializer.dumps(obj, allow_pickle=False)
+
 
 class TestSafeSerializationRoundtrip:
     """Test that safe types serialize and deserialize correctly."""
