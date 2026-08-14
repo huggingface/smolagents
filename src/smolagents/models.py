@@ -285,12 +285,34 @@ tool_role_conversions = {
 }
 
 
+def _replace_any_with_string(schema: dict) -> dict:
+    """Recursively rewrite the internal ``"any"`` type marker to ``"string"``.
+
+    ``get_tool_json_schema`` replaces a top-level ``{"type": "any"}``, but an
+    ``Any`` nested inside a container (``List[Any]``, ``Dict[str, Any]``, ...)
+    reaches the provider as ``{"type": "any"}``, which is not a valid JSON
+    Schema type. This helper descends into every schema-bearing key so the
+    internal marker never leaves the boundary.
+    """
+    for key, value in schema.items():
+        if key == "type":
+            if value == "any":
+                schema[key] = "string"
+            elif isinstance(value, list):
+                schema[key] = ["string" if t == "any" else t for t in value]
+        elif isinstance(value, dict):
+            _replace_any_with_string(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _replace_any_with_string(item)
+    return schema
+
+
 def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
-        if value["type"] == "any":
-            value["type"] = "string"
         if not ("nullable" in value and value["nullable"]):
             required.append(key)
 
@@ -314,6 +336,11 @@ def get_tool_json_schema(tool: Tool) -> dict:
                 value["enum"] = enum
 
             value.pop("anyOf")
+
+    # Rewrite any remaining "any" marker, including nested ones inside
+    # containers (List[Any], Dict[str, Any], ...), to a valid JSON Schema type.
+    for value in properties.values():
+        _replace_any_with_string(value)
 
     return {
         "type": "function",
