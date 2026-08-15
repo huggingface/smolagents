@@ -285,12 +285,29 @@ tool_role_conversions = {
 }
 
 
+def _sanitize_any_types(schema: dict) -> None:
+    """Recursively replace internal ``"any"`` type with ``"string"`` throughout a schema."""
+    if schema.get("type") == "any":
+        schema["type"] = "string"
+    for key in ("items", "additionalProperties"):
+        if isinstance(schema.get(key), dict):
+            _sanitize_any_types(schema[key])
+    if "prefixItems" in schema:
+        for item in schema["prefixItems"]:
+            _sanitize_any_types(item)
+    if "anyOf" in schema:
+        for member in schema["anyOf"]:
+            _sanitize_any_types(member)
+    if "properties" in schema:
+        for prop in schema["properties"].values():
+            _sanitize_any_types(prop)
+
+
 def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
-        if value["type"] == "any":
-            value["type"] = "string"
+        _sanitize_any_types(value)
         if not ("nullable" in value and value["nullable"]):
             required.append(key)
 
@@ -302,10 +319,7 @@ def get_tool_json_schema(tool: Tool) -> dict:
                 if t["type"] == "null":
                     value["nullable"] = True
                     continue
-                if t["type"] == "any":
-                    types.append("string")
-                else:
-                    types.append(t["type"])
+                types.append(t["type"])
                 if "enum" in t:  # assuming there is only one enum in anyOf
                     enum = t["enum"]
 

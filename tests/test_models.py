@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -221,6 +222,22 @@ class TestModel:
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
         assert "nullable" in get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
+
+    def test_get_json_schema_sanitizes_nested_any_types(self):
+        @tool
+        def process(items: list[Any], metadata: dict[str, Any]) -> str:
+            """
+            Process items with metadata.
+
+            Args:
+                items: list of items
+                metadata: extra info
+            """
+            return ""
+
+        schema = get_tool_json_schema(process)
+        schema_str = json.dumps(schema)
+        assert '"any"' not in schema_str, f"Leaked 'any' type in schema: {schema_str}"
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
