@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -221,6 +222,31 @@ class TestModel:
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
         assert "nullable" in get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
+
+    def test_get_json_schema_sanitizes_nested_any(self):
+        @tool
+        def nested_any_tool(
+            items: list[Any],
+            mapping: dict[str, Any],
+            optional_mapping: dict[str, Any] | None = None,
+        ) -> str:
+            """
+            A tool with Any nested inside containers.
+
+            Args:
+                items: a list of anything
+                mapping: a mapping of anything
+                optional_mapping: an optional mapping of anything
+            """
+            return "ok"
+
+        properties = get_tool_json_schema(nested_any_tool)["function"]["parameters"]["properties"]
+        assert properties["items"]["items"]["type"] == "string"
+        assert properties["mapping"]["additionalProperties"]["type"] == "string"
+        assert properties["optional_mapping"]["additionalProperties"]["type"] == "string"
+
+        serialized = json.dumps(get_tool_json_schema(nested_any_tool))
+        assert '"type": "any"' not in serialized
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])

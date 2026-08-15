@@ -288,11 +288,10 @@ tool_role_conversions = {
 def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
-    for key, value in properties.items():
-        if value["type"] == "any":
+
+    def _sanitize(value: dict) -> None:
+        if value.get("type") == "any":
             value["type"] = "string"
-        if not ("nullable" in value and value["nullable"]):
-            required.append(key)
 
         # parse anyOf
         if "anyOf" in value:
@@ -314,6 +313,21 @@ def get_tool_json_schema(tool: Tool) -> dict:
                 value["enum"] = enum
 
             value.pop("anyOf")
+
+        # descend into containers so nested "any" never reaches the provider
+        if isinstance(value.get("items"), dict):
+            _sanitize(value["items"])
+        if isinstance(value.get("properties"), dict):
+            for nested in value["properties"].values():
+                if isinstance(nested, dict):
+                    _sanitize(nested)
+        if isinstance(value.get("additionalProperties"), dict):
+            _sanitize(value["additionalProperties"])
+
+    for key, value in properties.items():
+        _sanitize(value)
+        if not ("nullable" in value and value["nullable"]):
+            required.append(key)
 
     return {
         "type": "function",
