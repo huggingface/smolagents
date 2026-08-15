@@ -1594,6 +1594,60 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_runtime_config_roundtrip(self):
+        """Serialization preserves documented runtime configuration."""
+        agent = ToolCallingAgent(
+            tools=[],
+            model=MagicMock(),
+            instructions="Always explain tool choices.",
+            provide_run_summary=True,
+            return_full_result=True,
+            stream_outputs=True,
+            max_tool_threads=3,
+        )
+
+        agent_dict = agent.to_dict()
+        assert agent_dict["instructions"] == "Always explain tool choices."
+        assert agent_dict["provide_run_summary"] is True
+        assert agent_dict["return_full_result"] is True
+        assert agent_dict["stream_outputs"] is True
+        assert agent_dict["max_tool_threads"] == 3
+
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated = ToolCallingAgent.from_dict(agent_dict)
+
+        assert recreated.instructions == "Always explain tool choices."
+        assert recreated.provide_run_summary is True
+        assert recreated.return_full_result is True
+        assert recreated.stream_outputs is True
+        assert recreated.max_tool_threads == 3
+
+    def test_code_agent_runtime_config_roundtrip(self):
+        """Serialization preserves CodeAgent options across a JSON boundary."""
+        model = MagicMock()
+        model.to_dict.return_value = {}
+        agent = CodeAgent(
+            tools=[],
+            model=model,
+            use_structured_outputs_internally=True,
+            code_block_tags=("<code>", "</code>"),
+        )
+
+        agent_dict = json.loads(json.dumps(agent.to_dict()))
+        assert agent_dict["use_structured_outputs_internally"] is True
+
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated = CodeAgent.from_dict(agent_dict)
+
+        assert recreated._use_structured_outputs_internally is True
+        assert recreated.code_block_tags == ("<code>", "</code>")
+
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
         agent_dict = {
