@@ -317,6 +317,14 @@ def get_tool_json_schema(tool: Tool) -> dict:
         # descend into containers so nested "any" never reaches the provider
         if isinstance(value.get("items"), dict):
             _sanitize(value["items"])
+        if isinstance(value.get("items"), list):
+            for nested in value["items"]:
+                if isinstance(nested, dict):
+                    _sanitize(nested)
+        if isinstance(value.get("prefixItems"), list):
+            for nested in value["prefixItems"]:
+                if isinstance(nested, dict):
+                    _sanitize(nested)
         if isinstance(value.get("properties"), dict):
             for nested in value["properties"].values():
                 if isinstance(nested, dict):

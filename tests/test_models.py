@@ -248,6 +248,21 @@ class TestModel:
         serialized = json.dumps(get_tool_json_schema(nested_any_tool))
         assert '"type": "any"' not in serialized
 
+    def test_get_json_schema_sanitizes_prefix_items_and_array_items(self):
+        tool = MagicMock()
+        tool.name = "nested"
+        tool.description = "nested containers"
+        tool.inputs = {
+            "seq": {
+                "type": "array",
+                "prefixItems": [{"type": "any"}, {"type": "string"}],
+                "items": [{"type": "any"}],
+            }
+        }
+
+        serialized = json.dumps(get_tool_json_schema(tool))
+        assert '"type": "any"' not in serialized
+
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
         data = json.loads(message.model_dump_json())
