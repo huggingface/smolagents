@@ -451,6 +451,48 @@ class TestGetJsonSchema:
         schema = get_json_schema(keywords_in_description_func)
         assert schema["function"]["description"] == "Function with Args: or Returns: keywords in its description."
 
+    def test_union_with_literal_preserves_enum(self):
+        """Test that a Union of Literal and its base type keeps the enum."""
+        from typing import Literal, Union
+
+        def func(color: Union[Literal["red", "green"], str]) -> str:
+            """
+            Pick a color.
+
+            Args:
+                color: The color to pick.
+
+            Returns:
+                Selected color.
+            """
+            return color
+
+        schema = get_json_schema(func)
+        color_prop = schema["function"]["parameters"]["properties"]["color"]
+        assert color_prop["type"] == "string"
+        assert color_prop["enum"] == ["red", "green"]
+
+    def test_union_of_literals_preserves_enum(self):
+        """Test that a Union of two Literals collapses to a single enum type."""
+        from typing import Literal, Union
+
+        def func(color: Union[Literal["red"], Literal["green"]]) -> str:
+            """
+            Pick a color.
+
+            Args:
+                color: The color to pick.
+
+            Returns:
+                Selected color.
+            """
+            return color
+
+        schema = get_json_schema(func)
+        color_prop = schema["function"]["parameters"]["properties"]["color"]
+        assert color_prop["type"] == "string"
+        assert color_prop["enum"] == ["red", "green"]
+
 
 class TestGetCode:
     @pytest.mark.parametrize(

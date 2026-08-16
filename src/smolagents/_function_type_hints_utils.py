@@ -391,7 +391,11 @@ def _parse_union_type(args: tuple[Any, ...]) -> dict:
         return_dict = subtypes[0]
     elif all(isinstance(subtype["type"], str) for subtype in subtypes):
         # A union of basic types can be expressed as a list in the schema
-        return_dict = {"type": sorted([subtype["type"] for subtype in subtypes])}
+        unique_types = sorted({subtype["type"] for subtype in subtypes})
+        return_dict = {"type": unique_types[0] if len(unique_types) == 1 else unique_types}
+        merged_enum = [v for subtype in subtypes for v in subtype.get("enum", [])]
+        if merged_enum:
+            return_dict["enum"] = merged_enum
     else:
         # A union of more complex types requires "anyOf"
         return_dict = {"anyOf": subtypes}
