@@ -1407,9 +1407,26 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
                 raise ValueError(f"Argument {key} is required")
         return None
     else:
-        expected_type = list(tool.inputs.values())[0]["type"]
-        if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
-            raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
+        expected_schema = list(tool.inputs.values())[0]
+        expected_type = expected_schema["type"]
+        actual_type = _get_json_schema_type(type(arguments))["type"]
+        expected_type_is_nullable = expected_schema.get("nullable", False)
+
+        # Mirror the dict path: list types match by membership, nullable fields
+        # accept null, and integers coerce to number
+        if (
+            (
+                actual_type != expected_type
+                if isinstance(expected_type, str)
+                else actual_type not in expected_type
+            )
+            and expected_type != "any"
+            and not (actual_type == "null" and expected_type_is_nullable)
+            and not (actual_type == "integer" and expected_type == "number")
+        ):
+            raise TypeError(
+                f"Argument has type '{actual_type}' but should be '{expected_type}'"
+            )
 
 
 __all__ = [
