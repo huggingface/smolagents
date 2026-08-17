@@ -525,13 +525,45 @@ class RateLimiter:
         self._last_call = time.time()
 
 
+class RetryError(Exception):
+    """Raised by [`Retrying`] when all attempts failed and `reraise` is disabled.
+
+    Args:
+        last_exception (`BaseException`): Exception raised by the last attempt.
+        attempts (`int`): Number of attempts that were made.
+    """
+
+    def __init__(self, last_exception: BaseException, attempts: int):
+        super().__init__(f"Call failed after {attempts} attempt(s): {last_exception!r}")
+        self.last_exception = last_exception
+        self.attempts = attempts
+
+
 class Retrying:
-    """Simple retrying controller. Inspired from library [tenacity](https://github.com/jd/tenacity/)."""
+    """Simple retrying controller. Inspired from library [tenacity](https://github.com/jd/tenacity/).
+
+    Calls a function until it succeeds, waiting between attempts with an exponential backoff.
+    Only exceptions accepted by `retry_predicate` are retried: any other exception is propagated as is.
+
+    Args:
+        max_attempts (`int`): Maximum number of attempts, including the initial one. Defaults to 1, i.e. no retry.
+        wait_seconds (`float`): Base wait time between attempts, in seconds, grown exponentially after each
+            attempt. Use `0.0` to retry without waiting. Defaults to 1.0.
+        exponential_base (`float`): Multiplier applied to the wait time after each attempt. Defaults to 2.0.
+        jitter (`bool`): Whether to add a random factor to the wait time to avoid synchronized retries.
+            Defaults to True.
+        retry_predicate (`Callable[[BaseException], bool]`, **optional**): Function deciding whether an exception
+            is worth retrying. If `None`, no exception is retried.
+        reraise (`bool`): Whether to reraise the last exception when all attempts failed. If `False`, a
+            [`RetryError`] wrapping the last exception is raised instead. Defaults to False.
+        before_sleep_logger (`tuple[Logger, int]`, **optional**): Logger and log level used to log before waiting.
+        after_logger (`tuple[Logger, int]`, **optional**): Logger and log level used to log after each attempt.
+    """
 
     def __init__(
         self,
         max_attempts: int = 1,
-        wait_seconds: float = 0.0,
+        wait_seconds: float = 1.0,
         exponential_base: float = 2.0,
         jitter: bool = True,
         retry_predicate: Callable[[BaseException], bool] | None = None,
@@ -572,11 +604,15 @@ class Retrying:
                 # Check if we should retry
                 should_retry = self.retry_predicate(e) if self.retry_predicate else False
 
-                # If this is the last attempt or we shouldn't retry, raise
-                if not should_retry or attempt_number >= self.max_attempts:
+                # Exceptions that are not worth retrying are always propagated as is
+                if not should_retry:
+                    raise
+
+                # If this was the last attempt, raise the last exception or wrap it in a RetryError
+                if attempt_number >= self.max_attempts:
                     if self.reraise:
                         raise
-                    raise
+                    raise RetryError(e, attempt_number) from e
 
                 # Log after failed attempt
                 if self.after_logger:

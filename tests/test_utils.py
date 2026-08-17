@@ -13,9 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import inspect
+import logging
 import os
 import textwrap
 import unittest
+from unittest.mock import MagicMock, patch
 
 import pytest
 from IPython.core.interactiveshell import InteractiveShell
@@ -23,6 +25,8 @@ from IPython.core.interactiveshell import InteractiveShell
 from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
+    RetryError,
+    Retrying,
     create_agent_gradio_app_template,
     get_source,
     instance_to_source,
@@ -552,3 +556,127 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+class FlakyCallable:
+    """Callable failing with `error` on its first `failures` calls, then returning `result`."""
+
+    def __init__(self, failures: int, error: BaseException | None = None, result: str = "success"):
+        self.failures = failures
+        self.error = error or ValueError("Error code: 429 - Rate limit exceeded")
+        self.result = result
+        self.call_count = 0
+
+    def __call__(self, *args, **kwargs):
+        self.call_count += 1
+        self.last_call = (args, kwargs)
+        if self.call_count <= self.failures:
+            raise self.error
+        return self.result
+
+
+class TestRetrying:
+    @pytest.fixture
+    def mock_sleep(self):
+        with patch("smolagents.utils.time.sleep") as mock_sleep:
+            yield mock_sleep
+
+    @staticmethod
+    def get_sleeps(mock_sleep) -> list[float]:
+        return [call.args[0] for call in mock_sleep.call_args_list]
+
+    def test_returns_result_without_retrying_on_success(self, mock_sleep):
+        fn = FlakyCallable(failures=0)
+        retrying = Retrying(max_attempts=3, retry_predicate=lambda exception: True)
+        assert retrying(fn, "arg", kwarg="kwarg") == "success"
+        assert fn.call_count == 1
+        assert fn.last_call == (("arg",), {"kwarg": "kwarg"})
+        mock_sleep.assert_not_called()
+
+    def test_retries_until_success(self, mock_sleep):
+        fn = FlakyCallable(failures=2)
+        retrying = Retrying(max_attempts=3, jitter=False, retry_predicate=lambda exception: True)
+        assert retrying(fn) == "success"
+        assert fn.call_count == 3
+        assert self.get_sleeps(mock_sleep) == [2.0, 4.0]
+
+    def test_default_wait_seconds_waits_between_attempts(self, mock_sleep):
+        """Regression test for GH-2586: the default wait must not disable backoff."""
+        fn = FlakyCallable(failures=4)
+        retrying = Retrying(max_attempts=4, jitter=False, retry_predicate=lambda exception: True, reraise=True)
+        with pytest.raises(ValueError):
+            retrying(fn)
+        assert fn.call_count == 4
+        sleeps = self.get_sleeps(mock_sleep)
+        assert len(sleeps) == 3
+        assert all(sleep > 0 for sleep in sleeps)
+        assert sleeps == sorted(sleeps)
+
+    def test_zero_wait_seconds_disables_waiting(self, mock_sleep):
+        fn = FlakyCallable(failures=1)
+        retrying = Retrying(max_attempts=2, wait_seconds=0.0, retry_predicate=lambda exception: True)
+        assert retrying(fn) == "success"
+        mock_sleep.assert_not_called()
+
+    def test_jitter_increases_wait_time(self, mock_sleep):
+        fn = FlakyCallable(failures=1)
+        retrying = Retrying(max_attempts=2, wait_seconds=1.0, jitter=True, retry_predicate=lambda exception: True)
+        with patch("smolagents.utils.random.random", return_value=0.5):
+            assert retrying(fn) == "success"
+        assert self.get_sleeps(mock_sleep) == [3.0]
+
+    def test_reraise_raises_last_exception(self, mock_sleep):
+        error = ValueError("Error code: 429 - Rate limit exceeded")
+        fn = FlakyCallable(failures=2, error=error)
+        retrying = Retrying(max_attempts=2, retry_predicate=lambda exception: True, reraise=True)
+        with pytest.raises(ValueError) as exc_info:
+            retrying(fn)
+        assert exc_info.value is error
+        assert fn.call_count == 2
+
+    def test_without_reraise_raises_retry_error(self, mock_sleep):
+        error = ValueError("Error code: 429 - Rate limit exceeded")
+        fn = FlakyCallable(failures=2, error=error)
+        retrying = Retrying(max_attempts=2, retry_predicate=lambda exception: True, reraise=False)
+        with pytest.raises(RetryError) as exc_info:
+            retrying(fn)
+        assert exc_info.value.last_exception is error
+        assert exc_info.value.attempts == 2
+        assert exc_info.value.__cause__ is error
+        assert "2 attempt(s)" in str(exc_info.value)
+        assert fn.call_count == 2
+
+    @pytest.mark.parametrize("reraise", [False, True])
+    def test_non_retryable_exception_is_raised_as_is(self, mock_sleep, reraise):
+        error = ValueError("Not a rate limit error")
+        fn = FlakyCallable(failures=1, error=error)
+        retrying = Retrying(max_attempts=3, retry_predicate=lambda exception: False, reraise=reraise)
+        with pytest.raises(ValueError) as exc_info:
+            retrying(fn)
+        assert exc_info.value is error
+        assert fn.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_without_retry_predicate_nothing_is_retried(self, mock_sleep):
+        fn = FlakyCallable(failures=1)
+        retrying = Retrying(max_attempts=3)
+        with pytest.raises(ValueError):
+            retrying(fn)
+        assert fn.call_count == 1
+
+    def test_loggers(self, mock_sleep):
+        fn = FlakyCallable(failures=1)
+        logger = MagicMock()
+        retrying = Retrying(
+            max_attempts=2,
+            jitter=False,
+            retry_predicate=lambda exception: True,
+            before_sleep_logger=(logger, logging.INFO),
+            after_logger=(logger, logging.WARNING),
+        )
+        assert retrying(fn) == "success"
+        log_levels = [call.args[0] for call in logger.log.call_args_list]
+        log_messages = [call.args[1] for call in logger.log.call_args_list]
+        assert log_levels == [logging.WARNING, logging.INFO, logging.WARNING]
+        assert "Retrying" in log_messages[1] and "in 2.0 seconds" in log_messages[1]
+        assert "attempt n°2/2" in log_messages[2]
