@@ -158,7 +158,8 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     """
     Validates that a Tool class follows the proper patterns:
     0. Any argument of __init__ should have a default.
-    Args chosen at init are not traceable, so we cannot rebuild the source code for them, thus any important arg should be defined as a class attribute.
+    Serializable args chosen at init are captured so remote executors can rebuild the instance.
+    Non-serializable resources (API clients) should be reconstructed in `setup()` from those serializable args.
     1. About the class:
         - Class attributes should only be strings or dicts
         - Class attributes cannot be complex attributes
