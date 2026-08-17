@@ -468,6 +468,7 @@ class MultiStepAgent(ABC):
         max_steps = max_steps or self.max_steps
         self.task = task
         self.interrupt_switch = False
+        self._interrupt_reason = None
         if additional_args:
             self.state.update(additional_args)
             self.task += f"""
@@ -544,7 +545,7 @@ You have been provided with these additional arguments, that you can access dire
         returned_final_answer = False
         while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
-                raise AgentError("Agent interrupted.", self.logger)
+                raise AgentError(self._interrupt_reason or "Agent interrupted.", self.logger)
 
             # Run a planning step if scheduled
             if self.planning_interval is not None and (
@@ -751,9 +752,15 @@ You have been provided with these additional arguments, that you can access dire
         """To be implemented in child classes"""
         ...
 
-    def interrupt(self):
-        """Interrupts the agent execution."""
+    def interrupt(self, reason: str | None = None):
+        """Interrupts the agent execution.
+
+        Args:
+            reason: Optional message explaining why the agent was interrupted.
+                The reason is included in the raised `AgentError`.
+        """
         self.interrupt_switch = True
+        self._interrupt_reason = reason
 
     def write_memory_to_messages(
         self,
