@@ -21,6 +21,7 @@ import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
+from smolagents._mcp_utils import prepare_mcp_server_parameters
 from smolagents.tools import Tool
 
 
@@ -105,15 +106,7 @@ class MCPClient:
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
         except ModuleNotFoundError:
             raise ModuleNotFoundError("Please install 'mcp' extra to use MCPClient: `pip install 'smolagents[mcp]'`")
-        if isinstance(server_parameters, dict):
-            transport = server_parameters.get("transport")
-            if transport is None:
-                transport = "streamable-http"
-                server_parameters["transport"] = transport
-            if transport not in {"sse", "streamable-http"}:
-                raise ValueError(
-                    f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
-                )
+        server_parameters = prepare_mcp_server_parameters(server_parameters)
         adapter_kwargs = adapter_kwargs or {}
         self._adapter = MCPAdapt(
             server_parameters, SmolAgentsAdapter(structured_output=structured_output), **adapter_kwargs
