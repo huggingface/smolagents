@@ -285,14 +285,41 @@ tool_role_conversions = {
 }
 
 
+# Keys that may contain nested JSON Schema fragments. Everything else in a
+# parameter description (``default``, ``enum``, ``description``, ...) is data or
+# metadata and must never be traversed, let alone rewritten: a user-supplied
+# default value may legitimately contain a ``{"type": "any"}``-shaped payload.
+#
+# Two shapes exist: keys whose value *is* a schema (or a list of schemas), and
+# keys whose value is a mapping of schema *names* to schemas (``properties``,
+# ``$defs``, ...). Both are recursed into, but only their schema payloads.
+_NESTED_SCHEMA_KEYS = (
+    "items",
+    "additionalProperties",
+    "anyOf",
+    "oneOf",
+    "allOf",
+    "not",
+    "contains",
+    "prefixItems",
+    "properties",
+    "patternProperties",
+    "$defs",
+    "definitions",
+)
+
+_SCHEMA_NAME_MAP_KEYS = ("properties", "patternProperties", "$defs", "definitions")
+
+
 def _replace_any_with_string(schema: dict) -> dict:
     """Recursively rewrite the internal ``"any"`` type marker to ``"string"``.
 
     ``get_tool_json_schema`` replaces a top-level ``{"type": "any"}``, but an
     ``Any`` nested inside a container (``List[Any]``, ``Dict[str, Any]``, ...)
     reaches the provider as ``{"type": "any"}``, which is not a valid JSON
-    Schema type. This helper descends into every schema-bearing key so the
-    internal marker never leaves the boundary.
+    Schema type. This helper descends only into schema-bearing keys so the
+    internal marker never leaves the boundary and user data carried in e.g.
+    ``default`` values is never touched.
     """
     for key, value in schema.items():
         if key == "type":
@@ -300,12 +327,18 @@ def _replace_any_with_string(schema: dict) -> dict:
                 schema[key] = "string"
             elif isinstance(value, list):
                 schema[key] = ["string" if t == "any" else t for t in value]
-        elif isinstance(value, dict):
-            _replace_any_with_string(value)
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, dict):
-                    _replace_any_with_string(item)
+        elif key in _NESTED_SCHEMA_KEYS:
+            if key in _SCHEMA_NAME_MAP_KEYS:
+                if isinstance(value, dict):
+                    for sub_schema in value.values():
+                        if isinstance(sub_schema, dict):
+                            _replace_any_with_string(sub_schema)
+            elif isinstance(value, dict):
+                _replace_any_with_string(value)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        _replace_any_with_string(item)
     return schema
 
 

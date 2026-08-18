@@ -42,7 +42,7 @@ from smolagents.models import (
     remove_content_after_stop_sequences,
     supports_stop_parameter,
 )
-from smolagents.tools import tool
+from smolagents.tools import Tool, tool
 
 from .utils.markers import require_run_all
 
@@ -273,6 +273,34 @@ class TestModel:
         assert '"any"' not in json.dumps(params)
         assert params["properties"]["v"]["type"] == ["string", "integer"]
         assert params["properties"]["v"]["nullable"] is True
+
+    def test_get_json_schema_leaves_user_data_untouched(self):
+        class ManualTool(Tool):
+            name = "manual"
+            description = "A tool whose inputs are written by hand."
+            inputs = {
+                "config": {
+                    "type": "object",
+                    "description": "Configuration.",
+                    # User data that happens to look like a schema fragment:
+                    "default": {"type": "any"},
+                    "enum": [{"type": "any"}],
+                    "properties": {"mode": {"type": "any"}},
+                }
+            }
+            output_type = "string"
+
+            def forward(self, config):
+                return "ok"
+
+        params = get_tool_json_schema(ManualTool())["function"]["parameters"]
+        prop = params["properties"]["config"]
+        # Nested schemas are still sanitized...
+        assert prop["properties"]["mode"]["type"] == "string"
+        assert '"any"' not in json.dumps(prop["properties"])
+        # ...but user data must survive byte for byte.
+        assert prop["default"] == {"type": "any"}
+        assert prop["enum"] == [{"type": "any"}]
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
