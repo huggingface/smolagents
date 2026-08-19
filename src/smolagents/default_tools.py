@@ -23,6 +23,13 @@ from .local_python_executor import (
     MAX_EXECUTION_TIME_SECONDS,
     evaluate_python_code,
 )
+from .taskmarket import (
+    BrowseTaskMarketTool,
+    CreateTaskMarketTaskTool,
+    GetTaskMarketTaskTool,
+    ListTaskMarketSubmissionsTool,
+    taskmarket_tools,
+)
 from .tools import PipelineTool, Tool
 
 
@@ -681,6 +688,10 @@ TOOL_MAPPING = {
         PythonInterpreterTool,
         DuckDuckGoSearchTool,
         VisitWebpageTool,
+        BrowseTaskMarketTool,
+        GetTaskMarketTaskTool,
+        ListTaskMarketSubmissionsTool,
+        CreateTaskMarketTaskTool,
     ]
 }
 
@@ -695,4 +706,9 @@ __all__ = [
     "VisitWebpageTool",
     "WikipediaSearchTool",
     "SpeechToTextTool",
+    "BrowseTaskMarketTool",
+    "GetTaskMarketTaskTool",
+    "ListTaskMarketSubmissionsTool",
+    "CreateTaskMarketTaskTool",
+    "taskmarket_tools",
 ]

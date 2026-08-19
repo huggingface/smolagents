@@ -4,8 +4,12 @@ from textwrap import dedent
 import pytest
 
 from smolagents.default_tools import (
+    BrowseTaskMarketTool,
+    CreateTaskMarketTaskTool,
     DuckDuckGoSearchTool,
+    GetTaskMarketTaskTool,
     GoogleSearchTool,
+    ListTaskMarketSubmissionsTool,
     SpeechToTextTool,
     VisitWebpageTool,
     WebSearchTool,
@@ -18,7 +22,18 @@ UNDEFINED_VARIABLE = "undefined_variable"
 
 
 @pytest.mark.parametrize(
-    "tool_class", [DuckDuckGoSearchTool, GoogleSearchTool, SpeechToTextTool, VisitWebpageTool, WebSearchTool]
+    "tool_class",
+    [
+        DuckDuckGoSearchTool,
+        GoogleSearchTool,
+        SpeechToTextTool,
+        VisitWebpageTool,
+        WebSearchTool,
+        BrowseTaskMarketTool,
+        GetTaskMarketTaskTool,
+        ListTaskMarketSubmissionsTool,
+        CreateTaskMarketTaskTool,
+    ],
 )
 def test_validate_tool_attributes_with_default_tools(tool_class):
     assert validate_tool_attributes(tool_class) is None, f"failed for {tool_class.name} tool"
