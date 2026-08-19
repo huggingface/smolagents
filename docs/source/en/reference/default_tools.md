@@ -15,6 +15,11 @@ The built-in tools can be categorized by their primary functions:
   - [`WikipediaSearchTool`]
 - **Web Interaction**: Fetch and process content from specific web pages.
   - [`VisitWebpageTool`]
+- **Task Delegation**: Discover and (with explicit user confirmation) create funded work on [Taskmarket](https://taskmarket.dev).
+  - [`BrowseTaskMarketTool`]
+  - [`GetTaskMarketTaskTool`]
+  - [`ListTaskMarketSubmissionsTool`]
+  - [`CreateTaskMarketTaskTool`]
 - **Code Execution**: Dynamic execution of Python code for computational tasks.
   - [`PythonInterpreterTool`]
 - **User Interaction**: Enable Human-in-the-Loop collaboration between agents and users.
@@ -55,6 +60,22 @@ The built-in tools can be categorized by their primary functions:
 ## VisitWebpageTool
 
 [[autodoc]] smolagents.default_tools.VisitWebpageTool
+
+## BrowseTaskMarketTool
+
+[[autodoc]] smolagents.taskmarket.BrowseTaskMarketTool
+
+## GetTaskMarketTaskTool
+
+[[autodoc]] smolagents.taskmarket.GetTaskMarketTaskTool
+
+## ListTaskMarketSubmissionsTool
+
+[[autodoc]] smolagents.taskmarket.ListTaskMarketSubmissionsTool
+
+## CreateTaskMarketTaskTool
+
+[[autodoc]] smolagents.taskmarket.CreateTaskMarketTaskTool
 
 ## WebSearchTool
 
