@@ -21,7 +21,7 @@ import PIL.Image
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
 
-from .utils.markers import require_soundfile, require_torch
+from .utils.markers import require_numpy, require_soundfile, require_torch
 
 
 def get_new_path(suffix="") -> str:
@@ -84,6 +84,22 @@ class TestAgentImage:
         del agent_type
         assert os.path.exists(path)
 
+    def test_from_tensor_preserves_pixel_values(self):
+        """Regression test: a normalized (0-1) tensor must not have its pixel values inverted."""
+        import numpy as np
+        import torch
+
+        array = np.linspace(0.0, 1.0, 25, dtype=np.float32).reshape(5, 5)
+        tensor = torch.from_numpy(array)
+        agent_type = AgentImage(tensor)
+
+        result = np.array(agent_type.to_raw())
+        expected = (array * 255).astype(np.uint8)
+        assert np.array_equal(result, expected)
+        # 0.0 must map to black (0), not white; 1.0 must map to white (255), not black
+        assert result[0, 0] == 0
+        assert result[-1, -1] == 255
+
     def test_from_string(self, shared_datadir):
         path = shared_datadir / "000000039769.png"
         image = PIL.Image.open(path)
@@ -107,6 +123,39 @@ class TestAgentImage:
         # Ensure the path remains even after the object deletion
         del agent_type
         assert os.path.exists(path)
+
+
+@require_numpy
+class TestAgentImageFromNumpyArray:
+    def test_from_numpy_array(self):
+        import numpy as np
+
+        array = np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8)
+        agent_type = AgentImage(array)
+
+        assert isinstance(agent_type.to_raw(), PIL.Image.Image)
+        assert np.array_equal(np.array(agent_type.to_raw()), array)
+
+    def test_from_numpy_array_without_torch(self, monkeypatch):
+        """Regression test: AgentImage must accept numpy arrays even when torch is not importable."""
+        import builtins
+
+        import numpy as np
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "torch" or name.startswith("torch."):
+                raise ModuleNotFoundError("No module named 'torch'")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
+        array = np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8)
+        agent_type = AgentImage(array)
+
+        assert isinstance(agent_type.to_raw(), PIL.Image.Image)
+        assert np.array_equal(np.array(agent_type.to_raw()), array)
 
 
 class AgentTextTests(unittest.TestCase):
