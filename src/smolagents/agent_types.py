@@ -116,6 +116,20 @@ class AgentImage(AgentType, PIL.Image.Image):
 
         display(Image(self.to_string()))
 
+    @staticmethod
+    def _to_pil_image(array):
+        import numpy as np
+
+        if np.issubdtype(array.dtype, np.floating):
+            if array.size > 0 and array.max() <= 1.0:
+                array = array * 255
+            array = np.clip(array, 0, 255)
+        elif array.dtype == np.bool_:
+            array = array.astype(np.uint8) * 255
+        elif array.dtype != np.uint8:
+            array = np.clip(array, 0, 255)
+        return PIL.Image.fromarray(array.astype(np.uint8))
+
     def to_raw(self):
         """
         Returns the "raw" version of that object. In the case of an AgentImage, it is a PIL.Image.Image.
@@ -128,10 +142,8 @@ class AgentImage(AgentType, PIL.Image.Image):
             return self._raw
 
         if self._tensor is not None:
-            import numpy as np
-
             array = self._tensor.cpu().detach().numpy()
-            return PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
+            return self._to_pil_image(array)
 
     def to_string(self):
         """
@@ -148,12 +160,7 @@ class AgentImage(AgentType, PIL.Image.Image):
             return self._path
 
         if self._tensor is not None:
-            import numpy as np
-
-            array = self._tensor.cpu().detach().numpy()
-
-            # There is likely simpler than load into image into save
-            img = PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
+            img = self.to_raw()
 
             directory = tempfile.mkdtemp()
             self._path = os.path.join(directory, str(uuid.uuid4()) + ".png")

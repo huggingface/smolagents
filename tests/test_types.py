@@ -17,6 +17,7 @@ import tempfile
 import unittest
 import uuid
 
+import numpy as np
 import PIL.Image
 
 from smolagents.agent_types import AgentAudio, AgentImage, AgentText
@@ -71,9 +72,19 @@ class TestAgentImage:
     def test_from_tensor(self):
         import torch
 
-        tensor = torch.randint(0, 256, (64, 64, 3))
+        tensor = torch.tensor(
+            [
+                [[0.0, 0.5, 1.0], [1.0, 0.5, 0.0]],
+                [[0.25, 0.75, 0.125], [0.875, 0.375, 0.625]],
+            ]
+        )
         agent_type = AgentImage(tensor)
+        expected = (tensor.numpy() * 255).astype(np.uint8)
+
+        assert np.array_equal(np.asarray(agent_type.to_raw()), expected)
         path = str(agent_type.to_string())
+
+        assert np.array_equal(np.asarray(PIL.Image.open(path)), expected)
 
         # Ensure that the tensor and the agent_type's tensor are the same
         assert torch.allclose(tensor, agent_type._tensor, atol=1e-4)
@@ -83,6 +94,42 @@ class TestAgentImage:
         # Ensure the path remains even after the object deletion
         del agent_type
         assert os.path.exists(path)
+
+    def test_from_float_tensor_with_0_to_255_values(self):
+        import torch
+
+        tensor = torch.tensor(
+            [[[0.0, 128.0, 255.0], [255.0, 128.0, 0.0]]],
+            dtype=torch.float32,
+        )
+        agent_type = AgentImage(tensor)
+        expected = tensor.numpy().astype(np.uint8)
+
+        assert np.array_equal(np.asarray(agent_type.to_raw()), expected)
+        assert np.array_equal(np.asarray(PIL.Image.open(agent_type.to_string())), expected)
+
+    def test_from_float_tensor_clips_out_of_range_values(self):
+        import torch
+
+        tensor = torch.tensor([[[-1.0, 128.0, 256.0]]], dtype=torch.float32)
+        agent_type = AgentImage(tensor)
+        expected = np.array([[[0, 128, 255]]], dtype=np.uint8)
+
+        assert np.array_equal(np.asarray(agent_type.to_raw()), expected)
+        assert np.array_equal(np.asarray(PIL.Image.open(agent_type.to_string())), expected)
+
+    def test_from_uint8_tensor_preserves_values(self):
+        import torch
+
+        tensor = torch.tensor(
+            [[[0, 128, 255], [255, 128, 0]]],
+            dtype=torch.uint8,
+        )
+        agent_type = AgentImage(tensor)
+        expected = tensor.numpy()
+
+        assert np.array_equal(np.asarray(agent_type.to_raw()), expected)
+        assert np.array_equal(np.asarray(PIL.Image.open(agent_type.to_string())), expected)
 
     def test_from_string(self, shared_datadir):
         path = shared_datadir / "000000039769.png"
