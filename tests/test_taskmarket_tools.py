@@ -240,3 +240,66 @@ def test_submissions_are_read_only_and_collection_has_no_accept_tool(api_reads):
         "taskmarket_list_submissions",
     }
     assert all("accept" not in name and "reject" not in name for name in names)
+
+
+def test_expired_authorization_cannot_spend(monkeypatch, cli_runner):
+    collection = TaskmarketToolCollection(max_spend_usdc=5)
+    preview = _preview(collection.session)
+    collection.authorize(preview["preview_id"])
+
+    monkeypatch.setattr(
+        "smolagents.taskmarket_tools.APPROVAL_TTL_SECONDS",
+        -1,
+    )
+
+    with pytest.raises(PermissionError, match="expired"):
+        collection.session.create_approved_task(preview["preview_id"])
+
+    create_calls = [call for call in cli_runner if call[1:3] == ["task", "create"]]
+    assert create_calls == []
+
+
+def test_insufficient_balance_refuses_before_paid_create(monkeypatch):
+    create_attempts = 0
+
+    def fake_run(command, *, capture_output, text, timeout, check):
+        nonlocal create_attempts
+        args = command[1:]
+
+        if args == ["deposit"]:
+            return _completed(
+                command,
+                {
+                    "address": "0xRequester",
+                    "network": "Base Mainnet",
+                    "chainId": 8453,
+                    "currency": "USDC",
+                    "usdcContract": BASE_USDC_CONTRACT,
+                },
+            )
+
+        if args == ["stats"]:
+            return _completed(
+                command,
+                {
+                    "address": "0xRequester",
+                    "balanceUsdc": "1.000000",
+                },
+            )
+
+        if args[:2] == ["task", "create"]:
+            create_attempts += 1
+            return _completed(command, {"taskId": "0xUnexpected"})
+
+        return _completed(command, "unexpected command", returncode=1)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    collection = TaskmarketToolCollection(max_spend_usdc=5)
+    preview = _preview(collection.session)
+    collection.authorize(preview["preview_id"])
+
+    with pytest.raises(TaskmarketCLIError, match="Insufficient USDC balance"):
+        collection.session.create_approved_task(preview["preview_id"])
+
+    assert create_attempts == 0

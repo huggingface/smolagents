@@ -350,8 +350,7 @@ class TaskmarketRequesterSession:
         available = _parse_decimal(stats.get("balanceUsdc", "0"), "wallet balance")
         if available < spec.reward_usdc:
             raise TaskmarketCLIError(
-                f"Insufficient USDC balance: have {_decimal_text(available)}, "
-                f"need {_decimal_text(spec.reward_usdc)}."
+                f"Insufficient USDC balance: have {_decimal_text(available)}, need {_decimal_text(spec.reward_usdc)}."
             )
 
         # Consume approval before the paid command. The same approval can never be
