@@ -29,6 +29,37 @@ However you choose to contribute, please be mindful and respect our
 
 **This guide was heavily inspired by the awesome [scikit-learn guide to contributing](https://github.com/scikit-learn/scikit-learn/blob/main/CONTRIBUTING.md).**
 
+## Before you open a pull request
+
+smolagents receives far more pull requests than we can review. These rules exist so that
+the contributions we do receive get a real review, in reasonable time. Please read them
+before you start writing code — they are meant to stop you wasting effort, not to keep
+you out.
+
+**Open an issue first.** For anything larger than a typo or a broken link, open an issue
+and wait for a maintainer to label it `status:accepted` before you write the patch. An
+accepted issue is our commitment to review the PR that follows. Pull requests without a
+linked accepted issue are labelled `needs-issue` and closed after 14 days.
+
+**One open pull request at a time, until your first one lands.** Once something of yours
+has been merged, open as many as you like.
+
+**Tell us if you used an AI assistant, and stand behind the diff.** This is a library for
+building agents, so using an agent to contribute to it is entirely legitimate and welcome.
+What we need is that a person is accountable for the result: you have read the change, you
+have run the tests, you can explain why it is correct, and you will answer review comments.
+Bulk-submitted generated patches without that accountability will be closed.
+
+**The first reviewable pull request wins, not the first submitted.** When several pull
+requests address the same issue, we merge the one that is complete, tested and correctly
+scoped — not the one with the earliest timestamp. Racing to submit does not help you.
+
+**Core ships primitives, not integrations.** smolagents is deliberately small. New built-in
+tools, provider-specific model wrappers and per-site scrapers are generally *not* accepted
+into the core library; publish them on the Hub instead, where they can evolve on your
+schedule rather than ours. If you are unsure whether something is in scope, ask in an issue
+before building it.
+
 ## Ways to contribute
 
 There are several ways you can contribute to smolagents.
@@ -36,13 +67,15 @@ There are several ways you can contribute to smolagents.
 * Submit issues related to bugs or desired new features.
 * Contribute to the examples or to the documentation.
 * Fix outstanding issues with the existing code.
+* Help triage: reproduce reported bugs, answer questions, and review open pull requests.
 
 > All contributions are equally valuable to the community. 🥰
 
 ## Submitting a bug-related issue or feature request
 
 At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
-It's often even better to open a PR with your proposed fixes/changes!
+If you already have a fix in mind, say so in the issue — once it is labelled `status:accepted`,
+it is yours to work on.
 
 Do your best to follow these guidelines when submitting a bug-related issue or a feature
 request. It will make it easier for us to come back to you quickly and with good
@@ -89,8 +122,11 @@ happy to make the changes or help you make a contribution if you're interested!
 
 ## Fixing outstanding issues
 
-If you notice an issue with the existing code and have a fix in mind, feel free to [start contributing](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) and open
-a Pull Request!
+If you notice an issue with the existing code and have a fix in mind, comment on the issue to
+claim it. Once a maintainer labels it `status:accepted` and assigns it to you, go ahead and
+[open a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
+
+Issues labelled `good first issue` and `help wanted` are the best place to start.
 
 ### Making code changes
 
