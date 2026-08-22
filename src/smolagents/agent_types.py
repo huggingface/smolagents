@@ -94,16 +94,28 @@ class AgentImage(AgentType, PIL.Image.Image):
             self._path = value
         else:
             try:
-                import torch
-
-                if isinstance(value, torch.Tensor):
-                    self._tensor = value
                 import numpy as np
 
                 if isinstance(value, np.ndarray):
-                    self._tensor = torch.from_numpy(value)
+                    if np.issubdtype(value.dtype, np.floating):
+                        if value.size > 0 and value.max() <= 1.0:
+                            arr = (value * 255).astype(np.uint8)
+                        else:
+                            arr = np.clip(value, 0, 255).astype(np.uint8)
+                    else:
+                        arr = np.clip(value, 0, 255).astype(np.uint8)
+                    self._raw = PIL.Image.fromarray(arr)
             except ModuleNotFoundError:
                 pass
+
+            if self._raw is None:
+                try:
+                    import torch
+
+                    if isinstance(value, torch.Tensor):
+                        self._tensor = value
+                except ModuleNotFoundError:
+                    pass
 
         if self._path is None and self._raw is None and self._tensor is None:
             raise TypeError(f"Unsupported type for {self.__class__.__name__}: {type(value)}")
@@ -128,10 +140,23 @@ class AgentImage(AgentType, PIL.Image.Image):
             return self._raw
 
         if self._tensor is not None:
-            import numpy as np
+            tensor = self._tensor.detach().cpu()
+            if tensor.dtype.is_floating_point:
+                if tensor.numel() > 0 and tensor.max() <= 1.0:
+                    tensor = tensor * 255
+                tensor = tensor.clamp(0, 255).to(dtype=__import__("torch").uint8)
+            else:
+                tensor = tensor.clamp(0, 255).to(dtype=__import__("torch").uint8)
 
-            array = self._tensor.cpu().detach().numpy()
-            return PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
+            try:
+                array = tensor.numpy()
+                self._raw = PIL.Image.fromarray(array)
+            except Exception:
+                import numpy as np
+                # Fallback if tensor.numpy() has issues
+                array = np.array(tensor.tolist(), dtype=np.uint8)
+                self._raw = PIL.Image.fromarray(array)
+            return self._raw
 
     def to_string(self):
         """
@@ -139,27 +164,13 @@ class AgentImage(AgentType, PIL.Image.Image):
         version of the image.
         """
         if self._path is not None:
-            return self._path
+            return str(self._path)
 
-        if self._raw is not None:
-            directory = tempfile.mkdtemp()
-            self._path = os.path.join(directory, str(uuid.uuid4()) + ".png")
-            self._raw.save(self._path, format="png")
-            return self._path
-
-        if self._tensor is not None:
-            import numpy as np
-
-            array = self._tensor.cpu().detach().numpy()
-
-            # There is likely simpler than load into image into save
-            img = PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
-
-            directory = tempfile.mkdtemp()
-            self._path = os.path.join(directory, str(uuid.uuid4()) + ".png")
-            img.save(self._path, format="png")
-
-            return self._path
+        img = self.to_raw()
+        directory = tempfile.mkdtemp()
+        self._path = os.path.join(directory, str(uuid.uuid4()) + ".png")
+        img.save(self._path, format="png")
+        return self._path
 
     def save(self, output_bytes, format: str = None, **params):
         """
