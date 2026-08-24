@@ -60,6 +60,12 @@ MAX_WHILE_ITERATIONS = 1000000
 MAX_EXECUTION_TIME_SECONDS = 30
 MAX_POWER_EXPONENT = 10000  # Maximum exponent for integer ** operations
 MAX_SHIFT_BITS = 10000  # Maximum shift amount for integer << operations
+# Upper bound on the *estimated* result size of ** / << on big ints (in bits).
+# The exponent/shift thresholds above miss cases where the base is already
+# large, e.g. (10**9999) ** 999 has exponent 999 (under MAX_POWER_EXPONENT)
+# but produces a ~33M-bit integer that holds the GIL for seconds. Roughly
+# 1.25 MB of addressable int data — far beyond any legitimate agent workload.
+MAX_POWER_RESULT_BITS = 10_000_000
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
@@ -683,13 +689,24 @@ def evaluate_augassign(
         if (
             isinstance(current_value, int)
             and isinstance(value_to_add, int)
-            and value_to_add > MAX_POWER_EXPONENT
             and abs(current_value) > 1
+            and value_to_add > 0
         ):
-            raise InterpreterError(
-                f"Integer exponentiation with exponent {value_to_add} exceeds "
-                f"the maximum allowed ({MAX_POWER_EXPONENT})."
-            )
+            if value_to_add > MAX_POWER_EXPONENT:
+                raise InterpreterError(
+                    f"Integer exponentiation with exponent {value_to_add} exceeds "
+                    f"the maximum allowed ({MAX_POWER_EXPONENT})."
+                )
+            if (
+                value_to_add > 1
+                and abs(current_value).bit_length() * value_to_add > MAX_POWER_RESULT_BITS
+            ):
+                raise InterpreterError(
+                    f"Integer exponentiation would produce ~"
+                    f"{abs(current_value).bit_length() * value_to_add} bits (max "
+                    f"allowed: {MAX_POWER_RESULT_BITS}). Reduce the exponent to "
+                    f"prevent a freeze."
+                )
         current_value **= value_to_add
     elif isinstance(expression.op, ast.FloorDiv):
         current_value //= value_to_add
@@ -703,13 +720,24 @@ def evaluate_augassign(
         if (
             isinstance(current_value, int)
             and isinstance(value_to_add, int)
-            and value_to_add > MAX_SHIFT_BITS
             and current_value != 0
+            and value_to_add > 0
         ):
-            raise InterpreterError(
-                f"Left shift by {value_to_add} bits exceeds the maximum "
-                f"allowed ({MAX_SHIFT_BITS})."
-            )
+            if value_to_add > MAX_SHIFT_BITS:
+                raise InterpreterError(
+                    f"Left shift by {value_to_add} bits exceeds the maximum "
+                    f"allowed ({MAX_SHIFT_BITS})."
+                )
+            if (
+                value_to_add > 1
+                and abs(current_value).bit_length() + value_to_add > MAX_POWER_RESULT_BITS
+            ):
+                raise InterpreterError(
+                    f"Left shift would produce ~"
+                    f"{abs(current_value).bit_length() + value_to_add} bits (max "
+                    f"allowed: {MAX_POWER_RESULT_BITS}). Reduce the shift to "
+                    f"prevent a freeze."
+                )
         current_value <<= value_to_add
     elif isinstance(expression.op, ast.RShift):
         current_value >>= value_to_add
@@ -773,18 +801,29 @@ def evaluate_binop(
         return left_val % right_val
     elif isinstance(binop.op, ast.Pow):
         # Guard against explosive integer exponentiation that holds the GIL
-        # indefinitely (e.g., 10 ** 10**8), bypassing thread-based timeout.
+        # indefinitely (e.g., 10 ** 10**8 or (10**9999) ** 999), bypassing
+        # thread-based timeout.
         if (
             isinstance(left_val, int)
             and isinstance(right_val, int)
-            and right_val > MAX_POWER_EXPONENT
             and abs(left_val) > 1
+            and right_val > 0
         ):
-            raise InterpreterError(
-                f"Integer exponentiation with exponent {right_val} exceeds the "
-                f"maximum allowed ({MAX_POWER_EXPONENT}). This operation would "
-                f"consume excessive memory and cannot be interrupted."
-            )
+            if right_val > MAX_POWER_EXPONENT:
+                raise InterpreterError(
+                    f"Integer exponentiation with exponent {right_val} exceeds the "
+                    f"maximum allowed ({MAX_POWER_EXPONENT}). This operation would "
+                    f"consume excessive memory and cannot be interrupted."
+                )
+            # Estimate the result size: a base of B bits raised to power p has
+            # roughly B * p bits. Catches cases the exponent threshold misses,
+            # e.g. (10**9999) ** 999 (exponent 999 < threshold, ~33M bits).
+            if right_val > 1 and abs(left_val).bit_length() * right_val > MAX_POWER_RESULT_BITS:
+                raise InterpreterError(
+                    f"Integer exponentiation would produce ~"
+                    f"{abs(left_val).bit_length() * right_val} bits (max allowed: "
+                    f"{MAX_POWER_RESULT_BITS}). Reduce the exponent to prevent a freeze."
+                )
         return left_val**right_val
     elif isinstance(binop.op, ast.FloorDiv):
         return left_val // right_val
@@ -799,14 +838,24 @@ def evaluate_binop(
         if (
             isinstance(left_val, int)
             and isinstance(right_val, int)
-            and right_val > MAX_SHIFT_BITS
             and left_val != 0
+            and right_val > 0
         ):
-            raise InterpreterError(
-                f"Left shift by {right_val} bits exceeds the maximum allowed "
-                f"({MAX_SHIFT_BITS}). This operation would consume excessive "
-                f"memory and cannot be interrupted."
-            )
+            if right_val > MAX_SHIFT_BITS:
+                raise InterpreterError(
+                    f"Left shift by {right_val} bits exceeds the maximum allowed "
+                    f"({MAX_SHIFT_BITS}). This operation would consume excessive "
+                    f"memory and cannot be interrupted."
+                )
+            # Estimate the result size: shifting a B-bit value by s bits yields
+            # roughly B + s bits. Catches a large base shifted a lot but under
+            # the shift threshold, e.g. (10**9999) << 9000.
+            if right_val > 1 and abs(left_val).bit_length() + right_val > MAX_POWER_RESULT_BITS:
+                raise InterpreterError(
+                    f"Left shift would produce ~"
+                    f"{abs(left_val).bit_length() + right_val} bits (max allowed: "
+                    f"{MAX_POWER_RESULT_BITS}). Reduce the shift to prevent a freeze."
+                )
         return left_val << right_val
     elif isinstance(binop.op, ast.RShift):
         return left_val >> right_val
